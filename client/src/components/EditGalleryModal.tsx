@@ -167,10 +167,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   };
   
   // Funzione per eliminare una foto sia da Firestore che da Storage
-  const deletePhoto = async () => {
-    if (!gallery || !photoToDelete) return;
+  const deletePhoto = async (photoToDelete: PhotoWithChapter) => {
+    if (!gallery) return;
     
-    setIsDeletingPhoto(true);
     try {
       console.log(`Eliminazione foto: ${photoToDelete.name} (ID: ${photoToDelete.id})`);
       
@@ -223,10 +222,6 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         description: "La foto è stata eliminata con successo dalla galleria."
       });
       
-      // 5. Chiudi il dialog e resetta lo stato
-      setIsDeleteDialogOpen(false);
-      setPhotoToDelete(null);
-      
     } catch (error) {
       console.error("Errore durante l'eliminazione della foto:", error);
       toast({
@@ -234,8 +229,6 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         description: "Si è verificato un errore durante l'eliminazione della foto.",
         variant: "destructive"
       });
-    } finally {
-      setIsDeletingPhoto(false);
     }
   };
 

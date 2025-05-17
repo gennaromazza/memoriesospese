@@ -44,6 +44,15 @@ export default function ChaptersManager({
   onDeletePhoto = undefined
 }: ChaptersManagerProps) {
   
+  // Funzione locale per gestire l'eliminazione di una foto
+  const handleDeletePhoto = (photo: PhotoWithChapter) => {
+    if (window.confirm(`Sei sicuro di voler eliminare questa foto (${photo.name})? Questa azione è irreversibile.`)) {
+      if (onDeletePhoto) {
+        onDeletePhoto(photo);
+      }
+    }
+  };
+  
   // Debug stato attuale dei capitoli e foto
   useEffect(() => {
     const unassignedPhotos = photos.filter(p => !p.chapterId);
@@ -575,18 +584,16 @@ export default function ChaptersManager({
                   </div>
                 )}
                 {onDeletePhoto && (
-                  <div 
+                  <button
                     className="absolute top-2 left-2 z-10 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center cursor-pointer hover:bg-red-600"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm(`Sei sicuro di voler eliminare questa foto (${photo.name})? Questa azione è irreversibile.`)) {
-                        onDeletePhoto(photo);
-                      }
+                      handleDeletePhoto(photo);
                     }}
                     title="Elimina foto"
                   >
                     <Trash2 className="h-3 w-3" />
-                  </div>
+                  </button>
                 )}
                 <img 
                   src={photo.url} 
