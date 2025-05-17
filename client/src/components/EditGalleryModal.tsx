@@ -938,55 +938,5 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </Tabs>
       </DialogContent>
     </Dialog>
-    
-    {/* Dialog di conferma per l'eliminazione delle foto */}
-    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-          <AlertDialogDescription>
-            Sei sicuro di voler eliminare questa foto dalla galleria?
-            <br/>
-            {photoToDelete && (
-              <div className="mt-2">
-                <div className="w-full h-40 bg-slate-100 rounded-md overflow-hidden relative mt-2">
-                  <img 
-                    src={photoToDelete.url} 
-                    alt={photoToDelete.name} 
-                    className="w-full h-full object-contain" 
-                  />
-                </div>
-                <p className="text-sm mt-2 text-muted-foreground truncate">
-                  {photoToDelete.name}
-                </p>
-              </div>
-            )}
-            <p className="mt-2 text-sm text-destructive font-medium">
-              Questa operazione non può essere annullata.
-            </p>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeletingPhoto}>Annulla</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={(e) => {
-              e.preventDefault();
-              deletePhoto();
-            }}
-            disabled={isDeletingPhoto}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            {isDeletingPhoto ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Eliminazione in corso...
-              </>
-            ) : (
-              "Elimina"
-            )}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }

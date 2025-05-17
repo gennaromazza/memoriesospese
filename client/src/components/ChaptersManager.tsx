@@ -33,13 +33,15 @@ interface ChaptersManagerProps {
   onPhotosUpdate: (photos: PhotoWithChapter[]) => void;
   chapters: Chapter[];
   onChaptersUpdate: (chapters: Chapter[]) => void;
+  onDeletePhoto?: (photo: PhotoWithChapter) => void;
 }
 
 export default function ChaptersManager({
   photos,
   onPhotosUpdate,
   chapters,
-  onChaptersUpdate
+  onChaptersUpdate,
+  onDeletePhoto = undefined
 }: ChaptersManagerProps) {
   
   // Debug stato attuale dei capitoli e foto
