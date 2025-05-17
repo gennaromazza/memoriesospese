@@ -77,6 +77,14 @@ export default function PhotoUploadToChapter({
   
   const uploadPhotos = async () => {
     if (selectedFiles.length === 0) return;
+    if (!galleryId) {
+      toast({
+        title: "Errore",
+        description: "ID Galleria mancante. Impossibile caricare le foto.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsUploading(true);
     let uploadedPhotos: PhotoWithChapter[] = [];
@@ -92,7 +100,7 @@ export default function PhotoUploadToChapter({
       });
       setUploadProgress(updatedProgress);
       
-      // Usa la funzione compressImages esistente senza opzioni personalizzate
+      // Comprimi le immagini
       const compressedFiles = await compressImages(selectedFiles);
       
       // Aggiorna lo stato di progresso dopo la compressione
@@ -108,119 +116,132 @@ export default function PhotoUploadToChapter({
         }));
       });
       
-      // 2. Carica le immagini compresse a Firebase Storage
-      // e crea i documenti in Firestore usando writeBatch per l'efficienza
+      // 2. Carica le immagini compresse a Firebase Storage e crea i documenti in Firestore
       const batch = writeBatch(db);
-      const uploadTasks = compressedFiles.map(async (file, index) => {
-        // Crea un riferimento unico per il file in Firebase Storage
-        const storageRef = ref(storage, `gallery-photos/${galleryId}/${file.name}`);
-        
-        // Carica il file con il monitoraggio del progresso
-        const uploadTask = uploadBytesResumable(storageRef, file);
-        
-        return new Promise<PhotoWithChapter>((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setUploadProgress(prev => ({
-                ...prev,
-                [file.name]: {
-                  ...prev[file.name],
-                  progress: progress
-                }
-              }));
-            },
-            (error) => {
-              console.error(`Errore durante l'upload di ${file.name}:`, error);
-              setUploadProgress(prev => ({
-                ...prev,
-                [file.name]: {
-                  ...prev[file.name],
-                  isUploading: false,
-                  error: error.message
-                }
-              }));
-              reject(error);
-            },
-            async () => {
-              try {
-                // L'upload è completato, ottieni l'URL di download
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                
-                // Crea un documento in Firestore per la foto
-                const photoData = {
-                  name: file.name,
-                  url: downloadURL,
-                  contentType: file.type,
-                  size: file.size,
-                  createdAt: serverTimestamp(),
-                  galleryId: galleryId,
-                  chapterId: chapterId, // Assegna direttamente al capitolo selezionato
-                  position: index, // La posizione è l'indice nell'array delle foto caricate
-                  chapterPosition: index // Per compatibilità
-                };
-                
-                // Crea un documento nella collezione gallery-photos
-                const photoRef = await addDoc(collection(db, "gallery-photos"), photoData);
-                
-                // Crea un documento nella sottocollezione galleries/{galleryId}/photos se galleryId è definito
-                if (galleryId) {
-                  const galleryPhotoRef = doc(collection(db, "galleries", galleryId, "photos"));
-                  batch.set(galleryPhotoRef, {
-                    ...photoData,
-                    id: photoRef.id // Mantieni lo stesso ID per riferimento incrociato
-                  });
-                }
-                
-                // Aggiorna lo stato del progresso
+      
+      // Prepara le promesse di caricamento
+      const uploadPromises = compressedFiles.map(async (file, index) => {
+        try {
+          // Crea un riferimento per il file in Storage
+          const storagePath = `gallery-photos/${galleryId}/${file.name}`;
+          const storageRef = ref(storage, storagePath);
+          
+          // Carica il file con monitoraggio del progresso
+          const uploadTask = uploadBytesResumable(storageRef, file);
+          
+          return new Promise<PhotoWithChapter>((resolve, reject) => {
+            uploadTask.on(
+              'state_changed',
+              (snapshot) => {
+                // Aggiorna il progresso dell'upload
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(prev => ({
+                  ...prev,
+                  [file.name]: {
+                    ...prev[file.name],
+                    progress: progress
+                  }
+                }));
+              },
+              (error) => {
+                // Gestione errori durante l'upload
+                console.error(`Errore nell'upload di ${file.name}:`, error);
                 setUploadProgress(prev => ({
                   ...prev,
                   [file.name]: {
                     ...prev[file.name],
                     isUploading: false,
-                    isComplete: true
+                    error: error.message
                   }
                 }));
-                
-                // Crea un oggetto PhotoWithChapter per aggiornare l'interfaccia
-                const photoWithChapter: PhotoWithChapter = {
-                  id: photoRef.id, // Usiamo l'ID del documento in gallery-photos
-                  file: file,
-                  url: downloadURL,
-                  name: file.name,
-                  chapterId: chapterId,
-                  position: index,
-                  contentType: file.type,
-                  size: file.size,
-                  galleryId: galleryId
-                };
-                
-                resolve(photoWithChapter);
-              } catch (error) {
-                console.error(`Errore durante la creazione del documento per ${file.name}:`, error);
                 reject(error);
+              },
+              async () => {
+                try {
+                  // Upload completato, ottieni l'URL
+                  const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                  
+                  // Prepara i dati della foto
+                  // Verifica che l'ID galleria sia valido
+                  if (!galleryId) {
+                    throw new Error("ID galleria non valido");
+                  }
+                  
+                  // Crea il documento nella collezione gallery-photos
+                  const photoData = {
+                    name: file.name,
+                    url: downloadURL,
+                    contentType: file.type,
+                    size: file.size,
+                    createdAt: serverTimestamp(),
+                    galleryId: galleryId,
+                    chapterId: chapterId,
+                    position: index,
+                    chapterPosition: index
+                  };
+                  
+                  const photoRef = await addDoc(collection(db, "gallery-photos"), photoData);
+                  
+                  // Crea il documento nella sottocollezione della galleria
+                  const galleryPhotoRef = doc(collection(db, "galleries", galleryId, "photos"));
+                  batch.set(galleryPhotoRef, {
+                    ...photoData,
+                    id: photoRef.id
+                  });
+                  
+                  // Aggiorna lo stato del progresso
+                  setUploadProgress(prev => ({
+                    ...prev,
+                    [file.name]: {
+                      ...prev[file.name],
+                      isUploading: false,
+                      isComplete: true
+                    }
+                  }));
+                  
+                  // Crea l'oggetto PhotoWithChapter per l'interfaccia
+                  const photoWithChapter: PhotoWithChapter = {
+                    id: photoRef.id,
+                    file: file,
+                    url: downloadURL,
+                    name: file.name,
+                    chapterId: chapterId,
+                    position: index,
+                    contentType: file.type,
+                    size: file.size,
+                    galleryId: galleryId
+                  };
+                  
+                  resolve(photoWithChapter);
+                } catch (error) {
+                  console.error(`Errore durante la creazione del documento per ${file.name}:`, error);
+                  reject(error);
+                }
               }
-            }
-          );
-        });
+            );
+          });
+        } catch (error) {
+          console.error(`Errore durante il caricamento di ${file.name}:`, error);
+          throw error;
+        }
       });
       
       // Attendi il completamento di tutti gli upload
-      uploadedPhotos = await Promise.all(uploadTasks);
+      uploadedPhotos = await Promise.all(uploadPromises);
       
-      // Esegui il commit del batch per salvare tutti i documenti in una sola operazione
+      // Esegui il commit del batch
       await batch.commit();
       
+      // Mostra toast di successo
       toast({
         title: "Caricamento completato",
         description: `${uploadedPhotos.length} foto caricate con successo nel capitolo "${chapterTitle}".`
       });
       
-      // Notifica il componente padre delle nuove foto caricate
+      // Notifica il componente padre
       onPhotosUploaded(uploadedPhotos);
       
-      // Pulisci lo stato dopo un breve ritardo per consentire all'utente di vedere il completamento
+      // Pulisci lo stato
       setTimeout(() => {
         setSelectedFiles([]);
         setUploadProgress({});
@@ -239,6 +260,7 @@ export default function PhotoUploadToChapter({
     }
   };
   
+  // Calcola progresso totale
   const totalProgress = Object.values(uploadProgress).reduce((acc, curr) => {
     return acc + curr.progress;
   }, 0) / (Object.keys(uploadProgress).length || 1);
