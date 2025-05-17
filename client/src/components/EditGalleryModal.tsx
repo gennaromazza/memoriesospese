@@ -776,6 +776,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   onPhotosUpdate={setPhotos}
                   chapters={chapters}
                   onChaptersUpdate={setChapters}
+                  onDeletePhoto={(photo) => {
+                    setPhotoToDelete(photo);
+                    setIsDeleteDialogOpen(true);
+                  }}
                 />
                 
                 <DialogFooter className="mt-6">
