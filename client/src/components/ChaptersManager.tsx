@@ -51,11 +51,15 @@ export default function ChaptersManager({
     isOpen: boolean;
     chapterId: string;
     chapterTitle: string;
+    galleryId?: string;
   }>({
     isOpen: false,
     chapterId: '',
     chapterTitle: ''
   });
+  
+  // Cerca l'ID della galleria tra le foto
+  const galleryId = photos.length > 0 ? photos.find(p => p.galleryId)?.galleryId || '' : '';
   
   // Funzione locale per gestire l'eliminazione di una foto
   const handleDeletePhoto = (photo: PhotoWithChapter) => {
@@ -475,7 +479,8 @@ export default function ChaptersManager({
                               onClick={() => setUploadToChapter({
                                 isOpen: true,
                                 chapterId: chapter.id,
-                                chapterTitle: chapter.title
+                                chapterTitle: chapter.title,
+                                galleryId: galleryId
                               })}
                             >
                               <Upload className="h-3 w-3" />
@@ -662,7 +667,7 @@ export default function ChaptersManager({
         <PhotoUploadToChapter
           isOpen={uploadToChapter.isOpen}
           onClose={() => setUploadToChapter({ isOpen: false, chapterId: '', chapterTitle: '' })}
-          galleryId={photos.length > 0 ? (photos[0].galleryId || '') : ''}
+          galleryId={uploadToChapter.galleryId || ''}
           chapterId={uploadToChapter.chapterId}
           chapterTitle={uploadToChapter.chapterTitle}
           onPhotosUploaded={(newPhotos) => {

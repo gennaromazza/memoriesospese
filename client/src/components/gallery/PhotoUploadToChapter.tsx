@@ -164,12 +164,14 @@ export default function PhotoUploadToChapter({
                 // Crea un documento nella collezione gallery-photos
                 const photoRef = await addDoc(collection(db, "gallery-photos"), photoData);
                 
-                // Crea un documento nella sottocollezione galleries/{galleryId}/photos
-                const galleryPhotoRef = doc(collection(db, "galleries", galleryId, "photos"));
-                batch.set(galleryPhotoRef, {
-                  ...photoData,
-                  id: photoRef.id // Mantieni lo stesso ID per riferimento incrociato
-                });
+                // Crea un documento nella sottocollezione galleries/{galleryId}/photos se galleryId è definito
+                if (galleryId) {
+                  const galleryPhotoRef = doc(collection(db, "galleries", galleryId, "photos"));
+                  batch.set(galleryPhotoRef, {
+                    ...photoData,
+                    id: photoRef.id // Mantieni lo stesso ID per riferimento incrociato
+                  });
+                }
                 
                 // Aggiorna lo stato del progresso
                 setUploadProgress(prev => ({
@@ -183,7 +185,7 @@ export default function PhotoUploadToChapter({
                 
                 // Crea un oggetto PhotoWithChapter per aggiornare l'interfaccia
                 const photoWithChapter: PhotoWithChapter = {
-                  id: galleryPhotoRef.id,
+                  id: photoRef.id, // Usiamo l'ID del documento in gallery-photos
                   file: file,
                   url: downloadURL,
                   name: file.name,
