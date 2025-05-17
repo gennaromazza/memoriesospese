@@ -942,16 +942,27 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </Tabs>
       </DialogContent>
     </Dialog>
-    
-    {/* Dialogo di conferma per l'eliminazione di una foto */}
+
+    {/* Dialog for photo deletion confirmation */}
     <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
           <AlertDialogDescription>
-            Sei sicuro di voler eliminare la foto {photoToDelete?.name}?
-            <br />
-            Questa azione è irreversibile.
+            Sei sicuro di voler eliminare questa foto?
+            {photoToDelete && (
+              <div className="mt-2">
+                <p className="font-medium">{photoToDelete.name}</p>
+                <div className="mt-2 max-h-40 overflow-hidden rounded-md">
+                  <img 
+                    src={photoToDelete.url} 
+                    alt={photoToDelete.name}
+                    className="w-full object-cover" 
+                  />
+                </div>
+              </div>
+            )}
+            <p className="mt-2 text-red-500">Questa azione è irreversibile.</p>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
