@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, ChangeEvent } from "react";
 import { doc, updateDoc, collection, getDocs, addDoc, serverTimestamp, where, query, writeBatch, deleteDoc } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import ChaptersManager, { Chapter, PhotoWithChapter } from "@/components/ChaptersManager";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "@/lib/photoUploader";
-import { UploadCloud, Image } from "lucide-react";
+import { UploadCloud, Image, Trash } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 
 interface GalleryType {
@@ -54,6 +56,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: UploadProgressInfo}>({});
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [photoToDelete, setPhotoToDelete] = useState<PhotoWithChapter | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -140,7 +145,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           url: data.url,
           name: data.name,
           chapterId: data.chapterId,
-          position: data.position || 0
+          position: data.position || 0,
+          contentType: data.contentType,
+          size: data.size
         };
       });
       
@@ -156,6 +163,79 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       });
     } finally {
       setIsChaptersLoading(false);
+    }
+  };
+  
+  // Funzione per eliminare una foto sia da Firestore che da Storage
+  const deletePhoto = async () => {
+    if (!gallery || !photoToDelete) return;
+    
+    setIsDeletingPhoto(true);
+    try {
+      console.log(`Eliminazione foto: ${photoToDelete.name} (ID: ${photoToDelete.id})`);
+      
+      // 1. Elimina il documento da Firestore nella sottocollezione galleries/{galleryId}/photos
+      const photoRef = doc(db, "galleries", gallery.id, "photos", photoToDelete.id);
+      await deleteDoc(photoRef);
+      console.log(`✓ Eliminato documento da galleries/${gallery.id}/photos/${photoToDelete.id}`);
+      
+      // 2. Trova e elimina il documento corrispondente in gallery-photos
+      const galleryPhotosQuery = query(
+        collection(db, "gallery-photos"),
+        where("galleryId", "==", gallery.id),
+        where("name", "==", photoToDelete.name)
+      );
+      
+      const querySnapshot = await getDocs(galleryPhotosQuery);
+      if (!querySnapshot.empty) {
+        // Elimina tutti i documenti trovati (dovrebbe essere solo uno)
+        for (const docSnapshot of querySnapshot.docs) {
+          await deleteDoc(docSnapshot.ref);
+          console.log(`✓ Eliminato documento da gallery-photos: ${docSnapshot.id}`);
+        }
+      } else {
+        console.warn(`⚠️ Nessun documento trovato in gallery-photos per ${photoToDelete.name}`);
+      }
+      
+      // 3. Elimina il file da Firebase Storage
+      try {
+        // Percorso principale
+        const storageRef = ref(storage, `gallery-photos/${gallery.id}/${photoToDelete.name}`);
+        await deleteObject(storageRef);
+        console.log(`✓ Eliminato file da Storage: gallery-photos/${gallery.id}/${photoToDelete.name}`);
+      } catch (storageError) {
+        console.warn(`⚠️ Errore nell'eliminazione del file da Storage:`, storageError);
+        // Proviamo con un percorso alternativo
+        try {
+          const altStorageRef = ref(storage, `galleries/${gallery.id}/photos/${photoToDelete.name}`);
+          await deleteObject(altStorageRef);
+          console.log(`✓ Eliminato file dal percorso alternativo: galleries/${gallery.id}/photos/${photoToDelete.name}`);
+        } catch (altStorageError) {
+          console.error(`❌ Impossibile eliminare il file dallo Storage:`, altStorageError);
+        }
+      }
+      
+      // 4. Aggiorna l'array locale delle foto
+      setPhotos(photos.filter(photo => photo.id !== photoToDelete.id));
+      
+      toast({
+        title: "Foto eliminata",
+        description: "La foto è stata eliminata con successo dalla galleria."
+      });
+      
+      // 5. Chiudi il dialog e resetta lo stato
+      setIsDeleteDialogOpen(false);
+      setPhotoToDelete(null);
+      
+    } catch (error) {
+      console.error("Errore durante l'eliminazione della foto:", error);
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore durante l'eliminazione della foto.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeletingPhoto(false);
     }
   };
 
@@ -858,5 +938,55 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </Tabs>
       </DialogContent>
     </Dialog>
+    
+    {/* Dialog di conferma per l'eliminazione delle foto */}
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
+          <AlertDialogDescription>
+            Sei sicuro di voler eliminare questa foto dalla galleria?
+            <br/>
+            {photoToDelete && (
+              <div className="mt-2">
+                <div className="w-full h-40 bg-slate-100 rounded-md overflow-hidden relative mt-2">
+                  <img 
+                    src={photoToDelete.url} 
+                    alt={photoToDelete.name} 
+                    className="w-full h-full object-contain" 
+                  />
+                </div>
+                <p className="text-sm mt-2 text-muted-foreground truncate">
+                  {photoToDelete.name}
+                </p>
+              </div>
+            )}
+            <p className="mt-2 text-sm text-destructive font-medium">
+              Questa operazione non può essere annullata.
+            </p>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isDeletingPhoto}>Annulla</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              deletePhoto();
+            }}
+            disabled={isDeletingPhoto}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeletingPhoto ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Eliminazione in corso...
+              </>
+            ) : (
+              "Elimina"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
