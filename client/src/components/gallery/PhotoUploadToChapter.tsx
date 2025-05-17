@@ -183,7 +183,8 @@ export default function PhotoUploadToChapter({
                   const photoRef = await addDoc(collection(db, "gallery-photos"), photoData);
                   
                   // Crea il documento nella sottocollezione della galleria
-                  const galleryPhotoRef = doc(collection(db, "galleries", galleryId, "photos"));
+                  // Utilizziamo l'ID generato da Firestore per il documento nella sottocollezione
+                  const galleryPhotoRef = doc(collection(db, "galleries", galleryId, "photos"), photoRef.id);
                   batch.set(galleryPhotoRef, {
                     ...photoData,
                     id: photoRef.id
