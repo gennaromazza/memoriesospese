@@ -26,6 +26,7 @@ export interface PhotoWithChapter {
   folderPath?: string; // Percorso della cartella (per migliore tracciabilità)
   contentType?: string; // Tipo di contenuto dell'immagine
   size?: number; // Dimensione del file in byte
+  galleryId?: string; // ID della galleria a cui appartiene la foto
 }
 
 interface ChaptersManagerProps {
@@ -583,17 +584,16 @@ export default function ChaptersManager({
                     <Check className="h-4 w-4" />
                   </div>
                 )}
-                {onDeletePhoto && (
-                  <button
-                    className="absolute top-2 left-2 z-10 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center cursor-pointer hover:bg-red-600"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeletePhoto(photo);
+                {onDeletePhoto && photo.id && (
+                  <DeletePhoto
+                    galleryId={photo.galleryId || ""}
+                    photo={photo}
+                    onPhotoDeleted={(photoId) => {
+                      if (onDeletePhoto) {
+                        onDeletePhoto(photo);
+                      }
                     }}
-                    title="Elimina foto"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  />
                 )}
                 <img 
                   src={photo.url} 

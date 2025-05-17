@@ -568,8 +568,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   if (!gallery) return null;
 
   return (
-    <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-playfair">Modifica Galleria</DialogTitle>
