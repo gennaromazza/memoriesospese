@@ -575,8 +575,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   if (!gallery) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-playfair">Modifica Galleria</DialogTitle>
           <DialogDescription>
@@ -942,43 +943,5 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </Tabs>
       </DialogContent>
     </Dialog>
-
-    {/* Photo deletion confirmation dialog */}
-    {photoToDelete && (
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare questa foto?
-              <div className="mt-2">
-                <p className="font-medium">{photoToDelete.name}</p>
-                <div className="mt-2 max-h-40 overflow-hidden rounded-md">
-                  <img 
-                    src={photoToDelete.url} 
-                    alt={photoToDelete.name}
-                    className="w-full object-cover" 
-                  />
-                </div>
-              </div>
-              <p className="mt-2 text-red-500">Questa azione è irreversibile.</p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingPhoto}>Annulla</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={(e) => {
-                e.preventDefault();
-                deletePhoto();
-              }}
-              disabled={isDeletingPhoto}
-              className="bg-red-500 hover:bg-red-600 text-white"
-            >
-              {isDeletingPhoto ? "Eliminazione..." : "Elimina"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    )}
   );
 }
