@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { Plus, Trash2, GripVertical, Edit, Check, X, MoveUp, MoveDown } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Edit, Check, X, MoveUp, MoveDown, Upload } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { cn } from '@/lib/utils';
+import PhotoUploadToChapter from '@/components/gallery/PhotoUploadToChapter';
 
 // Definisco le interfacce per i capitoli e le foto
 export interface Chapter {
@@ -44,6 +45,17 @@ export default function ChaptersManager({
   onChaptersUpdate,
   onDeletePhoto = undefined
 }: ChaptersManagerProps) {
+  
+  // Stato per la gestione del caricamento foto in un capitolo specifico
+  const [uploadToChapter, setUploadToChapter] = useState<{
+    isOpen: boolean;
+    chapterId: string;
+    chapterTitle: string;
+  }>({
+    isOpen: false,
+    chapterId: '',
+    chapterTitle: ''
+  });
   
   // Funzione locale per gestire l'eliminazione di una foto
   const handleDeletePhoto = (photo: PhotoWithChapter) => {
