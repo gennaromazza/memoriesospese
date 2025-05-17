@@ -585,15 +585,18 @@ export default function ChaptersManager({
                   </div>
                 )}
                 {onDeletePhoto && photo.id && (
-                  <DeletePhoto
-                    galleryId={photo.galleryId || ""}
-                    photo={photo}
-                    onPhotoDeleted={(photoId) => {
-                      if (onDeletePhoto) {
+                  <button
+                    className="absolute top-2 left-2 z-10 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center cursor-pointer hover:bg-red-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Sei sicuro di voler eliminare questa foto (${photo.name})? Questa azione è irreversibile.`)) {
                         onDeletePhoto(photo);
                       }
                     }}
-                  />
+                    title="Elimina foto"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 )}
                 <img 
                   src={photo.url} 
