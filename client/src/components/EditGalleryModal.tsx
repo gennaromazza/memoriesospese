@@ -771,8 +771,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   chapters={chapters}
                   onChaptersUpdate={setChapters}
                   onDeletePhoto={(photo) => {
-                    setPhotoToDelete(photo);
-                    setIsDeleteDialogOpen(true);
+                    if (window.confirm(`Sei sicuro di voler eliminare questa foto (${photo.name})? Questa azione è irreversibile.`)) {
+                      deletePhoto(photo);
+                    }
                   }}
                 />
                 
@@ -936,39 +937,5 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </Tabs>
       </DialogContent>
     </Dialog>
-
-    {photoToDelete && (
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare questa foto?
-              <div className="mt-2">
-                <p className="font-medium">{photoToDelete.name}</p>
-                <div className="mt-2 max-h-40 overflow-hidden rounded-md">
-                  <img 
-                    src={photoToDelete.url} 
-                    alt={photoToDelete.name}
-                    className="w-full object-cover" 
-                  />
-                </div>
-              </div>
-              <p className="mt-2 text-red-500">Questa azione è irreversibile.</p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingPhoto}>Annulla</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={deletePhoto}
-              disabled={isDeletingPhoto}
-              className="bg-red-500 hover:bg-red-600 text-white"
-            >
-              {isDeletingPhoto ? "Eliminazione..." : "Elimina"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    )}
   );
 }
