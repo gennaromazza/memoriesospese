@@ -466,7 +466,22 @@ export default function ChaptersManager({
                     ) : (
                       <>
                         <div className="flex justify-between items-start">
-                          <CardTitle>{chapter.title}</CardTitle>
+                          <div className="flex items-center gap-2">
+                            <CardTitle>{chapter.title}</CardTitle>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="flex items-center gap-1 text-xs"
+                              onClick={() => setUploadToChapter({
+                                isOpen: true,
+                                chapterId: chapter.id,
+                                chapterTitle: chapter.title
+                              })}
+                            >
+                              <Upload className="h-3 w-3" />
+                              <span>Carica foto</span>
+                            </Button>
+                          </div>
                           <div className="flex space-x-1">
                             <Button 
                               variant="ghost" 
@@ -641,6 +656,21 @@ export default function ChaptersManager({
           ))}
         </div>
       </Tabs>
+      
+      {/* Componente per caricare foto direttamente in un capitolo specifico */}
+      {uploadToChapter.isOpen && (
+        <PhotoUploadToChapter
+          isOpen={uploadToChapter.isOpen}
+          onClose={() => setUploadToChapter({ isOpen: false, chapterId: '', chapterTitle: '' })}
+          galleryId={photos.length > 0 ? (photos[0].galleryId || '') : ''}
+          chapterId={uploadToChapter.chapterId}
+          chapterTitle={uploadToChapter.chapterTitle}
+          onPhotosUploaded={(newPhotos) => {
+            // Aggiungiamo le nuove foto all'array esistente
+            onPhotosUpdate([...photos, ...newPhotos]);
+          }}
+        />
+      )}
     </div>
   );
 }

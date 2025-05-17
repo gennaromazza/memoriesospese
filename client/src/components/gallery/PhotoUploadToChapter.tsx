@@ -92,14 +92,18 @@ export default function PhotoUploadToChapter({
       });
       setUploadProgress(updatedProgress);
       
-      const compressedFiles = await compressImages(selectedFiles, (compressedFile, originalFile) => {
+      // Usa la funzione compressImages esistente senza opzioni personalizzate
+      const compressedFiles = await compressImages(selectedFiles);
+      
+      // Aggiorna lo stato di progresso dopo la compressione
+      selectedFiles.forEach((file, index) => {
         setUploadProgress(prev => ({
           ...prev,
-          [originalFile.name]: {
-            ...prev[originalFile.name],
+          [file.name]: {
+            ...prev[file.name],
             isCompressing: false,
             isUploading: true,
-            compressedSize: compressedFile.size
+            compressedSize: compressedFiles[index].size
           }
         }));
       });
