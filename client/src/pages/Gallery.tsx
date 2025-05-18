@@ -12,6 +12,7 @@ import ChaptersManager from "@/components/ChaptersManager";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData } from "@/hooks/use-gallery-data";
 import TabsChapters from "@/components/TabsChapters";
+import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -149,8 +150,19 @@ export default function Gallery() {
     );
   }
 
+  // Mostra l'indicatore di caricamento se il progresso non è ancora al 100%
+  const showProgressIndicator = isLoading || (photos.length > 0 && loadingState.progress < 95);
+
   return (
     <div className="min-h-screen bg-off-white">
+      {showProgressIndicator && (
+        <GalleryLoadingProgress 
+          totalPhotos={loadingState.totalPhotos}
+          loadedPhotos={loadingState.loadedPhotos}
+          progress={loadingState.progress}
+        />
+      )}
+      
       <Navigation galleryOwner={gallery.name} />
 
       <div>
