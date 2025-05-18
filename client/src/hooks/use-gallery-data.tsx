@@ -14,6 +14,7 @@ export interface GalleryData {
   coverImageUrl?: string;
   youtubeUrl?: string;
   hasChapters?: boolean;
+  photoCount?: number; // Aggiungiamo photoCount al tipo
 }
 
 export interface PhotoData {
@@ -47,6 +48,110 @@ export function useGalleryData(galleryCode: string) {
   const [loadingProgress, setLoadingProgress] = useState(0); // Percentuale di caricamento
   const { toast } = useToast();
 
+  // Funzione helper per verificare e caricare dallo storage se necessario
+  const checkAndLoadFromStorage = async (galleryId: string, galleryCode: string) => {
+    console.log("Tentativo di recupero dallo Storage...");
+
+    try {
+      // Importiamo ciò che serve da firebase/storage
+      const { ref, listAll, getDownloadURL, getMetadata } = await import("firebase/storage");
+      const { storage } = await import("@/lib/firebase");
+
+      // Usa il percorso corretto per trovare le foto
+      const possiblePaths = [
+        `gallery-photos/${galleryId}`,
+        `gallery-photos/${String(galleryId).toLowerCase()}`,
+        `gallery-photos/${String(galleryId).toUpperCase()}`,
+        `gallery-photos/${galleryCode}`,
+        `gallery-photos/${String(galleryCode).toLowerCase()}`
+      ];
+
+      let listResult = null;
+
+      // Prova tutti i percorsi possibili
+      for (const path of possiblePaths) {
+        if (listResult && listResult.items.length > 0) break;
+
+        try {
+          console.log("Verifico percorso Storage:", path);
+          const pathRef = ref(storage, path);
+          const result = await listAll(pathRef);
+
+          if (result.items.length > 0) {
+            console.log(`Trovate ${result.items.length} foto nel percorso ${path}`);
+            listResult = result;
+            break;
+          }
+        } catch (e) {
+          console.log(`Percorso ${path} non valido:`, e);
+        }
+      }
+
+      // Se non abbiamo ancora trovato foto, termina
+      if (!listResult || listResult.items.length === 0) {
+        console.log("Nessuna foto trovata dopo tutti i tentativi di percorso");
+        return;
+      }
+
+      setTotalPhotoCount(listResult.items.length);
+
+      // Per ogni file, recupera l'URL di download e i metadati
+      const photoPromises = listResult.items.map(async (itemRef, index) => {
+        // Aggiorna il progresso ogni 5 foto
+        if (index % 5 === 0) {
+          setLoadingProgress(Math.round((index / listResult!.items.length) * 100));
+          setLoadedPhotoCount(index);
+        }
+        
+        const url = await getDownloadURL(itemRef);
+        const metadata = await getMetadata(itemRef);
+
+        // Crea oggetto foto
+        return {
+          id: itemRef.name, // Usa il nome del file come ID
+          name: itemRef.name,
+          url: url,
+          contentType: metadata.contentType || 'image/jpeg',
+          size: metadata.size || 0,
+          createdAt: metadata.timeCreated || new Date().toISOString(),
+          galleryId: galleryId
+        };
+      });
+
+      // Attendiamo tutte le promise
+      const photosFromStorage = await Promise.all(photoPromises);
+      setLoadedPhotoCount(photosFromStorage.length);
+      setLoadingProgress(100);
+
+      // Aggiorniamo i dati delle foto
+      if (photosFromStorage.length > 0) {
+        setPhotos(photosFromStorage);
+        console.log("Recuperate", photosFromStorage.length, "foto dallo Storage");
+
+        // Salvare i metadati in Firestore per usi futuri
+        console.log("Salvando metadati delle foto in Firestore...");
+        photosFromStorage.forEach(async (photo) => {
+          try {
+            await addDoc(collection(db, "gallery-photos"), {
+              galleryId: galleryId,
+              galleryCode: galleryCode,
+              name: photo.name,
+              url: photo.url,
+              contentType: photo.contentType,
+              size: photo.size,
+              createdAt: serverTimestamp()
+            });
+            console.log("Salvati metadati in Firestore per", photo.name);
+          } catch (err) {
+            console.error("Errore nel salvare i metadati in Firestore:", err);
+          }
+        });
+      }
+    } catch (storageError) {
+      console.error("Errore nel recupero dallo Storage:", storageError);
+    }
+  };
+  
   // Funzione per caricare le foto della galleria
   const loadPhotos = async (galleryId: string, galleryData: any) => {
     // Utilizza la collezione gallery-photos per cercare le foto
@@ -134,105 +239,6 @@ export function useGalleryData(galleryCode: string) {
       await checkAndLoadFromStorage(galleryId, galleryCode);
     }
   };
-  
-  // Funzione helper per verificare e caricare dallo storage se necessario
-  const checkAndLoadFromStorage = async (galleryId: string, galleryCode: string) => {
-    console.log("Tentativo di recupero dallo Storage...");
-
-    try {
-      // Importiamo ciò che serve da firebase/storage
-      const { ref, listAll, getDownloadURL, getMetadata } = await import("firebase/storage");
-      const { storage } = await import("@/lib/firebase");
-
-      // Usa direttamente l'ID della galleria come riferimento principale
-      console.log("Tentativo di recupero delle foto per galleryId:", galleryId);
-
-        // Usa il percorso corretto per trovare le foto
-        const possiblePaths = [
-          `gallery-photos/${galleryId}`,
-          `gallery-photos/${String(galleryId).toLowerCase()}`,
-          `gallery-photos/${String(galleryId).toUpperCase()}`,
-          `gallery-photos/${galleryCode}`,
-          `gallery-photos/${String(galleryCode).toLowerCase()}`
-        ];
-
-        let listResult = null;
-
-        // Prova tutti i percorsi possibili
-        for (const path of possiblePaths) {
-          if (listResult && listResult.items.length > 0) break;
-
-          try {
-            console.log("Verifico percorso Storage:", path);
-            const pathRef = ref(storage, path);
-            const result = await listAll(pathRef);
-
-            if (result.items.length > 0) {
-              console.log(`Trovate ${result.items.length} foto nel percorso ${path}`);
-              listResult = result;
-              break;
-            }
-          } catch (e) {
-            console.log(`Percorso ${path} non valido:`, e);
-          }
-        }
-
-        // Se non abbiamo ancora trovato foto, termina
-        if (!listResult || listResult.items.length === 0) {
-          console.log("Nessuna foto trovata dopo tutti i tentativi di percorso");
-          return;
-        }
-
-        // Per ogni file, recupera l'URL di download e i metadati
-        const photoPromises = listResult.items.map(async (itemRef) => {
-          const url = await getDownloadURL(itemRef);
-          const metadata = await getMetadata(itemRef);
-
-          // Crea oggetto foto
-          return {
-            id: itemRef.name, // Usa il nome del file come ID
-            name: itemRef.name,
-            url: url,
-            contentType: metadata.contentType || 'image/jpeg',
-            size: metadata.size || 0,
-            createdAt: metadata.timeCreated || new Date().toISOString()
-          };
-        });
-
-        // Attendiamo tutte le promise
-        const photosFromStorage = await Promise.all(photoPromises);
-
-        // Aggiorniamo i dati delle foto
-        if (photosFromStorage.length > 0) {
-          photosData = photosFromStorage;
-          console.log("Recuperate", photosFromStorage.length, "foto dallo Storage");
-
-          // Salvare i metadati in Firestore per usi futuri
-          console.log("Salvando metadati delle foto in Firestore...");
-          photosFromStorage.forEach(async (photo) => {
-            try {
-              await addDoc(collection(db, "gallery-photos"), {
-                galleryId: galleryId,
-                galleryCode: galleryCode,
-                name: photo.name,
-                url: photo.url,
-                contentType: photo.contentType,
-                size: photo.size,
-                createdAt: serverTimestamp()
-              });
-              console.log("Salvati metadati in Firestore per", photo.name);
-            } catch (err) {
-              console.error("Errore nel salvare i metadati in Firestore:", err);
-            }
-          });
-        }
-      } catch (storageError) {
-        console.error("Errore nel recupero dallo Storage:", storageError);
-      }
-    }
-
-    setPhotos(photosData);
-  };
 
   // Carica i dati della galleria
   useEffect(() => {
@@ -243,6 +249,9 @@ export function useGalleryData(galleryCode: string) {
 
     async function fetchGallery() {
       setIsLoading(true);
+      setLoadingProgress(0);
+      setTotalPhotoCount(0);
+      setLoadedPhotoCount(0);
       try {
         // Fetch gallery
         const galleriesRef = collection(db, "galleries");
@@ -255,6 +264,7 @@ export function useGalleryData(galleryCode: string) {
             description: "La galleria richiesta non esiste o è stata rimossa.",
             variant: "destructive",
           });
+          setIsLoading(false);
           return;
         }
 
@@ -344,7 +354,6 @@ export function useGalleryData(galleryCode: string) {
     
     try {
       // Utilizziamo un approccio diverso che garantisce di non recuperare duplicati
-      const lastPhoto = photos[photos.length - 1];
       const photosRef = collection(db, "gallery-photos");
       
       // Query per ottenere le foto della galleria che non abbiamo ancora
@@ -432,6 +441,9 @@ export function useGalleryData(galleryCode: string) {
     isLoading, 
     hasMorePhotos, 
     loadingMorePhotos,
-    loadMorePhotos
+    loadMorePhotos,
+    totalPhotoCount,
+    loadedPhotoCount,
+    loadingProgress
   };
 }

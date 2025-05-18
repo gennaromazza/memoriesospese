@@ -22,6 +22,13 @@ export default function Gallery() {
   const [activeTab, setActiveTab] = useState("all");
   const { studioSettings } = useStudio();
 
+  // Stato locale per il tracciamento del caricamento
+  const [loadingState, setLoadingState] = useState({
+    totalPhotos: 0,
+    loadedPhotos: 0,
+    progress: 0
+  });
+  
   // Carica dati galleria usando il custom hook
   const { 
     gallery, 
@@ -32,6 +39,18 @@ export default function Gallery() {
     loadingMorePhotos,
     loadMorePhotos 
   } = useGalleryData(id || "");
+  
+  // Aggiorna lo stato di caricamento
+  useEffect(() => {
+    // Aggiorna il conteggio delle foto caricate
+    setLoadingState(prev => ({
+      ...prev,
+      loadedPhotos: photos.length,
+      // Se c'è una galleria, usa il suo photoCount, altrimenti usa la lunghezza delle foto
+      totalPhotos: gallery?.photoCount || photos.length,
+      progress: gallery?.photoCount ? Math.min(100, Math.round((photos.length / gallery.photoCount) * 100)) : 100
+    }));
+  }, [photos.length, gallery]);
 
   // Check if current user is admin
   useEffect(() => {
