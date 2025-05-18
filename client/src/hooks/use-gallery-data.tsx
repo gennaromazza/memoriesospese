@@ -300,54 +300,72 @@ export function useGalleryData(galleryCode: string) {
     if (!gallery || !hasMorePhotos || loadingMorePhotos) return;
 
     setLoadingMorePhotos(true);
+    console.log(`Caricamento altre foto per galleria ${gallery.id}, già caricate: ${photos.length}`);
+    
     try {
-      // Utilizza la collezione gallery-photos
+      // Utilizziamo un approccio diverso che garantisce di non recuperare duplicati
+      const lastPhoto = photos[photos.length - 1];
       const photosRef = collection(db, "gallery-photos");
-      let photosQuery;
-
-      // Purtroppo Firestore non supporta startAfter con where nella stessa query
-      // Quindi dobbiamo utilizzare un approccio alternativo
-      photosQuery = query(
+      
+      // Query per ottenere le foto della galleria che non abbiamo ancora
+      const photosQuery = query(
         photosRef,
-        where("galleryId", "==", gallery.id),
-        limit(photosPerPage + photos.length)
+        where("galleryId", "==", gallery.id)
       );
-
-      // Otteniamo tutte le foto e prendiamo solo le ultime photosPerPage
+      
       const allPhotosSnapshot = await getDocs(photosQuery);
-      const allPhotos = allPhotosSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PhotoData[];
-
-      // Filtra per ottenere solo le nuove foto (non già caricate)
+      console.log(`Trovate ${allPhotosSnapshot.docs.length} foto totali per questa galleria`);
+      
+      // Creiamo un set con gli ID delle foto già caricate per evitare duplicati
       const existingPhotoIds = new Set(photos.map(p => p.id));
-      const newPhotos = allPhotos.filter(p => !existingPhotoIds.has(p.id));
-
-      // Limita al numero di foto per pagina
+      console.log(`Set di ID foto già caricate: ${existingPhotoIds.size}`);
+      
+      // Filtriamo solo le foto che non abbiamo già caricato
+      const newPhotos = allPhotosSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(photo => !existingPhotoIds.has(photo.id)) as PhotoData[];
+      
+      console.log(`Foto nuove trovate: ${newPhotos.length}`);
+      
+      // Limitiamo il numero di foto da aggiungere in questa pagina
       const photosToAdd = newPhotos.slice(0, photosPerPage);
-
+      
       if (photosToAdd.length > 0) {
-        // Aggiungi le nuove foto all'array esistente
+        console.log(`Aggiungo ${photosToAdd.length} nuove foto`);
+        
+        // Aggiungiamo le nuove foto e manteniamo l'ordinamento appropriato
         setPhotos(prevPhotos => {
-          const updatedPhotos = [...prevPhotos, ...photosToAdd];
-          return gallery.hasChapters 
-            ? updatedPhotos.sort((a, b) => {
-                if (a.chapterId !== b.chapterId) {
-                  return (a.chapterId || '').localeCompare(b.chapterId || '');
-                }
-                return (a.chapterPosition || 0) - (b.chapterPosition || 0);
-              })
-            : updatedPhotos;
+          // Doppio controllo per assicurarci di non avere duplicati
+          const prevIds = new Set(prevPhotos.map(p => p.id));
+          const uniquePhotosToAdd = photosToAdd.filter(p => !prevIds.has(p.id));
+          
+          console.log(`Foto effettivamente aggiunte dopo il filtro duplicati: ${uniquePhotosToAdd.length}`);
+          
+          const updatedPhotos = [...prevPhotos, ...uniquePhotosToAdd];
+          
+          // Ordiniamo le foto in base ai capitoli se necessario
+          if (gallery.hasChapters) {
+            return updatedPhotos.sort((a, b) => {
+              // Prima ordiniamo per ID capitolo
+              if (a.chapterId !== b.chapterId) {
+                return (a.chapterId || '').localeCompare(b.chapterId || '');
+              }
+              // Poi per posizione all'interno del capitolo
+              return (a.chapterPosition || 0) - (b.chapterPosition || 0);
+            });
+          }
+          
+          return updatedPhotos;
         });
-
-        // Verifica se ci sono ancora altre foto da caricare
-        setHasMorePhotos(photosToAdd.length >= photosPerPage);
+        
+        // Verifichiamo se ci sono ancora altre foto da caricare
+        const hasMore = newPhotos.length > photosToAdd.length;
+        setHasMorePhotos(hasMore);
+        console.log(`Ci sono altre foto da caricare: ${hasMore}`);
       } else {
+        console.log("Non ci sono più foto da caricare");
         setHasMorePhotos(false);
       }
-
-      setLoadingMorePhotos(false);
     } catch (error) {
       console.error("Errore nel caricamento di altre foto:", error);
       toast({
