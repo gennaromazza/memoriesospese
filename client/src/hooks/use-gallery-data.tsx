@@ -41,7 +41,10 @@ export function useGalleryData(galleryCode: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMorePhotos, setHasMorePhotos] = useState(true);
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false);
-  const [photosPerPage, setPhotosPerPage] = useState(20); // Carica 20 foto alla volta
+  const [photosPerPage, setPhotosPerPage] = useState(50); // Aumentato a 50 foto per volta per caricamento più veloce
+  const [totalPhotoCount, setTotalPhotoCount] = useState(0); // Conteggio totale foto
+  const [loadedPhotoCount, setLoadedPhotoCount] = useState(0); // Conteggio foto caricate
+  const [loadingProgress, setLoadingProgress] = useState(0); // Percentuale di caricamento
   const { toast } = useToast();
 
   // Funzione per caricare le foto della galleria
@@ -49,63 +52,100 @@ export function useGalleryData(galleryCode: string) {
     // Utilizza la collezione gallery-photos per cercare le foto
     const photosRef = collection(db, "gallery-photos");
 
-    // Crea una query per ottenere le foto della galleria
-    let photosQuery = query(
-      photosRef,
-      where("galleryId", "==", galleryId),
-      limit(photosPerPage)
-    );
-
-    // Ottieni i documenti
-    const photosSnapshot = await getDocs(photosQuery);
-
-    // Converti i documenti in oggetti PhotoData
-    let photosData = photosSnapshot.docs.map(doc => {
-      const data = doc.data();
-      console.log(`Foto caricata: ${data.name}, chapterId: ${data.chapterId}, galleryId: ${data.galleryId}`);
-      return {
-        id: doc.id,
-        ...data,
-      };
-    }) as PhotoData[];
-
-    // Ordina le foto per capitolo e posizione se la galleria ha capitoli
-    if (galleryData.hasChapters && photosData.length > 0) {
-      // Ottieni l'ordine dei capitoli
-      const chaptersRef = collection(db, "galleries", galleryId, "chapters");
-      const chaptersQuery = query(chaptersRef, orderBy("position", "asc"));
-      const chaptersSnapshot = await getDocs(chaptersQuery);
-      const chapterOrder = new Map(
-        chaptersSnapshot.docs.map((doc, index) => [doc.id, index])
+    // Prima determiniamo il numero totale di foto per questa galleria
+    try {
+      const countQuery = query(
+        photosRef,
+        where("galleryId", "==", galleryId)
       );
-
-      photosData.sort((a, b) => {
-        // Prima ordina per posizione del capitolo
-        const posA = chapterOrder.get(a.chapterId || '') ?? Number.MAX_VALUE;
-        const posB = chapterOrder.get(b.chapterId || '') ?? Number.MAX_VALUE;
-        if (posA !== posB) return posA - posB;
+      const countSnapshot = await getDocs(countQuery);
+      const actualPhotoCount = countSnapshot.docs.length;
+      
+      setTotalPhotoCount(actualPhotoCount);
+      console.log(`Conteggio totale foto nella galleria: ${actualPhotoCount}`);
+      
+      // Se c'è una discrepanza tra il photoCount salvato e quello effettivo
+      if (galleryData.photoCount !== actualPhotoCount) {
+        console.log(`Avviso: photoCount nella galleria (${galleryData.photoCount}) non corrisponde alle foto effettive (${actualPhotoCount})`);
+        // Potremmo aggiornare il valore nella galleria, ma non lo facciamo per ora
+      }
+      
+      // Se non ci sono foto, controlliamo lo storage
+      if (actualPhotoCount === 0) {
+        await checkAndLoadFromStorage(galleryId, galleryCode);
+        return;
+      }
+      
+      // Carichiamo tutte le foto
+      const allPhotosSnapshot = await getDocs(countQuery);
+      
+      // Converti i documenti in oggetti PhotoData
+      let photosData = allPhotosSnapshot.docs.map((doc, index) => {
+        const data = doc.data();
         
-        // Poi per posizione nel capitolo
-        return (a.chapterPosition || 0) - (b.chapterPosition || 0);
+        // Aggiorna il progresso di caricamento
+        if (index % 10 === 0) { // Aggiorna il progresso ogni 10 foto per performance
+          const progress = Math.round((index / actualPhotoCount) * 100);
+          setLoadingProgress(progress);
+          setLoadedPhotoCount(index);
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+        } as PhotoData;
       });
+      
+      // Aggiorniamo il contatore finale
+      setLoadedPhotoCount(photosData.length);
+      setLoadingProgress(100);
+      
+      console.log(`Caricate ${photosData.length} foto da Firestore`);
+
+      // Ordina le foto per capitolo e posizione se la galleria ha capitoli
+      if (galleryData.hasChapters && photosData.length > 0) {
+        // Ottieni l'ordine dei capitoli
+        const chaptersRef = collection(db, "galleries", galleryId, "chapters");
+        const chaptersQuery = query(chaptersRef, orderBy("position", "asc"));
+        const chaptersSnapshot = await getDocs(chaptersQuery);
+        const chapterOrder = new Map(
+          chaptersSnapshot.docs.map((doc, index) => [doc.id, index])
+        );
+
+        photosData.sort((a, b) => {
+          // Prima ordina per posizione del capitolo
+          const posA = chapterOrder.get(a.chapterId || '') ?? Number.MAX_VALUE;
+          const posB = chapterOrder.get(b.chapterId || '') ?? Number.MAX_VALUE;
+          if (posA !== posB) return posA - posB;
+          
+          // Poi per posizione nel capitolo
+          return (a.chapterPosition || 0) - (b.chapterPosition || 0);
+        });
+      }
+
+      // Non c'è bisogno di paginare il caricamento iniziale poiché carichiamo tutto subito
+      setHasMorePhotos(false);
+      
+      // Settiamo le foto
+      setPhotos(photosData);
+    } catch (error) {
+      console.error("Errore durante il recupero delle foto:", error);
+      // In caso di errore, proviamo comunque a caricare dallo Storage
+      await checkAndLoadFromStorage(galleryId, galleryCode);
     }
+  };
+  
+  // Funzione helper per verificare e caricare dallo storage se necessario
+  const checkAndLoadFromStorage = async (galleryId: string, galleryCode: string) => {
+    console.log("Tentativo di recupero dallo Storage...");
 
-    // Controlla se ci sono altre foto da caricare
-    setHasMorePhotos(photosData.length >= photosPerPage);
+    try {
+      // Importiamo ciò che serve da firebase/storage
+      const { ref, listAll, getDownloadURL, getMetadata } = await import("firebase/storage");
+      const { storage } = await import("@/lib/firebase");
 
-    // Logica di debug e recupero migliorata: se non ci sono foto o ne abbiamo trovate meno di quelle attese
-    // proviamo a recuperarle direttamente dallo Storage
-    if (photosData.length < galleryData.photoCount || photosData.length === 0) {
-      console.log(`Trovate solo ${photosData.length} foto in Firestore, ma photoCount è ${galleryData.photoCount}`);
-      console.log("Tentativo di recupero dallo Storage...");
-
-      try {
-        // Importiamo ciò che serve da firebase/storage
-        const { ref, listAll, getDownloadURL, getMetadata } = await import("firebase/storage");
-        const { storage } = await import("@/lib/firebase");
-
-        // Usa direttamente l'ID della galleria come riferimento principale
-        console.log("Tentativo di recupero delle foto per galleryId:", galleryId);
+      // Usa direttamente l'ID della galleria come riferimento principale
+      console.log("Tentativo di recupero delle foto per galleryId:", galleryId);
 
         // Usa il percorso corretto per trovare le foto
         const possiblePaths = [
