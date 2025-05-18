@@ -150,18 +150,24 @@ export default function Gallery() {
     );
   }
 
-  // Mostra l'indicatore di caricamento se il progresso non è ancora al 100%
-  const showProgressIndicator = isLoading || (photos.length > 0 && loadingState.progress < 95);
+  // Mostra sempre l'indicatore di caricamento durante il caricamento iniziale
+  const showProgressIndicator = isLoading || loadingState.progress < 100;
 
+  // Se siamo in stato di caricamento, mostra solo il componente di caricamento
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-off-white">
+        <GalleryLoadingProgress 
+          totalPhotos={loadingState.totalPhotos || 100}
+          loadedPhotos={loadingState.loadedPhotos || 0}
+          progress={loadingState.progress || 0}
+        />
+      </div>
+    );
+  }
+  
   return (
     <div className="min-h-screen bg-off-white">
-      {showProgressIndicator && (
-        <GalleryLoadingProgress 
-          totalPhotos={loadingState.totalPhotos}
-          loadedPhotos={loadingState.loadedPhotos}
-          progress={loadingState.progress}
-        />
-      )}
       
       <Navigation galleryOwner={gallery.name} />
 
