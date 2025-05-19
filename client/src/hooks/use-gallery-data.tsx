@@ -32,7 +32,7 @@ export function useGalleryData(galleryCode: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMorePhotos, setHasMorePhotos] = useState(true);
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false);
-  const [photosPerPage, setPhotosPerPage] = useState(50); // Aumentato a 50 foto per volta per caricamento più veloce
+  const [photosPerPage, setPhotosPerPage] = useState(100); // Aumentato a 100 foto per volta per visualizzare più immagini
   const [totalPhotoCount, setTotalPhotoCount] = useState(0); // Conteggio totale foto
   const [loadedPhotoCount, setLoadedPhotoCount] = useState(0); // Conteggio foto caricate
   const [loadingProgress, setLoadingProgress] = useState(0); // Percentuale di caricamento
@@ -101,7 +101,9 @@ export function useGalleryData(galleryCode: string) {
       console.log(`Trovate in totale ${allItems.length} foto da caricare`);
       setTotalPhotoCount(allItems.length);
 
-      // Per ogni file, recupera l'URL di download e i metadati
+      // Limita il numero totale di foto da caricare inizialmente
+      // Carica tutte le foto disponibili senza limiti
+      console.log(`Preparazione del caricamento di ${allItems.length} foto...`);
       const photoPromises = allItems.map(async (itemRef, index) => {
         // Aggiorna il progresso ogni 5 foto
         if (index % 5 === 0) {
