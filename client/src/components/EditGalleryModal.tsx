@@ -331,12 +331,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               
               if (matchingDocs.length > 0) {
                 const docRef = matchingDocs[0].ref;
-                batch.update(docRef, {
+                await updateDoc(docRef, {
                   galleryId: gallery.id, // Assicuriamoci che abbia galleryId
-                  chapterId: photo.chapterId,
-                  chapterPosition: photo.position
+                  chapterId: null,
+                  chapterPosition: 0
                 });
-                operationsCount++;
                 console.log(`✓ Aggiornato con fallback foto ${photo.name} in gallery-photos`);
               } else {
                 console.warn(`⚠️ Nessun documento trovato in gallery-photos per la foto ${photo.name}`);
@@ -349,12 +348,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     contentType: photo.contentType || 'image/jpeg',
                     size: photo.size || 0,
                     galleryId: gallery.id,
-                    chapterId: photo.chapterId,
-                    chapterPosition: photo.position,
+                    chapterId: null,
+                    chapterPosition: 0,
                     createdAt: serverTimestamp()
                   };
                   
-                  // Usa addDoc separatamente per non influire sul batch
+                  // Usa addDoc separatamente
                   await addDoc(collection(db, "gallery-photos"), newPhotoData);
                   console.log(`✓ Creato nuovo documento in gallery-photos per ${photo.name}`);
                 } catch (createError) {
@@ -368,20 +367,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         } catch (error) {
           console.error(`❌ Errore durante l'elaborazione della foto ${photo.name}:`, error);
         }
-      });
-      
-      // Attendi che tutte le operazioni sulle foto siano completate
-      await Promise.all(photoPromises);
-      
-      // Committa eventuali operazioni rimanenti nel batch
-      if (operationsCount > 0) {
-        await batch.commit();
-        console.log(`✓ Batch finale di ${operationsCount} operazioni commitato`);
       }
-      
       toast({
-        title: "Capitoli aggiornati",
-        description: "Le modifiche ai capitoli e alle foto sono state salvate con successo"
+        title: "Galleria aggiornata",
+        description: "Le informazioni delle foto sono state aggiornate con successo"
       });
     } catch (error) {
       console.error("Error updating chapters and photos:", error);
@@ -491,8 +480,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         filesInputRef.current.value = "";
       }
       
-      // Ricarica i capitoli e le foto per mostrare le nuove aggiunte
-      loadChaptersAndPhotos();
+      // Ricarica le foto per mostrare le nuove aggiunte
+      loadPhotos();
       
     } catch (error) {
       console.error("Errore durante il caricamento delle foto:", error);
@@ -792,18 +781,18 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     className="hidden"
                     onChange={(e) => {
                       if (e.target.files && e.target.files.length > 0) {
-                        // Convertiamo i File in PhotoWithChapter
+                        // Convertiamo i File in un formato utilizzabile
                         const filesArray = Array.from(e.target.files);
-                        const photosWithChapter: PhotoWithChapter[] = filesArray.map((file, index) => ({
-                          id: `temp-${Date.now()}-${index}`,
-                          file: file,
-                          url: URL.createObjectURL(file), // URL temporaneo per l'anteprima
-                          name: file.name,
-                          position: index,
-                          // Nessun capitolo assegnato inizialmente
-                          chapterId: undefined
-                        }));
-                        setSelectedFiles(photosWithChapter);
+                        const uploadFiles = filesArray.map((file, index) => {
+                          // Aggiungiamo le proprietà necessarie per la visualizzazione
+                          Object.assign(file, {
+                            id: `temp-${Date.now()}-${index}`,
+                            url: URL.createObjectURL(file), // URL temporaneo per l'anteprima
+                            position: index
+                          });
+                          return file;
+                        });
+                        setSelectedFiles(uploadFiles);
                       }
                     }}
                   />
