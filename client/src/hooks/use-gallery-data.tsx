@@ -212,13 +212,15 @@ export function useGalleryData(galleryCode: string) {
         const data = doc.data();
         const photoId = doc.id;
 
-        if (!uniquePhotoIds.has(photoId)) {
-          uniquePhotoIds.add(photoId);
-          uniqueDocsMap.set(photoId, {
-            id: photoId,
-            ...data
-          });
-        } else {
+        // Dopo la modifica, stiamo erroneamente usando uniquePhotoIds due volte
+        // Correggiamo rendendola incondizionale
+        uniqueDocsMap.set(photoId, {
+          id: photoId,
+          ...data
+        });
+        
+        // Conserviamo questo solo per debug/statistiche
+        if (uniquePhotoIds.has(photoId)) {
           duplicateCount++;
           console.warn(`Duplicate photo found: ${photoId}`);
         }
