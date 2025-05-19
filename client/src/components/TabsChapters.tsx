@@ -46,6 +46,13 @@ export default function TabsChapters({
 
   console.log("Numero totale di foto uniche:", uniquePhotos.length);
 
+  // Debug info
+  console.log("TabsChapters rendering with:", {
+    totalPhotos: uniquePhotos.length,
+    chaptersCount: chapters.length,
+    photosWithChapters: uniquePhotos.filter(p => p.chapterId).length
+  });
+
   // Distribuzione dinamica delle foto nei capitoli
   // Funzionerà con qualsiasi galleria indipendentemente dai nomi dei capitoli
 
