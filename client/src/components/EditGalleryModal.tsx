@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import ChaptersManager, { Chapter, PhotoWithChapter } from "@/components/ChaptersManager";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "@/lib/photoUploader";
-import { UploadCloud, Image, Trash, SyncIcon } from "lucide-react";
+import { UploadCloud, Image, Trash, RefreshCw } from "lucide-react";
 import SyncGalleryChapters from "@/components/admin/SyncGalleryChapters";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -760,7 +760,25 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           </TabsContent>
           
           <TabsContent value="chapters" className="min-h-[50vh]">
-            {isChaptersLoading ? (
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Capitoli della galleria</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowSyncTool(true)}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Sincronizza capitoli
+              </Button>
+            </div>
+            
+            {showSyncTool && gallery ? (
+              <SyncGalleryChapters
+                galleryId={gallery.id}
+                galleryClosed={() => setShowSyncTool(false)}
+              />
+            ) : isChaptersLoading ? (
               <div className="flex items-center justify-center h-48">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sage"></div>
               </div>
