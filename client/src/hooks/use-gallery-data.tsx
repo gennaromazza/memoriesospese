@@ -169,11 +169,11 @@ export function useGalleryData(galleryCode: string) {
       }
 
       // Utilizziamo la collezione gallery-photos per trovare tutte le foto
+      // Nota: rimuoviamo temporaneamente l'ordinamento per evitare problemi di indici
       const photosRef = collection(db, "gallery-photos");
       const q = query(
         photosRef, 
         where("galleryId", "==", galleryId),
-        orderBy("createdAt", "desc"), // Ordina per data di creazione (decrescente)
         limit(photosPerPage)
       );
 

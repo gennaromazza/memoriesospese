@@ -24,12 +24,8 @@ export default function DeletePhoto({ galleryId, photo, onPhotoDeleted }: Delete
     try {
       console.log(`Eliminazione foto: ${photo.name} (ID: ${photo.id})`);
       
-      // 1. Elimina il documento da Firestore nella sottocollezione galleries/{galleryId}/photos
-      const photoRef = doc(db, "galleries", galleryId, "photos", photo.id);
-      await deleteDoc(photoRef);
-      console.log(`✓ Eliminato documento da galleries/${galleryId}/photos/${photo.id}`);
-      
-      // 2. Trova e elimina il documento corrispondente in gallery-photos
+      // 1. Elimina il documento da Firestore dalla collezione gallery-photos
+      // Nota: questo è il documento principale, non abbiamo più la sottocollezione
       const galleryPhotosQuery = query(
         collection(db, "gallery-photos"),
         where("galleryId", "==", galleryId),

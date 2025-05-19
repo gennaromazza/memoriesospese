@@ -413,19 +413,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           
           console.log(`Foto ${photo.name} - senza capitolo (organizzazione cronologica)`);
           
-          // Salva nella sottocollezione photos (lasciamo per compatibilità)
-          await addDoc(collection(db, "galleries", gallery.id, "photos"), {
-            name: photo.name,
-            url: photo.url,
-            size: photo.size,
-            contentType: photo.contentType,
-            createdAt: photo.createdAt || serverTimestamp(),
-            chapterId: chapterId,
-            position: chapterPosition,
-            chapterPosition: chapterPosition
-          });
-          
-          // Salva nella collezione gallery-photos (principale)
+          // Salva solo nella collezione gallery-photos (unica collezione di riferimento)
           await addDoc(collection(db, "gallery-photos"), {
             name: photo.name,
             url: photo.url,
