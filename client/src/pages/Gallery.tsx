@@ -8,10 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import GalleryHeader from "@/components/gallery/GalleryHeader";
 import YouTubeEmbed from "@/components/gallery/YouTubeEmbed";
 import LoadMoreButton from "@/components/gallery/LoadMoreButton";
-import ChaptersManager from "@/components/ChaptersManager";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData } from "@/hooks/use-gallery-data";
-import TabsChapters from "@/components/TabsChapters";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
 
 export default function Gallery() {
@@ -20,7 +18,6 @@ export default function Gallery() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState("all");
   const { studioSettings } = useStudio();
 
   // Stato locale per il tracciamento del caricamento
@@ -29,18 +26,17 @@ export default function Gallery() {
     loadedPhotos: 0,
     progress: 0
   });
-  
+
   // Carica dati galleria usando il custom hook
   const { 
     gallery, 
     photos, 
-    chapters, 
     isLoading, 
     hasMorePhotos, 
     loadingMorePhotos,
     loadMorePhotos 
   } = useGalleryData(id || "");
-  
+
   // Aggiorna lo stato di caricamento
   useEffect(() => {
     // Aggiorna il conteggio delle foto caricate
@@ -165,10 +161,10 @@ export default function Gallery() {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-off-white">
-      
+
       <Navigation galleryOwner={gallery.name} />
 
       <div>
@@ -201,17 +197,7 @@ export default function Gallery() {
                 </div>
               ) : (
                 <>
-                  {/* Visualizzazione con tab o semplice griglia di foto in base alla presenza di capitoli */}
-                  {chapters.length > 0 ? (
-                    <TabsChapters
-                      chapters={chapters}
-                      photos={photos}
-                      openLightbox={openLightbox}
-                      activeTab={activeTab}
-                      setActiveTab={setActiveTab}
-                    />
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
                       {photos.map((photo, index) => (
                         <div
                           key={photo.id}
@@ -235,7 +221,6 @@ export default function Gallery() {
                         </div>
                       ))}
                     </div>
-                  )}
 
                   {/* Pulsante "Carica altre foto" */}
                   <LoadMoreButton 
