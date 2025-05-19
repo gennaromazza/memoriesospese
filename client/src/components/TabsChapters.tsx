@@ -39,10 +39,12 @@ export default function TabsChapters({
     return null;
   }
 
-  // Rimuovi i duplicati dalle foto usando il loro ID
+  // Rimuovi i duplicati e le foto invalide
   const uniquePhotos = Array.from(
-    new Map(photos.map(photo => [photo.id, photo])).values()
+    new Map(photos.filter(photo => photo && photo.id && photo.url).map(photo => [photo.id, photo])).values()
   );
+  
+  console.log("Numero totale di foto uniche:", uniquePhotos.length);
 
   // Distribuzione dinamica delle foto nei capitoli
   // Funzionerà con qualsiasi galleria indipendentemente dai nomi dei capitoli
