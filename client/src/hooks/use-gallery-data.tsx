@@ -203,7 +203,6 @@ export function useGalleryData(galleryCode: string) {
       // Utilizziamo gli stessi risultati della query precedente senza fare un'altra richiesta
 
       // Converti i documenti in oggetti PhotoData assicurandoci di non avere duplicati
-      const uniquePhotoIds = new Set();
       const uniqueDocsMap = new Map();
       let duplicateCount = 0;
 
