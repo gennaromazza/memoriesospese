@@ -13,8 +13,7 @@ export interface GalleryData {
   description?: string;
   coverImageUrl?: string;
   youtubeUrl?: string;
-  hasChapters?: boolean;
-  photoCount?: number; // Aggiungiamo photoCount al tipo
+  photoCount?: number;
 }
 
 export interface PhotoData {
@@ -24,21 +23,11 @@ export interface PhotoData {
   contentType: string;
   size: number;
   createdAt: any;
-  chapterId?: string | null;
-  chapterPosition?: number;
-}
-
-export interface ChapterData {
-  id: string;
-  title: string;
-  description?: string;
-  position: number;
 }
 
 export function useGalleryData(galleryCode: string) {
   const [gallery, setGallery] = useState<GalleryData | null>(null);
   const [photos, setPhotos] = useState<PhotoData[]>([]);
-  const [chapters, setChapters] = useState<ChapterData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMorePhotos, setHasMorePhotos] = useState(true);
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false);
