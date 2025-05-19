@@ -742,59 +742,57 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           </TabsContent>
           
           <TabsContent value="chapters" className="min-h-[50vh]">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Capitoli della galleria</h3>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowSyncTool(true)}
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Sincronizza capitoli
-              </Button>
+            <div className="mb-4">
+              <h3 className="text-lg font-medium">Organizzazione foto</h3>
+              <p className="text-gray-500 mt-2">
+                La funzionalità dei capitoli è stata rimossa. Le foto sono ora organizzate in ordine cronologico.
+              </p>
             </div>
             
-            {showSyncTool && gallery ? (
-              <SyncGalleryChapters
-                galleryId={gallery.id}
-                galleryClosed={() => setShowSyncTool(false)}
-              />
-            ) : isChaptersLoading ? (
-              <div className="flex items-center justify-center h-48">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sage"></div>
-              </div>
-            ) : (
-              <>
-                <ChaptersManager
-                  photos={photos}
-                  onPhotosUpdate={setPhotos}
-                  chapters={chapters}
-                  onChaptersUpdate={setChapters}
-                  onDeletePhoto={(photo) => {
-                    if (window.confirm(`Sei sicuro di voler eliminare questa foto (${photo.name})? Questa azione è irreversibile.`)) {
-                      deletePhoto(photo);
-                    }
-                  }}
-                />
-                
-                <DialogFooter className="mt-6">
-                  <Button
-                    variant="outline"
-                    onClick={onClose}
-                    className="mr-2"
-                  >
-                    Annulla
-                  </Button>
-                  <Button
-                    onClick={saveChaptersAndPhotos}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Salvataggio in corso..." : "Salva capitoli"}
-                  </Button>
-                </DialogFooter>
-              </>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
+              {photos.map((photo, index) => (
+                <div key={photo.id || index} className="relative group">
+                  <img 
+                    src={photo.url} 
+                    alt={photo.name} 
+                    className="w-full h-32 object-cover rounded-md"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => {
+                        if (window.confirm(`Sei sicuro di voler eliminare questa foto (${photo.name})? Questa azione è irreversibile.`)) {
+                          deletePhoto(photo);
+                        }
+                      }}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {photos.length === 0 && (
+              <p className="text-center py-10 text-gray-500">Nessuna foto in questa galleria</p>
             )}
+                
+            <DialogFooter className="mt-6">
+              <Button
+                variant="outline"
+                onClick={onClose}
+                className="mr-2"
+              >
+                Annulla
+              </Button>
+              <Button
+                onClick={() => onClose()}
+                disabled={isLoading}
+              >
+                {isLoading ? "Salvataggio in corso..." : "Chiudi"}
+              </Button>
+            </DialogFooter>
           </TabsContent>
           
           <TabsContent value="upload" className="min-h-[50vh]">
