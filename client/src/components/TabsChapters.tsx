@@ -39,12 +39,19 @@ export default function TabsChapters({
     return null;
   }
 
-  // Rimuovi i duplicati e le foto invalide
-  const uniquePhotos = Array.from(
-    new Map(photos.filter(photo => photo && photo.id && photo.url).map(photo => [photo.id, photo])).values()
-  );
+  // Filtra le foto invalide e rimuovi i duplicati
+  const validPhotos = photos.filter(photo => photo && photo.id && photo.url);
+  const uniquePhotos = Array.from(new Set(validPhotos.map(p => p.id)))
+    .map(id => validPhotos.find(p => p.id === id))
+    .filter(photo => photo !== undefined) as PhotoData[];
 
-  console.log("Numero totale di foto uniche:", uniquePhotos.length);
+  console.log("Numero totale di foto valide e uniche:", uniquePhotos.length);
+  console.log("Distribuzione foto per capitolo:", 
+    chapters.reduce((acc, chapter) => ({
+      ...acc,
+      [chapter.title]: uniquePhotos.filter(p => p.chapterId === chapter.id).length
+    }), {})
+  );
 
   // Debug info
   console.log("TabsChapters rendering with:", {

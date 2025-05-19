@@ -203,25 +203,30 @@ export function useGalleryData(galleryCode: string) {
       // Utilizziamo gli stessi risultati della query precedente senza fare un'altra richiesta
 
       // Converti i documenti in oggetti PhotoData assicurandoci di non avere duplicati
-      let uniqueDocsMap = new Map();
+      const uniquePhotoIds = new Set();
+      const uniqueDocsMap = new Map();
       let duplicateCount = 0;
 
       // Primo passaggio: prendiamo solo una copia di ciascun documento per ID
       countSnapshot.docs.forEach(doc => {
         const data = doc.data();
-        console.log(`Processing photo ${doc.id}:`, {
-          hasChapterId: !!data.chapterId,
-          chapterId: data.chapterId,
-          name: data.name
-        });
-        
-        if (uniqueDocsMap.has(doc.id)) {
-          duplicateCount++;
-          console.warn(`Duplicate photo found: ${doc.id}`);
+        const photoId = doc.id;
+
+        if (!uniquePhotoIds.has(photoId)) {
+          uniquePhotoIds.add(photoId);
+          uniqueDocsMap.set(photoId, {
+            id: photoId,
+            ...data
+          });
         } else {
-          uniqueDocsMap.set(doc.id, doc);
+          duplicateCount++;
+          console.warn(`Duplicate photo found: ${photoId}`);
         }
       });
+
+      const actualPhotoCount = uniquePhotoIds.size;
+      setTotalPhotoCount(actualPhotoCount);
+      console.log(`Numero effettivo di foto uniche: ${actualPhotoCount}`);
 
       console.log(`Found ${duplicateCount} duplicate photos`);
 
