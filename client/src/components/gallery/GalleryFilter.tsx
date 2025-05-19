@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
 import { CalendarIcon, Clock, Filter } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
@@ -68,7 +67,7 @@ const GalleryFilter: React.FC<GalleryFilterProps> = ({
   // Formatta la data per la visualizzazione
   const formatDisplayDate = (date: Date | undefined) => {
     if (!date) return '';
-    return format(date, 'dd/MM/yyyy', { locale: it });
+    return format(date, 'dd/MM/yyyy');
   };
   
   return (

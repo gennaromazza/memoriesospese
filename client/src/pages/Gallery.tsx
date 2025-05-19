@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
@@ -9,8 +9,9 @@ import GalleryHeader from "@/components/gallery/GalleryHeader";
 import YouTubeEmbed from "@/components/gallery/YouTubeEmbed";
 import LoadMoreButton from "@/components/gallery/LoadMoreButton";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
-import { useGalleryData } from "@/hooks/use-gallery-data";
+import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
+import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -26,6 +27,18 @@ export default function Gallery() {
     loadedPhotos: 0,
     progress: 0
   });
+  
+  // Stato per i filtri
+  const [filters, setFilters] = useState<FilterCriteria>({
+    startDate: undefined,
+    endDate: undefined,
+    startTime: undefined,
+    endTime: undefined,
+    sortOrder: 'newest'
+  });
+  
+  // Stato per tracciare se i filtri sono attivi
+  const [areFiltersActive, setAreFiltersActive] = useState(false);
 
   // Carica dati galleria usando il custom hook
   const { 
@@ -103,6 +116,71 @@ export default function Gallery() {
   const closeLightbox = () => {
     setLightboxOpen(false);
   };
+  
+  // Funzione per applicare i filtri
+  const handleFilterChange = (newFilters: FilterCriteria) => {
+    setFilters(newFilters);
+    
+    // Verifica se c'è almeno un filtro attivo
+    const hasActiveFilter = 
+      newFilters.startDate !== undefined || 
+      newFilters.endDate !== undefined || 
+      newFilters.startTime !== undefined || 
+      newFilters.endTime !== undefined || 
+      newFilters.sortOrder !== 'newest';
+    
+    setAreFiltersActive(hasActiveFilter);
+  };
+  
+  // Funzione per resettare i filtri
+  const resetFilters = () => {
+    setFilters({
+      startDate: undefined,
+      endDate: undefined,
+      startTime: undefined,
+      endTime: undefined,
+      sortOrder: 'newest'
+    });
+    setAreFiltersActive(false);
+  };
+  
+  // Filtra le foto in base ai criteri impostati
+  const filteredPhotos = useMemo(() => {
+    if (!areFiltersActive) return photos;
+    
+    return photos.filter(photo => {
+      const photoDate = photo.createdAt ? new Date(photo.createdAt) : null;
+      if (!photoDate) return true; // Se non c'è data, include la foto
+      
+      // Filtra per data
+      if (filters.startDate && photoDate < filters.startDate) return false;
+      if (filters.endDate) {
+        // Imposta l'ora finale a 23:59:59
+        const endDateWithTime = new Date(filters.endDate);
+        endDateWithTime.setHours(23, 59, 59);
+        if (photoDate > endDateWithTime) return false;
+      }
+      
+      // Filtra per ora
+      if (filters.startTime || filters.endTime) {
+        const hours = photoDate.getHours();
+        const minutes = photoDate.getMinutes();
+        const photoTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        
+        if (filters.startTime && photoTime < filters.startTime) return false;
+        if (filters.endTime && photoTime > filters.endTime) return false;
+      }
+      
+      return true;
+    }).sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      
+      return filters.sortOrder === 'newest' 
+        ? dateB.getTime() - dateA.getTime() 
+        : dateA.getTime() - dateB.getTime();
+    });
+  }, [photos, filters, areFiltersActive]);
 
   const handleSignOut = () => {
     localStorage.removeItem(`gallery_auth_${id}`);
