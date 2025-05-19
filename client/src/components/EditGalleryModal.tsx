@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import ChaptersManager, { Chapter, PhotoWithChapter } from "@/components/ChaptersManager";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "@/lib/photoUploader";
-import { UploadCloud, Image, Trash } from "lucide-react";
+import { UploadCloud, Image, Trash, SyncIcon } from "lucide-react";
+import SyncGalleryChapters from "@/components/admin/SyncGalleryChapters";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
@@ -48,6 +49,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("details");
+  const [showSyncTool, setShowSyncTool] = useState(false);
   const [photos, setPhotos] = useState<PhotoWithChapter[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isChaptersLoading, setIsChaptersLoading] = useState(false);
