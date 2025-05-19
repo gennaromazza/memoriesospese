@@ -102,7 +102,7 @@ export function useGalleryData(galleryCode: string) {
           setLoadingProgress(Math.round((index / listResult!.items.length) * 100));
           setLoadedPhotoCount(index);
         }
-        
+
         const url = await getDownloadURL(itemRef);
         const metadata = await getMetadata(itemRef);
 
@@ -151,7 +151,7 @@ export function useGalleryData(galleryCode: string) {
       console.error("Errore nel recupero dallo Storage:", storageError);
     }
   };
-  
+
   // Funzione per caricare le foto della galleria
   const loadPhotos = async (galleryId: string, galleryData: any) => {
     // Utilizza la collezione gallery-photos per cercare le foto
@@ -166,9 +166,9 @@ export function useGalleryData(galleryCode: string) {
         where("galleryId", "==", galleryId),
         limit(250) // Limitiamo a 250 foto per galleria per evitare il problema dell'eccesso di foto
       );
-      
+
       const countSnapshot = await getDocs(countQuery);
-      
+
       // Estraiamo gli ID unici delle foto per avere un conteggio accurato
       // Conserviamo anche l'associazione originale chapterId per ogni foto
       const photoIdToChapterId = new Map();
@@ -178,61 +178,61 @@ export function useGalleryData(galleryCode: string) {
           photoIdToChapterId.set(doc.id, data.chapterId);
         }
       });
-      
+
       const uniquePhotoIds = new Set(countSnapshot.docs.map(doc => doc.id));
       const actualPhotoCount = uniquePhotoIds.size;
-      
+
       // Aggiungiamo informazioni sui capitoli ai metadati per debug
       console.log(`Foto con chapterId trovate: ${photoIdToChapterId.size} di ${actualPhotoCount} totali`);
-      
+
       setTotalPhotoCount(actualPhotoCount);
       console.log(`Conteggio totale foto uniche nella galleria: ${actualPhotoCount}`);
-      
+
       // Se c'è una discrepanza tra il photoCount salvato e quello effettivo
       if (galleryData.photoCount !== actualPhotoCount) {
         console.log(`Avviso: photoCount nella galleria (${galleryData.photoCount}) non corrisponde alle foto effettive (${actualPhotoCount})`);
         // Potremmo aggiornare il valore nella galleria, ma non lo facciamo per ora
       }
-      
+
       // Se non ci sono foto, controlliamo lo storage
       if (actualPhotoCount === 0) {
         await checkAndLoadFromStorage(galleryId, galleryCode);
         return;
       }
-      
+
       // Utilizziamo gli stessi risultati della query precedente senza fare un'altra richiesta
-      
+
       // Converti i documenti in oggetti PhotoData assicurandoci di non avere duplicati
       let uniqueDocsMap = new Map();
-      
+
       // Primo passaggio: prendiamo solo una copia di ciascun documento per ID
       countSnapshot.docs.forEach(doc => {
         if (!uniqueDocsMap.has(doc.id)) {
           uniqueDocsMap.set(doc.id, doc);
         }
       });
-      
+
       // Secondo passaggio: convertiamo i documenti unici in oggetti PhotoData
       let photosData = Array.from(uniqueDocsMap.values()).map((doc, index) => {
         const data = doc.data();
-        
+
         // Aggiorna il progresso di caricamento
         if (index % 5 === 0) { // Aggiorna il progresso ogni 5 foto per più feedback visivo
           const progress = Math.round((index / actualPhotoCount) * 100);
           setLoadingProgress(progress);
           setLoadedPhotoCount(index);
         }
-        
+
         return {
           id: doc.id,
           ...data,
         } as PhotoData;
       });
-      
+
       // Aggiorniamo il contatore finale
       setLoadedPhotoCount(photosData.length);
       setLoadingProgress(100);
-      
+
       console.log(`Caricate ${photosData.length} foto da Firestore`);
 
       // Ordina le foto per capitolo e posizione se la galleria ha capitoli
@@ -250,12 +250,12 @@ export function useGalleryData(galleryCode: string) {
           const posA = chapterOrder.get(a.chapterId || '') ?? Number.MAX_VALUE;
           const posB = chapterOrder.get(b.chapterId || '') ?? Number.MAX_VALUE;
           if (posA !== posB) return posA - posB;
-          
+
           // Poi per posizione nel capitolo
           const chapPosA = typeof a.chapterPosition === 'number' ? a.chapterPosition : Number.MAX_VALUE;
           const chapPosB = typeof b.chapterPosition === 'number' ? b.chapterPosition : Number.MAX_VALUE;
           if (chapPosA !== chapPosB) return chapPosA - chapPosB;
-          
+
           // Infine per data di creazione
           return a.createdAt?.seconds - b.createdAt?.seconds;
         });
@@ -263,15 +263,26 @@ export function useGalleryData(galleryCode: string) {
 
       // Non c'è bisogno di paginare il caricamento iniziale poiché carichiamo tutto subito
       setHasMorePhotos(false);
-      
+
       // Eliminiamo i duplicati in base all'ID prima di impostare le foto
       const uniquePhotos = Array.from(
         new Map(photosData.map(photo => [photo.id, photo])).values()
       );
       console.log(`Rimozione duplicati: da ${photosData.length} a ${uniquePhotos.length} foto uniche`);
-      
-      // Settiamo le foto uniche
-      setPhotos(uniquePhotos);
+
+      // Verifica duplicati e log
+      const photoIds = new Set();
+      const trueUniques = uniquePhotos.filter(photo => {
+        if (photoIds.has(photo.id)) {
+          console.warn(`Trovato duplicato: ${photo.id}`);
+          return false;
+        }
+        photoIds.add(photo.id);
+        return true;
+      });
+
+      console.log(`Foto dopo rimozione duplicati: ${trueUniques.length}`);
+      setPhotos(trueUniques);
     } catch (error) {
       console.error("Errore durante il recupero delle foto:", error);
       // In caso di errore, proviamo comunque a caricare dallo Storage
@@ -390,47 +401,47 @@ export function useGalleryData(galleryCode: string) {
 
     setLoadingMorePhotos(true);
     console.log(`Caricamento altre foto per galleria ${gallery.id}, già caricate: ${photos.length}`);
-    
+
     try {
       // Utilizziamo un approccio diverso che garantisce di non recuperare duplicati
       const photosRef = collection(db, "gallery-photos");
-      
+
       // Query per ottenere le foto della galleria che non abbiamo ancora
       const photosQuery = query(
         photosRef,
         where("galleryId", "==", gallery.id)
       );
-      
+
       const allPhotosSnapshot = await getDocs(photosQuery);
       console.log(`Trovate ${allPhotosSnapshot.docs.length} foto totali per questa galleria`);
-      
+
       // Creiamo un set con gli ID delle foto già caricate per evitare duplicati
       const existingPhotoIds = new Set(photos.map(p => p.id));
       console.log(`Set di ID foto già caricate: ${existingPhotoIds.size}`);
-      
+
       // Filtriamo solo le foto che non abbiamo già caricato
       const newPhotos = allPhotosSnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(photo => !existingPhotoIds.has(photo.id)) as PhotoData[];
-      
+
       console.log(`Foto nuove trovate: ${newPhotos.length}`);
-      
+
       // Limitiamo il numero di foto da aggiungere in questa pagina
       const photosToAdd = newPhotos.slice(0, photosPerPage);
-      
+
       if (photosToAdd.length > 0) {
         console.log(`Aggiungo ${photosToAdd.length} nuove foto`);
-        
+
         // Aggiungiamo le nuove foto e manteniamo l'ordinamento appropriato
         setPhotos(prevPhotos => {
           // Doppio controllo per assicurarci di non avere duplicati
           const prevIds = new Set(prevPhotos.map(p => p.id));
           const uniquePhotosToAdd = photosToAdd.filter(p => !prevIds.has(p.id));
-          
+
           console.log(`Foto effettivamente aggiunte dopo il filtro duplicati: ${uniquePhotosToAdd.length}`);
-          
+
           const updatedPhotos = [...prevPhotos, ...uniquePhotosToAdd];
-          
+
           // Ordiniamo le foto in base ai capitoli se necessario
           if (gallery.hasChapters) {
             return updatedPhotos.sort((a, b) => {
@@ -442,10 +453,10 @@ export function useGalleryData(galleryCode: string) {
               return (a.chapterPosition || 0) - (b.chapterPosition || 0);
             });
           }
-          
+
           return updatedPhotos;
         });
-        
+
         // Verifichiamo se ci sono ancora altre foto da caricare
         const hasMore = newPhotos.length > photosToAdd.length;
         setHasMorePhotos(hasMore);
