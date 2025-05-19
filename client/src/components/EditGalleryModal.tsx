@@ -9,10 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import ChaptersManager, { Chapter, PhotoWithChapter } from "@/components/ChaptersManager";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "@/lib/photoUploader";
 import { UploadCloud, Image, Trash, RefreshCw } from "lucide-react";
-import SyncGalleryChapters from "@/components/admin/SyncGalleryChapters";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
@@ -27,7 +25,6 @@ interface GalleryType {
   password?: string;
   coverImageUrl?: string;
   youtubeUrl?: string;
-  hasChapters?: boolean;
   photoCount?: number;
 }
 

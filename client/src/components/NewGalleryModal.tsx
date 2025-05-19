@@ -18,8 +18,6 @@ import { v4 as uuidv4 } from 'uuid';
 import ImageCompressionInfo from "./ImageCompressionInfo";
 import imageCompression from "browser-image-compression";
 import FileUpload from '@/components/ui/file-upload';
-import ChaptersModal from "./ChaptersModal";
-import { Chapter, PhotoWithChapter } from "./ChaptersManager";
 
 interface NewGalleryModalProps {
   isOpen: boolean;
@@ -40,9 +38,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
   const [coverImageUrl, setCoverImageUrl] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<PhotoWithChapter[]>([]);
-  const [showChaptersModal, setShowChaptersModal] = useState(false);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 

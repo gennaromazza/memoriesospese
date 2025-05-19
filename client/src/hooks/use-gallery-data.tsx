@@ -23,6 +23,7 @@ export interface PhotoData {
   contentType: string;
   size: number;
   createdAt: any;
+  galleryId?: string;
 }
 
 export function useGalleryData(galleryCode: string) {
@@ -244,28 +245,10 @@ export function useGalleryData(galleryCode: string) {
 
       console.log(`Caricate ${photosData.length} foto da Firestore`);
 
-      // Ordina le foto per capitolo e posizione se la galleria ha capitoli
-      if (galleryData.hasChapters && photosData.length > 0) {
-        // Ottieni l'ordine dei capitoli
-        const chaptersRef = collection(db, "galleries", galleryId, "chapters");
-        const chaptersQuery = query(chaptersRef, orderBy("position", "asc"));
-        const chaptersSnapshot = await getDocs(chaptersQuery);
-        const chapterOrder = new Map(
-          chaptersSnapshot.docs.map((doc, index) => [doc.id, index])
-        );
-
+      // Ordina le foto per data di creazione
+      if (photosData.length > 0) {
         photosData.sort((a, b) => {
-          // Prima ordina per posizione del capitolo
-          const posA = chapterOrder.get(a.chapterId || '') ?? Number.MAX_VALUE;
-          const posB = chapterOrder.get(b.chapterId || '') ?? Number.MAX_VALUE;
-          if (posA !== posB) return posA - posB;
-
-          // Poi per posizione nel capitolo
-          const chapPosA = typeof a.chapterPosition === 'number' ? a.chapterPosition : Number.MAX_VALUE;
-          const chapPosB = typeof b.chapterPosition === 'number' ? b.chapterPosition : Number.MAX_VALUE;
-          if (chapPosA !== chapPosB) return chapPosA - chapPosB;
-
-          // Infine per data di creazione
+          // Ordina per data di creazione
           return a.createdAt?.seconds - b.createdAt?.seconds;
         });
       }
