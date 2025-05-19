@@ -46,16 +46,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("details");
-  const [showSyncTool, setShowSyncTool] = useState(false);
-  const [photos, setPhotos] = useState<PhotoWithChapter[]>([]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [isChaptersLoading, setIsChaptersLoading] = useState(false);
-  // Usiamo PhotoWithChapter invece di File per mantenere le informazioni del capitolo
-  const [selectedFiles, setSelectedFiles] = useState<PhotoWithChapter[]>([]);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: UploadProgressInfo}>({});
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [photoToDelete, setPhotoToDelete] = useState<PhotoWithChapter | null>(null);
+  const [photoToDelete, setPhotoToDelete] = useState<File | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);

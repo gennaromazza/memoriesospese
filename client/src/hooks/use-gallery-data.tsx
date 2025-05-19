@@ -342,27 +342,7 @@ export function useGalleryData(galleryCode: string) {
               };
             }) as ChapterData[];
 
-            // Aggiorniamo hasChapters nella gallery locale se troviamo capitoli
-            const hasChapters = chaptersData.length > 0;
-            if (hasChapters !== galleryData.hasChapters) {
-              setGallery(prev => prev ? {...prev, hasChapters} : null);
-
-              // Aggiorniamo anche il documento in Firestore
-              try {
-                const galleryRef = doc(db, "galleries", galleryDoc.id);
-                await updateDoc(galleryRef, {
-                  hasChapters
-                });
-                console.log(`Aggiornato stato hasChapters della galleria a ${hasChapters}`);
-              } catch (updateError) {
-                console.error("Errore nell'aggiornamento di hasChapters:", updateError);
-              }
-            }
-
-            // Ordina i capitoli per posizione
-            const sortedChapters = chaptersData.sort((a, b) => a.position - b.position);
-            setChapters(sortedChapters);
-            console.log(`Caricati ${sortedChapters.length} capitoli ordinati per posizione`);
+            console.log("Funzionalità capitoli rimossa");
           } else {
             console.log("Nessun capitolo trovato per questa galleria");
           }
