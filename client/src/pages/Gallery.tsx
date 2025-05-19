@@ -153,8 +153,8 @@ export default function Gallery() {
   // Mostra sempre l'indicatore di caricamento durante il caricamento iniziale
   const showProgressIndicator = isLoading || loadingState.progress < 100;
 
-  // Se siamo in stato di caricamento, mostra solo il componente di caricamento
-  if (isLoading) {
+  // Se siamo in stato di caricamento o se il progresso è inferiore a 100, mostra il componente di caricamento
+  if (isLoading || loadingState.progress < 100) {
     return (
       <div className="min-h-screen bg-off-white">
         <GalleryLoadingProgress 

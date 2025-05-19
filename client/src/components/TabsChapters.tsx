@@ -65,7 +65,7 @@ export default function TabsChapters({
                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
                     <polyline points="21 15 16 10 5 21"></polyline>
                   </svg>
-                  Tutte le foto ({photos.length})
+                  Tutte le foto ({new Set(photos.map(p => p.id)).size})
                 </span>
               </TabsTrigger>
 
@@ -79,7 +79,7 @@ export default function TabsChapters({
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
                       <path d="M12 3L2 12h3v8h14v-8h3L12 3z"></path>
                     </svg>
-                    {chapter.title} ({photos.filter(p => p.chapterId === chapter.id).length})
+                    {chapter.title} ({new Set(photos.filter(p => p.chapterId === chapter.id).map(p => p.id)).size})
                   </span>
                 </TabsTrigger>
               ))}

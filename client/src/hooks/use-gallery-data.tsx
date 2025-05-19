@@ -231,8 +231,14 @@ export function useGalleryData(galleryCode: string) {
       // Non c'è bisogno di paginare il caricamento iniziale poiché carichiamo tutto subito
       setHasMorePhotos(false);
       
-      // Settiamo le foto
-      setPhotos(photosData);
+      // Eliminiamo i duplicati in base all'ID prima di impostare le foto
+      const uniquePhotos = Array.from(
+        new Map(photosData.map(photo => [photo.id, photo])).values()
+      );
+      console.log(`Rimozione duplicati: da ${photosData.length} a ${uniquePhotos.length} foto uniche`);
+      
+      // Settiamo le foto uniche
+      setPhotos(uniquePhotos);
     } catch (error) {
       console.error("Errore durante il recupero delle foto:", error);
       // In caso di errore, proviamo comunque a caricare dallo Storage
