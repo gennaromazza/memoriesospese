@@ -540,6 +540,11 @@ export default function AdminDashboard() {
       return;
     }
 
+    toast({
+      title: "Eliminazione in corso",
+      description: "L'eliminazione della galleria potrebbe richiedere alcuni minuti...",
+    });
+
     try {
       // Array di percorsi dello storage da controllare
       const storagePaths = [
@@ -550,7 +555,10 @@ export default function AdminDashboard() {
         `galleries/covers/${gallery.code}_cover`
       ];
 
-      // 1. Elimina tutti i file dallo Storage
+      // Funzione helper per aggiungere un delay
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+      // 1. Elimina tutti i file dallo Storage in modo più controllato
       for (const path of storagePaths) {
         try {
           const storageRef = ref(storage, path);
@@ -558,23 +566,41 @@ export default function AdminDashboard() {
 
           const listResult = await listAll(storageRef);
           if (listResult.items.length > 0) {
-            const deletePromises = listResult.items.map(async (itemRef) => {
-              console.log("Eliminazione file:", itemRef.fullPath);
-              try {
-                await deleteObject(itemRef);
-                console.log("File eliminato con successo:", itemRef.fullPath);
-              } catch (deleteError) {
-                console.error("Errore nell'eliminazione del file:", itemRef.fullPath, deleteError);
-              }
-            });
+            // Dividi l'array in gruppi più piccoli per evitare sovraccarichi
+            const chunkSize = 10;
+            const chunks = [];
+            
+            for (let i = 0; i < listResult.items.length; i += chunkSize) {
+              chunks.push(listResult.items.slice(i, i + chunkSize));
+            }
+            
+            // Elabora un gruppo alla volta con un breve ritardo tra i gruppi
+            for (const chunk of chunks) {
+              const deletePromises = chunk.map(async (itemRef) => {
+                try {
+                  await deleteObject(itemRef);
+                  console.log("File eliminato con successo:", itemRef.fullPath);
+                } catch (deleteError) {
+                  console.error("Errore nell'eliminazione del file:", itemRef.fullPath, deleteError);
+                }
+              });
 
-            await Promise.all(deletePromises);
-            console.log(`Eliminati ${deletePromises.length} file da ${path}`);
+              await Promise.all(deletePromises);
+              console.log(`Eliminato un gruppo di ${chunk.length} file da ${path}`);
+              
+              // Piccolo ritardo tra i gruppi per evitare throttling
+              await delay(500);
+            }
+            
+            console.log(`Eliminati ${listResult.items.length} file da ${path}`);
           }
         } catch (error) {
           console.log(`Nessun file trovato in ${path} o errore di accesso:`, error);
         }
       }
+
+      // Piccolo ritardo prima di procedere con le operazioni sul database
+      await delay(1000);
 
       // 2. Elimina documenti dalle collezioni
       const collections = [
@@ -585,25 +611,69 @@ export default function AdminDashboard() {
       for (const col of collections) {
         try {
           const snapshot = await getDocs(col.ref);
-          const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-          await Promise.all(deletePromises);
-          console.log(`Eliminati ${deletePromises.length} documenti dalla collezione ${col.name}`);
+          
+          if (snapshot.docs.length > 0) {
+            // Dividi l'eliminazione in gruppi più piccoli
+            const chunkSize = 20;
+            const chunks = [];
+            
+            for (let i = 0; i < snapshot.docs.length; i += chunkSize) {
+              chunks.push(snapshot.docs.slice(i, i + chunkSize));
+            }
+            
+            // Elabora un gruppo alla volta
+            for (const chunk of chunks) {
+              const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
+              await Promise.all(deletePromises);
+              console.log(`Eliminato un gruppo di ${chunk.length} documenti dalla collezione ${col.name}`);
+              
+              // Piccolo ritardo tra i gruppi
+              await delay(500);
+            }
+            
+            console.log(`Eliminati ${snapshot.docs.length} documenti dalla collezione ${col.name}`);
+          }
         } catch (error) {
           console.error(`Errore nell'eliminazione della collezione ${col.name}:`, error);
         }
       }
+
+      // Piccolo ritardo prima di procedere
+      await delay(1000);
 
       // 3. Elimina documenti dalla collezione gallery-photos
       try {
         const galleryPhotosRef = collection(db, "gallery-photos");
         const q = query(galleryPhotosRef, where("galleryId", "==", gallery.id));
         const snapshot = await getDocs(q);
-        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deletePromises);
-        console.log(`Eliminati ${deletePromises.length} documenti da gallery-photos`);
+        
+        if (snapshot.docs.length > 0) {
+          // Dividi l'eliminazione in gruppi più piccoli
+          const chunkSize = 20;
+          const chunks = [];
+          
+          for (let i = 0; i < snapshot.docs.length; i += chunkSize) {
+            chunks.push(snapshot.docs.slice(i, i + chunkSize));
+          }
+          
+          // Elabora un gruppo alla volta
+          for (const chunk of chunks) {
+            const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+            console.log(`Eliminato un gruppo di ${chunk.length} documenti da gallery-photos`);
+            
+            // Piccolo ritardo tra i gruppi
+            await delay(500);
+          }
+          
+          console.log(`Eliminati ${snapshot.docs.length} documenti da gallery-photos`);
+        }
       } catch (error) {
         console.error("Errore nell'eliminazione dei documenti da gallery-photos:", error);
       }
+
+      // Piccolo ritardo prima di eliminare il documento principale
+      await delay(500);
 
       // 4. Elimina il documento principale della galleria
       await deleteDoc(doc(db, "galleries", gallery.id));
