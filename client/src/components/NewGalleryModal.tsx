@@ -133,7 +133,6 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
         coverImageUrl: coverImageStorageUrl,
         youtubeUrl: youtubeUrl || "",
         photoCount: 0, // Sarà aggiornato dopo il caricamento delle foto
-        hasChapters: chapters.length > 0, // Aggiungiamo questa proprietà
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -141,39 +140,8 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
       console.log("Creazione galleria con dati:", galleryData);
       const galleryRef = await addDoc(collection(db, "galleries"), galleryData);
 
-      // Salvataggio dei capitoli al database
-      const chapterIdMap = new Map<string, string>(); // Mappa da vecchio ID capitolo a nuovo ID Firestore
-
-      if (chapters.length > 0) {
-        console.log("Salvataggio capitoli nel database:", chapters);
-
-        // Visualizza i chapterIds originali per il debug
-        console.log("IDs originali dei capitoli:", chapters.map(c => c.id).join(", "));
-
-        const batch = writeBatch(db);
-
-        // Salva i capitoli
-        for (const chapter of chapters) {
-          const chapterRef = doc(collection(db, "galleries", galleryRef.id, "chapters"));
-          const newChapterId = chapterRef.id; // Nuovo ID generato da Firestore
-
-          // Memorizza la mappatura tra ID vecchio e nuovo
-          chapterIdMap.set(chapter.id, newChapterId);
-
-          batch.set(chapterRef, {
-            title: chapter.title,
-            description: chapter.description || "",
-            position: chapter.position,
-            originalId: chapter.id, // Memorizza l'ID originale per debug
-            createdAt: serverTimestamp()
-          });
-
-          console.log(`Capitolo ${chapter.title} - ID originale: ${chapter.id}, nuovo ID: ${newChapterId}`);
-        }
-
-        await batch.commit();
-        console.log("Capitoli salvati con successo");
-      }
+      // Funzionalità capitoli rimossa
+      console.log("Capitoli disabilitati");
 
       // Upload photos if any are selected
       if (selectedFiles.length > 0) {
@@ -638,15 +606,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
         </DialogContent>
       </Dialog>
 
-      <ChaptersModal
-        isOpen={showChaptersModal}
-        onClose={() => setShowChaptersModal(false)}
-        photos={selectedFiles}
-        onPhotosUpdate={setSelectedFiles}
-        chapters={chapters}
-        onChaptersUpdate={setChapters}
-        onSave={handleSaveChapters}
-      />
+      {/* Componente capitoli rimosso */}
     </>
   );
 }
