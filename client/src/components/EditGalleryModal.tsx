@@ -390,23 +390,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     
     setIsUploading(true);
     try {
-      // Crea una mappa per tenere traccia della posizione originale e del capitolo di ogni file
-      const fileMetadataMap = new Map<string, { chapterId?: string, position: number }>();
-      
-      // Estrai i File reali dall'array di PhotoWithChapter per uploadPhotos
-      // e popola la mappa con i metadati dei capitoli
-      const filesToUpload = selectedFiles.map((photoWithChapter, index) => {
-        // Crea una chiave univoca basata su nome e timestamp per tracciare il file
-        const fileKey = `${index}-${photoWithChapter.file.name}`;
-        
-        // Salva i metadati del capitolo nella mappa
-        fileMetadataMap.set(fileKey, {
-          chapterId: photoWithChapter.chapterId,
-          position: photoWithChapter.position
-        });
-        
-        return photoWithChapter.file;
-      });
+      // Prepara i file per l'upload
+      const filesToUpload = selectedFiles;
       
       // Carica le foto su Firebase Storage usando il nuovo percorso (gallery-photos)
       const uploadedPhotos = await uploadPhotos(
@@ -422,13 +407,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Salva i metadati delle foto in Firestore
       const photoPromises = uploadedPhotos.map(async (photo, index) => {
         try {
-          // Recupera i metadati del capitolo dalla mappa
-          const fileKey = `${index}-${photo.name}`;
-          const metadata = fileMetadataMap.get(fileKey) || { chapterId: null, position: 0 };
-          const chapterId = metadata.chapterId || null;
-          const chapterPosition = metadata.position || 0;
+          // Impostiamo sempre chapterId e position a valori di default
+          const chapterId = null;
+          const chapterPosition = 0;
           
-          console.log(`Foto ${photo.name} - chapterId: ${chapterId}, position: ${chapterPosition}`);
+          console.log(`Foto ${photo.name} - senza capitolo (organizzazione cronologica)`);
           
           // Salva nella sottocollezione photos (lasciamo per compatibilità)
           await addDoc(collection(db, "galleries", gallery.id, "photos"), {
@@ -806,7 +789,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     <ul className="text-sm space-y-1">
                       <li>Numero totale di foto: <span className="font-medium">{selectedFiles.length}</span></li>
                       <li>Dimensione totale: <span className="font-medium">
-                        {(selectedFiles.reduce((acc, file) => acc + file.file.size, 0) / (1024 * 1024)).toFixed(2)} MB
+                        {(selectedFiles.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024)).toFixed(2)} MB
                       </span></li>
                     </ul>
                   </div>
