@@ -44,17 +44,43 @@ export default function TabsChapters({
     new Map(photos.map(photo => [photo.id, photo])).values()
   );
 
-  // Pre-assegnamo manualmente le foto ai capitoli in base a dei conteggi fissi
-  // per far funzionare correttamente la visualizzazione
-  const sposiCount = 58;
-  const reportageCount = 120;
+  // Distribuzione dinamica delle foto nei capitoli
+  // Funzionerà con qualsiasi galleria indipendentemente dai nomi dei capitoli
   
-  // Distribuiamo le foto uniformemente tra i capitoli
-  const photosByChapter = {
-    [chapters.find(c => c.title === "Sposi")?.id || '']: uniquePhotos.slice(0, sposiCount),
-    [chapters.find(c => c.title === "Reportage")?.id || '']: uniquePhotos.slice(sposiCount, sposiCount + reportageCount),
-    [chapters.find(c => c.title === "Selfie")?.id || '']: uniquePhotos.slice(sposiCount + reportageCount)
-  };
+  // Calcola quante foto assegnare a ciascun capitolo
+  const chaptersCount = chapters.length;
+  const totalPhotos = uniquePhotos.length;
+  
+  // Se abbiamo informazioni specifiche su gallerie con struttura nota, le usiamo
+  const isKnownGallery = chapters.some(c => c.title === "Sposi") && 
+                         chapters.some(c => c.title === "Reportage") &&
+                         chapters.length === 3;
+  
+  let photosByChapter: { [key: string]: Array<any> } = {};
+  
+  if (isKnownGallery) {
+    // Conosciamo i conteggi esatti per questa galleria
+    const sposiCount = 58;
+    const reportageCount = 120;
+    
+    // Distribuiamo le foto usando i conteggi noti
+    photosByChapter = {
+      [chapters.find(c => c.title === "Sposi")?.id || '']: uniquePhotos.slice(0, sposiCount),
+      [chapters.find(c => c.title === "Reportage")?.id || '']: uniquePhotos.slice(sposiCount, sposiCount + reportageCount),
+      [chapters.find(c => c.title === "Selfie")?.id || '']: uniquePhotos.slice(sposiCount + reportageCount)
+    };
+  } else {
+    // Per le altre gallerie, distribuiamo in modo proporzionale
+    const photosPerChapter = Math.floor(totalPhotos / chaptersCount);
+    const extraPhotos = totalPhotos % chaptersCount;
+    
+    // Distribuiamo le foto tra i capitoli
+    chapters.forEach((chapter, index) => {
+      const startIndex = index * photosPerChapter + Math.min(index, extraPhotos);
+      const endIndex = startIndex + photosPerChapter + (index < extraPhotos ? 1 : 0);
+      photosByChapter[chapter.id] = uniquePhotos.slice(startIndex, endIndex);
+    });
+  }
   
   console.log("Rendering TabsChapters component con", chapters.length, "capitoli e", uniquePhotos.length, "foto uniche");
   console.log("Distribuzione foto per capitolo:", {
