@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Photo } from "@/hooks/use-gallery-data";
+import { PhotoData } from "@/hooks/use-gallery-data";
 import { deleteDoc, doc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
@@ -18,7 +18,7 @@ import {
 interface DeletePhotoDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  photo: PhotoWithChapter | null;
+  photo: PhotoData | null;
   galleryId: string;
   onPhotoDeleted: (photoId: string) => void;
 }
