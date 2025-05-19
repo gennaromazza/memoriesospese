@@ -189,10 +189,10 @@ export function useGalleryData(galleryCode: string) {
       // Utilizziamo la collezione gallery-photos per trovare tutte le foto
       // Nota: rimuoviamo temporaneamente l'ordinamento per evitare problemi di indici
       const photosRef = collection(db, "gallery-photos");
+      // Rimuoviamo il limite per caricare tutte le foto disponibili nella galleria
       const q = query(
         photosRef, 
-        where("galleryId", "==", galleryId),
-        limit(photosPerPage)
+        where("galleryId", "==", galleryId)
       );
 
       const querySnapshot = await getDocs(q);
