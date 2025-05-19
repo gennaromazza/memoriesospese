@@ -189,18 +189,27 @@ export function useGalleryData(galleryCode: string) {
         return;
       }
 
+      // Creiamo un set per tenere traccia dei nomi file già aggiunti (per evitare duplicati)
+      const uniquePhotoNames = new Set<string>();
       const photosList: PhotoData[] = [];
+      
       querySnapshot.forEach((doc) => {
         const photoData = doc.data();
-        photosList.push({
-          id: doc.id,
-          name: photoData.name || "",
-          url: photoData.url || "",
-          contentType: photoData.contentType || "image/jpeg",
-          size: photoData.size || 0,
-          createdAt: photoData.createdAt,
-          galleryId: photoData.galleryId
-        });
+        const photoName = photoData.name || "";
+        
+        // Se il nome della foto non è già presente, aggiungila all'elenco
+        if (!uniquePhotoNames.has(photoName)) {
+          uniquePhotoNames.add(photoName);
+          photosList.push({
+            id: doc.id,
+            name: photoData.name || "",
+            url: photoData.url || "",
+            contentType: photoData.contentType || "image/jpeg",
+            size: photoData.size || 0,
+            createdAt: photoData.createdAt,
+            galleryId: photoData.galleryId
+          });
+        }
       });
 
       // Se abbiamo caricato meno foto del previsto, significa che non ce ne sono altre
