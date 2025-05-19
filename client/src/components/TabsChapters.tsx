@@ -203,25 +203,9 @@ export default function TabsChapters({
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
               {/* La maggior parte delle foto ha chapterId undefined. Assegniamo tutte le foto con nomi simili al capitolo */}
               {uniquePhotos.filter(p => {
-                // Estrattore strategico per determinare il capitolo in base al nome della foto
-                // Gli sposi sono in genere all'inizio della galleria (primi numeri)
-                if (chapter.title === "Sposi" && 
-                   (p.name.includes("DSC0") || p.name.includes("DSCF1") || p.name.includes("IMAG5"))) {
-                  return true;
-                }
-                // Il reportage è al centro della galleria (numeri intermedi)
-                if (chapter.title === "Reportage" && 
-                   (p.name.includes("DSCF2") || p.name.includes("IMAG6"))) {
-                  return true;
-                }
-                // I selfie sono in genere alla fine della galleria (ultimi numeri)
-                if (chapter.title === "Selfie" && 
-                   (p.name.includes("DSCF3") || p.name.includes("IMAG7") || p.name.includes("DSC06"))) {
-                  return true;
-                }
-                
-                // Usiamo il chapterId se disponibile
-                return p.chapterId === chapter.id;
+                // Usa solo il chapterId per l'assegnazione
+                return p.chapterId === chapter.id || 
+                       photosByChapter[chapter.id]?.some(photo => photo.id === p.id);
               }).length === 0 ? (
                 <div className="col-span-full text-center py-8">
                   <p className="text-gray-500 italic">Nessuna foto in questo capitolo.</p>

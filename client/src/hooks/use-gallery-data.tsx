@@ -252,7 +252,12 @@ export function useGalleryData(galleryCode: string) {
           if (posA !== posB) return posA - posB;
           
           // Poi per posizione nel capitolo
-          return (a.chapterPosition || 0) - (b.chapterPosition || 0);
+          const chapPosA = typeof a.chapterPosition === 'number' ? a.chapterPosition : Number.MAX_VALUE;
+          const chapPosB = typeof b.chapterPosition === 'number' ? b.chapterPosition : Number.MAX_VALUE;
+          if (chapPosA !== chapPosB) return chapPosA - chapPosB;
+          
+          // Infine per data di creazione
+          return a.createdAt?.seconds - b.createdAt?.seconds;
         });
       }
 

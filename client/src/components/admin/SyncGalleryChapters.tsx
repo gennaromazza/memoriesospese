@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { collection, query, where, getDocs, doc, writeBatch, getFirestore } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, writeBatch, getFirestore, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,7 @@ export default function SyncGalleryChapters({ galleryId, galleryClosed }: SyncGa
 
   const startSync = async () => {
     if (isSyncing) return;
-    
+
     setIsSyncing(true);
     setSyncStatus("syncing");
     setSyncProgress(0);
@@ -48,22 +48,22 @@ export default function SyncGalleryChapters({ galleryId, galleryClosed }: SyncGa
         title: doc.data().title,
         originalId: doc.data().originalId
       }));
-      
+
       // Ordina i capitoli per posizione
       chapters.sort((a, b) => a.position - b.position);
-      
+
       // 2. Recuperare tutte le foto associate a questa galleria
       const photosRef = collection(db, "gallery-photos");
       const q = query(photosRef, where("galleryId", "==", galleryId));
       const photosSnapshot = await getDocs(q);
-      
+
       const photos = photosSnapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data().name,
         chapterId: doc.data().chapterId,
         ...doc.data()
       }));
-      
+
       setSyncStats(prev => ({ ...prev, total: photos.length }));
 
       // Prepara il batch per l'aggiornamento
@@ -73,22 +73,23 @@ export default function SyncGalleryChapters({ galleryId, galleryClosed }: SyncGa
       let updatedCount = 0;
       let unchangedCount = 0;
       let errorCount = 0;
+      let chapterPosition = 0;
 
       // Per ogni foto, determina il capitolo in base al nome e aggiorna il riferimento se necessario
       for (let i = 0; i < photos.length; i++) {
         const photo = photos[i];
-        
+
         try {
           // Determina a quale capitolo dovrebbe appartenere questa foto
           let targetChapterId = null;
-          
+
           // Usa la stessa logica di assegnazione del componente TabsChapters
           if (chapters.length === 3) {
             // Sposi, Reportage, Selfie
             const sposiChapter = chapters.find(c => c.title === "Sposi");
             const reportageChapter = chapters.find(c => c.title === "Reportage");
             const selfieChapter = chapters.find(c => c.title === "Selfie");
-            
+
             // Gli sposi sono in genere all'inizio della galleria (primi numeri)
             if (sposiChapter && (photo.name.includes("DSC0") || photo.name.includes("DSCF1") || photo.name.includes("IMAG5"))) {
               targetChapterId = sposiChapter.id;
@@ -107,7 +108,7 @@ export default function SyncGalleryChapters({ galleryId, galleryClosed }: SyncGa
               const totalPhotos = photos.length;
               const sposiCount = 58;
               const reportageCount = 120;
-              
+
               if (photoIndex < sposiCount && sposiChapter) {
                 targetChapterId = sposiChapter.id;
               } else if (photoIndex < sposiCount + reportageCount && reportageChapter) {
@@ -122,17 +123,22 @@ export default function SyncGalleryChapters({ galleryId, galleryClosed }: SyncGa
             const chapterIndex = Math.floor(photoIndex / Math.ceil(photos.length / chapters.length));
             targetChapterId = chapters[Math.min(chapterIndex, chapters.length - 1)]?.id || null;
           }
-          
+
           // Se il chapterId è diverso, aggiorna il documento
           if (targetChapterId && targetChapterId !== photo.chapterId) {
-            const photoDocRef = doc(db, "gallery-photos", photo.id);
-            batch.update(photoDocRef, { chapterId: targetChapterId });
+            // Aggiorna le foto in entrambe le collezioni
+            const photoRef = doc(db, "gallery-photos", photo.id);
+            batch.update(photoRef, {
+              chapterId: targetChapterId,
+              chapterPosition: targetChapterId ? chapterPosition++ : null,
+              lastUpdated: serverTimestamp(),
+            });
             batchCount++;
             updatedCount++;
           } else {
             unchangedCount++;
           }
-          
+
           // Commit del batch ogni 500 operazioni
           if (batchCount >= 500) {
             await batch.commit();
@@ -143,10 +149,10 @@ export default function SyncGalleryChapters({ galleryId, galleryClosed }: SyncGa
           console.error(`Errore durante l'aggiornamento della foto ${photo.id}:`, err);
           errorCount++;
         }
-        
+
         // Aggiorna il progresso
         setSyncProgress(Math.round(((i + 1) / photos.length) * 100));
-        
+
         // Aggiorna le statistiche periodicamente
         if (i % 10 === 0 || i === photos.length - 1) {
           setSyncStats({
@@ -157,12 +163,12 @@ export default function SyncGalleryChapters({ galleryId, galleryClosed }: SyncGa
           });
         }
       }
-      
+
       // Commit finale del batch
       if (batchCount > 0) {
         await batch.commit();
       }
-      
+
       // Aggiornamento statistiche finali
       setSyncStats({
         total: photos.length,
@@ -170,7 +176,7 @@ export default function SyncGalleryChapters({ galleryId, galleryClosed }: SyncGa
         unchanged: unchangedCount,
         errors: errorCount
       });
-      
+
       setSyncStatus("success");
       toast({
         title: "Sincronizzazione completata",
