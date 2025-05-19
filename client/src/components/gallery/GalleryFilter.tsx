@@ -70,6 +70,16 @@ const GalleryFilter: React.FC<GalleryFilterProps> = ({
     return format(date, 'dd/MM/yyyy');
   };
   
+  // Funzione per gestire il cambiamento del tempo di inizio
+  const handleStartTimeChange = (value: string) => {
+    setStartTime(value === "any" ? undefined : value);
+  };
+  
+  // Funzione per gestire il cambiamento del tempo di fine
+  const handleEndTimeChange = (value: string) => {
+    setEndTime(value === "any" ? undefined : value);
+  };
+  
   return (
     <div className="mb-6">
       <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
@@ -171,14 +181,14 @@ const GalleryFilter: React.FC<GalleryFilterProps> = ({
                 <div className="space-y-2">
                   <Label htmlFor="startTime">Ora inizio</Label>
                   <Select
-                    value={startTime}
-                    onValueChange={setStartTime}
+                    value={startTime || "any"}
+                    onValueChange={handleStartTimeChange}
                   >
                     <SelectTrigger id="startTime" className="w-full">
                       <SelectValue placeholder="Qualsiasi ora" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Qualsiasi ora</SelectItem>
+                      <SelectItem value="any">Qualsiasi ora</SelectItem>
                       {timeOptions.map(time => (
                         <SelectItem key={time} value={time}>
                           {time}
@@ -192,14 +202,14 @@ const GalleryFilter: React.FC<GalleryFilterProps> = ({
                 <div className="space-y-2">
                   <Label htmlFor="endTime">Ora fine</Label>
                   <Select
-                    value={endTime}
-                    onValueChange={setEndTime}
+                    value={endTime || "any"}
+                    onValueChange={handleEndTimeChange}
                   >
                     <SelectTrigger id="endTime" className="w-full">
                       <SelectValue placeholder="Qualsiasi ora" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Qualsiasi ora</SelectItem>
+                      <SelectItem value="any">Qualsiasi ora</SelectItem>
                       {timeOptions.map(time => (
                         <SelectItem key={time} value={time}>
                           {time}
