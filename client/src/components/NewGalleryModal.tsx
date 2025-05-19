@@ -185,7 +185,9 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
           
           // Carica ogni foto
           for (const file of selectedFiles) {
-            const uniqueFileName = `${Date.now()}_${uuidv4()}.${file.name.split('.').pop()}`;
+            // Verifica che file.name esista prima di fare lo split
+            const fileExtension = file.name && file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+            const uniqueFileName = `${Date.now()}_${uuidv4()}.${fileExtension}`;
             const fileRef = ref(storage, `gallery-photos/${galleryRef.id}/${uniqueFileName}`);
             
             try {

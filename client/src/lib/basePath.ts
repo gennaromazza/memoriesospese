@@ -39,7 +39,9 @@ export const createUrl = (path: string): string => {
  * @returns URL assoluto completo di origine
  */
 export const createAbsoluteUrl = (path: string): string => {
-  return `${window.location.origin}${createUrl(path)}`;
+  // Assicurati che non ci siano doppie barre nell'URL
+  const basePath = createUrl(path);
+  return `${window.location.origin}${basePath}`.replace(/([^:]\/)\/+/g, "$1");
 };
 
 /**
