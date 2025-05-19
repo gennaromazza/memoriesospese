@@ -170,8 +170,20 @@ export function useGalleryData(galleryCode: string) {
       const countSnapshot = await getDocs(countQuery);
       
       // Estraiamo gli ID unici delle foto per avere un conteggio accurato
+      // Conserviamo anche l'associazione originale chapterId per ogni foto
+      const photoIdToChapterId = new Map();
+      countSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.chapterId) {
+          photoIdToChapterId.set(doc.id, data.chapterId);
+        }
+      });
+      
       const uniquePhotoIds = new Set(countSnapshot.docs.map(doc => doc.id));
       const actualPhotoCount = uniquePhotoIds.size;
+      
+      // Aggiungiamo informazioni sui capitoli ai metadati per debug
+      console.log(`Foto con chapterId trovate: ${photoIdToChapterId.size} di ${actualPhotoCount} totali`);
       
       setTotalPhotoCount(actualPhotoCount);
       console.log(`Conteggio totale foto uniche nella galleria: ${actualPhotoCount}`);
