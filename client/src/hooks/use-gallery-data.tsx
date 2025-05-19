@@ -179,6 +179,7 @@ export function useGalleryData(galleryCode: string) {
         }
       });
 
+      // Inizializziamo il Set con gli ID unici delle foto
       const uniquePhotoIds = new Set(countSnapshot.docs.map(doc => doc.id));
       const actualPhotoCount = uniquePhotoIds.size;
 
@@ -223,9 +224,9 @@ export function useGalleryData(galleryCode: string) {
         }
       });
 
-      const actualPhotoCount = uniquePhotoIds.size;
-      setTotalPhotoCount(actualPhotoCount);
-      console.log(`Numero effettivo di foto uniche: ${actualPhotoCount}`);
+      // Usiamo uniqueDocsMap.size come riferimento per il numero di foto uniche trovate
+      const uniquePhotosCount = uniqueDocsMap.size;
+      console.log(`Foto uniche nel secondo conteggio: ${uniquePhotosCount}`);
 
       console.log(`Found ${duplicateCount} duplicate photos`);
 
@@ -235,7 +236,7 @@ export function useGalleryData(galleryCode: string) {
 
         // Aggiorna il progresso di caricamento
         if (index % 5 === 0) { // Aggiorna il progresso ogni 5 foto per più feedback visivo
-          const progress = Math.round((index / actualPhotoCount) * 100);
+          const progress = Math.round((index / uniquePhotosCount) * 100);
           setLoadingProgress(progress);
           setLoadedPhotoCount(index);
         }
