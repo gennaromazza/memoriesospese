@@ -180,22 +180,35 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         console.warn(`⚠️ Nessun documento trovato in gallery-photos per ${photoToDelete.name}`);
       }
       
-      // 3. Elimina il file da Firebase Storage
-      try {
-        // Percorso principale
-        const storageRef = ref(storage, `gallery-photos/${gallery.id}/${photoToDelete.name}`);
-        await deleteObject(storageRef);
-        console.log(`✓ Eliminato file da Storage: gallery-photos/${gallery.id}/${photoToDelete.name}`);
-      } catch (storageError) {
-        console.warn(`⚠️ Errore nell'eliminazione del file da Storage:`, storageError);
-        // Proviamo con un percorso alternativo
+      // 3. Elimina il file da Firebase Storage - con multi-percorso migliorato
+      // Elenco di tutti i possibili percorsi dove potrebbero trovarsi le foto
+      const storagePaths = [
+        `gallery-photos/${gallery.id}/${photoToDelete.name}`,
+        `galleries/${gallery.id}/photos/${photoToDelete.name}`,
+        `galleries/${gallery.id}/${photoToDelete.name}`,
+        `galleries/${photoToDelete.name}`,
+        `gallery-photos/${photoToDelete.name}`
+      ];
+      
+      let photoDeleted = false;
+      
+      // Prova a eliminare la foto da tutti i percorsi possibili
+      for (const path of storagePaths) {
         try {
-          const altStorageRef = ref(storage, `galleries/${gallery.id}/photos/${photoToDelete.name}`);
-          await deleteObject(altStorageRef);
-          console.log(`✓ Eliminato file dal percorso alternativo: galleries/${gallery.id}/photos/${photoToDelete.name}`);
-        } catch (altStorageError) {
-          console.error(`❌ Impossibile eliminare il file dallo Storage:`, altStorageError);
+          const storageRef = ref(storage, path);
+          await deleteObject(storageRef);
+          console.log(`✓ Eliminato file da Storage: ${path}`);
+          photoDeleted = true;
+          break; // Se la foto è stata eliminata con successo, interrompe il ciclo
+        } catch (storageError) {
+          console.warn(`⚠️ Non trovato in: ${path}`);
+          // Continua a provare con altri percorsi
         }
+      }
+      
+      // Anche se non troviamo il file, continuiamo comunque con l'eliminazione del documento
+      if (!photoDeleted) {
+        console.warn(`⚠️ File non trovato in nessuno dei percorsi, ma il documento è stato eliminato: ${photoToDelete.name}`);
       }
       
       // 4. Aggiorna l'array locale delle foto
