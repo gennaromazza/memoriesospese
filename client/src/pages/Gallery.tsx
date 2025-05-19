@@ -262,21 +262,29 @@ export default function Gallery() {
         <main>
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div className="px-4 py-4">
-              {photos.length === 0 ? (
+              {/* Filtri per le foto */}
+              <GalleryFilter 
+                onFilterChange={handleFilterChange}
+                totalPhotos={photos.length}
+                activeFilters={areFiltersActive}
+                resetFilters={resetFilters}
+              />
+
+              {(areFiltersActive ? filteredPhotos : photos).length === 0 ? (
                 <div className="text-center py-12">
                   <div className="flex flex-col items-center">
                     <h3 className="text-xl font-playfair text-blue-gray mb-2">
-                      Nessuna foto disponibile
+                      {areFiltersActive ? 'Nessuna foto corrisponde ai filtri selezionati' : 'Nessuna foto disponibile'}
                     </h3>
                     <p className="text-gray-500">
-                      Non ci sono ancora foto in questa galleria.
+                      {areFiltersActive ? 'Prova a modificare i criteri di filtro per visualizzare più foto.' : 'Non ci sono ancora foto in questa galleria.'}
                     </p>
                   </div>
                 </div>
               ) : (
                 <>
                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
-                      {photos.map((photo, index) => (
+                      {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
                         <div
                           key={photo.id}
                           className="gallery-image h-40 sm:h-52 lg:h-64"
@@ -295,17 +303,20 @@ export default function Gallery() {
                               backgroundColor: '#f3f4f6',
                               objectFit: 'cover',
                             }}
+                            title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                           />
                         </div>
                       ))}
                     </div>
 
-                  {/* Pulsante "Carica altre foto" */}
-                  <LoadMoreButton 
-                    onClick={loadMorePhotos}
-                    isLoading={loadingMorePhotos}
-                    hasMore={hasMorePhotos}
-                  />
+                  {/* Pulsante "Carica altre foto" (mostra solo se non ci sono filtri attivi) */}
+                  {!areFiltersActive && (
+                    <LoadMoreButton 
+                      onClick={loadMorePhotos}
+                      isLoading={loadingMorePhotos}
+                      hasMore={hasMorePhotos}
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -320,7 +331,7 @@ export default function Gallery() {
       <ImageLightbox
         isOpen={lightboxOpen}
         onClose={closeLightbox}
-        photos={photos.map(photo => ({
+        photos={(areFiltersActive ? filteredPhotos : photos).map(photo => ({
           id: photo.id,
           name: photo.name,
           url: photo.url,
