@@ -226,13 +226,7 @@ export default function TabsChapters({
                 </div>
               ) : (
                 uniquePhotos
-                    .filter(p => {
-                      // Utilizziamo la distribuzione preassegnata delle foto
-                      return photosByChapter[chapter.id]?.some(photo => photo.id === p.id) || false;
-                      
-                      // Usiamo il chapterId se disponibile
-                      return p.chapterId === chapter.id;
-                    })
+                    .filter(p => p.chapterId === chapter.id || photosByChapter[chapter.id]?.some(photo => photo.id === p.id))
                     .sort((a, b) => {
                       const posA = typeof a.chapterPosition === 'number' ? a.chapterPosition : 0;
                       const posB = typeof b.chapterPosition === 'number' ? b.chapterPosition : 0;
