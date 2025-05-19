@@ -5,11 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { collection, addDoc, doc, updateDoc, serverTimestamp, writeBatch } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { format } from "date-fns";
-import { formatDateString } from "@/lib/dateFormatter";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Loader2 } from "lucide-react";
@@ -48,81 +47,115 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
   const [compressionRatio, setCompressionRatio] = useState<number | undefined>(undefined);
   const [isCompressing, setIsCompressing] = useState(false);
 
-  // Formato del codice della galleria: COGN-MM-YYYY
   useEffect(() => {
-    if (name && date) {
-      // Estrae il cognome dalla prima parola del nome galleria
-      const firstWord = name.split(' ')[0];
-      const formattedDate = format(date, "MM-yyyy");
-      setCode(`${firstWord.toUpperCase()}-${formattedDate}`);
+    if (isOpen) {
+      // Reset form when opening
+      setName("");
+      setDate(new Date());
+      setCode("");
+      setLocation("");
+      setDescription("");
+      setPassword("");
+      setYoutubeUrl("");
+      setCoverImageFile(null);
+      setCoverImageUrl("");
+      setUploadProgress(0);
+      setSelectedFiles([]);
+      setOriginalSize(undefined);
+      setCompressedSize(undefined);
+      setCompressionRatio(undefined);
     }
-  }, [name, date]);
+  }, [isOpen]);
 
-  const handleCoverImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const generateRandomCode = () => {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    const length = 8;
+    for (let i = 0; i < length; i++) {
+      result += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    setCode(result);
+  };
 
-    setIsCompressing(true);
-    setOriginalSize(file.size);
+  useEffect(() => {
+    generateRandomCode();
+  }, []);
 
-    try {
-      // Opzioni per la compressione dell'immagine di copertina
-      const options = {
-        maxSizeMB: 2,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      };
-
-      const compressedFile = await imageCompression(file, options);
-      setCompressedSize(compressedFile.size);
-      setCompressionRatio(file.size / compressedFile.size);
-
-      setCoverImageFile(compressedFile);
-
-      // Crea un URL per la preview
-      const previewUrl = URL.createObjectURL(compressedFile);
-      setCoverImageUrl(previewUrl);
-
-    } catch (error) {
-      console.error("Errore nella compressione dell'immagine:", error);
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante la compressione dell'immagine",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCompressing(false);
+  const handleCoverImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      
+      // Salva la dimensione originale
+      setOriginalSize(file.size);
+      setIsCompressing(true);
+      
+      try {
+        // Compressione dell'immagine
+        const options = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1200,
+          useWebWorker: true
+        };
+        
+        const compressedFile = await imageCompression(file, options);
+        setCompressedSize(compressedFile.size);
+        
+        // Calcola il rapporto di compressione (originale / compresso)
+        const ratio = file.size / compressedFile.size;
+        setCompressionRatio(ratio);
+        
+        setCoverImageFile(compressedFile);
+        
+        // Crea un oggetto URL per la preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setCoverImageUrl(e.target?.result as string);
+        };
+        reader.readAsDataURL(compressedFile);
+      } catch (error) {
+        console.error("Errore durante la compressione dell'immagine:", error);
+        toast({
+          title: "Errore di compressione",
+          description: "Si è verificato un errore durante la compressione dell'immagine. Riprova.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsCompressing(false);
+      }
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePhotoSelection = (files: File[]) => {
+    setSelectedFiles(files);
+  };
 
-    if (!name || !code) {
+  const handleCreateGallery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !code || !date) {
       toast({
-        title: "Errore",
-        description: "Nome e Codice sono campi obbligatori",
-        variant: "destructive",
+        title: "Dati mancanti",
+        description: "Nome, codice e data sono campi obbligatori.",
+        variant: "destructive"
       });
       return;
     }
 
-    if (typeof onSuccess !== 'function') {
-      console.warn('onSuccess callback is not defined');
-    }
-
     setIsLoading(true);
+    setUploadProgress(0);
 
     try {
-      // Carica prima l'immagine di copertina, se presente
       let coverImageStorageUrl = "";
+
+      // Upload cover image if selected
       if (coverImageFile) {
-        const coverImageStorageRef = ref(storage, `cover-images/${uuidv4()}-${coverImageFile.name}`);
-        await uploadBytes(coverImageStorageRef, coverImageFile);
-        coverImageStorageUrl = await getDownloadURL(coverImageStorageRef);
+        const fileExtension = coverImageFile.name.split('.').pop();
+        const coverImageRef = ref(storage, `gallery-covers/${code}_${Date.now()}.${fileExtension}`);
+        
+        await uploadBytes(coverImageRef, coverImageFile);
+        coverImageStorageUrl = await getDownloadURL(coverImageRef);
       }
 
-      // Crea la galleria nel database
+      // Create gallery document in Firestore
       const galleryData = {
         name,
         code,
@@ -148,465 +181,312 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
         try {
           console.log(`Iniziato caricamento di ${selectedFiles.length} foto`);
 
-          // Visualizza l'assegnazione dei capitoli alle foto per il debug
-          console.log("Associazioni foto-capitoli prima del caricamento:");
-          // Utilizziamo Map invece di un oggetto per evitare problemi TypeScript
-          const chapterCountMap = new Map<string, number>();
-          for (const photo of selectedFiles) {
-            if (photo.chapterId) {
-              const currentCount = chapterCountMap.get(photo.chapterId) || 0;
-              chapterCountMap.set(photo.chapterId, currentCount + 1);
-            }
-          }
-          console.log("Conteggio foto per capitolo:", Object.fromEntries(chapterCountMap));
-
-          setUploadProgress(0);
-
-          // Crea un batch Firestore per salvare le foto
-          let currentBatch = writeBatch(db);
-          let operationsInCurrentBatch = 0;
-          const BATCH_LIMIT = 500; // Limite di operazioni per batch
-          let totalProcessed = 0;
-          let photosCollection = collection(db, "galleries", galleryRef.id, "photos");
-
-          // Funzione per gestire il batch quando necessario
-          const checkAndCommitBatchIfNeeded = async () => {
-            if (operationsInCurrentBatch >= BATCH_LIMIT) {
-              try {
-                // Commit del batch corrente e creazione di uno nuovo
-                console.log(`Commit del batch con ${operationsInCurrentBatch} operazioni`);
-                await currentBatch.commit();
-                currentBatch = writeBatch(db);
-                operationsInCurrentBatch = 0;
-              } catch (batchError) {
-                console.error("Errore durante il commit del batch:", batchError);
-                // Ricrea un nuovo batch in caso di errore
-                currentBatch = writeBatch(db);
-                operationsInCurrentBatch = 0;
-              }
-            }
-          };
-
-          const totalPhotos = selectedFiles.length;
-          console.log(`Elaborazione di ${totalPhotos} foto totali`);
-
-          // Carica le foto in batch di 20 per gestire meglio la memoria
-          const CHUNK_SIZE = 20;
-          for (let i = 0; i < selectedFiles.length; i += CHUNK_SIZE) {
-            const chunk = selectedFiles.slice(i, i + CHUNK_SIZE);
-            console.log(`Elaborazione chunk ${i / CHUNK_SIZE + 1} (${chunk.length} foto)`);
-
-            // Carica ogni foto nel chunk
-            for (const photo of chunk) {
-              try {
-                // Carica la foto nello storage
-                // Genera un ID unico per la foto
-                const photoUuid = uuidv4();
-                const storageRef = ref(storage, `gallery-photos/${galleryRef.id}/${photoUuid}-${photo.name}`);
-                await uploadBytes(storageRef, photo.file);
-                const photoUrl = await getDownloadURL(storageRef);
-
-                // Ottieni l'ID del capitolo mappato se esiste
-                let chapterId = null;
-                if (photo.chapterId && chapterIdMap.has(photo.chapterId)) {
-                  chapterId = chapterIdMap.get(photo.chapterId);
-                  console.log(`Assegnata foto ${photo.name} al capitolo ${chapterId} (originale: ${photo.chapterId})`);
-                } else if (photo.chapterId) {
-                  console.warn(`ID capitolo non trovato nella mappa: ${photo.chapterId} per la foto ${photo.name}`);
-                }
-
-                // Salva la foto nel database
-                const photoData = {
-                  name: photo.name,
-                  url: photoUrl,
-                  size: photo.file.size,
-                  contentType: photo.file.type,
-                  position: photo.position,
-                  chapterId: chapterId,
-                  chapterPosition: photo.position, // Aggiungiamo una posizione anche nel capitolo
-                  folderPath: photo.folderPath || "",
-                  createdAt: serverTimestamp(),
-                  uuid: photoUuid // Salviamo l'UUID generato in precedenza
-                };
-
-                // Verifica e commit del batch se necessario
-                await checkAndCommitBatchIfNeeded();
-
-                // Usa il batch corrente per la collezione galleries/{galleryId}/photos
-                const newPhotoRef = doc(photosCollection);
-                currentBatch.set(newPhotoRef, photoData);
-                operationsInCurrentBatch++;
+          let completedUploads = 0;
+          
+          // Carica ogni foto
+          for (const file of selectedFiles) {
+            const uniqueFileName = `${Date.now()}_${uuidv4()}.${file.name.split('.').pop()}`;
+            const fileRef = ref(storage, `gallery-photos/${galleryRef.id}/${uniqueFileName}`);
+            
+            try {
+              // Comprimi l'immagine prima del caricamento
+              const options = {
+                maxSizeMB: 1,
+                maxWidthOrHeight: 1800,
+                useWebWorker: true,
+              };
+              
+              const compressedFile = await imageCompression(file, options);
+              
+              // Carica il file compresso
+              await uploadBytes(fileRef, compressedFile);
+              const downloadURL = await getDownloadURL(fileRef);
                 
-                // Aggiungi anche alla collezione gallery-photos (necessario per la visualizzazione)
-                const galleryPhotoRef = doc(collection(db, "gallery-photos"));
-                const galleryPhotoData = {
-                  ...photoData,
-                  galleryId: galleryRef.id,  // Aggiungi l'ID della galleria per filtraggio
-                };
-                currentBatch.set(galleryPhotoRef, galleryPhotoData);
-                operationsInCurrentBatch++;
-
-                totalProcessed++;
-                const progress = Math.round((totalProcessed / totalPhotos) * 100);
-                setUploadProgress(progress);
-
-              } catch (uploadError) {
-                console.error(`Errore durante il caricamento della foto ${photo.name}:`, uploadError);
-              }
-            }
-
-            // Piccola pausa tra un chunk e l'altro per gestire la memoria
-            if (i + CHUNK_SIZE < selectedFiles.length) {
-              await new Promise(resolve => setTimeout(resolve, 500));
+              // Aggiungi i metadati della foto a Firestore
+              const photoData = {
+                name: file.name,
+                url: downloadURL,
+                size: compressedFile.size,
+                contentType: file.type,
+                sortOrder: completedUploads, // Usa l'ordine di caricamento
+                createdAt: serverTimestamp(),
+                galleryId: galleryRef.id,
+                path: `gallery-photos/${galleryRef.id}/${uniqueFileName}`
+              };
+              
+              await addDoc(collection(db, "photos"), photoData);
+              
+              completedUploads++;
+              const progress = Math.round((completedUploads / selectedFiles.length) * 100);
+              setUploadProgress(progress);
+              
+            } catch (error) {
+              console.error(`Errore nel caricamento di ${file.name}:`, error);
+              // Continua con gli altri file anche se uno fallisce
             }
           }
-
-          // Commit del batch finale se ci sono operazioni in sospeso
-          if (operationsInCurrentBatch > 0) {
-            await currentBatch.commit();
-          }
-
+          
           // Aggiorna il conteggio delle foto nella galleria
           await updateDoc(doc(db, "galleries", galleryRef.id), {
-            photoCount: totalPhotos,
+            photoCount: completedUploads,
             updatedAt: serverTimestamp()
           });
-
-          console.log(`Caricamento completato di ${totalPhotos} foto`);
-
-        } catch (uploadError) {
-          console.error("Errore durante il caricamento delle foto:", uploadError);
+          
+          console.log(`Caricamento completato: ${completedUploads} foto caricate`);
+          
           toast({
-            title: "Errore",
-            description: "Si è verificato un errore durante il caricamento delle foto",
-            variant: "destructive",
+            title: "Galleria creata con successo",
+            description: `Sono state caricate ${completedUploads} foto.`,
+            variant: "default"
+          });
+          
+          onSuccess();
+        } catch (error) {
+          console.error("Errore durante il caricamento delle foto:", error);
+          toast({
+            title: "Errore di caricamento",
+            description: "Si è verificato un errore durante il caricamento delle foto.",
+            variant: "destructive"
           });
         }
-      }
-
-      toast({
-        title: "Successo",
-        description: "Galleria creata con successo!",
-      });
-
-      if (typeof onSuccess === 'function') {
+      } else {
+        toast({
+          title: "Galleria creata",
+          description: "La galleria è stata creata con successo. Nessuna foto è stata caricata.",
+          variant: "default"
+        });
         onSuccess();
       }
-      onClose();
-
     } catch (error) {
-      console.error("Errore durante la creazione della galleria:", error);
-
-      // Mostra dettagli dell'errore per il debug
-      let errorMessage = "Si è verificato un errore durante la creazione della galleria";
-      if (error instanceof Error) {
-        errorMessage += `: ${error.message}`;
-        console.error("Stack trace:", error.stack);
-      } else {
-        console.error("Dettagli errore:", JSON.stringify(error));
-      }
-
+      console.error("Errore nella creazione della galleria:", error);
       toast({
         title: "Errore",
-        description: errorMessage,
-        variant: "destructive",
+        description: "Si è verificato un errore durante la creazione della galleria.",
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);
       setUploadProgress(0);
+      
+      // Reset form
+      setName("");
+      setDate(new Date());
+      setCode("");
+      setLocation("");
+      setDescription("");
+      setPassword("");
+      setYoutubeUrl("");
+      setCoverImageFile(null);
+      setCoverImageUrl("");
+      setSelectedFiles([]);
+      setOriginalSize(undefined);
+      setCompressedSize(undefined);
+      setCompressionRatio(undefined);
+      
+      onClose();
     }
-  };
-
-  const handleClose = () => {
-    // Pulisci lo stato prima di chiudere
-    setName("");
-    setDate(new Date());
-    setCode("");
-    setLocation("");
-    setDescription("");
-    setPassword("");
-    setYoutubeUrl("");
-    setCoverImageFile(null);
-    setCoverImageUrl("");
-    setSelectedFiles([]);
-    setChapters([]);
-    setOriginalSize(undefined);
-    setCompressedSize(undefined);
-    setCompressionRatio(undefined);
-
-    onClose();
-  };
-
-  const handleChaptersExtracted = (result: { 
-    chapters: Chapter[]; 
-    photosWithChapters: PhotoWithChapter[];
-  }) => {
-    console.log(`Capitoli estratti: ${result.chapters.length}, foto assegnate: ${result.photosWithChapters.length}`);
-
-    // Aggiorna lo stato con i capitoli e le foto
-    setChapters(result.chapters);
-    setSelectedFiles(result.photosWithChapters);
-
-    // Mostra conferma all'utente
-    toast({
-      title: "Cartelle rilevate",
-      description: `Sono stati creati ${result.chapters.length} capitoli dalle cartelle`,
-    });
-  };
-
-  const handleFilesSelected = (files: File[] | PhotoWithChapter[]) => {
-    console.log("File selezionati:", files.length);
-
-    // Converti File[] in PhotoWithChapter[] se necessario
-    if (files.length > 0 && !(files[0] as PhotoWithChapter).id) {
-      const filesWithChapters: PhotoWithChapter[] = (files as File[]).map((file, index) => ({
-        id: `photo-${Date.now()}-${index}`,
-        file: file,
-        url: URL.createObjectURL(file),
-        name: file.name,
-        position: index,
-      }));
-      setSelectedFiles(filesWithChapters);
-    } else {
-      setSelectedFiles(files as PhotoWithChapter[]);
-    }
-  };
-
-  const handleOpenChaptersModal = () => {
-    if (selectedFiles.length === 0) {
-      toast({
-        title: "Nessuna foto selezionata",
-        description: "Seleziona delle foto prima di organizzarle in capitoli",
-        variant: "destructive",
-      });
-      return;
-    }
-    setShowChaptersModal(true);
-  };
-
-  const handleSaveChapters = () => {
-    console.log("Capitoli salvati:", chapters);
-    console.log("Foto aggiornate con capitoli:", selectedFiles);
-    setShowChaptersModal(false);
   };
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={handleClose}>
+      <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuova galleria</DialogTitle>
+            <DialogTitle>Crea nuova galleria</DialogTitle>
             <DialogDescription>
-              Crea una nuova galleria fotografica
+              Inserisci i dettagli della nuova galleria fotografica.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Nome galleria*</Label>
-                  <Input 
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Es. Rossi Matrimonio"
-                    required
-                  />
-                </div>
+          <form onSubmit={handleCreateGallery} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome della galleria</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Matrimonio di Marco e Sara"
+                  required
+                />
+              </div>
 
-                <div>
-                  <Label htmlFor="date">Data evento</Label>
-                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !date && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date ? format(date, "PPP") : <span>Seleziona data</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={(date) => {
-                          setDate(date);
-                          setIsDatePickerOpen(false);
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div>
-                  <Label htmlFor="code">Codice galleria*</Label>
-                  <Input 
+              <div className="space-y-2">
+                <Label htmlFor="code">Codice galleria</Label>
+                <div className="flex space-x-2">
+                  <Input
                     id="code"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder="Es. ROSSI-05-2023"
+                    placeholder="codice-univoco"
                     required
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Generato automaticamente, puoi modificarlo se necessario
-                  </p>
-                </div>
-
-                <div>
-                  <Label htmlFor="location">Luogo</Label>
-                  <Input 
-                    id="location"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Es. Firenze, Italia"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="password">Password galleria</Label>
-                  <Input 
-                    id="password"
-                    type="text"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password per accedere alla galleria"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="youtubeUrl">URL Video YouTube</Label>
-                  <Input 
-                    id="youtubeUrl"
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                    placeholder="Es. https://www.youtube.com/watch?v=..."
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="description">Descrizione</Label>
-                  <Textarea 
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Inserisci una descrizione della galleria"
-                    rows={3}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="coverImage">Immagine di copertina</Label>
-                  <div className="mt-1 flex flex-col space-y-2">
-                    <Input
-                      id="coverImage"
-                      type="file"
-                      accept="image/*"
-                      ref={fileInputRef}
-                      onChange={handleCoverImageSelect}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      Seleziona immagine
-                    </Button>
-
-                    {isCompressing && (
-                      <div className="flex items-center mt-2">
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        <span className="text-sm text-muted-foreground">
-                          Compressione in corso...
-                        </span>
-                      </div>
-                    )}
-
-                    {coverImageFile && (
-                      <ImageCompressionInfo
-                        originalSize={originalSize}
-                        compressedSize={compressedSize}
-                        compressionRatio={compressionRatio}
-                        fileName={coverImageFile.name}
-                        isCompressing={isCompressing}
-                      />
-                    )}
-
-                    {coverImageUrl && (
-                      <div className="relative mt-2 h-48 rounded-md overflow-hidden">
-                        <img
-                          src={coverImageUrl}
-                          alt="Anteprima copertina"
-                          className="object-cover w-full h-full"
-                        />
-                      </div>
-                    )}
-                  </div>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={generateRandomCode}
+                  >
+                    Genera
+                  </Button>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <Label>Carica foto</Label>
-              <FileUpload 
-                onFilesSelected={handleFilesSelected} 
-                multiple={true}
-                enableFolderUpload={true}
-                onChaptersExtracted={handleChaptersExtracted}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date">Data evento</Label>
+                <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP") : <span>Seleziona una data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={(date) => {
+                        setDate(date);
+                        setIsDatePickerOpen(false);
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-              {selectedFiles.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm">
-                    {selectedFiles.length} foto selezionate
-                  </p>
-                  <Button type="button" variant="outline" onClick={handleOpenChaptersModal}>
-                    Organizza in capitoli
-                  </Button>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="text"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password per accedere alla galleria"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Luogo</Label>
+              <Input
+                id="location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="es. Villa Rossi, Milano"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrizione</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Breve descrizione dell'evento"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="youtubeUrl">URL Video YouTube</Label>
+              <Input
+                id="youtubeUrl"
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="coverImage">Immagine di copertina</Label>
+              <div className="flex items-center space-x-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-40"
+                  disabled={isCompressing}
+                >
+                  {isCompressing ? "Compressione..." : "Seleziona immagine"}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  id="coverImage"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleCoverImageChange}
+                />
+                {coverImageUrl && (
+                  <div className="relative h-20 w-20 rounded overflow-hidden">
+                    <img
+                      src={coverImageUrl}
+                      alt="Cover preview"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+              {(originalSize !== undefined || compressedSize !== undefined) && (
+                <ImageCompressionInfo
+                  originalSize={originalSize}
+                  compressedSize={compressedSize}
+                  fileName={coverImageFile?.name || ""}
+                  isCompressing={isCompressing}
+                  compressionRatio={compressionRatio}
+                />
               )}
             </div>
 
-            {isLoading && uploadProgress > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Caricamento in corso: {uploadProgress}%</p>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div
-                    className="bg-primary h-2.5 rounded-full"
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Carica foto</Label>
+              <FileUpload
+                onFilesSelected={handlePhotoSelection}
+                accept="image/*"
+                multiple={true}
+                maxFiles={500}
+              />
+              {selectedFiles.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {selectedFiles.length} file selezionati
+                </p>
+              )}
+            </div>
 
-            <div className="flex justify-end space-x-4">
-              <Button type="button" variant="outline" onClick={handleClose}>
-                Annulla
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creazione in corso...
-                  </>
-                ) : (
-                  "Crea galleria"
+            <div className="flex justify-end items-center">
+              <div className="flex items-center space-x-2">
+                {isLoading && uploadProgress > 0 && (
+                  <div className="text-sm">
+                    Caricamento: {uploadProgress}%
+                  </div>
                 )}
-              </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isLoading || isCompressing}
+                  className="min-w-24"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creazione in corso...
+                    </>
+                  ) : (
+                    "Crea galleria"
+                  )}
+                </Button>
+              </div>
             </div>
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Componente capitoli rimosso */}
     </>
   );
 }
