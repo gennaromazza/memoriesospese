@@ -168,7 +168,8 @@ export function useGalleryData(galleryCode: string) {
         setTotalPhotoCount(galleryData.photoCount);
       }
 
-      const photosRef = collection(db, "photos");
+      // Utilizziamo la collezione gallery-photos per trovare tutte le foto
+      const photosRef = collection(db, "gallery-photos");
       const q = query(
         photosRef, 
         where("galleryId", "==", galleryId),
