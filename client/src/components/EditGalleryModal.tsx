@@ -76,8 +76,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         setCoverPreview(null);
       }
       
-      // Carica capitoli e foto
-      loadChaptersAndPhotos();
+      // Carica le foto
+      loadPhotos();
     }
   }, [gallery]);
   
@@ -107,71 +107,60 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     return () => URL.revokeObjectURL(objectUrl);
   };
   
-  // Carica i capitoli e le foto dalla galleria
-  const loadChaptersAndPhotos = async () => {
+  // Carica le foto dalla galleria
+  const loadPhotos = async () => {
     if (!gallery) return;
     
-    setIsChaptersLoading(true);
+    setIsLoading(true);
     try {
-      // Carica i capitoli
-      const chaptersCollection = collection(db, "galleries", gallery.id, "chapters");
-      const chaptersSnapshot = await getDocs(chaptersCollection);
-      
-      const loadedChapters: Chapter[] = chaptersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        title: doc.data().title,
-        description: doc.data().description,
-        position: doc.data().position || 0
-      }));
-      
-      // Ordina per posizione
-      loadedChapters.sort((a, b) => a.position - b.position);
-      setChapters(loadedChapters);
-      
       // Carica le foto
-      const photosCollection = collection(db, "galleries", gallery.id, "photos");
-      const photosSnapshot = await getDocs(photosCollection);
+      const photosCollection = collection(db, "photos");
+      const photosQuery = query(photosCollection, where("galleryId", "==", gallery.id));
+      const photosSnapshot = await getDocs(photosQuery);
       
-      const loadedPhotos: PhotoWithChapter[] = photosSnapshot.docs.map(doc => {
+      const loadedPhotos = photosSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
-          file: new File([], data.name), // File vuoto, usiamo solo per compatibilità
-          url: data.url,
-          name: data.name,
-          chapterId: data.chapterId,
-          position: data.position || 0,
-          contentType: data.contentType,
-          size: data.size
+          name: data.name || "",
+          url: data.url || "",
+          contentType: data.contentType || "image/jpeg",
+          size: data.size || 0,
+          createdAt: data.createdAt,
         };
       });
       
-      // Ordina le foto per posizione
-      loadedPhotos.sort((a, b) => a.position - b.position);
+      // Ordina le foto per data di creazione (più recenti prima)
+      loadedPhotos.sort((a, b) => {
+        if (!a.createdAt || !b.createdAt) return 0;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      
       setPhotos(loadedPhotos);
+      console.log(`Caricate ${loadedPhotos.length} foto per la galleria ${gallery.id}`);
     } catch (error) {
-      console.error("Error loading chapters and photos:", error);
+      console.error("Error loading photos:", error);
       toast({
         title: "Errore",
-        description: "Impossibile caricare capitoli e foto della galleria",
+        description: "Impossibile caricare le foto della galleria",
         variant: "destructive"
       });
     } finally {
-      setIsChaptersLoading(false);
+      setIsLoading(false);
     }
   };
   
   // Funzione per eliminare una foto sia da Firestore che da Storage
-  const deletePhoto = async (photoToDelete: PhotoWithChapter) => {
+  const deletePhoto = async (photoToDelete: any) => {
     if (!gallery) return;
     
     try {
       console.log(`Eliminazione foto: ${photoToDelete.name} (ID: ${photoToDelete.id})`);
       
-      // 1. Elimina il documento da Firestore nella sottocollezione galleries/{galleryId}/photos
-      const photoRef = doc(db, "galleries", gallery.id, "photos", photoToDelete.id);
+      // 1. Elimina il documento da Firestore nella collezione photos
+      const photoRef = doc(db, "photos", photoToDelete.id);
       await deleteDoc(photoRef);
-      console.log(`✓ Eliminato documento da galleries/${gallery.id}/photos/${photoToDelete.id}`);
+      console.log(`✓ Eliminato documento da photos/${photoToDelete.id}`);
       
       // 2. Trova e elimina il documento corrispondente in gallery-photos
       const galleryPhotosQuery = query(
