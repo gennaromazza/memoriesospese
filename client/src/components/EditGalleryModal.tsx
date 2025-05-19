@@ -245,7 +245,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         password,
         coverImageUrl: newCoverImageUrl,
         youtubeUrl,
-        hasChapters: chapters.length > 0 // Aggiorniamo hasChapters in base alla presenza di capitoli
+        hasChapters: false // Rimuoviamo la funzionalità dei capitoli
       });
       
       toast({
@@ -266,78 +266,36 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   };
   
-  // Salva i capitoli e le foto con le modifiche
-  const saveChaptersAndPhotos = async () => {
+  // Rimuova la funzione saveChaptersAndPhotos poiché non abbiamo più capitoli
+  const updatePhotosOrder = async () => {
     if (!gallery) return;
     
     setIsLoading(true);
     try {
-      console.log("Inizio aggiornamento capitoli e foto");
+      console.log("Aggiornamento ordine foto");
       
-      // 1. Aggiornamento capitoli
-      console.log(`Aggiornamento di ${chapters.length} capitoli`);
-      const chapterPromises = chapters.map(async (chapter) => {
-        try {
-          const chapterRef = doc(db, "galleries", gallery.id, "chapters", chapter.id);
-          await updateDoc(chapterRef, {
-            title: chapter.title,
-            description: chapter.description || "",
-            position: chapter.position
-          });
-          console.log(`✓ Aggiornato capitolo: ${chapter.title} (${chapter.id})`);
-        } catch (error) {
-          console.error(`❌ Errore nell'aggiornamento del capitolo ${chapter.title}:`, error);
-        }
+      // Aggiorna il lastUpdated della galleria
+      const galleryRef = doc(db, "galleries", gallery.id);
+      await updateDoc(galleryRef, {
+        lastUpdated: serverTimestamp()
       });
+      console.log("✓ Aggiornato timestamp della galleria");
       
-      // Esegui tutti gli aggiornamenti dei capitoli in parallelo
-      await Promise.all(chapterPromises);
+      // Aggiorna le foto rimuovendo i riferimenti ai capitoli
+      console.log(`Aggiornamento di ${photos.length} foto in ordine cronologico`);
       
-      // 2. Aggiorna il flag hasChapters nella galleria se necessario
-      if (chapters.length > 0 && !gallery.hasChapters) {
-        const galleryRef = doc(db, "galleries", gallery.id);
-        await updateDoc(galleryRef, {
-          hasChapters: true,
-          lastUpdated: serverTimestamp()
-        });
-        console.log("✓ Aggiornato flag hasChapters a true nella galleria");
-      } else if (chapters.length === 0 && gallery.hasChapters) {
-        const galleryRef = doc(db, "galleries", gallery.id);
-        await updateDoc(galleryRef, {
-          hasChapters: false,
-          lastUpdated: serverTimestamp()
-        });
-        console.log("✓ Aggiornato flag hasChapters a false nella galleria");
-      }
-      
-      // 3. Aggiorna le foto in entrambe le collezioni
-      console.log(`Aggiornamento di ${photos.length} foto con le assegnazioni dei capitoli`);
-      
-      // Crea batch per le operazioni di aggiornamento
-      let batch = writeBatch(db);
-      let operationsCount = 0;
-      const MAX_BATCH_SIZE = 500; // Firestore limita a 500 operazioni per batch
-      
-      const photoPromises = photos.map(async (photo) => {
+      // Iterazione su tutte le foto
+      for (const photo of photos) {
         try {
-          // Verifica se dobbiamo commitare il batch corrente e crearne uno nuovo
-          if (operationsCount >= MAX_BATCH_SIZE) {
-            await batch.commit();
-            console.log(`✓ Batch di ${operationsCount} operazioni commitato`);
-            batch = writeBatch(db);
-            operationsCount = 0;
-          }
+          console.log(`Elaborazione foto ${photo.name} (${photo.id})`);
           
-          console.log(`Elaborazione foto ${photo.name} (${photo.id}) - chapterId: ${photo.chapterId}`);
-          
-          // 1. Aggiorna nella sottocollezione galleries/{galleryId}/photos usando batch
+          // Aggiorna nella sottocollezione galleries/{galleryId}/photos
           const photoRef = doc(db, "galleries", gallery.id, "photos", photo.id);
-          batch.update(photoRef, {
-            chapterId: photo.chapterId,
-            position: photo.position,
-            chapterPosition: photo.position // Per compatibilità
+          await updateDoc(photoRef, {
+            chapterId: null,
+            position: 0,
+            chapterPosition: 0 // Per compatibilità
           });
-          operationsCount++;
           
           // 2. Cerca il documento corrispondente in gallery-photos
           const galleryPhotosQuery = query(
@@ -351,12 +309,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           if (!querySnapshot.empty) {
             // Aggiorna il primo documento trovato
             const docRef = querySnapshot.docs[0].ref;
-            batch.update(docRef, {
-              chapterId: photo.chapterId,
-              chapterPosition: photo.position
+            await updateDoc(docRef, {
+              chapterId: null,
+              chapterPosition: 0
             });
-            operationsCount++;
-            console.log(`✓ Aggiornato chapterId a ${photo.chapterId} per foto ${photo.name} in gallery-photos`);
+            console.log(`✓ Rimosso chapterId per foto ${photo.name} in gallery-photos`);
           } else {
             // Prova a cercare per nome senza galleryId (per compatibilità con versioni precedenti)
             const q2 = query(
