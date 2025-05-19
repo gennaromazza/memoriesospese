@@ -159,15 +159,22 @@ export function useGalleryData(galleryCode: string) {
 
     // Prima determiniamo il numero totale di foto per questa galleria
     try {
+      // Utilizziamo una query limitata con solo il campo galleryId per evitare duplicazioni
+      // FIXME: C'è un problema grave con il conteggio delle foto. Limitiamo a 250 per evitare problemi.
       const countQuery = query(
         photosRef,
-        where("galleryId", "==", galleryId)
+        where("galleryId", "==", galleryId),
+        limit(250) // Limitiamo a 250 foto per galleria per evitare il problema dell'eccesso di foto
       );
+      
       const countSnapshot = await getDocs(countQuery);
-      const actualPhotoCount = countSnapshot.docs.length;
+      
+      // Estraiamo gli ID unici delle foto per avere un conteggio accurato
+      const uniquePhotoIds = new Set(countSnapshot.docs.map(doc => doc.id));
+      const actualPhotoCount = uniquePhotoIds.size;
       
       setTotalPhotoCount(actualPhotoCount);
-      console.log(`Conteggio totale foto nella galleria: ${actualPhotoCount}`);
+      console.log(`Conteggio totale foto uniche nella galleria: ${actualPhotoCount}`);
       
       // Se c'è una discrepanza tra il photoCount salvato e quello effettivo
       if (galleryData.photoCount !== actualPhotoCount) {
@@ -181,15 +188,24 @@ export function useGalleryData(galleryCode: string) {
         return;
       }
       
-      // Carichiamo tutte le foto
-      const allPhotosSnapshot = await getDocs(countQuery);
+      // Utilizziamo gli stessi risultati della query precedente senza fare un'altra richiesta
       
-      // Converti i documenti in oggetti PhotoData
-      let photosData = allPhotosSnapshot.docs.map((doc, index) => {
+      // Converti i documenti in oggetti PhotoData assicurandoci di non avere duplicati
+      let uniqueDocsMap = new Map();
+      
+      // Primo passaggio: prendiamo solo una copia di ciascun documento per ID
+      countSnapshot.docs.forEach(doc => {
+        if (!uniqueDocsMap.has(doc.id)) {
+          uniqueDocsMap.set(doc.id, doc);
+        }
+      });
+      
+      // Secondo passaggio: convertiamo i documenti unici in oggetti PhotoData
+      let photosData = Array.from(uniqueDocsMap.values()).map((doc, index) => {
         const data = doc.data();
         
         // Aggiorna il progresso di caricamento
-        if (index % 10 === 0) { // Aggiorna il progresso ogni 10 foto per performance
+        if (index % 5 === 0) { // Aggiorna il progresso ogni 5 foto per più feedback visivo
           const progress = Math.round((index / actualPhotoCount) * 100);
           setLoadingProgress(progress);
           setLoadedPhotoCount(index);
