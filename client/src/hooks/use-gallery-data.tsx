@@ -459,7 +459,6 @@ export function useGalleryData(galleryCode: string) {
   return { 
     gallery, 
     photos, 
-    chapters, 
     isLoading, 
     hasMorePhotos, 
     loadingMorePhotos,
