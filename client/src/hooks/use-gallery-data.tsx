@@ -56,11 +56,12 @@ export function useGalleryData(galleryCode: string) {
         `gallery-photos/${String(galleryCode).toLowerCase()}`
       ];
 
-      let listResult = null;
+      let validPath = null;
+      let allItems: any[] = [];
 
       // Prova tutti i percorsi possibili
       for (const path of possiblePaths) {
-        if (listResult && listResult.items.length > 0) break;
+        if (validPath) break;
 
         try {
           console.log("Verifico percorso Storage:", path);
@@ -69,7 +70,21 @@ export function useGalleryData(galleryCode: string) {
 
           if (result.items.length > 0) {
             console.log(`Trovate ${result.items.length} foto nel percorso ${path}`);
-            listResult = result;
+            validPath = path;
+            allItems = [...result.items];
+            
+            // Verifica anche se ci sono sottocartelle con più foto
+            for (const prefix of result.prefixes) {
+              try {
+                console.log(`Verifica sottocartella: ${prefix.fullPath}`);
+                const subResult = await listAll(prefix);
+                console.log(`Trovate ${subResult.items.length} foto nella sottocartella ${prefix.fullPath}`);
+                allItems = [...allItems, ...subResult.items];
+              } catch (subErr) {
+                console.warn(`Errore nell'elencare la sottocartella ${prefix.fullPath}:`, subErr);
+              }
+            }
+            
             break;
           }
         } catch (e) {
@@ -78,18 +93,19 @@ export function useGalleryData(galleryCode: string) {
       }
 
       // Se non abbiamo ancora trovato foto, termina
-      if (!listResult || listResult.items.length === 0) {
+      if (!validPath || allItems.length === 0) {
         console.log("Nessuna foto trovata dopo tutti i tentativi di percorso");
-        return;
+        return false;
       }
 
-      setTotalPhotoCount(listResult.items.length);
+      console.log(`Trovate in totale ${allItems.length} foto da caricare`);
+      setTotalPhotoCount(allItems.length);
 
       // Per ogni file, recupera l'URL di download e i metadati
-      const photoPromises = listResult.items.map(async (itemRef, index) => {
+      const photoPromises = allItems.map(async (itemRef, index) => {
         // Aggiorna il progresso ogni 5 foto
         if (index % 5 === 0) {
-          setLoadingProgress(Math.round((index / listResult!.items.length) * 100));
+          setLoadingProgress(Math.round((index / allItems.length) * 100));
           setLoadedPhotoCount(index);
         }
 
