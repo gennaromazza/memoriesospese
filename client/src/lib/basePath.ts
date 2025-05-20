@@ -21,27 +21,30 @@ export const getBasePath = (): string => {
 /**
  * Crea un URL per i link interni all'applicazione
  * @param path Percorso relativo (con o senza slash iniziale)
- * @returns URL normalizzato
+ * @returns URL normalizzato con il percorso base corretto
  */
 export const createUrl = (path: string): string => {
-  // Gestione percorsi speciali
-  if (path === '' || path === '/') {
-    return '/';
+  if (!import.meta.env.PROD) {
+    return path === '' || path === '/' ? '/' : (path.startsWith('/') ? path : `/${path}`);
   }
   
-  // Normalizza il percorso aggiungendo slash iniziale se mancante
-  return path.startsWith('/') ? path : `/${path}`;
+  const base = PRODUCTION_BASE_PATH.replace(/\/$/, '');
+  if (path === '' || path === '/') {
+    return `${base}/`;
+  }
+  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 };
 
 /**
  * Crea URL assoluto con origine
  * @param path Percorso relativo
- * @returns URL assoluto completo di origine
+ * @returns URL assoluto completo di origine e sottocartella
  */
 export const createAbsoluteUrl = (path: string): string => {
+  // Usa createUrl per ottenere il percorso corretto con la base path
+  const url = createUrl(path);
   // Assicurati che non ci siano doppie barre nell'URL
-  const basePath = createUrl(path);
-  return `${window.location.origin}${basePath}`.replace(/([^:]\/)\/+/g, "$1");
+  return `${window.location.origin}${url}`.replace(/([^:]\/)\/+/g, "$1");
 };
 
 /**
@@ -54,8 +57,11 @@ export const isProduction = (): boolean => {
 
 /**
  * Verifica se siamo in sottodirectory
- * @returns sempre false poiché l'app è configurata per eseguire alla radice
+ * @returns true se in produzione e PRODUCTION_BASE_PATH non è '/'
  */
 export const isInSubdirectory = (): boolean => {
-  return false;
+  // Durante lo sviluppo è false, in produzione verifica il percorso
+  if (!import.meta.env.PROD) return false;
+  // Verifica se il percorso base in produzione non è la root
+  return PRODUCTION_BASE_PATH.length > 1;
 };

@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { createUrl } from "@/lib/basePath";
 
 interface GalleryLoadingProgressProps {
   totalPhotos: number;
@@ -21,7 +22,7 @@ export default function GalleryLoadingProgress({
     <div className="fixed inset-0 bg-white/95 dark:bg-black/95 z-50 flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full text-center space-y-6 bg-white shadow-lg rounded-xl p-6 border border-sage-100">
         <div className="flex justify-center mb-2">
-          <img src="/logo.png" alt="Logo" className="h-12" />
+          <img src={createUrl('/logo.png')} alt="Logo" className="h-12" />
         </div>
         
         <h2 className="text-2xl font-playfair text-sage-700">Caricamento galleria</h2>
