@@ -1,4 +1,3 @@
-
 // Utility per gestire il percorso base dell'applicazione
 // Supporta sia installazione root che in sottocartella
 import { PRODUCTION_BASE_PATH } from '../config';
@@ -18,33 +17,19 @@ export const getBasePath = (): string => {
   return PRODUCTION_BASE_PATH;
 };
 
-/**
- * Crea un URL per i link interni all'applicazione
- * @param path Percorso relativo (con o senza slash iniziale)
- * @returns URL normalizzato con il percorso base corretto
- */
 export const createUrl = (path: string): string => {
-  if (!import.meta.env.PROD) {
-    return path === '' || path === '/' ? '/' : (path.startsWith('/') ? path : `/${path}`);
-  }
-  
-  const base = PRODUCTION_BASE_PATH.replace(/\/$/, '');
-  if (path === '' || path === '/') {
-    return `${base}/`;
-  }
-  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  // Vite BASE_URL è già '/wedgallery/' in prod, '' in dev
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const p = path.startsWith('/') ? path : `/${path}`;
+
+  return import.meta.env.PROD
+    ? `${base}${p}`          // in prod: '/wedgallery' + '/…'
+    : p;                     // in dev: '/…'
 };
 
-/**
- * Crea URL assoluto con origine
- * @param path Percorso relativo
- * @returns URL assoluto completo di origine e sottocartella
- */
 export const createAbsoluteUrl = (path: string): string => {
-  // Usa createUrl per ottenere il percorso corretto con la base path
   const url = createUrl(path);
-  // Assicurati che non ci siano doppie barre nell'URL
-  return `${window.location.origin}${url}`.replace(/([^:]\/)\/+/g, "$1");
+  return `${window.location.origin}${url}`.replace(/([^:]\/)\/+/g, '$1');
 };
 
 /**
