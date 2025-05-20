@@ -46,29 +46,21 @@ export default function GalleryHeader({
   
   // Funzione per condividere la galleria
   const handleShare = () => {
-    // Crea l'URL della galleria con percorso specifico per wedgallery
-    const pathToShare = galleryId ? `/view/${galleryId}` : window.location.pathname;
-    
-    // Utilizziamo il dominio corrente
-    const domain = window.location.origin;
-    
-    // Costruiamo l'URL completo con la sottocartella wedgallery
-    const url = `${domain}/wedgallery${pathToShare}`;
-    
-    console.log("Condivisione URL:", url);
-    
-    // Verifica se l'API Web Share è supportata
+    // Usa sempre il path relativo senza basePath
+    const relativePath = galleryId
+      ? `/view/${galleryId}`
+      : window.location.pathname.replace(import.meta.env.PROD ? '/wedgallery' : '', '');
+
+    // Genera l'URL completo in modo context-aware e codificato
+    const url = createAbsoluteUrl(relativePath);
+
+    // Condivisione nativa o fallback copia
     if (navigator.share) {
       navigator.share({
-        title: `Galleria fotografica - ${name}`,
-        text: `Guarda le foto del matrimonio di ${name}`,
-        url: url,
-      })
-      .catch((error) => {
-        console.error('Si è verificato un errore durante la condivisione', error);
-        // Fallback se la condivisione fallisce
-        copyToClipboard(url);
-      });
+        title: `Galleria fotografica – ${name}`,
+        text: `Dai un'occhiata alle foto di ${name}`,
+        url,
+      }).catch(() => copyToClipboard(url));
     } else {
       // Utilizza fallback per browser non supportati
       copyToClipboard(url);
