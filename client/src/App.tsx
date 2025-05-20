@@ -56,8 +56,10 @@ function Router() {
 
 function App() {
   // Configura il base path per il router
-  const basePath = import.meta.env.BASE_URL;
-  console.log(`[App] Using base path: "${basePath}"`);
+  // In sviluppo, usa '/' mentre in produzione usa il valore di import.meta.env.BASE_URL
+  const basePath = import.meta.env.DEV ? '/' : import.meta.env.BASE_URL;
+  const normalizedBasePath = basePath.endsWith('/') ? basePath : basePath + '/';
+  console.log(`[App] Using base path: "${normalizedBasePath}"`);
   
   // Logging di base per il debug
   useEffect(() => {
@@ -68,10 +70,10 @@ function App() {
     console.log(`[App] Running in ${isProduction ? 'production' : 'development'} mode`);
     console.log('[App] Current URL:', href);
     console.log('[App] Pathname:', pathname);
-    console.log('[App] Base Path:', basePath);
+    console.log('[App] Base Path:', normalizedBasePath);
     
     // Controllo generico per slash multipli (es: //admin invece di /admin)
-    if (isProduction && /\/\/+/.test(pathname)) {
+    if (/\/\/+/.test(pathname)) {
       // Normalizza qualsiasi sequenza di slash multipli in un singolo slash
       const correctedPath = pathname.replace(/\/\/+/g, '/');
       const correctedUrl = `${origin}${correctedPath}${search}`;
@@ -81,7 +83,7 @@ function App() {
       
       window.history.replaceState(null, '', correctedUrl);
     }
-  }, [basePath]);
+  }, [normalizedBasePath]);
   
   return (
     <QueryClientProvider client={queryClient}>
@@ -90,7 +92,7 @@ function App() {
           <AuthProvider>
             <StudioProvider>
               <Toaster />
-              <WouterRouter base={basePath.endsWith('/') ? basePath.slice(0, -1) : basePath}>
+              <WouterRouter base={normalizedBasePath.endsWith('/') ? normalizedBasePath.slice(0, -1) : normalizedBasePath}>
                 <Router />
               </WouterRouter>
             </StudioProvider>
