@@ -1,6 +1,35 @@
 // Utility per gestire il percorso base dell'applicazione
 // Supporta sia installazione root che in sottocartella
 
+/**
+ * DEBUG - Verifica e corregge URL duplicati
+ * Questa funzione viene eseguita automaticamente all'avvio dell'app e
+ * risolve il problema di URL duplicati come /wedgallery/wedgallery/
+ * 
+ * NOTA: Questa è una soluzione di emergenza. Il file .htaccess dovrebbe
+ * impedire che questo problema si verifichi in primo luogo.
+ */
+(function fixDuplicatedUrls() {
+  // Esegui solo in produzione e solo nel browser
+  if (typeof window === 'undefined' || !import.meta.env.PROD) return;
+  
+  // Verifica se l'URL contiene /wedgallery/wedgallery/
+  const { pathname, search, origin } = window.location;
+  
+  if (pathname.includes('/wedgallery/wedgallery/')) {
+    // Correggi la duplicazione
+    const fixedPath = pathname.replace('/wedgallery/wedgallery/', '/wedgallery/');
+    const fixedUrl = `${origin}${fixedPath}${search}`;
+    
+    console.log('[basePath] CORREZIONE URL DUPLICATO:');
+    console.log(`Da: ${window.location.href}`);
+    console.log(`A:  ${fixedUrl}`);
+    
+    // Aggiorna l'URL senza ricaricare la pagina
+    window.history.replaceState(null, '', fixedUrl);
+  }
+})();
+
 /** 
  * Crea un URL corretto combinando BASE_URL e path, prevenendo qualsiasi duplicazione.
  * In sviluppo BASE_URL è '', in produzione è '/wedgallery/'.
