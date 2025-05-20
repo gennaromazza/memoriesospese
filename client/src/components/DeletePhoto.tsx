@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { deleteDoc, doc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
@@ -25,7 +26,6 @@ export default function DeletePhoto({ galleryId, photo, onPhotoDeleted }: Delete
       console.log(`Eliminazione foto: ${photo.name} (ID: ${photo.id})`);
       
       // 1. Elimina il documento da Firestore dalla collezione gallery-photos
-      // Nota: questo è il documento principale, non abbiamo più la sottocollezione
       const galleryPhotosQuery = query(
         collection(db, "gallery-photos"),
         where("galleryId", "==", galleryId),
@@ -34,17 +34,13 @@ export default function DeletePhoto({ galleryId, photo, onPhotoDeleted }: Delete
       
       const querySnapshot = await getDocs(galleryPhotosQuery);
       if (!querySnapshot.empty) {
-        // Elimina tutti i documenti trovati (dovrebbe essere solo uno)
         for (const docSnapshot of querySnapshot.docs) {
           await deleteDoc(docSnapshot.ref);
           console.log(`✓ Eliminato documento da gallery-photos: ${docSnapshot.id}`);
         }
-      } else {
-        console.warn(`⚠️ Nessun documento trovato in gallery-photos per ${photo.name}`);
       }
       
-      // 3. Elimina il file da Firebase Storage
-      // Elenco di tutti i possibili percorsi dove potrebbero trovarsi le foto
+      // 2. Elimina il file da Firebase Storage con gestione percorsi multipli
       const storagePaths = [
         `gallery-photos/${galleryId}/${photo.name}`,
         `galleries/${galleryId}/photos/${photo.name}`,
@@ -55,25 +51,23 @@ export default function DeletePhoto({ galleryId, photo, onPhotoDeleted }: Delete
       
       let photoDeleted = false;
       
-      // Prova a eliminare la foto da tutti i percorsi possibili
       for (const path of storagePaths) {
         try {
           const storageRef = ref(storage, path);
           await deleteObject(storageRef);
           console.log(`✓ Eliminato file da Storage: ${path}`);
           photoDeleted = true;
-          break; // Se la foto è stata eliminata con successo, interrompe il ciclo
+          break;
         } catch (storageError) {
           console.warn(`⚠️ Non trovato in: ${path}`);
-          // Continua a provare con altri percorsi
         }
       }
       
       if (!photoDeleted) {
-        console.error(`❌ Non è stato possibile trovare e eliminare il file dallo Storage per la foto ${photo.name}`);
+        console.warn(`⚠️ Non è stato possibile trovare il file nello Storage: ${photo.name}`);
       }
       
-      // 4. Notifica il componente padre che la foto è stata eliminata
+      // 3. Aggiorna l'UI chiamando la callback
       onPhotoDeleted(photo.id);
       
       toast({
