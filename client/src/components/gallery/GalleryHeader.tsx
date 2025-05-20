@@ -22,6 +22,7 @@ interface GalleryHeaderProps {
   description?: string;
   coverImageUrl?: string;
   galleryId?: string;
+  galleryCode?: string;
 }
 
 interface ImageDimensions {
@@ -37,7 +38,8 @@ export default function GalleryHeader({
   location, 
   description, 
   coverImageUrl,
-  galleryId
+  galleryId,
+  galleryCode
 }: GalleryHeaderProps) {
   const [imageDimensions, setImageDimensions] = useState<ImageDimensions | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -46,23 +48,40 @@ export default function GalleryHeader({
   
   // Funzione per condividere la galleria
   const handleShare = () => {
-    const relativePath = galleryId
-    ? galleryCode
-        // Link diretto a /access/:id?code=… per gallerie protette
-        ? `/access/${galleryId}?code=${encodeURIComponent(galleryCode)}`
-        // Altrimenti view pubblica
-        : `/view/${galleryId}`
-    : window.location.pathname.replace(import.meta.env.BASE_URL, '');
-
+    // Determina il percorso relativo da condividere
+    let relativePath: string;
+    
+    if (galleryId) {
+      // Se abbiamo un ID galleria, creiamo un link alla galleria
+      relativePath = `/view/${galleryId}`;
+    } else {
+      // Altrimenti condividiamo la pagina corrente
+      // Rimuoviamo il base path dall'URL per evitare duplicazioni
+      relativePath = window.location.pathname;
+      
+      // Se siamo in produzione, rimuoviamo il prefisso /wedgallery dall'URL
+      if (import.meta.env.PROD) {
+        relativePath = relativePath.replace(import.meta.env.BASE_URL, '');
+      }
+    }
+    
+    // Generiamo l'URL assoluto che includerà automaticamente il base path corretto
     const url = createAbsoluteUrl(relativePath);
 
+    console.log("Condivisione URL:", url);
+    
+    // Condividiamo l'URL usando l'API di condivisione del browser se disponibile
     if (navigator.share) {
       navigator.share({
-        title: `Galleria – ${name}`,
-        text: `Foto di ${name}`,
+        title: `Galleria fotografica – ${name}`,
+        text: `Dai un'occhiata alle foto di ${name}`,
         url
-      }).catch(() => copyToClipboard(url));
+      }).catch(() => {
+        // Se la condivisione fallisce, copiamo il link negli appunti
+        copyToClipboard(url);
+      });
     } else {
+      // Se l'API di condivisione non è disponibile, copiamo direttamente il link
       copyToClipboard(url);
     }
   };
