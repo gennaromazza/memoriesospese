@@ -46,23 +46,19 @@ export default function GalleryHeader({
   
   // Funzione per condividere la galleria
   const handleShare = () => {
-    // Usa sempre il path relativo senza basePath
     const relativePath = galleryId
-      ? `/view/${galleryId}`
-      : window.location.pathname.replace(import.meta.env.PROD ? '/wedgallery' : '', '');
+      ? `/view/${galleryId}${galleryCode ? `?code=${encodeURIComponent(galleryCode)}` : ''}`
+      : window.location.pathname.replace(import.meta.env.BASE_URL, '');
 
-    // Genera l'URL completo in modo context-aware e codificato
     const url = createAbsoluteUrl(relativePath);
 
-    // Condivisione nativa o fallback copia
     if (navigator.share) {
       navigator.share({
-        title: `Galleria fotografica – ${name}`,
-        text: `Dai un'occhiata alle foto di ${name}`,
-        url,
+        title: `Galleria – ${name}`,
+        text: `Foto di ${name}`,
+        url
       }).catch(() => copyToClipboard(url));
     } else {
-      // Utilizza fallback per browser non supportati
       copyToClipboard(url);
     }
   };
