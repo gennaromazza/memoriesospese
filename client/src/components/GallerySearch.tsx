@@ -86,8 +86,12 @@ export default function GallerySearch() {
     const galleryPath = `/gallery/${code}`;
     console.log("[GallerySearch] Path relativo:", galleryPath);
     
-    // Utilizziamo navigate di wouter che gestirà correttamente il basePath
-    navigate(galleryPath);
+    // Utilizziamo createUrl per costruire il URL corretto con il basePath
+    const correctPath = createUrl(galleryPath);
+    console.log("[GallerySearch] Path corretto con basePath:", correctPath);
+    
+    // Utilizziamo navigate di wouter con il path corretto
+    navigate(correctPath);
   };
 
   return (
