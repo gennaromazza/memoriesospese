@@ -17,14 +17,14 @@ export const getBasePath = (): string => {
   return PRODUCTION_BASE_PATH;
 };
 
+/** 
+ * Restituisce sempre BASE_URL + path.
+ * BASE_URL è '' in dev, '/wedgallery/' in prod.
+ */
 export const createUrl = (path: string): string => {
-  // Vite BASE_URL è già '/wedgallery/' in prod, '' in dev
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   const p = path.startsWith('/') ? path : `/${path}`;
-
-  return import.meta.env.PROD
-    ? `${base}${p}`          // in prod: '/wedgallery' + '/…'
-    : p;                     // in dev: '/…'
+  return `${base}${p}`;
 };
 
 export const createAbsoluteUrl = (path: string): string => {
