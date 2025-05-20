@@ -2,21 +2,40 @@
 // Supporta sia installazione root che in sottocartella
 
 /** 
- * Restituisce sempre BASE_URL + path, assicurandosi che non ci siano doppi slash.
+ * Restituisce il path corretto combinando BASE_URL e path, evitando duplicazioni.
  * BASE_URL è '' in dev, '/wedgallery/' in prod.
- * Questa funzione è fondamentale per il corretto routing nella sottocartella.
+ * 
+ * Questa funzione previene problemi come /wedgallery/wedgallery/admin
  */
 export const createUrl = (path: string): string => {
   // Otteniamo il base path senza slash finale
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   
-  // Se il path è vuoto o root, restituiamo solo il base path con uno slash
+  // Se path è vuoto o root, restituiamo solo il base path con uno slash
   if (path === '' || path === '/') {
     return base === '' ? '/' : `${base}/`;
   }
   
+  // Rimuoviamo prefissi wedgallery duplicati
+  // Questo risolve casi come /wedgallery/wedgallery/admin in produzione
+  let cleanPath = path;
+  
+  // Se siamo in produzione e il path inizia con /wedgallery
+  if (import.meta.env.PROD && base === '/wedgallery') {
+    // Rimuovi /wedgallery all'inizio del path se presente
+    cleanPath = cleanPath.replace(/^\/wedgallery\//, '/');
+    
+    // Rimuovi anche la versione senza slash iniziale
+    cleanPath = cleanPath.replace(/^wedgallery\//, '/');
+  }
+  
   // Normalizziamo il percorso aggiungendo uno slash iniziale se mancante
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+  
+  // Output per debug
+  if (!import.meta.env.PROD && path !== normalizedPath) {
+    console.log(`[createUrl] path corretto: ${path} → ${normalizedPath}`);
+  }
   
   // Combiniamo base path e percorso normalizzato
   return `${base}${normalizedPath}`;

@@ -14,6 +14,7 @@ export interface GalleryData {
   coverImageUrl?: string;
   youtubeUrl?: string;
   photoCount?: number;
+  code?: string; // Aggiunto il codice galleria necessario per la condivisione
 }
 
 export interface PhotoData {
