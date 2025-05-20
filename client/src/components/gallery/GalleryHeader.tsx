@@ -47,8 +47,12 @@ export default function GalleryHeader({
   // Funzione per condividere la galleria
   const handleShare = () => {
     const relativePath = galleryId
-      ? `/view/${galleryId}${galleryCode ? `?code=${encodeURIComponent(galleryCode)}` : ''}`
-      : window.location.pathname.replace(import.meta.env.BASE_URL, '');
+    ? galleryCode
+        // Link diretto a /access/:id?code=… per gallerie protette
+        ? `/access/${galleryId}?code=${encodeURIComponent(galleryCode)}`
+        // Altrimenti view pubblica
+        : `/view/${galleryId}`
+    : window.location.pathname.replace(import.meta.env.BASE_URL, '');
 
     const url = createAbsoluteUrl(relativePath);
 
