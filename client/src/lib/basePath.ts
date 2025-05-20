@@ -1,115 +1,29 @@
-// Utility per gestire il percorso base dell'applicazione
-// Supporta sia installazione root che in sottocartella
-
 /**
- * DEBUG - Verifica e corregge URL duplicati
- * Questa funzione viene eseguita automaticamente all'avvio dell'app e
- * risolve il problema di URL duplicati come /wedgallery/wedgallery/
- * 
- * NOTA: Questa è una soluzione di emergenza. Il file .htaccess dovrebbe
- * impedire che questo problema si verifichi in primo luogo.
- */
-(function fixDuplicatedUrls() {
-  // Esegui solo in produzione e solo nel browser
-  if (typeof window === 'undefined' || !import.meta.env.PROD) return;
-  
-  // Verifica se l'URL contiene /wedgallery/wedgallery/
-  const { pathname, search, origin } = window.location;
-  
-  if (pathname.includes('/wedgallery/wedgallery/')) {
-    // Correggi la duplicazione
-    const fixedPath = pathname.replace('/wedgallery/wedgallery/', '/wedgallery/');
-    const fixedUrl = `${origin}${fixedPath}${search}`;
-    
-    console.log('[basePath] CORREZIONE URL DUPLICATO:');
-    console.log(`Da: ${window.location.href}`);
-    console.log(`A:  ${fixedUrl}`);
-    
-    // Aggiorna l'URL senza ricaricare la pagina
-    window.history.replaceState(null, '', fixedUrl);
-  }
-})();
-
-/** 
- * Crea un URL corretto combinando BASE_URL e path, prevenendo qualsiasi duplicazione.
- * In sviluppo BASE_URL è '', in produzione è '/wedgallery/'.
- * 
- * RISOLVE IL BUG: /wedgallery/wedgallery/admin → /wedgallery/admin
+ * Crea un URL corretto combinando BASE_URL e path
  */
 export const createUrl = (path: string): string => {
-  // Otteniamo il base path pulito (senza slash finale)
-  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-  
-  // Se path è vuoto o root, restituisci solo il base path con uno slash finale
+  // Se path è vuoto o root, restituisci solo '/'
   if (!path || path === '/') {
-    return basePath === '' ? '/' : `${basePath}/`;
+    return '/';
   }
-  
+
   // Normalizza il percorso richiesto rimuovendo eventuali slash iniziali
-  let cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  
-  // IMPORTANTE: Previeni la duplicazione di 'wedgallery' negli URL
-  if (basePath === '/wedgallery') {
-    // Rimuovi 'wedgallery/' se appare all'inizio del percorso
-    if (cleanPath.startsWith('wedgallery/')) {
-      cleanPath = cleanPath.substring('wedgallery/'.length);
-    }
-    
-    // Rimuovi anche la versione con slash iniziale
-    if (cleanPath.startsWith('/wedgallery/')) {
-      cleanPath = cleanPath.substring('/wedgallery/'.length);
-    }
-  }
-  
-  // Assicurati che il percorso finale abbia sempre uno slash iniziale
-  const finalPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-  
-  // Componi l'URL finale: base + path senza duplicazioni
-  const url = `${basePath}${finalPath}`;
-  
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+
   if (import.meta.env.DEV) {
-    console.log(`[createUrl] ${path} → ${url}`);
+    console.log(`[createUrl] ${path} → ${cleanPath}`);
   }
-  
-  return url;
-};
+
+  return cleanPath;
+}
 
 /**
- * Crea un URL assoluto completo partendo da un percorso relativo.
- * Gestisce correttamente i percorsi in sottocartella /wedgallery/
- * e previene qualsiasi duplicazione di path.
- * 
- * @param path Percorso relativo da convertire in URL assoluto
- * @returns URL assoluto completo con origin e base path
+ * Crea un URL assoluto per la condivisione
  */
 export const createAbsoluteUrl = (path: string): string => {
-  // Ottieni l'URL relativo con base path già correttamente applicato
-  // La funzione createUrl si occupa già di prevenire duplicazioni
-  const relativeUrl = createUrl(path);
-  
-  // Componi l'URL assoluto con l'origine corrente
-  let absoluteUrl = `${window.location.origin}${relativeUrl}`;
-  
-  // Rimuovi qualsiasi slash duplicato, preservando il protocollo http(s)://
-  // Il pattern ([^:]\/)\/+ trova slash duplicati non preceduti da ://
-  absoluteUrl = absoluteUrl.replace(/([^:]\/)\/+/g, '$1');
-  
-  // Ulteriore verifica per evitare duplicazioni specifiche di wedgallery
-  if (import.meta.env.PROD) {
-    // Rimuovi wedgallery duplicato nell'URL
-    absoluteUrl = absoluteUrl.replace(/\/wedgallery\/wedgallery\//g, '/wedgallery/');
-    
-    // Assicurati che non ci sia doppio slash dopo gennaromazzacane.it
-    absoluteUrl = absoluteUrl.replace(/(gennaromazzacane\.it)\/+/g, '$1/');
-  }
-  
-  // Log per debug (solo in sviluppo)
-  if (import.meta.env.DEV) {
-    console.log(`[createAbsoluteUrl] ${path} → ${absoluteUrl}`);
-  }
-  
-  return absoluteUrl;
-};
+  const url = new URL(path, window.location.origin);
+  return url.toString();
+}
 
 /**
  * Verifica se l'applicazione è in esecuzione in ambiente di produzione

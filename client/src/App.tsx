@@ -56,35 +56,18 @@ function Router() {
 
 function App() {
   // Configura il base path per il router
-  // In sviluppo, usa '/' mentre in produzione usa '/wedgallery' (senza slash finale)
-  // IMPORTANTE: In wouter, il base deve essere SENZA slash finale
-  const basePath = import.meta.env.DEV ? '/' : '/wedgallery';
+  const basePath = '/';
   console.log(`[App] Using base path: "${basePath}"`);
   
-  // Verifica e correggi eventuali duplicazioni del percorso base nell'URL
+  // Verifica URL corrente
   useEffect(() => {
-    // Otteniamo informazioni sull'ambiente e sull'URL corrente
-    const isProduction = import.meta.env.PROD;
     const { origin, pathname, search, href } = window.location;
+    const isProduction = import.meta.env.PROD;
     
     console.log(`[App] Running in ${isProduction ? 'production' : 'development'} mode`);
     console.log('[App] Current URL:', href);
     console.log('[App] Pathname:', pathname);
     console.log('[App] Base Path:', basePath);
-    
-    // RISOLUZIONE DEL PROBLEMA DI DUPLICAZIONE
-    // In produzione, verifica se il percorso contiene /wedgallery/wedgallery/
-    if (isProduction && pathname.includes('/wedgallery/wedgallery/')) {
-      // Correggi la duplicazione del percorso base
-      const correctedPath = pathname.replace('/wedgallery/wedgallery/', '/wedgallery/');
-      const correctedUrl = `${origin}${correctedPath}${search}`;
-      
-      console.log('[App] CORREZIONE URL DUPLICATO da:', href);
-      console.log('[App] a:', correctedUrl);
-      
-      // Aggiorna l'URL senza ricaricare la pagina
-      window.history.replaceState(null, '', correctedUrl);
-    }
     
     // Controllo generico per slash multipli (es: //admin invece di /admin)
     if (/\/\/+/.test(pathname)) {
