@@ -56,12 +56,12 @@ function Router() {
 
 function App() {
   // Configura il base path per il router
-  // In sviluppo, usa '/' mentre in produzione usa il valore di import.meta.env.BASE_URL
-  const basePath = import.meta.env.DEV ? '/' : import.meta.env.BASE_URL;
-  const normalizedBasePath = basePath.endsWith('/') ? basePath : basePath + '/';
-  console.log(`[App] Using base path: "${normalizedBasePath}"`);
+  // In sviluppo, usa '/' mentre in produzione usa '/wedgallery' (senza slash finale)
+  // IMPORTANTE: In wouter, il base deve essere SENZA slash finale
+  const basePath = import.meta.env.DEV ? '/' : '/wedgallery';
+  console.log(`[App] Using base path: "${basePath}"`);
   
-  // Logging di base per il debug
+  // Verifica e correggi eventuali duplicazioni del percorso base nell'URL
   useEffect(() => {
     // Otteniamo informazioni sull'ambiente e sull'URL corrente
     const isProduction = import.meta.env.PROD;
@@ -70,7 +70,21 @@ function App() {
     console.log(`[App] Running in ${isProduction ? 'production' : 'development'} mode`);
     console.log('[App] Current URL:', href);
     console.log('[App] Pathname:', pathname);
-    console.log('[App] Base Path:', normalizedBasePath);
+    console.log('[App] Base Path:', basePath);
+    
+    // RISOLUZIONE DEL PROBLEMA DI DUPLICAZIONE
+    // In produzione, verifica se il percorso contiene /wedgallery/wedgallery/
+    if (isProduction && pathname.includes('/wedgallery/wedgallery/')) {
+      // Correggi la duplicazione del percorso base
+      const correctedPath = pathname.replace('/wedgallery/wedgallery/', '/wedgallery/');
+      const correctedUrl = `${origin}${correctedPath}${search}`;
+      
+      console.log('[App] CORREZIONE URL DUPLICATO da:', href);
+      console.log('[App] a:', correctedUrl);
+      
+      // Aggiorna l'URL senza ricaricare la pagina
+      window.history.replaceState(null, '', correctedUrl);
+    }
     
     // Controllo generico per slash multipli (es: //admin invece di /admin)
     if (/\/\/+/.test(pathname)) {
@@ -83,7 +97,7 @@ function App() {
       
       window.history.replaceState(null, '', correctedUrl);
     }
-  }, [normalizedBasePath]);
+  }, [basePath]);
   
   return (
     <QueryClientProvider client={queryClient}>
@@ -92,7 +106,7 @@ function App() {
           <AuthProvider>
             <StudioProvider>
               <Toaster />
-              <WouterRouter base={normalizedBasePath.endsWith('/') ? normalizedBasePath.slice(0, -1) : normalizedBasePath}>
+              <WouterRouter base={basePath}>
                 <Router />
               </WouterRouter>
             </StudioProvider>
