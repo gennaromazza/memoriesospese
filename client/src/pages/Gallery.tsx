@@ -254,6 +254,7 @@ export default function Gallery() {
           description={gallery.description}
           coverImageUrl={gallery.coverImageUrl}
           galleryId={id}
+          galleryCode={gallery.code}
         />
 
         {/* Video YouTube se presente */}
