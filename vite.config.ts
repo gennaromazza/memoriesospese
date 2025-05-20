@@ -4,7 +4,7 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
-  base: "/wedgallery/", // ✅ IMPORTANTE per hosting in sottocartella
+  base: "/", // Base path configurato per root
   plugins: [
     react(),
     runtimeErrorOverlay(),
