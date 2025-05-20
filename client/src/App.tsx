@@ -8,7 +8,6 @@ import { StudioProvider } from "./context/StudioContext";
 import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
 import { useEffect } from "react";
-import { getBasePath } from "./lib/basePath"; // Importazione da modulo unificato
 
 import Home from "@/pages/Home";
 import GalleryAccess from "@/pages/GalleryAccess";
@@ -57,7 +56,7 @@ function Router() {
 
 function App() {
   // Configura il base path per il router
-  const basePath = getBasePath();
+  const basePath = import.meta.env.BASE_URL;
   console.log(`[App] Using base path: "${basePath}"`);
   
   // Logging di base per il debug
