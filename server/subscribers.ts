@@ -1,41 +1,22 @@
-import { db } from './firebase-admin';
 import { notifySubscribers } from './mailer';
 
-// Interfaccia per i subscribers
-export interface Subscriber {
-  email: string;
-  subscribedAt: Date;
-  active: boolean;
-}
+// Store temporaneo in memoria per i subscribers (per semplicità)
+// In produzione questo sarà gestito dal client-side Firebase
+const subscribersStore: { [galleryId: string]: string[] } = {};
 
-// Aggiungi un subscriber a una galleria
+// Simula l'aggiunta di un subscriber (il client gestirà Firebase)
 export async function addSubscriber(galleryId: string, email: string): Promise<boolean> {
   try {
-    const galleryRef = db.collection('galleries').doc(galleryId);
-    const galleryDoc = await galleryRef.get();
-    
-    if (!galleryDoc.exists) {
-      console.error(`Galleria ${galleryId} non trovata`);
-      return false;
+    if (!subscribersStore[galleryId]) {
+      subscribersStore[galleryId] = [];
     }
-
-    const subscribersRef = galleryRef.collection('subscribers');
     
-    // Verifica se l'email è già iscritta
-    const existingSubscriber = await subscribersRef.where('email', '==', email).get();
-    
-    if (!existingSubscriber.empty) {
+    if (subscribersStore[galleryId].includes(email)) {
       console.log(`Email ${email} già iscritta alla galleria ${galleryId}`);
       return false;
     }
-
-    // Aggiungi il nuovo subscriber
-    await subscribersRef.add({
-      email,
-      subscribedAt: new Date(),
-      active: true
-    });
-
+    
+    subscribersStore[galleryId].push(email);
     console.log(`Subscriber ${email} aggiunto alla galleria ${galleryId}`);
     return true;
   } catch (error) {
@@ -44,24 +25,18 @@ export async function addSubscriber(galleryId: string, email: string): Promise<b
   }
 }
 
-// Rimuovi un subscriber da una galleria
 export async function removeSubscriber(galleryId: string, email: string): Promise<boolean> {
   try {
-    const subscribersRef = db.collection('galleries').doc(galleryId).collection('subscribers');
-    const subscriberDocs = await subscribersRef.where('email', '==', email).get();
-    
-    if (subscriberDocs.empty) {
-      console.log(`Email ${email} non trovata tra i subscribers della galleria ${galleryId}`);
+    if (!subscribersStore[galleryId]) {
       return false;
     }
-
-    // Rimuovi tutti i documenti corrispondenti (dovrebbe essere solo uno)
-    const batch = db.batch();
-    subscriberDocs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-    await batch.commit();
-
+    
+    const index = subscribersStore[galleryId].indexOf(email);
+    if (index === -1) {
+      return false;
+    }
+    
+    subscribersStore[galleryId].splice(index, 1);
     console.log(`Subscriber ${email} rimosso dalla galleria ${galleryId}`);
     return true;
   } catch (error) {
@@ -70,35 +45,19 @@ export async function removeSubscriber(galleryId: string, email: string): Promis
   }
 }
 
-// Ottieni tutti i subscribers attivi di una galleria
 export async function getGallerySubscribers(galleryId: string): Promise<string[]> {
-  try {
-    const subscribersRef = db.collection('galleries').doc(galleryId).collection('subscribers');
-    const subscribersSnapshot = await subscribersRef.where('active', '==', true).get();
-    
-    const emails: string[] = [];
-    subscribersSnapshot.forEach((doc: any) => {
-      const data = doc.data();
-      if (data.email) {
-        emails.push(data.email);
-      }
-    });
-
-    return emails;
-  } catch (error) {
-    console.error('Errore nel recupero dei subscribers:', error);
-    return [];
-  }
+  return subscribersStore[galleryId] || [];
 }
 
-// Notifica tutti i subscribers quando vengono aggiunte nuove foto
+// Notifica con lista fornita dal client
 export async function notifyGallerySubscribers(
   galleryId: string, 
   galleryName: string, 
-  newPhotosCount: number
+  newPhotosCount: number,
+  subscribersList?: string[]
 ): Promise<{ success: number; failed: number }> {
   try {
-    const subscribers = await getGallerySubscribers(galleryId);
+    const subscribers = subscribersList || subscribersStore[galleryId] || [];
     
     if (subscribers.length === 0) {
       console.log(`Nessun subscriber da notificare per la galleria ${galleryName}`);
@@ -108,28 +67,19 @@ export async function notifyGallerySubscribers(
     return await notifySubscribers(galleryId, galleryName, newPhotosCount, subscribers);
   } catch (error) {
     console.error('Errore nella notifica dei subscribers:', error);
-    return { success: 0, failed: subscribers.length };
+    return { success: 0, failed: 0 };
   }
 }
 
-// Ottieni statistiche sui subscribers di una galleria
 export async function getSubscribersStats(galleryId: string): Promise<{
   total: number;
   active: number;
   inactive: number;
 }> {
-  try {
-    const subscribersRef = db.collection('galleries').doc(galleryId).collection('subscribers');
-    const allSubscribers = await subscribersRef.get();
-    const activeSubscribers = await subscribersRef.where('active', '==', true).get();
-    
-    return {
-      total: allSubscribers.size,
-      active: activeSubscribers.size,
-      inactive: allSubscribers.size - activeSubscribers.size
-    };
-  } catch (error) {
-    console.error('Errore nel recupero delle statistiche subscribers:', error);
-    return { total: 0, active: 0, inactive: 0 };
-  }
+  const subscribers = subscribersStore[galleryId] || [];
+  return {
+    total: subscribers.length,
+    active: subscribers.length,
+    inactive: 0
+  };
 }
