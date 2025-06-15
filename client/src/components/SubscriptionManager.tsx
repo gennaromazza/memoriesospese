@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, BellOff, Mail } from 'lucide-react';
+import { Bell, BellOff, Mail, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 
 interface SubscriptionManagerProps {
   galleryId: string;
@@ -14,7 +16,36 @@ export default function SubscriptionManager({ galleryId, galleryName }: Subscrip
   const [email, setEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAlreadySubscribed, setIsAlreadySubscribed] = useState(false);
   const { toast } = useToast();
+
+  const checkIfSubscribed = async (emailToCheck: string) => {
+    if (!emailToCheck || !emailToCheck.includes('@')) return false;
+    
+    try {
+      const subscriptionsRef = collection(db, 'subscriptions');
+      const q = query(
+        subscriptionsRef, 
+        where('galleryId', '==', galleryId),
+        where('email', '==', emailToCheck.toLowerCase())
+      );
+      const querySnapshot = await getDocs(q);
+      return !querySnapshot.empty;
+    } catch (error) {
+      console.error('Errore nel controllo iscrizione:', error);
+      return false;
+    }
+  };
+
+  const handleEmailChange = async (newEmail: string) => {
+    setEmail(newEmail);
+    if (newEmail && newEmail.includes('@')) {
+      const isSubscribed = await checkIfSubscribed(newEmail);
+      setIsAlreadySubscribed(isSubscribed);
+    } else {
+      setIsAlreadySubscribed(false);
+    }
+  };
 
   const handleSubscribe = async () => {
     if (!email || !email.includes('@')) {
@@ -26,37 +57,53 @@ export default function SubscriptionManager({ galleryId, galleryName }: Subscrip
       return;
     }
 
+    if (isAlreadySubscribed) {
+      toast({
+        title: "Email già iscritta",
+        description: `L'email ${email} è già iscritta per ricevere notifiche da questa galleria`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubscribing(true);
     
     try {
-      const response = await fetch(`/api/galleries/${galleryId}/subscribe`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
+      // Controlla nuovamente prima di procedere
+      const alreadyExists = await checkIfSubscribed(email);
+      if (alreadyExists) {
         toast({
-          title: "Iscrizione completata!",
-          description: `Riceverai notifiche quando verranno aggiunte nuove foto a "${galleryName}"`,
-        });
-        setEmail('');
-        setIsDialogOpen(false);
-      } else {
-        toast({
-          title: "Errore nell'iscrizione",
-          description: data.error || "Si è verificato un errore",
+          title: "Email già iscritta",
+          description: "Questa email è già registrata per le notifiche di questa galleria",
           variant: "destructive",
         });
+        setIsAlreadySubscribed(true);
+        return;
       }
-    } catch (error) {
+
+      // Salva l'iscrizione direttamente in Firestore
+      await addDoc(collection(db, 'subscriptions'), {
+        galleryId: galleryId,
+        galleryName: galleryName,
+        email: email.toLowerCase(),
+        createdAt: serverTimestamp(),
+        active: true
+      });
+
       toast({
-        title: "Errore di connessione",
-        description: "Verifica la tua connessione internet e riprova",
+        title: "Iscrizione completata!",
+        description: `Riceverai notifiche quando verranno aggiunte nuove foto a "${galleryName}"`,
+      });
+      
+      setEmail('');
+      setIsDialogOpen(false);
+      setIsAlreadySubscribed(false);
+      
+    } catch (error) {
+      console.error('Errore nell\'iscrizione:', error);
+      toast({
+        title: "Errore nell'iscrizione",
+        description: "Si è verificato un errore durante l'iscrizione. Riprova più tardi.",
         variant: "destructive",
       });
     } finally {
@@ -90,13 +137,21 @@ export default function SubscriptionManager({ galleryId, galleryName }: Subscrip
           </p>
           
           <div className="space-y-3">
-            <Input
-              type="email"
-              placeholder="Il tuo indirizzo email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full"
-            />
+            <div className="space-y-2">
+              <Input
+                type="email"
+                placeholder="Il tuo indirizzo email"
+                value={email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                className={`w-full ${isAlreadySubscribed ? 'border-amber-300 bg-amber-50' : ''}`}
+              />
+              {isAlreadySubscribed && (
+                <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-md border border-amber-200">
+                  <Check className="h-4 w-4" />
+                  <span>Questa email è già iscritta alle notifiche di questa galleria</span>
+                </div>
+              )}
+            </div>
             
             <div className="flex gap-2">
               <Button 
