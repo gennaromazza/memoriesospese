@@ -46,13 +46,8 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex }:
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [isOpen, currentIndex, photos.length]);
 
-  // If no photos or not open, don't render
-  if (!isOpen || photos.length === 0) {
-    return null;
-  }
-
   const currentPhoto = useMemo(() => photos[currentIndex], [photos, currentIndex]);
-
+  
   const navigatePrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);
     setZoom(1); // Reset zoom quando si cambia foto
@@ -62,6 +57,11 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex }:
     setCurrentIndex((prev) => (prev + 1) % photos.length);
     setZoom(1); // Reset zoom quando si cambia foto
   }, [photos.length]);
+
+  // If no photos or not open, don't render
+  if (!isOpen || photos.length === 0) {
+    return null;
+  }
 
   // Funzione per gestire lo zoom
   const handleZoom = (zoomIn: boolean) => {
