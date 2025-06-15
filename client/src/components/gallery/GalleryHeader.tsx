@@ -21,7 +21,6 @@ interface GalleryHeaderProps {
   location: string;
   description?: string;
   coverImageUrl?: string;
-  youtubeUrl?: string;
   galleryId?: string;
   galleryCode?: string;
 }
@@ -39,7 +38,6 @@ export default function GalleryHeader({
   location, 
   description, 
   coverImageUrl,
-  youtubeUrl,
   galleryId,
   galleryCode
 }: GalleryHeaderProps) {
@@ -48,15 +46,7 @@ export default function GalleryHeader({
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const { toast } = useToast();
   
-  // Funzione per estrarre l'ID del video YouTube dall'URL
-  const getYouTubeVideoId = (url: string): string | null => {
-    if (!url) return null;
-    
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    
-    return (match && match[2].length === 11) ? match[2] : null;
-  };
+
   
   // Funzione per condividere la galleria
   const handleShare = () => {
@@ -287,26 +277,7 @@ export default function GalleryHeader({
         </div>
       )}
 
-      {/* Video YouTube */}
-      {youtubeUrl && youtubeUrl.trim() !== "" && (
-        <div className="px-4 mb-8 max-w-7xl mx-auto">
-          <div className="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-sm">
-            <h3 className="text-xl font-playfair font-semibold text-sage-800 mb-4 text-center">
-              Video del matrimonio
-            </h3>
-            <div className="relative w-full" style={{ paddingBottom: '56.25%' /* 16:9 */ }}>
-              <iframe
-                className="absolute top-0 left-0 w-full h-full rounded-lg"
-                src={`https://www.youtube.com/embed/${getYouTubeVideoId(youtubeUrl)}`}
-                title="Video del matrimonio"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              ></iframe>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Modale per l'immagine ingrandita */}
       <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>

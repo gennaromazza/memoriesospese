@@ -253,10 +253,12 @@ export default function Gallery() {
           location={gallery.location}
           description={gallery.description}
           coverImageUrl={gallery.coverImageUrl}
-          youtubeUrl={gallery.youtubeUrl}
           galleryId={id}
           galleryCode={gallery.code}
         />
+
+        {/* Video YouTube se presente */}
+        <YouTubeEmbed videoUrl={gallery.youtubeUrl || ""} />
 
         <main>
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
