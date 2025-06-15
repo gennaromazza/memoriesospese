@@ -24,13 +24,20 @@ const OptimizedImage = React.memo(({ photo, index, openLightbox }: {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             setIsInView(true);
+            // Preload l'immagine usando il cache system
+            imageCache.preloadImage(photo.url).then(() => {
+              setIsLoaded(true);
+            }).catch(() => {
+              // Fallback normale loading se cache fallisce
+              setIsLoaded(false);
+            });
             observer.unobserve(entry.target);
           }
         });
       },
       { 
         threshold: 0.1,
-        rootMargin: "100px"
+        rootMargin: "150px" // Aumentato per preloadng più aggressivo
       }
     );
 
@@ -39,7 +46,7 @@ const OptimizedImage = React.memo(({ photo, index, openLightbox }: {
     }
 
     return () => observer.disconnect();
-  }, []);
+  }, [photo.url]);
 
   const handleClick = useCallback(() => {
     openLightbox(index);
@@ -82,6 +89,12 @@ export default function GalleryPhotos({ photos, openLightbox }: GalleryPhotosPro
   const memoizedOpenLightbox = useCallback((index: number) => {
     openLightbox(index);
   }, [openLightbox]);
+
+  // Preload delle prime 10 immagini al mount per performance migliori
+  useEffect(() => {
+    const preloadUrls = photos.slice(0, 10).map(photo => photo.url);
+    imageCache.preloadImages(preloadUrls);
+  }, [photos]);
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">

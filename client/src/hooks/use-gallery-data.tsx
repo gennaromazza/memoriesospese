@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, serverTimestamp, orderBy, limit, startAfter } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, serverTimestamp, orderBy, limit } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { trackGalleryView } from "@/lib/analytics";
+import { debounce, batchProcess, PerformanceMonitor } from "@/lib/performanceUtils";
+import { imageCache } from "@/lib/imageCache";
 
 // Tipi dati 
 export interface GalleryData {
@@ -377,13 +379,13 @@ export function useGalleryData(galleryCode: string) {
   const loadMorePhotos = useCallback(async () => {
     if (!gallery || !hasMorePhotos || loadingMorePhotos) return;
 
+    PerformanceMonitor.startMeasure('loadMorePhotos');
     setLoadingMorePhotos(true);
 
     try {
       const photosRef = collection(db, "photos");
-      const currentPhotoCount = photos.length;
       
-      // Query ottimizzata con offset invece di startAfter per maggiore affidabilità
+      // Query ottimizzata per il prossimo batch
       const q = query(
         photosRef,
         where("galleryId", "==", gallery.id),
