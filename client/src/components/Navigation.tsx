@@ -27,7 +27,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
       await signOut();
       navigate("/");
     } catch (error) {
-      console.error("Error signing out:", error);
+      
     }
   };
 

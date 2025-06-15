@@ -26,7 +26,7 @@ function useAnalytics() {
   useEffect(() => {
     // Traccia il cambio di pagina
     trackPageView(location);
-    console.log(`[useAnalytics] tracking page view: ${location}`);
+    
   }, [location]);
   
   return null;
@@ -37,7 +37,7 @@ function Router() {
   // Utilizza il hook per tracciare le navigazioni
   useAnalytics();
   
-  console.log("[Router] Initializing router with all routes");
+  
   
   return (
     <Switch>
@@ -57,17 +57,17 @@ function Router() {
 function App() {
   // Configura il base path per il router
   const basePath = '/';
-  console.log(`[App] Using base path: "${basePath}"`);
+  
   
   // Verifica URL corrente
   useEffect(() => {
     const { origin, pathname, search, href } = window.location;
     const isProduction = import.meta.env.PROD;
     
-    console.log(`[App] Running in ${isProduction ? 'production' : 'development'} mode`);
-    console.log('[App] Current URL:', href);
-    console.log('[App] Pathname:', pathname);
-    console.log('[App] Base Path:', basePath);
+    
+    
+    
+    
     
     // Controllo generico per slash multipli (es: //admin invece di /admin)
     if (/\/\/+/.test(pathname)) {
@@ -75,8 +75,8 @@ function App() {
       const correctedPath = pathname.replace(/\/\/+/g, '/');
       const correctedUrl = `${origin}${correctedPath}${search}`;
       
-      console.log('[App] Correzione slash multipli da:', href);
-      console.log('[App] A:', correctedUrl);
+      
+      
       
       window.history.replaceState(null, '', correctedUrl);
     }

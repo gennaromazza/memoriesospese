@@ -38,7 +38,7 @@ export default function DeletePhotoDialog({
     
     setIsDeleting(true);
     try {
-      console.log(`Eliminazione foto: ${photo.name} (ID: ${photo.id})`);
+      
       
       // 1. Elimina il documento da Firestore dalla collezione gallery-photos
       // Nota: questo è il documento principale, non abbiamo più la sottocollezione
@@ -53,10 +53,10 @@ export default function DeletePhotoDialog({
         // Elimina tutti i documenti trovati (dovrebbe essere solo uno)
         for (const docSnapshot of querySnapshot.docs) {
           await deleteDoc(docSnapshot.ref);
-          console.log(`✓ Eliminato documento da gallery-photos: ${docSnapshot.id}`);
+          
         }
       } else {
-        console.warn(`⚠️ Nessun documento trovato in gallery-photos per ${photo.name}`);
+        
       }
       
       // 3. Elimina il file da Firebase Storage
@@ -76,17 +76,17 @@ export default function DeletePhotoDialog({
         try {
           const storageRef = ref(storage, path);
           await deleteObject(storageRef);
-          console.log(`✓ Eliminato file da Storage: ${path}`);
+          
           photoDeleted = true;
           break; // Se la foto è stata eliminata con successo, interrompe il ciclo
         } catch (storageError) {
-          console.warn(`⚠️ Non trovato in: ${path}`);
+          
           // Continua a provare con altri percorsi
         }
       }
       
       if (!photoDeleted) {
-        console.error(`❌ Non è stato possibile trovare e eliminare il file dallo Storage per la foto ${photo.name}`);
+        
       }
       
       toast({
@@ -98,7 +98,7 @@ export default function DeletePhotoDialog({
       onPhotoDeleted(photo.id);
       
     } catch (error) {
-      console.error("Errore durante l'eliminazione della foto:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'eliminazione della foto.",

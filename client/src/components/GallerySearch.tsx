@@ -47,10 +47,10 @@ export default function GallerySearch() {
       
       // Salviamo tutte le gallerie nello state
       setAllGalleries(galleries);
-      console.log(`Caricate ${galleries.length} gallerie dal database`);
-      console.log("Elenco gallerie:", galleries.map(g => g.name).join(", "));
+      
+      
     } catch (error) {
-      console.error("Errore nel caricamento delle gallerie:", error);
+      
     } finally {
       setIsLoading(false);
     }
@@ -84,15 +84,15 @@ export default function GallerySearch() {
   }, [searchTerm, allGalleries]);
 
   const handleGallerySelect = (code: string) => {
-    console.log("[GallerySearch] Navigazione a galleria con code:", code);
+    
     
     // Utilizziamo il router di wouter per la navigazione
     const galleryPath = `/gallery/${code}`;
-    console.log("[GallerySearch] Path relativo:", galleryPath);
+    
     
     // Utilizziamo createUrl per costruire il URL corretto con il basePath
     const correctPath = createUrl(galleryPath);
-    console.log("[GallerySearch] Path corretto con basePath:", correctPath);
+    
     
     // Utilizziamo navigate di wouter con il path corretto
     navigate(correctPath);

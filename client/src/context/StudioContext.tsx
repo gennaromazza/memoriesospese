@@ -94,7 +94,7 @@ export function StudioProvider({ children }: StudioProviderProps) {
           }));
         }
       } catch (err) {
-        console.error("Error fetching studio settings:", err);
+        
         setError("Impossibile caricare le impostazioni dello studio");
       } finally {
         setLoading(false);

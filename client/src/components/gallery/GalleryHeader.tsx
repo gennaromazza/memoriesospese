@@ -70,7 +70,7 @@ export default function GalleryHeader({
     // Generiamo l'URL assoluto che includerà automaticamente il base path corretto
     const url = createAbsoluteUrl(relativePath);
 
-    console.log("Condivisione URL:", url);
+    
     
     // Condividiamo l'URL usando l'API di condivisione del browser se disponibile
     if (navigator.share) {
@@ -97,7 +97,7 @@ export default function GalleryHeader({
         });
       },
       (err) => {
-        console.error('Impossibile copiare il testo negli appunti', err);
+        
         toast({
           variant: "destructive",
           description: "Impossibile copiare il link. Riprova più tardi.",
@@ -123,7 +123,7 @@ export default function GalleryHeader({
         setImageLoaded(true);
       };
       img.onerror = () => {
-        console.error("Errore nel caricamento dell'immagine di copertina");
+        
         setImageLoaded(true); // Imposta a true anche in caso di errore per evitare il caricamento infinito
       };
       img.src = coverImageUrl;
@@ -136,7 +136,7 @@ export default function GalleryHeader({
       const date = new Date(dateString);
       return format(date, "d MMMM yyyy", { locale: it });
     } catch (error) {
-      console.error("Errore nella formattazione della data:", error);
+      
       return dateString;
     }
   };

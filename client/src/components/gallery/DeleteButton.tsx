@@ -27,12 +27,12 @@ export default function DeleteButton({ photoId, photoName, galleryId, onPhotoDel
     setIsDeleting(true);
     
     try {
-      console.log(`Eliminazione foto: ${photoName} (ID: ${photoId})`);
+      
       
       // 1. Elimina il documento da Firestore nella sottocollezione galleries/{galleryId}/photos
       const photoRef = doc(db, "galleries", galleryId, "photos", photoId);
       await deleteDoc(photoRef);
-      console.log(`✓ Eliminato documento da galleries/${galleryId}/photos/${photoId}`);
+      
       
       // 2. Trova e elimina il documento corrispondente in gallery-photos
       const galleryPhotosQuery = query(
@@ -46,10 +46,10 @@ export default function DeleteButton({ photoId, photoName, galleryId, onPhotoDel
         // Elimina tutti i documenti trovati (dovrebbe essere solo uno)
         for (const docSnapshot of querySnapshot.docs) {
           await deleteDoc(docSnapshot.ref);
-          console.log(`✓ Eliminato documento da gallery-photos: ${docSnapshot.id}`);
+          
         }
       } else {
-        console.warn(`⚠️ Nessun documento trovato in gallery-photos per ${photoName}`);
+        
       }
       
       // 3. Elimina il file da Firebase Storage
@@ -57,16 +57,16 @@ export default function DeleteButton({ photoId, photoName, galleryId, onPhotoDel
         // Percorso principale
         const storageRef = ref(storage, `gallery-photos/${galleryId}/${photoName}`);
         await deleteObject(storageRef);
-        console.log(`✓ Eliminato file da Storage: gallery-photos/${galleryId}/${photoName}`);
+        
       } catch (storageError) {
-        console.warn(`⚠️ Errore nell'eliminazione del file da Storage:`, storageError);
+        
         // Proviamo con un percorso alternativo
         try {
           const altStorageRef = ref(storage, `galleries/${galleryId}/photos/${photoName}`);
           await deleteObject(altStorageRef);
-          console.log(`✓ Eliminato file dal percorso alternativo: galleries/${galleryId}/photos/${photoName}`);
+          
         } catch (altStorageError) {
-          console.error(`❌ Impossibile eliminare il file dallo Storage:`, altStorageError);
+          
         }
       }
       
@@ -79,7 +79,7 @@ export default function DeleteButton({ photoId, photoName, galleryId, onPhotoDel
       onPhotoDeleted();
       
     } catch (error) {
-      console.error("Errore durante l'eliminazione della foto:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'eliminazione della foto.",

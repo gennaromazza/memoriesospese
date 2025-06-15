@@ -70,7 +70,7 @@ export async function getAllFilesFromEntries(entries: any[]): Promise<{
                     folderFiles.push(enhancedFile);
                     resolveFile();
                   }, (error: any) => {
-                    console.error("Errore nel leggere il file:", error);
+                    
                     resolveFile();
                   });
                 });
@@ -84,7 +84,7 @@ export async function getAllFilesFromEntries(entries: any[]): Promise<{
             readEntries();
           }
         }, (error: any) => {
-          console.error("Errore nella lettura delle entries:", error);
+          
           resolve(folderFiles);
         });
       };
@@ -106,7 +106,7 @@ export async function getAllFilesFromEntries(entries: any[]): Promise<{
           files.push(file);
           resolve(file);
         }, (error: any) => {
-          console.error("Errore nel leggere il file:", error);
+          
           resolve(null as any);
         });
       });
@@ -120,8 +120,8 @@ export async function getAllFilesFromEntries(entries: any[]): Promise<{
   // Appiattisci l'array di array
   const allFiles = files.concat(...allFolderFiles);
   
-  console.log(`Lette ${allFiles.length} foto in totale dalle cartelle`);
-  console.log(`Struttura cartelle rilevata:`, Array.from(folderMap.keys()));
+  
+  
   
   return {
     files: allFiles,
@@ -170,8 +170,8 @@ export async function processItemsWithFolders(
     }
   }
   
-  console.log(`Trovate ${entries.length} entry totali: ${totalFiles} file e ${totalFolders} cartelle`);
-  console.log("Nomi cartelle:", Array.from(folderNames).join(", "));
+  
+  
   
   // Aggiorna il progresso
   if (progressCallback) {
@@ -314,14 +314,14 @@ export function createChaptersFromFolderStructure(
     chaptersCount.set(chapterId, (chaptersCount.get(chapterId) || 0) + 1);
   });
   
-  console.log("Statistiche capitoli:");
+  
   // Uso Array.from per evitare errori con l'iterator di Map
   Array.from(chaptersCount.entries()).forEach(([chapterId, count]) => {
     const chapterTitle = chapters.find(c => c.id === chapterId)?.title || 'Sconosciuto';
-    console.log(`- ${chapterTitle}: ${count} foto`);
+    
   });
   
-  console.log(`Creati ${chapters.length} capitoli con ${photosWithChapters.length} foto totali`);
+  
   
   // Aggiorna il progresso
   if (progressCallback) {

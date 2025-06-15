@@ -42,7 +42,7 @@ export function useGalleryData(galleryCode: string) {
 
   // Funzione helper per verificare e caricare dallo storage se necessario
   const checkAndLoadFromStorage = async (galleryId: string, galleryCode: string) => {
-    console.log("Tentativo di recupero dallo Storage...");
+    
 
     try {
       // Importiamo ciò che serve da firebase/storage
@@ -66,46 +66,46 @@ export function useGalleryData(galleryCode: string) {
         if (validPath) break;
 
         try {
-          console.log("Verifico percorso Storage:", path);
+          
           const pathRef = ref(storage, path);
           const result = await listAll(pathRef);
 
           if (result.items.length > 0) {
-            console.log(`Trovate ${result.items.length} foto nel percorso ${path}`);
+            
             validPath = path;
             allItems = [...result.items];
             
             // Verifica anche se ci sono sottocartelle con più foto
             for (const prefix of result.prefixes) {
               try {
-                console.log(`Verifica sottocartella: ${prefix.fullPath}`);
+                
                 const subResult = await listAll(prefix);
-                console.log(`Trovate ${subResult.items.length} foto nella sottocartella ${prefix.fullPath}`);
+                
                 allItems = [...allItems, ...subResult.items];
               } catch (subErr) {
-                console.warn(`Errore nell'elencare la sottocartella ${prefix.fullPath}:`, subErr);
+                
               }
             }
             
             break;
           }
         } catch (e) {
-          console.log(`Percorso ${path} non valido:`, e);
+          
         }
       }
 
       // Se non abbiamo ancora trovato foto, termina
       if (!validPath || allItems.length === 0) {
-        console.log("Nessuna foto trovata dopo tutti i tentativi di percorso");
+        
         return false;
       }
 
-      console.log(`Trovate in totale ${allItems.length} foto da caricare`);
+      
       setTotalPhotoCount(allItems.length);
 
       // Limita il numero totale di foto da caricare inizialmente
       // Carica tutte le foto disponibili senza limiti
-      console.log(`Preparazione del caricamento di ${allItems.length} foto...`);
+      
       const photoPromises = allItems.map(async (itemRef, index) => {
         // Aggiorna il progresso ogni 5 foto
         if (index % 5 === 0) {
@@ -161,10 +161,10 @@ export function useGalleryData(galleryCode: string) {
           updatedAt: serverTimestamp()
         });
 
-        console.log(`${photoData.length} foto sincronizzate con successo da Storage a Firestore`);
+        
 
       } catch (dbError) {
-        console.error("Errore nella sincronizzazione con Firestore:", dbError);
+        
       }
 
       // Aggiorna lo stato con le foto trovate
@@ -175,7 +175,7 @@ export function useGalleryData(galleryCode: string) {
       
       return photoData.length > 0;
     } catch (error) {
-      console.error("Errore nel recupero dallo Storage:", error);
+      
       return false;
     }
   };
@@ -188,7 +188,7 @@ export function useGalleryData(galleryCode: string) {
         setTotalPhotoCount(galleryData.photoCount);
       }
 
-      console.log(`Caricamento foto per galleria ${galleryId} - Conteggio previsto: ${galleryData.photoCount || 'sconosciuto'}`);
+      
 
       // Utilizziamo la collezione gallery-photos per trovare tutte le foto
       const photosRef = collection(db, "gallery-photos");
@@ -198,7 +198,7 @@ export function useGalleryData(galleryCode: string) {
       );
 
       const querySnapshot = await getDocs(q);
-      console.log(`Trovate ${querySnapshot.size} foto nel database per galleria ${galleryId}`);
+      
 
       // Carica le foto dal database se disponibili
       let photosList: PhotoData[] = [];
@@ -228,12 +228,12 @@ export function useGalleryData(galleryCode: string) {
 
       // CORREZIONE DEL BUG: Controlla sempre lo storage per foto aggiuntive
       // Questo risolve il problema delle foto aggiunte che non vengono visualizzate
-      console.log(`Database: ${photosList.length} foto, Previste: ${galleryData.photoCount || 0}`);
+      
       
       // Se il numero di foto nel database è inferiore a quello previsto, sincronizza con lo storage
       const expectedPhotoCount = galleryData.photoCount || 0;
       if (photosList.length < expectedPhotoCount || querySnapshot.empty) {
-        console.log("Sincronizzazione con Firebase Storage necessaria...");
+        
         const foundInStorage = await checkAndLoadFromStorage(galleryId, galleryCode);
         
         if (foundInStorage) {
@@ -260,7 +260,7 @@ export function useGalleryData(galleryCode: string) {
             }
           });
           
-          console.log(`Dopo sincronizzazione: ${photosList.length} foto caricate`);
+          
         }
         
         if (photosList.length === 0) {
@@ -281,7 +281,7 @@ export function useGalleryData(galleryCode: string) {
         setLoadingProgress(100); // Se non conosciamo il totale, consideriamo completato
       }
     } catch (error) {
-      console.error("Error loading photos:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore nel caricamento delle foto.",
@@ -305,7 +305,7 @@ export function useGalleryData(galleryCode: string) {
       }
 
       try {
-        console.log("Caricamento galleria con codice:", galleryCode);
+        
         const galleriesRef = collection(db, "galleries");
         const q = query(galleriesRef, where("code", "==", galleryCode));
         const querySnapshot = await getDocs(q);
@@ -351,12 +351,12 @@ export function useGalleryData(galleryCode: string) {
           active: isActive
         });
         
-        console.log("Funzionalità capitoli rimossa");
+        
 
         // Fetch photos for the gallery with pagination
         await loadPhotos(galleryDoc.id, galleryData);
       } catch (error) {
-        console.error("Error fetching gallery:", error);
+        
         toast({
           title: "Errore",
           description: "Si è verificato un errore nel caricamento della galleria.",
@@ -375,7 +375,7 @@ export function useGalleryData(galleryCode: string) {
     if (!gallery || !hasMorePhotos || loadingMorePhotos) return;
 
     setLoadingMorePhotos(true);
-    console.log(`Caricamento altre foto per galleria ${gallery.id}, già caricate: ${photos.length}`);
+    
 
     try {
       const lastPhoto = photos[photos.length - 1];
@@ -432,7 +432,7 @@ export function useGalleryData(galleryCode: string) {
         setLoadingProgress(Math.round((newLoadedCount / gallery.photoCount) * 100));
       }
     } catch (error) {
-      console.error("Error loading more photos:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore nel caricamento di altre foto.",

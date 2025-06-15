@@ -38,7 +38,7 @@ export async function processFilesFromFolders(
       if (entry) {
         if (entry.isDirectory) {
           folderEntries.push({ entry, name: entry.name });
-          console.log(`Identificata cartella: ${entry.name}`);
+          
         } else if (entry.isFile) {
           // I file nella radice non hanno una cartella
           fileEntries.push({ entry, folderName: null });
@@ -161,7 +161,7 @@ export async function processFilesFromFolders(
     
     try {
       const files = await readFilesFromDirectory(entry, name);
-      console.log(`Letti ${files.length} file dalla cartella "${name}"`);
+      
       
       // Salva i file per questa cartella
       folderFiles.set(name, files);
@@ -175,7 +175,7 @@ export async function processFilesFromFolders(
         totalProcessed
       );
     } catch (error) {
-      console.error(`Errore nella lettura dei file dalla cartella "${name}":`, error);
+      
     }
   }
   
@@ -198,7 +198,7 @@ export async function processFilesFromFolders(
           });
         });
       } catch (error) {
-        console.error('Errore nella lettura di un file nella radice:', error);
+        
       }
     }
   }
@@ -228,7 +228,7 @@ export async function processFilesFromFolders(
     }
   });
   
-  console.log("Posizioni iniziali per capitolo:", chapterPositions);
+  
   
   // Ora assegniamo i file ai capitoli, mantenendo l'ordine corretto
   for (const folderName of folderNames) {
@@ -236,7 +236,7 @@ export async function processFilesFromFolders(
     const chapterId = folderNameToChapterId.get(folderName);
     
     if (chapterId) {
-      console.log(`Assegnando ${files.length} file al capitolo "${folderName}" (ID: ${chapterId})`);
+      
       
       // Partiamo dalla posizione iniziale per questo capitolo
       let chapterPosition = chapterPositions[chapterId];
@@ -291,7 +291,7 @@ export async function processFilesFromFolders(
     if (!chapterId) {
       const filesInFolder = folderFiles.get(folderName) || [];
       if (filesInFolder.length > 0) {
-        console.log(`⚠️ Cartella "${folderName}" non ha corrispondenza con capitoli. Aggiungendo ${filesInFolder.length} file al capitolo predefinito.`);
+        
         unassignedFiles.push(...filesInFolder);
       }
     }
@@ -299,7 +299,7 @@ export async function processFilesFromFolders(
   
   // Se ci sono file non assegnati, creaiamo un capitolo predefinito
   if (unassignedFiles.length > 0) {
-    console.log(`Trovati ${unassignedFiles.length} file non assegnati a capitoli specifici`);
+    
     
     // Aggiungi il capitolo predefinito solo se ci sono file da assegnare
     chapters.push(defaultChapter);
@@ -344,29 +344,29 @@ export async function processFilesFromFolders(
   const totalChapters = chapters.length;
   const totalAssignedPhotos = photosWithChapters.length;
   
-  console.log(`\n===== STATISTICHE ELABORAZIONE CARTELLE =====`);
-  console.log(`File totali trovati: ${allFiles.length}`);
-  console.log(`Cartelle trovate: ${folderNames.length}`);
-  console.log(`Capitoli creati: ${totalChapters}`);
-  console.log(`Foto totali elaborate: ${totalAssignedPhotos}`);
+  
+  
+  
+  
+  
   
   if (totalChapters > 0) {
-    console.log(`\nDistribuzione per capitolo:`);
+    
     chapters.forEach(chapter => {
       const count = photosWithChapters.filter(p => p.chapterId === chapter.id).length;
       chapterStats.set(chapter.id, count);
       const percentage = Math.round((count / totalAssignedPhotos) * 100);
-      console.log(`- Capitolo "${chapter.title}": ${count} foto (${percentage}%)`);
+      
     });
   }
   
   // Verifica se ci sono file che non sono stati assegnati a nessun capitolo (non dovrebbero esserci)
   const unassignedInFinal = photosWithChapters.filter(p => !p.chapterId).length;
   if (unassignedInFinal > 0) {
-    console.warn(`⚠️ Attenzione: ${unassignedInFinal} foto non hanno un capitolo assegnato!`);
+    
   }
   
-  console.log(`============================================\n`);
+  
   
   updateProgress(100, 'Elaborazione completata!', totalProcessed, totalProcessed);
   

@@ -113,7 +113,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
         };
         reader.readAsDataURL(compressedFile);
       } catch (error) {
-        console.error("Errore durante la compressione dell'immagine:", error);
+        
         toast({
           title: "Errore di compressione",
           description: "Si è verificato un errore durante la compressione dell'immagine. Riprova.",
@@ -171,16 +171,16 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
         updatedAt: serverTimestamp(),
       };
 
-      console.log("Creazione galleria con dati:", galleryData);
+      
       const galleryRef = await addDoc(collection(db, "galleries"), galleryData);
 
       // Funzionalità capitoli rimossa
-      console.log("Capitoli disabilitati");
+      
 
       // Upload photos if any are selected
       if (selectedFiles.length > 0) {
         try {
-          console.log(`Iniziato caricamento di ${selectedFiles.length} foto`);
+          
 
           let completedUploads = 0;
           
@@ -224,7 +224,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
               setUploadProgress(progress);
               
             } catch (error) {
-              console.error(`Errore nel caricamento di ${file.name}:`, error);
+              
               // Continua con gli altri file anche se uno fallisce
             }
           }
@@ -235,7 +235,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
             updatedAt: serverTimestamp()
           });
           
-          console.log(`Caricamento completato: ${completedUploads} foto caricate`);
+          
           
           toast({
             title: "Galleria creata con successo",
@@ -245,7 +245,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
           
           onSuccess();
         } catch (error) {
-          console.error("Errore durante il caricamento delle foto:", error);
+          
           toast({
             title: "Errore di caricamento",
             description: "Si è verificato un errore durante il caricamento delle foto.",
@@ -261,7 +261,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
         onSuccess();
       }
     } catch (error) {
-      console.error("Errore nella creazione della galleria:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante la creazione della galleria.",

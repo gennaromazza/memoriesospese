@@ -11,7 +11,7 @@ export const createUrl = (path: string): string => {
   let cleanPath = path.startsWith('/') ? path : `/${path}`;
 
   if (import.meta.env.DEV) {
-    console.log(`[createUrl] ${path} → ${cleanPath}`);
+    
   }
 
   return cleanPath;

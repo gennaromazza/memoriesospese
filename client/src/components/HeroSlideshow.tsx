@@ -47,13 +47,13 @@ export default function HeroSlideshow() {
             setImages(fetchedImages);
           }
         } catch (innerError) {
-          console.log("Errore nella query complessa:", innerError);
+          
           // In caso di errore, non facciamo nulla e lasciamo l'array vuoto
         }
         
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching slideshow images:', error);
+        
         setLoading(false);
       }
     }

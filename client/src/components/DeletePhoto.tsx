@@ -23,7 +23,7 @@ export default function DeletePhoto({ galleryId, photo, onPhotoDeleted }: Delete
     
     setIsDeleting(true);
     try {
-      console.log(`Eliminazione foto: ${photo.name} (ID: ${photo.id})`);
+      
       
       // 1. Elimina il documento da Firestore dalla collezione gallery-photos
       const galleryPhotosQuery = query(
@@ -36,7 +36,7 @@ export default function DeletePhoto({ galleryId, photo, onPhotoDeleted }: Delete
       if (!querySnapshot.empty) {
         for (const docSnapshot of querySnapshot.docs) {
           await deleteDoc(docSnapshot.ref);
-          console.log(`✓ Eliminato documento da gallery-photos: ${docSnapshot.id}`);
+          
         }
       }
       
@@ -55,16 +55,16 @@ export default function DeletePhoto({ galleryId, photo, onPhotoDeleted }: Delete
         try {
           const storageRef = ref(storage, path);
           await deleteObject(storageRef);
-          console.log(`✓ Eliminato file da Storage: ${path}`);
+          
           photoDeleted = true;
           break;
         } catch (storageError) {
-          console.warn(`⚠️ Non trovato in: ${path}`);
+          
         }
       }
       
       if (!photoDeleted) {
-        console.warn(`⚠️ Non è stato possibile trovare il file nello Storage: ${photo.name}`);
+        
       }
       
       // 3. Aggiorna l'UI chiamando la callback
@@ -76,7 +76,7 @@ export default function DeletePhoto({ galleryId, photo, onPhotoDeleted }: Delete
       });
       
     } catch (error) {
-      console.error("Errore durante l'eliminazione della foto:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'eliminazione della foto.",

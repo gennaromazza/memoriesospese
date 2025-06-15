@@ -37,7 +37,7 @@ export default function PasswordResult() {
             ...gallerySnap.data()
           });
         } else {
-          console.log('Galleria non trovata con ID, provo con codice');
+          
 
           // Se non troviamo per ID, proviamo a cercare per codice galleria
           const q = query(galleriesRef, where('code', '==', params.code));
@@ -59,7 +59,7 @@ export default function PasswordResult() {
           }
         }
       } catch (error) {
-        console.error('Error fetching gallery:', error);
+        
         toast({
           title: 'Errore',
           description: 'Si è verificato un errore nel recupero della galleria',

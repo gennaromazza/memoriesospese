@@ -33,29 +33,29 @@ export async function compressImage(
   try {
     // Verifica se il file è un'immagine
     if (!file.type.startsWith('image/')) {
-      console.log('Il file non è un\'immagine, saltando la compressione:', file.name);
+      
       return file;
     }
 
     // Se l'immagine è già più piccola di maxSizeMB MB, saltare la compressione
     const options = { ...defaultOptions, ...customOptions };
     if (file.size <= (options.maxSizeMB || 1) * 1024 * 1024) {
-      console.log('L\'immagine è già abbastanza piccola, saltando la compressione:', file.name);
+      
       return file;
     }
 
-    console.log('Compressione immagine in corso:', file.name);
-    console.log('Dimensione originale:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+    
+    
 
     const compressedFile = await imageCompression(file, options);
     
-    console.log('Compressione completata:', compressedFile.name);
-    console.log('Dimensione dopo compressione:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
-    console.log('Rapporto di compressione:', (file.size / compressedFile.size).toFixed(2), 'x');
+    
+    
+    
 
     return compressedFile;
   } catch (error) {
-    console.error('Errore durante la compressione dell\'immagine:', error);
+    
     return file; // In caso di errore, restituisci il file originale
   }
 }
@@ -74,7 +74,7 @@ export async function compressImages(
     const compressPromises = files.map(file => compressImage(file, customOptions));
     return await Promise.all(compressPromises);
   } catch (error) {
-    console.error('Errore durante la compressione delle immagini:', error);
+    
     return files; // In caso di errore, restituisci i file originali
   }
 }

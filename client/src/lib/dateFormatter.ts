@@ -44,7 +44,7 @@ export const formatDateString = (dateStr: string): string => {
     // Ritorna la data originale se non è stato possibile formattarla
     return dateStr;
   } catch (e) {
-    console.error('Errore nella formattazione della data:', e);
+    
     return dateStr;
   }
 };

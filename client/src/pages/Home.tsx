@@ -84,7 +84,7 @@ export default function Home() {
 
       setSearchResults(results);
     } catch (error) {
-      console.error("Error searching galleries:", error);
+      
     }
   };
 
@@ -152,7 +152,7 @@ export default function Home() {
       // Redirect to password result page with correct base path
       navigate(createUrl(`/password-result/${selectedGallery.id}`));
     } catch (error) {
-      console.error("Error saving password request:", error);
+      
       toast({
         title: "Errore",
         description:

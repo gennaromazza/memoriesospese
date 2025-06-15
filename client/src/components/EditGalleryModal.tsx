@@ -137,9 +137,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       });
       
       setPhotos(loadedPhotos);
-      console.log(`Caricate ${loadedPhotos.length} foto per la galleria ${gallery.id}`);
+      
     } catch (error) {
-      console.error("Error loading photos:", error);
+      
       toast({
         title: "Errore",
         description: "Impossibile caricare le foto della galleria",
@@ -155,12 +155,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     if (!gallery) return;
     
     try {
-      console.log(`Eliminazione foto: ${photoToDelete.name} (ID: ${photoToDelete.id})`);
+      
       
       // 1. Elimina il documento da Firestore nella collezione photos
       const photoRef = doc(db, "photos", photoToDelete.id);
       await deleteDoc(photoRef);
-      console.log(`✓ Eliminato documento da photos/${photoToDelete.id}`);
+      
       
       // 2. Trova e elimina il documento corrispondente in gallery-photos
       const galleryPhotosQuery = query(
@@ -174,10 +174,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         // Elimina tutti i documenti trovati (dovrebbe essere solo uno)
         for (const docSnapshot of querySnapshot.docs) {
           await deleteDoc(docSnapshot.ref);
-          console.log(`✓ Eliminato documento da gallery-photos: ${docSnapshot.id}`);
+          
         }
       } else {
-        console.warn(`⚠️ Nessun documento trovato in gallery-photos per ${photoToDelete.name}`);
+        
       }
       
       // 3. Elimina il file da Firebase Storage - con multi-percorso migliorato
@@ -197,18 +197,18 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         try {
           const storageRef = ref(storage, path);
           await deleteObject(storageRef);
-          console.log(`✓ Eliminato file da Storage: ${path}`);
+          
           photoDeleted = true;
           break; // Se la foto è stata eliminata con successo, interrompe il ciclo
         } catch (storageError) {
-          console.warn(`⚠️ Non trovato in: ${path}`);
+          
           // Continua a provare con altri percorsi
         }
       }
       
       // Anche se non troviamo il file, continuiamo comunque con l'eliminazione del documento
       if (!photoDeleted) {
-        console.warn(`⚠️ File non trovato in nessuno dei percorsi, ma il documento è stato eliminato: ${photoToDelete.name}`);
+        
       }
       
       // 4. Aggiorna l'array locale delle foto
@@ -220,7 +220,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       });
       
     } catch (error) {
-      console.error("Errore durante l'eliminazione della foto:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'eliminazione della foto.",
@@ -242,9 +242,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           const storageRef = ref(storage, `galleries/covers/${gallery.code}_cover`);
           await uploadBytesResumable(storageRef, coverImage);
           newCoverImageUrl = await getDownloadURL(storageRef);
-          console.log("Nuova immagine di copertina caricata:", newCoverImageUrl);
+          
         } catch (error) {
-          console.error("Errore nell'upload della copertina:", error);
+          
           // Continuiamo comunque con l'aggiornamento della galleria
         }
       }
@@ -269,7 +269,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       onClose();
     } catch (error) {
-      console.error("Error updating gallery:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il salvataggio delle modifiche",
@@ -286,22 +286,22 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     
     setIsLoading(true);
     try {
-      console.log("Aggiornamento ordine foto");
+      
       
       // Aggiorna il lastUpdated della galleria
       const galleryRef = doc(db, "galleries", gallery.id);
       await updateDoc(galleryRef, {
         lastUpdated: serverTimestamp()
       });
-      console.log("✓ Aggiornato timestamp della galleria");
+      
       
       // Aggiorna le foto rimuovendo i riferimenti ai capitoli
-      console.log(`Aggiornamento di ${photos.length} foto in ordine cronologico`);
+      
       
       // Iterazione su tutte le foto
       for (const photo of photos) {
         try {
-          console.log(`Elaborazione foto ${photo.name} (${photo.id})`);
+          
           
           // Aggiorna nella sottocollezione galleries/{galleryId}/photos
           const photoRef = doc(db, "galleries", gallery.id, "photos", photo.id);
@@ -327,7 +327,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               chapterId: null,
               chapterPosition: 0
             });
-            console.log(`✓ Rimosso chapterId per foto ${photo.name} in gallery-photos`);
+            
           } else {
             // Prova a cercare per nome senza galleryId (per compatibilità con versioni precedenti)
             const q2 = query(
@@ -350,9 +350,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   chapterId: null,
                   chapterPosition: 0
                 });
-                console.log(`✓ Aggiornato con fallback foto ${photo.name} in gallery-photos`);
+                
               } else {
-                console.warn(`⚠️ Nessun documento trovato in gallery-photos per la foto ${photo.name}`);
+                
                 
                 // Tenta di creare un nuovo documento in gallery-photos se non esistente
                 try {
@@ -369,17 +369,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   
                   // Usa addDoc separatamente
                   await addDoc(collection(db, "gallery-photos"), newPhotoData);
-                  console.log(`✓ Creato nuovo documento in gallery-photos per ${photo.name}`);
+                  
                 } catch (createError) {
-                  console.error(`❌ Errore nella creazione di nuovo documento:`, createError);
+                  
                 }
               }
             } else {
-              console.warn(`⚠️ Nessun documento trovato in gallery-photos per la foto ${photo.name}`);
+              
             }
           }
         } catch (error) {
-          console.error(`❌ Errore durante l'elaborazione della foto ${photo.name}:`, error);
+          
         }
       }
       toast({
@@ -387,7 +387,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         description: "Le informazioni delle foto sono state aggiornate con successo"
       });
     } catch (error) {
-      console.error("Error updating chapters and photos:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il salvataggio delle modifiche",
@@ -416,7 +416,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         (summary) => setUploadSummary(summary)
       );
       
-      console.log(`Caricate ${uploadedPhotos.length} nuove foto nella galleria ${gallery.id}`);
+      
       
       // Salva i metadati delle foto in Firestore
       const photoPromises = uploadedPhotos.map(async (photo, index) => {
@@ -425,7 +425,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           const chapterId = null;
           const chapterPosition = 0;
           
-          console.log(`Foto ${photo.name} - senza capitolo (organizzazione cronologica)`);
+          
           
           // Salva solo nella collezione gallery-photos (unica collezione di riferimento)
           await addDoc(collection(db, "gallery-photos"), {
@@ -439,7 +439,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             chapterPosition: chapterPosition
           });
         } catch (err) {
-          console.error("Errore nel salvataggio dei metadati:", err);
+          
         }
       });
       
@@ -469,7 +469,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       loadPhotos();
       
     } catch (error) {
-      console.error("Errore durante il caricamento delle foto:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il caricamento delle foto",

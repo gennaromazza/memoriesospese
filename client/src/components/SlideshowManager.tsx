@@ -62,15 +62,15 @@ export default function SlideshowManager() {
             });
           });
         } else {
-          console.log("La collezione slideshow è vuota o non esiste");
+          
         }
       } catch (queryError) {
-        console.error("Errore nella query:", queryError);
+        
       }
       
       setImages(fetchedImages);
     } catch (error) {
-      console.error('Error fetching slideshow images:', error);
+      
       toast({
         variant: "destructive",
         title: "Errore",
@@ -137,7 +137,7 @@ export default function SlideshowManager() {
       setAltText('');
       fetchSlideshowImages();
     } catch (error) {
-      console.error('Error uploading image:', error);
+      
       toast({
         variant: "destructive",
         title: "Errore",
@@ -165,7 +165,7 @@ export default function SlideshowManager() {
         description: `Immagine ${!image.active ? 'attivata' : 'disattivata'}.`
       });
     } catch (error) {
-      console.error('Error toggling image active state:', error);
+      
       toast({
         variant: "destructive",
         title: "Errore",
@@ -202,7 +202,7 @@ export default function SlideshowManager() {
       
       setImages(newImages);
     } catch (error) {
-      console.error('Error reordering images:', error);
+      
       toast({
         variant: "destructive",
         title: "Errore",
@@ -229,7 +229,7 @@ export default function SlideshowManager() {
       try {
         await deleteObject(imageRef);
       } catch (storageError) {
-        console.error('Error deleting from storage (might be a different path):', storageError);
+        
       }
 
       // Aggiorna la lista locale
@@ -240,7 +240,7 @@ export default function SlideshowManager() {
         description: "L'immagine è stata rimossa dallo slideshow."
       });
     } catch (error) {
-      console.error('Error deleting image:', error);
+      
       toast({
         variant: "destructive",
         title: "Errore",

@@ -11,7 +11,7 @@ function getYouTubeVideoId(url: string): string {
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : "";
   } catch (error) {
-    console.error("Errore nell'analisi dell'URL di YouTube:", error);
+    
     return "";
   }
 }

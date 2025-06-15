@@ -5,15 +5,15 @@ import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 
-// Firebase configuration
+// Firebase configuration from environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME",
-  authDomain: "wedding-gallery-397b6.firebaseapp.com",
-  projectId: "wedding-gallery-397b6",
-  storageBucket: "wedding-gallery-397b6.firebasestorage.app",
-  messagingSenderId: "1072998290999",
-  appId: "1:1072998290999:web:8e0d19440d86d15f4f11b2",
-  measurementId: "G-SD38R3LJE6"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "wedding-gallery-397b6.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "wedding-gallery-397b6",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "wedding-gallery-397b6.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1072998290999",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1072998290999:web:8e0d19440d86d15f4f11b2",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-SD38R3LJE6"
 };
 
 // Initialize Firebase app

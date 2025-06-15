@@ -76,7 +76,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex }:
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       lightboxRef.current?.requestFullscreen().catch(err => {
-        console.error(`Errore nel passare a fullscreen: ${err.message}`);
+        
       });
       setIsFullscreen(true);
     } else {
@@ -180,7 +180,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex }:
         });
       }, 500);
     } catch (error) {
-      console.error('Errore durante il download:', error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il download dell'immagine.",

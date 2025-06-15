@@ -57,7 +57,7 @@ export default function GalleryAccess() {
           });
         }
       } catch (error) {
-        console.error("Error checking gallery:", error);
+        
         toast({
           title: "Errore",
           description: "Non è stato possibile verificare la galleria.",
@@ -100,10 +100,10 @@ export default function GalleryAccess() {
       
       // Naviga alla visualizzazione della galleria usando il router wouter
       // che gestirà correttamente il basePath
-      console.log(`[GalleryAccess] Navigating to gallery view: /view/${id}`);
+      
       navigate(`/view/${id}`);
     } catch (error) {
-      console.error("Error accessing gallery:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'accesso alla galleria.",

@@ -85,7 +85,7 @@ export default function RequestPassword() {
         setGalleryName(galleryData.name);
         setGalleryExists(true);
       } catch (error) {
-        console.error("Error checking gallery:", error);
+        
         toast({
           title: "Errore",
           description: "Non è stato possibile verificare la galleria.",
@@ -134,10 +134,10 @@ export default function RequestPassword() {
       });
       
       // Naviga alla pagina dei risultati usando il router
-      console.log(`[RequestPassword] Navigating to password result: /password-result/${galleryId}`);
+      
       navigate(`/password-result/${galleryId}`);
     } catch (error) {
-      console.error("Error requesting password:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'invio della richiesta.",

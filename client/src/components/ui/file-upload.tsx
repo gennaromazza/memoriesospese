@@ -84,7 +84,7 @@ export default function FileUpload({
       const BATCH_SIZE = 20; // Numero di file da processare in ogni batch
       const totalBatches = Math.ceil(files.length / BATCH_SIZE);
       
-      console.log(`Processando ${files.length} file in ${totalBatches} batch di ${BATCH_SIZE}`);
+      
       
       if (enableCompression) {
         // Array per memorizzare tutti i file compressi
@@ -95,7 +95,7 @@ export default function FileUpload({
           const batchFiles = files.slice(i, i + BATCH_SIZE);
           const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
           
-          console.log(`Processando batch ${batchNumber}/${totalBatches} (${batchFiles.length} file)`);
+          
           
           // Imposta lo stato di compressione per questo batch
           const batchFileNames = batchFiles.map(file => file.name);
@@ -122,7 +122,7 @@ export default function FileUpload({
                 
                 return compressedFile;
               } catch (error) {
-                console.error(`Errore durante la compressione di ${file.name}:`, error);
+                
                 return file;
               }
             } else {
@@ -142,14 +142,14 @@ export default function FileUpload({
           }
         }
         
-        console.log(`Compressione completata per ${allCompressedFiles.length} file`);
+        
         onFilesSelected(allCompressedFiles);
       } else {
         // Se la compressione non è abilitata, passa i file originali
         onFilesSelected(files);
       }
     } catch (error) {
-      console.error("Errore durante la compressione delle immagini:", error);
+      
       // Rimuovi lo stato di compressione in caso di errore
       setCompressingFiles([]);
       // Fallback ai file originali in caso di errore
@@ -164,11 +164,11 @@ export default function FileUpload({
     setIsDragging(false);
     
     try {
-      console.log("Inizio gestione drop di file...");
+      
       
       // Controlla se abbiamo file o elementi di directory
       if (!e.dataTransfer.items && (!e.dataTransfer.files || e.dataTransfer.files.length === 0)) {
-        console.log("Nessun file o directory trovato nel drop.");
+        
         return;
       }
       
@@ -190,19 +190,19 @@ export default function FileUpload({
           if (entry?.isDirectory) {
             hasDirectories = true;
             dirNames.push(entry.name);
-            console.log("Rilevata cartella:", entry.name);
+            
           }
         }
       }
       
-      console.log(`Risultato verifica cartelle: ${hasDirectories ? 'Sì' : 'No'}, cartelle rilevate: ${dirNames.length}`);
+      
       if (dirNames.length > 0) {
-        console.log("Nomi cartelle:", dirNames.join(", "));
+        
       }
       
       // Se abbiamo cartelle e il supporto è abilitato, usa l'implementazione semplificata
       if (enableFolderUpload && hasDirectories && onChaptersExtracted && e.dataTransfer.items) {
-        console.log("Utilizzo del lettore semplificato di cartelle...");
+        
         
         // Mostra l'indicatore di progresso
         setIsProcessingFolders(true);
@@ -221,13 +221,13 @@ export default function FileUpload({
           };
           
           // Utilizziamo il nuovo metodo semplificato per processare le cartelle
-          console.log("Avvio processFilesFromFolders...");
+          
           const result = await processFilesFromFolders(Array.from(e.dataTransfer.items), updateProgress);
-          console.log(`Lettore cartelle semplificato ha trovato ${result.files.length} file in ${result.chapters.length} capitoli`);
+          
           
           // Se abbiamo trovato file e capitoli
           if (result.files.length > 0 && result.chapters.length > 0) {
-            console.log(`Trovati ${result.photosWithChapters.length} foto assegnate ai capitoli`);
+            
             
             // Notifica i capitoli estratti attraverso il callback
             onChaptersExtracted({
@@ -246,11 +246,11 @@ export default function FileUpload({
             setTimeout(() => setIsProcessingFolders(false), 1000); // Nascondi il loader dopo 1 secondo
             return;
           } else {
-            console.log("Nessuna struttura di cartelle trovata, passaggio alla creazione manuale.");
+            
             updateProgress(50, 'Nessuna struttura di cartelle trovata, passaggio alla creazione manuale...', 0, 0);
           }
         } catch (error: any) {
-          console.error("Errore durante l'elaborazione delle cartelle:", error);
+          
           setProcessingStatus(`Errore: ${error.message || 'Errore sconosciuto'}`);
           // Mostra l'errore per alcuni secondi prima di passare al fallback
           setTimeout(() => {
@@ -263,11 +263,11 @@ export default function FileUpload({
       
       // Se il metodo avanzato fallisce o non è disponibile, utilizza un approccio di fallback
       const newFiles = Array.from(e.dataTransfer.files);
-      console.log(`Utilizzo metodo di fallback con ${newFiles.length} file`);
+      
       
       // Fallback: se abbiamo cartelle, creiamo manualmente i capitoli
       if (enableFolderUpload && dirNames.length > 0 && onChaptersExtracted) {
-        console.log("Creazione manuale capitoli dalle cartelle rilevate:", dirNames);
+        
         
         // Creare capitoli basati sui nomi delle cartelle
         const manualChapters: Chapter[] = dirNames.map((dirName, idx) => ({
@@ -299,7 +299,7 @@ export default function FileUpload({
           photosWithChapters: manualPhotosWithChapters
         };
         
-        console.log("Capitoli creati dal fallback:", manualChapters);
+        
         onChaptersExtracted(manualResult);
         
         // Procedi con la compressione e l'upload
@@ -308,10 +308,10 @@ export default function FileUpload({
       }
       
       // Fallback senza capitoli: processo standard
-      console.log("Utilizzo processo standard senza capitoli");
+      
       await processFiles(newFiles);
     } catch (error: any) {
-      console.error("Errore globale nella gestione del drop:", error);
+      
       alert(`Si è verificato un errore durante l'elaborazione dei file: ${error.message || 'Errore sconosciuto'}`);
     }
   };
@@ -320,9 +320,9 @@ export default function FileUpload({
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       try {
-        console.log("Elaborazione selezione da input file...");
+        
         const newFiles = Array.from(e.target.files);
-        console.log(`Selezionati ${newFiles.length} file`);
+        
         
         // Controlla se abbiamo un input di tipo directory
         const webkitFilesWithPaths = newFiles.filter(file => 
@@ -330,7 +330,7 @@ export default function FileUpload({
         );
         
         const hasWebkitRelativePaths = webkitFilesWithPaths.length > 0;
-        console.log(`File con percorsi relativi: ${webkitFilesWithPaths.length}`);
+        
         
         // Se abbiamo percorsi relativi e il supporto per cartelle è abilitato
         if (enableFolderUpload && hasWebkitRelativePaths && onChaptersExtracted) {
@@ -434,7 +434,7 @@ export default function FileUpload({
             setTimeout(() => setIsProcessingFolders(false), 1000);
             
           } catch (error: any) {
-            console.error("Errore durante la creazione dei capitoli da webkitRelativePath:", error);
+            
             setProcessingStatus(`Errore: ${error.message || 'Errore sconosciuto'}`);
             // Continua con il metodo standard
             setTimeout(() => {
@@ -453,7 +453,7 @@ export default function FileUpload({
           fileInputRef.current.value = '';
         }
       } catch (error) {
-        console.error("Errore durante l'elaborazione dei file:", error);
+        
       }
     }
   };

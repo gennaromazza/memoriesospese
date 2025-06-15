@@ -251,9 +251,9 @@ export default function AdminDashboard() {
         requestsList.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
         setPasswordRequests(requestsList);
-        console.log(`Caricate ${requestsList.length} richieste di password`);
+        
       } catch (error) {
-        console.error("Error fetching password requests:", error);
+        
       }
 
       // Carica impostazioni studio
@@ -267,7 +267,7 @@ export default function AdminDashboard() {
           setStudioSettings(settingsData);
         }
       } catch (error) {
-        console.error("Error fetching studio settings:", error);
+        
       } finally {
         setIsSettingsLoading(false);
       }
@@ -336,7 +336,7 @@ export default function AdminDashboard() {
         description: "Il logo è stato caricato con successo."
       });
     } catch (error) {
-      console.error("Error uploading logo:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il caricamento del logo.",
@@ -355,7 +355,7 @@ export default function AdminDashboard() {
       // Reindirizza alla pagina di login usando il percorso assoluto
       navigate(createUrl("/admin"));
     } catch (error) {
-      console.error("Errore durante il logout:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il logout.",
@@ -375,7 +375,7 @@ export default function AdminDashboard() {
         description: "Le impostazioni dello studio sono state salvate con successo."
       });
     } catch (error) {
-      console.error("Error saving studio settings:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore nel salvataggio delle impostazioni.",
@@ -433,10 +433,10 @@ export default function AdminDashboard() {
 
       setGalleries(galleryList);
 
-      console.log(`Caricate ${galleryList.length} gallerie dal database`);
-      console.log("Elenco gallerie:", galleryList.map(g => g.name).join(", "));
+      
+      
     } catch (error) {
-      console.error("Error fetching galleries:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore nel caricamento delle gallerie.",
@@ -468,7 +468,7 @@ export default function AdminDashboard() {
         description: "La richiesta è stata eliminata con successo.",
       });
     } catch (error) {
-      console.error("Errore nell'eliminazione della richiesta:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'eliminazione.",
@@ -505,7 +505,7 @@ export default function AdminDashboard() {
         description: `Le richieste sono state esportate in ${fileName}`,
       });
     } catch (error) {
-      console.error("Errore durante l'esportazione:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'esportazione delle richieste.",
@@ -516,7 +516,7 @@ export default function AdminDashboard() {
 
   const toggleGalleryStatus = async (gallery: GalleryItem) => {
     try {
-      console.log(`Toggling gallery status: ${gallery.name} from ${gallery.active} to ${!gallery.active}`);
+      
       
       const galleryRef = doc(db, "galleries", gallery.id);
       const newActiveStatus = !gallery.active;
@@ -526,7 +526,7 @@ export default function AdminDashboard() {
         updatedAt: new Date() // Track when the status was changed
       });
 
-      console.log(`Successfully updated gallery ${gallery.id} active status to ${newActiveStatus}`);
+      
 
       // Update local state
       setGalleries(prev => 
@@ -538,7 +538,7 @@ export default function AdminDashboard() {
         description: `La galleria "${gallery.name}" è stata ${newActiveStatus ? "attivata" : "disattivata"} con successo.`
       });
     } catch (error) {
-      console.error("Error toggling gallery status:", error);
+      
       toast({
         title: "Errore",
         description: "Non è stato possibile modificare lo stato della galleria.",
@@ -574,7 +574,7 @@ export default function AdminDashboard() {
       for (const path of storagePaths) {
         try {
           const storageRef = ref(storage, path);
-          console.log("Controllo path:", path);
+          
 
           const listResult = await listAll(storageRef);
           if (listResult.items.length > 0) {
@@ -591,23 +591,23 @@ export default function AdminDashboard() {
               const deletePromises = chunk.map(async (itemRef) => {
                 try {
                   await deleteObject(itemRef);
-                  console.log("File eliminato con successo:", itemRef.fullPath);
+                  
                 } catch (deleteError) {
-                  console.error("Errore nell'eliminazione del file:", itemRef.fullPath, deleteError);
+                  
                 }
               });
 
               await Promise.all(deletePromises);
-              console.log(`Eliminato un gruppo di ${chunk.length} file da ${path}`);
+              
               
               // Piccolo ritardo tra i gruppi per evitare throttling
               await delay(500);
             }
             
-            console.log(`Eliminati ${listResult.items.length} file da ${path}`);
+            
           }
         } catch (error) {
-          console.log(`Nessun file trovato in ${path} o errore di accesso:`, error);
+          
         }
       }
 
@@ -637,16 +637,16 @@ export default function AdminDashboard() {
             for (const chunk of chunks) {
               const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
               await Promise.all(deletePromises);
-              console.log(`Eliminato un gruppo di ${chunk.length} documenti dalla collezione ${col.name}`);
+              
               
               // Piccolo ritardo tra i gruppi
               await delay(500);
             }
             
-            console.log(`Eliminati ${snapshot.docs.length} documenti dalla collezione ${col.name}`);
+            
           }
         } catch (error) {
-          console.error(`Errore nell'eliminazione della collezione ${col.name}:`, error);
+          
         }
       }
 
@@ -672,16 +672,16 @@ export default function AdminDashboard() {
           for (const chunk of chunks) {
             const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
-            console.log(`Eliminato un gruppo di ${chunk.length} documenti da gallery-photos`);
+            
             
             // Piccolo ritardo tra i gruppi
             await delay(500);
           }
           
-          console.log(`Eliminati ${snapshot.docs.length} documenti da gallery-photos`);
+          
         }
       } catch (error) {
-        console.error("Errore nell'eliminazione dei documenti da gallery-photos:", error);
+        
       }
 
       // Piccolo ritardo prima di eliminare il documento principale
@@ -698,7 +698,7 @@ export default function AdminDashboard() {
         description: `La galleria "${gallery.name}" e tutte le sue foto sono state eliminate con successo.`
       });
     } catch (error) {
-      console.error("Error deleting gallery:", error);
+      
       toast({
         title: "Errore",
         description: "Non è stato possibile eliminare completamente la galleria. Alcune risorse potrebbero essere rimaste.",
@@ -736,7 +736,7 @@ export default function AdminDashboard() {
 
       return true;
     } catch (error) {
-      console.error("Error changing gallery password:", error);
+      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'aggiornamento della password.",

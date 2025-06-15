@@ -25,9 +25,9 @@ export function exportToExcel(
     // Esporta il workbook in un file blob
     XLSX.writeFile(workbook, fileName);
     
-    console.log(`Esportazione completata: ${fileName}`);
+    
   } catch (error) {
-    console.error('Errore durante l\'esportazione in Excel:', error);
+    
     throw error;
   }
 }

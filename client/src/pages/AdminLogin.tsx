@@ -56,10 +56,10 @@ export default function AdminLogin() {
       
       // Usa l'URL assoluto per garantire un reindirizzamento corretto
       const dashboardUrl = createAbsoluteUrl("/admin/dashboard");
-      console.log("[AdminLogin] Reindirizzamento a dashboard:", dashboardUrl);
+      
       navigate(dashboardUrl);
     } catch (error: any) {
-      console.error("Login error:", error);
+      
       let errorMessage = "Si è verificato un errore durante l'accesso.";
 
       // Handle specific Firebase auth errors
