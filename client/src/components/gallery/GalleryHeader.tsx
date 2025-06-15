@@ -53,9 +53,12 @@ export default function GalleryHeader({
     // Determina il percorso relativo da condividere
     let relativePath: string;
     
-    if (galleryId) {
-      // Se abbiamo un ID galleria, creiamo un link alla galleria
-      relativePath = `/view/${galleryId}`;
+    if (galleryCode) {
+      // Se abbiamo un codice galleria, creiamo un link alla pagina di inserimento password
+      relativePath = `/gallery/${galleryCode}`;
+    } else if (galleryId) {
+      // Fallback: se abbiamo solo l'ID, usiamo quello
+      relativePath = `/gallery/${galleryId}`;
     } else {
       // Altrimenti condividiamo la pagina corrente
       // Rimuoviamo il base path dall'URL per evitare duplicazioni
@@ -76,7 +79,7 @@ export default function GalleryHeader({
     if (navigator.share) {
       navigator.share({
         title: `Galleria fotografica – ${name}`,
-        text: `Dai un'occhiata alle foto di ${name}`,
+        text: `Accedi alla galleria fotografica di ${name}`,
         url
       }).catch(() => {
         // Se la condivisione fallisce, copiamo il link negli appunti
