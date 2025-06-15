@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { Photo } from "@shared/schema";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { PhotoData } from "@/hooks/use-gallery-data";
 import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 interface ImageLightboxProps {
   isOpen: boolean;
   onClose: () => void;
-  photos: Photo[];
+  photos: PhotoData[];
   initialIndex: number;
 }
 
@@ -51,15 +51,17 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex }:
     return null;
   }
 
-  const currentPhoto = photos[currentIndex];
+  const currentPhoto = useMemo(() => photos[currentIndex], [photos, currentIndex]);
 
-  const navigatePrevious = () => {
+  const navigatePrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);
-  };
+    setZoom(1); // Reset zoom quando si cambia foto
+  }, [photos.length]);
 
-  const navigateNext = () => {
+  const navigateNext = useCallback(() => {
     setCurrentIndex((prev) => (prev + 1) % photos.length);
-  };
+    setZoom(1); // Reset zoom quando si cambia foto
+  }, [photos.length]);
 
   // Funzione per gestire lo zoom
   const handleZoom = (zoomIn: boolean) => {

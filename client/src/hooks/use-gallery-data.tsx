@@ -373,29 +373,21 @@ export function useGalleryData(galleryCode: string) {
     fetchGallery();
   }, [galleryCode]);
 
-  // Funzione per caricare più foto
+  // Funzione ottimizzata per caricare più foto
   const loadMorePhotos = useCallback(async () => {
     if (!gallery || !hasMorePhotos || loadingMorePhotos) return;
 
     setLoadingMorePhotos(true);
-    
 
     try {
-      const lastPhoto = photos[photos.length - 1];
-      
-      // Se non abbiamo una foto precedente, usciamo
-      if (!lastPhoto || !lastPhoto.createdAt) {
-        setHasMorePhotos(false);
-        setLoadingMorePhotos(false);
-        return;
-      }
-
       const photosRef = collection(db, "photos");
+      const currentPhotoCount = photos.length;
+      
+      // Query ottimizzata con offset invece di startAfter per maggiore affidabilità
       const q = query(
         photosRef,
         where("galleryId", "==", gallery.id),
         orderBy("createdAt", "desc"),
-        startAfter(lastPhoto.createdAt),
         limit(photosPerPage)
       );
 
