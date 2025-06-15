@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
@@ -39,6 +39,9 @@ export default function Gallery() {
   
   // Stato per tracciare se i filtri sono attivi
   const [areFiltersActive, setAreFiltersActive] = useState(false);
+  
+  // Ref per l'elemento sentinella per infinite scroll
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Carica dati galleria usando il custom hook
   const { 

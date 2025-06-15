@@ -36,7 +36,7 @@ export function useGalleryData(galleryCode: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMorePhotos, setHasMorePhotos] = useState(true);
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false);
-  const [photosPerPage, setPhotosPerPage] = useState(20); // Riduciamo il caricamento iniziale per velocità
+  const [photosPerPage, setPhotosPerPage] = useState(50); // Caricamento più bilanciato
   const [totalPhotoCount, setTotalPhotoCount] = useState(0); // Conteggio totale foto
   const [loadedPhotoCount, setLoadedPhotoCount] = useState(0); // Conteggio foto caricate
   const [loadingProgress, setLoadingProgress] = useState(0); // Percentuale di caricamento
@@ -109,7 +109,8 @@ export function useGalleryData(galleryCode: string) {
       const BATCH_SIZE = 10; // Carica 10 foto per volta
       const photoData: PhotoData[] = [];
       
-      for (let i = 0; i < Math.min(allItems.length, photosPerPage); i += BATCH_SIZE) {
+      // Carica tutte le foto disponibili in batch per migliorare performance
+      for (let i = 0; i < allItems.length; i += BATCH_SIZE) {
         const batch = allItems.slice(i, i + BATCH_SIZE);
         
         const batchPromises = batch.map(async (itemRef) => {
@@ -131,7 +132,7 @@ export function useGalleryData(galleryCode: string) {
         photoData.push(...batchData);
         
         // Aggiorna progresso per batch
-        setLoadingProgress(Math.round((photoData.length / Math.min(allItems.length, photosPerPage)) * 100));
+        setLoadingProgress(Math.round((photoData.length / allItems.length) * 100));
         setLoadedPhotoCount(photoData.length);
       }
       
@@ -195,11 +196,12 @@ export function useGalleryData(galleryCode: string) {
 
       
 
-      // Utilizziamo la collezione gallery-photos per trovare tutte le foto
-      const photosRef = collection(db, "gallery-photos");
+      // Utilizziamo la collezione photos per trovare tutte le foto della galleria
+      const photosRef = collection(db, "photos");
       const q = query(
         photosRef, 
-        where("galleryId", "==", galleryId)
+        where("galleryId", "==", galleryId),
+        orderBy("createdAt", "desc")
       );
 
       const querySnapshot = await getDocs(q);
