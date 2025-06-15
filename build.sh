@@ -21,9 +21,9 @@ else
   mkdir -p dist
 fi
 
-# Esegui la build del client
+# Esegui la build del client usando npm run build dalla root
 echo -e "${YELLOW}Eseguendo build del client...${NC}"
-cd client && npm run build
+npm run build
 build_status=$?
 
 if [ $build_status -ne 0 ]; then
@@ -31,9 +31,50 @@ if [ $build_status -ne 0 ]; then
   exit 1
 fi
 
-# Copia il file .htaccess nella cartella di output
+# Copia il file .htaccess nella cartella di output se esiste
 echo -e "${YELLOW}Copiando configurazione .htaccess...${NC}"
-cp client/public/.htaccess dist/public/
+if [ -f "client/public/.htaccess" ]; then
+  cp client/public/.htaccess dist/
+else
+  echo "File .htaccess non trovato, creandone uno di base..."
+  cat > dist/.htaccess << 'EOF'
+# Enable URL rewriting
+RewriteEngine On
+
+# Handle Angular and other front-end routes
+RewriteBase /wedgallery/
+
+# Handle client-side routing
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /wedgallery/index.html [L]
+
+# Enable compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+</IfModule>
+
+# Set cache headers
+<IfModule mod_expires.c>
+    ExpiresActive on
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+</IfModule>
+EOF
+fi
 
 # Crea un file README con istruzioni per il deployment
 echo -e "${YELLOW}Creando istruzioni di deployment...${NC}"

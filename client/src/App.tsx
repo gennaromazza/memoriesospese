@@ -55,29 +55,17 @@ function Router() {
 }
 
 function App() {
-  // Configura il base path per il router
-  const basePath = '/';
+  // Configure base path for subdirectory deployment
+  const basePath = import.meta.env.PROD ? '/wedgallery' : '/';
   
-  
-  // Verifica URL corrente
+  // URL validation and normalization
   useEffect(() => {
-    const { origin, pathname, search, href } = window.location;
-    const isProduction = import.meta.env.PROD;
+    const { origin, pathname, search } = window.location;
     
-    
-    
-    
-    
-    
-    // Controllo generico per slash multipli (es: //admin invece di /admin)
+    // Handle double slashes in pathname
     if (/\/\/+/.test(pathname)) {
-      // Normalizza qualsiasi sequenza di slash multipli in un singolo slash
       const correctedPath = pathname.replace(/\/\/+/g, '/');
       const correctedUrl = `${origin}${correctedPath}${search}`;
-      
-      
-      
-      
       window.history.replaceState(null, '', correctedUrl);
     }
   }, [basePath]);
