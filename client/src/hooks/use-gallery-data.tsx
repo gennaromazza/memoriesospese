@@ -187,50 +187,86 @@ export function useGalleryData(galleryCode: string) {
         setTotalPhotoCount(galleryData.photoCount);
       }
 
+      console.log(`Caricamento foto per galleria ${galleryId} - Conteggio previsto: ${galleryData.photoCount || 'sconosciuto'}`);
+
       // Utilizziamo la collezione gallery-photos per trovare tutte le foto
-      // Nota: rimuoviamo temporaneamente l'ordinamento per evitare problemi di indici
       const photosRef = collection(db, "gallery-photos");
-      // Rimuoviamo il limite per caricare tutte le foto disponibili nella galleria
       const q = query(
         photosRef, 
         where("galleryId", "==", galleryId)
       );
 
       const querySnapshot = await getDocs(q);
+      console.log(`Trovate ${querySnapshot.size} foto nel database per galleria ${galleryId}`);
 
-      // Se non ci sono foto nel database, prova a caricarle dallo storage
-      if (querySnapshot.empty) {
-        console.log("Nessuna foto trovata nel database. Provo a recuperare dallo storage...");
-        const foundInStorage = await checkAndLoadFromStorage(galleryId, galleryCode);
+      // Carica le foto dal database se disponibili
+      let photosList: PhotoData[] = [];
+      if (!querySnapshot.empty) {
+        // Creiamo un set per tenere traccia dei nomi file già aggiunti (per evitare duplicati)
+        const uniquePhotoNames = new Set<string>();
         
-        if (!foundInStorage) {
-          setHasMorePhotos(false);
-        }
-        return;
+        querySnapshot.forEach((doc) => {
+          const photoData = doc.data();
+          const photoName = photoData.name || "";
+          
+          // Se il nome della foto non è già presente, aggiungila all'elenco
+          if (!uniquePhotoNames.has(photoName)) {
+            uniquePhotoNames.add(photoName);
+            photosList.push({
+              id: doc.id,
+              name: photoData.name || "",
+              url: photoData.url || "",
+              contentType: photoData.contentType || "image/jpeg",
+              size: photoData.size || 0,
+              createdAt: photoData.createdAt,
+              galleryId: photoData.galleryId
+            });
+          }
+        });
       }
 
-      // Creiamo un set per tenere traccia dei nomi file già aggiunti (per evitare duplicati)
-      const uniquePhotoNames = new Set<string>();
-      const photosList: PhotoData[] = [];
+      // CORREZIONE DEL BUG: Controlla sempre lo storage per foto aggiuntive
+      // Questo risolve il problema delle foto aggiunte che non vengono visualizzate
+      console.log(`Database: ${photosList.length} foto, Previste: ${galleryData.photoCount || 0}`);
       
-      querySnapshot.forEach((doc) => {
-        const photoData = doc.data();
-        const photoName = photoData.name || "";
+      // Se il numero di foto nel database è inferiore a quello previsto, sincronizza con lo storage
+      const expectedPhotoCount = galleryData.photoCount || 0;
+      if (photosList.length < expectedPhotoCount || querySnapshot.empty) {
+        console.log("Sincronizzazione con Firebase Storage necessaria...");
+        const foundInStorage = await checkAndLoadFromStorage(galleryId, galleryCode);
         
-        // Se il nome della foto non è già presente, aggiungila all'elenco
-        if (!uniquePhotoNames.has(photoName)) {
-          uniquePhotoNames.add(photoName);
-          photosList.push({
-            id: doc.id,
-            name: photoData.name || "",
-            url: photoData.url || "",
-            contentType: photoData.contentType || "image/jpeg",
-            size: photoData.size || 0,
-            createdAt: photoData.createdAt,
-            galleryId: photoData.galleryId
+        if (foundInStorage) {
+          // Dopo la sincronizzazione, ricarica dal database per ottenere tutte le foto
+          const refreshQuery = await getDocs(q);
+          photosList = []; // Reset della lista
+          const refreshedPhotoNames = new Set<string>();
+          
+          refreshQuery.forEach((doc) => {
+            const photoData = doc.data();
+            const photoName = photoData.name || "";
+            
+            if (!refreshedPhotoNames.has(photoName)) {
+              refreshedPhotoNames.add(photoName);
+              photosList.push({
+                id: doc.id,
+                name: photoData.name || "",
+                url: photoData.url || "",
+                contentType: photoData.contentType || "image/jpeg",
+                size: photoData.size || 0,
+                createdAt: photoData.createdAt,
+                galleryId: photoData.galleryId
+              });
+            }
           });
+          
+          console.log(`Dopo sincronizzazione: ${photosList.length} foto caricate`);
         }
-      });
+        
+        if (photosList.length === 0) {
+          setHasMorePhotos(false);
+          return;
+        }
+      }
 
       // Se abbiamo caricato meno foto del previsto, significa che non ce ne sono altre
       setHasMorePhotos(photosList.length >= photosPerPage);
