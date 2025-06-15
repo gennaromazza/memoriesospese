@@ -12,6 +12,7 @@ import NewGalleryModal from "@/components/NewGalleryModal";
 import EditGalleryModal from "@/components/EditGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
 import UserManager from "@/components/UserManager";
+import SubscriptionsManager from "@/components/SubscriptionsManager";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -847,6 +848,7 @@ export default function AdminDashboard() {
             <TabsList className="mb-6">
               <TabsTrigger value="galleries">Gallerie</TabsTrigger>
               <TabsTrigger value="users">Utenti</TabsTrigger>
+              <TabsTrigger value="subscriptions">Iscrizioni</TabsTrigger>
               <TabsTrigger value="slideshow">Slideshow</TabsTrigger>
               <TabsTrigger value="requests">Richieste Password</TabsTrigger>
               <TabsTrigger value="settings">Impostazioni</TabsTrigger>
@@ -1045,6 +1047,22 @@ export default function AdminDashboard() {
                 </div>
 
                 <UserManager />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Iscrizioni */}
+            <TabsContent value="subscriptions">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Iscrizioni Email</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Visualizza e gestisci tutte le iscrizioni email per le notifiche delle gallerie.
+                    </p>
+                  </div>
+                </div>
+
+                <SubscriptionsManager />
               </div>
             </TabsContent>
 
