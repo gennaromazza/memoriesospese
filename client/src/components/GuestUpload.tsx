@@ -12,6 +12,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfi
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDocs, query, where, arrayUnion } from 'firebase/firestore';
 import imageCompression from 'browser-image-compression';
+import { notifySubscribers, createGalleryUrl } from '@/lib/notificationService';
 
 interface GuestUploadProps {
   galleryId: string;
@@ -214,9 +215,26 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
         updatedAt: serverTimestamp()
       });
 
+      // Invia notifiche email ai subscribers
+      try {
+        const galleryUrl = createGalleryUrl(galleryId);
+        const uploaderDisplayName = currentUser?.displayName || guestName.trim();
+        
+        await notifySubscribers({
+          galleryId,
+          galleryName,
+          newPhotosCount: uploadedPhotos.length,
+          uploaderName: uploaderDisplayName,
+          galleryUrl
+        });
+      } catch (notifyError) {
+        console.warn('Errore invio notifiche:', notifyError);
+        // Non bloccare l'upload per errori di notifica
+      }
+
       toast({
         title: "Upload completato!",
-        description: `${uploadedPhotos.length} foto caricate con successo`,
+        description: `${uploadedPhotos.length} foto caricate con successo. I subscribers sono stati notificati.`,
       });
 
       // Reset del form
