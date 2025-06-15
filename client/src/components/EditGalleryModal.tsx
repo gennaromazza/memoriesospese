@@ -258,7 +258,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         password,
         coverImageUrl: newCoverImageUrl,
         youtubeUrl,
-        hasChapters: false // Rimuoviamo la funzionalità dei capitoli
+        hasChapters: false, // Rimuoviamo la funzionalità dei capitoli
+        updatedAt: new Date() // Track when the gallery was last updated
       });
       
       toast({

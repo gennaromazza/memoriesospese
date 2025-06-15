@@ -33,12 +33,16 @@ export default function GallerySearch() {
       const galleries: GallerySearchResult[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
-        galleries.push({
-          id: doc.id,
-          name: data.name || "",
-          code: data.code || "",
-          date: data.date || "",
-        });
+        // Filtra solo le gallerie attive per gli utenti pubblici
+        const isActive = data.active !== undefined ? data.active : true; // Default true per retrocompatibilità
+        if (isActive) {
+          galleries.push({
+            id: doc.id,
+            name: data.name || "",
+            code: data.code || "",
+            date: data.date || "",
+          });
+        }
       });
       
       // Salviamo tutte le gallerie nello state

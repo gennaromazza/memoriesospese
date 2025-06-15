@@ -166,6 +166,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
         coverImageUrl: coverImageStorageUrl,
         youtubeUrl: youtubeUrl || "",
         photoCount: 0, // Sarà aggiornato dopo il caricamento delle foto
+        active: true, // Nuove gallerie sono attive per default
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };

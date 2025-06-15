@@ -414,10 +414,15 @@ export default function AdminDashboard() {
       const galleriesCollection = collection(db, "galleries");
       const gallerySnapshot = await getDocs(galleriesCollection);
 
-      const galleryList = gallerySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as GalleryItem[];
+      const galleryList = gallerySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Assicuriamoci che active sia sempre un boolean (default true se non definito)
+          active: data.active !== undefined ? data.active : true
+        };
+      }) as GalleryItem[];
 
       // Sort by creation date, newest first
       galleryList.sort((a, b) => {
@@ -511,19 +516,26 @@ export default function AdminDashboard() {
 
   const toggleGalleryStatus = async (gallery: GalleryItem) => {
     try {
+      console.log(`Toggling gallery status: ${gallery.name} from ${gallery.active} to ${!gallery.active}`);
+      
       const galleryRef = doc(db, "galleries", gallery.id);
+      const newActiveStatus = !gallery.active;
+      
       await updateDoc(galleryRef, {
-        active: !gallery.active
+        active: newActiveStatus,
+        updatedAt: new Date() // Track when the status was changed
       });
+
+      console.log(`Successfully updated gallery ${gallery.id} active status to ${newActiveStatus}`);
 
       // Update local state
       setGalleries(prev => 
-        prev.map(g => g.id === gallery.id ? { ...g, active: !g.active } : g)
+        prev.map(g => g.id === gallery.id ? { ...g, active: newActiveStatus } : g)
       );
 
       toast({
-        title: gallery.active ? "Galleria disattivata" : "Galleria attivata",
-        description: `La galleria "${gallery.name}" è stata ${gallery.active ? "disattivata" : "attivata"} con successo.`
+        title: newActiveStatus ? "Galleria attivata" : "Galleria disattivata",
+        description: `La galleria "${gallery.name}" è stata ${newActiveStatus ? "attivata" : "disattivata"} con successo.`
       });
     } catch (error) {
       console.error("Error toggling gallery status:", error);
