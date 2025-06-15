@@ -55,22 +55,19 @@ const GalleryPagination: React.FC<GalleryPaginationProps> = ({
         {visiblePhotos.map((photo, index) => (
           <div
             key={photo.id}
-            className="gallery-image h-40 sm:h-52 lg:h-64 relative"
+            className="gallery-image h-40 sm:h-52 lg:h-64 bg-gray-100 cursor-pointer overflow-hidden rounded-lg hover:scale-105 transition-transform duration-200"
             onClick={() => onItemClick(index)}
           >
             <img
               src={photo.url}
               alt={photo.name || `Foto ${index + 1}`}
-              className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+              className="w-full h-full object-cover transition-opacity duration-300"
               loading="lazy"
+              decoding="async"
               onLoad={(e) => {
-                // Imposta l'opacità a 1 quando l'immagine è caricata
-                (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                (e.target as HTMLImageElement).style.opacity = '1';
               }}
-              style={{ 
-                backgroundColor: '#f3f4f6',
-                objectFit: 'cover',
-              }}
+              style={{ opacity: 0 }}
             />
           </div>
         ))}

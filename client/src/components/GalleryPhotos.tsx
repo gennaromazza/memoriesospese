@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PhotoData } from '@/hooks/use-gallery-data';
+import { imageCache } from '@/lib/imageCache';
 
 interface GalleryPhotosProps {
   photos: PhotoData[];

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 interface SlideshowImage {
@@ -13,6 +13,7 @@ export default function HeroSlideshow() {
   const [images, setImages] = useState<SlideshowImage[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [imagesLoaded, setImagesLoaded] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     async function fetchSlideshowImages() {
@@ -21,20 +22,17 @@ export default function HeroSlideshow() {
         const slideshowCollection = collection(db, 'slideshow');
         
         try {
-          // Prova a recuperare tutti i documenti nella collezione
-          const baseQuery = query(slideshowCollection);
-          const querySnapshot = await getDocs(baseQuery);
+          // Carica solo le prime 5 immagini per migliorare performance
+          const slideshowQuery = query(
+            slideshowCollection,
+            orderBy('position'),
+            limit(5)
+          );
+          const querySnapshot = await getDocs(slideshowQuery);
           
-          // Se abbiamo documenti possiamo fare la query più complessa
           if (!querySnapshot.empty) {
-            const slideshowQuery = query(
-              slideshowCollection,
-              orderBy('position')
-            );
-            const filteredSnapshot = await getDocs(slideshowQuery);
-            
             const fetchedImages: SlideshowImage[] = [];
-            filteredSnapshot.forEach((doc) => {
+            querySnapshot.forEach((doc) => {
               const data = doc.data();
               fetchedImages.push({
                 id: doc.id,
