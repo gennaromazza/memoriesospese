@@ -3,7 +3,7 @@ import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, serv
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { trackGalleryView } from "@/lib/analytics";
-import { debounce, batchProcess, PerformanceMonitor } from "@/lib/performanceUtils";
+import { debounce, batchProcess } from "@/lib/performanceUtils";
 import { imageCache } from "@/lib/imageCache";
 
 // Tipi dati 
@@ -36,7 +36,7 @@ export function useGalleryData(galleryCode: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMorePhotos, setHasMorePhotos] = useState(true);
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false);
-  const [photosPerPage, setPhotosPerPage] = useState(100); // Carica più foto inizialmente
+  const [photosPerPage, setPhotosPerPage] = useState(200); // Caricamento ottimizzato per performance
   const [totalPhotoCount, setTotalPhotoCount] = useState(0); // Conteggio totale foto
   const [loadedPhotoCount, setLoadedPhotoCount] = useState(0); // Conteggio foto caricate
   const [loadingProgress, setLoadingProgress] = useState(0); // Percentuale di caricamento
@@ -381,7 +381,7 @@ export function useGalleryData(galleryCode: string) {
   const loadMorePhotos = useCallback(async () => {
     if (!gallery || !hasMorePhotos || loadingMorePhotos) return;
 
-    PerformanceMonitor.startMeasure('loadMorePhotos');
+
     setLoadingMorePhotos(true);
 
     try {
@@ -429,11 +429,13 @@ export function useGalleryData(galleryCode: string) {
         setLoadingProgress(Math.round((newLoadedCount / gallery.photoCount) * 100));
       }
 
-      // Preload delle prime immagini caricate per performance migliori
-      const preloadUrls = newPhotos.slice(0, 5).map(photo => photo.url);
-      imageCache.preloadImages(preloadUrls);
+      // Preload solo delle prime 3 immagini per ottimizzare performance
+      if (newPhotos.length > 0) {
+        const preloadUrls = newPhotos.slice(0, 3).map(photo => photo.url);
+        imageCache.preloadImages(preloadUrls);
+      }
 
-      PerformanceMonitor.logMeasure('loadMorePhotos');
+
     } catch (error) {
       toast({
         title: "Errore",
