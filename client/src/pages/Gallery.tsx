@@ -266,13 +266,33 @@ export default function Gallery() {
         <main>
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div className="px-4 py-4">
-              {/* Filtri per le foto */}
-              <GalleryFilter 
-                onFilterChange={handleFilterChange}
-                totalPhotos={photos.length}
-                activeFilters={areFiltersActive}
-                resetFilters={resetFilters}
-              />
+              {/* Barra con filtri e azioni */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="flex-1">
+                  <GalleryFilter 
+                    onFilterChange={handleFilterChange}
+                    totalPhotos={photos.length}
+                    activeFilters={areFiltersActive}
+                    resetFilters={resetFilters}
+                  />
+                </div>
+                
+                {/* Azioni galleria */}
+                <div className="flex gap-2">
+                  <SubscriptionManager 
+                    galleryId={gallery.id}
+                    galleryName={gallery.name}
+                  />
+                  <GuestUpload 
+                    galleryId={gallery.id}
+                    galleryName={gallery.name}
+                    onPhotosUploaded={() => {
+                      // Ricarica i dati della galleria quando vengono caricate nuove foto
+                      window.location.reload();
+                    }}
+                  />
+                </div>
+              </div>
 
               {(areFiltersActive ? filteredPhotos : photos).length === 0 ? (
                 <div className="text-center py-12">
