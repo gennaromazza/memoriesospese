@@ -428,8 +428,13 @@ export function useGalleryData(galleryCode: string) {
         const newLoadedCount = photos.length + newPhotos.length;
         setLoadingProgress(Math.round((newLoadedCount / gallery.photoCount) * 100));
       }
+
+      // Preload delle prime immagini caricate per performance migliori
+      const preloadUrls = newPhotos.slice(0, 5).map(photo => photo.url);
+      imageCache.preloadImages(preloadUrls);
+
+      PerformanceMonitor.logMeasure('loadMorePhotos');
     } catch (error) {
-      
       toast({
         title: "Errore",
         description: "Si è verificato un errore nel caricamento di altre foto.",
@@ -438,7 +443,7 @@ export function useGalleryData(galleryCode: string) {
     } finally {
       setLoadingMorePhotos(false);
     }
-  }, [gallery, hasMorePhotos, loadingMorePhotos, photos, photosPerPage]);
+  }, [gallery, hasMorePhotos, loadingMorePhotos, photos.length, photosPerPage]);
 
   // Traccia la visita alla galleria
   useEffect(() => {
