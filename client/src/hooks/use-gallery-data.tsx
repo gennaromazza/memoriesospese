@@ -15,6 +15,7 @@ export interface GalleryData {
   youtubeUrl?: string;
   photoCount?: number;
   code?: string; // Aggiunto il codice galleria necessario per la condivisione
+  active?: boolean; // Status attivazione galleria
 }
 
 export interface PhotoData {
@@ -321,6 +322,23 @@ export function useGalleryData(galleryCode: string) {
 
         const galleryDoc = querySnapshot.docs[0];
         const galleryData = galleryDoc.data();
+        
+        // Check if gallery is active (default to true for backward compatibility)
+        const isActive = galleryData.active !== undefined ? galleryData.active : true;
+        
+        // Check if user is admin
+        const isAdmin = localStorage.getItem('isAdmin') === 'true';
+        
+        if (!isActive && !isAdmin) {
+          toast({
+            title: "Galleria non disponibile",
+            description: "Questa galleria è temporaneamente non disponibile.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        
         setGallery({
           id: galleryDoc.id,
           name: galleryData.name,
@@ -328,7 +346,9 @@ export function useGalleryData(galleryCode: string) {
           location: galleryData.location,
           description: galleryData.description || "",
           coverImageUrl: galleryData.coverImageUrl || "",
-          youtubeUrl: galleryData.youtubeUrl || ""
+          youtubeUrl: galleryData.youtubeUrl || "",
+          code: galleryData.code || galleryCode,
+          active: isActive
         });
         
         console.log("Funzionalità capitoli rimossa");
