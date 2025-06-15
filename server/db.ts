@@ -1,3 +1,3 @@
 
-// Placeholder for any future database configuration
-export const db = null;
+// This file is no longer needed as we use Firebase directly
+// Keeping it empty to avoid breaking imports
