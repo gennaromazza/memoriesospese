@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PhotoData } from '@/hooks/use-gallery-data';
 import { imageCache } from '@/lib/imageCache';
+import PhotoCard from './PhotoCard';
 
 interface GalleryPhotosProps {
   photos: PhotoData[];
@@ -99,11 +100,11 @@ export default function GalleryPhotos({ photos, openLightbox }: GalleryPhotosPro
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
       {photos.map((photo, index) => (
-        <OptimizedImage
+        <PhotoCard
           key={photo.id}
           photo={photo}
           index={index}
-          openLightbox={memoizedOpenLightbox}
+          onClick={memoizedOpenLightbox}
         />
       ))}
     </div>
