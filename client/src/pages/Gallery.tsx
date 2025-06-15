@@ -90,10 +90,23 @@ export default function Gallery() {
     }
   }, [id, isAdmin, navigate]);
 
-  // Effetto per caricare più foto quando l'utente scorre vicino alla fine della pagina
+  // Effetto per caricare automaticamente tutte le foto disponibili
+  useEffect(() => {
+    const loadAllPhotos = async () => {
+      // Carica automaticamente tutte le foto rimanenti se non stiamo già caricando
+      if (hasMorePhotos && !loadingMorePhotos && !isLoading && photos.length > 0) {
+        await loadMorePhotos();
+      }
+    };
+
+    // Carica automaticamente dopo un breve delay
+    const timer = setTimeout(loadAllPhotos, 500);
+    return () => clearTimeout(timer);
+  }, [hasMorePhotos, loadingMorePhotos, isLoading, photos.length, loadMorePhotos]);
+
+  // Scroll infinito come fallback
   useEffect(() => {
     const handleScroll = () => {
-      // Calcola se l'utente ha scrollato fino a un certo punto vicino al fondo (es. 300px dal fondo)
       if (
         window.innerHeight + window.scrollY >= document.body.offsetHeight - 300 &&
         hasMorePhotos && 
@@ -105,10 +118,7 @@ export default function Gallery() {
     };
 
     window.addEventListener('scroll', handleScroll);
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
+    return () => window.removeEventListener('scroll', handleScroll);
   }, [hasMorePhotos, loadingMorePhotos, isLoading, loadMorePhotos]);
 
   const openLightbox = (index: number) => {

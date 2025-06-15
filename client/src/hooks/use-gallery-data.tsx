@@ -36,7 +36,7 @@ export function useGalleryData(galleryCode: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMorePhotos, setHasMorePhotos] = useState(true);
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false);
-  const [photosPerPage, setPhotosPerPage] = useState(50); // Caricamento più bilanciato
+  const [photosPerPage, setPhotosPerPage] = useState(100); // Carica più foto inizialmente
   const [totalPhotoCount, setTotalPhotoCount] = useState(0); // Conteggio totale foto
   const [loadedPhotoCount, setLoadedPhotoCount] = useState(0); // Conteggio foto caricate
   const [loadingProgress, setLoadingProgress] = useState(0); // Percentuale di caricamento
@@ -446,6 +446,8 @@ export function useGalleryData(galleryCode: string) {
       setLoadingMorePhotos(false);
     }
   }, [gallery, hasMorePhotos, loadingMorePhotos, photos.length, photosPerPage]);
+
+
 
   // Traccia la visita alla galleria
   useEffect(() => {
