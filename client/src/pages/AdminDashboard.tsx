@@ -11,6 +11,7 @@ import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import EditGalleryModal from "@/components/EditGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
+import UserManager from "@/components/UserManager";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -845,6 +846,7 @@ export default function AdminDashboard() {
           <Tabs defaultValue="galleries" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
             <TabsList className="mb-6">
               <TabsTrigger value="galleries">Gallerie</TabsTrigger>
+              <TabsTrigger value="users">Utenti</TabsTrigger>
               <TabsTrigger value="slideshow">Slideshow</TabsTrigger>
               <TabsTrigger value="requests">Richieste Password</TabsTrigger>
               <TabsTrigger value="settings">Impostazioni</TabsTrigger>
@@ -1027,6 +1029,22 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 )}
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Utenti */}
+            <TabsContent value="users">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Utenti Registrati</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Visualizza ed esporta tutti gli utenti che si sono registrati per caricare foto nelle gallerie.
+                    </p>
+                  </div>
+                </div>
+
+                <UserManager />
               </div>
             </TabsContent>
 
