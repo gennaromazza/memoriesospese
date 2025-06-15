@@ -6,6 +6,7 @@ import { Bell, BellOff, Mail, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { createWelcomeEmailTemplate } from '@/lib/emailTemplates';
 
 interface SubscriptionManagerProps {
   galleryId: string;
@@ -90,9 +91,30 @@ export default function SubscriptionManager({ galleryId, galleryName }: Subscrip
         active: true
       });
 
+      // Invia email di benvenuto
+      try {
+        const response = await fetch('/api/send-welcome-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: email.toLowerCase(),
+            galleryName: galleryName
+          }),
+        });
+
+        if (!response.ok) {
+          console.warn('Email di benvenuto non inviata:', await response.text());
+        }
+      } catch (emailError) {
+        console.warn('Errore nell\'invio email di benvenuto:', emailError);
+        // Non bloccare l'iscrizione per errori email
+      }
+
       toast({
         title: "Iscrizione completata!",
-        description: `Riceverai notifiche quando verranno aggiunte nuove foto a "${galleryName}"`,
+        description: `Riceverai notifiche quando verranno aggiunte nuove foto a "${galleryName}". Controlla la tua email per la conferma.`,
       });
       
       setEmail('');

@@ -1,8 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-// Temporaneamente disabilitiamo le funzioni email per far ripartire il server
-// import { addSubscriber, removeSubscriber, getGallerySubscribers, getSubscribersStats, notifyGallerySubscribers } from "./subscribers";
-// import { verifyEmailConfig } from "./mailer";
+import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint temporanei per le funzionalità email (implementazione semplificata)
@@ -35,20 +33,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint per inviare email di benvenuto
+  app.post('/api/send-welcome-email', async (req, res) => {
+    try {
+      const { email, galleryName } = req.body;
+
+      if (!email || !galleryName) {
+        return res.status(400).json({ error: 'Email e nome galleria sono richiesti' });
+      }
+
+      const success = await sendWelcomeEmail(email, galleryName);
+      
+      if (success) {
+        res.json({ message: 'Email di benvenuto inviata con successo' });
+      } else {
+        res.status(500).json({ error: 'Errore nell\'invio dell\'email di benvenuto' });
+      }
+    } catch (error) {
+      console.error('Errore nell\'invio email di benvenuto:', error);
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
+  });
+
+  // Endpoint per notificare nuove foto
   app.post('/api/galleries/:galleryId/notify', async (req, res) => {
     try {
       const { galleryId } = req.params;
-      const { galleryName, newPhotosCount } = req.body;
+      const { galleryName, newPhotosCount, uploaderName, galleryUrl, subscribers } = req.body;
 
-      // Per ora loggiamo solo la notifica
-      console.log(`Notifica: ${newPhotosCount} nuove foto aggiunte alla galleria "${galleryName}"`);
-      const subscribers = subscribersStore[galleryId] || [];
-      console.log(`Subscribers da notificare: ${subscribers.length}`);
-      
+      if (!subscribers || !Array.isArray(subscribers)) {
+        return res.status(400).json({ error: 'Lista subscribers richiesta' });
+      }
+
+      let successCount = 0;
+      let failedCount = 0;
+
+      // Invia email a tutti i subscribers
+      for (const email of subscribers) {
+        try {
+          const success = await sendNewPhotosNotification(
+            email,
+            galleryName,
+            newPhotosCount,
+            uploaderName,
+            galleryUrl
+          );
+          
+          if (success) {
+            successCount++;
+          } else {
+            failedCount++;
+          }
+        } catch (error) {
+          console.error(`Errore invio email a ${email}:`, error);
+          failedCount++;
+        }
+      }
+
       res.json({
-        message: 'Notifica registrata',
-        success: subscribers.length,
-        failed: 0
+        message: `Notifiche inviate: ${successCount} successi, ${failedCount} errori`,
+        success: successCount,
+        failed: failedCount
       });
     } catch (error) {
       console.error('Errore nell\'invio notifiche:', error);
