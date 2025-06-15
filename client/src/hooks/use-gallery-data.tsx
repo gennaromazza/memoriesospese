@@ -416,14 +416,12 @@ export function useGalleryData(galleryCode: string) {
         setHasMorePhotos(false);
       }
 
-      // Aggiunge le nuove foto all'array esistente
-      setPhotos(prevPhotos => [
-        ...prevPhotos,
-        ...newPhotos
-      ]);
-
-      // Aggiorna il conteggio delle foto caricate
-      setLoadedPhotoCount(prev => prev + newPhotos.length);
+      // Filtra foto duplicate prima di aggiungerle
+      setPhotos(prevPhotos => {
+        const existingIds = new Set(prevPhotos.map(photo => photo.id));
+        const uniqueNewPhotos = newPhotos.filter(photo => !existingIds.has(photo.id));
+        return [...prevPhotos, ...uniqueNewPhotos];
+      });
       
       // Aggiorna la percentuale di caricamento
       if (gallery.photoCount) {
