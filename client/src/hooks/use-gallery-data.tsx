@@ -34,7 +34,7 @@ export function useGalleryData(galleryCode: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMorePhotos, setHasMorePhotos] = useState(true);
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false);
-  const [photosPerPage, setPhotosPerPage] = useState(100); // Aumentato a 100 foto per volta per visualizzare più immagini
+  const [photosPerPage, setPhotosPerPage] = useState(20); // Riduciamo il caricamento iniziale per velocità
   const [totalPhotoCount, setTotalPhotoCount] = useState(0); // Conteggio totale foto
   const [loadedPhotoCount, setLoadedPhotoCount] = useState(0); // Conteggio foto caricate
   const [loadingProgress, setLoadingProgress] = useState(0); // Percentuale di caricamento
@@ -103,32 +103,35 @@ export function useGalleryData(galleryCode: string) {
       
       setTotalPhotoCount(allItems.length);
 
-      // Limita il numero totale di foto da caricare inizialmente
-      // Carica tutte le foto disponibili senza limiti
+      // Caricamento batch progressivo per migliorare performance
+      const BATCH_SIZE = 10; // Carica 10 foto per volta
+      const photoData: PhotoData[] = [];
       
-      const photoPromises = allItems.map(async (itemRef, index) => {
-        // Aggiorna il progresso ogni 5 foto
-        if (index % 5 === 0) {
-          setLoadingProgress(Math.round((index / allItems.length) * 100));
-          setLoadedPhotoCount(index);
-        }
+      for (let i = 0; i < Math.min(allItems.length, photosPerPage); i += BATCH_SIZE) {
+        const batch = allItems.slice(i, i + BATCH_SIZE);
+        
+        const batchPromises = batch.map(async (itemRef) => {
+          const url = await getDownloadURL(itemRef);
+          const metadata = await getMetadata(itemRef);
 
-        const url = await getDownloadURL(itemRef);
-        const metadata = await getMetadata(itemRef);
+          return {
+            id: itemRef.name,
+            name: itemRef.name,
+            url: url,
+            contentType: metadata.contentType || 'image/jpeg',
+            size: metadata.size || 0,
+            createdAt: metadata.timeCreated ? new Date(metadata.timeCreated) : new Date(),
+            galleryId: galleryId
+          };
+        });
 
-        // Crea oggetto foto
-        return {
-          id: itemRef.name,
-          name: itemRef.name,
-          url: url,
-          contentType: metadata.contentType || 'image/jpeg',
-          size: metadata.size || 0,
-          createdAt: metadata.timeCreated ? new Date(metadata.timeCreated) : new Date(),
-          galleryId: galleryId
-        };
-      });
-
-      const photoData = await Promise.all(photoPromises);
+        const batchData = await Promise.all(batchPromises);
+        photoData.push(...batchData);
+        
+        // Aggiorna progresso per batch
+        setLoadingProgress(Math.round((photoData.length / Math.min(allItems.length, photosPerPage)) * 100));
+        setLoadedPhotoCount(photoData.length);
+      }
       
       // Ordina le foto per data di creazione (più recenti prima)
       photoData.sort((a, b) => {
