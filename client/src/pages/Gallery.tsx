@@ -113,6 +113,11 @@ export default function Gallery() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [hasMorePhotos, loadingMorePhotos, isLoading, loadMorePhotos]);
 
+  // Combina tutte le foto per il lightbox
+  const allPhotos = useMemo(() => {
+    return [...photos, ...guestPhotos];
+  }, [photos, guestPhotos]);
+
   const openLightbox = (index: number) => {
     setCurrentPhotoIndex(index);
     setLightboxOpen(true);
@@ -296,7 +301,8 @@ export default function Gallery() {
                 </div>
               </div>
 
-              {(areFiltersActive ? filteredPhotos : photos).length === 0 ? (
+              {/* Sezione foto principali */}
+              {(areFiltersActive ? filteredPhotos : photos).length === 0 && guestPhotos.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="flex flex-col items-center">
                     <h3 className="text-xl font-playfair text-blue-gray mb-2">
@@ -309,39 +315,92 @@ export default function Gallery() {
                 </div>
               ) : (
                 <>
-                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
-                      {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
-                        <div
-                          key={photo.id}
-                          className="gallery-image h-40 sm:h-52 lg:h-64"
-                          onClick={() => openLightbox(index)}
-                        >
-                          <img
-                            src={photo.url}
-                            alt={photo.name || `Foto ${index + 1}`}
-                            className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
-                            loading="lazy"
-                            onLoad={(e) => {
-                              // Imposta l'opacità a 1 quando l'immagine è caricata
-                              (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
-                            }}
-                            style={{ 
-                              backgroundColor: '#f3f4f6',
-                              objectFit: 'cover',
-                            }}
-                            title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                  {/* Foto principali della galleria */}
+                  {(areFiltersActive ? filteredPhotos : photos).length > 0 && (
+                    <div className="mb-12">
+                      <h2 className="text-2xl font-playfair text-blue-gray mb-6">
+                        Foto della galleria ({photos.length})
+                      </h2>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+                        {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
+                          <div
+                            key={photo.id}
+                            className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer"
+                            onClick={() => openLightbox(index)}
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.name || `Foto ${index + 1}`}
+                              className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                              loading="lazy"
+                              onLoad={(e) => {
+                                (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                              }}
+                              style={{ 
+                                backgroundColor: '#f3f4f6',
+                                objectFit: 'cover',
+                              }}
+                              title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
+                            />
+                          </div>
+                        ))}
+                      </div>
 
-                  {/* Pulsante "Carica altre foto" (mostra solo se non ci sono filtri attivi) */}
-                  {!areFiltersActive && (
-                    <LoadMoreButton 
-                      onClick={loadMorePhotos}
-                      isLoading={loadingMorePhotos}
-                      hasMore={hasMorePhotos}
-                    />
+                      {/* Pulsante "Carica altre foto" */}
+                      {!areFiltersActive && (
+                        <LoadMoreButton 
+                          onClick={loadMorePhotos}
+                          isLoading={loadingMorePhotos}
+                          hasMore={hasMorePhotos}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Sezione foto caricate dagli ospiti */}
+                  {guestPhotos.length > 0 && (
+                    <div className="mb-12">
+                      <div className="flex items-center gap-3 mb-6">
+                        <h2 className="text-2xl font-playfair text-blue-gray">
+                          Foto caricate dagli ospiti ({guestPhotos.length})
+                        </h2>
+                        <div className="flex-1 h-px bg-sage-200"></div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+                        {guestPhotos.map((photo, index) => (
+                          <div
+                            key={photo.id}
+                            className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative"
+                            onClick={() => openLightbox(photos.length + index)}
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.name || `Foto ospite ${index + 1}`}
+                              className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                              loading="lazy"
+                              onLoad={(e) => {
+                                (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                              }}
+                              style={{ 
+                                backgroundColor: '#f3f4f6',
+                                objectFit: 'cover',
+                              }}
+                              title={`Caricata da: ${photo.uploaderName || 'Ospite'} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}`}
+                            />
+                            {/* Badge per indicare che è una foto ospite */}
+                            <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
+                              Ospite
+                            </div>
+                            {/* Nome dell'uploader in basso */}
+                            {photo.uploaderName && (
+                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                                {photo.uploaderName}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </>
               )}
@@ -357,7 +416,7 @@ export default function Gallery() {
       <ImageLightbox
         isOpen={lightboxOpen}
         onClose={closeLightbox}
-        photos={(areFiltersActive ? filteredPhotos : photos).map(photo => ({
+        photos={allPhotos.map(photo => ({
           id: photo.id,
           name: photo.name,
           url: photo.url,
