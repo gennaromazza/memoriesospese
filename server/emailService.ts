@@ -1,14 +1,14 @@
 import { createTransport } from 'nodemailer';
 import type { EmailTemplate } from '../client/src/lib/emailTemplates';
 
-// Configurazione SMTP ottimizzata per evitare spam
+// Configurazione SMTP usando le credenziali fornite
 const transporter = createTransport({
-  host: 'smtps.netsons.net',
-  port: 465,
-  secure: true, // SSL
+  host: process.env.EMAIL_HOST,
+  port: parseInt(process.env.EMAIL_PORT || '587'),
+  secure: parseInt(process.env.EMAIL_PORT || '587') === 465,
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
   // Impostazioni anti-spam
   pool: true,
@@ -17,7 +17,9 @@ const transporter = createTransport({
   rateLimit: 5, // max 5 emails per secondo
   tls: {
     rejectUnauthorized: false
-  }
+  },
+  debug: true, // Per troubleshooting
+  logger: true
 });
 
 interface EmailOptions {

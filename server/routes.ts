@@ -3,6 +3,51 @@ import { createServer, type Server } from "http";
 import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Endpoint di test per verificare configurazione SMTP
+  app.get('/api/test-smtp', async (req, res) => {
+    try {
+      const { createTransport } = await import('nodemailer');
+      
+      const testTransporter = createTransport({
+        host: process.env.EMAIL_HOST,
+        port: parseInt(process.env.EMAIL_PORT || '587'),
+        secure: parseInt(process.env.EMAIL_PORT || '587') === 465,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
+        tls: {
+          rejectUnauthorized: false
+        }
+      });
+
+      await testTransporter.verify();
+      res.json({ 
+        success: true, 
+        message: 'Connessione SMTP verificata con successo',
+        config: {
+          host: process.env.EMAIL_HOST,
+          port: process.env.EMAIL_PORT,
+          user: process.env.EMAIL_USER,
+          from: process.env.EMAIL_FROM
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        config: {
+          host: process.env.EMAIL_HOST,
+          port: process.env.EMAIL_PORT,
+          user: process.env.EMAIL_USER
+        }
+      });
+    }
+  });
+
   // Endpoint temporanei per le funzionalità email (implementazione semplificata)
   
   // Store temporaneo in memoria per i subscribers
