@@ -28,11 +28,17 @@ export interface PhotoData {
   size: number;
   createdAt: any;
   galleryId?: string;
+  uploadedBy?: string;
+  uploaderName?: string;
+  uploaderRole?: string;
+  uploaderEmail?: string;
+  uploaderUid?: string;
 }
 
 export function useGalleryData(galleryCode: string) {
   const [gallery, setGallery] = useState<GalleryData | null>(null);
   const [photos, setPhotos] = useState<PhotoData[]>([]);
+  const [guestPhotos, setGuestPhotos] = useState<PhotoData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMorePhotos, setHasMorePhotos] = useState(true);
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false);
@@ -207,8 +213,10 @@ export function useGalleryData(galleryCode: string) {
       const querySnapshot = await getDocs(q);
       
 
-      // Carica le foto dal database se disponibili
+      // Carica le foto dal database se disponibili, separando quelle degli ospiti
       let photosList: PhotoData[] = [];
+      let guestPhotosList: PhotoData[] = [];
+      
       if (!querySnapshot.empty) {
         // Creiamo un set per tenere traccia dei nomi file già aggiunti (per evitare duplicati)
         const uniquePhotoNames = new Set<string>();
@@ -217,18 +225,31 @@ export function useGalleryData(galleryCode: string) {
           const photoData = doc.data();
           const photoName = photoData.name || "";
           
-          // Se il nome della foto non è già presente, aggiungila all'elenco
+          // Se il nome della foto non è già presente, aggiungila all'elenco appropriato
           if (!uniquePhotoNames.has(photoName)) {
             uniquePhotoNames.add(photoName);
-            photosList.push({
+            
+            const photo: PhotoData = {
               id: doc.id,
               name: photoData.name || "",
               url: photoData.url || "",
               contentType: photoData.contentType || "image/jpeg",
               size: photoData.size || 0,
               createdAt: photoData.createdAt,
-              galleryId: photoData.galleryId
-            });
+              galleryId: photoData.galleryId,
+              uploadedBy: photoData.uploadedBy || 'admin',
+              uploaderName: photoData.uploaderName,
+              uploaderRole: photoData.uploaderRole,
+              uploaderEmail: photoData.uploaderEmail,
+              uploaderUid: photoData.uploaderUid
+            };
+            
+            // Separa le foto degli ospiti dalle foto normali
+            if (photoData.uploadedBy === 'guest') {
+              guestPhotosList.push(photo);
+            } else {
+              photosList.push(photo);
+            }
           }
         });
       }
@@ -276,14 +297,16 @@ export function useGalleryData(galleryCode: string) {
         }
       }
 
-      // Se abbiamo caricato meno foto del previsto, significa che non ce ne sono altre
+      // Aggiorna gli stati con le foto separate
       setHasMorePhotos(photosList.length >= photosPerPage);
       setPhotos(photosList);
-      setLoadedPhotoCount(photosList.length);
+      setGuestPhotos(guestPhotosList);
+      setLoadedPhotoCount(photosList.length + guestPhotosList.length);
       
       // Calcola la percentuale di foto caricate rispetto al totale
+      const totalLoadedPhotos = photosList.length + guestPhotosList.length;
       if (galleryData.photoCount) {
-        setLoadingProgress(Math.round((photosList.length / galleryData.photoCount) * 100));
+        setLoadingProgress(Math.round((totalLoadedPhotos / galleryData.photoCount) * 100));
       } else {
         setLoadingProgress(100); // Se non conosciamo il totale, consideriamo completato
       }
@@ -459,6 +482,7 @@ export function useGalleryData(galleryCode: string) {
   return { 
     gallery, 
     photos, 
+    guestPhotos,
     isLoading, 
     hasMorePhotos, 
     loadingMorePhotos,

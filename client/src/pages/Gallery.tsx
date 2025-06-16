@@ -49,6 +49,7 @@ export default function Gallery() {
   const { 
     gallery, 
     photos, 
+    guestPhotos,
     isLoading, 
     hasMorePhotos, 
     loadingMorePhotos,
@@ -57,15 +58,16 @@ export default function Gallery() {
 
   // Aggiorna lo stato di caricamento
   useEffect(() => {
-    // Aggiorna il conteggio delle foto caricate
+    // Aggiorna il conteggio delle foto caricate includendo quelle degli ospiti
+    const totalLoadedPhotos = photos.length + guestPhotos.length;
     setLoadingState(prev => ({
       ...prev,
-      loadedPhotos: photos.length,
-      // Se c'è una galleria, usa il suo photoCount, altrimenti usa la lunghezza delle foto
-      totalPhotos: gallery?.photoCount || photos.length,
-      progress: gallery?.photoCount ? Math.min(100, Math.round((photos.length / gallery.photoCount) * 100)) : 100
+      loadedPhotos: totalLoadedPhotos,
+      // Se c'è una galleria, usa il suo photoCount, altrimenti usa la lunghezza totale delle foto
+      totalPhotos: gallery?.photoCount || totalLoadedPhotos,
+      progress: gallery?.photoCount ? Math.min(100, Math.round((totalLoadedPhotos / gallery.photoCount) * 100)) : 100
     }));
-  }, [photos.length, gallery]);
+  }, [photos.length, guestPhotos.length, gallery]);
 
   // Check if current user is admin
   useEffect(() => {
