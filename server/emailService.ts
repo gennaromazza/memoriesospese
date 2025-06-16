@@ -1,25 +1,29 @@
 import { createTransport } from 'nodemailer';
 import type { EmailTemplate } from '../client/src/lib/emailTemplates';
 
-// Configurazione SMTP usando le credenziali fornite
+// Configurazione SMTP per Netsons con STARTTLS
 const transporter = createTransport({
   host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT || '587'),
-  secure: parseInt(process.env.EMAIL_PORT || '587') === 465,
+  port: 587,
+  secure: false, // STARTTLS su porta 587
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  requireTLS: true, // Forza l'uso di TLS
+  tls: {
+    rejectUnauthorized: false,
+    ciphers: 'SSLv3'
+  },
+  // Timeout specifici per connessioni lente
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
   // Impostazioni anti-spam
   pool: true,
-  maxConnections: 5,
-  maxMessages: 10,
-  rateLimit: 5, // max 5 emails per secondo
-  tls: {
-    rejectUnauthorized: false
-  },
-  debug: true, // Per troubleshooting
-  logger: true
+  maxConnections: 3,
+  maxMessages: 5,
+  rateLimit: 3 // max 3 emails per secondo per evitare rate limiting
 });
 
 interface EmailOptions {

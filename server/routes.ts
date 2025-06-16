@@ -10,18 +10,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const testTransporter = createTransport({
         host: process.env.EMAIL_HOST,
-        port: parseInt(process.env.EMAIL_PORT || '587'),
-        secure: parseInt(process.env.EMAIL_PORT || '587') === 465,
+        port: 587,
+        secure: false, // STARTTLS
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
         },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 10000,
+        requireTLS: true,
         tls: {
-          rejectUnauthorized: false
-        }
+          rejectUnauthorized: false,
+          ciphers: 'SSLv3'
+        },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 15000
       });
 
       await testTransporter.verify();
@@ -30,7 +32,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Connessione SMTP verificata con successo',
         config: {
           host: process.env.EMAIL_HOST,
-          port: process.env.EMAIL_PORT,
+          port: 587,
+          secure: false,
           user: process.env.EMAIL_USER,
           from: process.env.EMAIL_FROM
         }
@@ -38,10 +41,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ 
         success: false, 
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         config: {
           host: process.env.EMAIL_HOST,
-          port: process.env.EMAIL_PORT,
+          port: 587,
           user: process.env.EMAIL_USER
         }
       });
