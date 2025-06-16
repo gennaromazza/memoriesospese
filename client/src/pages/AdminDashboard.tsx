@@ -13,6 +13,7 @@ import EditGalleryModal from "@/components/EditGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
 import UserManager from "@/components/UserManager";
 import SubscriptionsManager from "@/components/SubscriptionsManager";
+import EmailStatusPanel from "@/components/EmailStatusPanel";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
