@@ -1,8 +1,7 @@
-import sgMail from '@sendgrid/mail';
 import type { EmailTemplate } from '../client/src/lib/emailTemplates';
 
-// Configura SendGrid come fallback se le credenziali SMTP non funzionano
-let emailProvider: 'smtp' | 'sendgrid' = 'smtp';
+// Configurazione email solo SMTP
+let emailProvider: 'smtp' = 'smtp';
 let transporter: any = null;
 
 // Inizializza il provider email con modalità di sviluppo per Replit
@@ -102,84 +101,37 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       throw new Error('EMAIL_FROM non configurato');
     }
 
-    if (emailProvider === 'smtp' && transporter) {
-      // Invio tramite SMTP
-      const mailOptions = {
-        from: `${options.fromName || 'Wedding Gallery'} <${fromEmail}>`,
-        to: options.to,
-        subject: options.subject,
-        text: options.text,
-        html: options.html,
-        headers: {
-          'X-Mailer': 'Wedding Gallery System',
-          'X-Priority': '3',
-          'X-MSMail-Priority': 'Normal',
-          'Importance': 'Normal',
-          'List-Unsubscribe': `<mailto:${fromEmail}?subject=Unsubscribe>`,
-          'Reply-To': fromEmail,
-        },
-        envelope: {
-          from: fromEmail,
-          to: options.to
-        }
-      };
-
-      const result = await transporter.sendMail(mailOptions);
-      console.log(`Email inviata via SMTP a ${options.to}:`, result?.messageId || 'ID non disponibile');
-      return true;
-
-    } else if (emailProvider === 'sendgrid') {
-      // Invio tramite SendGrid
-      const msg = {
-        to: options.to,
-        from: fromEmail,
-        subject: options.subject,
-        text: options.text,
-        html: options.html,
-        replyTo: fromEmail,
-        headers: {
-          'X-Mailer': 'Wedding Gallery System',
-          'List-Unsubscribe': `<mailto:${fromEmail}?subject=Unsubscribe>`,
-        }
-      };
-
-      await sgMail.send(msg);
-      console.log(`Email inviata via SendGrid a ${options.to}`);
-      return true;
-
-    } else {
-      throw new Error('Nessun provider email disponibile');
+    if (!transporter) {
+      throw new Error('Provider email non inizializzato');
     }
+
+    // Invio tramite SMTP
+    const mailOptions = {
+      from: `${options.fromName || 'Wedding Gallery'} <${fromEmail}>`,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+      headers: {
+        'X-Mailer': 'Wedding Gallery System',
+        'X-Priority': '3',
+        'X-MSMail-Priority': 'Normal',
+        'Importance': 'Normal',
+        'List-Unsubscribe': `<mailto:${fromEmail}?subject=Unsubscribe>`,
+        'Reply-To': fromEmail,
+      },
+      envelope: {
+        from: fromEmail,
+        to: options.to
+      }
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log(`Email inviata via SMTP a ${options.to}:`, result?.messageId || 'ID non disponibile');
+    return true;
     
   } catch (error) {
     console.error('Errore nell\'invio email:', error);
-    
-    // Se SMTP fallisce, prova SendGrid come fallback
-    if (emailProvider === 'smtp' && process.env.SENDGRID_API_KEY) {
-      console.log('Tentativo fallback con SendGrid...');
-      try {
-        const fromEmail = process.env.EMAIL_FROM;
-        if (!fromEmail) {
-          throw new Error('EMAIL_FROM richiesto per SendGrid fallback');
-        }
-        
-        const msg = {
-          to: options.to,
-          from: fromEmail,
-          subject: options.subject,
-          text: options.text,
-          html: options.html,
-          replyTo: fromEmail
-        };
-
-        await sgMail.send(msg);
-        console.log(`Email inviata via SendGrid (fallback) a ${options.to}`);
-        return true;
-      } catch (fallbackError) {
-        console.error('Errore anche con SendGrid fallback:', fallbackError);
-      }
-    }
-    
     return false;
   }
 }

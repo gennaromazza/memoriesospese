@@ -11,13 +11,11 @@ interface EmailStatus {
   message: string;
   results: {
     smtp: { available: boolean; error: string | null };
-    sendgrid: { available: boolean; error: string | null };
     config: {
       host: string;
       port: string;
       user: string;
       from: string;
-      hasSendGridKey: boolean;
     };
   };
 }
@@ -148,39 +146,20 @@ export default function EmailStatusPanel() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <h4 className="font-medium mb-2">SMTP</h4>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    {status.results?.smtp?.available ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <span>{status.results?.smtp?.available ? 'Disponibile' : 'Non disponibile'}</span>
-                  </div>
-                  {status.results?.smtp?.error && (
-                    <p className="text-red-600 text-xs">{status.results.smtp.error}</p>
+            <div className="text-sm">
+              <h4 className="font-medium mb-2">Provider SMTP</h4>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  {status.results?.smtp?.available ? (
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-red-600" />
                   )}
+                  <span>{status.results?.smtp?.available ? 'Configurazione SMTP funzionante' : 'SMTP non disponibile'}</span>
                 </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">SendGrid</h4>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    {status.results?.sendgrid?.available ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <span>{status.results?.sendgrid?.available ? 'Disponibile' : 'Non disponibile'}</span>
-                  </div>
-                  {status.results?.sendgrid?.error && (
-                    <p className="text-red-600 text-xs">{status.results.sendgrid.error}</p>
-                  )}
-                </div>
+                {status.results?.smtp?.error && (
+                  <p className="text-red-600 text-xs mt-2">Errore: {status.results.smtp.error}</p>
+                )}
               </div>
             </div>
 
@@ -191,7 +170,6 @@ export default function EmailStatusPanel() {
                 <div>Porta: {status.results?.config?.port || 'N/A'}</div>
                 <div>Utente: {status.results?.config?.user || 'N/A'}</div>
                 <div><strong>Email mittente: {status.results?.config?.from || 'easygallery@gennaromazzacane.it'}</strong></div>
-                <div>SendGrid Key: {status.results?.config?.hasSendGridKey ? 'Configurata' : 'Mancante'}</div>
               </div>
             </div>
 

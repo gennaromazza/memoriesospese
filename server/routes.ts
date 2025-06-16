@@ -6,14 +6,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint di test per verificare configurazione email
   app.get('/api/test-email', async (req, res) => {
     const results = {
-      smtp: { available: false, error: null },
-      sendgrid: { available: false, error: null },
+      smtp: { available: false, error: null as string | null },
+      sendgrid: { available: false, error: null as string | null },
       config: {
         host: process.env.EMAIL_HOST,
         port: process.env.EMAIL_PORT,
         user: process.env.EMAIL_USER,
         from: process.env.EMAIL_FROM,
-        hasSendGridKey: !!process.env.SENDGRID_API_KEY
+        hasSendGridKey: false
       }
     };
 
@@ -41,33 +41,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       results.smtp.error = error instanceof Error ? error.message : 'Unknown error';
     }
 
-    // Test SendGrid
-    if (process.env.SENDGRID_API_KEY) {
-      try {
-        const sgMail = await import('@sendgrid/mail');
-        sgMail.default.setApiKey(process.env.SENDGRID_API_KEY);
-        
-        // Test con una richiesta GET alle API di SendGrid per verificare la chiave
-        const response = await fetch('https://api.sendgrid.com/v3/user/account', {
-          headers: {
-            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          results.sendgrid.available = true;
-        } else {
-          results.sendgrid.error = `HTTP ${response.status}: ${response.statusText}`;
-        }
-      } catch (error) {
-        results.sendgrid.error = error instanceof Error ? error.message : 'Unknown error';
-      }
-    } else {
-      results.sendgrid.error = 'API Key non configurata';
-    }
+    // SendGrid rimosso - utilizziamo solo SMTP
+    results.sendgrid.available = false;
+    results.sendgrid.error = 'SendGrid rimosso';
 
-    const workingProvider = results.smtp.available ? 'SMTP' : results.sendgrid.available ? 'SendGrid' : null;
+    const workingProvider = results.smtp.available ? 'SMTP' : null;
     
     res.json({
       success: !!workingProvider,
