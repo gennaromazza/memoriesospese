@@ -184,7 +184,7 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'slideshow' | 'requests' | 'settings'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'subscriptions' | 'slideshow' | 'requests' | 'email' | 'settings'>('galleries');
 
   // Stati per la paginazione delle gallerie
   const [currentGalleryPage, setCurrentGalleryPage] = useState(1);
@@ -852,6 +852,7 @@ export default function AdminDashboard() {
               <TabsTrigger value="subscriptions">Iscrizioni</TabsTrigger>
               <TabsTrigger value="slideshow">Slideshow</TabsTrigger>
               <TabsTrigger value="requests">Richieste Password</TabsTrigger>
+              <TabsTrigger value="email">Sistema Email</TabsTrigger>
               <TabsTrigger value="settings">Impostazioni</TabsTrigger>
             </TabsList>
 
@@ -1162,6 +1163,17 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 )}
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Sistema Email */}
+            <TabsContent value="email">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <h2 className="text-xl font-semibold text-blue-gray mb-4">Sistema di Notifiche Email</h2>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Monitora e gestisci il sistema di invio email per le notifiche di benvenuto e nuove foto.
+                </p>
+                <EmailStatusPanel />
               </div>
             </TabsContent>
 
