@@ -1,30 +1,60 @@
-import { createTransport } from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import type { EmailTemplate } from '../client/src/lib/emailTemplates';
 
-// Configurazione SMTP per Netsons con STARTTLS
-const transporter = createTransport({
-  host: process.env.EMAIL_HOST,
-  port: 587,
-  secure: false, // STARTTLS su porta 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  requireTLS: true, // Forza l'uso di TLS
-  tls: {
-    rejectUnauthorized: false,
-    ciphers: 'SSLv3'
-  },
-  // Timeout specifici per connessioni lente
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
-  // Impostazioni anti-spam
-  pool: true,
-  maxConnections: 3,
-  maxMessages: 5,
-  rateLimit: 3 // max 3 emails per secondo per evitare rate limiting
-});
+// Configura SendGrid come fallback se le credenziali SMTP non funzionano
+let emailProvider: 'smtp' | 'sendgrid' = 'smtp';
+let transporter: any = null;
+
+// Prova prima con SMTP, poi fallback a SendGrid
+async function initializeEmailProvider() {
+  // Tentativo con SMTP Netsons
+  try {
+    const { createTransport } = await import('nodemailer');
+    
+    const smtpTransporter = createTransport({
+      host: process.env.EMAIL_HOST,
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      requireTLS: true,
+      tls: {
+        rejectUnauthorized: false
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000
+    });
+
+    // Test connessione SMTP
+    await smtpTransporter.verify();
+    transporter = smtpTransporter;
+    emailProvider = 'smtp';
+    console.log('✓ SMTP provider inizializzato con successo');
+    return;
+  } catch (smtpError) {
+    console.warn('⚠ SMTP non disponibile:', smtpError instanceof Error ? smtpError.message : 'Unknown error');
+  }
+
+  // Fallback a SendGrid se SMTP non funziona
+  if (process.env.SENDGRID_API_KEY) {
+    try {
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      emailProvider = 'sendgrid';
+      console.log('✓ SendGrid provider inizializzato come fallback');
+      return;
+    } catch (sgError) {
+      console.warn('⚠ SendGrid non disponibile:', sgError instanceof Error ? sgError.message : 'Unknown error');
+    }
+  }
+
+  console.error('❌ Nessun provider email disponibile');
+}
+
+// Inizializza il provider email al caricamento
+initializeEmailProvider();
 
 interface EmailOptions {
   to: string;
@@ -36,40 +66,89 @@ interface EmailOptions {
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    // Verifica connessione SMTP
-    await transporter.verify();
-    
-    const fromName = options.fromName || 'Galleria Fotografica';
-    const fromEmail = process.env.SMTP_USER;
-    
-    const mailOptions = {
-      from: `"${fromName}" <${fromEmail}>`,
-      to: options.to,
-      subject: options.subject,
-      text: options.text,
-      html: options.html,
-      // Headers per evitare spam
-      headers: {
-        'X-Mailer': 'Wedding Gallery System',
-        'X-Priority': '3',
-        'X-MSMail-Priority': 'Normal',
-        'Importance': 'Normal',
-        'List-Unsubscribe': `<mailto:${fromEmail}?subject=Unsubscribe>`,
-        'Reply-To': fromEmail || '',
-      },
-      // Configurazione per deliverability
-      envelope: {
-        from: fromEmail,
-        to: options.to
-      }
-    };
+    const fromEmail = process.env.EMAIL_FROM;
+    if (!fromEmail) {
+      throw new Error('EMAIL_FROM non configurato');
+    }
 
-    const result = await transporter.sendMail(mailOptions);
-    console.log(`Email inviata con successo a ${options.to}:`, result?.messageId || 'ID non disponibile');
-    return true;
+    if (emailProvider === 'smtp' && transporter) {
+      // Invio tramite SMTP
+      const mailOptions = {
+        from: `${options.fromName || 'Wedding Gallery'} <${fromEmail}>`,
+        to: options.to,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+        headers: {
+          'X-Mailer': 'Wedding Gallery System',
+          'X-Priority': '3',
+          'X-MSMail-Priority': 'Normal',
+          'Importance': 'Normal',
+          'List-Unsubscribe': `<mailto:${fromEmail}?subject=Unsubscribe>`,
+          'Reply-To': fromEmail,
+        },
+        envelope: {
+          from: fromEmail,
+          to: options.to
+        }
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log(`Email inviata via SMTP a ${options.to}:`, result?.messageId || 'ID non disponibile');
+      return true;
+
+    } else if (emailProvider === 'sendgrid') {
+      // Invio tramite SendGrid
+      const msg = {
+        to: options.to,
+        from: fromEmail,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+        replyTo: fromEmail,
+        headers: {
+          'X-Mailer': 'Wedding Gallery System',
+          'List-Unsubscribe': `<mailto:${fromEmail}?subject=Unsubscribe>`,
+        }
+      };
+
+      await sgMail.send(msg);
+      console.log(`Email inviata via SendGrid a ${options.to}`);
+      return true;
+
+    } else {
+      throw new Error('Nessun provider email disponibile');
+    }
     
   } catch (error) {
     console.error('Errore nell\'invio email:', error);
+    
+    // Se SMTP fallisce, prova SendGrid come fallback
+    if (emailProvider === 'smtp' && process.env.SENDGRID_API_KEY) {
+      console.log('Tentativo fallback con SendGrid...');
+      try {
+        const fromEmail = process.env.EMAIL_FROM;
+        if (!fromEmail) {
+          throw new Error('EMAIL_FROM richiesto per SendGrid fallback');
+        }
+        
+        const msg = {
+          to: options.to,
+          from: fromEmail,
+          subject: options.subject,
+          text: options.text,
+          html: options.html,
+          replyTo: fromEmail
+        };
+
+        await sgMail.send(msg);
+        console.log(`Email inviata via SendGrid (fallback) a ${options.to}`);
+        return true;
+      } catch (fallbackError) {
+        console.error('Errore anche con SendGrid fallback:', fallbackError);
+      }
+    }
+    
     return false;
   }
 }

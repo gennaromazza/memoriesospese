@@ -3,52 +3,80 @@ import { createServer, type Server } from "http";
 import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Endpoint di test per verificare configurazione SMTP
-  app.get('/api/test-smtp', async (req, res) => {
+  // Endpoint di test per verificare configurazione email
+  app.get('/api/test-email', async (req, res) => {
+    const results = {
+      smtp: { available: false, error: null },
+      sendgrid: { available: false, error: null },
+      config: {
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        user: process.env.EMAIL_USER,
+        from: process.env.EMAIL_FROM,
+        hasSendGridKey: !!process.env.SENDGRID_API_KEY
+      }
+    };
+
+    // Test SMTP
     try {
       const { createTransport } = await import('nodemailer');
-      
       const testTransporter = createTransport({
         host: process.env.EMAIL_HOST,
         port: 587,
-        secure: false, // STARTTLS
+        secure: false,
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
         },
         requireTLS: true,
-        tls: {
-          rejectUnauthorized: false,
-          ciphers: 'SSLv3'
-        },
-        connectionTimeout: 15000,
-        greetingTimeout: 15000,
-        socketTimeout: 15000
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000
       });
 
       await testTransporter.verify();
-      res.json({ 
-        success: true, 
-        message: 'Connessione SMTP verificata con successo',
-        config: {
-          host: process.env.EMAIL_HOST,
-          port: 587,
-          secure: false,
-          user: process.env.EMAIL_USER,
-          from: process.env.EMAIL_FROM
-        }
-      });
+      results.smtp.available = true;
     } catch (error) {
-      res.status(500).json({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        config: {
-          host: process.env.EMAIL_HOST,
-          port: 587,
-          user: process.env.EMAIL_USER
-        }
-      });
+      results.smtp.error = error instanceof Error ? error.message : 'Unknown error';
     }
+
+    // Test SendGrid
+    if (process.env.SENDGRID_API_KEY) {
+      try {
+        const sgMail = await import('@sendgrid/mail');
+        sgMail.default.setApiKey(process.env.SENDGRID_API_KEY);
+        
+        // Test con una richiesta GET alle API di SendGrid per verificare la chiave
+        const response = await fetch('https://api.sendgrid.com/v3/user/account', {
+          headers: {
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          results.sendgrid.available = true;
+        } else {
+          results.sendgrid.error = `HTTP ${response.status}: ${response.statusText}`;
+        }
+      } catch (error) {
+        results.sendgrid.error = error instanceof Error ? error.message : 'Unknown error';
+      }
+    } else {
+      results.sendgrid.error = 'API Key non configurata';
+    }
+
+    const workingProvider = results.smtp.available ? 'SMTP' : results.sendgrid.available ? 'SendGrid' : null;
+    
+    res.json({
+      success: !!workingProvider,
+      workingProvider,
+      results,
+      message: workingProvider ? 
+        `Provider email funzionante: ${workingProvider}` : 
+        'Nessun provider email funzionante'
+    });
   });
 
   // Endpoint temporanei per le funzionalità email (implementazione semplificata)
