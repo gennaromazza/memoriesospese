@@ -264,13 +264,18 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     resetForm();
   };
 
+  const handleDialogOpen = () => {
+    setIsDialogOpen(true);
+  };
+
   return (
-    <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
         <Button 
           variant="outline" 
           size="sm"
           className="bg-white hover:bg-gray-50 border-gray-300"
+          onClick={handleDialogOpen}
         >
           <Upload className="h-4 w-4 mr-2" />
           Carica foto
