@@ -5,52 +5,71 @@ import type { EmailTemplate } from '../client/src/lib/emailTemplates';
 let emailProvider: 'smtp' | 'sendgrid' = 'smtp';
 let transporter: any = null;
 
-// Prova prima con SMTP, poi fallback a SendGrid
+// Prova Gmail SMTP come provider più affidabile per Replit
 async function initializeEmailProvider() {
-  // Tentativo con SMTP Netsons
-  try {
-    const { createTransport } = await import('nodemailer');
-    
-    const smtpTransporter = createTransport({
-      host: process.env.EMAIL_HOST,
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      requireTLS: true,
-      tls: {
-        rejectUnauthorized: false
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000
-    });
+  const { createTransport } = await import('nodemailer');
 
-    // Test connessione SMTP
-    await smtpTransporter.verify();
-    transporter = smtpTransporter;
-    emailProvider = 'smtp';
-    console.log('✓ SMTP provider inizializzato con successo');
-    return;
-  } catch (smtpError) {
-    console.warn('⚠ SMTP non disponibile:', smtpError instanceof Error ? smtpError.message : 'Unknown error');
-  }
-
-  // Fallback a SendGrid se SMTP non funziona
-  if (process.env.SENDGRID_API_KEY) {
+  // Opzione 1: Gmail SMTP (più affidabile su Replit)
+  if (process.env.EMAIL_FROM && process.env.EMAIL_FROM.includes('gmail.com')) {
     try {
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-      emailProvider = 'sendgrid';
-      console.log('✓ SendGrid provider inizializzato come fallback');
+      const gmailTransporter = createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_FROM,
+          pass: process.env.EMAIL_PASS, // App Password di Gmail
+        },
+        tls: {
+          rejectUnauthorized: false
+        }
+      });
+
+      await gmailTransporter.verify();
+      transporter = gmailTransporter;
+      emailProvider = 'smtp';
+      console.log('✓ Gmail SMTP provider inizializzato con successo');
       return;
-    } catch (sgError) {
-      console.warn('⚠ SendGrid non disponibile:', sgError instanceof Error ? sgError.message : 'Unknown error');
+    } catch (gmailError) {
+      console.warn('⚠ Gmail SMTP non disponibile:', gmailError instanceof Error ? gmailError.message : 'Unknown error');
     }
   }
 
-  console.error('❌ Nessun provider email disponibile');
+  // Opzione 2: SMTP generico con porte alternative
+  const smtpConfigs = [
+    { port: 25, secure: false, name: 'SMTP 25' },
+    { port: 587, secure: false, name: 'SMTP 587 TLS' },
+    { port: 465, secure: true, name: 'SMTP 465 SSL' }
+  ];
+
+  for (const config of smtpConfigs) {
+    try {
+      const smtpTransporter = createTransport({
+        host: process.env.EMAIL_HOST,
+        port: config.port,
+        secure: config.secure,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        tls: {
+          rejectUnauthorized: false,
+          ciphers: 'SSLv3'
+        },
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 8000
+      });
+
+      await smtpTransporter.verify();
+      transporter = smtpTransporter;
+      emailProvider = 'smtp';
+      console.log(`✓ ${config.name} provider inizializzato con successo`);
+      return;
+    } catch (smtpError) {
+      console.warn(`⚠ ${config.name} non disponibile:`, smtpError instanceof Error ? smtpError.message : 'Unknown error');
+    }
+  }
+
+  console.error('❌ Nessun provider email SMTP disponibile');
 }
 
 // Inizializza il provider email al caricamento
