@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { auth, storage, db } from '@/lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDocs, query, where, arrayUnion } from 'firebase/firestore';
 import imageCompression from 'browser-image-compression';
@@ -64,33 +64,29 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     setIsResettingPassword(true);
     
     try {
-      const response = await fetch('/api/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: resetEmail }),
+      // Usa Firebase direttamente per inviare l'email di reset
+      await sendPasswordResetEmail(auth, resetEmail);
+      
+      setResetEmailSent(true);
+      toast({
+        title: "Email inviata!",
+        description: "Controlla la tua casella email per le istruzioni di reset",
+        variant: "default"
       });
-
-      if (response.ok) {
-        setResetEmailSent(true);
-        toast({
-          title: "Email inviata!",
-          description: "Controlla la tua casella email per le istruzioni di reset",
-          variant: "default"
-        });
-      } else {
-        const error = await response.text();
-        toast({
-          title: "Errore",
-          description: error || "Errore nell'invio dell'email di reset",
-          variant: "destructive"
-        });
+    } catch (error: any) {
+      let errorMessage = "Errore nell'invio dell'email di reset";
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = "Nessun account trovato con questa email";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Indirizzo email non valido";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "Troppi tentativi. Riprova più tardi";
       }
-    } catch (error) {
+      
       toast({
         title: "Errore",
-        description: "Errore di connessione. Riprova più tardi.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
