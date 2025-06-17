@@ -175,23 +175,14 @@ export default function VoiceMemoUpload({
 
   const uploadAudioToFirebase = async (audioData: Blob | File, fileName: string): Promise<string> => {
     const storage = getStorage();
-    
-    // Compress audio before upload
-    let processedAudio = audioData;
-    if (audioData instanceof Blob || audioData.type?.startsWith('audio/')) {
-      setUploadProgress(10);
-      processedAudio = await compressAudio(audioData);
-    }
-    
     const audioRef = ref(storage, `voice-memos/${galleryId}/${fileName}`);
-    const uploadTask = uploadBytesResumable(audioRef, processedAudio);
+    const uploadTask = uploadBytesResumable(audioRef, audioData);
     
     return new Promise((resolve, reject) => {
       uploadTask.on(
         'state_changed',
         (snapshot) => {
-          // Start progress from 15% (after compression)
-          const progress = 15 + ((snapshot.bytesTransferred / snapshot.totalBytes) * 65);
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 80;
           setUploadProgress(progress);
         },
         (error) => {
@@ -336,7 +327,7 @@ export default function VoiceMemoUpload({
           <Button 
             variant="outline" 
             size="lg"
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
+            className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
             onClick={() => setIsDialogOpen(true)}
           >
             <Mic2 className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
@@ -346,9 +337,9 @@ export default function VoiceMemoUpload({
           </Button>
           
           {/* Tooltip */}
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-purple-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs">
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-blue-gray-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs">
             <div className="flex items-center gap-2 mb-1">
-              <Mic2 className="h-3 w-3 text-pink-300" />
+              <Mic2 className="h-3 w-3 text-sage-300" />
               <span className="font-medium">Vocali segreti!</span>
             </div>
             <div className="text-xs text-gray-300">
@@ -356,7 +347,7 @@ export default function VoiceMemoUpload({
               • Imposta data di sblocco<br/>
               • Sorprendi gli sposi
             </div>
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-800 rotate-45"></div>
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-gray-800 rotate-45"></div>
           </div>
         </div>
       </DialogTrigger>
@@ -521,12 +512,12 @@ export default function VoiceMemoUpload({
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 h-2 rounded-full transition-all duration-300 ease-out"
+                    className="bg-gradient-to-r from-sage-600 to-blue-gray-600 h-2 rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${uploadProgress}%` }}
                   ></div>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3 h-3 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
                   <span className="text-xs text-gray-500">
                     {uploadStatus === 'uploading-audio' && 'Upload del file audio in corso...'}
                     {uploadStatus === 'saving-data' && 'Creazione del ricordo...'}
@@ -542,7 +533,7 @@ export default function VoiceMemoUpload({
             <Button
               onClick={handleSubmit}
               disabled={!guestName.trim() || (!recordedBlob && !selectedFile) || isUploading}
-              className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+              className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
             >
               {isUploading ? (
                 <div className="flex items-center gap-2">
