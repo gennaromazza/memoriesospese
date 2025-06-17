@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, User, LogIn, UserPlus, Camera, Heart, Sparkles, Share2, ImageIcon } from 'lucide-react';
+import { Upload, User, LogIn, UserPlus, Camera, Heart, Sparkles, Share2, ImageIcon, KeyRound, Mail } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
@@ -33,6 +33,11 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
+  // Dati per recupero password
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  
   const { toast } = useToast();
 
   const resetForm = () => {
@@ -42,6 +47,55 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     setSelectedFiles([]);
     setIsAuthenticated(false);
     setUploadProgress(0);
+    setResetEmail('');
+    setResetEmailSent(false);
+  };
+
+  const handlePasswordReset = async () => {
+    if (!resetEmail) {
+      toast({
+        title: "Errore",
+        description: "Inserisci la tua email per recuperare la password",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsResettingPassword(true);
+    
+    try {
+      const response = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+
+      if (response.ok) {
+        setResetEmailSent(true);
+        toast({
+          title: "Email inviata!",
+          description: "Controlla la tua casella email per le istruzioni di reset",
+          variant: "default"
+        });
+      } else {
+        const error = await response.text();
+        toast({
+          title: "Errore",
+          description: error || "Errore nell'invio dell'email di reset",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Errore",
+        description: "Errore di connessione. Riprova più tardi.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -330,7 +384,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
 
         {!isAuthenticated ? (
           <Tabs defaultValue="register" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="register" className="flex items-center gap-2">
                 <UserPlus className="h-4 w-4" />
                 Registrati
@@ -338,6 +392,10 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
               <TabsTrigger value="login" className="flex items-center gap-2">
                 <LogIn className="h-4 w-4" />
                 Accedi
+              </TabsTrigger>
+              <TabsTrigger value="reset" className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4" />
+                Password?
               </TabsTrigger>
             </TabsList>
             
@@ -453,6 +511,78 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                   </div>
                 )}
               </Button>
+            </TabsContent>
+            
+            <TabsContent value="reset" className="space-y-4 mt-4">
+              {!resetEmailSent ? (
+                <>
+                  <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-4 rounded-lg mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <KeyRound className="h-4 w-4 text-orange-600" />
+                      <span className="text-sm font-medium text-orange-900">Password dimenticata?</span>
+                    </div>
+                    <p className="text-xs text-orange-700">
+                      Inserisci la tua email e ti invieremo le istruzioni per reimpostare la password
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email" className="text-gray-700 font-medium">Email</Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="mario@esempio.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    />
+                  </div>
+                  
+                  <Button 
+                    onClick={handlePasswordReset}
+                    disabled={isResettingPassword || !resetEmail}
+                    className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-medium py-3 shadow-lg hover:shadow-xl transition-all duration-300"
+                  >
+                    {isResettingPassword ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Invio email...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" />
+                        Invia email di reset
+                      </div>
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <div className="text-center space-y-4">
+                  <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <Mail className="h-8 w-8 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Email inviata!</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Abbiamo inviato le istruzioni per reimpostare la password a:
+                    </p>
+                    <p className="font-medium text-gray-900 mb-4">{resetEmail}</p>
+                    <p className="text-xs text-gray-500">
+                      Controlla anche nella cartella spam se non vedi l'email
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setResetEmailSent(false);
+                      setResetEmail('');
+                    }}
+                    className="w-full"
+                  >
+                    Invia a un'altra email
+                  </Button>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         ) : (
