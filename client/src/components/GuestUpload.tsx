@@ -325,7 +325,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
           <Button 
             variant="outline" 
             size="lg"
-            className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
+            className="bg-[#7c80ae] hover:bg-[#6b6f9c] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
             onClick={handleDialogOpen}
           >
             <Camera className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
@@ -340,7 +340,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
               <Heart className="h-3 w-3 text-sage-300" />
               <span className="font-medium">Aggiungi le tue foto!</span>
             </div>
-            <div className="text-xs text-gray-300">
+            <div className="text-xs text-[#7c80ae] bg-[#f7dfba]">
               • Accesso veloce<br/>
               • Carica multiple foto<br/>
               • Condividi con tutti
@@ -349,7 +349,6 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
           </div>
         </div>
       </DialogTrigger>
-      
       <DialogContent className="sm:max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="text-center pb-4 sm:pb-6">
           <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-sage-500 to-blue-gray-500 rounded-full flex items-center justify-center mb-3 sm:mb-4">
