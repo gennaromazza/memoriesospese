@@ -14,6 +14,8 @@ import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress"
 import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
 import SubscriptionManager from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
+import VoiceMemoUpload from "@/components/VoiceMemoUpload";
+import VoiceMemosList from "@/components/VoiceMemosList";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -42,8 +44,8 @@ export default function Gallery() {
   // Stato per tracciare se i filtri sono attivi
   const [areFiltersActive, setAreFiltersActive] = useState(false);
   
-  // Stato per il tab attivo (foto del fotografo o ospiti)
-  const [activeTab, setActiveTab] = useState<'photographer' | 'guests'>('photographer');
+  // Stato per il tab attivo (foto del fotografo, ospiti o vocali segreti)
+  const [activeTab, setActiveTab] = useState<'photographer' | 'guests' | 'voice-memos'>('photographer');
   
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -276,28 +278,43 @@ export default function Gallery() {
         <main>
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div className="px-4 py-4">
-              {/* Tab per switchare tra foto del fotografo e ospiti */}
+              {/* Tab per switchare tra foto del fotografo, ospiti e vocali segreti */}
               <div className="flex items-center justify-center mb-8">
                 <div className="flex bg-gray-100 rounded-lg p-1">
                   <button
                     onClick={() => setActiveTab('photographer')}
-                    className={`px-6 py-2 rounded-md font-medium transition-all ${
+                    className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
                       activeTab === 'photographer'
                         ? 'bg-white shadow-sm text-blue-gray'
                         : 'text-gray-600 hover:text-blue-gray'
                     }`}
                   >
-                    Foto del fotografo ({photos.length})
+                    <span className="hidden sm:inline">Foto del fotografo</span>
+                    <span className="sm:hidden">Fotografo</span>
+                    <span className="ml-1">({photos.length})</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('guests')}
-                    className={`px-6 py-2 rounded-md font-medium transition-all ${
+                    className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
                       activeTab === 'guests'
                         ? 'bg-white shadow-sm text-blue-gray'
                         : 'text-gray-600 hover:text-blue-gray'
                     }`}
                   >
-                    Foto degli ospiti ({guestPhotos.length})
+                    <span className="hidden sm:inline">Foto degli ospiti</span>
+                    <span className="sm:hidden">Ospiti</span>
+                    <span className="ml-1">({guestPhotos.length})</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('voice-memos')}
+                    className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
+                      activeTab === 'voice-memos'
+                        ? 'bg-white shadow-sm text-blue-gray'
+                        : 'text-gray-600 hover:text-blue-gray'
+                    }`}
+                  >
+                    <span className="hidden sm:inline">Vocali Segreti</span>
+                    <span className="sm:hidden">Vocali</span>
                   </button>
                 </div>
               </div>

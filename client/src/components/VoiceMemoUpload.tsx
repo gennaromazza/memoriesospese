@@ -1,0 +1,449 @@
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  Mic2, 
+  Upload, 
+  Calendar, 
+  MessageSquare, 
+  User, 
+  Clock,
+  Heart,
+  Sparkles,
+  FileAudio
+} from 'lucide-react';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import VoiceRecorder from './VoiceRecorder';
+
+interface VoiceMemoUploadProps {
+  galleryId: string;
+  galleryName: string;
+  onUploadComplete?: () => void;
+}
+
+export default function VoiceMemoUpload({ 
+  galleryId, 
+  galleryName, 
+  onUploadComplete 
+}: VoiceMemoUploadProps) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [message, setMessage] = useState('');
+  const [unlockDate, setUnlockDate] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedDuration, setRecordedDuration] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [activeTab, setActiveTab] = useState('record');
+
+  const { toast } = useToast();
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('audio/')) {
+        toast({
+          title: "Errore",
+          description: "Per favore seleziona un file audio valido",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file size (max 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        toast({
+          title: "Errore",
+          description: "Il file audio è troppo grande. Massimo 50MB consentiti.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSelectedFile(file);
+      setRecordedBlob(null); // Clear recorded audio if file is selected
+    }
+  };
+
+  const handleRecordingComplete = (audioBlob: Blob, duration: number) => {
+    setRecordedBlob(audioBlob);
+    setRecordedDuration(duration);
+    setSelectedFile(null); // Clear file if recording is made
+    toast({
+      title: "Registrazione completata",
+      description: `Audio registrato di ${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`,
+    });
+  };
+
+  const uploadAudioToFirebase = async (audioData: Blob | File, fileName: string): Promise<string> => {
+    const storage = getStorage();
+    const audioRef = ref(storage, `voice-memos/${galleryId}/${fileName}`);
+    
+    const uploadTask = uploadBytesResumable(audioRef, audioData);
+    
+    return new Promise((resolve, reject) => {
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
+        },
+        (error) => {
+          console.error('Upload error:', error);
+          reject(error);
+        },
+        async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(downloadURL);
+          } catch (error) {
+            reject(error);
+          }
+        }
+      );
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!guestName.trim()) {
+      toast({
+        title: "Errore",
+        description: "Inserisci il tuo nome",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const audioData = recordedBlob || selectedFile;
+    if (!audioData) {
+      toast({
+        title: "Errore",
+        description: "Registra un audio o seleziona un file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Generate filename
+      const timestamp = Date.now();
+      const fileName = recordedBlob 
+        ? `recording_${timestamp}.webm`
+        : `${selectedFile!.name.replace(/[^a-zA-Z0-9.-]/g, '_')}_${timestamp}`;
+
+      // Upload audio to Firebase Storage
+      const audioUrl = await uploadAudioToFirebase(audioData, fileName);
+
+      // Calculate file size and duration
+      const fileSize = audioData.size;
+      const duration = recordedBlob ? recordedDuration : undefined;
+
+      // Prepare voice memo data
+      const voiceMemoData = {
+        galleryId,
+        guestName: guestName.trim(),
+        audioUrl,
+        message: message.trim() || undefined,
+        unlockDate: unlockDate || undefined,
+        fileName,
+        fileSize,
+        duration
+      };
+
+      // Send to backend API
+      const response = await fetch(`/api/galleries/${galleryId}/voice-memos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(voiceMemoData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Errore nel caricamento del voice memo');
+      }
+
+      toast({
+        title: "Voice memo caricato!",
+        description: unlockDate 
+          ? `Il tuo messaggio sarà disponibile dal ${new Date(unlockDate).toLocaleDateString('it-IT')}`
+          : "Il tuo messaggio è ora disponibile nella galleria",
+      });
+
+      // Reset form
+      setGuestName('');
+      setMessage('');
+      setUnlockDate('');
+      setSelectedFile(null);
+      setRecordedBlob(null);
+      setRecordedDuration(0);
+      setIsDialogOpen(false);
+      
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+
+    } catch (error) {
+      console.error('Error uploading voice memo:', error);
+      toast({
+        title: "Errore",
+        description: "Errore nel caricamento del voice memo. Riprova.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleDialogClose = () => {
+    if (!isUploading) {
+      setIsDialogOpen(false);
+    }
+  };
+
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  return (
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogTrigger asChild>
+        <div className="relative group">
+          <Button 
+            variant="outline" 
+            size="lg"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
+            onClick={() => setIsDialogOpen(true)}
+          >
+            <Mic2 className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
+            <span className="font-medium hidden xs:inline">Registra un ricordo</span>
+            <span className="font-medium xs:hidden">Vocale</span>
+            <Heart className="h-3 w-3 sm:h-4 sm:w-4 ml-1.5 sm:ml-2 animate-pulse" />
+          </Button>
+          
+          {/* Tooltip */}
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-purple-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs">
+            <div className="flex items-center gap-2 mb-1">
+              <Mic2 className="h-3 w-3 text-pink-300" />
+              <span className="font-medium">Vocali segreti!</span>
+            </div>
+            <div className="text-xs text-gray-300">
+              • Registra un messaggio<br/>
+              • Imposta data di sblocco<br/>
+              • Sorprendi gli sposi
+            </div>
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-800 rotate-45"></div>
+          </div>
+        </div>
+      </DialogTrigger>
+      
+      <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="text-center pb-4 sm:pb-6">
+          <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+            <Mic2 className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+          </div>
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-purple-900">
+            Vocali Segreti
+          </DialogTitle>
+          <p className="text-purple-600 mt-1 sm:mt-2 text-sm sm:text-base px-2">
+            Registra un messaggio speciale per "{galleryName}"
+          </p>
+        </DialogHeader>
+
+        <div className="space-y-4 sm:space-y-6">
+          {/* Guest name input */}
+          <div className="space-y-2">
+            <Label htmlFor="guest-name" className="text-purple-700 font-medium text-sm">
+              Il tuo nome
+            </Label>
+            <Input
+              id="guest-name"
+              placeholder="Es. Marco e Lisa"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              className="border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm sm:text-base h-10 sm:h-11"
+            />
+          </div>
+
+          {/* Tabs for record vs upload */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="record" className="flex items-center gap-2">
+                <Mic2 className="h-4 w-4" />
+                Registra ora
+              </TabsTrigger>
+              <TabsTrigger value="upload" className="flex items-center gap-2">
+                <Upload className="h-4 w-4" />
+                Carica file
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="record" className="mt-4">
+              <VoiceRecorder 
+                onRecordingComplete={handleRecordingComplete}
+                maxDuration={300} // 5 minutes
+              />
+            </TabsContent>
+            
+            <TabsContent value="upload" className="mt-4">
+              <Card>
+                <CardContent className="p-4 sm:p-6">
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <FileAudio className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        Carica file audio
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Seleziona un file audio dal tuo dispositivo (max 50MB)
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="audio-file" className="sr-only">File audio</Label>
+                      <Input
+                        id="audio-file"
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleFileSelect}
+                        className="border-2 border-dashed border-gray-300 hover:border-purple-400 transition-colors"
+                      />
+                    </div>
+                    
+                    {selectedFile && (
+                      <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                        <div className="flex items-center gap-2">
+                          <FileAudio className="h-5 w-5 text-purple-600" />
+                          <div>
+                            <p className="font-medium text-purple-900">{selectedFile.name}</p>
+                            <p className="text-sm text-purple-700">
+                              {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          {/* Message input */}
+          <div className="space-y-2">
+            <Label htmlFor="message" className="text-purple-700 font-medium text-sm">
+              Messaggio (opzionale)
+            </Label>
+            <Textarea
+              id="message"
+              placeholder="Aggiungi un messaggio scritto per accompagnare il tuo audio..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm sm:text-base min-h-[80px]"
+              maxLength={500}
+            />
+            <div className="text-xs text-gray-500 text-right">
+              {message.length}/500 caratteri
+            </div>
+          </div>
+
+          {/* Unlock date */}
+          <div className="space-y-2">
+            <Label htmlFor="unlock-date" className="text-purple-700 font-medium text-sm flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Data di sblocco (opzionale)
+            </Label>
+            <Input
+              id="unlock-date"
+              type="date"
+              value={unlockDate}
+              onChange={(e) => setUnlockDate(e.target.value)}
+              min={getTomorrowDate()}
+              className="border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm sm:text-base h-10 sm:h-11"
+            />
+            <p className="text-xs text-gray-600">
+              Se non specifichi una data, il messaggio sarà subito disponibile
+            </p>
+          </div>
+
+          {/* Upload progress */}
+          {isUploading && (
+            <Card className="bg-purple-50 border border-purple-200">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-medium text-purple-900">Caricamento in corso...</span>
+                  <span className="ml-auto text-purple-700 font-bold">{Math.round(uploadProgress)}%</span>
+                </div>
+                <Progress value={uploadProgress} className="w-full h-2" />
+                <p className="text-xs text-purple-700 mt-2">
+                  Il tuo messaggio vocale sta per essere salvato...
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-3">
+            <Button
+              onClick={handleSubmit}
+              disabled={!guestName.trim() || (!recordedBlob && !selectedFile) || isUploading}
+              className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+            >
+              {isUploading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Caricamento...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Heart className="h-4 w-4" />
+                  Salva ricordo
+                </div>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleDialogClose}
+              disabled={isUploading}
+              className="px-4 sm:px-6 border-gray-300 hover:bg-gray-50 text-sm sm:text-base py-2.5 sm:py-3"
+            >
+              {isUploading ? 'Attendere...' : 'Annulla'}
+            </Button>
+          </div>
+
+          {/* Info box */}
+          {!isUploading && (
+            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+              <div className="flex items-start gap-2">
+                <Sparkles className="h-4 w-4 text-amber-600 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-900 mb-1">Come funziona:</p>
+                  <ul className="text-amber-800 space-y-1 text-xs">
+                    <li>• I tuoi vocali saranno privati fino alla data di sblocco</li>
+                    <li>• Solo gli sposi potranno ascoltarli dopo lo sblocco</li>
+                    <li>• Crea un ricordo speciale per il loro giorno perfetto</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
