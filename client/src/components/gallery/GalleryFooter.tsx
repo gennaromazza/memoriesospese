@@ -1,10 +1,22 @@
 import React from "react";
 import { FloralCorner, FloralDivider, BackgroundDecoration } from '@/components/WeddingIllustrations';
 import { WeddingImage } from '@/components/WeddingImages';
-import { useStudio } from '@/context/StudioContext';
 
-export default function GalleryFooter() {
-  const { studioSettings } = useStudio();
+interface GalleryFooterProps {
+  studioSettings: {
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    socialLinks: {
+      instagram?: string;
+      facebook?: string;
+      youtube?: string;
+    };
+  };
+}
+
+export default function GalleryFooter({ studioSettings }: GalleryFooterProps) {
   return (
     <div className="bg-blue-gray/5 border-t border-blue-gray/10 py-12 mt-10 relative overflow-hidden">
       {/* Decorazioni */}
@@ -34,7 +46,7 @@ export default function GalleryFooter() {
           
           <div className="flex items-center space-x-2">
             <a 
-              href={studioSettings?.socialLinks?.instagram ? 
+              href={studioSettings.socialLinks.instagram ? 
                 (studioSettings.socialLinks.instagram.startsWith('http') ? 
                   studioSettings.socialLinks.instagram : 
                   `https://instagram.com/${studioSettings.socialLinks.instagram}`) 
@@ -58,9 +70,9 @@ export default function GalleryFooter() {
           <div className="w-20 h-20 mx-auto mb-4">
             <WeddingImage type="flower-bouquet" className="w-full h-auto opacity-20" />
           </div>
-          <p>© {new Date().getFullYear()} {studioSettings?.name || 'Studio Fotografico'}. Tutti i diritti riservati.</p>
+          <p>© {new Date().getFullYear()} {studioSettings.name}. Tutti i diritti riservati.</p>
           <p className="mt-2">
-            <span>{studioSettings?.address || ''} {studioSettings?.address && '|'} {studioSettings?.phone && `Tel: ${studioSettings.phone}`} {studioSettings?.phone && '|'} {studioSettings?.email && `Email: ${studioSettings.email}`}</span>
+            <span>{studioSettings.address} | Tel: {studioSettings.phone} | Email: {studioSettings.email}</span>
           </p>
         </div>
       </div>
