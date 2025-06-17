@@ -42,6 +42,7 @@ export default function VoiceMemoUpload({
   const [recordedDuration, setRecordedDuration] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading-audio' | 'saving-data' | 'complete'>('idle');
   const [activeTab, setActiveTab] = useState('record');
 
   const { toast } = useToast();
@@ -84,17 +85,113 @@ export default function VoiceMemoUpload({
     });
   };
 
+  const compressAudio = async (audioBlob: Blob): Promise<Blob> => {
+    // If the file is already small enough, don't compress
+    if (audioBlob.size < 2 * 1024 * 1024) { // 2MB
+      return audioBlob;
+    }
+
+    try {
+      // Create audio context for compression
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      
+      // Reduce sample rate for compression
+      const targetSampleRate = Math.min(audioBuffer.sampleRate, 22050);
+      const compressedBuffer = audioContext.createBuffer(
+        1, // mono
+        audioBuffer.duration * targetSampleRate,
+        targetSampleRate
+      );
+      
+      // Mix down to mono and resample
+      const inputData = audioBuffer.getChannelData(0);
+      const outputData = compressedBuffer.getChannelData(0);
+      const ratio = inputData.length / outputData.length;
+      
+      for (let i = 0; i < outputData.length; i++) {
+        outputData[i] = inputData[Math.floor(i * ratio)];
+      }
+      
+      // Convert back to blob
+      const offlineContext = new OfflineAudioContext(1, compressedBuffer.length, targetSampleRate);
+      const source = offlineContext.createBufferSource();
+      source.buffer = compressedBuffer;
+      source.connect(offlineContext.destination);
+      source.start();
+      
+      const renderedBuffer = await offlineContext.startRendering();
+      
+      // Convert to WAV format (smaller than WebM for voice)
+      const wavBlob = await audioBufferToWav(renderedBuffer);
+      
+      return wavBlob.size < audioBlob.size ? wavBlob : audioBlob;
+    } catch (error) {
+      console.warn('Audio compression failed, using original:', error);
+      return audioBlob;
+    }
+  };
+
+  const audioBufferToWav = (buffer: AudioBuffer): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const length = buffer.length;
+      const arrayBuffer = new ArrayBuffer(44 + length * 2);
+      const view = new DataView(arrayBuffer);
+      const channels = [buffer.getChannelData(0)];
+      
+      // WAV header
+      const writeString = (offset: number, string: string) => {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      };
+      
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + length * 2, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, buffer.sampleRate, true);
+      view.setUint32(28, buffer.sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeString(36, 'data');
+      view.setUint32(40, length * 2, true);
+      
+      // Convert float samples to 16-bit PCM
+      let offset = 44;
+      for (let i = 0; i < length; i++) {
+        const sample = Math.max(-1, Math.min(1, channels[0][i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+      
+      resolve(new Blob([arrayBuffer], { type: 'audio/wav' }));
+    });
+  };
+
   const uploadAudioToFirebase = async (audioData: Blob | File, fileName: string): Promise<string> => {
     const storage = getStorage();
-    const audioRef = ref(storage, `voice-memos/${galleryId}/${fileName}`);
     
-    const uploadTask = uploadBytesResumable(audioRef, audioData);
+    // Compress audio before upload
+    let processedAudio = audioData;
+    if (audioData instanceof Blob || audioData.type?.startsWith('audio/')) {
+      setUploadProgress(10);
+      processedAudio = await compressAudio(audioData);
+    }
+    
+    const audioRef = ref(storage, `voice-memos/${galleryId}/${fileName}`);
+    const uploadTask = uploadBytesResumable(audioRef, processedAudio);
     
     return new Promise((resolve, reject) => {
       uploadTask.on(
         'state_changed',
         (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          // Start progress from 15% (after compression)
+          const progress = 15 + ((snapshot.bytesTransferred / snapshot.totalBytes) * 65);
           setUploadProgress(progress);
         },
         (error) => {
@@ -103,6 +200,7 @@ export default function VoiceMemoUpload({
         },
         async () => {
           try {
+            setUploadProgress(80);
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
             resolve(downloadURL);
           } catch (error) {
@@ -134,6 +232,7 @@ export default function VoiceMemoUpload({
     }
 
     setIsUploading(true);
+    setUploadStatus('uploading-audio');
 
     try {
       // Generate filename
@@ -142,8 +241,12 @@ export default function VoiceMemoUpload({
         ? `recording_${timestamp}.webm`
         : `${selectedFile!.name.replace(/[^a-zA-Z0-9.-]/g, '_')}_${timestamp}`;
 
-      // Upload audio to Firebase Storage
+      // Upload audio to Firebase Storage with progress
       const audioUrl = await uploadAudioToFirebase(audioData, fileName);
+
+      // Update status to saving data
+      setUploadStatus('saving-data');
+      setUploadProgress(85);
 
       // Calculate file size and duration
       const fileSize = audioData.size;
@@ -173,6 +276,12 @@ export default function VoiceMemoUpload({
       if (!response.ok) {
         throw new Error('Errore nel caricamento del voice memo');
       }
+
+      setUploadStatus('complete');
+      setUploadProgress(100);
+
+      // Brief delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       toast({
         title: "Voice memo caricato!",
@@ -204,6 +313,7 @@ export default function VoiceMemoUpload({
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
+      setUploadStatus('idle');
     }
   };
 
@@ -397,6 +507,36 @@ export default function VoiceMemoUpload({
             </Card>
           )}
 
+          {/* Progress bar when uploading */}
+          {isUploading && (
+            <div className="space-y-3 mb-4">
+              <div className="bg-gray-100 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    {uploadStatus === 'uploading-audio' && 'Caricamento audio...'}
+                    {uploadStatus === 'saving-data' && 'Salvataggio dati...'}
+                    {uploadStatus === 'complete' && 'Completato!'}
+                  </span>
+                  <span className="text-sm text-gray-600">{Math.round(uploadProgress)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 h-2 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-xs text-gray-500">
+                    {uploadStatus === 'uploading-audio' && 'Upload del file audio in corso...'}
+                    {uploadStatus === 'saving-data' && 'Creazione del ricordo...'}
+                    {uploadStatus === 'complete' && 'Ricordo salvato con successo!'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex gap-3">
             <Button
@@ -407,7 +547,9 @@ export default function VoiceMemoUpload({
               {isUploading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Caricamento...
+                  {uploadStatus === 'uploading-audio' && 'Caricamento...'}
+                  {uploadStatus === 'saving-data' && 'Salvataggio...'}
+                  {uploadStatus === 'complete' && 'Completato!'}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
