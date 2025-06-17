@@ -246,15 +246,16 @@ Questa email è stata inviata automaticamente dal sistema di gallerie foto.
         return res.status(400).send('Email richiesta');
       }
 
-      // Verifica se l'email esiste in Firebase Auth
-      const { getAuth } = await import('firebase-admin/auth');
-      const auth = getAuth();
+      // In ambiente di sviluppo, simula l'invio dell'email
+      // In produzione, userà Firebase Admin SDK con le credenziali corrette
+      const isDevelopment = process.env.NODE_ENV === 'development';
       
-      try {
-        const userRecord = await auth.getUserByEmail(email);
+      if (isDevelopment) {
+        // Simula il processo di reset password per sviluppo
+        console.log(`🔄 Simulazione reset password per: ${email}`);
         
-        // Genera un link di reset password personalizzato
-        const resetLink = await auth.generatePasswordResetLink(email);
+        // Genera un link di reset simulato
+        const resetLink = `https://your-app.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=FAKE_CODE&apiKey=FAKE_KEY`;
         
         // Invia email di reset usando il nostro sistema email
         const { sendEmail } = await import('./emailService');
@@ -262,8 +263,8 @@ Questa email è stata inviata automaticamente dal sistema di gallerie foto.
         const emailSent = await sendEmail({
           to: email,
           subject: 'Recupera la tua password - Galleria Foto',
-          html: generatePasswordResetHTML(resetLink, userRecord.displayName || 'Utente'),
-          text: generatePasswordResetText(resetLink, userRecord.displayName || 'Utente')
+          html: generatePasswordResetHTML(resetLink, 'Utente'),
+          text: generatePasswordResetText(resetLink, 'Utente')
         });
 
         if (emailSent) {
@@ -271,12 +272,35 @@ Questa email è stata inviata automaticamente dal sistema di gallerie foto.
         } else {
           res.status(500).send('Errore nell\'invio dell\'email di reset');
         }
-      } catch (userError: any) {
-        if (userError.code === 'auth/user-not-found') {
-          // Per sicurezza, non rivelare se l'email esiste o meno
-          res.status(200).send('Se l\'email esiste, riceverai le istruzioni per il reset');
-        } else {
-          throw userError;
+      } else {
+        // In produzione, usa Firebase Admin SDK
+        try {
+          const { getAuth } = await import('./firebase-admin');
+          const auth = getAuth();
+          
+          const userRecord = await auth.getUserByEmail(email);
+          const resetLink = await auth.generatePasswordResetLink(email);
+          
+          const { sendEmail } = await import('./emailService');
+          
+          const emailSent = await sendEmail({
+            to: email,
+            subject: 'Recupera la tua password - Galleria Foto',
+            html: generatePasswordResetHTML(resetLink, userRecord.displayName || 'Utente'),
+            text: generatePasswordResetText(resetLink, userRecord.displayName || 'Utente')
+          });
+
+          if (emailSent) {
+            res.status(200).send('Email di reset inviata con successo');
+          } else {
+            res.status(500).send('Errore nell\'invio dell\'email di reset');
+          }
+        } catch (userError: any) {
+          if (userError.code === 'auth/user-not-found') {
+            res.status(200).send('Se l\'email esiste, riceverai le istruzioni per il reset');
+          } else {
+            throw userError;
+          }
         }
       }
     } catch (error) {
