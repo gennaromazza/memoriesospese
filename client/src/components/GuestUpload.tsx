@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, User, LogIn, UserPlus } from 'lucide-react';
+import { Upload, User, LogIn, UserPlus, Camera, Heart, Sparkles, Share2, ImageIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
@@ -271,26 +271,61 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm"
-          className="bg-white hover:bg-gray-50 border-gray-300"
-          onClick={handleDialogOpen}
-        >
-          <Upload className="h-4 w-4 mr-2" />
-          Carica foto
-        </Button>
+        <div className="relative group">
+          <Button 
+            variant="outline" 
+            size="lg"
+            className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-6 py-3"
+            onClick={handleDialogOpen}
+          >
+            <Camera className="h-5 w-5 mr-2" />
+            <span className="font-medium">Condividi i tuoi ricordi</span>
+            <Sparkles className="h-4 w-4 ml-2 animate-pulse" />
+          </Button>
+          
+          {/* Tooltip con guida */}
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50">
+            <div className="flex items-center gap-2 mb-1">
+              <Heart className="h-4 w-4 text-rose-400" />
+              <span className="font-medium">Aggiungi le tue foto alla galleria!</span>
+            </div>
+            <div className="text-xs text-gray-300">
+              • Registrati o accedi in pochi secondi<br/>
+              • Carica più foto contemporaneamente<br/>
+              • Le foto saranno visibili a tutti gli ospiti
+            </div>
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+          </div>
+        </div>
       </DialogTrigger>
       
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-rose-600" />
-            Carica le tue foto
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader className="text-center pb-6">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full flex items-center justify-center mb-4">
+            <Camera className="h-8 w-8 text-white" />
+          </div>
+          <DialogTitle className="text-2xl font-bold text-gray-900">
+            Condividi i tuoi ricordi
           </DialogTitle>
-          <DialogDescription>
-            Condividi i tuoi ricordi di "{galleryName}"
+          <DialogDescription className="text-gray-600 mt-2">
+            Aggiungi le tue foto della "{galleryName}" e condividile con tutti gli ospiti
           </DialogDescription>
+          
+          {/* Info badges */}
+          <div className="flex flex-wrap justify-center gap-2 mt-4">
+            <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs">
+              <Share2 className="h-3 w-3" />
+              Visibili a tutti
+            </div>
+            <div className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs">
+              <ImageIcon className="h-3 w-3" />
+              Più foto insieme
+            </div>
+            <div className="flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-xs">
+              <Sparkles className="h-3 w-3" />
+              Gratis e veloce
+            </div>
+          </div>
         </DialogHeader>
 
         {!isAuthenticated ? (
@@ -307,127 +342,254 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
             </TabsList>
             
             <TabsContent value="register" className="space-y-4 mt-4">
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <UserPlus className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">Nuovo utente? Registrati in 30 secondi!</span>
+                </div>
+                <p className="text-xs text-blue-700">
+                  Crea il tuo account per iniziare a condividere foto immediatamente
+                </p>
+              </div>
+              
               <div className="space-y-2">
-                <Label htmlFor="name">Nome completo</Label>
+                <Label htmlFor="name" className="text-gray-700 font-medium">Nome completo</Label>
                 <Input
                   id="name"
                   placeholder="Es. Mario Rossi"
                   value={guestName}
                   onChange={(e) => setGuestName(e.target.value)}
+                  className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-gray-700 font-medium">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="mario@esempio.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-gray-700 font-medium">Password</Label>
                 <Input
                   id="password"
                   type="password"
                   placeholder="Minimo 6 caratteri"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  className="border-gray-300 focus:border-rose-500 focus:ring-rose-500"
                 />
               </div>
               <Button 
                 onClick={() => handleAuth(false)}
                 disabled={isAuthenticating}
-                className="w-full bg-rose-600 hover:bg-rose-700"
+                className="w-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-medium py-3 shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                {isAuthenticating ? "Registrazione..." : "Registrati"}
+                {isAuthenticating ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Registrazione...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Crea account e inizia
+                  </div>
+                )}
               </Button>
             </TabsContent>
             
             <TabsContent value="login" className="space-y-4 mt-4">
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <LogIn className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-900">Hai già un account? Accedi subito!</span>
+                </div>
+                <p className="text-xs text-green-700">
+                  Inserisci le tue credenziali per continuare a condividere foto
+                </p>
+              </div>
+              
               <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
+                <Label htmlFor="login-email" className="text-gray-700 font-medium">Email</Label>
                 <Input
                   id="login-email"
                   type="email"
                   placeholder="mario@esempio.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="login-password">Password</Label>
+                <Label htmlFor="login-password" className="text-gray-700 font-medium">Password</Label>
                 <Input
                   id="login-password"
                   type="password"
                   placeholder="La tua password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <Button 
                 onClick={() => handleAuth(true)}
                 disabled={isAuthenticating}
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                {isAuthenticating ? "Accesso..." : "Accedi"}
+                {isAuthenticating ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Accesso...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <LogIn className="h-4 w-4" />
+                    Accedi e carica foto
+                  </div>
+                )}
               </Button>
             </TabsContent>
           </Tabs>
         ) : (
-          <div className="space-y-4">
-            <div className="text-center py-2">
-              <p className="text-sm text-gray-600">
-                Ciao <span className="font-medium">{guestName}</span>! 
-                Seleziona le foto da caricare.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="photo-upload">Seleziona foto</Label>
-              <Input
-                id="photo-upload"
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileSelect}
-                disabled={isUploading}
-              />
-              {selectedFiles.length > 0 && (
-                <p className="text-sm text-gray-500">
-                  {selectedFiles.length} foto selezionate
-                </p>
-              )}
-            </div>
-
-            {isUploading && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Caricamento in corso...</span>
-                  <span>{uploadProgress}%</span>
+          <div className="space-y-6">
+            {/* Benvenuto personalizzato */}
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                  <User className="h-5 w-5 text-white" />
                 </div>
-                <Progress value={uploadProgress} className="w-full" />
+                <div>
+                  <p className="font-medium text-green-900">
+                    Ciao <span className="text-green-700">{guestName}</span>! 👋
+                  </p>
+                  <p className="text-sm text-green-700">
+                    Sei pronto per condividere i tuoi ricordi speciali
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sezione caricamento file */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ImageIcon className="h-5 w-5 text-gray-600" />
+                <Label htmlFor="photo-upload" className="text-lg font-medium text-gray-900">
+                  Seleziona le tue foto
+                </Label>
+              </div>
+              
+              {/* Area drag & drop stilizzata */}
+              <div className="relative">
+                <Input
+                  id="photo-upload"
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  disabled={isUploading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-300 ${
+                  selectedFiles.length > 0 
+                    ? 'border-green-400 bg-green-50' 
+                    : 'border-gray-300 bg-gray-50 hover:border-rose-400 hover:bg-rose-50'
+                }`}>
+                  {selectedFiles.length === 0 ? (
+                    <div className="space-y-3">
+                      <Camera className="mx-auto h-12 w-12 text-gray-400" />
+                      <div>
+                        <p className="text-lg font-medium text-gray-900">
+                          Clicca per selezionare le foto
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Puoi selezionare più foto contemporaneamente
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-white" />
+                        </div>
+                        <span className="text-lg font-medium text-green-900">
+                          {selectedFiles.length} foto selezionate
+                        </span>
+                      </div>
+                      <p className="text-sm text-green-700">
+                        Perfetto! Clicca "Carica foto" per condividerle
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Progress bar con animazioni */}
+            {isUploading && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-medium text-blue-900">Caricamento in corso...</span>
+                  <span className="ml-auto text-blue-700 font-bold">{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="w-full h-2" />
+                <p className="text-sm text-blue-700 mt-2">
+                  Le tue foto stanno per essere condivise con tutti gli ospiti
+                </p>
               </div>
             )}
 
-            <div className="flex gap-2">
+            {/* Pulsanti azione */}
+            <div className="flex gap-3">
               <Button
                 onClick={handleUpload}
                 disabled={selectedFiles.length === 0 || isUploading}
-                className="flex-1 bg-rose-600 hover:bg-rose-700"
+                className="flex-1 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-medium py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Upload className="h-4 w-4 mr-2" />
-                {isUploading ? "Caricamento..." : "Carica foto"}
+                {isUploading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Caricamento...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    Carica {selectedFiles.length > 0 ? `${selectedFiles.length} foto` : 'foto'}
+                  </div>
+                )}
               </Button>
               <Button
                 variant="outline"
                 onClick={handleDialogClose}
                 disabled={isUploading}
+                className="px-6 border-gray-300 hover:bg-gray-50"
               >
-                Annulla
+                {isUploading ? 'Attendere...' : 'Annulla'}
               </Button>
             </div>
+
+            {/* Suggerimenti utili */}
+            {!isUploading && selectedFiles.length === 0 && (
+              <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="h-4 w-4 text-yellow-600 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-yellow-900 mb-1">Suggerimenti:</p>
+                    <ul className="text-yellow-800 space-y-1 text-xs">
+                      <li>• Seleziona più foto insieme per risparmiare tempo</li>
+                      <li>• Le foto saranno automaticamente ottimizzate</li>
+                      <li>• Tutti gli ospiti potranno vederle e scaricarle</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
