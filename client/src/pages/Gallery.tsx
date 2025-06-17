@@ -47,6 +47,9 @@ export default function Gallery() {
   // Stato per il tab attivo (foto del fotografo, ospiti o vocali segreti)
   const [activeTab, setActiveTab] = useState<'photographer' | 'guests' | 'voice-memos'>('photographer');
   
+  // Stato per triggare il refresh dei voice memos
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -362,8 +365,22 @@ export default function Gallery() {
                 </div>
               )}
 
+              {/* Azioni per tab vocali segreti */}
+              {activeTab === 'voice-memos' && (
+                <div className="flex justify-center mb-6">
+                  <VoiceMemoUpload 
+                    galleryId={gallery.id}
+                    galleryName={gallery.name}
+                    onUploadComplete={() => {
+                      // Trigger refresh of voice memos list
+                      setRefreshTrigger(prev => prev + 1);
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Contenuto del tab selezionato */}
-              {activeTab === 'photographer' ? (
+              {activeTab === 'photographer' && (
                 /* Tab foto del fotografo */
                 (areFiltersActive ? filteredPhotos : photos).length === 0 ? (
                   <div className="text-center py-12">
@@ -413,7 +430,9 @@ export default function Gallery() {
                     )}
                   </div>
                 )
-              ) : (
+              )}
+
+              {activeTab === 'guests' && (
                 /* Tab foto degli ospiti */
                 guestPhotos.length === 0 ? (
                   <div className="text-center py-12">
@@ -462,6 +481,15 @@ export default function Gallery() {
                     ))}
                   </div>
                 )
+              )}
+
+              {activeTab === 'voice-memos' && (
+                /* Tab vocali segreti */
+                <VoiceMemosList 
+                  galleryId={gallery.id}
+                  isAdmin={isAdmin}
+                  refreshTrigger={refreshTrigger}
+                />
               )}
             </div>
           </div>
