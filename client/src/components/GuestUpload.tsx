@@ -608,10 +608,10 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
             </div>
 
             {/* Sezione caricamento file */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-3">
-                <ImageIcon className="h-5 w-5 text-gray-600" />
-                <Label htmlFor="photo-upload" className="text-lg font-medium text-gray-900">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5 text-blue-gray-600" />
+                <Label htmlFor="photo-upload" className="text-base sm:text-lg font-medium text-blue-gray-900">
                   Seleziona le tue foto
                 </Label>
               </div>
@@ -627,34 +627,34 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                   disabled={isUploading}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
-                <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-300 ${
+                <div className={`border-2 border-dashed rounded-lg p-4 sm:p-6 lg:p-8 text-center transition-all duration-300 ${
                   selectedFiles.length > 0 
-                    ? 'border-green-400 bg-green-50' 
-                    : 'border-gray-300 bg-gray-50 hover:border-rose-400 hover:bg-rose-50'
+                    ? 'border-sage-400 bg-sage-50' 
+                    : 'border-gray-300 bg-gray-50 hover:border-sage-400 hover:bg-sage-50'
                 }`}>
                   {selectedFiles.length === 0 ? (
-                    <div className="space-y-3">
-                      <Camera className="mx-auto h-12 w-12 text-gray-400" />
+                    <div className="space-y-2 sm:space-y-3">
+                      <Camera className="mx-auto h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-gray-400" />
                       <div>
-                        <p className="text-lg font-medium text-gray-900">
+                        <p className="text-sm sm:text-base lg:text-lg font-medium text-gray-900">
                           Clicca per selezionare le foto
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-xs sm:text-sm text-gray-500">
                           Puoi selezionare più foto contemporaneamente
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-3">
                       <div className="flex items-center justify-center gap-2">
-                        <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                          <ImageIcon className="h-4 w-4 text-white" />
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-sage-500 rounded-full flex items-center justify-center">
+                          <ImageIcon className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
                         </div>
-                        <span className="text-lg font-medium text-green-900">
+                        <span className="text-sm sm:text-base lg:text-lg font-medium text-sage-900">
                           {selectedFiles.length} foto selezionate
                         </span>
                       </div>
-                      <p className="text-sm text-green-700">
+                      <p className="text-xs sm:text-sm text-sage-700">
                         Perfetto! Clicca "Carica foto" per condividerle
                       </p>
                     </div>
@@ -665,35 +665,39 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
 
             {/* Progress bar con animazioni */}
             {isUploading && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="font-medium text-blue-900">Caricamento in corso...</span>
-                  <span className="ml-auto text-blue-700 font-bold">{uploadProgress}%</span>
+              <div className="bg-sage-50 p-3 sm:p-4 rounded-lg border border-sage-200">
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-medium text-sage-900 text-sm sm:text-base">Caricamento in corso...</span>
+                  <span className="ml-auto text-sage-700 font-bold text-sm sm:text-base">{uploadProgress}%</span>
                 </div>
-                <Progress value={uploadProgress} className="w-full h-2" />
-                <p className="text-sm text-blue-700 mt-2">
+                <Progress value={uploadProgress} className="w-full h-1.5 sm:h-2" />
+                <p className="text-xs sm:text-sm text-sage-700 mt-2">
                   Le tue foto stanno per essere condivise con tutti gli ospiti
                 </p>
               </div>
             )}
 
             {/* Pulsanti azione */}
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               <Button
                 onClick={handleUpload}
                 disabled={selectedFiles.length === 0 || isUploading}
-                className="flex-1 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-medium py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {isUploading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Caricamento...
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="hidden xs:inline">Caricamento...</span>
+                    <span className="xs:hidden">Upload...</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <Upload className="h-4 w-4" />
-                    Carica {selectedFiles.length > 0 ? `${selectedFiles.length} foto` : 'foto'}
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline">
+                      Carica {selectedFiles.length > 0 ? `${selectedFiles.length} foto` : 'foto'}
+                    </span>
+                    <span className="xs:hidden">Carica</span>
                   </div>
                 )}
               </Button>
@@ -701,20 +705,27 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                 variant="outline"
                 onClick={handleDialogClose}
                 disabled={isUploading}
-                className="px-6 border-gray-300 hover:bg-gray-50"
+                className="px-3 sm:px-6 border-gray-300 hover:bg-gray-50 text-sm sm:text-base py-2.5 sm:py-3"
               >
-                {isUploading ? 'Attendere...' : 'Annulla'}
+                {isUploading ? (
+                  <span className="xs:hidden">Wait...</span>
+                ) : (
+                  <span className="xs:hidden">Close</span>
+                )}
+                <span className="hidden xs:inline">
+                  {isUploading ? 'Attendere...' : 'Annulla'}
+                </span>
               </Button>
             </div>
 
             {/* Suggerimenti utili */}
             {!isUploading && selectedFiles.length === 0 && (
-              <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+              <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
                 <div className="flex items-start gap-2">
-                  <Sparkles className="h-4 w-4 text-yellow-600 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-medium text-yellow-900 mb-1">Suggerimenti:</p>
-                    <ul className="text-yellow-800 space-y-1 text-xs">
+                  <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 text-amber-600 mt-0.5" />
+                  <div className="text-xs sm:text-sm">
+                    <p className="font-medium text-amber-900 mb-1">Suggerimenti:</p>
+                    <ul className="text-amber-800 space-y-1 text-xs">
                       <li>• Seleziona più foto insieme per risparmiare tempo</li>
                       <li>• Le foto saranno automaticamente ottimizzate</li>
                       <li>• Tutti gli ospiti potranno vederle e scaricarle</li>
