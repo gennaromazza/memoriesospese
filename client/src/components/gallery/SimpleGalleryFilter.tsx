@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Search, X, CalendarIcon, SortAsc, SortDesc } from 'lucide-react';
+import { X, CalendarIcon, SortAsc, SortDesc } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface SimpleFilterProps {
@@ -16,7 +16,6 @@ interface SimpleFilterProps {
 }
 
 export interface SimpleFilterCriteria {
-  searchTerm: string;
   date: Date | undefined;
   sortOrder: 'newest' | 'oldest' | 'name';
 }
@@ -41,16 +40,11 @@ const SimpleGalleryFilter: React.FC<SimpleFilterProps> = ({
     });
   }, [searchTerm, selectedDate, sortOrder, onFilterChange]);
 
-  const clearSearch = () => {
-    setSearchTerm('');
-  };
-
   const clearDate = () => {
     setSelectedDate(undefined);
   };
 
   const handleReset = () => {
-    setSearchTerm('');
     setSelectedDate(undefined);
     setSortOrder('newest');
     resetFilters();
@@ -63,7 +57,7 @@ const SimpleGalleryFilter: React.FC<SimpleFilterProps> = ({
   const getSortIcon = () => {
     if (sortOrder === 'newest') return <SortDesc className="w-4 h-4" />;
     if (sortOrder === 'oldest') return <SortAsc className="w-4 h-4" />;
-    return <Search className="w-4 h-4" />;
+    return <SortAsc className="w-4 h-4" />;
   };
 
   const getSortText = () => {
@@ -74,27 +68,6 @@ const SimpleGalleryFilter: React.FC<SimpleFilterProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Barra di ricerca */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-        <Input
-          placeholder="Cerca foto per nome..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 pr-10"
-        />
-        {searchTerm && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearSearch}
-            className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        )}
-      </div>
-
       {/* Filtri rapidi */}
       <div className="flex flex-wrap gap-2">
         {/* Filtro data */}
@@ -160,7 +133,7 @@ const SimpleGalleryFilter: React.FC<SimpleFilterProps> = ({
             </SelectItem>
             <SelectItem value="name">
               <div className="flex items-center gap-2">
-                <Search className="w-4 h-4" />
+                <SortAsc className="w-4 h-4" />
                 Ordine alfabetico
               </div>
             </SelectItem>

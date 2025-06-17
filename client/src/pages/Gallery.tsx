@@ -11,7 +11,7 @@ import LoadMoreButton from "@/components/gallery/LoadMoreButton";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
-import SimpleGalleryFilter, { SimpleFilterCriteria } from "@/components/gallery/SimpleGalleryFilter";
+// Rimosso sistema di filtri per semplificare l'applicazione
 import SubscriptionManager from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
 
@@ -30,15 +30,7 @@ export default function Gallery() {
     progress: 0
   });
   
-  // Stato per i filtri
-  const [filters, setFilters] = useState<SimpleFilterCriteria>({
-    searchTerm: '',
-    date: undefined,
-    sortOrder: 'newest'
-  });
-  
-  // Stato per tracciare se i filtri sono attivi
-  const [areFiltersActive, setAreFiltersActive] = useState(false);
+  // Rimosso sistema di filtri per semplificare l'applicazione
   
   // Stato per il tab attivo (foto del fotografo o ospiti)
   const [activeTab, setActiveTab] = useState<'photographer' | 'guests'>('photographer');
@@ -128,43 +120,13 @@ export default function Gallery() {
     setLightboxOpen(false);
   };
   
-  // Funzione per applicare i filtri
-  const handleFilterChange = (newFilters: SimpleFilterCriteria) => {
-    setFilters(newFilters);
-    
-    // Verifica se c'è almeno un filtro attivo
-    const hasActiveFilter = 
-      newFilters.searchTerm !== '' || 
-      newFilters.date !== undefined || 
-      newFilters.sortOrder !== 'newest';
-    
-    setAreFiltersActive(hasActiveFilter);
-  };
-  
-  // Funzione per resettare i filtri
-  const resetFilters = () => {
-    setFilters({
-      searchTerm: '',
-      date: undefined,
-      sortOrder: 'newest'
-    });
-    setAreFiltersActive(false);
-  };
+  // Rimosso sistema di filtri
   
   // Filtra le foto in base ai criteri impostati
   const filteredPhotos = useMemo(() => {
     if (!areFiltersActive) return photos;
     
     let result = photos.filter(photo => {
-      // Filtra per nome (ricerca testuale)
-      if (filters.searchTerm) {
-        const searchLower = filters.searchTerm.toLowerCase();
-        const photoName = (photo.name || '').toLowerCase();
-        if (!photoName.includes(searchLower)) {
-          return false;
-        }
-      }
-      
       // Filtra per data specifica
       if (filters.date) {
         const photoDate = photo.createdAt ? new Date(photo.createdAt) : null;
