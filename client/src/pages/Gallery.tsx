@@ -42,6 +42,9 @@ export default function Gallery() {
   // Stato per tracciare se i filtri sono attivi
   const [areFiltersActive, setAreFiltersActive] = useState(false);
   
+  // Stato per il tab attivo (foto del fotografo o ospiti)
+  const [activeTab, setActiveTab] = useState<'photographer' | 'guests'>('photographer');
+  
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -273,136 +276,175 @@ export default function Gallery() {
         <main>
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div className="px-4 py-4">
-              {/* Barra con filtri e azioni */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="flex-1">
-                  <GalleryFilter 
-                    onFilterChange={handleFilterChange}
-                    totalPhotos={photos.length}
-                    activeFilters={areFiltersActive}
-                    resetFilters={resetFilters}
-                  />
+              {/* Tab per switchare tra foto del fotografo e ospiti */}
+              <div className="flex items-center justify-center mb-8">
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setActiveTab('photographer')}
+                    className={`px-6 py-2 rounded-md font-medium transition-all ${
+                      activeTab === 'photographer'
+                        ? 'bg-white shadow-sm text-blue-gray'
+                        : 'text-gray-600 hover:text-blue-gray'
+                    }`}
+                  >
+                    Foto del fotografo ({photos.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('guests')}
+                    className={`px-6 py-2 rounded-md font-medium transition-all ${
+                      activeTab === 'guests'
+                        ? 'bg-white shadow-sm text-blue-gray'
+                        : 'text-gray-600 hover:text-blue-gray'
+                    }`}
+                  >
+                    Foto degli ospiti ({guestPhotos.length})
+                  </button>
                 </div>
-                
-                {/* Azioni galleria */}
-                <div className="flex gap-2">
-                  <SubscriptionManager 
-                    galleryId={gallery.id}
-                    galleryName={gallery.name}
-                  />
+              </div>
+
+              {/* Barra con filtri e azioni - solo per tab fotografo */}
+              {activeTab === 'photographer' && (
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <div className="flex-1">
+                    <GalleryFilter 
+                      onFilterChange={handleFilterChange}
+                      totalPhotos={photos.length}
+                      activeFilters={areFiltersActive}
+                      resetFilters={resetFilters}
+                    />
+                  </div>
+                  
+                  {/* Azioni galleria */}
+                  <div className="flex gap-2">
+                    <SubscriptionManager 
+                      galleryId={gallery.id}
+                      galleryName={gallery.name}
+                    />
+                    <GuestUpload 
+                      galleryId={gallery.id}
+                      galleryName={gallery.name}
+                      onPhotosUploaded={() => {
+                        // Ricarica i dati della galleria quando vengono caricate nuove foto
+                        window.location.reload();
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Solo pulsante carica foto per tab ospiti */}
+              {activeTab === 'guests' && (
+                <div className="flex justify-center mb-6">
                   <GuestUpload 
                     galleryId={gallery.id}
                     galleryName={gallery.name}
                     onPhotosUploaded={() => {
-                      // Ricarica i dati della galleria quando vengono caricate nuove foto
                       window.location.reload();
                     }}
                   />
                 </div>
-              </div>
+              )}
 
-              {/* Sezione foto principali */}
-              {(areFiltersActive ? filteredPhotos : photos).length === 0 && guestPhotos.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="flex flex-col items-center">
-                    <h3 className="text-xl font-playfair text-blue-gray mb-2">
-                      {areFiltersActive ? 'Nessuna foto corrisponde ai filtri selezionati' : 'Nessuna foto disponibile'}
-                    </h3>
-                    <p className="text-gray-500">
-                      {areFiltersActive ? 'Prova a modificare i criteri di filtro per visualizzare più foto.' : 'Non ci sono ancora foto in questa galleria.'}
-                    </p>
+              {/* Contenuto del tab selezionato */}
+              {activeTab === 'photographer' ? (
+                /* Tab foto del fotografo */
+                (areFiltersActive ? filteredPhotos : photos).length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="flex flex-col items-center">
+                      <h3 className="text-xl font-playfair text-blue-gray mb-2">
+                        {areFiltersActive ? 'Nessuna foto corrisponde ai filtri selezionati' : 'Nessuna foto del fotografo'}
+                      </h3>
+                      <p className="text-gray-500">
+                        {areFiltersActive ? 'Prova a modificare i criteri di filtro per visualizzare più foto.' : 'Non ci sono ancora foto del fotografo in questa galleria.'}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+                      {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
+                        <div
+                          key={photo.id}
+                          className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer"
+                          onClick={() => openLightbox(index)}
+                        >
+                          <img
+                            src={photo.url}
+                            alt={photo.name || `Foto ${index + 1}`}
+                            className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                            loading="lazy"
+                            onLoad={(e) => {
+                              (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                            }}
+                            style={{ 
+                              backgroundColor: '#f3f4f6',
+                              objectFit: 'cover',
+                            }}
+                            title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Pulsante "Carica altre foto" */}
+                    {!areFiltersActive && (
+                      <LoadMoreButton 
+                        onClick={loadMorePhotos}
+                        isLoading={loadingMorePhotos}
+                        hasMore={hasMorePhotos}
+                      />
+                    )}
+                  </div>
+                )
               ) : (
-                <>
-                  {/* Foto principali della galleria */}
-                  {(areFiltersActive ? filteredPhotos : photos).length > 0 && (
-                    <div className="mb-12">
-                      <h2 className="text-2xl font-playfair text-blue-gray mb-6">
-                        Foto della galleria ({photos.length})
-                      </h2>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
-                        {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
-                          <div
-                            key={photo.id}
-                            className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer"
-                            onClick={() => openLightbox(index)}
-                          >
-                            <img
-                              src={photo.url}
-                              alt={photo.name || `Foto ${index + 1}`}
-                              className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
-                              loading="lazy"
-                              onLoad={(e) => {
-                                (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
-                              }}
-                              style={{ 
-                                backgroundColor: '#f3f4f6',
-                                objectFit: 'cover',
-                              }}
-                              title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
-                            />
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Pulsante "Carica altre foto" */}
-                      {!areFiltersActive && (
-                        <LoadMoreButton 
-                          onClick={loadMorePhotos}
-                          isLoading={loadingMorePhotos}
-                          hasMore={hasMorePhotos}
+                /* Tab foto degli ospiti */
+                guestPhotos.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="flex flex-col items-center">
+                      <h3 className="text-xl font-playfair text-blue-gray mb-2">
+                        Nessuna foto degli ospiti
+                      </h3>
+                      <p className="text-gray-500">
+                        Gli ospiti non hanno ancora caricato foto. Usa il pulsante "Carica foto" sopra per aggiungerne.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+                    {guestPhotos.map((photo, index) => (
+                      <div
+                        key={photo.id}
+                        className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative"
+                        onClick={() => openLightbox(photos.length + index)}
+                      >
+                        <img
+                          src={photo.url}
+                          alt={photo.name || `Foto ospite ${index + 1}`}
+                          className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                          loading="lazy"
+                          onLoad={(e) => {
+                            (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                          }}
+                          style={{ 
+                            backgroundColor: '#f3f4f6',
+                            objectFit: 'cover',
+                          }}
+                          title={`Caricata da: ${photo.uploaderName || 'Ospite'} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}`}
                         />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Sezione foto caricate dagli ospiti */}
-                  {guestPhotos.length > 0 && (
-                    <div className="mb-12">
-                      <div className="flex items-center gap-3 mb-6">
-                        <h2 className="text-2xl font-playfair text-blue-gray">
-                          Foto caricate dagli ospiti ({guestPhotos.length})
-                        </h2>
-                        <div className="flex-1 h-px bg-sage-200"></div>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
-                        {guestPhotos.map((photo, index) => (
-                          <div
-                            key={photo.id}
-                            className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative"
-                            onClick={() => openLightbox(photos.length + index)}
-                          >
-                            <img
-                              src={photo.url}
-                              alt={photo.name || `Foto ospite ${index + 1}`}
-                              className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
-                              loading="lazy"
-                              onLoad={(e) => {
-                                (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
-                              }}
-                              style={{ 
-                                backgroundColor: '#f3f4f6',
-                                objectFit: 'cover',
-                              }}
-                              title={`Caricata da: ${photo.uploaderName || 'Ospite'} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}`}
-                            />
-                            {/* Badge per indicare che è una foto ospite */}
-                            <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
-                              Ospite
-                            </div>
-                            {/* Nome dell'uploader in basso */}
-                            {photo.uploaderName && (
-                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                                {photo.uploaderName}
-                              </div>
-                            )}
+                        {/* Badge per indicare che è una foto ospite */}
+                        <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
+                          Ospite
+                        </div>
+                        {/* Nome dell'uploader in basso */}
+                        {photo.uploaderName && (
+                          <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                            {photo.uploaderName}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
-                  )}
-                </>
+                    ))}
+                  </div>
+                )
               )}
             </div>
           </div>
