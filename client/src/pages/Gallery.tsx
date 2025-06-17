@@ -11,7 +11,7 @@ import LoadMoreButton from "@/components/gallery/LoadMoreButton";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
-import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
+import SimpleGalleryFilter, { SimpleFilterCriteria } from "@/components/gallery/SimpleGalleryFilter";
 import SubscriptionManager from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
 
@@ -31,11 +31,9 @@ export default function Gallery() {
   });
   
   // Stato per i filtri
-  const [filters, setFilters] = useState<FilterCriteria>({
-    startDate: undefined,
-    endDate: undefined,
-    startTime: undefined,
-    endTime: undefined,
+  const [filters, setFilters] = useState<SimpleFilterCriteria>({
+    searchTerm: '',
+    date: undefined,
     sortOrder: 'newest'
   });
   
@@ -131,15 +129,13 @@ export default function Gallery() {
   };
   
   // Funzione per applicare i filtri
-  const handleFilterChange = (newFilters: FilterCriteria) => {
+  const handleFilterChange = (newFilters: SimpleFilterCriteria) => {
     setFilters(newFilters);
     
     // Verifica se c'è almeno un filtro attivo
     const hasActiveFilter = 
-      newFilters.startDate !== undefined || 
-      newFilters.endDate !== undefined || 
-      newFilters.startTime !== undefined || 
-      newFilters.endTime !== undefined || 
+      newFilters.searchTerm !== '' || 
+      newFilters.date !== undefined || 
       newFilters.sortOrder !== 'newest';
     
     setAreFiltersActive(hasActiveFilter);
@@ -148,10 +144,8 @@ export default function Gallery() {
   // Funzione per resettare i filtri
   const resetFilters = () => {
     setFilters({
-      startDate: undefined,
-      endDate: undefined,
-      startTime: undefined,
-      endTime: undefined,
+      searchTerm: '',
+      date: undefined,
       sortOrder: 'newest'
     });
     setAreFiltersActive(false);
