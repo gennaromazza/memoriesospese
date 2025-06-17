@@ -11,7 +11,7 @@ import LoadMoreButton from "@/components/gallery/LoadMoreButton";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
-// Rimosso sistema di filtri per semplificare l'applicazione
+import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
 import SubscriptionManager from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
 
@@ -30,7 +30,17 @@ export default function Gallery() {
     progress: 0
   });
   
-  // Rimosso sistema di filtri per semplificare l'applicazione
+  // Stato per i filtri
+  const [filters, setFilters] = useState<FilterCriteria>({
+    startDate: undefined,
+    endDate: undefined,
+    startTime: undefined,
+    endTime: undefined,
+    sortOrder: 'newest'
+  });
+  
+  // Stato per tracciare se i filtri sono attivi
+  const [areFiltersActive, setAreFiltersActive] = useState(false);
   
   // Stato per il tab attivo (foto del fotografo o ospiti)
   const [activeTab, setActiveTab] = useState<'photographer' | 'guests'>('photographer');
@@ -120,49 +130,69 @@ export default function Gallery() {
     setLightboxOpen(false);
   };
   
-  // Rimosso sistema di filtri
+  // Funzione per applicare i filtri
+  const handleFilterChange = (newFilters: FilterCriteria) => {
+    setFilters(newFilters);
+    
+    // Verifica se c'è almeno un filtro attivo
+    const hasActiveFilter = 
+      newFilters.startDate !== undefined || 
+      newFilters.endDate !== undefined || 
+      newFilters.startTime !== undefined || 
+      newFilters.endTime !== undefined || 
+      newFilters.sortOrder !== 'newest';
+    
+    setAreFiltersActive(hasActiveFilter);
+  };
+  
+  // Funzione per resettare i filtri
+  const resetFilters = () => {
+    setFilters({
+      startDate: undefined,
+      endDate: undefined,
+      startTime: undefined,
+      endTime: undefined,
+      sortOrder: 'newest'
+    });
+    setAreFiltersActive(false);
+  };
   
   // Filtra le foto in base ai criteri impostati
   const filteredPhotos = useMemo(() => {
     if (!areFiltersActive) return photos;
     
-    let result = photos.filter(photo => {
-      // Filtra per data specifica
-      if (filters.date) {
-        const photoDate = photo.createdAt ? new Date(photo.createdAt) : null;
-        if (!photoDate) return false;
+    return photos.filter(photo => {
+      const photoDate = photo.createdAt ? new Date(photo.createdAt) : null;
+      if (!photoDate) return true; // Se non c'è data, include la foto
+      
+      // Filtra per data
+      if (filters.startDate && photoDate < filters.startDate) return false;
+      if (filters.endDate) {
+        // Imposta l'ora finale a 23:59:59
+        const endDateWithTime = new Date(filters.endDate);
+        endDateWithTime.setHours(23, 59, 59);
+        if (photoDate > endDateWithTime) return false;
+      }
+      
+      // Filtra per ora
+      if (filters.startTime || filters.endTime) {
+        const hours = photoDate.getHours();
+        const minutes = photoDate.getMinutes();
+        const photoTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
         
-        const filterDate = new Date(filters.date);
-        
-        // Confronta solo anno, mese e giorno
-        if (
-          photoDate.getFullYear() !== filterDate.getFullYear() ||
-          photoDate.getMonth() !== filterDate.getMonth() ||
-          photoDate.getDate() !== filterDate.getDate()
-        ) {
-          return false;
-        }
+        if (filters.startTime && photoTime < filters.startTime) return false;
+        if (filters.endTime && photoTime > filters.endTime) return false;
       }
       
       return true;
+    }).sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      
+      return filters.sortOrder === 'newest' 
+        ? dateB.getTime() - dateA.getTime() 
+        : dateA.getTime() - dateB.getTime();
     });
-    
-    // Ordinamento
-    result.sort((a, b) => {
-      if (filters.sortOrder === 'name') {
-        const nameA = (a.name || '').toLowerCase();
-        const nameB = (b.name || '').toLowerCase();
-        return nameA.localeCompare(nameB);
-      } else {
-        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-        return filters.sortOrder === 'newest' 
-          ? dateB.getTime() - dateA.getTime() 
-          : dateA.getTime() - dateB.getTime();
-      }
-    });
-    
-    return result;
   }, [photos, filters, areFiltersActive]);
 
   const handleSignOut = () => {
@@ -276,7 +306,7 @@ export default function Gallery() {
               {activeTab === 'photographer' && (
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
                   <div className="flex-1">
-                    <SimpleGalleryFilter 
+                    <GalleryFilter 
                       onFilterChange={handleFilterChange}
                       totalPhotos={photos.length}
                       activeFilters={areFiltersActive}
