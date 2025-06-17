@@ -151,16 +151,16 @@ export function useGalleryData(galleryCode: string) {
       // per sincronizzare i dati per le future visite
       try {
         for (const photo of photoData) {
-          // Verifica se la foto esiste già nel database
+          // Verifica se la foto esiste già nel database della galleria specifica
           const existingPhotosQuery = query(
-            collection(db, "photos"),
+            collection(db, "galleries", galleryId, "photos"),
             where("url", "==", photo.url)
           );
           const existingPhotosSnapshot = await getDocs(existingPhotosQuery);
 
           if (existingPhotosSnapshot.empty) {
             // Aggiungi la foto al database se non esiste già
-            await addDoc(collection(db, "photos"), {
+            await addDoc(collection(db, "galleries", galleryId, "photos"), {
               ...photo,
               createdAt: serverTimestamp()
             });
@@ -202,11 +202,10 @@ export function useGalleryData(galleryCode: string) {
 
       
 
-      // Utilizziamo la collezione photos per trovare tutte le foto della galleria
-      const photosRef = collection(db, "photos");
+      // Utilizziamo la collezione corretta per le foto della galleria specifica
+      const photosRef = collection(db, "galleries", galleryId, "photos");
       const q = query(
         photosRef, 
-        where("galleryId", "==", galleryId),
         orderBy("createdAt", "desc")
       );
 
@@ -268,6 +267,7 @@ export function useGalleryData(galleryCode: string) {
           // Dopo la sincronizzazione, ricarica dal database per ottenere tutte le foto
           const refreshQuery = await getDocs(q);
           photosList = []; // Reset della lista
+          guestPhotosList = []; // Reset anche per le foto ospiti
           const refreshedPhotoNames = new Set<string>();
           
           refreshQuery.forEach((doc) => {
@@ -276,15 +276,28 @@ export function useGalleryData(galleryCode: string) {
             
             if (!refreshedPhotoNames.has(photoName)) {
               refreshedPhotoNames.add(photoName);
-              photosList.push({
+              
+              const photo: PhotoData = {
                 id: doc.id,
                 name: photoData.name || "",
                 url: photoData.url || "",
                 contentType: photoData.contentType || "image/jpeg",
                 size: photoData.size || 0,
                 createdAt: photoData.createdAt,
-                galleryId: photoData.galleryId
-              });
+                galleryId: photoData.galleryId,
+                uploadedBy: photoData.uploadedBy || 'admin',
+                uploaderName: photoData.uploaderName,
+                uploaderRole: photoData.uploaderRole,
+                uploaderEmail: photoData.uploaderEmail,
+                uploaderUid: photoData.uploaderUid
+              };
+              
+              // Separa anche qui le foto degli ospiti
+              if (photoData.uploadedBy === 'guest') {
+                guestPhotosList.push(photo);
+              } else {
+                photosList.push(photo);
+              }
             }
           });
           
@@ -408,12 +421,11 @@ export function useGalleryData(galleryCode: string) {
     setLoadingMorePhotos(true);
 
     try {
-      const photosRef = collection(db, "photos");
+      const photosRef = collection(db, "galleries", gallery.id, "photos");
       
       // Query ottimizzata per il prossimo batch
       const q = query(
         photosRef,
-        where("galleryId", "==", gallery.id),
         orderBy("createdAt", "desc"),
         limit(photosPerPage)
       );
@@ -430,7 +442,12 @@ export function useGalleryData(galleryCode: string) {
           contentType: photoData.contentType || "image/jpeg",
           size: photoData.size || 0,
           createdAt: photoData.createdAt,
-          galleryId: photoData.galleryId
+          galleryId: photoData.galleryId,
+          uploadedBy: photoData.uploadedBy || 'admin',
+          uploaderName: photoData.uploaderName,
+          uploaderRole: photoData.uploaderRole,
+          uploaderEmail: photoData.uploaderEmail,
+          uploaderUid: photoData.uploaderUid
         });
       });
 
