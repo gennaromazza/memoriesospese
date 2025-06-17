@@ -1,6 +1,22 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
+import { insertVoiceMemoSchema } from "../shared/schema";
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  getDoc, 
+  doc, 
+  query, 
+  where, 
+  orderBy, 
+  updateDoc, 
+  deleteDoc,
+  serverTimestamp 
+} from 'firebase/firestore';
+import { getStorage, ref, deleteObject } from 'firebase/storage';
+import { db } from './firebase';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint di test per verificare configurazione email
@@ -155,10 +171,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Since we're using Firebase directly from the frontend,
-  // we don't need any API routes for galleries or password requests
+  // Voice Memos API Routes
   
+  // Caricamento di un nuovo voice memo
+  app.post('/api/galleries/:galleryId/voice-memos', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const voiceMemoData = req.body;
 
+      // Validazione dei dati
+      const validatedData = insertVoiceMemoSchema.parse({
+        ...voiceMemoData,
+        galleryId
+      });
+
+      // Determina se il memo deve essere sbloccato immediatamente
+      const isUnlocked = !validatedData.unlockDate || new Date(validatedData.unlockDate) <= new Date();
+
+      // Crea il documento nel database Firebase
+      const docRef = await addDoc(collection(db, 'voiceMemos'), {
+        ...validatedData,
+        isUnlocked,
+        createdAt: serverTimestamp()
+      });
+
+      // Recupera il documento appena creato
+      const docSnap = await getDoc(docRef);
+      const voiceMemo = { id: docSnap.id, ...docSnap.data() };
+
+      res.status(201).json(voiceMemo);
+    } catch (error) {
+      console.error('Errore nel caricamento voice memo:', error);
+      res.status(500).json({ 
+        error: 'Errore nel caricamento del voice memo' 
+      });
+    }
+  });
+
+  // Recupero di tutti i voice memos di una galleria
+  app.get('/api/galleries/:galleryId/voice-memos', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const { includeAll } = req.query; // Per admin, include anche i locked
+
+      const q = query(
+        collection(db, 'voiceMemos'),
+        where('galleryId', '==', galleryId),
+        orderBy('createdAt', 'desc')
+      );
+
+      const querySnapshot = await getDocs(q);
+      let voiceMemos = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
+
+      // Verifica e aggiorna lo stato di unlock per i memo con data di sblocco
+      const now = new Date();
+      const updates = [];
+
+      for (const memo of voiceMemos) {
+        if (!memo.isUnlocked && memo.unlockDate && new Date(memo.unlockDate) <= now) {
+          const updatePromise = updateDoc(doc(db, 'voiceMemos', memo.id), {
+            isUnlocked: true
+          });
+          updates.push(updatePromise);
+          memo.isUnlocked = true;
+        }
+      }
+
+      // Esegui tutti gli aggiornamenti
+      if (updates.length > 0) {
+        await Promise.all(updates);
+      }
+
+      // Filtra i memo in base ai permessi
+      if (includeAll !== 'true') {
+        voiceMemos = voiceMemos.filter((memo: any) => memo.isUnlocked);
+      }
+
+      res.json(voiceMemos);
+    } catch (error) {
+      console.error('Errore nel recupero voice memos:', error);
+      res.status(500).json({ 
+        error: 'Errore nel recupero dei voice memos' 
+      });
+    }
+  });
+
+  // Sblocco manuale di un voice memo
+  app.put('/api/galleries/:galleryId/voice-memos/:memoId/unlock', async (req, res) => {
+    try {
+      const { galleryId, memoId } = req.params;
+
+      // Verifica che il memo esista e appartenga alla galleria
+      const memoDoc = await getDoc(doc(db, 'voiceMemos', memoId));
+      
+      if (!memoDoc.exists()) {
+        return res.status(404).json({ error: 'Voice memo non trovato' });
+      }
+
+      const memoData = memoDoc.data();
+      if (memoData.galleryId !== galleryId) {
+        return res.status(403).json({ error: 'Non autorizzato' });
+      }
+
+      // Aggiorna lo stato di unlock
+      await updateDoc(doc(db, 'voiceMemos', memoId), {
+        isUnlocked: true
+      });
+
+      res.json({ success: true, message: 'Voice memo sbloccato con successo' });
+    } catch (error) {
+      console.error('Errore nello sblocco voice memo:', error);
+      res.status(500).json({ 
+        error: 'Errore nello sblocco del voice memo' 
+      });
+    }
+  });
+
+  // Eliminazione di un voice memo
+  app.delete('/api/galleries/:galleryId/voice-memos/:memoId', async (req, res) => {
+    try {
+      const { galleryId, memoId } = req.params;
+
+      // Verifica che il memo esista e appartenga alla galleria
+      const memoDoc = await getDoc(doc(db, 'voiceMemos', memoId));
+      
+      if (!memoDoc.exists()) {
+        return res.status(404).json({ error: 'Voice memo non trovato' });
+      }
+
+      const memoData = memoDoc.data();
+      if (memoData.galleryId !== galleryId) {
+        return res.status(403).json({ error: 'Non autorizzato' });
+      }
+
+      // Elimina il file audio da Firebase Storage
+      try {
+        const storage = getStorage();
+        const audioRef = ref(storage, memoData.audioUrl);
+        await deleteObject(audioRef);
+      } catch (storageError) {
+        console.error('Errore eliminazione file audio:', storageError);
+      }
+
+      // Elimina il documento dal database
+      await deleteDoc(doc(db, 'voiceMemos', memoId));
+
+      res.json({ success: true, message: 'Voice memo eliminato con successo' });
+    } catch (error) {
+      console.error('Errore nell\'eliminazione voice memo:', error);
+      res.status(500).json({ 
+        error: 'Errore nell\'eliminazione del voice memo' 
+      });
+    }
+  });
 
   // Keep only basic server endpoints if needed
   app.get("/api/health", (req, res) => {

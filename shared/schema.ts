@@ -61,3 +61,30 @@ export interface PasswordRequest {
   status: string;
   createdAt: any; // Firebase Timestamp
 }
+
+export const insertVoiceMemoSchema = z.object({
+  galleryId: z.string().min(1),
+  guestName: z.string().min(1),
+  audioUrl: z.string().url(),
+  message: z.string().optional(),
+  unlockDate: z.string().optional(),
+  fileName: z.string().min(1),
+  fileSize: z.number().positive(),
+  duration: z.number().positive().optional(),
+});
+
+export type InsertVoiceMemo = z.infer<typeof insertVoiceMemoSchema>;
+
+export interface VoiceMemo {
+  id: string;
+  galleryId: string;
+  guestName: string;
+  audioUrl: string;
+  message?: string;
+  unlockDate?: string; // ISO string date
+  fileName: string;
+  fileSize: number;
+  duration?: number; // in seconds
+  isUnlocked: boolean;
+  createdAt: any; // Firebase Timestamp
+}
