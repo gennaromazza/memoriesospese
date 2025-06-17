@@ -206,7 +206,7 @@ export default function VoiceMemoPlayer({
           {/* Header with guest info */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-sage-500 to-blue-gray-500 rounded-full flex items-center justify-center">
                 <User className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div>
@@ -252,7 +252,7 @@ export default function VoiceMemoPlayer({
                 onClick={togglePlay}
                 disabled={isLoading || !!error}
                 size="sm"
-                className="w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 text-white"
+                className="w-10 h-10 rounded-full bg-sage-600 hover:bg-sage-700 text-white"
               >
                 {isLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

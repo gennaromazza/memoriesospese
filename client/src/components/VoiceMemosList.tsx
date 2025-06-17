@@ -155,7 +155,7 @@ export default function VoiceMemosList({
       <Card className="w-full">
         <CardContent className="p-6">
           <div className="flex items-center justify-center gap-3">
-            <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-6 h-6 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
             <span className="text-gray-600">Caricamento vocali segreti...</span>
           </div>
         </CardContent>
@@ -190,8 +190,8 @@ export default function VoiceMemosList({
       <Card className="w-full">
         <CardContent className="p-6">
           <div className="text-center space-y-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto">
-              <Mic2 className="h-6 w-6 text-purple-600" />
+            <div className="w-12 h-12 bg-sage-100 rounded-full flex items-center justify-center mx-auto">
+              <Mic2 className="h-6 w-6 text-sage-600" />
             </div>
             <div>
               <p className="font-medium text-gray-900 mb-2">Nessun vocale segreto</p>
@@ -317,7 +317,7 @@ export default function VoiceMemosList({
         <Button 
           onClick={fetchVoiceMemos} 
           variant="outline"
-          className="text-purple-600 border-purple-300 hover:bg-purple-50"
+          className="text-sage-600 border-sage-300 hover:bg-sage-50"
         >
           <RefreshCw className="h-4 w-4 mr-2" />
           Aggiorna elenco
