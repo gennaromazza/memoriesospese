@@ -88,3 +88,56 @@ export interface VoiceMemo {
   isUnlocked: boolean;
   createdAt: any; // Firebase Timestamp
 }
+
+// Like validation schema
+export const insertLikeSchema = z.object({
+  itemId: z.string().min(1, "Item ID è obbligatorio"),
+  itemType: z.enum(["photo", "voice_memo"]),
+  galleryId: z.string().min(1, "Gallery ID è obbligatorio"),
+  userEmail: z.string().email("Email non valida"),
+  userName: z.string().min(1, "Nome utente è obbligatorio"),
+});
+
+export type InsertLike = z.infer<typeof insertLikeSchema>;
+
+// Like interface
+export interface Like {
+  id: string;
+  itemId: string;
+  itemType: 'photo' | 'voice_memo';
+  galleryId: string;
+  userEmail: string;
+  userName: string;
+  createdAt: any; // Firebase Timestamp
+}
+
+// Comment validation schema
+export const insertCommentSchema = z.object({
+  itemId: z.string().min(1, "Item ID è obbligatorio"),
+  itemType: z.enum(["photo", "voice_memo"]),
+  galleryId: z.string().min(1, "Gallery ID è obbligatorio"),
+  userEmail: z.string().email("Email non valida"),
+  userName: z.string().min(1, "Nome utente è obbligatorio"),
+  content: z.string().min(1, "Il commento non può essere vuoto").max(500, "Il commento non può superare i 500 caratteri"),
+});
+
+export type InsertComment = z.infer<typeof insertCommentSchema>;
+
+// Comment interface
+export interface Comment {
+  id: string;
+  itemId: string;
+  itemType: 'photo' | 'voice_memo';
+  galleryId: string;
+  userEmail: string;
+  userName: string;
+  content: string;
+  createdAt: any; // Firebase Timestamp
+}
+
+// Interaction stats interface
+export interface InteractionStats {
+  likesCount: number;
+  commentsCount: number;
+  hasUserLiked: boolean;
+}

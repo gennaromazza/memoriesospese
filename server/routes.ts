@@ -343,6 +343,269 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== LIKES API ====================
+  
+  // Get likes for an item
+  app.get('/api/galleries/:galleryId/likes/:itemType/:itemId', async (req, res) => {
+    try {
+      const { galleryId, itemType, itemId } = req.params;
+      const { userEmail } = req.query;
+
+      // Get all likes for this item
+      const likesRef = collection(db, 'likes');
+      const q = query(
+        likesRef,
+        where('galleryId', '==', galleryId),
+        where('itemType', '==', itemType),
+        where('itemId', '==', itemId)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const likes = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Check if current user has liked
+      const hasUserLiked = userEmail ? likes.some((like: any) => like.userEmail === userEmail) : false;
+      
+      res.json({
+        likesCount: likes.length,
+        hasUserLiked,
+        likes
+      });
+    } catch (error) {
+      console.error('Errore nel recupero like:', error);
+      res.status(500).json({ error: 'Errore nel recupero dei like' });
+    }
+  });
+
+  // Add/remove like
+  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', async (req, res) => {
+    try {
+      const { galleryId, itemType, itemId } = req.params;
+      const { userEmail, userName } = req.body;
+
+      if (!userEmail || !userName) {
+        return res.status(400).json({ error: 'Email e nome utente sono obbligatori' });
+      }
+
+      // Check if user already liked this item
+      const likesRef = collection(db, 'likes');
+      const existingLikeQuery = query(
+        likesRef,
+        where('galleryId', '==', galleryId),
+        where('itemType', '==', itemType),
+        where('itemId', '==', itemId),
+        where('userEmail', '==', userEmail)
+      );
+      
+      const existingLikes = await getDocs(existingLikeQuery);
+      
+      if (!existingLikes.empty) {
+        // Remove like
+        await deleteDoc(existingLikes.docs[0].ref);
+        res.json({ action: 'removed', message: 'Like rimosso' });
+      } else {
+        // Add like
+        const likeData = {
+          itemId,
+          itemType,
+          galleryId,
+          userEmail,
+          userName,
+          createdAt: serverTimestamp()
+        };
+        
+        await addDoc(likesRef, likeData);
+        res.json({ action: 'added', message: 'Like aggiunto' });
+      }
+    } catch (error) {
+      console.error('Errore nella gestione like:', error);
+      res.status(500).json({ error: 'Errore nella gestione del like' });
+    }
+  });
+
+  // ==================== COMMENTS API ====================
+  
+  // Get comments for an item
+  app.get('/api/galleries/:galleryId/comments/:itemType/:itemId', async (req, res) => {
+    try {
+      const { galleryId, itemType, itemId } = req.params;
+
+      const commentsRef = collection(db, 'comments');
+      const q = query(
+        commentsRef,
+        where('galleryId', '==', galleryId),
+        where('itemType', '==', itemType),
+        where('itemId', '==', itemId),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const comments = querySnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      }));
+      
+      res.json(comments);
+    } catch (error) {
+      console.error('Errore nel recupero commenti:', error);
+      res.status(500).json({ error: 'Errore nel recupero dei commenti' });
+    }
+  });
+
+  // Add comment
+  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', async (req, res) => {
+    try {
+      const { galleryId, itemType, itemId } = req.params;
+      const { userEmail, userName, content } = req.body;
+
+      if (!userEmail || !userName || !content) {
+        return res.status(400).json({ error: 'Email, nome utente e contenuto sono obbligatori' });
+      }
+
+      if (content.length > 500) {
+        return res.status(400).json({ error: 'Il commento non può superare i 500 caratteri' });
+      }
+
+      const commentData = {
+        itemId,
+        itemType,
+        galleryId,
+        userEmail,
+        userName,
+        content: content.trim(),
+        createdAt: serverTimestamp()
+      };
+      
+      const docRef = await addDoc(collection(db, 'comments'), commentData);
+      
+      res.status(201).json({ 
+        id: docRef.id, 
+        ...commentData,
+        message: 'Commento aggiunto con successo' 
+      });
+    } catch (error) {
+      console.error('Errore nell\'aggiunta commento:', error);
+      res.status(500).json({ error: 'Errore nell\'aggiunta del commento' });
+    }
+  });
+
+  // Delete comment (admin only)
+  app.delete('/api/galleries/:galleryId/comments/:commentId', async (req, res) => {
+    try {
+      const { galleryId, commentId } = req.params;
+
+      // Verify comment exists and belongs to gallery
+      const commentDoc = await getDoc(doc(db, 'comments', commentId));
+      
+      if (!commentDoc.exists()) {
+        return res.status(404).json({ error: 'Commento non trovato' });
+      }
+
+      const commentData = commentDoc.data();
+      if (commentData.galleryId !== galleryId) {
+        return res.status(403).json({ error: 'Non autorizzato' });
+      }
+
+      await deleteDoc(doc(db, 'comments', commentId));
+      
+      res.json({ success: true, message: 'Commento eliminato con successo' });
+    } catch (error) {
+      console.error('Errore nell\'eliminazione commento:', error);
+      res.status(500).json({ error: 'Errore nell\'eliminazione del commento' });
+    }
+  });
+
+  // ==================== INTERACTION STATS API ====================
+  
+  // Get interaction stats for an item
+  app.get('/api/galleries/:galleryId/stats/:itemType/:itemId', async (req, res) => {
+    try {
+      const { galleryId, itemType, itemId } = req.params;
+      const { userEmail } = req.query;
+
+      // Get likes count
+      const likesRef = collection(db, 'likes');
+      const likesQuery = query(
+        likesRef,
+        where('galleryId', '==', galleryId),
+        where('itemType', '==', itemType),
+        where('itemId', '==', itemId)
+      );
+      const likesSnapshot = await getDocs(likesQuery);
+      const likes = likesSnapshot.docs.map(doc => doc.data());
+      
+      // Get comments count
+      const commentsRef = collection(db, 'comments');
+      const commentsQuery = query(
+        commentsRef,
+        where('galleryId', '==', galleryId),
+        where('itemType', '==', itemType),
+        where('itemId', '==', itemId)
+      );
+      const commentsSnapshot = await getDocs(commentsQuery);
+      
+      // Check if current user has liked
+      const hasUserLiked = userEmail ? likes.some(like => like.userEmail === userEmail) : false;
+      
+      res.json({
+        likesCount: likes.length,
+        commentsCount: commentsSnapshot.size,
+        hasUserLiked
+      });
+    } catch (error) {
+      console.error('Errore nel recupero statistiche:', error);
+      res.status(500).json({ error: 'Errore nel recupero delle statistiche' });
+    }
+  });
+
+  // Get gallery interaction stats (admin)
+  app.get('/api/galleries/:galleryId/admin/interaction-stats', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+
+      // Get all likes for gallery
+      const likesRef = collection(db, 'likes');
+      const likesQuery = query(likesRef, where('galleryId', '==', galleryId));
+      const likesSnapshot = await getDocs(likesQuery);
+      
+      // Get all comments for gallery
+      const commentsRef = collection(db, 'comments');
+      const commentsQuery = query(commentsRef, where('galleryId', '==', galleryId));
+      const commentsSnapshot = await getDocs(commentsQuery);
+      
+      // Group by item type
+      const likesData = likesSnapshot.docs.map(doc => doc.data());
+      const commentsData = commentsSnapshot.docs.map(doc => doc.data());
+      
+      const photoLikes = likesData.filter(like => like.itemType === 'photo').length;
+      const voiceMemoLikes = likesData.filter(like => like.itemType === 'voice_memo').length;
+      const photoComments = commentsData.filter(comment => comment.itemType === 'photo').length;
+      const voiceMemoComments = commentsData.filter(comment => comment.itemType === 'voice_memo').length;
+      
+      // Get unique users
+      const uniqueLikeUsers = new Set(likesData.map(like => like.userEmail)).size;
+      const uniqueCommentUsers = new Set(commentsData.map(comment => comment.userEmail)).size;
+      
+      res.json({
+        totalLikes: likesData.length,
+        totalComments: commentsData.length,
+        photoLikes,
+        voiceMemoLikes,
+        photoComments,
+        voiceMemoComments,
+        uniqueLikeUsers,
+        uniqueCommentUsers,
+        engagement: {
+          photos: photoLikes + photoComments,
+          voiceMemos: voiceMemoLikes + voiceMemoComments
+        }
+      });
+    } catch (error) {
+      console.error('Errore nel recupero statistiche admin:', error);
+      res.status(500).json({ error: 'Errore nel recupero delle statistiche admin' });
+    }
+  });
+
   // Keep only basic server endpoints if needed
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "Server is running" });
