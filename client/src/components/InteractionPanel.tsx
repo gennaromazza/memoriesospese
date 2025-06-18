@@ -262,6 +262,16 @@ export default function InteractionPanel({
     }
   };
 
+  // Debug logging for auth state
+  useEffect(() => {
+    console.log('InteractionPanel auth state:', {
+      userEmail,
+      userName,
+      hasEmail: !!userEmail,
+      hasName: !!userName
+    });
+  }, [userEmail, userName]);
+
   // Initial data loading
   useEffect(() => {
     fetchStats();

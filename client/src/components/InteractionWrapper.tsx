@@ -23,9 +23,11 @@ export default function InteractionWrapper({
   const { user, userProfile, isAuthenticated } = useAuth();
   const { hasAccess, grantAccess } = useGalleryAccess(galleryId);
 
-  const handleAuthComplete = () => {
+  const handleAuthComplete = async () => {
     // Auth completed - close dialog and refresh access
     setShowAuthDialog(false);
+    // Force a refresh of gallery access after auth
+    await grantAccess();
   };
 
   const handleInteractionAttempt = () => {
