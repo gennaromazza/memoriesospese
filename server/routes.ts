@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
-import { insertVoiceMemoSchema } from "../shared/schema";
+import { insertVoiceMemoSchema, insertEmailTemplateSchema } from "../shared/schema";
+import { z } from 'zod';
 import { 
   collection, 
   addDoc, 
@@ -610,6 +611,213 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Errore nel recupero statistiche admin:', error);
       res.status(500).json({ error: 'Errore nel recupero delle statistiche admin' });
+    }
+  });
+
+  // ==================== EMAIL TEMPLATES API ====================
+  
+  // Get email templates for a gallery
+  app.get('/api/galleries/:galleryId/email-templates', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const { templateType } = req.query;
+
+      const templatesRef = collection(db, 'email_templates');
+      let q = query(templatesRef, where('galleryId', '==', galleryId));
+      
+      if (templateType) {
+        q = query(q, where('templateType', '==', templateType));
+      }
+      
+      const querySnapshot = await getDocs(q);
+      const templates = querySnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      }));
+      
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching email templates:', error);
+      res.status(500).json({ error: 'Error fetching email templates' });
+    }
+  });
+
+  // Get single email template
+  app.get('/api/galleries/:galleryId/email-templates/:templateId', async (req, res) => {
+    try {
+      const { templateId } = req.params;
+      
+      const templateRef = doc(db, 'email_templates', templateId);
+      const templateDoc = await getDoc(templateRef);
+      
+      if (!templateDoc.exists()) {
+        return res.status(404).json({ error: 'Template not found' });
+      }
+      
+      res.json({ id: templateDoc.id, ...templateDoc.data() });
+    } catch (error) {
+      console.error('Error fetching email template:', error);
+      res.status(500).json({ error: 'Error fetching email template' });
+    }
+  });
+
+  // Create email template
+  app.post('/api/galleries/:galleryId/email-templates', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const templateData = { ...req.body, galleryId };
+      
+      // Validate the template data
+      const validatedData = insertEmailTemplateSchema.parse(templateData);
+      
+      const templatesRef = collection(db, 'email_templates');
+      const docRef = await addDoc(templatesRef, {
+        ...validatedData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      const newTemplate = await getDoc(docRef);
+      res.status(201).json({ id: newTemplate.id, ...newTemplate.data() });
+    } catch (error) {
+      console.error('Error creating email template:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid template data', details: error.errors });
+      }
+      res.status(500).json({ error: 'Error creating email template' });
+    }
+  });
+
+  // Update email template
+  app.put('/api/galleries/:galleryId/email-templates/:templateId', async (req, res) => {
+    try {
+      const { templateId } = req.params;
+      const updateData = req.body;
+      
+      // Remove fields that shouldn't be updated
+      const { id, galleryId, createdAt, ...validData } = updateData;
+      
+      const templateRef = doc(db, 'email_templates', templateId);
+      await updateDoc(templateRef, {
+        ...validData,
+        updatedAt: serverTimestamp()
+      });
+      
+      const updatedTemplate = await getDoc(templateRef);
+      res.json({ id: updatedTemplate.id, ...updatedTemplate.data() });
+    } catch (error) {
+      console.error('Error updating email template:', error);
+      res.status(500).json({ error: 'Error updating email template' });
+    }
+  });
+
+  // Delete email template
+  app.delete('/api/galleries/:galleryId/email-templates/:templateId', async (req, res) => {
+    try {
+      const { templateId } = req.params;
+      
+      const templateRef = doc(db, 'email_templates', templateId);
+      await deleteDoc(templateRef);
+      
+      res.json({ message: 'Template deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting email template:', error);
+      res.status(500).json({ error: 'Error deleting email template' });
+    }
+  });
+
+  // Get default template for type
+  app.get('/api/email-templates/defaults/:templateType', async (req, res) => {
+    try {
+      const { templateType } = req.params;
+      
+      const defaultTemplates = {
+        welcome: {
+          subject: 'Benvenuto nella galleria di {{galleryName}}!',
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #6b7280;">Benvenuto nella galleria di {{galleryName}}!</h1>
+              <p>Ciao {{userName}},</p>
+              <p>Grazie per esserti registrato nella galleria di {{galleryName}}. Ora puoi:</p>
+              <ul>
+                <li>Mettere like alle foto</li>
+                <li>Lasciare commenti</li>
+                <li>Registrare vocali segreti</li>
+                <li>Ricevere notifiche per nuove foto</li>
+              </ul>
+              <p>Visita la galleria: <a href="{{galleryUrl}}">{{galleryUrl}}</a></p>
+              <p>Buona navigazione!</p>
+            </div>
+          `,
+          textContent: `Benvenuto nella galleria di {{galleryName}}!\n\nCiao {{userName}},\n\nGrazie per esserti registrato nella galleria di {{galleryName}}. Ora puoi mettere like alle foto, lasciare commenti, registrare vocali segreti e ricevere notifiche per nuove foto.\n\nVisita la galleria: {{galleryUrl}}\n\nBuona navigazione!`,
+          variables: ['galleryName', 'userName', 'userEmail', 'galleryUrl']
+        },
+        invitation: {
+          subject: 'Sei invitato nella galleria di {{galleryName}}',
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #6b7280;">Sei invitato nella galleria di {{galleryName}}!</h1>
+              <p>Ciao,</p>
+              <p>Sei stato invitato a partecipare alla galleria fotografica di {{galleryName}}.</p>
+              <p>Data evento: {{eventDate}}</p>
+              <p>Luogo: {{eventLocation}}</p>
+              <p>Registrati gratuitamente per:</p>
+              <ul>
+                <li>Visualizzare tutte le foto</li>
+                <li>Mettere like e commentare</li>
+                <li>Caricare le tue foto</li>
+                <li>Registrare vocali segreti</li>
+              </ul>
+              <p style="text-align: center;">
+                <a href="{{galleryUrl}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">Partecipa alla Galleria</a>
+              </p>
+            </div>
+          `,
+          textContent: `Sei invitato nella galleria di {{galleryName}}!\n\nCiao,\n\nSei stato invitato a partecipare alla galleria fotografica di {{galleryName}}.\n\nData evento: {{eventDate}}\nLuogo: {{eventLocation}}\n\nRegistrati gratuitamente per visualizzare tutte le foto, mettere like e commentare, caricare le tue foto e registrare vocali segreti.\n\nVisita: {{galleryUrl}}`,
+          variables: ['galleryName', 'eventDate', 'eventLocation', 'galleryUrl']
+        },
+        password_request: {
+          subject: 'Richiesta password per {{galleryName}}',
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #6b7280;">Richiesta password per {{galleryName}}</h1>
+              <p>Ciao {{firstName}} {{lastName}},</p>
+              <p>Hai richiesto l'accesso alla galleria protetta di {{galleryName}}.</p>
+              <p>La password per accedere è: <strong>{{password}}</strong></p>
+              <p>Accedi alla galleria: <a href="{{galleryUrl}}">{{galleryUrl}}</a></p>
+              <p>Grazie!</p>
+            </div>
+          `,
+          textContent: `Richiesta password per {{galleryName}}\n\nCiao {{firstName}} {{lastName}},\n\nHai richiesto l'accesso alla galleria protetta di {{galleryName}}.\n\nLa password per accedere è: {{password}}\n\nAccedi alla galleria: {{galleryUrl}}\n\nGrazie!`,
+          variables: ['galleryName', 'firstName', 'lastName', 'password', 'galleryUrl']
+        },
+        new_photos: {
+          subject: 'Nuove foto in {{galleryName}}!',
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #6b7280;">Nuove foto in {{galleryName}}!</h1>
+              <p>Ciao,</p>
+              <p>Sono state caricate {{newPhotosCount}} nuove foto nella galleria di {{galleryName}}{{uploaderName ? ' da ' + uploaderName : ''}}.</p>
+              <p>Non perdere l'occasione di vederle e interagire con like e commenti!</p>
+              <p style="text-align: center;">
+                <a href="{{galleryUrl}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">Vedi le Nuove Foto</a>
+              </p>
+            </div>
+          `,
+          textContent: `Nuove foto in {{galleryName}}!\n\nCiao,\n\nSono state caricate {{newPhotosCount}} nuove foto nella galleria di {{galleryName}}{{uploaderName ? ' da ' + uploaderName : ''}}.\n\nNon perdere l'occasione di vederle e interagire con like e commenti!\n\nVisita: {{galleryUrl}}`,
+          variables: ['galleryName', 'newPhotosCount', 'uploaderName', 'galleryUrl']
+        }
+      };
+      
+      const template = defaultTemplates[templateType as keyof typeof defaultTemplates];
+      if (!template) {
+        return res.status(404).json({ error: 'Default template not found' });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error('Error fetching default template:', error);
+      res.status(500).json({ error: 'Error fetching default template' });
     }
   });
 

@@ -141,3 +141,29 @@ export interface InteractionStats {
   commentsCount: number;
   hasUserLiked: boolean;
 }
+
+// Email Template Schema
+export const insertEmailTemplateSchema = z.object({
+  galleryId: z.string().min(1, "Gallery ID is required"),
+  templateType: z.enum(['welcome', 'invitation', 'password_request', 'new_photos']),
+  subject: z.string().min(1, "Subject is required").max(200, "Subject too long"),
+  htmlContent: z.string().min(1, "HTML content is required"),
+  textContent: z.string().min(1, "Text content is required"),
+  isActive: z.boolean().default(true),
+  variables: z.array(z.string()).default([]),
+});
+
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+
+export interface EmailTemplate {
+  id: string;
+  galleryId: string;
+  templateType: 'welcome' | 'invitation' | 'password_request' | 'new_photos';
+  subject: string;
+  htmlContent: string;
+  textContent: string;
+  isActive: boolean;
+  variables: string[];
+  createdAt: any; // Firebase Timestamp
+  updatedAt?: any; // Firebase Timestamp
+}
