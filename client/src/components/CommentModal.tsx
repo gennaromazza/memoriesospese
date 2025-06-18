@@ -53,15 +53,38 @@ export default function CommentModal({
     try {
       let date: Date;
       
-      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+      // Handle Firebase Timestamp
+      if (timestamp && timestamp.toDate && typeof timestamp.toDate === 'function') {
         date = timestamp.toDate();
-      } else if (timestamp.seconds && typeof timestamp.seconds === 'number') {
+      }
+      // Handle Firebase Timestamp object with seconds
+      else if (timestamp && timestamp.seconds && typeof timestamp.seconds === 'number') {
         date = new Date(timestamp.seconds * 1000);
-      } else {
+      }
+      // Handle standard date string or Date object
+      else if (timestamp) {
         date = new Date(timestamp);
       }
+      // Handle null/undefined
+      else {
+        return new Date().toLocaleDateString('it-IT', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
       
-      if (isNaN(date.getTime())) return 'Data non disponibile';
+      if (isNaN(date.getTime())) {
+        return new Date().toLocaleDateString('it-IT', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
       
       return date.toLocaleDateString('it-IT', {
         day: '2-digit',
@@ -71,7 +94,14 @@ export default function CommentModal({
         minute: '2-digit'
       });
     } catch (error) {
-      return 'Data non disponibile';
+      console.error('Error formatting date:', error, timestamp);
+      return new Date().toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     }
   };
 
