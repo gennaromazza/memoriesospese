@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { trackPasswordRequest } from "@/lib/analytics";
 import { useStudio } from "@/context/StudioContext";
 import { createUrl } from "@/lib/basePath";
+import { SecurityQuestionType } from "@shared/schema";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import GallerySearch from "@/components/GallerySearch";
@@ -28,6 +29,9 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedGallery, setSelectedGallery] = useState<any>(null);
+  const [showSecurityQuestion, setShowSecurityQuestion] = useState(false);
+  const [securityAnswer, setSecurityAnswer] = useState("");
+  const [securityError, setSecurityError] = useState("");
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const { studioSettings } = useStudio();
@@ -95,6 +99,24 @@ export default function Home() {
     setSearchResults([]);
   };
 
+  // Get security question text
+  const getSecurityQuestionText = (gallery: any): string => {
+    if (!gallery.requiresSecurityQuestion) return '';
+    
+    const questionType = gallery.securityQuestionType;
+    
+    switch (questionType) {
+      case SecurityQuestionType.LOCATION:
+        return "Qual è il nome della location dell'evento?";
+      case SecurityQuestionType.MONTH:
+        return "In che mese si è svolto l'evento?";
+      case SecurityQuestionType.CUSTOM:
+        return gallery.securityQuestionCustom || 'Domanda personalizzata';
+      default:
+        return 'Domanda di sicurezza';
+    }
+  };
+
   // Submit form to request password
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -122,9 +144,38 @@ export default function Home() {
       return;
     }
 
+    // Verifica se la galleria richiede una domanda di sicurezza
+    const hasSecurityQuestion = selectedGallery.requiresSecurityQuestion === true && 
+                               selectedGallery.securityQuestionType && 
+                               selectedGallery.securityAnswer;
+
+    if (hasSecurityQuestion && !showSecurityQuestion) {
+      // Mostra la domanda di sicurezza
+      setShowSecurityQuestion(true);
+      return;
+    }
+
+    if (hasSecurityQuestion && !securityAnswer.trim()) {
+      setSecurityError("La risposta è obbligatoria");
+      return;
+    }
+
     setIsSubmitting(true);
+    setSecurityError("");
 
     try {
+      // Verifica la risposta alla domanda di sicurezza se richiesta
+      if (hasSecurityQuestion) {
+        const correctAnswer = selectedGallery.securityAnswer?.toLowerCase().trim();
+        const providedAnswer = securityAnswer.toLowerCase().trim();
+        
+        if (providedAnswer !== correctAnswer) {
+          setSecurityError("Risposta alla domanda di sicurezza non corretta");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // Salva la richiesta in Firestore
       const passwordRequestsRef = collection(db, "passwordRequests");
       await addDoc(passwordRequestsRef, {
@@ -137,6 +188,7 @@ export default function Home() {
         relation: formData.relation,
         status: "completed",
         createdAt: serverTimestamp(),
+        securityQuestionAnswered: hasSecurityQuestion
       });
 
       // Track password request in analytics
@@ -145,14 +197,14 @@ export default function Home() {
       // Show success message
       toast({
         title: "Richiesta ricevuta",
-        description:
-          "Password visualizzata. Le tue informazioni sono state salvate.",
+        description: hasSecurityQuestion 
+          ? "Accesso autorizzato! Password visualizzata." 
+          : "Password visualizzata. Le tue informazioni sono state salvate.",
       });
 
       // Redirect to password result page with correct base path
       navigate(createUrl(`/password-result/${selectedGallery.id}`));
     } catch (error) {
-      
       toast({
         title: "Errore",
         description:
@@ -457,40 +509,95 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* Security Question Field */}
+                {showSecurityQuestion && selectedGallery && (
+                  <div className="sm:col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-yellow-800 mb-3">
+                      Domanda di Sicurezza
+                    </h3>
+                    <p className="text-yellow-700 mb-4">
+                      {getSecurityQuestionText(selectedGallery)}
+                    </p>
+                    <div>
+                      <label htmlFor="securityAnswer" className="block text-sm font-medium text-yellow-800">
+                        La tua risposta
+                      </label>
+                      <div className="mt-1">
+                        <input
+                          type="text"
+                          id="securityAnswer"
+                          value={securityAnswer}
+                          onChange={(e) => setSecurityAnswer(e.target.value)}
+                          className="w-full border-yellow-300 rounded-md py-3 px-4 focus:ring-yellow-500 focus:border-yellow-500"
+                          placeholder="Inserisci la tua risposta"
+                        />
+                      </div>
+                      {securityError && (
+                        <p className="mt-2 text-sm text-red-600">{securityError}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="sm:col-span-2">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-gray hover:bg-dark-sage focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sage btn-primary disabled:opacity-50"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <svg
-                          className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        Invio in corso...
-                      </>
-                    ) : (
-                      "Richiedi Password"
-                    )}
-                  </button>
+                  {showSecurityQuestion && (
+                    <div className="flex space-x-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSecurityQuestion(false);
+                          setSecurityAnswer("");
+                          setSecurityError("");
+                        }}
+                        className="flex-1 inline-flex items-center justify-center px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sage"
+                      >
+                        Indietro
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-gray hover:bg-dark-sage focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sage btn-primary disabled:opacity-50"
+                      >
+                        {isSubmitting ? "Verifica..." : "Conferma Risposta"}
+                      </button>
+                    </div>
+                  )}
+                  
+                  {!showSecurityQuestion && (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-gray hover:bg-dark-sage focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sage btn-primary disabled:opacity-50"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <svg
+                            className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          Invio in corso...
+                        </>
+                      ) : (
+                        "Richiedi Password"
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </form>
