@@ -35,10 +35,43 @@ export default function SecurityQuestionManager({
   const [customQuestion, setCustomQuestion] = useState(initialData?.securityQuestionCustom || '');
   const [answer, setAnswer] = useState(initialData?.securityAnswer || '');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
   const { toast } = useToast();
+
+  // Carica i dati esistenti della galleria
+  useEffect(() => {
+    const loadGalleryData = async () => {
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        
+        const galleryRef = doc(db, "galleries", galleryId);
+        const galleryDoc = await getDoc(galleryRef);
+        
+        if (galleryDoc.exists()) {
+          const data = galleryDoc.data();
+          setEnabled(data.requiresSecurityQuestion || false);
+          setQuestionType(data.securityQuestionType || '');
+          setCustomQuestion(data.securityQuestionCustom || '');
+          setAnswer(data.securityAnswer || '');
+        }
+      } catch (error) {
+        console.error('Errore nel caricamento dati galleria:', error);
+        toast({
+          title: "Errore",
+          description: "Impossibile caricare i dati della galleria",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    loadGalleryData();
+  }, [galleryId, toast]);
 
   const selectedQuestionText = () => {
     if (!questionType) return '';
@@ -70,34 +103,35 @@ export default function SecurityQuestionManager({
         }
       }
 
-      const requestData = {
-        userEmail: 'gennaro.mazzacane@gmail.com', // Admin email
-        userName: 'Admin',
+      // Aggiorna Firebase direttamente
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      
+      const galleryRef = doc(db, "galleries", galleryId);
+      
+      const updateData: any = {
         requiresSecurityQuestion: enabled,
-        securityQuestionType: enabled ? questionType : null,
-        securityQuestionCustom: enabled && questionType === 'custom' ? customQuestion.trim() : null,
-        securityAnswer: enabled ? answer.trim() : null
+        updatedAt: new Date()
       };
 
-      const response = await fetch(`/api/galleries/${galleryId}/security-question`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Errore nel salvataggio');
+      if (enabled) {
+        updateData.securityQuestionType = questionType;
+        updateData.securityQuestionCustom = questionType === 'custom' ? customQuestion.trim() : null;
+        updateData.securityAnswer = answer.trim();
+      } else {
+        // Rimuovi i campi quando disabilitato
+        updateData.securityQuestionType = null;
+        updateData.securityQuestionCustom = null;
+        updateData.securityAnswer = null;
       }
 
-      const result = await response.json();
+      await updateDoc(galleryRef, updateData);
+      
       setSuccess(true);
       
       toast({
         title: "Impostazioni salvate",
-        description: result.message,
+        description: "La configurazione della domanda di sicurezza è stata aggiornata con successo.",
       });
 
     } catch (error) {
