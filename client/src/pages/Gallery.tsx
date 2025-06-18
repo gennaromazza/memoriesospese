@@ -17,6 +17,7 @@ import GuestUpload from "@/components/GuestUpload";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionWrapper from "@/components/InteractionWrapper";
+import SocialActivityPanel from "@/components/SocialActivityPanel";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -324,6 +325,14 @@ export default function Gallery() {
                     <span className="sm:hidden">Vocali</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Social Activity Panel */}
+              <div className="mb-8">
+                <SocialActivityPanel 
+                  galleryId={gallery.id}
+                  className="max-w-md mx-auto"
+                />
               </div>
 
               {/* Barra con filtri e azioni - solo per tab fotografo */}

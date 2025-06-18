@@ -13,7 +13,8 @@ import {
   orderBy, 
   updateDoc, 
   deleteDoc,
-  serverTimestamp 
+  serverTimestamp,
+  limit
 } from 'firebase/firestore';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import { db } from './firebase';
@@ -609,6 +610,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Errore nel recupero statistiche admin:', error);
       res.status(500).json({ error: 'Errore nel recupero delle statistiche admin' });
+    }
+  });
+
+  // ==================== SOCIAL ACTIVITY API ====================
+  
+  // Get recent comments across the gallery
+  app.get('/api/galleries/:galleryId/comments/recent', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      const commentsRef = collection(db, 'comments');
+      const q = query(
+        commentsRef,
+        where('galleryId', '==', galleryId),
+        orderBy('createdAt', 'desc'),
+        limit(limit)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const comments = querySnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      }));
+      
+      res.json(comments);
+    } catch (error) {
+      console.error('Errore nel recupero commenti recenti:', error);
+      res.status(500).json({ error: 'Errore nel recupero dei commenti recenti' });
+    }
+  });
+
+  // Get top liked photos
+  app.get('/api/galleries/:galleryId/photos/top-liked', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 5;
+
+      // Get all photos from gallery
+      const galleryDoc = await getDoc(doc(db, 'galleries', galleryId));
+      if (!galleryDoc.exists()) {
+        return res.status(404).json({ error: 'Galleria non trovata' });
+      }
+
+      const photosRef = collection(db, 'galleries', galleryId, 'photos');
+      const photosSnapshot = await getDocs(photosRef);
+      
+      // Get likes for all photos
+      const likesRef = collection(db, 'likes');
+      const likesQuery = query(
+        likesRef,
+        where('galleryId', '==', galleryId),
+        where('itemType', '==', 'photo')
+      );
+      const likesSnapshot = await getDocs(likesQuery);
+      
+      // Get comments for all photos
+      const commentsRef = collection(db, 'comments');
+      const commentsQuery = query(
+        commentsRef,
+        where('galleryId', '==', galleryId),
+        where('itemType', '==', 'photo')
+      );
+      const commentsSnapshot = await getDocs(commentsQuery);
+
+      // Count likes and comments per photo
+      const likesPerPhoto: { [key: string]: number } = {};
+      const commentsPerPhoto: { [key: string]: number } = {};
+
+      likesSnapshot.docs.forEach(doc => {
+        const like = doc.data();
+        likesPerPhoto[like.itemId] = (likesPerPhoto[like.itemId] || 0) + 1;
+      });
+
+      commentsSnapshot.docs.forEach(doc => {
+        const comment = doc.data();
+        commentsPerPhoto[comment.itemId] = (commentsPerPhoto[comment.itemId] || 0) + 1;
+      });
+
+      // Build photo stats array
+      const photoStats = photosSnapshot.docs.map(doc => {
+        const photoData = doc.data();
+        return {
+          id: doc.id,
+          name: photoData.name || 'Foto senza nome',
+          url: photoData.url,
+          likesCount: likesPerPhoto[doc.id] || 0,
+          commentsCount: commentsPerPhoto[doc.id] || 0
+        };
+      });
+
+      // Sort by likes count (descending) and take top photos
+      const topPhotos = photoStats
+        .sort((a, b) => b.likesCount - a.likesCount)
+        .slice(0, limit);
+      
+      res.json(topPhotos);
+    } catch (error) {
+      console.error('Errore nel recupero foto top:', error);
+      res.status(500).json({ error: 'Errore nel recupero delle foto top' });
     }
   });
 
