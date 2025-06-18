@@ -90,6 +90,10 @@ export default function RequestPassword() {
   const onSubmit = async (data: RequestFormData) => {
     if (!id || !galleryInfo) return;
     
+    console.log('Submit form data:', data);
+    console.log('Gallery info:', galleryInfo);
+    console.log('Requires security question:', galleryInfo.requiresSecurityQuestion);
+    
     try {
       const result = await submitPasswordRequest({
         galleryId: id,
@@ -99,7 +103,10 @@ export default function RequestPassword() {
         relation: data.relation
       });
 
+      console.log('Submit result:', result);
+
       if (result.requiresSecurityQuestion) {
+        console.log('Showing security question');
         setShowSecurityQuestion(true);
         return;
       }
@@ -115,6 +122,7 @@ export default function RequestPassword() {
       }
       
     } catch (error) {
+      console.error('Submit error:', error);
       toast({
         title: "Errore",
         description: error instanceof Error ? error.message : "Si è verificato un errore durante l'invio della richiesta.",

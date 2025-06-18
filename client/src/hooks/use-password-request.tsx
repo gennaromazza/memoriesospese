@@ -91,27 +91,34 @@ export function usePasswordRequest() {
     setIsLoading(true);
     setError('');
 
-    try {
-      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
+    console.log('Hook: submitPasswordRequest called with params:', params);
+    console.log('Hook: galleryInfo:', galleryInfo);
 
+    try {
       if (!galleryInfo) {
         throw new Error('Informazioni galleria non disponibili');
       }
 
-      // Se la galleria richiede una domanda di sicurezza, verificala
-      if (galleryInfo.requiresSecurityQuestion) {
-        if (!params.securityAnswer) {
-          return {
-            success: false,
-            requiresSecurityQuestion: true,
-            securityQuestion: galleryInfo.securityQuestion,
-            message: 'Risposta alla domanda di sicurezza richiesta'
-          };
-        }
+      console.log('Hook: Checking security question requirement:', galleryInfo.requiresSecurityQuestion);
+      console.log('Hook: Security answer provided:', !!params.securityAnswer);
 
-        // Verifica la risposta alla domanda di sicurezza
+      // Se la galleria richiede una domanda di sicurezza e non è stata fornita la risposta
+      if (galleryInfo.requiresSecurityQuestion && !params.securityAnswer) {
+        console.log('Hook: Returning requiresSecurityQuestion = true');
+        setIsLoading(false);
+        return {
+          success: false,
+          requiresSecurityQuestion: true,
+          securityQuestion: galleryInfo.securityQuestion,
+          message: 'Risposta alla domanda di sicurezza richiesta'
+        };
+      }
+
+      // Se è stata fornita una risposta alla domanda di sicurezza, verificala
+      if (galleryInfo.requiresSecurityQuestion && params.securityAnswer) {
         const { doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        
         const galleryRef = doc(db, "galleries", galleryInfo.id);
         const galleryDoc = await getDoc(galleryRef);
         
@@ -127,6 +134,9 @@ export function usePasswordRequest() {
       }
 
       // Salva la richiesta nel database
+      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+
       await addDoc(collection(db, "passwordRequests"), {
         galleryId: galleryInfo.id,
         galleryCode: params.galleryId,
