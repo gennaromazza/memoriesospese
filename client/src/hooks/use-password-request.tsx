@@ -51,6 +51,11 @@ export function usePasswordRequest() {
       const galleryData = querySnapshot.docs[0].data();
       const galleryId = querySnapshot.docs[0].id;
       
+      console.log('Hook: Full gallery data from Firebase:', galleryData);
+      console.log('Hook: requiresSecurityQuestion field:', galleryData.requiresSecurityQuestion);
+      console.log('Hook: securityQuestionType field:', galleryData.securityQuestionType);
+      console.log('Hook: securityAnswer field:', galleryData.securityAnswer);
+      
       const info: GalleryInfo = {
         id: galleryId,
         name: galleryData.name,
@@ -59,6 +64,7 @@ export function usePasswordRequest() {
         securityQuestion: galleryData.requiresSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
       };
 
+      console.log('Hook: Created gallery info:', info);
       setGalleryInfo(info);
       return info;
     } catch (error) {

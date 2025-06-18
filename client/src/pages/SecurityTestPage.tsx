@@ -65,61 +65,43 @@ export default function SecurityTestPage() {
             </Card>
           </div>
 
-          {/* Test Accesso Utente */}
+          {/* Test Richiesta Password */}
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Test Accesso Utente</CardTitle>
+                <CardTitle>Test Richiesta Password</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Gallery ID da Testare</label>
+                  <label className="text-sm font-medium">Codice Galleria da Testare</label>
                   <Input
                     value={testGalleryId}
                     onChange={(e) => setTestGalleryId(e.target.value)}
-                    placeholder="Stesso Gallery ID configurato sopra"
+                    placeholder="Inserisci il codice della galleria (es: wedding123)"
                   />
                 </div>
                 
                 <Button 
                   onClick={() => {
-                    setShowAccessFlow(true);
-                    setAccessGranted(false);
+                    if (testGalleryId) {
+                      window.open(`/request-password/${testGalleryId}`, '_blank');
+                    }
                   }}
                   disabled={!testGalleryId}
                   className="w-full"
                 >
-                  Simula Accesso Galleria
+                  Testa Richiesta Password
                 </Button>
                 
-                {showAccessFlow && testGalleryId && !accessGranted && (
-                  <div className="mt-6">
-                    <GalleryAccessFlow
-                      galleryId={testGalleryId}
-                      onAccessGranted={() => setAccessGranted(true)}
-                    />
-                  </div>
-                )}
-                
-                {accessGranted && (
-                  <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <h3 className="font-semibold text-green-800">Accesso Riuscito!</h3>
-                    <p className="text-green-600 text-sm mt-1">
-                      L'utente ha superato tutti i controlli di sicurezza e può accedere alla galleria.
-                    </p>
-                    <Button 
-                      onClick={() => {
-                        setShowAccessFlow(false);
-                        setAccessGranted(false);
-                      }}
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                    >
-                      Testa di nuovo
-                    </Button>
-                  </div>
-                )}
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <h4 className="font-semibold text-yellow-800 text-sm">Come testare:</h4>
+                  <ol className="text-yellow-700 text-xs mt-1 space-y-1 list-decimal list-inside">
+                    <li>Prima configura una domanda di sicurezza usando il pannello sopra</li>
+                    <li>Poi usa questo pulsante per aprire la pagina di richiesta password</li>
+                    <li>Compila il form e verifica che appaia la domanda di sicurezza</li>
+                    <li>Controlla i log della console per il debug</li>
+                  </ol>
+                </div>
               </CardContent>
             </Card>
           </div>
