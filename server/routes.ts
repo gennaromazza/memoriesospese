@@ -728,14 +728,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId } = req.params;
       const limit = parseInt(req.query.limit as string) || 5;
 
-      const voiceMemosRef = collection(db, 'galleries', galleryId, 'voiceMemos');
-      const querySnapshot = await getDocs(voiceMemosRef);
+      const voiceMemosRef = collection(db, 'voiceMemos');
+      const q = query(
+        voiceMemosRef,
+        where('galleryId', '==', galleryId)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      console.log(`Found ${querySnapshot.docs.length} voice memos for gallery ${galleryId}`);
       
       const voiceMemos = querySnapshot.docs
         .map(doc => ({ 
           id: doc.id, 
           ...doc.data() 
         }))
+        .filter((memo: any) => memo.isUnlocked) // Solo note audio sbloccate
         .sort((a: any, b: any) => {
           // Sort by createdAt descending
           if (!a.createdAt || !b.createdAt) return 0;
@@ -747,6 +754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .slice(0, limit);
       
+      console.log(`Returning ${voiceMemos.length} unlocked voice memos`);
       res.json(voiceMemos);
     } catch (error) {
       console.error('Errore nel recupero note audio recenti:', error);
