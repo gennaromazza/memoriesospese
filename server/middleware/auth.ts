@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { SecurityQuestionType } from '../../shared/schema';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -13,8 +14,26 @@ export interface AuthenticatedRequest extends Request {
     password: string;
     code: string;
     active: boolean;
+    requiresSecurityQuestion?: boolean;
+    securityQuestionType?: SecurityQuestionType;
+    securityQuestionCustom?: string;
+    securityAnswer?: string;
   };
 }
+
+// Helper function to get security question text
+export const getSecurityQuestionText = (type: SecurityQuestionType, customQuestion?: string): string => {
+  switch (type) {
+    case SecurityQuestionType.LOCATION:
+      return "Qual è il nome della location dell'evento?";
+    case SecurityQuestionType.MONTH:
+      return "In che mese si è svolto l'evento?";
+    case SecurityQuestionType.CUSTOM:
+      return customQuestion || "Domanda personalizzata non disponibile";
+    default:
+      return "Domanda di sicurezza non valida";
+  }
+};
 
 // Middleware per autenticazione utente su operazioni sensibili
 export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

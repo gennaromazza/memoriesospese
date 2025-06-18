@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+// Security Question Types
+export enum SecurityQuestionType {
+  LOCATION = 'location',
+  MONTH = 'month', 
+  CUSTOM = 'custom'
+}
+
 // Gallery validation schema for Firebase
 export const insertGallerySchema = z.object({
   name: z.string().min(3, "Il nome deve contenere almeno 3 caratteri"),
@@ -7,11 +14,17 @@ export const insertGallerySchema = z.object({
   password: z.string().min(4, "La password deve contenere almeno 4 caratteri"),
   date: z.string().min(1, "La data è obbligatoria"),
   location: z.string().min(1, "Il luogo è obbligatorio"),
+  // Security Question fields
+  requiresSecurityQuestion: z.boolean().optional(),
+  securityQuestionType: z.nativeEnum(SecurityQuestionType).optional(),
+  securityQuestionCustom: z.string().optional(),
+  securityAnswer: z.string().optional(),
 });
 
 export type InsertGallery = z.infer<typeof insertGallerySchema>;
 
 // Gallery interface for Firebase documents
+
 export interface Gallery {
   id: string;
   name: string;
@@ -24,6 +37,11 @@ export interface Gallery {
   youtubeUrl?: string;
   photoCount: number;
   active: boolean;
+  // Security Question fields
+  requiresSecurityQuestion?: boolean;
+  securityQuestionType?: SecurityQuestionType;
+  securityQuestionCustom?: string;
+  securityAnswer?: string;
   createdAt: any; // Firebase Timestamp
   updatedAt?: any; // Firebase Timestamp
 }
