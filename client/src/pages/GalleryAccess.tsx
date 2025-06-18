@@ -1,24 +1,15 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { createUrl } from "@/lib/basePath";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
-
-const accessSchema = z.object({
-  password: z.string().min(1, "La password è obbligatoria"),
-});
-
-type AccessFormData = z.infer<typeof accessSchema>;
+import GalleryAccessFlow from "@/components/GalleryAccessFlow";
 
 export default function GalleryAccess() {
   const { id } = useParams();
@@ -26,14 +17,8 @@ export default function GalleryAccess() {
   const [isLoading, setIsLoading] = useState(false);
   const [galleryNotFound, setGalleryNotFound] = useState(false);
   const [galleryDetails, setGalleryDetails] = useState<{ name: string; date: string; location: string } | null>(null);
+  const [accessGranted, setAccessGranted] = useState(false);
   const { toast } = useToast();
-
-  const form = useForm<AccessFormData>({
-    resolver: zodResolver(accessSchema),
-    defaultValues: {
-      password: "",
-    },
-  });
 
   // Check if gallery exists on component mount
   useEffect(() => {
@@ -57,7 +42,6 @@ export default function GalleryAccess() {
           });
         }
       } catch (error) {
-        
         toast({
           title: "Errore",
           description: "Non è stato possibile verificare la galleria.",
@@ -69,49 +53,17 @@ export default function GalleryAccess() {
     }
 
     checkGallery();
-  }, [id]);
+  }, [id, toast]);
 
-  const onSubmit = async (data: AccessFormData) => {
+  const handleAccessGranted = () => {
     if (!id) return;
-
-    setIsLoading(true);
-    try {
-      const galleriesRef = collection(db, "galleries");
-      const q = query(
-        galleriesRef, 
-        where("code", "==", id),
-        where("password", "==", data.password)
-      );
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        toast({
-          title: "Accesso negato",
-          description: "La password inserita non è corretta.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Successful login, store session and navigate to gallery view
-      const galleryDoc = querySnapshot.docs[0];
-      localStorage.setItem(`gallery_auth_${id}`, "true");
-      localStorage.setItem(`gallery_id_${id}`, galleryDoc.id);
-      
-      // Naviga alla visualizzazione della galleria usando il router wouter
-      // che gestirà correttamente il basePath
-      
-      navigate(`/view/${id}`);
-    } catch (error) {
-      
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'accesso alla galleria.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    
+    // Store session and navigate to gallery view
+    localStorage.setItem(`gallery_auth_${id}`, "true");
+    setAccessGranted(true);
+    
+    // Navigate to gallery view
+    navigate(`/view/${id}`);
   };
 
   return (
@@ -137,69 +89,46 @@ export default function GalleryAccess() {
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardContent className="pt-6">
-                {/* Gallery header with details */}
-                <div className="text-center mb-6">
-                  <div className="inline-block p-3 rounded-full bg-light-mint mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-gray" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-bold text-blue-gray font-playfair">
-                    {galleryDetails?.name || "Accedi alla Galleria"}
-                  </h2>
-                  {galleryDetails?.date && galleryDetails?.location && (
-                    <p className="mt-2 text-gray-600">
-                      {galleryDetails.date} • {galleryDetails.location}
-                    </p>
-                  )}
-                  <div className="mt-4 pt-4 border-t border-beige">
-                    <p className="text-gray-600">
-                      Questa galleria è protetta. Inserisci la password per accedere alle foto.
-                    </p>
-                  </div>
+            <div className="space-y-6">
+              {/* Gallery header with details */}
+              <div className="text-center">
+                <div className="inline-block p-3 rounded-full bg-light-mint mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-gray" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
                 </div>
-
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-blue-gray mb-1">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type="text" 
-                        placeholder="Inserisci la password"
-                        {...form.register("password")}
-                        className="w-full px-3 py-2 border border-beige rounded-md focus:ring-sage focus:border-sage"
-                        autoFocus
-                      />
-                    </div>
-                    {form.formState.errors.password && (
-                      <p className="mt-1 text-sm text-red-500">{form.formState.errors.password.message}</p>
-                    )}
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full btn-primary py-2 rounded-md"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Verifica in corso..." : "Accedi alla Galleria"}
-                  </Button>
-                </form>
-
-                <div className="mt-6 pt-4 border-t border-beige text-center">
-                  <p className="text-sm text-gray-600 mb-2">
-                    Non hai la password per questa galleria?
+                <h2 className="text-2xl font-bold text-blue-gray font-playfair">
+                  {galleryDetails?.name || "Accedi alla Galleria"}
+                </h2>
+                {galleryDetails?.date && galleryDetails?.location && (
+                  <p className="mt-2 text-gray-600">
+                    {galleryDetails.date} • {galleryDetails.location}
                   </p>
-                  <Link href={createUrl(`/request-password/${id}`)} className="inline-block px-4 py-2 rounded text-blue-gray hover:text-terracotta transition">
-                    Richiedila qui
-                  </Link>
+                )}
+                <div className="mt-4 pt-4 border-t border-beige">
+                  <p className="text-gray-600">
+                    Questa galleria è protetta. Completa l'autenticazione per accedere alle foto.
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* Gallery Access Flow Component */}
+              {id && !accessGranted && (
+                <GalleryAccessFlow
+                  galleryId={id}
+                  onAccessGranted={handleAccessGranted}
+                />
+              )}
+
+              <div className="text-center">
+                <p className="text-sm text-gray-600 mb-2">
+                  Non hai la password per questa galleria?
+                </p>
+                <Link href={createUrl(`/request-password/${id}`)} className="inline-block px-4 py-2 rounded text-blue-gray hover:text-terracotta transition">
+                  Richiedila qui
+                </Link>
+              </div>
+            </div>
           )}
         </div>
       </div>

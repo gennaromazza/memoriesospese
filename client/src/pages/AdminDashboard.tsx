@@ -14,6 +14,7 @@ import SlideshowManager from "@/components/SlideshowManager";
 import UserManager from "@/components/UserManager";
 import SubscriptionsManager from "@/components/SubscriptionsManager";
 import EmailStatusPanel from "@/components/EmailStatusPanel";
+import SecurityQuestionManager from "@/components/SecurityQuestionManager";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight } from "lucide-react";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -184,7 +185,9 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'subscriptions' | 'slideshow' | 'requests' | 'email' | 'settings'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'subscriptions' | 'slideshow' | 'requests' | 'email' | 'settings' | 'security'>('galleries');
+  const [securityGalleryId, setSecurityGalleryId] = useState<string | null>(null);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
 
   // Stati per la paginazione delle gallerie
   const [currentGalleryPage, setCurrentGalleryPage] = useState(1);
