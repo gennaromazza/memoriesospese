@@ -3,8 +3,7 @@ import { useParams, Link, useLocation } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { usePasswordRequest } from "@/hooks/use-password-request";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,12 +47,15 @@ type RequestFormData = z.infer<typeof requestSchema>;
 
 export default function RequestPassword() {
   const { id } = useParams();
-  const [, navigate] = useLocation(); // Aggiungiamo useLocation hook
-  const [isLoading, setIsLoading] = useState(false);
+  const [, navigate] = useLocation();
   const [success, setSuccess] = useState(false);
-  const [galleryExists, setGalleryExists] = useState<boolean | null>(null);
-  const [galleryName, setGalleryName] = useState("");
+  const [showSecurityQuestion, setShowSecurityQuestion] = useState(false);
+  const [securityAnswer, setSecurityAnswer] = useState("");
+  const [securityError, setSecurityError] = useState("");
+  const [finalPassword, setFinalPassword] = useState("");
   const { toast } = useToast();
+  
+  const { getGalleryInfo, submitPasswordRequest, galleryInfo, isLoading, error } = usePasswordRequest();
 
   const form = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
@@ -68,24 +70,12 @@ export default function RequestPassword() {
 
   // Check if the gallery exists on component mount
   useEffect(() => {
-    async function checkGallery() {
+    async function loadGalleryInfo() {
       if (!id) return;
       
       try {
-        const galleriesRef = collection(db, "galleries");
-        const q = query(galleriesRef, where("code", "==", id));
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          setGalleryExists(false);
-          return;
-        }
-        
-        const galleryData = querySnapshot.docs[0].data();
-        setGalleryName(galleryData.name);
-        setGalleryExists(true);
+        await getGalleryInfo(id);
       } catch (error) {
-        
         toast({
           title: "Errore",
           description: "Non è stato possibile verificare la galleria.",
@@ -94,56 +84,77 @@ export default function RequestPassword() {
       }
     }
     
-    checkGallery();
-  }, [id, toast]);
+    loadGalleryInfo();
+  }, [id, getGalleryInfo, toast]);
 
   const onSubmit = async (data: RequestFormData) => {
-    if (!id) return;
+    if (!id || !galleryInfo) return;
     
-    setIsLoading(true);
     try {
-      // Check if the gallery exists
-      const galleriesRef = collection(db, "galleries");
-      const q = query(galleriesRef, where("code", "==", id));
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        toast({
-          title: "Galleria non trovata",
-          description: "La galleria richiesta non esiste o è stata rimossa.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      const galleryDoc = querySnapshot.docs[0];
-      const galleryId = galleryDoc.id;
-      const galleryData = galleryDoc.data();
-      
-      // Add the request to the passwordRequests collection
-      await addDoc(collection(db, "passwordRequests"), {
-        galleryId,
-        galleryCode: id,
-        galleryName: galleryData.name,
+      const result = await submitPasswordRequest({
+        galleryId: id,
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
-        relation: data.relation,
-        status: "completed",
-        createdAt: serverTimestamp(),
+        relation: data.relation
       });
+
+      if (result.requiresSecurityQuestion) {
+        setShowSecurityQuestion(true);
+        return;
+      }
+
+      if (result.success && result.password) {
+        setFinalPassword(result.password);
+        setSuccess(true);
+        
+        toast({
+          title: "Richiesta completata!",
+          description: "La password è ora disponibile qui sotto.",
+        });
+      }
       
-      // Naviga alla pagina dei risultati usando il router
-      
-      navigate(`/password-result/${galleryId}`);
     } catch (error) {
-      
       toast({
         title: "Errore",
-        description: "Si è verificato un errore durante l'invio della richiesta.",
+        description: error instanceof Error ? error.message : "Si è verificato un errore durante l'invio della richiesta.",
         variant: "destructive",
       });
-      setIsLoading(false);
+    }
+  };
+
+  const handleSecurityAnswer = async () => {
+    if (!id || !galleryInfo || !securityAnswer.trim()) {
+      setSecurityError("La risposta è obbligatoria");
+      return;
+    }
+
+    setSecurityError("");
+
+    try {
+      const formData = form.getValues();
+      const result = await submitPasswordRequest({
+        galleryId: id,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        relation: formData.relation,
+        securityAnswer: securityAnswer.trim()
+      });
+
+      if (result.success && result.password) {
+        setFinalPassword(result.password);
+        setSuccess(true);
+        setShowSecurityQuestion(false);
+        
+        toast({
+          title: "Accesso autorizzato!",
+          description: "La password è ora disponibile qui sotto.",
+        });
+      }
+      
+    } catch (error) {
+      setSecurityError(error instanceof Error ? error.message : "Errore durante la verifica");
     }
   };
 

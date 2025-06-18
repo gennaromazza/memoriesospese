@@ -38,11 +38,12 @@ export function useGalleryAccess() {
 
       const galleryData = querySnapshot.docs[0].data();
       
-      // Determina i requisiti di accesso
+      // Per l'accesso diretto alla galleria, richiediamo solo la password
+      // La domanda di sicurezza viene usata solo nel flusso di richiesta password
       const accessInfo = {
         requiresPassword: !!galleryData.password,
-        requiresSecurityQuestion: !!galleryData.requiresSecurityQuestion,
-        securityQuestion: galleryData.requiresSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
+        requiresSecurityQuestion: false, // Rimossa dal flusso di accesso diretto
+        securityQuestion: undefined
       };
 
       setAccessInfo(accessInfo);
@@ -92,24 +93,10 @@ export function useGalleryAccess() {
 
       const galleryData = querySnapshot.docs[0].data();
       
-      // Verifica password se richiesta
+      // Per l'accesso diretto alla galleria, verifica solo la password
+      // La domanda di sicurezza è utilizzata solo nel flusso di richiesta password
       if (galleryData.password && params.password !== galleryData.password) {
         throw new Error('Password non corretta');
-      }
-      
-      // Verifica domanda di sicurezza se richiesta
-      if (galleryData.requiresSecurityQuestion) {
-        if (!params.securityAnswer) {
-          throw new Error('Risposta alla domanda di sicurezza richiesta');
-        }
-        
-        const correctAnswer = galleryData.securityAnswer;
-        const providedAnswer = params.securityAnswer.toLowerCase().trim();
-        const expectedAnswer = correctAnswer.toLowerCase().trim();
-        
-        if (providedAnswer !== expectedAnswer) {
-          throw new Error('Risposta alla domanda di sicurezza non corretta');
-        }
       }
       
       toast({
