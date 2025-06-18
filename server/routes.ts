@@ -625,15 +625,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const q = query(
         commentsRef,
         where('galleryId', '==', galleryId),
-        orderBy('createdAt', 'desc'),
-        limit(limit)
+        orderBy('createdAt', 'desc')
       );
       
       const querySnapshot = await getDocs(q);
-      const comments = querySnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
+      const comments = querySnapshot.docs
+        .map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        }))
+        .slice(0, limit); // Apply limit after fetching
       
       res.json(comments);
     } catch (error) {
