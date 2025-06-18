@@ -276,10 +276,7 @@ export default function InteractionPanel({
   // Initial data loading
   useEffect(() => {
     fetchStats();
-    if (showComments) {
-      fetchComments();
-    }
-  }, [itemId, itemType, galleryId, userEmail, showComments]);
+  }, [itemId, itemType, galleryId, userEmail]);
 
   return (
     <div className={`space-y-3 ${className}`}>
