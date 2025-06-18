@@ -46,11 +46,10 @@ export const requireAuth = (req: AuthenticatedRequest, res: Response, next: Next
   next();
 };
 
-// Middleware per verificare accesso alla galleria
-export const requireGalleryAccess = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+// Middleware per verificare che la galleria esista ed è attiva
+export const validateGallery = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { galleryId } = req.params;
-    const { password } = req.body || {};
 
     if (!galleryId) {
       return res.status(400).json({ error: 'ID galleria richiesto' });
@@ -71,14 +70,6 @@ export const requireGalleryAccess = async (req: AuthenticatedRequest, res: Respo
       return res.status(403).json({ error: 'Galleria non disponibile' });
     }
 
-    // Verifica password se richiesta
-    if (galleryData.password && galleryData.password !== password) {
-      return res.status(403).json({ 
-        error: 'Password galleria richiesta',
-        requiresPassword: true 
-      });
-    }
-
     req.gallery = {
       id: galleryId,
       password: galleryData.password,
@@ -88,7 +79,7 @@ export const requireGalleryAccess = async (req: AuthenticatedRequest, res: Respo
 
     next();
   } catch (error) {
-    console.error('Errore verifica accesso galleria:', error);
+    console.error('Errore validazione galleria:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 };
