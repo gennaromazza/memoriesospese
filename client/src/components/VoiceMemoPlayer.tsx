@@ -408,6 +408,16 @@ export default function VoiceMemoPlayer({
             preload="metadata"
             className="hidden"
           />
+
+          {/* Interaction Panel - Like e Commenti */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <InteractionWrapper
+              itemId={memo.id}
+              itemType="voice_memo"
+              galleryId={galleryId}
+              isAdmin={isAdmin}
+            />
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -305,6 +305,7 @@ export default function VoiceMemosList({
           <VoiceMemoPlayer
             key={memo.id}
             memo={memo}
+            galleryId={galleryId}
             isAdmin={isAdmin}
             onUnlock={handleUnlockMemo}
             onDelete={handleDeleteMemo}
