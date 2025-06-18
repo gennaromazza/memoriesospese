@@ -179,27 +179,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId } = req.params;
       const voiceMemoData = req.body;
 
-      // Preprocessa i dati per gestire valori null
-      const processedData = {
-        ...voiceMemoData,
+      // Prepara i dati base obbligatori
+      const firebaseData: any = {
         galleryId,
-        unlockDate: voiceMemoData.unlockDate || undefined,
-        message: voiceMemoData.message || undefined,
-        duration: voiceMemoData.duration || undefined
+        guestName: voiceMemoData.guestName,
+        audioUrl: voiceMemoData.audioUrl,
+        fileName: voiceMemoData.fileName,
+        fileSize: voiceMemoData.fileSize,
+        isUnlocked: !voiceMemoData.unlockDate || new Date(voiceMemoData.unlockDate) <= new Date(),
+        createdAt: serverTimestamp()
       };
 
-      // Validazione dei dati
-      const validatedData = insertVoiceMemoSchema.parse(processedData);
-
-      // Determina se il memo deve essere sbloccato immediatamente
-      const isUnlocked = !validatedData.unlockDate || new Date(validatedData.unlockDate) <= new Date();
+      // Aggiungi campi opzionali solo se presenti e non null
+      if (voiceMemoData.message && voiceMemoData.message.trim()) {
+        firebaseData.message = voiceMemoData.message;
+      }
+      if (voiceMemoData.unlockDate && voiceMemoData.unlockDate !== null) {
+        firebaseData.unlockDate = voiceMemoData.unlockDate;
+      }
+      if (voiceMemoData.duration && voiceMemoData.duration > 0) {
+        firebaseData.duration = voiceMemoData.duration;
+      }
 
       // Crea il documento nel database Firebase
-      const docRef = await addDoc(collection(db, 'voiceMemos'), {
-        ...validatedData,
-        isUnlocked,
-        createdAt: serverTimestamp()
-      });
+      const docRef = await addDoc(collection(db, 'voiceMemos'), firebaseData);
 
       // Recupera il documento appena creato
       const docSnap = await getDoc(docRef);
