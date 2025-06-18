@@ -17,6 +17,46 @@ interface CustomEmailTemplate {
 let emailProvider: 'smtp' = 'smtp';
 let transporter: any = null;
 
+// Function to get custom email template for a gallery
+async function getCustomEmailTemplate(
+  galleryId: string, 
+  templateType: 'welcome' | 'invitation' | 'password_request' | 'new_photos'
+): Promise<CustomEmailTemplate | null> {
+  try {
+    const templatesRef = collection(db, 'email_templates');
+    const q = query(
+      templatesRef,
+      where('galleryId', '==', galleryId),
+      where('templateType', '==', templateType),
+      where('isActive', '==', true),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { id: doc.id, ...doc.data() } as CustomEmailTemplate;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching custom email template:', error);
+    return null;
+  }
+}
+
+// Function to replace variables in template content
+function replaceTemplateVariables(content: string, variables: Record<string, string>): string {
+  let result = content;
+  Object.entries(variables).forEach(([key, value]) => {
+    const regex = new RegExp(`{{${key}}}`, 'g');
+    result = result.replace(regex, value || '');
+  });
+  return result;
+}
+
 // Inizializza il provider email con modalità di sviluppo per Replit
 async function initializeEmailProvider() {
   // In ambiente di sviluppo su Replit, usa simulazione email
