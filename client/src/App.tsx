@@ -49,6 +49,7 @@ function Router() {
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
       <Route path="/request-password/:id" component={RequestPassword} />
+      <Route path="/request-password" component={RequestPassword} />
       <Route path="/password-result/:id" component={PasswordResult} />
       <Route path="/security-test" component={SecurityTestPage} />
       <Route component={NotFound} />
