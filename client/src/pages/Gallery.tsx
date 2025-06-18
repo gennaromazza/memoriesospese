@@ -534,6 +534,14 @@ export default function Gallery() {
                 <SocialActivityPanel 
                   galleryId={gallery.id}
                   className="w-full"
+                  onPhotoClick={(photoId) => {
+                    // Find photo index in allPhotos array
+                    const photoIndex = allPhotos.findIndex(photo => photo.id === photoId);
+                    if (photoIndex !== -1) {
+                      setCurrentPhotoIndex(photoIndex);
+                      setLightboxOpen(true);
+                    }
+                  }}
                 />
               </div>
             </div>

@@ -31,9 +31,10 @@ interface PhotoStats {
 interface SocialActivityPanelProps {
   galleryId: string;
   className?: string;
+  onPhotoClick?: (photoId: string) => void;
 }
 
-export default function SocialActivityPanel({ galleryId, className = '' }: SocialActivityPanelProps) {
+export default function SocialActivityPanel({ galleryId, className = '', onPhotoClick }: SocialActivityPanelProps) {
   const [recentComments, setRecentComments] = useState<Comment[]>([]);
   const [topPhotos, setTopPhotos] = useState<PhotoStats[]>([]);
   const [recentVoiceMemos, setRecentVoiceMemos] = useState<VoiceMemo[]>([]);
@@ -174,7 +175,16 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
                 <div className="space-y-2">
                   {recentComments.map((comment, index) => (
                     <div key={comment.id} className="group">
-                      <div className="p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div 
+                        className={`p-2 rounded-lg hover:bg-gray-50 transition-colors ${
+                          comment.itemType === 'photo' && onPhotoClick ? 'cursor-pointer' : ''
+                        }`}
+                        onClick={() => {
+                          if (comment.itemType === 'photo' && onPhotoClick) {
+                            onPhotoClick(comment.itemId);
+                          }
+                        }}
+                      >
                         <div className="flex items-start gap-2">
                           <div className="w-6 h-6 bg-gradient-to-br from-sage-100 to-blue-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <User className="h-3 w-3 text-sage-600" />
@@ -188,12 +198,19 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
                                 {formatDateTime(comment.createdAt)}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                            <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-1">
                               {comment.content}
                             </p>
-                            <Badge variant="outline" className="text-xs px-1 py-0 mt-1">
-                              {comment.itemType === 'photo' ? 'Foto' : 'Audio'}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs px-1 py-0">
+                                {comment.itemType === 'photo' ? 'Foto' : 'Audio'}
+                              </Badge>
+                              {comment.itemType === 'photo' && (comment as any).photoName && (
+                                <span className="text-xs text-gray-500 truncate">
+                                  su "{(comment as any).photoName}"
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>

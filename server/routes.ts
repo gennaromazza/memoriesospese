@@ -628,7 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       const querySnapshot = await getDocs(q);
-      const comments = querySnapshot.docs
+      const allComments = querySnapshot.docs
         .map(doc => ({ 
           id: doc.id, 
           ...doc.data() 
@@ -643,6 +643,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return bTime - aTime;
         })
         .slice(0, limit); // Apply limit after sorting
+
+      // Get photo details for comments on photos
+      const comments = await Promise.all(allComments.map(async (comment: any) => {
+        if (comment.itemType === 'photo') {
+          try {
+            // Get photo details
+            const photoDoc = await getDoc(doc(db, 'photos', comment.itemId));
+            if (photoDoc.exists()) {
+              const photoData = photoDoc.data();
+              return {
+                ...comment,
+                photoName: photoData.name || 'Foto senza nome',
+                photoUrl: photoData.url
+              };
+            }
+          } catch (error) {
+            console.error('Error fetching photo details for comment:', error);
+          }
+        }
+        return comment;
+      }));
       
       res.json(comments);
     } catch (error) {
