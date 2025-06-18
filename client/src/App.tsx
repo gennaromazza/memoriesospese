@@ -17,6 +17,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import RequestPassword from "@/pages/RequestPassword";
 import PasswordResult from "@/pages/PasswordResult";
 import DeleteGalleryPage from "@/pages/DeleteGalleryPage";
+import SecurityTestPage from "@/pages/SecurityTestPage";
 import NotFound from "@/pages/not-found";
 
 // Hook per tracciare le visualizzazioni delle pagine
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
       <Route path="/request-password/:id" component={RequestPassword} />
       <Route path="/password-result/:id" component={PasswordResult} />
+      <Route path="/security-test" component={SecurityTestPage} />
       <Route component={NotFound} />
     </Switch>
   );
