@@ -150,11 +150,18 @@ export default function VoiceMemoPlayer({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    if (!dateString) return 'Data non valida';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Data non valida';
+      return date.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (error) {
+      return 'Data non valida';
+    }
   };
 
   const formatDateTime = (timestamp: any) => {
@@ -207,7 +214,7 @@ export default function VoiceMemoPlayer({
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-sage-500 to-blue-gray-500 rounded-full flex items-center justify-center">
-                <User className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                <User className="h-5 w-5 sm:h-6 sm:w-6 text-[#707d6e]" />
               </div>
               <div>
                 <p className="font-medium text-gray-900 text-sm sm:text-base">{memo.guestName}</p>

@@ -353,13 +353,13 @@ export default function VoiceMemoUpload({
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="text-center pb-4 sm:pb-6">
-          <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+          <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-sage-600 to-blue-gray-600 rounded-full flex items-center justify-center mb-3 sm:mb-4">
             <Mic2 className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
           </div>
-          <DialogTitle className="text-xl sm:text-2xl font-bold text-purple-900">
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-blue-gray-900">
             Vocali Segreti
           </DialogTitle>
-          <p className="text-purple-600 mt-1 sm:mt-2 text-sm sm:text-base px-2">
+          <p className="text-sage-700 mt-1 sm:mt-2 text-sm sm:text-base px-2">
             Registra un messaggio speciale per "{galleryName}"
           </p>
         </DialogHeader>
@@ -367,7 +367,7 @@ export default function VoiceMemoUpload({
         <div className="space-y-4 sm:space-y-6">
           {/* Guest name input */}
           <div className="space-y-2">
-            <Label htmlFor="guest-name" className="text-purple-700 font-medium text-sm">
+            <Label htmlFor="guest-name" className="text-sage-700 font-medium text-sm">
               Il tuo nome
             </Label>
             <Input
@@ -375,7 +375,7 @@ export default function VoiceMemoUpload({
               placeholder="Es. Marco e Lisa"
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
-              className="border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm sm:text-base h-10 sm:h-11"
+              className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base h-10 sm:h-11"
             />
           </div>
 

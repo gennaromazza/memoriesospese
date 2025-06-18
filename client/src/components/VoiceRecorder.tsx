@@ -251,7 +251,7 @@ export default function VoiceRecorder({
                 </Button>
                 <Button
                   onClick={handleUseRecording}
-                  className="bg-sage-600 hover:bg-sage-700 text-white px-6"
+                  className="bg-[#d2cdc1] hover:bg-[#d2cdc1] text-[#667f8f] px-6"
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Usa questa registrazione
