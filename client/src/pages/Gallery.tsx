@@ -310,12 +310,15 @@ export default function Gallery() {
                   </button>
                   <button
                     onClick={() => setActiveTab('voice-memos')}
-                    className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
+                    className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
                       activeTab === 'voice-memos'
-                        ? 'bg-white shadow-sm text-blue-gray'
-                        : 'text-gray-600 hover:text-blue-gray'
+                        ? 'bg-gradient-to-r from-sage-100 to-blue-gray-100 shadow-lg text-sage-800 border border-sage-200'
+                        : 'text-gray-600 hover:text-sage-700 hover:bg-sage-50'
                     }`}
                   >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
                     <span className="hidden sm:inline">Vocali Segreti</span>
                     <span className="sm:hidden">Vocali</span>
                   </button>
