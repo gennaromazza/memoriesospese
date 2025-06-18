@@ -14,6 +14,7 @@ import GalleryAccess from "@/pages/GalleryAccess";
 import Gallery from "@/pages/Gallery";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminEmailTemplates from "@/pages/AdminEmailTemplates";
 import RequestPassword from "@/pages/RequestPassword";
 import PasswordResult from "@/pages/PasswordResult";
 import DeleteGalleryPage from "@/pages/DeleteGalleryPage";

@@ -92,9 +92,14 @@ export default function EmailTemplateEditor({
   const { toast } = useToast();
 
   // Fetch default template for the type
-  const { data: defaultTemplate } = useQuery({
+  const { data: defaultTemplate } = useQuery<{
+    subject: string;
+    htmlContent: string;
+    textContent: string;
+    variables: string[];
+  }>({
     queryKey: [`/api/email-templates/defaults/${templateType}`],
-    queryFn: getQueryFn(),
+    queryFn: () => fetch(`/api/email-templates/defaults/${templateType}`).then(res => res.json()),
     enabled: !template && isOpen,
   });
 
