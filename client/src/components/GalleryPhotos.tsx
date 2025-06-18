@@ -7,13 +7,17 @@ import PhotoCard from './PhotoCard';
 interface GalleryPhotosProps {
   photos: PhotoData[];
   openLightbox: (index: number) => void;
+  galleryId: string;
+  isAdmin?: boolean;
 }
 
 // Componente ottimizzato per singola immagine
-const OptimizedImage = React.memo(({ photo, index, openLightbox }: {
+const OptimizedImage = React.memo(({ photo, index, openLightbox, galleryId, isAdmin }: {
   photo: PhotoData;
   index: number;
   openLightbox: (index: number) => void;
+  galleryId: string;
+  isAdmin?: boolean;
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(false);
@@ -86,7 +90,7 @@ const OptimizedImage = React.memo(({ photo, index, openLightbox }: {
 
 OptimizedImage.displayName = 'OptimizedImage';
 
-export default function GalleryPhotos({ photos, openLightbox }: GalleryPhotosProps) {
+export default function GalleryPhotos({ photos, openLightbox, galleryId, isAdmin = false }: GalleryPhotosProps) {
   const memoizedOpenLightbox = useCallback((index: number) => {
     openLightbox(index);
   }, [openLightbox]);
@@ -105,6 +109,8 @@ export default function GalleryPhotos({ photos, openLightbox }: GalleryPhotosPro
           photo={photo}
           index={index}
           onClick={memoizedOpenLightbox}
+          galleryId={galleryId}
+          isAdmin={isAdmin}
         />
       ))}
     </div>

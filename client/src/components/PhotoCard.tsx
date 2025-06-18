@@ -1,14 +1,17 @@
 import React from 'react';
 import { PhotoData } from '@/hooks/use-gallery-data';
 import { User, Camera } from 'lucide-react';
+import InteractionWrapper from './InteractionWrapper';
 
 interface PhotoCardProps {
   photo: PhotoData;
   index: number;
   onClick: (index: number) => void;
+  galleryId: string;
+  isAdmin?: boolean;
 }
 
-export default function PhotoCard({ photo, index, onClick }: PhotoCardProps) {
+export default function PhotoCard({ photo, index, onClick, galleryId, isAdmin = false }: PhotoCardProps) {
   // Determina il tipo di uploader dalla photo data
   const uploaderRole = (photo as any).uploaderRole || 'photographer';
   const uploaderName = (photo as any).uploaderName || 'Fotografo';
@@ -69,6 +72,22 @@ export default function PhotoCard({ photo, index, onClick }: PhotoCardProps) {
           </div>
         </div>
       )}
+
+      {/* Interaction panel - like e commenti */}
+      <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div 
+          className="bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-sm"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <InteractionWrapper
+            itemId={photo.id}
+            itemType="photo"
+            galleryId={galleryId}
+            isAdmin={isAdmin}
+            className="scale-90"
+          />
+        </div>
+      </div>
     </div>
   );
 }
