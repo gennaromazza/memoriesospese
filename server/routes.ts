@@ -1,7 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
-import { insertVoiceMemoSchema, insertEmailTemplateSchema } from "../shared/schema";
+import { 
+  insertVoiceMemoSchema, 
+  insertEmailTemplateSchema,
+  insertAdminUserSchema,
+  insertGalleryGuestSchema
+} from "../shared/schema";
 import { z } from 'zod';
 import { 
   collection, 
@@ -18,6 +23,17 @@ import {
 } from 'firebase/firestore';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import { db } from './firebase';
+
+// Importa i sistemi di autenticazione separati
+import { requireAdmin, loginAdmin, logoutAdmin, verifyAdminSession } from "./auth/adminAuth";
+import { 
+  requireGalleryGuest, 
+  registerGalleryGuest, 
+  loginGalleryGuest, 
+  logoutGalleryGuest, 
+  verifyGuestSession 
+} from "./auth/guestAuth";
+import bcrypt from 'bcryptjs';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint di test per verificare configurazione email

@@ -167,3 +167,66 @@ export interface EmailTemplate {
   createdAt: any; // Firebase Timestamp
   updatedAt?: any; // Firebase Timestamp
 }
+
+// Modelli per l'autenticazione ADMIN
+export interface AdminUser {
+  id: string;
+  email: string;
+  passwordHash: string;
+  role: 'admin' | 'super_admin';
+  permissions: string[];
+  createdAt: any; // Firebase Timestamp
+  lastLogin?: any; // Firebase Timestamp
+  isActive: boolean;
+}
+
+export const insertAdminUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: z.enum(['admin', 'super_admin']).default('admin'),
+  permissions: z.array(z.string()).default([])
+});
+
+export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
+
+export interface AdminSession {
+  id: string;
+  adminId: string;
+  sessionToken: string;
+  expiresAt: any; // Firebase Timestamp
+  createdAt: any; // Firebase Timestamp
+  isActive: boolean;
+}
+
+// Modelli per l'autenticazione OSPITI GALLERIA
+export interface GalleryGuest {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  galleryId: string;
+  profileImageUrl?: string;
+  registeredAt: any; // Firebase Timestamp
+  lastActiveAt?: any; // Firebase Timestamp
+  isActive: boolean;
+}
+
+export const insertGalleryGuestSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  galleryId: z.string().min(1),
+  profileImageUrl: z.string().url().optional()
+});
+
+export type InsertGalleryGuest = z.infer<typeof insertGalleryGuestSchema>;
+
+export interface GalleryGuestSession {
+  id: string;
+  guestId: string;
+  galleryId: string;
+  sessionToken: string;
+  expiresAt: any; // Firebase Timestamp
+  createdAt: any; // Firebase Timestamp
+  isActive: boolean;
+}
