@@ -179,11 +179,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId } = req.params;
       const voiceMemoData = req.body;
 
-      // Validazione dei dati
-      const validatedData = insertVoiceMemoSchema.parse({
+      // Preprocessa i dati per gestire valori null
+      const processedData = {
         ...voiceMemoData,
-        galleryId
-      });
+        galleryId,
+        unlockDate: voiceMemoData.unlockDate || undefined,
+        message: voiceMemoData.message || undefined,
+        duration: voiceMemoData.duration || undefined
+      };
+
+      // Validazione dei dati
+      const validatedData = insertVoiceMemoSchema.parse(processedData);
 
       // Determina se il memo deve essere sbloccato immediatamente
       const isUnlocked = !validatedData.unlockDate || new Date(validatedData.unlockDate) <= new Date();
@@ -224,6 +230,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: doc.id,
         ...doc.data()
       })) as any[];
+
+      // Ordina i memo per data di creazione (più recenti prima)
+      voiceMemos.sort((a, b) => {
+        const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt);
+        const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt);
+        return bTime.getTime() - aTime.getTime();
+      });
 
       // Verifica e aggiorna lo stato di unlock per i memo con data di sblocco
       const now = new Date();

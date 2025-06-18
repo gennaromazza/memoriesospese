@@ -67,7 +67,7 @@ export const insertVoiceMemoSchema = z.object({
   guestName: z.string().min(1),
   audioUrl: z.string().url(),
   message: z.string().optional(),
-  unlockDate: z.string().optional(),
+  unlockDate: z.string().nullish(),
   fileName: z.string().min(1),
   fileSize: z.number().positive(),
   duration: z.number().positive().optional(),
