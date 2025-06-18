@@ -204,7 +204,7 @@ export default function VoiceRecorder({
           </div>
 
           {/* Controls */}
-          <div className="bg-gradient-to-r from-sage-50 to-blue-gray-50 p-4 rounded-lg border border-sage-200">
+          <div className="from-sage-50 to-blue-gray-50 p-4 rounded-lg border border-sage-200 bg-[#aab7bd]">
             <div className="flex justify-center items-center gap-3 sm:gap-4">
               {!audioBlob ? (
                 <>
@@ -212,7 +212,7 @@ export default function VoiceRecorder({
                     onClick={isRecording ? stopRecording : startRecording}
                     disabled={hasPermission === null}
                     size="lg"
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 px-8 bg-sage-600 hover:bg-sage-700 w-16 h-16 rounded-full shadow-lg text-[#667f8f]"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 px-8 bg-[#667f8f] hover:bg-sage-700 w-16 h-16 rounded-full shadow-lg text-white"
                   >
                     {isRecording ? (
                       <Square className="h-6 w-6" />
