@@ -117,10 +117,15 @@ export const requireAdmin = async (req: AuthenticatedRequest, res: Response, nex
   }
 };
 
-// Middleware per rate limiting semplice
-const requestCounts = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minuti
-const MAX_REQUESTS = 100; // Massimo 100 richieste per finestra
+// Middleware per rate limiting più permissivo per operazioni normali
+let requestCounts = new Map<string, { count: number; resetTime: number }>();
+
+// Reset cache ogni ora per evitare accumulo memoria
+setInterval(() => {
+  requestCounts.clear();
+}, 60 * 60 * 1000);
+const RATE_LIMIT_WINDOW = 5 * 60 * 1000; // 5 minuti
+const MAX_REQUESTS = 50; // 50 richieste per finestra per operazioni sensibili
 
 export const rateLimit = (req: Request, res: Response, next: NextFunction) => {
   const clientId = req.ip || 'unknown';
@@ -141,8 +146,8 @@ export const rateLimit = (req: Request, res: Response, next: NextFunction) => {
   
   if (clientData.count >= MAX_REQUESTS) {
     return res.status(429).json({ 
-      error: 'Troppi tentativi',
-      message: 'Limite di richieste superato. Riprova tra 15 minuti.' 
+      error: 'Limite temporaneo raggiunto',
+      message: 'Troppe operazioni consecutive. Riprova tra qualche minuto.' 
     });
   }
   
