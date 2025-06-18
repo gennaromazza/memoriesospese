@@ -95,9 +95,12 @@ export default function RequestPassword() {
   const onSubmit = async (data: RequestFormData) => {
     if (!id || !galleryInfo) return;
     
-    console.log('Submit form data:', data);
-    console.log('Gallery info:', galleryInfo);
-    console.log('Requires security question:', galleryInfo.requiresSecurityQuestion);
+    // Controlla se la galleria richiede una domanda di sicurezza PRIMA di inviare la richiesta
+    if (galleryInfo.requiresSecurityQuestion && !showSecurityQuestion) {
+      // Mostra la domanda di sicurezza
+      setShowSecurityQuestion(true);
+      return;
+    }
     
     try {
       const result = await submitPasswordRequest({
@@ -105,16 +108,9 @@ export default function RequestPassword() {
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
-        relation: data.relation
+        relation: data.relation,
+        securityAnswer: securityAnswer
       });
-
-      console.log('Submit result:', result);
-
-      if (result.requiresSecurityQuestion) {
-        console.log('Showing security question');
-        setShowSecurityQuestion(true);
-        return;
-      }
 
       if (result.success && result.password) {
         setFinalPassword(result.password);
