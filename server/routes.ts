@@ -216,8 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const q = query(
         collection(db, 'voiceMemos'),
-        where('galleryId', '==', galleryId),
-        orderBy('createdAt', 'desc')
+        where('galleryId', '==', galleryId)
       );
 
       const querySnapshot = await getDocs(q);

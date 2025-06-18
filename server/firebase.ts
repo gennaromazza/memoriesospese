@@ -4,12 +4,12 @@ import { getStorage } from 'firebase/storage';
 
 // Firebase configuration for server
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "demo-key",
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "demo-project.firebaseapp.com",
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "demo-project",
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "demo-project.appspot.com",
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: process.env.VITE_FIREBASE_APP_ID || "1:123456789:web:abcdef"
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "wedding-gallery-397b6.firebaseapp.com",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "wedding-gallery-397b6",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "wedding-gallery-397b6.firebasestorage.app",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1072998290999",
+  appId: process.env.VITE_FIREBASE_APP_ID || "1:1072998290999:web:8e0d19440d86d15f4f11b2"
 };
 
 // Initialize Firebase
