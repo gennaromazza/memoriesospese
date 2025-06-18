@@ -45,7 +45,7 @@ export default function InteractionWrapper({
         itemType={itemType}
         galleryId={galleryId}
         userEmail={user?.email || undefined}
-        userName={userProfile?.displayName || undefined}
+        userName={userProfile?.displayName || user?.email?.split('@')[0] || undefined}
         isAdmin={isAdmin}
         className={className}
         onAuthRequired={handleInteractionAttempt}
