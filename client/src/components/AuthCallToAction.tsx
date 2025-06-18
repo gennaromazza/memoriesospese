@@ -23,8 +23,9 @@ import {
 } from 'lucide-react';
 import GalleryAuthSystem from './GalleryAuthSystem';
 import SubscriptionManager from './SubscriptionManager';
-import { useGalleryAuth } from '@/hooks/useGalleryAuth';
-import { User as FirebaseUser } from 'firebase/auth';
+import { useState as useAuthState, useEffect } from 'react';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 interface AuthCallToActionProps {
   galleryId: string;
