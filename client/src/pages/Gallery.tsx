@@ -327,14 +327,6 @@ export default function Gallery() {
                 </div>
               </div>
 
-              {/* Social Activity Panel */}
-              <div className="mb-8">
-                <SocialActivityPanel 
-                  galleryId={gallery.id}
-                  className="w-full"
-                />
-              </div>
-
               {/* Barra con filtri e azioni - solo per tab fotografo */}
               {activeTab === 'photographer' && (
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -536,6 +528,14 @@ export default function Gallery() {
                   refreshTrigger={refreshTrigger}
                 />
               )}
+
+              {/* Social Activity Panel */}
+              <div className="mt-12 mb-8">
+                <SocialActivityPanel 
+                  galleryId={gallery.id}
+                  className="w-full"
+                />
+              </div>
             </div>
           </div>
         </main>
