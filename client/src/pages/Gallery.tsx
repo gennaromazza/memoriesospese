@@ -18,6 +18,7 @@ import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionWrapper from "@/components/InteractionWrapper";
 import AuthCallToAction from "@/components/AuthCallToAction";
+import { GalleryAuthProvider } from "@/hooks/useGalleryAuth";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -261,9 +262,10 @@ export default function Gallery() {
   }
 
   return (
-    <div className="min-h-screen bg-off-white">
+    <GalleryAuthProvider galleryId={gallery.id}>
+      <div className="min-h-screen bg-off-white">
 
-      <Navigation galleryOwner={gallery.name} />
+        <Navigation galleryOwner={gallery.name} />
 
       <div>
         {/* Intestazione galleria */}
@@ -558,6 +560,8 @@ export default function Gallery() {
         }))}
         initialIndex={currentPhotoIndex}
       />
-    </div>
+        </div>
+      </div>
+    </GalleryAuthProvider>
   );
 }
