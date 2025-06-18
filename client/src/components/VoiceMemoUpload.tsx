@@ -420,17 +420,17 @@ export default function VoiceMemoUpload({
                         type="file"
                         accept="audio/*"
                         onChange={handleFileSelect}
-                        className="border-2 border-dashed border-gray-300 hover:border-purple-400 transition-colors"
+                        className="border-2 border-dashed border-gray-300 hover:border-sage-400 transition-colors"
                       />
                     </div>
                     
                     {selectedFile && (
-                      <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                      <div className="bg-sage-50 p-3 rounded-lg border border-sage-200">
                         <div className="flex items-center gap-2">
-                          <FileAudio className="h-5 w-5 text-purple-600" />
+                          <FileAudio className="h-5 w-5 text-sage-600" />
                           <div>
-                            <p className="font-medium text-purple-900">{selectedFile.name}</p>
-                            <p className="text-sm text-purple-700">
+                            <p className="font-medium text-blue-gray-900">{selectedFile.name}</p>
+                            <p className="text-sm text-sage-700">
                               {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                             </p>
                           </div>
@@ -445,7 +445,7 @@ export default function VoiceMemoUpload({
 
           {/* Message input */}
           <div className="space-y-2">
-            <Label htmlFor="message" className="text-purple-700 font-medium text-sm">
+            <Label htmlFor="message" className="text-sage-700 font-medium text-sm">
               Messaggio (opzionale)
             </Label>
             <Textarea
@@ -453,7 +453,7 @@ export default function VoiceMemoUpload({
               placeholder="Aggiungi un messaggio scritto per accompagnare il tuo audio..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm sm:text-base min-h-[80px]"
+              className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base min-h-[80px]"
               maxLength={500}
             />
             <div className="text-xs text-gray-500 text-right">
@@ -463,7 +463,7 @@ export default function VoiceMemoUpload({
 
           {/* Unlock date */}
           <div className="space-y-2">
-            <Label htmlFor="unlock-date" className="text-purple-700 font-medium text-sm flex items-center gap-2">
+            <Label htmlFor="unlock-date" className="text-sage-700 font-medium text-sm flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Data di sblocco (opzionale)
             </Label>
@@ -473,7 +473,7 @@ export default function VoiceMemoUpload({
               value={unlockDate}
               onChange={(e) => setUnlockDate(e.target.value)}
               min={getTomorrowDate()}
-              className="border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm sm:text-base h-10 sm:h-11"
+              className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base h-10 sm:h-11"
             />
             <p className="text-xs text-gray-600">
               Se non specifichi una data, il messaggio sarà subito disponibile
@@ -482,15 +482,15 @@ export default function VoiceMemoUpload({
 
           {/* Upload progress */}
           {isUploading && (
-            <Card className="bg-purple-50 border border-purple-200">
+            <Card className="bg-sage-50 border border-sage-200">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="font-medium text-purple-900">Caricamento in corso...</span>
-                  <span className="ml-auto text-purple-700 font-bold">{Math.round(uploadProgress)}%</span>
+                  <div className="w-5 h-5 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-medium text-blue-gray-900">Caricamento in corso...</span>
+                  <span className="ml-auto text-sage-700 font-bold">{Math.round(uploadProgress)}%</span>
                 </div>
                 <Progress value={uploadProgress} className="w-full h-2" />
-                <p className="text-xs text-purple-700 mt-2">
+                <p className="text-xs text-sage-700 mt-2">
                   Il tuo messaggio vocale sta per essere salvato...
                 </p>
               </CardContent>
