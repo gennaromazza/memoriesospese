@@ -16,16 +16,15 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-// Middleware per autenticazione utente
+// Middleware per autenticazione utente su operazioni sensibili
 export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const { userEmail, userName } = req.body;
-  const authHeader = req.headers.authorization;
 
   // Controllo presenza credenziali
   if (!userEmail || !userName) {
     return res.status(401).json({ 
       error: 'Autenticazione richiesta',
-      message: 'Email e nome utente sono obbligatori' 
+      message: 'Email e nome utente sono obbligatori per questa operazione' 
     });
   }
 
@@ -34,6 +33,13 @@ export const requireAuth = (req: AuthenticatedRequest, res: Response, next: Next
   if (!emailRegex.test(userEmail)) {
     return res.status(400).json({ 
       error: 'Formato email non valido' 
+    });
+  }
+
+  // Validazione lunghezza nome
+  if (userName.length < 2 || userName.length > 50) {
+    return res.status(400).json({ 
+      error: 'Il nome deve essere tra 2 e 50 caratteri' 
     });
   }
 

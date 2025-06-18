@@ -18,10 +18,23 @@ import {
 } from 'firebase/firestore';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import { db } from './firebase';
+import { 
+  requireAuth, 
+  validateGallery, 
+  requireAdmin, 
+  rateLimit, 
+  sanitizeInput, 
+  validateParams 
+} from './middleware/auth';
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Endpoint di test per verificare configurazione email
-  app.get('/api/test-email', async (req, res) => {
+  // Applica middleware globali
+  app.use(rateLimit);
+  app.use(sanitizeInput);
+  app.use(validateParams);
+
+  // Endpoint di test per verificare configurazione email (solo admin)
+  app.get('/api/test-email', requireAdmin, async (req, res) => {
     const results = {
       smtp: { available: false, error: null as string | null },
       sendgrid: { available: false, error: null as string | null },
@@ -104,8 +117,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Endpoint per inviare email di benvenuto
-  app.post('/api/send-welcome-email', async (req, res) => {
+  // Endpoint per inviare email di benvenuto (richiede autenticazione)
+  app.post('/api/send-welcome-email', requireAuth, async (req, res) => {
     try {
       const { email, galleryName } = req.body;
 
@@ -174,8 +187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Voice Memos API Routes
   
-  // Caricamento di un nuovo voice memo
-  app.post('/api/galleries/:galleryId/voice-memos', async (req, res) => {
+  // Caricamento di un nuovo voice memo (richiede autenticazione)
+  app.post('/api/galleries/:galleryId/voice-memos', validateGallery, requireAuth, async (req, res) => {
     try {
       const { galleryId } = req.params;
       const voiceMemoData = req.body;
@@ -378,15 +391,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add/remove like
-  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', async (req, res) => {
+  // Add/remove like (richiede autenticazione)
+  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', validateGallery, requireAuth, async (req, res) => {
     try {
       const { galleryId, itemType, itemId } = req.params;
       const { userEmail, userName } = req.body;
 
-      if (!userEmail || !userName) {
-        return res.status(400).json({ error: 'Email e nome utente sono obbligatori' });
-      }
+      // Auth validation already handled by middleware
 
       // Check if user already liked this item
       const likesRef = collection(db, 'likes');
@@ -459,14 +470,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add comment
-  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', async (req, res) => {
+  // Add comment (richiede autenticazione)
+  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', validateGallery, requireAuth, async (req, res) => {
     try {
       const { galleryId, itemType, itemId } = req.params;
       const { userEmail, userName, content } = req.body;
 
-      if (!userEmail || !userName || !content) {
-        return res.status(400).json({ error: 'Email, nome utente e contenuto sono obbligatori' });
+      // Auth validation already handled by middleware
+      
+      if (!content || content.trim().length === 0) {
+        return res.status(400).json({ error: 'Contenuto del commento richiesto' });
       }
 
       if (content.length > 500) {
@@ -497,7 +510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete comment (admin only)
-  app.delete('/api/galleries/:galleryId/comments/:commentId', async (req, res) => {
+  app.delete('/api/galleries/:galleryId/comments/:commentId', validateGallery, requireAdmin, async (req, res) => {
     try {
       const { galleryId, commentId } = req.params;
 
