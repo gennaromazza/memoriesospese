@@ -606,6 +606,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== USER AUTHENTICATION API ====================
+  
+  // Get user profile by Firebase UID
+  app.get('/api/users/:uid', async (req, res) => {
+    try {
+      const { uid } = req.params;
+      
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      
+      if (!userDoc.exists()) {
+        return res.status(404).json({ error: 'Utente non trovato' });
+      }
+      
+      res.json({ id: userDoc.id, ...userDoc.data() });
+    } catch (error) {
+      console.error('Errore nel recupero profilo utente:', error);
+      res.status(500).json({ error: 'Errore nel recupero del profilo utente' });
+    }
+  });
+
+  // Update user profile
+  app.put('/api/users/:uid', async (req, res) => {
+    try {
+      const { uid } = req.params;
+      const updateData = req.body;
+      
+      // Remove sensitive fields that shouldn't be updated via API
+      delete updateData.uid;
+      delete updateData.createdAt;
+      
+      await updateDoc(doc(db, 'users', uid), {
+        ...updateData,
+        updatedAt: serverTimestamp()
+      });
+      
+      res.json({ success: true, message: 'Profilo aggiornato' });
+    } catch (error) {
+      console.error('Errore nell\'aggiornamento profilo:', error);
+      res.status(500).json({ error: 'Errore nell\'aggiornamento del profilo' });
+    }
+  });
+
+  // Grant gallery access to user
+  app.post('/api/users/:uid/gallery-access/:galleryId', async (req, res) => {
+    try {
+      const { uid, galleryId } = req.params;
+      
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      
+      if (!userDoc.exists()) {
+        return res.status(404).json({ error: 'Utente non trovato' });
+      }
+      
+      const userData = userDoc.data();
+      const galleryAccess = userData.galleryAccess || [];
+      
+      if (!galleryAccess.includes(galleryId)) {
+        galleryAccess.push(galleryId);
+        
+        await updateDoc(doc(db, 'users', uid), {
+          galleryAccess: galleryAccess,
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      res.json({ success: true, message: 'Accesso alla galleria concesso' });
+    } catch (error) {
+      console.error('Errore nella concessione accesso galleria:', error);
+      res.status(500).json({ error: 'Errore nella concessione dell\'accesso alla galleria' });
+    }
+  });
+
+  // Check user gallery access
+  app.get('/api/users/:uid/gallery-access/:galleryId', async (req, res) => {
+    try {
+      const { uid, galleryId } = req.params;
+      
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      
+      if (!userDoc.exists()) {
+        return res.status(404).json({ error: 'Utente non trovato' });
+      }
+      
+      const userData = userDoc.data();
+      const galleryAccess = userData.galleryAccess || [];
+      const hasAccess = galleryAccess.includes(galleryId);
+      
+      res.json({ hasAccess });
+    } catch (error) {
+      console.error('Errore nella verifica accesso galleria:', error);
+      res.status(500).json({ error: 'Errore nella verifica dell\'accesso alla galleria' });
+    }
+  });
+
   // Keep only basic server endpoints if needed
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "Server is running" });

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import InteractionPanel from './InteractionPanel';
-import UserAuthDialog from './UserAuthDialog';
-import { useUserAuth } from '@/hooks/useUserAuth';
+import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
+import { useAuth, useGalleryAccess } from '@/hooks/useAuth';
 
 interface InteractionWrapperProps {
   itemId: string;
@@ -19,23 +19,17 @@ export default function InteractionWrapper({
   className = ''
 }: InteractionWrapperProps) {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   
-  const userAuth = useUserAuth(galleryId);
+  const { user, userProfile, isAuthenticated } = useAuth();
+  const { hasAccess, grantAccess } = useGalleryAccess(galleryId);
 
-  useEffect(() => {
-    setCurrentUserEmail(userAuth.userEmail);
-    setCurrentUserName(userAuth.userName);
-  }, [userAuth]);
-
-  const handleAuthComplete = (email: string, name: string) => {
-    setCurrentUserEmail(email);
-    setCurrentUserName(name);
+  const handleAuthComplete = () => {
+    // Auth completed - close dialog and refresh access
+    setShowAuthDialog(false);
   };
 
   const handleInteractionAttempt = () => {
-    if (!currentUserEmail || !currentUserName) {
+    if (!isAuthenticated || !hasAccess) {
       setShowAuthDialog(true);
       return false;
     }
@@ -48,13 +42,13 @@ export default function InteractionWrapper({
         itemId={itemId}
         itemType={itemType}
         galleryId={galleryId}
-        userEmail={currentUserEmail || undefined}
-        userName={currentUserName || undefined}
+        userEmail={user?.email || undefined}
+        userName={userProfile?.displayName || undefined}
         isAdmin={isAdmin}
         className={className}
       />
       
-      <UserAuthDialog
+      <UnifiedAuthDialog
         isOpen={showAuthDialog}
         onOpenChange={setShowAuthDialog}
         galleryId={galleryId}

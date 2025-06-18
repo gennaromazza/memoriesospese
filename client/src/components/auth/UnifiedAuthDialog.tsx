@@ -307,7 +307,7 @@ export default function UnifiedAuthDialog({
             </div>
           </form>
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'register')} className="mt-4">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login" className="flex items-center gap-2">
                 <LogIn className="w-4 h-4" />
