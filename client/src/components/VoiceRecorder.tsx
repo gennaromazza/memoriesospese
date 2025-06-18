@@ -204,60 +204,62 @@ export default function VoiceRecorder({
           </div>
 
           {/* Controls */}
-          <div className="flex justify-center items-center gap-3 sm:gap-4">
-            {!audioBlob ? (
-              <>
-                <Button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={hasPermission === null}
-                  size="lg"
-                  className={`${
-                    isRecording 
-                      ? 'bg-red-600 hover:bg-red-700' 
-                      : 'bg-sage-600 hover:bg-sage-700'
-                  } text-white w-16 h-16 rounded-full`}
-                >
-                  {isRecording ? (
-                    <Square className="h-6 w-6" />
-                  ) : (
-                    <Mic className="h-6 w-6" />
-                  )}
-                </Button>
-                <div className="text-sm text-gray-600">
-                  {isRecording ? 'Registrazione...' : 'Inizia registrazione'}
-                </div>
-              </>
-            ) : (
-              <>
-                <Button
-                  onClick={playRecording}
-                  variant="outline"
-                  size="lg"
-                  className="w-12 h-12 rounded-full"
-                >
-                  {isPlaying ? (
-                    <Pause className="h-5 w-5" />
-                  ) : (
-                    <Play className="h-5 w-5" />
-                  )}
-                </Button>
-                <Button
-                  onClick={resetRecording}
-                  variant="outline"
-                  size="lg"
-                  className="w-12 h-12 rounded-full"
-                >
-                  <RotateCcw className="h-5 w-5" />
-                </Button>
-                <Button
-                  onClick={handleUseRecording}
-                  className="bg-[#d2cdc1] hover:bg-[#d2cdc1] text-[#667f8f] px-6"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Usa questa registrazione
-                </Button>
-              </>
-            )}
+          <div className="bg-gradient-to-r from-sage-50 to-blue-gray-50 p-4 rounded-lg border border-sage-200">
+            <div className="flex justify-center items-center gap-3 sm:gap-4">
+              {!audioBlob ? (
+                <>
+                  <Button
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={hasPermission === null}
+                    size="lg"
+                    className={`${
+                      isRecording 
+                        ? 'bg-red-600 hover:bg-red-700' 
+                        : 'bg-sage-600 hover:bg-sage-700'
+                    } text-white w-16 h-16 rounded-full shadow-lg`}
+                  >
+                    {isRecording ? (
+                      <Square className="h-6 w-6" />
+                    ) : (
+                      <Mic className="h-6 w-6" />
+                    )}
+                  </Button>
+                  <div className="text-sm text-sage-700 font-medium">
+                    {isRecording ? 'Registrazione...' : 'Inizia registrazione'}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={playRecording}
+                    variant="outline"
+                    size="lg"
+                    className="w-12 h-12 rounded-full border-sage-300 hover:bg-sage-50"
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-5 w-5 text-sage-600" />
+                    ) : (
+                      <Play className="h-5 w-5 text-sage-600" />
+                    )}
+                  </Button>
+                  <Button
+                    onClick={resetRecording}
+                    variant="outline"
+                    size="lg"
+                    className="w-12 h-12 rounded-full border-sage-300 hover:bg-sage-50"
+                  >
+                    <RotateCcw className="h-5 w-5 text-sage-600" />
+                  </Button>
+                  <Button
+                    onClick={handleUseRecording}
+                    className="bg-sage-600 hover:bg-sage-700 text-white px-6 shadow-lg"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Usa questa registrazione
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Audio element for playback */}
