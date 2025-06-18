@@ -25,6 +25,15 @@ interface PhotoStats {
   commentsCount: number;
 }
 
+interface VoiceMemo {
+  id: string;
+  guestName: string;
+  message?: string;
+  fileName: string;
+  duration?: number;
+  createdAt: any;
+}
+
 interface SocialActivityPanelProps {
   galleryId: string;
   className?: string;
@@ -33,8 +42,8 @@ interface SocialActivityPanelProps {
 export default function SocialActivityPanel({ galleryId, className = '' }: SocialActivityPanelProps) {
   const [recentComments, setRecentComments] = useState<Comment[]>([]);
   const [topPhotos, setTopPhotos] = useState<PhotoStats[]>([]);
+  const [recentVoiceMemos, setRecentVoiceMemos] = useState<VoiceMemo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'comments' | 'photos'>('comments');
 
   const formatDateTime = (timestamp: any): string => {
     try {
@@ -96,12 +105,25 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
     }
   };
 
+  const fetchRecentVoiceMemos = async () => {
+    try {
+      const response = await fetch(`/api/galleries/${galleryId}/voice-memos/recent`);
+      if (response.ok) {
+        const data = await response.json();
+        setRecentVoiceMemos(data.slice(0, 5)); // Recent 5 voice memos
+      }
+    } catch (error) {
+      console.error('Error fetching recent voice memos:', error);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       await Promise.all([
         fetchRecentComments(),
-        fetchTopPhotos()
+        fetchTopPhotos(),
+        fetchRecentVoiceMemos()
       ]);
       setIsLoading(false);
     };
@@ -135,100 +157,85 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
   }
 
   return (
-    <Card className={`${className} border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg`}>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-sage-600" />
-          Attività Social
-        </CardTitle>
-        <div className="flex gap-1 mt-3">
-          <Button
-            onClick={() => setActiveTab('comments')}
-            variant={activeTab === 'comments' ? 'default' : 'outline'}
-            size="sm"
-            className={`h-8 px-3 ${
-              activeTab === 'comments' 
-                ? 'bg-sage-600 hover:bg-sage-700 text-white' 
-                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <MessageCircle className="h-3 w-3 mr-1" />
-            Commenti
-          </Button>
-          <Button
-            onClick={() => setActiveTab('photos')}
-            variant={activeTab === 'photos' ? 'default' : 'outline'}
-            size="sm"
-            className={`h-8 px-3 ${
-              activeTab === 'photos' 
-                ? 'bg-sage-600 hover:bg-sage-700 text-white' 
-                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Heart className="h-3 w-3 mr-1" />
-            Top Foto
-          </Button>
-        </div>
-      </CardHeader>
-
-      <CardContent className="p-0">
-        <ScrollArea className="h-80">
-          <div className="p-4">
-            {activeTab === 'comments' ? (
-              <div className="space-y-3">
-                {recentComments.length === 0 ? (
-                  <div className="text-center py-8">
-                    <MessageCircle className="h-8 w-8 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">Nessun commento recente</p>
-                  </div>
-                ) : (
-                  recentComments.map((comment, index) => (
+    <div className={`${className} grid grid-cols-1 lg:grid-cols-3 gap-4`}>
+      {/* Recent Comments Section */}
+      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-blue-600" />
+            Commenti Recenti
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-64">
+            <div className="p-4">
+              {recentComments.length === 0 ? (
+                <div className="text-center py-4">
+                  <MessageCircle className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+                  <p className="text-xs text-gray-500">Nessun commento</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {recentComments.map((comment, index) => (
                     <div key={comment.id} className="group">
-                      <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="w-8 h-8 bg-gradient-to-br from-sage-100 to-blue-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <User className="h-4 w-4 text-sage-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {comment.userName}
-                            </p>
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                              <Clock className="h-3 w-3" />
-                              {formatDateTime(comment.createdAt)}
-                            </div>
+                      <div className="p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 bg-gradient-to-br from-sage-100 to-blue-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <User className="h-3 w-3 text-sage-600" />
                           </div>
-                          <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
-                            {comment.content}
-                          </p>
-                          <div className="flex items-center justify-between mt-2">
-                            <Badge variant="outline" className="text-xs px-2 py-0.5">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs font-medium text-gray-900 truncate">
+                                {comment.userName}
+                              </p>
+                              <span className="text-xs text-gray-500">
+                                {formatDateTime(comment.createdAt)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                              {comment.content}
+                            </p>
+                            <Badge variant="outline" className="text-xs px-1 py-0 mt-1">
                               {comment.itemType === 'photo' ? 'Foto' : 'Audio'}
                             </Badge>
-                            <ChevronRight className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                         </div>
                       </div>
                       {index < recentComments.length - 1 && <Separator className="my-1" />}
                     </div>
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {topPhotos.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Heart className="h-8 w-8 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">Nessuna foto con like</p>
-                  </div>
-                ) : (
-                  topPhotos.map((photo, index) => (
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Top Photos Section */}
+      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <Heart className="h-4 w-4 text-red-600" />
+            Foto Top
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-64">
+            <div className="p-4">
+              {topPhotos.length === 0 ? (
+                <div className="text-center py-4">
+                  <Heart className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+                  <p className="text-xs text-gray-500">Nessuna foto con like</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {topPhotos.map((photo, index) => (
                     <div key={photo.id} className="group">
-                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center justify-center w-8 h-8 flex-shrink-0">
+                      <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-center w-6 h-6 flex-shrink-0">
                           {getRankIcon(index)}
                         </div>
-                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                           <img 
                             src={photo.url} 
                             alt={photo.name}
@@ -237,31 +244,97 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate mb-1">
+                          <p className="text-xs font-medium text-gray-900 truncate mb-1">
                             {photo.name || 'Foto senza nome'}
                           </p>
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
                             <div className="flex items-center gap-1">
-                              <Heart className="h-3 w-3 text-red-500" />
+                              <Heart className="h-2 w-2 text-red-500" />
                               <span>{photo.likesCount}</span>
                             </div>
                             <div className="flex items-center gap-1">
-                              <MessageCircle className="h-3 w-3 text-blue-500" />
+                              <MessageCircle className="h-2 w-2 text-blue-500" />
                               <span>{photo.commentsCount}</span>
                             </div>
                           </div>
                         </div>
-                        <ChevronRight className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
-                      {index < topPhotos.length - 1 && <Separator className="my-1" />}
                     </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Recent Voice Memos Section */}
+      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+            Note Audio
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-64">
+            <div className="p-4">
+              {recentVoiceMemos.length === 0 ? (
+                <div className="text-center py-4">
+                  <svg className="h-6 w-6 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  <p className="text-xs text-gray-500">Nessuna nota audio</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {recentVoiceMemos.map((memo, index) => (
+                    <div key={memo.id} className="group">
+                      <div className="p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg className="h-3 w-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs font-medium text-gray-900 truncate">
+                                {memo.guestName}
+                              </p>
+                              <span className="text-xs text-gray-500">
+                                {formatDateTime(memo.createdAt)}
+                              </span>
+                            </div>
+                            {memo.message && (
+                              <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-1">
+                                {memo.message}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs px-1 py-0">
+                                Audio
+                              </Badge>
+                              {memo.duration && (
+                                <span className="text-xs text-gray-500">
+                                  {Math.floor(memo.duration / 60)}:{(memo.duration % 60).toString().padStart(2, '0')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {index < recentVoiceMemos.length - 1 && <Separator className="my-1" />}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

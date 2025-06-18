@@ -331,7 +331,7 @@ export default function Gallery() {
               <div className="mb-8">
                 <SocialActivityPanel 
                   galleryId={gallery.id}
-                  className="max-w-md mx-auto"
+                  className="w-full"
                 />
               </div>
 

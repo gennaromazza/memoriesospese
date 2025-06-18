@@ -624,8 +624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const commentsRef = collection(db, 'comments');
       const q = query(
         commentsRef,
-        where('galleryId', '==', galleryId),
-        orderBy('createdAt', 'desc')
+        where('galleryId', '==', galleryId)
       );
       
       const querySnapshot = await getDocs(q);
@@ -634,7 +633,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: doc.id, 
           ...doc.data() 
         }))
-        .slice(0, limit); // Apply limit after fetching
+        .sort((a: any, b: any) => {
+          // Sort by createdAt descending
+          if (!a.createdAt || !b.createdAt) return 0;
+          
+          const aTime = a.createdAt.seconds || new Date(a.createdAt).getTime() / 1000;
+          const bTime = b.createdAt.seconds || new Date(b.createdAt).getTime() / 1000;
+          
+          return bTime - aTime;
+        })
+        .slice(0, limit); // Apply limit after sorting
       
       res.json(comments);
     } catch (error) {
@@ -711,6 +719,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Errore nel recupero foto top:', error);
       res.status(500).json({ error: 'Errore nel recupero delle foto top' });
+    }
+  });
+
+  // Get recent voice memos
+  app.get('/api/galleries/:galleryId/voice-memos/recent', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 5;
+
+      const voiceMemosRef = collection(db, 'galleries', galleryId, 'voiceMemos');
+      const querySnapshot = await getDocs(voiceMemosRef);
+      
+      const voiceMemos = querySnapshot.docs
+        .map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        }))
+        .sort((a: any, b: any) => {
+          // Sort by createdAt descending
+          if (!a.createdAt || !b.createdAt) return 0;
+          
+          const aTime = a.createdAt.seconds || new Date(a.createdAt).getTime() / 1000;
+          const bTime = b.createdAt.seconds || new Date(b.createdAt).getTime() / 1000;
+          
+          return bTime - aTime;
+        })
+        .slice(0, limit);
+      
+      res.json(voiceMemos);
+    } catch (error) {
+      console.error('Errore nel recupero note audio recenti:', error);
+      res.status(500).json({ error: 'Errore nel recupero delle note audio recenti' });
     }
   });
 
