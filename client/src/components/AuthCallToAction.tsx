@@ -40,17 +40,29 @@ export default function AuthCallToAction({
 }: AuthCallToActionProps) {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
-  
-  const { user, isAuthenticated, logout } = useGalleryAuth();
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setIsAuthenticated(!!firebaseUser);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleAuthSuccess = (firebaseUser: FirebaseUser) => {
     setShowAuthDialog(false);
-    // Mostra il toast di benvenuto
+    setUser(firebaseUser);
+    setIsAuthenticated(true);
   };
 
   const handleLogout = async () => {
     try {
-      await logout();
+      await auth.signOut();
+      setUser(null);
+      setIsAuthenticated(false);
     } catch (error) {
       console.error('Logout error:', error);
     }
