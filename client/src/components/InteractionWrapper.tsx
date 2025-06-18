@@ -46,6 +46,7 @@ export default function InteractionWrapper({
         userName={userProfile?.displayName || undefined}
         isAdmin={isAdmin}
         className={className}
+        onAuthRequired={handleInteractionAttempt}
       />
       
       <UnifiedAuthDialog

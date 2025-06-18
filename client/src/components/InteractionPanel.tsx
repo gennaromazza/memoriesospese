@@ -10,7 +10,9 @@ import {
   Send, 
   Trash2,
   User,
-  Clock
+  Clock,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 import { Comment, InteractionStats } from '@shared/schema';
 
@@ -22,6 +24,7 @@ interface InteractionPanelProps {
   userName?: string;
   isAdmin?: boolean;
   className?: string;
+  onAuthRequired?: () => void;
 }
 
 export default function InteractionPanel({
@@ -31,7 +34,8 @@ export default function InteractionPanel({
   userEmail,
   userName,
   isAdmin = false,
-  className = ''
+  className = '',
+  onAuthRequired
 }: InteractionPanelProps) {
   const [stats, setStats] = useState<InteractionStats>({
     likesCount: 0,
@@ -78,11 +82,15 @@ export default function InteractionPanel({
   // Handle like/unlike
   const handleLike = async () => {
     if (!userEmail || !userName) {
-      toast({
-        title: "Accesso richiesto",
-        description: "Devi essere autenticato per mettere like",
-        variant: "destructive"
-      });
+      if (onAuthRequired) {
+        onAuthRequired();
+      } else {
+        toast({
+          title: "Accesso richiesto",
+          description: "Devi essere autenticato per mettere like",
+          variant: "destructive"
+        });
+      }
       return;
     }
 
@@ -126,11 +134,15 @@ export default function InteractionPanel({
   // Handle comment submission
   const handleSubmitComment = async () => {
     if (!userEmail || !userName) {
-      toast({
-        title: "Accesso richiesto",
-        description: "Devi essere autenticato per commentare",
-        variant: "destructive"
-      });
+      if (onAuthRequired) {
+        onAuthRequired();
+      } else {
+        toast({
+          title: "Accesso richiesto",
+          description: "Devi essere autenticato per commentare",
+          variant: "destructive"
+        });
+      }
       return;
     }
 
@@ -330,9 +342,41 @@ export default function InteractionPanel({
             {/* Comments list */}
             <div className="space-y-3">
               {comments.length === 0 ? (
-                <p className="text-center text-gray-500 text-sm py-4">
-                  Nessun commento ancora. Sii il primo a commentare!
-                </p>
+                !userEmail ? (
+                  <div className="text-center py-6">
+                    <div className="mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-sage-100 to-blue-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <MessageCircle className="h-6 w-6 text-sage-600" />
+                      </div>
+                      <p className="text-gray-600 text-sm mb-4">
+                        Accedi per mettere like e commentare
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                      <Button
+                        onClick={onAuthRequired}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 border-sage-300 text-sage-700 hover:bg-sage-50"
+                      >
+                        <LogIn className="h-4 w-4" />
+                        Accedi
+                      </Button>
+                      <Button
+                        onClick={onAuthRequired}
+                        size="sm"
+                        className="flex items-center gap-2 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Registrati
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 text-sm py-4">
+                    Nessun commento ancora. Sii il primo a commentare!
+                  </p>
+                )
               ) : (
                 comments.map((comment) => (
                   <div key={comment.id} className="bg-gray-50 p-3 rounded-lg">
