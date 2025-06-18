@@ -57,7 +57,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify gallery access
-  app.post('/api/galleries/:galleryId/verify-access', validateParams, validateGallery, requireGalleryAccess, async (req, res) => {
+  app.post('/api/galleries/:galleryId/verify-access', validateParams, validateGallery, requireGalleryAccess, async (req: AuthenticatedRequest, res) => {
     try {
       res.json({ 
         success: true, 
@@ -71,7 +71,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update gallery security question (admin only)
-  app.put('/api/galleries/:galleryId/security-question', validateParams, validateGallery, requireAuth, requireAdmin, async (req, res) => {
+  app.put('/api/galleries/:galleryId/security-question', validateParams, validateGallery, requireAuth, requireAdmin, async (req: AuthenticatedRequest, res) => {
     try {
       const { galleryId } = req.params;
       const { 
