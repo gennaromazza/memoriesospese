@@ -178,7 +178,7 @@ export default function RequestPassword() {
       
       <div className="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8 relative z-10">
-          {galleryExists === false ? (
+          {!galleryInfo ? (
             <Card className="border-sage/20 shadow-md overflow-hidden">
               <div className="absolute inset-0 opacity-5 pointer-events-none">
                 <BackgroundDecoration />
@@ -211,18 +211,80 @@ export default function RequestPassword() {
                     <WeddingImage type="wedding-cake" className="w-full h-auto opacity-60" alt="Torta nuziale" />
                   </div>
                   <h2 className="text-2xl font-bold text-blue-gray font-playfair mb-2">
-                    Richiesta inviata
+                    Password Disponibile
                   </h2>
-                  <p className="text-gray-600 mb-6">
-                    La tua richiesta è stata inviata con successo. Riceverai la password via email a breve.
+                  <p className="text-gray-600 mb-4">
+                    La tua richiesta è stata approvata. Ecco la password per accedere alla galleria:
                   </p>
+                  <div className="bg-sage/10 border border-sage/30 rounded-lg p-4 mb-6">
+                    <div className="text-lg font-mono font-bold text-blue-gray">
+                      {finalPassword}
+                    </div>
+                  </div>
                   <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4 justify-center">
                     <Link href={createUrl(`/gallery/${id}`)}>
-                      <Button className="btn-primary">Torna alla Galleria</Button>
+                      <Button className="btn-primary">Accedi alla Galleria</Button>
                     </Link>
                     <Link href={createUrl("/")}>
                       <Button variant="outline">Torna alla Home</Button>
                     </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : showSecurityQuestion ? (
+            <Card className="border-sage/20 shadow-md overflow-hidden">
+              <div className="absolute inset-0 opacity-5 pointer-events-none">
+                <BackgroundDecoration />
+              </div>
+              <CardContent className="pt-8 relative z-10">
+                <div className="text-center">
+                  <div className="w-32 h-32 mx-auto mb-4">
+                    <WeddingImage type="heart-balloon" className="w-full h-auto opacity-30" alt="Decorazione a tema matrimonio" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-blue-gray font-playfair mb-4">
+                    Domanda di Sicurezza
+                  </h2>
+                  <p className="text-gray-600 mb-6">
+                    Per completare la richiesta, rispondi alla domanda di sicurezza:
+                  </p>
+                  
+                  <div className="text-left space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-blue-gray mb-2">
+                        {galleryInfo?.securityQuestion}
+                      </label>
+                      <Input
+                        value={securityAnswer}
+                        onChange={(e) => setSecurityAnswer(e.target.value)}
+                        placeholder="Inserisci la tua risposta"
+                        className="w-full"
+                        autoFocus
+                      />
+                      {securityError && (
+                        <p className="mt-1 text-sm text-red-500">{securityError}</p>
+                      )}
+                    </div>
+                    
+                    <div className="flex space-x-3">
+                      <Button 
+                        onClick={handleSecurityAnswer}
+                        disabled={isLoading || !securityAnswer.trim()}
+                        className="btn-primary flex-1"
+                      >
+                        {isLoading ? "Verifica..." : "Conferma"}
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          setShowSecurityQuestion(false);
+                          setSecurityAnswer("");
+                          setSecurityError("");
+                        }}
+                      >
+                        Indietro
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -240,9 +302,9 @@ export default function RequestPassword() {
                   <h2 className="text-2xl font-bold text-blue-gray font-playfair">
                     Richiedi la Password
                   </h2>
-                  {galleryName && (
+                  {galleryInfo?.name && (
                     <p className="mt-2 text-gray-600">
-                      Galleria: <span className="font-medium">{galleryName}</span>
+                      Galleria: <span className="font-medium">{galleryInfo.name}</span>
                     </p>
                   )}
                   <p className="mt-2 text-gray-600">
