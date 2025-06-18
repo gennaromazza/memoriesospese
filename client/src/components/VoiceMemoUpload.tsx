@@ -327,7 +327,7 @@ export default function VoiceMemoUpload({
           <Button 
             variant="outline" 
             size="lg"
-            className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
+            className="bg-[#6d7e6d] hover:bg-[#5a6b5a] text-[#e2f3ff] border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
             onClick={() => setIsDialogOpen(true)}
           >
             <Mic2 className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
@@ -337,7 +337,7 @@ export default function VoiceMemoUpload({
           </Button>
           
           {/* Tooltip */}
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-blue-gray-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs">
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs text-[#707d6e] bg-[#667f9a]">
             <div className="flex items-center gap-2 mb-1">
               <Mic2 className="h-3 w-3 text-sage-300" />
               <span className="font-medium">Vocali segreti!</span>
@@ -351,7 +351,6 @@ export default function VoiceMemoUpload({
           </div>
         </div>
       </DialogTrigger>
-      
       <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="text-center pb-4 sm:pb-6">
           <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-3 sm:mb-4">
