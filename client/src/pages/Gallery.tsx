@@ -16,6 +16,7 @@ import SubscriptionManager from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
+import InteractionWrapper from "@/components/InteractionWrapper";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -402,7 +403,7 @@ export default function Gallery() {
                       {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
                         <div
                           key={photo.id}
-                          className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer"
+                          className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative group"
                           onClick={() => openLightbox(index)}
                         >
                           <img
@@ -419,6 +420,22 @@ export default function Gallery() {
                             }}
                             title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                           />
+                          
+                          {/* Interaction panel */}
+                          <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div 
+                              className="bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <InteractionWrapper
+                                itemId={photo.id}
+                                itemType="photo"
+                                galleryId={gallery.id}
+                                isAdmin={isAdmin}
+                                className="scale-90"
+                              />
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -453,7 +470,7 @@ export default function Gallery() {
                     {guestPhotos.map((photo, index) => (
                       <div
                         key={photo.id}
-                        className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative"
+                        className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative group"
                         onClick={() => openLightbox(photos.length + index)}
                       >
                         <img
@@ -474,12 +491,28 @@ export default function Gallery() {
                         <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
                           Ospite
                         </div>
-                        {/* Nome dell'uploader in basso */}
+                        {/* Nome dell'uploader in basso a sinistra */}
                         {photo.uploaderName && (
                           <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
                             {photo.uploaderName}
                           </div>
                         )}
+                        
+                        {/* Interaction panel */}
+                        <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <div 
+                            className="bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-sm"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <InteractionWrapper
+                              itemId={photo.id}
+                              itemType="photo"
+                              galleryId={gallery.id}
+                              isAdmin={isAdmin}
+                              className="scale-90"
+                            />
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>

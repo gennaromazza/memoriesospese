@@ -19,9 +19,11 @@ import {
   Trash2
 } from 'lucide-react';
 import { VoiceMemo } from '@shared/schema';
+import InteractionWrapper from './InteractionWrapper';
 
 interface VoiceMemoPlayerProps {
   memo: VoiceMemo;
+  galleryId: string;
   isAdmin?: boolean;
   onUnlock?: (memoId: string) => void;
   onDelete?: (memoId: string) => void;
@@ -29,6 +31,7 @@ interface VoiceMemoPlayerProps {
 
 export default function VoiceMemoPlayer({ 
   memo, 
+  galleryId,
   isAdmin = false, 
   onUnlock, 
   onDelete 
