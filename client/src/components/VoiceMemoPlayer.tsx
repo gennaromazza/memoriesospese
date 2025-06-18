@@ -284,7 +284,7 @@ export default function VoiceMemoPlayer({
                 onClick={togglePlay}
                 disabled={isLoading || !!error}
                 size="sm"
-                className="w-10 h-10 rounded-full bg-sage-600 hover:bg-sage-700 text-white"
+                className="w-10 h-10 rounded-full bg-[#d0dfd4] hover:bg-sage-700 text-white"
               >
                 {isLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

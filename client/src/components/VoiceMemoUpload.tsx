@@ -527,12 +527,42 @@ export default function VoiceMemoUpload({
             </div>
           )}
 
+          {/* Validation messages */}
+          {(!guestName.trim() || (!recordedBlob && !selectedFile)) && !isUploading && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-red-600 font-bold text-xs">!</span>
+                </div>
+                <div className="space-y-2">
+                  <p className="font-medium text-red-900 text-sm">
+                    Completa questi campi per salvare il ricordo:
+                  </p>
+                  <ul className="text-red-800 text-sm space-y-1">
+                    {!guestName.trim() && (
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                        Inserisci il tuo nome
+                      </li>
+                    )}
+                    {(!recordedBlob && !selectedFile) && (
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                        Registra un audio o carica un file
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex gap-3">
             <Button
               onClick={handleSubmit}
               disabled={!guestName.trim() || (!recordedBlob && !selectedFile) || isUploading}
-              className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+              className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base relative"
             >
               {isUploading ? (
                 <div className="flex items-center gap-2">
@@ -544,7 +574,14 @@ export default function VoiceMemoUpload({
               ) : (
                 <div className="flex items-center gap-2">
                   <Heart className="h-4 w-4" />
-                  Salva ricordo
+                  {(!guestName.trim() || (!recordedBlob && !selectedFile)) ? 'Completa i campi' : 'Salva ricordo'}
+                </div>
+              )}
+              {(!guestName.trim() || (!recordedBlob && !selectedFile)) && !isUploading && (
+                <div className="absolute inset-0 bg-gray-400 bg-opacity-10 rounded-md flex items-center justify-center">
+                  <div className="w-4 h-4 border-2 border-gray-400 rounded-full flex items-center justify-center">
+                    <span className="text-gray-400 font-bold text-xs">!</span>
+                  </div>
                 </div>
               )}
             </Button>
