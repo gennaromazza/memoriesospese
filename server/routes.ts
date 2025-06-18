@@ -28,13 +28,11 @@ import {
 } from './middleware/auth';
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Applica middleware globali
-  app.use(rateLimit);
+  // Applica solo sanitizzazione globale (rate limiting solo su endpoint sensibili)
   app.use(sanitizeInput);
-  app.use(validateParams);
 
   // Endpoint di test per verificare configurazione email (solo admin)
-  app.get('/api/test-email', requireAdmin, async (req, res) => {
+  app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
     const results = {
       smtp: { available: false, error: null as string | null },
       sendgrid: { available: false, error: null as string | null },
@@ -139,8 +137,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Endpoint per notificare nuove foto
-  app.post('/api/galleries/:galleryId/notify', async (req, res) => {
+  // Endpoint per notificare nuove foto (richiede admin)
+  app.post('/api/galleries/:galleryId/notify', validateGallery, requireAuth, requireAdmin, async (req, res) => {
     try {
       const { galleryId } = req.params;
       const { galleryName, newPhotosCount, uploaderName, galleryUrl, subscribers } = req.body;
@@ -188,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Voice Memos API Routes
   
   // Caricamento di un nuovo voice memo (richiede autenticazione)
-  app.post('/api/galleries/:galleryId/voice-memos', validateGallery, requireAuth, async (req, res) => {
+  app.post('/api/galleries/:galleryId/voice-memos', validateParams, rateLimit, validateGallery, requireAuth, async (req, res) => {
     try {
       const { galleryId } = req.params;
       const voiceMemoData = req.body;
@@ -392,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add/remove like (richiede autenticazione)
-  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', validateGallery, requireAuth, async (req, res) => {
+  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', validateParams, rateLimit, validateGallery, requireAuth, async (req, res) => {
     try {
       const { galleryId, itemType, itemId } = req.params;
       const { userEmail, userName } = req.body;
@@ -471,7 +469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add comment (richiede autenticazione)
-  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', validateGallery, requireAuth, async (req, res) => {
+  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', validateParams, rateLimit, validateGallery, requireAuth, async (req, res) => {
     try {
       const { galleryId, itemType, itemId } = req.params;
       const { userEmail, userName, content } = req.body;
@@ -510,7 +508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete comment (admin only)
-  app.delete('/api/galleries/:galleryId/comments/:commentId', validateGallery, requireAdmin, async (req, res) => {
+  app.delete('/api/galleries/:galleryId/comments/:commentId', validateGallery, requireAuth, requireAdmin, async (req, res) => {
     try {
       const { galleryId, commentId } = req.params;
 
