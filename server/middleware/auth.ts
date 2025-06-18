@@ -99,12 +99,65 @@ export const validateGallery = async (req: AuthenticatedRequest, res: Response, 
       id: galleryId,
       password: galleryData.password,
       code: galleryData.code,
-      active: galleryData.active
+      active: galleryData.active,
+      requiresSecurityQuestion: galleryData.requiresSecurityQuestion,
+      securityQuestionType: galleryData.securityQuestionType,
+      securityQuestionCustom: galleryData.securityQuestionCustom,
+      securityAnswer: galleryData.securityAnswer
     };
 
     next();
   } catch (error) {
     console.error('Errore validazione galleria:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+};
+
+// Middleware per verificare accesso completo con domanda di sicurezza
+export const requireGalleryAccess = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!req.gallery) {
+      return res.status(400).json({ error: 'Validazione galleria richiesta prima di questo middleware' });
+    }
+
+    const { password, securityAnswer } = req.body;
+
+    // Verifica password galleria
+    if (req.gallery.password && req.gallery.password !== password) {
+      return res.status(403).json({ 
+        error: 'Password galleria non corretta',
+        requiresPassword: true 
+      });
+    }
+
+    // Verifica domanda di sicurezza se abilitata
+    if (req.gallery.requiresSecurityQuestion && req.gallery.securityQuestionType && req.gallery.securityAnswer) {
+      if (!securityAnswer) {
+        const questionText = getSecurityQuestionText(req.gallery.securityQuestionType, req.gallery.securityQuestionCustom);
+        return res.status(403).json({
+          error: 'Risposta alla domanda di sicurezza richiesta',
+          requiresSecurityQuestion: true,
+          securityQuestion: questionText
+        });
+      }
+
+      // Confronto case-insensitive e trimmed
+      const normalizedUserAnswer = securityAnswer.trim().toLowerCase();
+      const normalizedCorrectAnswer = req.gallery.securityAnswer.trim().toLowerCase();
+
+      if (normalizedUserAnswer !== normalizedCorrectAnswer) {
+        const questionText = getSecurityQuestionText(req.gallery.securityQuestionType, req.gallery.securityQuestionCustom);
+        return res.status(403).json({
+          error: 'Risposta alla domanda di sicurezza non corretta',
+          requiresSecurityQuestion: true,
+          securityQuestion: questionText
+        });
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('Errore verifica accesso galleria:', error);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 };

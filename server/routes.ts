@@ -21,15 +21,117 @@ import { db } from './firebase';
 import { 
   requireAuth, 
   validateGallery, 
+  requireGalleryAccess,
   requireAdmin, 
   rateLimit, 
   sanitizeInput, 
-  validateParams 
+  validateParams,
+  getSecurityQuestionText,
+  AuthenticatedRequest 
 } from './middleware/auth';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Applica solo sanitizzazione globale (rate limiting solo su endpoint sensibili)
   app.use(sanitizeInput);
+
+  // ==================== GALLERY ACCESS API ====================
+  
+  // Get gallery access requirements
+  app.get('/api/galleries/:galleryId/access-info', validateGallery, async (req: AuthenticatedRequest, res) => {
+    try {
+      const gallery = req.gallery!;
+      
+      const accessInfo = {
+        requiresPassword: !!gallery.password,
+        requiresSecurityQuestion: !!gallery.requiresSecurityQuestion,
+        securityQuestion: gallery.requiresSecurityQuestion && gallery.securityQuestionType 
+          ? getSecurityQuestionText(gallery.securityQuestionType, gallery.securityQuestionCustom)
+          : null
+      };
+      
+      res.json(accessInfo);
+    } catch (error) {
+      console.error('Errore nel recupero info accesso:', error);
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
+  });
+
+  // Verify gallery access
+  app.post('/api/galleries/:galleryId/verify-access', validateParams, validateGallery, requireGalleryAccess, async (req, res) => {
+    try {
+      res.json({ 
+        success: true, 
+        message: 'Accesso alla galleria autorizzato',
+        galleryId: req.gallery!.id
+      });
+    } catch (error) {
+      console.error('Errore nella verifica accesso:', error);
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
+  });
+
+  // Update gallery security question (admin only)
+  app.put('/api/galleries/:galleryId/security-question', validateParams, validateGallery, requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const { 
+        requiresSecurityQuestion, 
+        securityQuestionType, 
+        securityQuestionCustom, 
+        securityAnswer 
+      } = req.body;
+
+      const updateData: any = {
+        requiresSecurityQuestion: !!requiresSecurityQuestion,
+        updatedAt: serverTimestamp()
+      };
+
+      if (requiresSecurityQuestion) {
+        if (!securityQuestionType) {
+          return res.status(400).json({ error: 'Tipo di domanda di sicurezza richiesto' });
+        }
+        
+        if (!securityAnswer || securityAnswer.trim().length === 0) {
+          return res.status(400).json({ error: 'Risposta alla domanda di sicurezza richiesta' });
+        }
+
+        updateData.securityQuestionType = securityQuestionType;
+        updateData.securityAnswer = securityAnswer.trim();
+
+        if (securityQuestionType === 'custom') {
+          if (!securityQuestionCustom || securityQuestionCustom.trim().length === 0) {
+            return res.status(400).json({ error: 'Domanda personalizzata richiesta per tipo custom' });
+          }
+          updateData.securityQuestionCustom = securityQuestionCustom.trim();
+        } else {
+          updateData.securityQuestionCustom = null;
+        }
+      } else {
+        // Se disabilitata, rimuovi tutti i campi
+        updateData.securityQuestionType = null;
+        updateData.securityQuestionCustom = null;
+        updateData.securityAnswer = null;
+      }
+
+      const galleryRef = doc(db, 'galleries', galleryId);
+      await updateDoc(galleryRef, updateData);
+
+      res.json({ 
+        success: true, 
+        message: 'Impostazioni domanda di sicurezza aggiornate',
+        settings: {
+          requiresSecurityQuestion: updateData.requiresSecurityQuestion,
+          securityQuestionType: updateData.securityQuestionType,
+          securityQuestion: updateData.securityQuestionType 
+            ? getSecurityQuestionText(updateData.securityQuestionType, updateData.securityQuestionCustom)
+            : null
+        }
+      });
+    } catch (error) {
+      console.error('Errore aggiornamento domanda di sicurezza:', error);
+      res.status(500).json({ error: 'Errore interno del server' });
+    }
+  });
 
   // Endpoint di test per verificare configurazione email (solo admin)
   app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
