@@ -14,7 +14,6 @@ import GalleryAccess from "@/pages/GalleryAccess";
 import Gallery from "@/pages/Gallery";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
-import AdminEmailTemplates from "@/pages/AdminEmailTemplates";
 import RequestPassword from "@/pages/RequestPassword";
 import PasswordResult from "@/pages/PasswordResult";
 import DeleteGalleryPage from "@/pages/DeleteGalleryPage";
@@ -47,7 +46,6 @@ function Router() {
       <Route path="/view/:id" component={Gallery} />
       <Route path="/admin" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
-      <Route path="/admin/email-templates/:id" component={AdminEmailTemplates} />
       <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
       <Route path="/request-password/:id" component={RequestPassword} />
       <Route path="/password-result/:id" component={PasswordResult} />

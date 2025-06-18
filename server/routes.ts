@@ -1,13 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
-import { 
-  insertVoiceMemoSchema, 
-  insertEmailTemplateSchema,
-  insertAdminUserSchema,
-  insertGalleryGuestSchema
-} from "../shared/schema";
-import { z } from 'zod';
+import { insertVoiceMemoSchema } from "../shared/schema";
 import { 
   collection, 
   addDoc, 
@@ -24,275 +18,7 @@ import {
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import { db } from './firebase';
 
-// Importa i sistemi di autenticazione separati
-import { requireAdmin, loginAdmin, logoutAdmin, verifyAdminSession } from "./auth/adminAuth";
-import { 
-  requireGalleryGuest, 
-  registerGalleryGuest, 
-  loginGalleryGuest, 
-  logoutGalleryGuest, 
-  verifyGuestSession 
-} from "./auth/guestAuth";
-import bcrypt from 'bcryptjs';
-
 export async function registerRoutes(app: Express): Promise<Server> {
-  
-  // ========================================
-  // SISTEMA DI AUTENTICAZIONE ADMIN
-  // ========================================
-  
-  // Login admin
-  app.post('/api/admin/login', async (req, res) => {
-    try {
-      const { email, password } = req.body;
-      
-      if (!email || !password) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email e password sono richiesti'
-        });
-      }
-      
-      const result = await loginAdmin(email, password);
-      
-      if (result.success && result.sessionToken) {
-        // Imposta cookie sicuro per la sessione admin
-        res.cookie('adminToken', result.sessionToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          maxAge: 24 * 60 * 60 * 1000, // 24 ore
-          sameSite: 'strict'
-        });
-      }
-      
-      res.json(result);
-    } catch (error) {
-      console.error('Errore login admin:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Errore interno del server'
-      });
-    }
-  });
-
-  // Logout admin
-  app.post('/api/admin/logout', requireAdmin, async (req, res) => {
-    try {
-      const sessionId = (req as any).adminSession?.id;
-      
-      if (sessionId) {
-        await logoutAdmin(sessionId);
-      }
-      
-      res.clearCookie('adminToken');
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Errore logout admin:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Errore interno del server'
-      });
-    }
-  });
-
-  // Verifica sessione admin
-  app.get('/api/admin/check-session', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.adminToken;
-      
-      if (!token) {
-        return res.json({ isAdmin: false });
-      }
-      
-      const result = await verifyAdminSession(token);
-      
-      res.json({
-        isAdmin: result.valid,
-        admin: result.admin,
-        permissions: result.permissions
-      });
-    } catch (error) {
-      console.error('Errore verifica sessione admin:', error);
-      res.json({ isAdmin: false });
-    }
-  });
-
-  // Crea admin (solo per super admin)
-  app.post('/api/admin/create-admin', requireAdmin, async (req, res) => {
-    try {
-      const currentAdmin = (req as any).admin;
-      
-      if (currentAdmin.role !== 'super_admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'Solo i super admin possono creare nuovi amministratori'
-        });
-      }
-      
-      const validatedData = insertAdminUserSchema.parse(req.body);
-      
-      // Hash password
-      const saltRounds = 12;
-      const passwordHash = await bcrypt.hash(validatedData.password, saltRounds);
-      
-      // Crea admin
-      const adminData = {
-        email: validatedData.email,
-        passwordHash,
-        role: validatedData.role,
-        permissions: validatedData.permissions,
-        createdAt: serverTimestamp(),
-        isActive: true
-      };
-      
-      await addDoc(collection(db, 'admin_users'), adminData);
-      
-      res.json({
-        success: true,
-        message: 'Amministratore creato con successo'
-      });
-    } catch (error) {
-      console.error('Errore creazione admin:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Errore interno del server'
-      });
-    }
-  });
-
-  // ========================================
-  // SISTEMA DI AUTENTICAZIONE OSPITI GALLERIA
-  // ========================================
-  
-  // Registrazione ospite galleria
-  app.post('/api/gallery/:galleryId/guest/register', async (req, res) => {
-    try {
-      const { galleryId } = req.params;
-      const validatedData = insertGalleryGuestSchema.parse({
-        ...req.body,
-        galleryId
-      });
-      
-      const result = await registerGalleryGuest(
-        validatedData.email,
-        validatedData.firstName,
-        validatedData.lastName,
-        galleryId,
-        validatedData.profileImageUrl
-      );
-      
-      if (result.success && result.sessionToken) {
-        // Imposta cookie per la sessione ospite
-        res.cookie(`guestToken_${galleryId}`, result.sessionToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 giorni
-          sameSite: 'strict'
-        });
-        
-        // Invia email di benvenuto
-        if (result.guest) {
-          try {
-            await sendWelcomeEmail(
-              result.guest.email,
-              `${result.guest.firstName} ${result.guest.lastName}`,
-              galleryId
-            );
-          } catch (emailError) {
-            console.error('Errore invio email benvenuto:', emailError);
-          }
-        }
-      }
-      
-      res.json(result);
-    } catch (error) {
-      console.error('Errore registrazione ospite:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Errore interno del server'
-      });
-    }
-  });
-
-  // Login ospite galleria
-  app.post('/api/gallery/:galleryId/guest/login', async (req, res) => {
-    try {
-      const { galleryId } = req.params;
-      const { email } = req.body;
-      
-      if (!email) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email richiesta'
-        });
-      }
-      
-      const result = await loginGalleryGuest(email, galleryId);
-      
-      if (result.success && result.sessionToken) {
-        res.cookie(`guestToken_${galleryId}`, result.sessionToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 giorni
-          sameSite: 'strict'
-        });
-      }
-      
-      res.json(result);
-    } catch (error) {
-      console.error('Errore login ospite:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Errore interno del server'
-      });
-    }
-  });
-
-  // Logout ospite galleria
-  app.post('/api/gallery/:galleryId/guest/logout', async (req, res) => {
-    try {
-      const { galleryId } = req.params;
-      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.[`guestToken_${galleryId}`];
-      
-      if (token) {
-        const decoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()) as { sessionId: string };
-        await logoutGalleryGuest(decoded.sessionId);
-      }
-      
-      res.clearCookie(`guestToken_${galleryId}`);
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Errore logout ospite:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Errore interno del server'
-      });
-    }
-  });
-
-  // Verifica sessione ospite galleria
-  app.get('/api/gallery/:galleryId/guest/check-session', async (req, res) => {
-    try {
-      const { galleryId } = req.params;
-      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.[`guestToken_${galleryId}`];
-      
-      if (!token) {
-        return res.json({ isAuthenticated: false });
-      }
-      
-      const result = await verifyGuestSession(token);
-      
-      res.json({
-        isAuthenticated: result.valid && result.galleryId === galleryId,
-        guest: result.guest,
-        galleryId: result.galleryId
-      });
-    } catch (error) {
-      console.error('Errore verifica sessione ospite:', error);
-      res.json({ isAuthenticated: false });
-    }
-  });
-
   // Endpoint di test per verificare configurazione email
   app.get('/api/test-email', async (req, res) => {
     const results = {
@@ -651,11 +377,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add/remove like - PROTETTO PER OSPITI
-  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', requireGalleryGuest, async (req, res) => {
+  // Add/remove like
+  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', async (req, res) => {
     try {
       const { galleryId, itemType, itemId } = req.params;
-      const guest = (req as any).galleryGuest;
+      const { userEmail, userName } = req.body;
+
+      if (!userEmail || !userName) {
+        return res.status(400).json({ error: 'Email e nome utente sono obbligatori' });
+      }
 
       // Check if user already liked this item
       const likesRef = collection(db, 'likes');
@@ -664,7 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where('galleryId', '==', galleryId),
         where('itemType', '==', itemType),
         where('itemId', '==', itemId),
-        where('userEmail', '==', guest.email)
+        where('userEmail', '==', userEmail)
       );
       
       const existingLikes = await getDocs(existingLikeQuery);
@@ -679,8 +409,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           itemId,
           itemType,
           galleryId,
-          userEmail: guest.email,
-          userName: `${guest.firstName} ${guest.lastName}`,
+          userEmail,
+          userName,
           createdAt: serverTimestamp()
         };
         
@@ -701,26 +431,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId, itemType, itemId } = req.params;
 
       const commentsRef = collection(db, 'comments');
-      // Simplified query to avoid index requirement
       const q = query(
         commentsRef,
         where('galleryId', '==', galleryId),
         where('itemType', '==', itemType),
-        where('itemId', '==', itemId)
+        where('itemId', '==', itemId),
+        orderBy('createdAt', 'desc')
       );
       
       const querySnapshot = await getDocs(q);
-      let comments = querySnapshot.docs.map(doc => ({ 
+      const comments = querySnapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data() 
       }));
-      
-      // Sort by createdAt in memory
-      comments.sort((a: any, b: any) => {
-        const aTime = a.createdAt?.seconds || 0;
-        const bTime = b.createdAt?.seconds || 0;
-        return bTime - aTime; // desc order
-      });
       
       res.json(comments);
     } catch (error) {
@@ -729,15 +452,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add comment - PROTETTO PER OSPITI
-  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', requireGalleryGuest, async (req, res) => {
+  // Add comment
+  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', async (req, res) => {
     try {
       const { galleryId, itemType, itemId } = req.params;
-      const { content } = req.body;
-      const guest = (req as any).galleryGuest;
+      const { userEmail, userName, content } = req.body;
 
-      if (!content) {
-        return res.status(400).json({ error: 'Il contenuto del commento è obbligatorio' });
+      if (!userEmail || !userName || !content) {
+        return res.status(400).json({ error: 'Email, nome utente e contenuto sono obbligatori' });
       }
 
       if (content.length > 500) {
@@ -748,8 +470,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         itemId,
         itemType,
         galleryId,
-        userEmail: guest.email,
-        userName: `${guest.firstName} ${guest.lastName}`,
+        userEmail,
+        userName,
         content: content.trim(),
         createdAt: serverTimestamp()
       };
@@ -841,19 +563,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { galleryId } = req.params;
 
-      // Get all likes for gallery using simplified query
+      // Get all likes for gallery
       const likesRef = collection(db, 'likes');
       const likesQuery = query(likesRef, where('galleryId', '==', galleryId));
       const likesSnapshot = await getDocs(likesQuery);
       
-      // Get all comments for gallery using simplified query
+      // Get all comments for gallery
       const commentsRef = collection(db, 'comments');
       const commentsQuery = query(commentsRef, where('galleryId', '==', galleryId));
       const commentsSnapshot = await getDocs(commentsQuery);
       
       // Group by item type
-      const likesData = likesSnapshot.docs.map(doc => doc.data() as any);
-      const commentsData = commentsSnapshot.docs.map(doc => doc.data() as any);
+      const likesData = likesSnapshot.docs.map(doc => doc.data());
+      const commentsData = commentsSnapshot.docs.map(doc => doc.data());
       
       const photoLikes = likesData.filter(like => like.itemType === 'photo').length;
       const voiceMemoLikes = likesData.filter(like => like.itemType === 'voice_memo').length;
@@ -881,213 +603,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Errore nel recupero statistiche admin:', error);
       res.status(500).json({ error: 'Errore nel recupero delle statistiche admin' });
-    }
-  });
-
-  // ==================== EMAIL TEMPLATES API ====================
-  
-  // Get email templates for a gallery
-  app.get('/api/galleries/:galleryId/email-templates', async (req, res) => {
-    try {
-      const { galleryId } = req.params;
-      const { templateType } = req.query;
-
-      const templatesRef = collection(db, 'email_templates');
-      let q = query(templatesRef, where('galleryId', '==', galleryId));
-      
-      if (templateType) {
-        q = query(q, where('templateType', '==', templateType));
-      }
-      
-      const querySnapshot = await getDocs(q);
-      const templates = querySnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
-      
-      res.json(templates);
-    } catch (error) {
-      console.error('Error fetching email templates:', error);
-      res.status(500).json({ error: 'Error fetching email templates' });
-    }
-  });
-
-  // Get single email template
-  app.get('/api/galleries/:galleryId/email-templates/:templateId', async (req, res) => {
-    try {
-      const { templateId } = req.params;
-      
-      const templateRef = doc(db, 'email_templates', templateId);
-      const templateDoc = await getDoc(templateRef);
-      
-      if (!templateDoc.exists()) {
-        return res.status(404).json({ error: 'Template not found' });
-      }
-      
-      res.json({ id: templateDoc.id, ...templateDoc.data() });
-    } catch (error) {
-      console.error('Error fetching email template:', error);
-      res.status(500).json({ error: 'Error fetching email template' });
-    }
-  });
-
-  // Create email template
-  app.post('/api/galleries/:galleryId/email-templates', async (req, res) => {
-    try {
-      const { galleryId } = req.params;
-      const templateData = { ...req.body, galleryId };
-      
-      // Validate the template data
-      const validatedData = insertEmailTemplateSchema.parse(templateData);
-      
-      const templatesRef = collection(db, 'email_templates');
-      const docRef = await addDoc(templatesRef, {
-        ...validatedData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      
-      const newTemplate = await getDoc(docRef);
-      res.status(201).json({ id: newTemplate.id, ...newTemplate.data() });
-    } catch (error) {
-      console.error('Error creating email template:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid template data', details: error.errors });
-      }
-      res.status(500).json({ error: 'Error creating email template' });
-    }
-  });
-
-  // Update email template
-  app.put('/api/galleries/:galleryId/email-templates/:templateId', async (req, res) => {
-    try {
-      const { templateId } = req.params;
-      const updateData = req.body;
-      
-      // Remove fields that shouldn't be updated
-      const { id, galleryId, createdAt, ...validData } = updateData;
-      
-      const templateRef = doc(db, 'email_templates', templateId);
-      await updateDoc(templateRef, {
-        ...validData,
-        updatedAt: serverTimestamp()
-      });
-      
-      const updatedTemplate = await getDoc(templateRef);
-      res.json({ id: updatedTemplate.id, ...updatedTemplate.data() });
-    } catch (error) {
-      console.error('Error updating email template:', error);
-      res.status(500).json({ error: 'Error updating email template' });
-    }
-  });
-
-  // Delete email template
-  app.delete('/api/galleries/:galleryId/email-templates/:templateId', async (req, res) => {
-    try {
-      const { templateId } = req.params;
-      
-      const templateRef = doc(db, 'email_templates', templateId);
-      await deleteDoc(templateRef);
-      
-      res.json({ message: 'Template deleted successfully' });
-    } catch (error) {
-      console.error('Error deleting email template:', error);
-      res.status(500).json({ error: 'Error deleting email template' });
-    }
-  });
-
-  // Get default template for type
-  app.get('/api/email-templates/defaults/:templateType', async (req, res) => {
-    try {
-      const { templateType } = req.params;
-      
-      const defaultTemplates = {
-        welcome: {
-          subject: 'Benvenuto nella galleria di {{galleryName}}!',
-          htmlContent: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #6b7280;">Benvenuto nella galleria di {{galleryName}}!</h1>
-              <p>Ciao {{userName}},</p>
-              <p>Grazie per esserti registrato nella galleria di {{galleryName}}. Ora puoi:</p>
-              <ul>
-                <li>Mettere like alle foto</li>
-                <li>Lasciare commenti</li>
-                <li>Registrare vocali segreti</li>
-                <li>Ricevere notifiche per nuove foto</li>
-              </ul>
-              <p>Visita la galleria: <a href="{{galleryUrl}}">{{galleryUrl}}</a></p>
-              <p>Buona navigazione!</p>
-            </div>
-          `,
-          textContent: `Benvenuto nella galleria di {{galleryName}}!\n\nCiao {{userName}},\n\nGrazie per esserti registrato nella galleria di {{galleryName}}. Ora puoi mettere like alle foto, lasciare commenti, registrare vocali segreti e ricevere notifiche per nuove foto.\n\nVisita la galleria: {{galleryUrl}}\n\nBuona navigazione!`,
-          variables: ['galleryName', 'userName', 'userEmail', 'galleryUrl']
-        },
-        invitation: {
-          subject: 'Sei invitato nella galleria di {{galleryName}}',
-          htmlContent: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #6b7280;">Sei invitato nella galleria di {{galleryName}}!</h1>
-              <p>Ciao,</p>
-              <p>Sei stato invitato a partecipare alla galleria fotografica di {{galleryName}}.</p>
-              <p>Data evento: {{eventDate}}</p>
-              <p>Luogo: {{eventLocation}}</p>
-              <p>Registrati gratuitamente per:</p>
-              <ul>
-                <li>Visualizzare tutte le foto</li>
-                <li>Mettere like e commentare</li>
-                <li>Caricare le tue foto</li>
-                <li>Registrare vocali segreti</li>
-              </ul>
-              <p style="text-align: center;">
-                <a href="{{galleryUrl}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">Partecipa alla Galleria</a>
-              </p>
-            </div>
-          `,
-          textContent: `Sei invitato nella galleria di {{galleryName}}!\n\nCiao,\n\nSei stato invitato a partecipare alla galleria fotografica di {{galleryName}}.\n\nData evento: {{eventDate}}\nLuogo: {{eventLocation}}\n\nRegistrati gratuitamente per visualizzare tutte le foto, mettere like e commentare, caricare le tue foto e registrare vocali segreti.\n\nVisita: {{galleryUrl}}`,
-          variables: ['galleryName', 'eventDate', 'eventLocation', 'galleryUrl']
-        },
-        password_request: {
-          subject: 'Richiesta password per {{galleryName}}',
-          htmlContent: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #6b7280;">Richiesta password per {{galleryName}}</h1>
-              <p>Ciao {{firstName}} {{lastName}},</p>
-              <p>Hai richiesto l'accesso alla galleria protetta di {{galleryName}}.</p>
-              <p>La password per accedere è: <strong>{{password}}</strong></p>
-              <p>Accedi alla galleria: <a href="{{galleryUrl}}">{{galleryUrl}}</a></p>
-              <p>Grazie!</p>
-            </div>
-          `,
-          textContent: `Richiesta password per {{galleryName}}\n\nCiao {{firstName}} {{lastName}},\n\nHai richiesto l'accesso alla galleria protetta di {{galleryName}}.\n\nLa password per accedere è: {{password}}\n\nAccedi alla galleria: {{galleryUrl}}\n\nGrazie!`,
-          variables: ['galleryName', 'firstName', 'lastName', 'password', 'galleryUrl']
-        },
-        new_photos: {
-          subject: 'Nuove foto in {{galleryName}}!',
-          htmlContent: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #6b7280;">Nuove foto in {{galleryName}}!</h1>
-              <p>Ciao,</p>
-              <p>Sono state caricate {{newPhotosCount}} nuove foto nella galleria di {{galleryName}}{{uploaderName ? ' da ' + uploaderName : ''}}.</p>
-              <p>Non perdere l'occasione di vederle e interagire con like e commenti!</p>
-              <p style="text-align: center;">
-                <a href="{{galleryUrl}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">Vedi le Nuove Foto</a>
-              </p>
-            </div>
-          `,
-          textContent: `Nuove foto in {{galleryName}}!\n\nCiao,\n\nSono state caricate {{newPhotosCount}} nuove foto nella galleria di {{galleryName}}{{uploaderName ? ' da ' + uploaderName : ''}}.\n\nNon perdere l'occasione di vederle e interagire con like e commenti!\n\nVisita: {{galleryUrl}}`,
-          variables: ['galleryName', 'newPhotosCount', 'uploaderName', 'galleryUrl']
-        }
-      };
-      
-      const template = defaultTemplates[templateType as keyof typeof defaultTemplates];
-      if (!template) {
-        return res.status(404).json({ error: 'Default template not found' });
-      }
-      
-      res.json(template);
-    } catch (error) {
-      console.error('Error fetching default template:', error);
-      res.status(500).json({ error: 'Error fetching default template' });
     }
   });
 
