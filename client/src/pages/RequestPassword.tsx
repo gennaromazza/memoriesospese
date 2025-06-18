@@ -74,6 +74,11 @@ export default function RequestPassword() {
       if (!id) return;
       
       try {
+        // Debug specifico per galleria "test"
+        if (id === "test") {
+          console.log('🔍 DEBUG: Caricamento galleria "test"');
+        }
+        
         await getGalleryInfo(id);
       } catch (error) {
         toast({
