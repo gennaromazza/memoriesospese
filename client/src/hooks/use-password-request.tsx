@@ -56,12 +56,23 @@ export function usePasswordRequest() {
       console.log('Hook: securityQuestionType field:', galleryData.securityQuestionType);
       console.log('Hook: securityAnswer field:', galleryData.securityAnswer);
       
+      // Verifica più robusta per requiresSecurityQuestion
+      const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true && 
+                                 galleryData.securityQuestionType && 
+                                 galleryData.securityAnswer;
+      
+      console.log('Hook: Calculated hasSecurityQuestion:', hasSecurityQuestion);
+      console.log('Hook: Individual checks:');
+      console.log('  - requiresSecurityQuestion === true:', galleryData.requiresSecurityQuestion === true);
+      console.log('  - has securityQuestionType:', !!galleryData.securityQuestionType);
+      console.log('  - has securityAnswer:', !!galleryData.securityAnswer);
+      
       const info: GalleryInfo = {
         id: galleryId,
         name: galleryData.name,
         password: galleryData.password,
-        requiresSecurityQuestion: !!galleryData.requiresSecurityQuestion,
-        securityQuestion: galleryData.requiresSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
+        requiresSecurityQuestion: hasSecurityQuestion,
+        securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
       };
 
       console.log('Hook: Created gallery info:', info);
