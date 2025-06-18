@@ -431,19 +431,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId, itemType, itemId } = req.params;
 
       const commentsRef = collection(db, 'comments');
+      // Simplified query to avoid index requirement
       const q = query(
         commentsRef,
         where('galleryId', '==', galleryId),
         where('itemType', '==', itemType),
-        where('itemId', '==', itemId),
-        orderBy('createdAt', 'desc')
+        where('itemId', '==', itemId)
       );
       
       const querySnapshot = await getDocs(q);
-      const comments = querySnapshot.docs.map(doc => ({ 
+      let comments = querySnapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data() 
       }));
+      
+      // Sort by createdAt in memory
+      comments.sort((a: any, b: any) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime; // desc order
+      });
       
       res.json(comments);
     } catch (error) {
@@ -563,19 +570,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { galleryId } = req.params;
 
-      // Get all likes for gallery
+      // Get all likes for gallery using simplified query
       const likesRef = collection(db, 'likes');
       const likesQuery = query(likesRef, where('galleryId', '==', galleryId));
       const likesSnapshot = await getDocs(likesQuery);
       
-      // Get all comments for gallery
+      // Get all comments for gallery using simplified query
       const commentsRef = collection(db, 'comments');
       const commentsQuery = query(commentsRef, where('galleryId', '==', galleryId));
       const commentsSnapshot = await getDocs(commentsQuery);
       
       // Group by item type
-      const likesData = likesSnapshot.docs.map(doc => doc.data());
-      const commentsData = commentsSnapshot.docs.map(doc => doc.data());
+      const likesData = likesSnapshot.docs.map(doc => doc.data() as any);
+      const commentsData = commentsSnapshot.docs.map(doc => doc.data() as any);
       
       const photoLikes = likesData.filter(like => like.itemType === 'photo').length;
       const voiceMemoLikes = likesData.filter(like => like.itemType === 'voice_memo').length;

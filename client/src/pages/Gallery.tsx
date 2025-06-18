@@ -17,6 +17,7 @@ import GuestUpload from "@/components/GuestUpload";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionWrapper from "@/components/InteractionWrapper";
+import AuthCallToAction from "@/components/AuthCallToAction";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -324,6 +325,14 @@ export default function Gallery() {
                     <span className="sm:hidden">Vocali</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Call to Action per registrazione - visibile a tutti */}
+              <div className="mb-6">
+                <AuthCallToAction 
+                  galleryId={gallery.id}
+                  galleryName={gallery.name}
+                />
               </div>
 
               {/* Barra con filtri e azioni - solo per tab fotografo */}
