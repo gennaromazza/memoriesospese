@@ -735,8 +735,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       const querySnapshot = await getDocs(q);
       
-      console.log(`Found ${querySnapshot.docs.length} voice memos for gallery ${galleryId}`);
-      
       const voiceMemos = querySnapshot.docs
         .map(doc => ({ 
           id: doc.id, 
@@ -754,7 +752,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .slice(0, limit);
       
-      console.log(`Returning ${voiceMemos.length} unlocked voice memos`);
       res.json(voiceMemos);
     } catch (error) {
       console.error('Errore nel recupero note audio recenti:', error);

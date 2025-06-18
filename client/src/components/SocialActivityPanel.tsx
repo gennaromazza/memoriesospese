@@ -15,7 +15,7 @@ import {
   Award,
   ChevronRight
 } from 'lucide-react';
-import { Comment } from '@shared/schema';
+import { Comment, VoiceMemo } from '@shared/schema';
 
 interface PhotoStats {
   id: string;
@@ -25,14 +25,7 @@ interface PhotoStats {
   commentsCount: number;
 }
 
-interface VoiceMemo {
-  id: string;
-  guestName: string;
-  message?: string;
-  fileName: string;
-  duration?: number;
-  createdAt: any;
-}
+
 
 interface SocialActivityPanelProps {
   galleryId: string;
@@ -271,12 +264,28 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
       {/* Recent Voice Memos Section */}
       <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-            Note Audio
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+              Note Audio
+            </CardTitle>
+            <button
+              onClick={() => {
+                const voiceMemosSection = document.getElementById('voice-memos-section');
+                if (voiceMemosSection) {
+                  voiceMemosSection.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className="text-purple-600 hover:text-purple-700 transition-colors p-1 rounded-full hover:bg-purple-50"
+              title="Aggiungi nota audio"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="h-64">
@@ -313,14 +322,27 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
                                 {memo.message}
                               </p>
                             )}
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs px-1 py-0">
-                                Audio
-                              </Badge>
-                              {memo.duration && (
-                                <span className="text-xs text-gray-500">
-                                  {Math.floor(memo.duration / 60)}:{(memo.duration % 60).toString().padStart(2, '0')}
-                                </span>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs px-1 py-0">
+                                  Audio
+                                </Badge>
+                                {memo.duration && (
+                                  <span className="text-xs text-gray-500">
+                                    {Math.floor(memo.duration / 60)}:{(memo.duration % 60).toString().padStart(2, '0')}
+                                  </span>
+                                )}
+                              </div>
+                              {(memo as any).audioUrl && (
+                                <audio 
+                                  controls 
+                                  className="h-6 w-16"
+                                  preload="none"
+                                >
+                                  <source src={(memo as any).audioUrl} type="audio/webm" />
+                                  <source src={(memo as any).audioUrl} type="audio/mpeg" />
+                                  Il tuo browser non supporta l'elemento audio.
+                                </audio>
                               )}
                             </div>
                           </div>
