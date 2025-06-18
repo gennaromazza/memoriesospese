@@ -36,6 +36,263 @@ import {
 import bcrypt from 'bcryptjs';
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  
+  // ========================================
+  // SISTEMA DI AUTENTICAZIONE ADMIN
+  // ========================================
+  
+  // Login admin
+  app.post('/api/admin/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email e password sono richiesti'
+        });
+      }
+      
+      const result = await loginAdmin(email, password);
+      
+      if (result.success && result.sessionToken) {
+        // Imposta cookie sicuro per la sessione admin
+        res.cookie('adminToken', result.sessionToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 24 * 60 * 60 * 1000, // 24 ore
+          sameSite: 'strict'
+        });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Errore login admin:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Errore interno del server'
+      });
+    }
+  });
+
+  // Logout admin
+  app.post('/api/admin/logout', requireAdmin, async (req, res) => {
+    try {
+      const sessionId = (req as any).adminSession?.id;
+      
+      if (sessionId) {
+        await logoutAdmin(sessionId);
+      }
+      
+      res.clearCookie('adminToken');
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Errore logout admin:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Errore interno del server'
+      });
+    }
+  });
+
+  // Verifica sessione admin
+  app.get('/api/admin/check-session', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.adminToken;
+      
+      if (!token) {
+        return res.json({ isAdmin: false });
+      }
+      
+      const result = await verifyAdminSession(token);
+      
+      res.json({
+        isAdmin: result.valid,
+        admin: result.admin,
+        permissions: result.permissions
+      });
+    } catch (error) {
+      console.error('Errore verifica sessione admin:', error);
+      res.json({ isAdmin: false });
+    }
+  });
+
+  // Crea admin (solo per super admin)
+  app.post('/api/admin/create-admin', requireAdmin, async (req, res) => {
+    try {
+      const currentAdmin = (req as any).admin;
+      
+      if (currentAdmin.role !== 'super_admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Solo i super admin possono creare nuovi amministratori'
+        });
+      }
+      
+      const validatedData = insertAdminUserSchema.parse(req.body);
+      
+      // Hash password
+      const saltRounds = 12;
+      const passwordHash = await bcrypt.hash(validatedData.password, saltRounds);
+      
+      // Crea admin
+      const adminData = {
+        email: validatedData.email,
+        passwordHash,
+        role: validatedData.role,
+        permissions: validatedData.permissions,
+        createdAt: serverTimestamp(),
+        isActive: true
+      };
+      
+      await addDoc(collection(db, 'admin_users'), adminData);
+      
+      res.json({
+        success: true,
+        message: 'Amministratore creato con successo'
+      });
+    } catch (error) {
+      console.error('Errore creazione admin:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Errore interno del server'
+      });
+    }
+  });
+
+  // ========================================
+  // SISTEMA DI AUTENTICAZIONE OSPITI GALLERIA
+  // ========================================
+  
+  // Registrazione ospite galleria
+  app.post('/api/gallery/:galleryId/guest/register', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const validatedData = insertGalleryGuestSchema.parse({
+        ...req.body,
+        galleryId
+      });
+      
+      const result = await registerGalleryGuest(
+        validatedData.email,
+        validatedData.firstName,
+        validatedData.lastName,
+        galleryId,
+        validatedData.profileImageUrl
+      );
+      
+      if (result.success && result.sessionToken) {
+        // Imposta cookie per la sessione ospite
+        res.cookie(`guestToken_${galleryId}`, result.sessionToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 giorni
+          sameSite: 'strict'
+        });
+        
+        // Invia email di benvenuto
+        if (result.guest) {
+          try {
+            await sendWelcomeEmail(
+              result.guest.email,
+              `${result.guest.firstName} ${result.guest.lastName}`,
+              galleryId
+            );
+          } catch (emailError) {
+            console.error('Errore invio email benvenuto:', emailError);
+          }
+        }
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Errore registrazione ospite:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Errore interno del server'
+      });
+    }
+  });
+
+  // Login ospite galleria
+  app.post('/api/gallery/:galleryId/guest/login', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email richiesta'
+        });
+      }
+      
+      const result = await loginGalleryGuest(email, galleryId);
+      
+      if (result.success && result.sessionToken) {
+        res.cookie(`guestToken_${galleryId}`, result.sessionToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 giorni
+          sameSite: 'strict'
+        });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Errore login ospite:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Errore interno del server'
+      });
+    }
+  });
+
+  // Logout ospite galleria
+  app.post('/api/gallery/:galleryId/guest/logout', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.[`guestToken_${galleryId}`];
+      
+      if (token) {
+        const decoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()) as { sessionId: string };
+        await logoutGalleryGuest(decoded.sessionId);
+      }
+      
+      res.clearCookie(`guestToken_${galleryId}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Errore logout ospite:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Errore interno del server'
+      });
+    }
+  });
+
+  // Verifica sessione ospite galleria
+  app.get('/api/gallery/:galleryId/guest/check-session', async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.[`guestToken_${galleryId}`];
+      
+      if (!token) {
+        return res.json({ isAuthenticated: false });
+      }
+      
+      const result = await verifyGuestSession(token);
+      
+      res.json({
+        isAuthenticated: result.valid && result.galleryId === galleryId,
+        guest: result.guest,
+        galleryId: result.galleryId
+      });
+    } catch (error) {
+      console.error('Errore verifica sessione ospite:', error);
+      res.json({ isAuthenticated: false });
+    }
+  });
+
   // Endpoint di test per verificare configurazione email
   app.get('/api/test-email', async (req, res) => {
     const results = {
@@ -394,15 +651,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add/remove like
-  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', async (req, res) => {
+  // Add/remove like - PROTETTO PER OSPITI
+  app.post('/api/galleries/:galleryId/likes/:itemType/:itemId', requireGalleryGuest, async (req, res) => {
     try {
       const { galleryId, itemType, itemId } = req.params;
-      const { userEmail, userName } = req.body;
-
-      if (!userEmail || !userName) {
-        return res.status(400).json({ error: 'Email e nome utente sono obbligatori' });
-      }
+      const guest = (req as any).galleryGuest;
 
       // Check if user already liked this item
       const likesRef = collection(db, 'likes');
@@ -411,7 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where('galleryId', '==', galleryId),
         where('itemType', '==', itemType),
         where('itemId', '==', itemId),
-        where('userEmail', '==', userEmail)
+        where('userEmail', '==', guest.email)
       );
       
       const existingLikes = await getDocs(existingLikeQuery);
@@ -426,8 +679,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           itemId,
           itemType,
           galleryId,
-          userEmail,
-          userName,
+          userEmail: guest.email,
+          userName: `${guest.firstName} ${guest.lastName}`,
           createdAt: serverTimestamp()
         };
         
@@ -476,14 +729,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add comment
-  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', async (req, res) => {
+  // Add comment - PROTETTO PER OSPITI
+  app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', requireGalleryGuest, async (req, res) => {
     try {
       const { galleryId, itemType, itemId } = req.params;
-      const { userEmail, userName, content } = req.body;
+      const { content } = req.body;
+      const guest = (req as any).galleryGuest;
 
-      if (!userEmail || !userName || !content) {
-        return res.status(400).json({ error: 'Email, nome utente e contenuto sono obbligatori' });
+      if (!content) {
+        return res.status(400).json({ error: 'Il contenuto del commento è obbligatorio' });
       }
 
       if (content.length > 500) {
@@ -494,8 +748,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         itemId,
         itemType,
         galleryId,
-        userEmail,
-        userName,
+        userEmail: guest.email,
+        userName: `${guest.firstName} ${guest.lastName}`,
         content: content.trim(),
         createdAt: serverTimestamp()
       };

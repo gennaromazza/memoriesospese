@@ -18,6 +18,7 @@ import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionWrapper from "@/components/InteractionWrapper";
 import AuthCallToAction from "@/components/AuthCallToAction";
+import { GalleryGuestAuthProvider, useAdminAuth } from "@/hooks/useGalleryGuestAuth";
 
 export default function Gallery() {
   const { id } = useParams();
