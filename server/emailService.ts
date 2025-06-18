@@ -1,4 +1,17 @@
 import type { EmailTemplate } from '../client/src/lib/emailTemplates';
+import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { db } from './firebase';
+
+interface CustomEmailTemplate {
+  id: string;
+  galleryId: string;
+  templateType: 'welcome' | 'invitation' | 'password_request' | 'new_photos';
+  subject: string;
+  htmlContent: string;
+  textContent: string;
+  isActive: boolean;
+  variables: string[];
+}
 
 // Configurazione email solo SMTP
 let emailProvider: 'smtp' = 'smtp';

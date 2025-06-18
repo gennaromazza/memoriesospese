@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Mail } from "lucide-react";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -972,6 +972,16 @@ export default function AdminDashboard() {
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
+                                <Link to={createUrl(`/admin/email-templates/${gallery.id}`)}>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon"
+                                    className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200" 
+                                    title="Gestisci template email"
+                                  >
+                                    <Mail className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                </Link>
                                 <Button 
                                   variant={gallery.active ? "destructive" : "default"}
                                   size="icon"
