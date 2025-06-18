@@ -15,6 +15,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import { Comment, InteractionStats } from '@shared/schema';
+import CommentModal from './CommentModal';
 
 interface InteractionPanelProps {
   itemId: string;
@@ -46,7 +47,7 @@ export default function InteractionPanel({
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [showComments, setShowComments] = useState(false);
+  const [showCommentModal, setShowCommentModal] = useState(false);
 
   const { toast } = useToast();
 
@@ -300,8 +301,8 @@ export default function InteractionPanel({
 
         <Button
           onClick={() => {
-            setShowComments(!showComments);
-            if (!showComments) fetchComments();
+            setShowCommentModal(true);
+            fetchComments();
           }}
           variant="ghost"
           size="sm"
@@ -312,116 +313,20 @@ export default function InteractionPanel({
         </Button>
       </div>
 
-      {/* Comments section */}
-      {showComments && (
-        <Card className="border-gray-200">
-          <CardContent className="p-4 space-y-4">
-            {/* Comment form */}
-            {userEmail && userName && (
-              <div className="space-y-3">
-                <Textarea
-                  placeholder="Scrivi un commento..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm min-h-[80px]"
-                  maxLength={500}
-                />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">
-                    {newComment.length}/500 caratteri
-                  </span>
-                  <Button
-                    onClick={handleSubmitComment}
-                    disabled={!newComment.trim() || isSubmittingComment}
-                    size="sm"
-                    className="bg-sage-600 hover:bg-sage-700 text-white"
-                  >
-                    {isSubmittingComment ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Send className="h-3 w-3 mr-1" />
-                        Commenta
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Comments list */}
-            <div className="space-y-3">
-              {comments.length === 0 ? (
-                !userEmail ? (
-                  <div className="text-center py-6">
-                    <div className="mb-4">
-                      <div className="w-12 h-12 bg-gradient-to-r from-sage-100 to-blue-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <MessageCircle className="h-6 w-6 text-sage-600" />
-                      </div>
-                      <p className="text-gray-600 text-sm mb-4">
-                        Accedi per mettere like e commentare
-                      </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                      <Button
-                        onClick={onAuthRequired}
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-2 border-sage-300 text-sage-700 hover:bg-sage-50"
-                      >
-                        <LogIn className="h-4 w-4" />
-                        Accedi
-                      </Button>
-                      <Button
-                        onClick={onAuthRequired}
-                        size="sm"
-                        className="flex items-center gap-2 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700"
-                      >
-                        <UserPlus className="h-4 w-4" />
-                        Registrati
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-center text-gray-500 text-sm py-4">
-                    Nessun commento ancora. Sii il primo a commentare!
-                  </p>
-                )
-              ) : (
-                comments.map((comment) => (
-                  <div key={comment.id} className="bg-gray-50 p-3 rounded-lg">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-sage-100 rounded-full flex items-center justify-center">
-                          <User className="h-3 w-3 text-sage-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">{comment.userName}</p>
-                          <p className="text-xs text-gray-500">
-                            <Clock className="h-3 w-3 inline mr-1" />
-                            {formatDateTime(comment.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-                      {isAdmin && (
-                        <Button
-                          onClick={() => handleDeleteComment(comment.id)}
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-700">{comment.content}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Comment Modal */}
+      <CommentModal
+        isOpen={showCommentModal}
+        onOpenChange={setShowCommentModal}
+        comments={comments}
+        newComment={newComment}
+        onNewCommentChange={setNewComment}
+        onSubmitComment={handleSubmitComment}
+        onDeleteComment={handleDeleteComment}
+        isSubmitting={isSubmittingComment}
+        isAdmin={isAdmin}
+        userEmail={userEmail}
+        userName={userName}
+      />
     </div>
   );
 }
