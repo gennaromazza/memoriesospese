@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
@@ -7,18 +7,10 @@ import ImageLightbox from "@/components/ImageLightbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import GalleryHeader from "@/components/gallery/GalleryHeader";
 import YouTubeEmbed from "@/components/gallery/YouTubeEmbed";
-import LoadMoreButton from "@/components/gallery/LoadMoreButton";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
-import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
-import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
-import SubscriptionManager from "@/components/SubscriptionManager";
-import GuestUpload from "@/components/GuestUpload";
-import VoiceMemoUpload from "@/components/VoiceMemoUpload";
-import VoiceMemosList from "@/components/VoiceMemosList";
-import InteractionWrapper from "@/components/InteractionWrapper";
 import AuthCallToAction from "@/components/AuthCallToAction";
-import { GalleryGuestAuthProvider, useAdminAuth } from "@/hooks/useGalleryGuestAuth";
+import { useAdminAuth } from "@/hooks/useGalleryGuestAuth";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -29,18 +21,10 @@ export default function Gallery() {
   const { studioSettings } = useStudio();
 
   // Stato locale per il tracciamento del caricamento
-  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'photographer' | 'guests' | 'voice-memos'>('photographer');
   const [localPhotos, setLocalPhotos] = useState<PhotoData[]>([]);
   const [guestPhotos, setGuestPhotos] = useState<PhotoData[]>([]);
   const [allPhotos, setAllPhotos] = useState<PhotoData[]>([]);
-
-  // Filtri
-  const [filters, setFilters] = useState({
-    sortBy: 'newest',
-    dateRange: { start: null, end: null },
-    userFilter: 'all'
-  });
 
   // Uso del hook personalizzato
   const {
@@ -51,6 +35,13 @@ export default function Gallery() {
     hasMorePhotos,
     loadMorePhotos
   } = useGalleryData(id || '');
+
+  // Usa hook per verifica admin separata
+  const { isAdmin: adminStatus } = useAdminAuth();
+
+  useEffect(() => {
+    setIsAdmin(adminStatus);
+  }, [adminStatus]);
 
   // Effetto per aggiornare lo stato locale quando i dati cambiano
   useEffect(() => {
@@ -71,11 +62,6 @@ export default function Gallery() {
     setAllPhotos(combined);
   }, [localPhotos, guestPhotos]);
 
-  // Gestione caricamento
-  useEffect(() => {
-    setIsLoading(loading);
-  }, [loading]);
-
   // Gestione apertura lightbox
   const openLightbox = useCallback((photoIndex: number, photoType: 'photographer' | 'guests') => {
     let adjustedIndex = photoIndex;
@@ -91,23 +77,6 @@ export default function Gallery() {
   const closeLightbox = useCallback(() => {
     setLightboxOpen(false);
   }, []);
-
-  // Gestione aggiornamento filtri
-  const handleFilterChange = (newFilters: FilterCriteria) => {
-    setFilters(newFilters);
-  };
-
-  // Verifica se l'utente è amministratore
-  useEffect(() => {
-    const checkAdminStatus = () => {
-      const adminParam = new URLSearchParams(window.location.search).get('admin');
-      setIsAdmin(adminParam === 'true');
-    };
-    
-    checkAdminStatus();
-  }, []);
-
-
 
   // Loading state
   if (loading || !gallery) {
@@ -192,8 +161,6 @@ export default function Gallery() {
                 </div>
               </div>
 
-              {/* Filtri rimossi temporaneamente per stabilità */}
-
               {/* Contenuto basato su tab attivo */}
               {activeTab === 'photographer' && (
                 <div>
@@ -201,33 +168,30 @@ export default function Gallery() {
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
                         {localPhotos.map((photo, index) => (
-                          <InteractionWrapper
+                          <div
                             key={photo.id}
-                            itemId={photo.id}
-                            itemType="photo"
-                            galleryId={id || ''}
-                            galleryName={gallery.name}
+                            className="aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
+                            onClick={() => openLightbox(index, 'photographer')}
                           >
-                            <div
-                              className="aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
-                              onClick={() => openLightbox(index, 'photographer')}
-                            >
-                              <img
-                                src={photo.url}
-                                alt={photo.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                loading="lazy"
-                              />
-                            </div>
-                          </InteractionWrapper>
+                            <img
+                              src={photo.url}
+                              alt={photo.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                          </div>
                         ))}
                       </div>
 
                       {hasMorePhotos && (
-                        <LoadMoreButton
-                          onLoadMore={loadMorePhotos}
-                          loading={loading}
-                        />
+                        <div className="text-center">
+                          <button
+                            onClick={loadMorePhotos}
+                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Carica altre foto
+                          </button>
+                        </div>
                       )}
                     </>
                   ) : (
@@ -248,37 +212,22 @@ export default function Gallery() {
                     />
                   </div>
 
-                  {/* Upload per gli ospiti */}
-                  <div className="mb-8">
-                    <GuestUpload
-                      galleryId={id || ''}
-                      onPhotosUploaded={refetchPhotos}
-                    />
-                  </div>
-
                   {/* Foto degli ospiti */}
                   {guestPhotos.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {guestPhotos.map((photo, index) => (
-                        <InteractionWrapper
+                        <div
                           key={photo.id}
-                          itemId={photo.id}
-                          itemType="photo"
-                          galleryId={id || ''}
-                          galleryName={gallery.name}
+                          className="aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
+                          onClick={() => openLightbox(index, 'guests')}
                         >
-                          <div
-                            className="aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
-                            onClick={() => openLightbox(index, 'guests')}
-                          >
-                            <img
-                              src={photo.url}
-                              alt={photo.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              loading="lazy"
-                            />
-                          </div>
-                        </InteractionWrapper>
+                          <img
+                            src={photo.url}
+                            alt={photo.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                          />
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -299,32 +248,11 @@ export default function Gallery() {
                     />
                   </div>
 
-                  {/* Upload vocali */}
-                  <div className="mb-8">
-                    <VoiceMemoUpload
-                      galleryId={id || ''}
-                      onVoiceMemoUploaded={() => {
-                        // Ricarica i dati se necessario
-                      }}
-                    />
+                  <div className="text-center py-12">
+                    <p className="text-gray-500">Sezione Vocali Segreti in sviluppo</p>
                   </div>
-
-                  {/* Lista vocali */}
-                  <VoiceMemosList
-                    galleryId={id || ''}
-                    galleryName={gallery.name}
-                  />
                 </div>
               )}
-
-              {/* Gestione iscrizioni */}
-              {isAdmin && (
-                <div className="mt-12 pt-8 border-t border-gray-200">
-                  <SubscriptionManager galleryId={id || ''} />
-                </div>
-              )}
-
-
             </div>
           </div>
         </main>

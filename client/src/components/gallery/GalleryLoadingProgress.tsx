@@ -6,12 +6,14 @@ interface GalleryLoadingProgressProps {
   totalPhotos: number;
   loadedPhotos: number;
   progress: number;
+  isVisible?: boolean;
 }
 
 export default function GalleryLoadingProgress({
   totalPhotos,
   loadedPhotos,
-  progress
+  progress,
+  isVisible = false
 }: GalleryLoadingProgressProps) {
   // Assicuriamoci che i valori siano sempre numeri validi
   const safeProgress = isNaN(progress) ? 0 : Math.min(100, Math.max(0, progress));
