@@ -16,6 +16,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Comment, VoiceMemo } from '@shared/schema';
+import VoiceMemoUpload from './VoiceMemoUpload';
 
 interface PhotoStats {
   id: string;
@@ -37,6 +38,7 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
   const [topPhotos, setTopPhotos] = useState<PhotoStats[]>([]);
   const [recentVoiceMemos, setRecentVoiceMemos] = useState<VoiceMemo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showVoiceMemoUpload, setShowVoiceMemoUpload] = useState(false);
 
   const formatDateTime = (timestamp: any): string => {
     try {
@@ -150,6 +152,7 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
   }
 
   return (
+    <>
     <div className={`${className} grid grid-cols-1 lg:grid-cols-3 gap-4`}>
       {/* Recent Comments Section */}
       <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg">
@@ -272,12 +275,7 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
               Note Audio
             </CardTitle>
             <button
-              onClick={() => {
-                const voiceMemosSection = document.getElementById('voice-memos-section');
-                if (voiceMemosSection) {
-                  voiceMemosSection.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
+              onClick={() => setShowVoiceMemoUpload(true)}
               className="text-purple-600 hover:text-purple-700 transition-colors p-1 rounded-full hover:bg-purple-50"
               title="Aggiungi nota audio"
             >
@@ -358,5 +356,19 @@ export default function SocialActivityPanel({ galleryId, className = '' }: Socia
         </CardContent>
       </Card>
     </div>
+
+    {/* Voice Memo Upload Modal */}
+    {showVoiceMemoUpload && (
+      <VoiceMemoUpload
+        galleryId={galleryId}
+        galleryName="Galleria"
+        onUploadComplete={() => {
+          setShowVoiceMemoUpload(false);
+          // Refresh voice memos list
+          fetchRecentVoiceMemos();
+        }}
+      />
+    )}
+    </>
   );
 }
