@@ -166,14 +166,39 @@ export default function VoiceMemoPlayer({
 
   const formatDateTime = (timestamp: any) => {
     if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    
+    try {
+      let date: Date;
+      
+      // Gestisci timestamp Firebase
+      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        date = timestamp.toDate();
+      } 
+      // Gestisci timestamp in secondi (Firebase formato alternativo)
+      else if (timestamp.seconds && typeof timestamp.seconds === 'number') {
+        date = new Date(timestamp.seconds * 1000);
+      }
+      // Gestisci stringhe ISO o timestamp numerici
+      else {
+        date = new Date(timestamp);
+      }
+      
+      // Verifica che la data sia valida
+      if (isNaN(date.getTime())) {
+        return 'Data non disponibile';
+      }
+      
+      return date.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Errore nella formattazione della data:', error, timestamp);
+      return 'Data non disponibile';
+    }
   };
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
