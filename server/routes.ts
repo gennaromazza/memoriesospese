@@ -431,19 +431,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId, itemType, itemId } = req.params;
 
       const commentsRef = collection(db, 'comments');
+      // Simplified query to avoid index requirements - filter in memory instead
       const q = query(
         commentsRef,
         where('galleryId', '==', galleryId),
-        where('itemType', '==', itemType),
-        where('itemId', '==', itemId),
-        orderBy('createdAt', 'desc')
+        where('itemId', '==', itemId)
       );
       
       const querySnapshot = await getDocs(q);
-      const comments = querySnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
+      const comments = querySnapshot.docs
+        .map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        }))
+        .filter((comment: any) => comment.itemType === itemType)
+        .sort((a: any, b: any) => {
+          // Sort by createdAt descending
+          if (!a.createdAt || !b.createdAt) return 0;
+          return b.createdAt.toMillis() - a.createdAt.toMillis();
+        });
       
       res.json(comments);
     } catch (error) {

@@ -244,7 +244,7 @@ export default function UnifiedAuthDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" aria-describedby="auth-dialog-description">
         <DialogHeader className="text-center">
           <div className="mx-auto w-12 h-12 bg-gradient-to-r from-sage-600 to-blue-gray-600 rounded-full flex items-center justify-center mb-3">
             <User className="h-6 w-6 text-white" />
@@ -252,7 +252,7 @@ export default function UnifiedAuthDialog({
           <DialogTitle className="text-xl font-bold text-blue-gray-900">
             Accedi alla Galleria
           </DialogTitle>
-          <DialogDescription className="text-sage-700 mt-2">
+          <DialogDescription id="auth-dialog-description" className="text-sage-700 mt-2">
             Accedi o registrati per mettere like e commentare
           </DialogDescription>
         </DialogHeader>
