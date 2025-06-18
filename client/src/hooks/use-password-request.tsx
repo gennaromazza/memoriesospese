@@ -51,21 +51,10 @@ export function usePasswordRequest() {
       const galleryData = querySnapshot.docs[0].data();
       const galleryId = querySnapshot.docs[0].id;
       
-      console.log('Hook: Full gallery data from Firebase:', galleryData);
-      console.log('Hook: requiresSecurityQuestion field:', galleryData.requiresSecurityQuestion);
-      console.log('Hook: securityQuestionType field:', galleryData.securityQuestionType);
-      console.log('Hook: securityAnswer field:', galleryData.securityAnswer);
-      
       // Verifica più robusta per requiresSecurityQuestion
       const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true && 
                                  galleryData.securityQuestionType && 
                                  galleryData.securityAnswer;
-      
-      console.log('Hook: Calculated hasSecurityQuestion:', hasSecurityQuestion);
-      console.log('Hook: Individual checks:');
-      console.log('  - requiresSecurityQuestion === true:', galleryData.requiresSecurityQuestion === true);
-      console.log('  - has securityQuestionType:', !!galleryData.securityQuestionType);
-      console.log('  - has securityAnswer:', !!galleryData.securityAnswer);
       
       const info: GalleryInfo = {
         id: galleryId,
@@ -75,7 +64,7 @@ export function usePasswordRequest() {
         securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
       };
 
-      console.log('Hook: Created gallery info:', info);
+
       setGalleryInfo(info);
       return info;
     } catch (error) {
@@ -108,20 +97,13 @@ export function usePasswordRequest() {
     setIsLoading(true);
     setError('');
 
-    console.log('Hook: submitPasswordRequest called with params:', params);
-    console.log('Hook: galleryInfo:', galleryInfo);
-
     try {
       if (!galleryInfo) {
         throw new Error('Informazioni galleria non disponibili');
       }
 
-      console.log('Hook: Checking security question requirement:', galleryInfo.requiresSecurityQuestion);
-      console.log('Hook: Security answer provided:', !!params.securityAnswer);
-
       // Se la galleria richiede una domanda di sicurezza e non è stata fornita la risposta
       if (galleryInfo.requiresSecurityQuestion && !params.securityAnswer) {
-        console.log('Hook: Returning requiresSecurityQuestion = true');
         setIsLoading(false);
         return {
           success: false,

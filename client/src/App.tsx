@@ -19,7 +19,6 @@ import PasswordResult from "@/pages/PasswordResult";
 import DeleteGalleryPage from "@/pages/DeleteGalleryPage";
 import SecurityTestPage from "@/pages/SecurityTestPage";
 import NotFound from "@/pages/not-found";
-import './debug-gallery-test';
 
 // Hook per tracciare le visualizzazioni delle pagine
 function useAnalytics() {
