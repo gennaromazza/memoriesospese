@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { createUrl } from '@/lib/config';
 import { 
   MessageCircle, 
   Heart, 
@@ -81,7 +82,7 @@ export default function SocialActivityPanel({ galleryId, className = '', userEma
 
   const fetchRecentComments = async () => {
     try {
-      const response = await fetch(`/api/galleries/${galleryId}/comments/recent`);
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/recent`));
       if (response.ok) {
         const data = await response.json();
         setRecentComments(data.slice(0, 8)); // Limit to 8 recent comments
@@ -93,7 +94,7 @@ export default function SocialActivityPanel({ galleryId, className = '', userEma
 
   const fetchTopPhotos = async () => {
     try {
-      const response = await fetch(`/api/galleries/${galleryId}/photos/top-liked`);
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/photos/top-liked`));
       if (response.ok) {
         const data = await response.json();
         setTopPhotos(data.slice(0, 5)); // Top 5 photos
@@ -105,7 +106,7 @@ export default function SocialActivityPanel({ galleryId, className = '', userEma
 
   const fetchRecentVoiceMemos = async () => {
     try {
-      const response = await fetch(`/api/galleries/${galleryId}/voice-memos/recent`);
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/recent`));
       if (response.ok) {
         const data = await response.json();
         setRecentVoiceMemos(data.slice(0, 5)); // Recent 5 voice memos

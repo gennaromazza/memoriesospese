@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Mail, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 interface EmailStatus {
   success: boolean;
@@ -29,7 +30,7 @@ export default function EmailStatusPanel() {
   const testEmailConfiguration = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/test-email');
+      const response = await apiRequest('GET', '/api/test-email');
       if (response.ok) {
         const data = await response.json();
         setStatus(data);
@@ -57,15 +58,9 @@ export default function EmailStatusPanel() {
   const sendTestEmail = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/send-welcome-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: status?.results?.config.from || 'test@example.com',
-          galleryName: 'Test Gallery'
-        }),
+      const response = await apiRequest('POST', '/api/send-welcome-email', {
+        email: status?.results?.config.from || 'test@example.com',
+        galleryName: 'Test Gallery'
       });
 
       if (response.ok) {

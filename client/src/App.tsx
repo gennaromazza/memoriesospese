@@ -19,6 +19,7 @@ import PasswordResult from "@/pages/PasswordResult";
 import DeleteGalleryPage from "@/pages/DeleteGalleryPage";
 import SecurityTestPage from "@/pages/SecurityTestPage";
 import NotFound from "@/pages/not-found";
+import PathDebugInfo from "@/components/PathDebugInfo";
 
 // Hook per tracciare le visualizzazioni delle pagine
 function useAnalytics() {
@@ -83,6 +84,8 @@ function App() {
               <WouterRouter base={basePath}>
                 <Router />
               </WouterRouter>
+              {/* Debug component - solo in sviluppo */}
+              {import.meta.env.MODE === 'development' && <PathDebugInfo />}
             </StudioProvider>
           </AuthProvider>
         </TooltipProvider>

@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { createUrl } from '@/lib/config';
 import { 
   Heart, 
   MessageCircle, 
@@ -57,7 +58,7 @@ export default function InteractionPanel({
     try {
       setIsLoadingStats(true);
       const url = `/api/galleries/${galleryId}/stats/${itemType}/${itemId}${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`;
-      const response = await fetch(url);
+      const response = await fetch(createUrl(url));
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Errore nel caricamento statistiche' }));
@@ -78,7 +79,7 @@ export default function InteractionPanel({
   const fetchComments = async () => {
     try {
       setIsLoadingStats(true);
-      const response = await fetch(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`);
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`));
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Errore nel caricamento commenti' }));
@@ -103,7 +104,7 @@ export default function InteractionPanel({
 
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/galleries/${galleryId}/likes/${itemType}/${itemId}`, {
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/likes/${itemType}/${itemId}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +172,7 @@ export default function InteractionPanel({
 
     try {
       setIsSubmittingComment(true);
-      const response = await fetch(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`, {
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -223,7 +224,7 @@ export default function InteractionPanel({
     if (!isAdmin) return;
 
     try {
-      const response = await fetch(`/api/galleries/${galleryId}/comments/${commentId}`, {
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${commentId}`), {
         method: 'DELETE',
       });
 

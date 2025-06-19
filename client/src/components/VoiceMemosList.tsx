@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { createUrl } from '@/lib/config';
 import { 
   Mic2, 
   Volume2, 
@@ -44,7 +45,7 @@ export default function VoiceMemosList({
     try {
       setError(null);
       const url = `/api/galleries/${galleryId}/voice-memos${isAdmin ? '?includeAll=true' : ''}`;
-      const response = await fetch(url);
+      const response = await fetch(createUrl(url));
       
       if (!response.ok) {
         throw new Error('Errore nel caricamento dei voice memos');
@@ -77,7 +78,7 @@ export default function VoiceMemosList({
 
   const handleUnlockMemo = async (memoId: string) => {
     try {
-      const response = await fetch(`/api/galleries/${galleryId}/voice-memos/${memoId}/unlock`, {
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/${memoId}/unlock`), {
         method: 'PUT',
       });
       
@@ -109,7 +110,7 @@ export default function VoiceMemosList({
     }
     
     try {
-      const response = await fetch(`/api/galleries/${galleryId}/voice-memos/${memoId}`, {
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/${memoId}`), {
         method: 'DELETE',
       });
       
