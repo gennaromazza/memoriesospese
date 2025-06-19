@@ -25,6 +25,8 @@ export default function Gallery() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [userName, setUserName] = useState<string>('');
   const { studioSettings } = useStudio();
 
   // Stato locale per il tracciamento del caricamento
@@ -79,14 +81,22 @@ export default function Gallery() {
     }));
   }, [photos.length, guestPhotos.length, gallery]);
 
-  // Check if current user is admin
+  // Check if current user is admin and get user credentials
   useEffect(() => {
     const checkAdmin = () => {
       const admin = localStorage.getItem('isAdmin') === 'true';
       setIsAdmin(admin);
     };
 
+    const getUserCredentials = () => {
+      const email = localStorage.getItem('userEmail') || '';
+      const name = localStorage.getItem('userName') || '';
+      setUserEmail(email);
+      setUserName(name);
+    };
+
     checkAdmin();
+    getUserCredentials();
   }, []);
 
   // Verifica autenticazione
@@ -534,6 +544,8 @@ export default function Gallery() {
                 <SocialActivityPanel 
                   galleryId={gallery.id}
                   className="w-full"
+                  userEmail={userEmail}
+                  userName={userName}
                   onPhotoClick={(photoId) => {
                     // Find photo index in allPhotos array
                     const photoIndex = allPhotos.findIndex(photo => photo.id === photoId);

@@ -15,7 +15,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import CommentModal from './CommentModal';
-import { Comment, InteractionStats } from '@/shared/schema';
+import { Comment, InteractionStats } from '@shared/schema';
 
 interface InteractionPanelProps {
   itemId: string;

@@ -25,12 +25,16 @@ import VoiceRecorder from './VoiceRecorder';
 interface VoiceMemoUploadProps {
   galleryId: string;
   galleryName: string;
+  userEmail?: string;
+  userName?: string;
   onUploadComplete?: () => void;
 }
 
 export default function VoiceMemoUpload({ 
   galleryId, 
   galleryName, 
+  userEmail,
+  userName,
   onUploadComplete 
 }: VoiceMemoUploadProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -243,7 +247,7 @@ export default function VoiceMemoUpload({
       const fileSize = audioData.size;
       const duration = recordedBlob ? recordedDuration : undefined;
 
-      // Prepare voice memo data
+      // Prepare voice memo data with user authentication
       const voiceMemoData = {
         galleryId,
         guestName: guestName.trim(),
@@ -252,7 +256,9 @@ export default function VoiceMemoUpload({
         unlockDate: unlockDate || undefined,
         fileName,
         fileSize,
-        duration
+        duration,
+        userEmail: userEmail || 'guest@example.com', // Required for auth
+        userName: userName || guestName.trim() // Required for auth
       };
 
       // Send to backend API

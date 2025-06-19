@@ -31,10 +31,12 @@ interface PhotoStats {
 interface SocialActivityPanelProps {
   galleryId: string;
   className?: string;
+  userEmail?: string;
+  userName?: string;
   onPhotoClick?: (photoId: string) => void;
 }
 
-export default function SocialActivityPanel({ galleryId, className = '', onPhotoClick }: SocialActivityPanelProps) {
+export default function SocialActivityPanel({ galleryId, className = '', userEmail, userName, onPhotoClick }: SocialActivityPanelProps) {
   const [recentComments, setRecentComments] = useState<Comment[]>([]);
   const [topPhotos, setTopPhotos] = useState<PhotoStats[]>([]);
   const [recentVoiceMemos, setRecentVoiceMemos] = useState<VoiceMemo[]>([]);
@@ -379,6 +381,8 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       <VoiceMemoUpload
         galleryId={galleryId}
         galleryName="Galleria"
+        userEmail={userEmail}
+        userName={userName}
         onUploadComplete={() => {
           setShowVoiceMemoUpload(false);
           // Refresh voice memos list
