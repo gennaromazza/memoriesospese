@@ -265,7 +265,8 @@ export default function VoiceMemoUpload({
       });
 
       if (!response.ok) {
-        throw new Error('Errore nel caricamento del voice memo');
+        const errorData = await response.json().catch(() => ({ error: 'Errore nel caricamento del voice memo' }));
+        throw new Error(errorData.error || 'Errore nel caricamento del voice memo');
       }
 
       setUploadStatus('complete');

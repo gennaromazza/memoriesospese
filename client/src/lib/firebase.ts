@@ -5,7 +5,7 @@ import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 
-// Firebase configuration from environment variables
+// Firebase configuration from environment variables with fallbacks
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "wedding-gallery-397b6.firebaseapp.com",
@@ -15,6 +15,11 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1072998290999:web:8e0d19440d86d15f4f11b2",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-SD38R3LJE6"
 };
+
+// Log warning if using fallback values
+if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+  console.warn('Using fallback Firebase configuration. Set environment variables for production.');
+}
 
 // Initialize Firebase app
 const app = initializeApp(firebaseConfig);

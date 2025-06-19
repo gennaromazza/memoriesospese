@@ -29,6 +29,7 @@ import {
   getSecurityQuestionText,
   AuthenticatedRequest 
 } from './middleware/auth';
+import { sendError, sendSuccess, validateUserData, validateCommentData, validateVoiceMemoData, ValidationUtils } from './utils/validation';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Applica solo sanitizzazione globale (rate limiting solo su endpoint sensibili)
@@ -293,6 +294,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId } = req.params;
       const voiceMemoData = req.body;
 
+      // Validazione dati voice memo
+      const validationErrors = validateVoiceMemoData(voiceMemoData);
+      if (validationErrors.length > 0) {
+        return sendError(res, 400, 'Dati non validi', validationErrors.join(', '));
+      }
+
       // Prepara i dati base obbligatori
       const firebaseData: any = {
         galleryId,
@@ -322,12 +329,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const docSnap = await getDoc(docRef);
       const voiceMemo = { id: docSnap.id, ...docSnap.data() };
 
-      res.status(201).json(voiceMemo);
+      return sendSuccess(res, voiceMemo, 'Voice memo caricato con successo', 201);
     } catch (error) {
       console.error('Errore nel caricamento voice memo:', error);
-      res.status(500).json({ 
-        error: 'Errore nel caricamento del voice memo' 
-      });
+      return sendError(res, 500, 'Errore nel caricamento del voice memo');
     }
   });
 
@@ -497,7 +502,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId, itemType, itemId } = req.params;
       const { userEmail, userName } = req.body;
 
-      // Auth validation already handled by middleware
+      // Validazione dati utente
+      const userValidationErrors = validateUserData(userEmail, userName);
+      if (userValidationErrors.length > 0) {
+        return sendError(res, 400, 'Dati utente non validi', userValidationErrors.join(', '));
+      }
+
+      // Validazione itemType
+      if (!ValidationUtils.isValidItemType(itemType)) {
+        return sendError(res, 400, 'Tipo elemento non valido');
+      }
 
       // Check if user already liked this item
       const likesRef = collection(db, 'likes');
@@ -514,7 +528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existingLikes.empty) {
         // Remove like
         await deleteDoc(existingLikes.docs[0].ref);
-        res.json({ action: 'removed', message: 'Like rimosso' });
+        return sendSuccess(res, { action: 'removed' }, 'Like rimosso');
       } else {
         // Add like
         const likeData = {
@@ -527,11 +541,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
         
         await addDoc(likesRef, likeData);
-        res.json({ action: 'added', message: 'Like aggiunto' });
+        return sendSuccess(res, { action: 'added' }, 'Like aggiunto');
       }
     } catch (error) {
       console.error('Errore nella gestione like:', error);
-      res.status(500).json({ error: 'Errore nella gestione del like' });
+      return sendError(res, 500, 'Errore nella gestione del like');
     }
   });
 
@@ -576,14 +590,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId, itemType, itemId } = req.params;
       const { userEmail, userName, content } = req.body;
 
-      // Auth validation already handled by middleware
-      
-      if (!content || content.trim().length === 0) {
-        return res.status(400).json({ error: 'Contenuto del commento richiesto' });
+      // Validazione dati utente
+      const userValidationErrors = validateUserData(userEmail, userName);
+      if (userValidationErrors.length > 0) {
+        return sendError(res, 400, 'Dati utente non validi', userValidationErrors.join(', '));
       }
 
-      if (content.length > 500) {
-        return res.status(400).json({ error: 'Il commento non può superare i 500 caratteri' });
+      // Validazione contenuto commento
+      const commentValidationErrors = validateCommentData(content);
+      if (commentValidationErrors.length > 0) {
+        return sendError(res, 400, 'Contenuto commento non valido', commentValidationErrors.join(', '));
+      }
+
+      // Validazione itemType
+      if (!ValidationUtils.isValidItemType(itemType)) {
+        return sendError(res, 400, 'Tipo elemento non valido');
       }
 
       const commentData = {
@@ -598,14 +619,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const docRef = await addDoc(collection(db, 'comments'), commentData);
       
-      res.status(201).json({ 
+      return sendSuccess(res, { 
         id: docRef.id, 
-        ...commentData,
-        message: 'Commento aggiunto con successo' 
-      });
+        ...commentData
+      }, 'Commento aggiunto con successo', 201);
     } catch (error) {
       console.error('Errore nell\'aggiunta commento:', error);
-      res.status(500).json({ error: 'Errore nell\'aggiunta del commento' });
+      return sendError(res, 500, 'Errore nell\'aggiunta del commento');
     }
   });
 
@@ -618,20 +638,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const commentDoc = await getDoc(doc(db, 'comments', commentId));
       
       if (!commentDoc.exists()) {
-        return res.status(404).json({ error: 'Commento non trovato' });
+        return sendError(res, 404, 'Commento non trovato');
       }
 
       const commentData = commentDoc.data();
       if (commentData.galleryId !== galleryId) {
-        return res.status(403).json({ error: 'Non autorizzato' });
+        return sendError(res, 403, 'Non autorizzato');
       }
 
       await deleteDoc(doc(db, 'comments', commentId));
       
-      res.json({ success: true, message: 'Commento eliminato con successo' });
+      return sendSuccess(res, { success: true }, 'Commento eliminato con successo');
     } catch (error) {
       console.error('Errore nell\'eliminazione commento:', error);
-      res.status(500).json({ error: 'Errore nell\'eliminazione del commento' });
+      return sendError(res, 500, 'Errore nell\'eliminazione del commento');
     }
   });
 
@@ -667,14 +687,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if current user has liked
       const hasUserLiked = userEmail ? likes.some(like => like.userEmail === userEmail) : false;
       
-      res.json({
+      // Validate itemType
+      if (!ValidationUtils.isValidItemType(itemType)) {
+        return sendError(res, 400, 'Tipo elemento non valido');
+      }
+
+      return sendSuccess(res, {
         likesCount: likes.length,
         commentsCount: commentsSnapshot.size,
         hasUserLiked
       });
     } catch (error) {
       console.error('Errore nel recupero statistiche:', error);
-      res.status(500).json({ error: 'Errore nel recupero delle statistiche' });
+      return sendError(res, 500, 'Errore nel recupero delle statistiche');
     }
   });
 
