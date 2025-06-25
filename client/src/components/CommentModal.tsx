@@ -52,7 +52,7 @@ export default function CommentModal({
   const formatDateTime = (timestamp: any): string => {
     try {
       let date: Date;
-      
+
       // Handle Firebase Timestamp
       if (timestamp && timestamp.toDate && typeof timestamp.toDate === 'function') {
         date = timestamp.toDate();
@@ -75,7 +75,7 @@ export default function CommentModal({
           minute: '2-digit'
         });
       }
-      
+
       if (isNaN(date.getTime())) {
         return new Date().toLocaleDateString('it-IT', {
           day: '2-digit',
@@ -85,7 +85,7 @@ export default function CommentModal({
           minute: '2-digit'
         });
       }
-      
+
       return date.toLocaleDateString('it-IT', {
         day: '2-digit',
         month: '2-digit',
@@ -107,7 +107,7 @@ export default function CommentModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!newComment.trim()) {
       toast({
         title: "Errore",
