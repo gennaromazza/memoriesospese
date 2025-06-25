@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   Mic2, 
   Upload, 
@@ -40,15 +41,12 @@ export default function VoiceMemoUpload({
   onUploadComplete 
 }: VoiceMemoUploadProps) {
 
+  const { user, userProfile, isAuthenticated } = useAuth();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState(userEmail || '');
-  const [currentUserName, setCurrentUserName] = useState(userName || '');
-
-  // Aggiorna i dati di autenticazione quando cambiano le props
-  useEffect(() => {
-    setCurrentUserEmail(userEmail || '');
-    setCurrentUserName(userName || '');
-  }, [userEmail, userName]);
+  
+  // Get user data from Firebase Auth
+  const currentUserEmail = user?.email || '';
+  const currentUserName = userProfile?.displayName || user?.displayName || '';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [message, setMessage] = useState('');
@@ -239,7 +237,7 @@ export default function VoiceMemoUpload({
     }
 
      // Verifica autenticazione prima del caricamento
-     if (!currentUserEmail || !currentUserName || currentUserEmail.trim() === '' || currentUserName.trim() === '') {
+     if (!isAuthenticated || !currentUserEmail || !currentUserName) {
       setShowAuthDialog(true);
       return;
     }
@@ -585,7 +583,7 @@ export default function VoiceMemoUpload({
             <div className="flex gap-3">
               <Button
                 onClick={() => {
-                  if (!currentUserEmail || !currentUserName || currentUserEmail.trim() === '' || currentUserName.trim() === '') {
+                  if (!isAuthenticated || !currentUserEmail || !currentUserName) {
                     setShowAuthDialog(true);
                   } else {
                     handleSubmit();
@@ -654,11 +652,11 @@ export default function VoiceMemoUpload({
           // Aspetta un momento per permettere l'aggiornamento del localStorage
           setTimeout(() => {
             // Aggiorna i dati di autenticazione locali
-            const email = localStorage.getItem('userEmail') || '';
-            const name = localStorage.getItem('userName') || '';
-            setCurrentUserEmail(email);
-            setCurrentUserName(name);
-            handleSubmit();
+            // After auth, the user state will be updated automatically
+            // Try to submit again
+            setTimeout(() => {
+              handleSubmit();
+            }, 500);
             if (onUploadComplete) {
               onUploadComplete();
             }

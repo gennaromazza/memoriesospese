@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { Upload, User, LogIn, UserPlus, Camera, Heart, Sparkles, Share2, ImageIcon, KeyRound, Mail } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,19 +27,20 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  
+
   // Dati per autenticazione
   const [guestName, setGuestName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
+
   // Dati per recupero password
   const [resetEmail, setResetEmail] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
-  
+
   const { toast } = useToast();
+  const { user, userProfile } = useAuth();
 
   const resetForm = () => {
     setGuestName('');
@@ -62,11 +64,11 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     }
 
     setIsResettingPassword(true);
-    
+
     try {
       // Usa Firebase direttamente per inviare l'email di reset
       await sendPasswordResetEmail(auth, resetEmail);
-      
+
       setResetEmailSent(true);
       toast({
         title: "Email inviata!",
@@ -75,7 +77,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       });
     } catch (error: any) {
       let errorMessage = "Errore nell'invio dell'email di reset";
-      
+
       if (error.code === 'auth/user-not-found') {
         errorMessage = "Nessun account trovato con questa email";
       } else if (error.code === 'auth/invalid-email') {
@@ -83,7 +85,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       } else if (error.code === 'auth/too-many-requests') {
         errorMessage = "Troppi tentativi. Riprova più tardi";
       }
-      
+
       toast({
         title: "Errore",
         description: errorMessage,
@@ -144,7 +146,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
         if (user) {
           const userQuery = collection(db, 'users');
           const userDocs = await getDocs(query(userQuery, where('uid', '==', user.uid)));
-          
+
           if (!userDocs.empty) {
             const userDoc = userDocs.docs[0];
             await updateDoc(userDoc.ref, {
@@ -183,7 +185,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     } catch (error: any) {
       console.error('Errore autenticazione:', error);
       let message = "Si è verificato un errore durante l'autenticazione";
-      
+
       if (error.code === 'auth/email-already-in-use') {
         message = "Questa email è già registrata. Prova ad accedere invece di registrarti.";
       } else if (error.code === 'auth/weak-password') {
@@ -207,6 +209,20 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   };
 
   const handleUpload = async () => {
+
+    const currentUserEmail = user?.email || '';
+    const currentUserName = userProfile?.displayName || user?.displayName || '';
+
+    // Verifica autenticazione prima del caricamento
+    if (!isAuthenticated || !currentUserEmail || !currentUserName) {
+      toast({
+        title: "Non sei autenticato",
+        description: "Per favore, effettua il login per caricare le foto",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (selectedFiles.length === 0) {
       toast({
         title: "Nessuna foto selezionata",
@@ -226,14 +242,14 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
 
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
-        
+
         // Comprimi l'immagine
         const compressedFile = await compressImage(file);
-        
+
         // Upload su Firebase Storage
         const fileName = `guest-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${compressedFile.name}`;
         const storageRef = ref(storage, `galleries/${galleryId}/guests/${fileName}`);
-        
+
         const snapshot = await uploadBytes(storageRef, compressedFile);
         const downloadURL = await getDownloadURL(snapshot.ref);
 
@@ -269,7 +285,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       try {
         const galleryUrl = createGalleryUrl(galleryId);
         const uploaderDisplayName = currentUser?.displayName || guestName.trim();
-        
+
         await notifySubscribers({
           galleryId,
           galleryName,
@@ -291,7 +307,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       setSelectedFiles([]);
       setIsDialogOpen(false);
       resetForm();
-      
+
       if (onPhotosUploaded) {
         onPhotosUploaded(uploadedPhotos.length);
       }
@@ -333,7 +349,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
             <span className="font-medium xs:hidden">Carica foto</span>
             <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 ml-1.5 sm:ml-2 animate-pulse" />
           </Button>
-          
+
           {/* Tooltip con guida - nascosto su mobile */}
           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-blue-gray-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs">
             <div className="flex items-center gap-2 mb-1">
@@ -360,7 +376,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
           <DialogDescription className="text-blue-gray-600 mt-1 sm:mt-2 text-sm sm:text-base px-2">
             Aggiungi le tue foto della "{galleryName}" e condividile con tutti gli ospiti
           </DialogDescription>
-          
+
           {/* Info badges */}
           <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 mt-3 sm:mt-4">
             <div className="flex items-center gap-1 bg-sage-50 text-sage-700 px-2 sm:px-3 py-1 rounded-full text-xs">
@@ -400,7 +416,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                 <span className="xs:hidden">Reset</span>
               </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="register" className="space-y-3 sm:space-y-4 mt-3 sm:mt-4">
               <div className="bg-gradient-to-r from-sage-50 to-blue-gray-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -411,7 +427,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                   Crea il tuo account per iniziare a condividere foto immediatamente
                 </p>
               </div>
-              
+
               <div className="space-y-1.5 sm:space-y-2">
                 <Label htmlFor="name" className="text-blue-gray-700 font-medium text-sm">Nome completo</Label>
                 <Input
@@ -462,7 +478,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                 )}
               </Button>
             </TabsContent>
-            
+
             <TabsContent value="login" className="space-y-3 sm:space-y-4 mt-3 sm:mt-4">
               <div className="bg-gradient-to-r from-blue-gray-50 to-sage-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -473,7 +489,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                   Inserisci le tue credenziali per continuare a condividere foto
                 </p>
               </div>
-              
+
               <div className="space-y-1.5 sm:space-y-2">
                 <Label htmlFor="login-email" className="text-blue-gray-700 font-medium text-sm">Email</Label>
                 <Input
@@ -514,7 +530,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                 )}
               </Button>
             </TabsContent>
-            
+
             <TabsContent value="reset" className="space-y-3 sm:space-y-4 mt-3 sm:mt-4">
               {!resetEmailSent ? (
                 <>
@@ -527,7 +543,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                       Inserisci la tua email e ti invieremo le istruzioni per reimpostare la password
                     </p>
                   </div>
-                  
+
                   <div className="space-y-1.5 sm:space-y-2">
                     <Label htmlFor="reset-email" className="text-blue-gray-700 font-medium text-sm">Email</Label>
                     <Input
@@ -539,7 +555,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                       className="border-gray-300 focus:border-amber-500 focus:ring-amber-500 text-sm sm:text-base h-10 sm:h-11"
                     />
                   </div>
-                  
+
                   <Button 
                     onClick={handlePasswordReset}
                     disabled={isResettingPassword || !resetEmail}
@@ -597,7 +613,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                 </div>
                 <div>
                   <p className="font-medium text-sage-900 text-sm sm:text-base">
-                    Ciao <span className="text-sage-700">{guestName}</span>!
+                    Ciao <span className="text-sage-700">{userProfile?.displayName || user?.displayName}</span>!
                   </p>
                   <p className="text-xs sm:text-sm text-sage-700">
                     Sei pronto per condividere i tuoi ricordi speciali
@@ -614,7 +630,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                   Seleziona le tue foto
                 </Label>
               </div>
-              
+
               {/* Area drag & drop stilizzata */}
               <div className="relative">
                 <Input

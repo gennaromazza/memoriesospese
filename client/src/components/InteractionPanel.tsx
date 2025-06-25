@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import CommentModal from './CommentModal';
 import { Comment, InteractionStats } from '@shared/schema';
+import { useAuth } from '@/hooks/useAuth';
 
 interface InteractionPanelProps {
   itemId: string;
@@ -33,8 +34,6 @@ export default function InteractionPanel({
   itemId,
   itemType,
   galleryId,
-  userEmail,
-  userName,
   isAdmin = false,
   className = '',
   onAuthRequired
@@ -51,7 +50,12 @@ export default function InteractionPanel({
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
 
+  const { user, userProfile, isAuthenticated } = useAuth();
   const { toast } = useToast();
+
+  // Get user data from Firebase Auth
+  const userEmail = user?.email || '';
+  const userName = userProfile?.displayName || user?.displayName || '';
 
   // Fetch interaction stats
   const fetchStats = async () => {
@@ -59,12 +63,12 @@ export default function InteractionPanel({
       setIsLoadingStats(true);
       const url = `/api/galleries/${galleryId}/stats/${itemType}/${itemId}${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`;
       const response = await fetch(createUrl(url));
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Errore nel caricamento statistiche' }));
         throw new Error(errorData.error || 'Errore nel caricamento statistiche');
       }
-      
+
       const result = await response.json();
       const data = result.success ? result.data : result; // Handle both standardized and legacy response formats
       setStats(data);
@@ -80,12 +84,12 @@ export default function InteractionPanel({
     try {
       setIsLoadingStats(true);
       const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`));
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Errore nel caricamento commenti' }));
         throw new Error(errorData.error || 'Errore nel caricamento commenti');
       }
-      
+
       const data = await response.json();
       setComments(data);
     } catch (error) {
@@ -97,7 +101,7 @@ export default function InteractionPanel({
 
   // Handle like functionality
   const handleLike = async () => {
-    if (!userEmail || !userName) {
+    if (!isAuthenticated || !userEmail || !userName) {
       onAuthRequired?.();
       return;
     }
@@ -119,7 +123,7 @@ export default function InteractionPanel({
 
       const result = await response.json();
       const data = result.success ? result.data : result; // Handle both standardized and legacy response formats
-      
+
       // Update stats based on action
       setStats(prev => ({
         ...prev,
@@ -147,7 +151,7 @@ export default function InteractionPanel({
 
   // Handle comment submission
   const handleSubmitComment = async () => {
-    if (!userEmail || !userName) {
+    if (!isAuthenticated || !userEmail || !userName) {
       onAuthRequired?.();
       return;
     }
@@ -194,7 +198,7 @@ export default function InteractionPanel({
 
       // Add comment to local state
       setComments(prev => [commentData, ...prev]);
-      
+
       // Update stats
       setStats(prev => ({
         ...prev,
@@ -235,7 +239,7 @@ export default function InteractionPanel({
 
       // Remove comment from local state
       setComments(prev => prev.filter(comment => comment.id !== commentId));
-      
+
       // Update stats
       setStats(prev => ({
         ...prev,
@@ -260,7 +264,7 @@ export default function InteractionPanel({
   const formatDate = (timestamp: any): string => {
     try {
       let date: Date;
-      
+
       if (timestamp?.toDate) {
         // Firestore Timestamp
         date = timestamp.toDate();
@@ -328,7 +332,7 @@ export default function InteractionPanel({
       </div>
 
       {/* Authentication prompt */}
-      {!userEmail && (
+      {!isAuthenticated && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 text-blue-800 text-sm">
