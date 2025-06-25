@@ -339,6 +339,51 @@ export default function InteractionPanel({
         </Button>
       </div>
 
+      {/* Comment form for authenticated users */}
+      {isAuthenticated && userEmail && userName && (
+        <Card className="border-gray-200">
+          <CardContent className="p-3">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-gray-700 text-sm font-medium">
+                <MessageCircle className="h-4 w-4" />
+                <span>Aggiungi un commento</span>
+              </div>
+              <Textarea
+                placeholder="Scrivi il tuo commento..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                className="min-h-[80px] resize-none"
+                maxLength={500}
+                disabled={isSubmittingComment}
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">
+                  {newComment.length}/500 caratteri
+                </span>
+                <Button
+                  onClick={handleSubmitComment}
+                  disabled={isSubmittingComment || !newComment.trim()}
+                  size="sm"
+                  className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700"
+                >
+                  {isSubmittingComment ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Invio...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Send className="h-3 w-3" />
+                      Commenta
+                    </div>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Authentication prompt */}
       {!isAuthenticated && (
         <Card className="border-blue-200 bg-blue-50">
