@@ -17,10 +17,12 @@ import {
   Clock,
   Heart,
   Sparkles,
-  FileAudio
+  FileAudio,
+  LogIn
 } from 'lucide-react';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import VoiceRecorder from './VoiceRecorder';
+import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 
 interface VoiceMemoUploadProps {
   galleryId: string;
@@ -38,17 +40,45 @@ export default function VoiceMemoUpload({
   onUploadComplete 
 }: VoiceMemoUploadProps) {
   
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+
   // Controllo autenticazione iniziale
   if (!userEmail || !userName || userEmail.trim() === '' || userName.trim() === '') {
     return (
-      <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
-        <p className="text-amber-800 font-medium">
-          Autenticazione richiesta per registrare voice memos
-        </p>
-        <p className="text-amber-700 text-sm mt-1">
-          Effettua l'accesso per utilizzare questa funzionalità
-        </p>
-      </div>
+      <>
+        <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <User className="h-5 w-5 text-amber-600" />
+            <p className="text-amber-800 font-medium">
+              Autenticazione richiesta per registrare voice memos
+            </p>
+          </div>
+          <p className="text-amber-700 text-sm mb-4">
+            Effettua l'accesso per utilizzare questa funzionalità
+          </p>
+          <Button
+            onClick={() => setShowAuthDialog(true)}
+            className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white"
+          >
+            <LogIn className="h-4 w-4 mr-2" />
+            Accedi o Registrati
+          </Button>
+        </div>
+
+        <UnifiedAuthDialog
+          isOpen={showAuthDialog}
+          onOpenChange={setShowAuthDialog}
+          galleryId={galleryId}
+          onAuthComplete={() => {
+            setShowAuthDialog(false);
+            // Ricarica la pagina o notifica il parent component
+            if (onUploadComplete) {
+              onUploadComplete();
+            }
+          }}
+          defaultTab="login"
+        />
+      </>
     );
   }
   const [isDialogOpen, setIsDialogOpen] = useState(false);
