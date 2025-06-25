@@ -237,7 +237,7 @@ export default function VoiceMemoUpload({
     }
 
      // Verifica autenticazione prima del caricamento
-     if (!isAuthenticated || !currentUserEmail || !currentUserName) {
+     if (!isAuthenticated || !currentUserEmail) {
       setShowAuthDialog(true);
       return;
     }
@@ -274,7 +274,7 @@ export default function VoiceMemoUpload({
         fileSize,
         duration,
         userEmail: currentUserEmail, // Required for auth
-        userName: currentUserName // Required for auth
+        userName: currentUserName || currentUserEmail.split('@')[0] // Use email prefix if no display name
       };
 
       // Send to backend API
@@ -649,18 +649,11 @@ export default function VoiceMemoUpload({
         galleryId={galleryId}
         onAuthComplete={() => {
           setShowAuthDialog(false);
-          // Aspetta un momento per permettere l'aggiornamento del localStorage
+          // Aspetta un momento per permettere l'aggiornamento dello stato di autenticazione
           setTimeout(() => {
-            // Aggiorna i dati di autenticazione locali
-            // After auth, the user state will be updated automatically
-            // Try to submit again
-            setTimeout(() => {
-              handleSubmit();
-            }, 500);
-            if (onUploadComplete) {
-              onUploadComplete();
-            }
-          }, 500);
+            // Dopo l'autenticazione, procedi automaticamente con l'upload
+            handleSubmit();
+          }, 1000);
         }}
         defaultTab="login"
       />
