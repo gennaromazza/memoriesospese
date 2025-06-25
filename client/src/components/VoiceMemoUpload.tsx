@@ -41,47 +41,14 @@ export default function VoiceMemoUpload({
 }: VoiceMemoUploadProps) {
 
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState(userEmail || '');
+  const [currentUserName, setCurrentUserName] = useState(userName || '');
 
-  // Controllo autenticazione iniziale
-  if (!userEmail || !userName || userEmail.trim() === '' || userName.trim() === '') {
-    return (
-      <>
-        <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <User className="h-5 w-5 text-amber-600" />
-            <p className="text-amber-800 font-medium">
-              Autenticazione richiesta per registrare voice memos
-            </p>
-          </div>
-          <p className="text-amber-700 text-sm mb-4">
-            Effettua l'accesso per utilizzare questa funzionalità
-          </p>
-          <Button
-            onClick={() => setShowAuthDialog(true)}
-            className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white"
-          >
-            <LogIn className="h-4 w-4 mr-2" />
-            Accedi o Registrati
-          </Button>
-        </div>
-
-        <UnifiedAuthDialog
-          isOpen={showAuthDialog}
-          onOpenChange={setShowAuthDialog}
-          galleryId={galleryId}
-          onAuthComplete={() => {
-            setShowAuthDialog(false);
-            // Aspetta un momento per permettere l'aggiornamento del localStorage
-            setTimeout(() => {
-              // Ricarica la pagina per aggiornare le credenziali
-              window.location.reload();
-            }, 500);
-          }}
-          defaultTab="login"
-        />
-      </>
-    );
-  }
+  // Aggiorna i dati di autenticazione quando cambiano le props
+  useEffect(() => {
+    setCurrentUserEmail(userEmail || '');
+    setCurrentUserName(userName || '');
+  }, [userEmail, userName]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [message, setMessage] = useState('');
@@ -293,12 +260,8 @@ export default function VoiceMemoUpload({
       const duration = recordedBlob ? recordedDuration : undefined;
 
       // Verifica autenticazione prima del caricamento
-      if (!userEmail || !userName || userEmail.trim() === '' || userName.trim() === '') {
-        toast({
-          title: "Autenticazione richiesta",
-          description: "Devi essere autenticato per registrare voice memos",
-          variant: "destructive",
-        });
+      if (!currentUserEmail || !currentUserName || currentUserEmail.trim() === '' || currentUserName.trim() === '') {
+        setShowAuthDialog(true);
         setIsUploading(false);
         setUploadProgress(0);
         setUploadStatus('idle');
@@ -315,8 +278,8 @@ export default function VoiceMemoUpload({
         fileName,
         fileSize,
         duration,
-        userEmail: userEmail, // Required for auth
-        userName: userName // Required for auth
+        userEmail: currentUserEmail, // Required for auth
+        userName: currentUserName // Required for auth
       };
 
       // Send to backend API
@@ -385,206 +348,202 @@ export default function VoiceMemoUpload({
     return tomorrow.toISOString().split('T')[0];
   };
 
-  // Aggiorna i dati di autenticazione quando cambiano le props
-  useEffect(() => {
-    setCurrentUserEmail(userEmail || '');
-    setCurrentUserName(userName || '');
-  }, [userEmail, userName]);
-
-  // State per memorizzare i dati dell'utente corrente
-  const [currentUserEmail, setCurrentUserEmail] = useState(userEmail || '');
-  const [currentUserName, setCurrentUserName] = useState(userName || '');
-
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <DialogTrigger asChild>
-        <div className="relative group">
-          <Button 
-            variant="outline" 
-            size="lg"
-            className="bg-[#6d7e6d] hover:bg-[#5a6b5a] text-[#e2f3ff] border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            <Mic2 className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
-            <span className="font-medium hidden xs:inline">Registra un ricordo</span>
-            <span className="font-medium xs:hidden">Vocale</span>
-            <Heart className="h-3 w-3 sm:h-4 sm:w-4 ml-1.5 sm:ml-2 animate-pulse" />
-          </Button>
+    <>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogTrigger asChild>
+          <div className="relative group">
+            <Button 
+              variant="outline" 
+              size="lg"
+              className="bg-[#6d7e6d] hover:bg-[#5a6b5a] text-[#e2f3ff] border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
+              onClick={() => {
+                if (!currentUserEmail || !currentUserName || currentUserEmail.trim() === '' || currentUserName.trim() === '') {
+                    setShowAuthDialog(true);
+                } else {
+                    setIsDialogOpen(true);
+                }
+              }}
+            >
+              <Mic2 className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
+              <span className="font-medium hidden xs:inline">Registra un ricordo</span>
+              <span className="font-medium xs:hidden">Vocale</span>
+              <Heart className="h-3 w-3 sm:h-4 sm:w-4 ml-1.5 sm:ml-2 animate-pulse" />
+            </Button>
 
-          {/* Tooltip */}
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs text-[#707d6e] bg-[#667f9a]">
-            <div className="flex items-center gap-2 mb-1">
-              <Mic2 className="h-3 w-3 text-sage-300" />
-              <span className="font-medium">Vocali segreti!</span>
+            {/* Tooltip */}
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs text-[#707d6e] bg-[#667f9a]">
+              <div className="flex items-center gap-2 mb-1">
+                <Mic2 className="h-3 w-3 text-sage-300" />
+                <span className="font-medium">Vocali segreti!</span>
+              </div>
+              <div className="text-xs text-gray-300">
+                • Registra un messaggio<br/>
+                • Imposta data di sblocco<br/>
+                • Sorprendi gli sposi
+              </div>
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-gray-800 rotate-45"></div>
             </div>
-            <div className="text-xs text-gray-300">
-              • Registra un messaggio<br/>
-              • Imposta data di sblocco<br/>
-              • Sorprendi gli sposi
+          </div>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="text-center pb-4 sm:pb-6">
+            <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-sage-600 to-blue-gray-600 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+              <Mic2 className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-gray-800 rotate-45"></div>
-          </div>
-        </div>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="text-center pb-4 sm:pb-6">
-          <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-sage-600 to-blue-gray-600 rounded-full flex items-center justify-center mb-3 sm:mb-4">
-            <Mic2 className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-          </div>
-          <DialogTitle className="text-xl sm:text-2xl font-bold text-blue-gray-900">
-            Vocali Segreti
-          </DialogTitle>
-          <p className="text-sage-700 mt-1 sm:mt-2 text-sm sm:text-base px-2">
-            Registra un messaggio speciale per "{galleryName}"
-          </p>
-        </DialogHeader>
+            <DialogTitle className="text-xl sm:text-2xl font-bold text-blue-gray-900">
+              Vocali Segreti
+            </DialogTitle>
+            <p className="text-sage-700 mt-1 sm:mt-2 text-sm sm:text-base px-2">
+              Registra un messaggio speciale per "{galleryName}"
+            </p>
+          </DialogHeader>
 
-        <div className="space-y-4 sm:space-y-6">
-          {/* Guest name input */}
-          <div className="space-y-2">
-            <Label htmlFor="guest-name" className="text-sage-700 font-medium text-sm">
-              Il tuo nome
-            </Label>
-            <Input
-              id="guest-name"
-              placeholder="Es. Marco e Lisa"
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base h-10 sm:h-11"
-            />
-          </div>
-
-          {/* Tabs for record vs upload */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="record" className="flex items-center gap-2">
-                <Mic2 className="h-4 w-4" />
-                Registra ora
-              </TabsTrigger>
-              <TabsTrigger value="upload" className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Carica file
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="record" className="mt-4">
-              <VoiceRecorder 
-                onRecordingComplete={handleRecordingComplete}
-                maxDuration={300} // 5 minutes
+          <div className="space-y-4 sm:space-y-6">
+            {/* Guest name input */}
+            <div className="space-y-2">
+              <Label htmlFor="guest-name" className="text-sage-700 font-medium text-sm">
+                Il tuo nome
+              </Label>
+              <Input
+                id="guest-name"
+                placeholder="Es. Marco e Lisa"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base h-10 sm:h-11"
               />
-            </TabsContent>
+            </div>
 
-            <TabsContent value="upload" className="mt-4">
-              <Card>
-                <CardContent className="p-4 sm:p-6">
-                  <div className="space-y-4">
-                    <div className="text-center">
-                      <FileAudio className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">
-                        Carica file audio
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Seleziona un file audio dal tuo dispositivo (max 50MB)
-                      </p>
-                    </div>
+            {/* Tabs for record vs upload */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="record" className="flex items-center gap-2">
+                  <Mic2 className="h-4 w-4" />
+                  Registra ora
+                </TabsTrigger>
+                <TabsTrigger value="upload" className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Carica file
+                </TabsTrigger>
+              </TabsList>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="audio-file" className="sr-only">File audio</Label>
-                      <Input
-                        id="audio-file"
-                        type="file"
-                        accept="audio/*"
-                        onChange={handleFileSelect}
-                        className="border-2 border-dashed border-gray-300 hover:border-sage-400 transition-colors"
-                      />
-                    </div>
+              <TabsContent value="record" className="mt-4">
+                <VoiceRecorder 
+                  onRecordingComplete={handleRecordingComplete}
+                  maxDuration={300} // 5 minutes
+                />
+              </TabsContent>
 
-                    {selectedFile && (
-                      <div className="bg-sage-50 p-3 rounded-lg border border-sage-200">
-                        <div className="flex items-center gap-2">
-                          <FileAudio className="h-5 w-5 text-sage-600" />
-                          <div>
-                            <p className="font-medium text-blue-gray-900">{selectedFile.name}</p>
-                            <p className="text-sm text-sage-700">
-                              {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-                            </p>
+              <TabsContent value="upload" className="mt-4">
+                <Card>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="space-y-4">
+                      <div className="text-center">
+                        <FileAudio className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">
+                          Carica file audio
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                          Seleziona un file audio dal tuo dispositivo (max 50MB)
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="audio-file" className="sr-only">File audio</Label>
+                        <Input
+                          id="audio-file"
+                          type="file"
+                          accept="audio/*"
+                          onChange={handleFileSelect}
+                          className="border-2 border-dashed border-gray-300 hover:border-sage-400 transition-colors"
+                        />
+                      </div>
+
+                      {selectedFile && (
+                        <div className="bg-sage-50 p-3 rounded-lg border border-sage-200">
+                          <div className="flex items-center gap-2">
+                            <FileAudio className="h-5 w-5 text-sage-600" />
+                            <div>
+                              <p className="font-medium text-blue-gray-900">{selectedFile.name}</p>
+                              <p className="text-sm text-sage-700">
+                                {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+
+            {/* Message input */}
+            <div className="space-y-2">
+              <Label htmlFor="message" className="text-sage-700 font-medium text-sm">
+                Messaggio (opzionale)
+              </Label>
+              <Textarea
+                id="message"
+                placeholder="Aggiungi un messaggio scritto per accompagnare il tuo audio..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base min-h-[80px]"
+                maxLength={500}
+              />
+              <div className="text-xs text-gray-500 text-right">
+                {message.length}/500 caratteri
+              </div>
+            </div>
+
+            {/* Unlock date */}
+            <div className="space-y-2">
+              <Label htmlFor="unlock-date" className="text-sage-700 font-medium text-sm flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Data di sblocco (opzionale)
+              </Label>
+              <Input
+                id="unlock-date"
+                type="date"
+                value={unlockDate}
+                onChange={(e) => setUnlockDate(e.target.value)}
+                min={getTomorrowDate()}
+                className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base h-10 sm:h-11"
+              />
+              <p className="text-xs text-gray-600">
+                Se non specifichi una data, il messaggio sarà subito disponibile
+              </p>
+            </div>
+
+            {/* Upload progress */}
+            {isUploading && (
+              <Card className="bg-sage-50 border border-sage-200">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-5 h-5 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="font-medium text-blue-gray-900">Caricamento in corso...</span>
+                    <span className="ml-auto text-sage-700 font-bold">{Math.round(uploadProgress)}%</span>
                   </div>
+                  <Progress value={uploadProgress} className="w-full h-2" />
+                  <p className="text-xs text-sage-700 mt-2">
+                    Il tuo messaggio vocale sta per essere salvato...
+                  </p>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
+            )}
 
-          {/* Message input */}
-          <div className="space-y-2">
-            <Label htmlFor="message" className="text-sage-700 font-medium text-sm">
-              Messaggio (opzionale)
-            </Label>
-            <Textarea
-              id="message"
-              placeholder="Aggiungi un messaggio scritto per accompagnare il tuo audio..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base min-h-[80px]"
-              maxLength={500}
-            />
-            <div className="text-xs text-gray-500 text-right">
-              {message.length}/500 caratteri
-            </div>
-          </div>
-
-          {/* Unlock date */}
-          <div className="space-y-2">
-            <Label htmlFor="unlock-date" className="text-sage-700 font-medium text-sm flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Data di sblocco (opzionale)
-            </Label>
-            <Input
-              id="unlock-date"
-              type="date"
-              value={unlockDate}
-              onChange={(e) => setUnlockDate(e.target.value)}
-              min={getTomorrowDate()}
-              className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base h-10 sm:h-11"
-            />
-            <p className="text-xs text-gray-600">
-              Se non specifichi una data, il messaggio sarà subito disponibile
-            </p>
-          </div>
-
-          {/* Upload progress */}
-          {isUploading && (
-            <Card className="bg-sage-50 border border-sage-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-5 h-5 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="font-medium text-blue-gray-900">Caricamento in corso...</span>
-                  <span className="ml-auto text-sage-700 font-bold">{Math.round(uploadProgress)}%</span>
-                </div>
-                <Progress value={uploadProgress} className="w-full h-2" />
-                <p className="text-xs text-sage-700 mt-2">
-                  Il tuo messaggio vocale sta per essere salvato...
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Progress bar when uploading */}
-          {isUploading && (
-            <div className="space-y-3 mb-4">
-              <div className="bg-gray-100 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    {uploadStatus === 'uploading-audio' && 'Caricamento audio...'}
-                    {uploadStatus === 'saving-data' && 'Salvataggio dati...'}
-                    {uploadStatus === 'complete' && 'Completato!'}
-                  </span>
-                  <span className="text-sm text-gray-600">{Math.round(uploadProgress)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+            {/* Progress bar when uploading */}
+            {isUploading && (
+              <div className="space-y-3 mb-4">
+                <div className="bg-gray-100 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      {uploadStatus === 'uploading-audio' && 'Caricamento audio...'}
+                      {uploadStatus === 'saving-data' && 'Salvataggio dati...'}
+                      {uploadStatus === 'complete' && 'Completato!'}
+                    </span>
+                    <span className="text-sm text-gray-600">{Math.round(uploadProgress)}%</span>
+                  </div>
                   <div 
                     className="bg-gradient-to-r from-sage-600 to-blue-gray-600 h-2 rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${uploadProgress}%` }}
@@ -599,95 +558,117 @@ export default function VoiceMemoUpload({
                   </span>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Validation messages */}
-          {(!guestName.trim() || (!recordedBlob && !selectedFile)) && !isUploading && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-red-600 font-bold text-xs">!</span>
-                </div>
-                <div className="space-y-2">
-                  <p className="font-medium text-red-900 text-sm">
-                    Completa questi campi per salvare il ricordo:
-                  </p>
-                  <ul className="text-red-800 text-sm space-y-1">
-                    {!guestName.trim() && (
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                        Inserisci il tuo nome
-                      </li>
-                    )}
-                    {(!recordedBlob && !selectedFile) && (
-                      <li className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                        Registra un audio o carica un file
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Action buttons */}
-          <div className="flex gap-3">
-            <Button
-              onClick={handleSubmit}
-              disabled={!guestName.trim() || (!recordedBlob && !selectedFile) || isUploading}
-              className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base relative"
-            >
-              {isUploading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {uploadStatus === 'uploading-audio' && 'Caricamento...'}
-                  {uploadStatus === 'saving-data' && 'Salvataggio...'}
-                  {uploadStatus === 'complete' && 'Completato!'}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Heart className="h-4 w-4" />
-                  {(!guestName.trim() || (!recordedBlob && !selectedFile)) ? 'Completa i campi' : 'Salva ricordo'}
-                </div>
-              )}
-              {(!guestName.trim() || (!recordedBlob && !selectedFile)) && !isUploading && (
-                <div className="absolute inset-0 bg-gray-400 bg-opacity-10 rounded-md flex items-center justify-center">
-                  <div className="w-4 h-4 border-2 border-gray-400 rounded-full flex items-center justify-center">
-                    <span className="text-gray-400 font-bold text-xs">!</span>
+            {/* Validation messages */}
+            {(!guestName.trim() || (!recordedBlob && !selectedFile)) && !isUploading && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-red-600 font-bold text-xs">!</span>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-medium text-red-900 text-sm">
+                      Completa questi campi per salvare il ricordo:
+                    </p>
+                    <ul className="text-red-800 text-sm space-y-1">
+                      {!guestName.trim() && (
+                        <li className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                          Inserisci il tuo nome
+                        </li>
+                      )}
+                      {(!recordedBlob && !selectedFile) && (
+                        <li className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                          Registra un audio o carica un file
+                        </li>
+                      )}
+                    </ul>
                   </div>
                 </div>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleDialogClose}
-              disabled={isUploading}
-              className="px-4 sm:px-6 border-gray-300 hover:bg-gray-50 text-sm sm:text-base py-2.5 sm:py-3"
-            >
-              {isUploading ? 'Attendere...' : 'Annulla'}
-            </Button>
-          </div>
+              </div>
+            )}
 
-          {/* Info box */}
-          {!isUploading && (
-            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-              <div className="flex items-start gap-2">
-                <Sparkles className="h-4 w-4 text-amber-600 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-amber-900 mb-1">Come funziona:</p>
-                  <ul className="text-amber-800 space-y-1 text-xs">
-                    <li>• I tuoi vocali saranno privati fino alla data di sblocco</li>
-                    <li>• Solo gli sposi potranno ascoltarli dopo lo sblocco</li>
-                    <li>• Crea un ricordo speciale per il loro giorno perfetto</li>
-                  </ul>
+            {/* Action buttons */}
+            <div className="flex gap-3">
+              <Button
+                onClick={handleSubmit}
+                disabled={!guestName.trim() || (!recordedBlob && !selectedFile) || isUploading}
+                className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base relative"
+              >
+                {isUploading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {uploadStatus === 'uploading-audio' && 'Caricamento...'}
+                    {uploadStatus === 'saving-data' && 'Salvataggio...'}
+                    {uploadStatus === 'complete' && 'Completato!'}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Heart className="h-4 w-4" />
+                    {(!guestName.trim() || (!recordedBlob && !selectedFile)) ? 'Completa i campi' : 'Salva ricordo'}
+                  </div>
+                )}
+                {(!guestName.trim() || (!recordedBlob && !selectedFile)) && !isUploading && (
+                  <div className="absolute inset-0 bg-gray-400 bg-opacity-10 rounded-md flex items-center justify-center">
+                    <div className="w-4 h-4 border-2 border-gray-400 rounded-full flex items-center justify-center">
+                      <span className="text-gray-400 font-bold text-xs">!</span>
+                    </div>
+                  </div>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDialogClose}
+                disabled={isUploading}
+                className="px-4 sm:px-6 border-gray-300 hover:bg-gray-50 text-sm sm:text-base py-2.5 sm:py-3"
+              >
+                {isUploading ? 'Attendere...' : 'Annulla'}
+              </Button>
+            </div>
+
+            {/* Info box */}
+            {!isUploading && (
+              <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-600 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-amber-900 mb-1">Come funziona:</p>
+                    <ul className="text-amber-800 space-y-1 text-xs">
+                      <li>• I tuoi vocali saranno privati fino alla data di sblocco</li>
+                      <li>• Solo gli sposi potranno ascoltarli dopo lo sblocco</li>
+                      <li>• Crea un ricordo speciale per il loro giorno perfetto</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <UnifiedAuthDialog
+        isOpen={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        galleryId={galleryId}
+        onAuthComplete={() => {
+          setShowAuthDialog(false);
+          // Aspetta un momento per permettere l'aggiornamento del localStorage
+          setTimeout(() => {
+            // Aggiorna i dati di autenticazione locali
+            const email = localStorage.getItem('userEmail') || '';
+            const name = localStorage.getItem('userName') || '';
+            setCurrentUserEmail(email);
+            setCurrentUserName(name);
+            setIsDialogOpen(true); // Open dialog after auth
+            if (onUploadComplete) {
+              onUploadComplete();
+            }
+          }, 500);
+        }}
+        defaultTab="login"
+      />
+    </>
   );
 }
