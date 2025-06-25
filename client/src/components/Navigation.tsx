@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useStudio } from "@/context/StudioContext";
 import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
+import authService from "@/services/authService";
 
 interface NavigationProps {
   isAdminNav?: boolean;
@@ -89,11 +90,14 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
               <span className="px-4 py-2 rounded-md text-blue-gray bg-light-mint font-medium">
                 Galleria di <span>{galleryOwner}</span>
               </span>
-              <Link href={createUrl("/")}>
-                <button 
-                  className="ml-4 btn-primary px-4 py-2"
-                  onClick={() => {
-                    // Clear all authentication data
+              <button 
+                className="ml-4 btn-primary px-4 py-2"
+                onClick={async () => {
+                  try {
+                    // Firebase logout
+                    await authService.logout();
+                    
+                    // Clear all authentication data from localStorage
                     const keys = Object.keys(localStorage);
                     keys.forEach(key => {
                       if (key.startsWith('gallery_auth_') || 
@@ -105,11 +109,33 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                         localStorage.removeItem(key);
                       }
                     });
-                  }}
-                >
-                  Logout
-                </button>
-              </Link>
+                    
+                    // Navigate to home page
+                    navigate("/");
+                    
+                    // Reload to ensure clean state
+                    window.location.reload();
+                  } catch (error) {
+                    console.error("Logout error:", error);
+                    // Fallback: still clear localStorage and navigate
+                    const keys = Object.keys(localStorage);
+                    keys.forEach(key => {
+                      if (key.startsWith('gallery_auth_') || 
+                          key.startsWith('user_email_') || 
+                          key.startsWith('user_name_') ||
+                          key === 'userEmail' ||
+                          key === 'userName' ||
+                          key === 'isAdmin') {
+                        localStorage.removeItem(key);
+                      }
+                    });
+                    navigate("/");
+                    window.location.reload();
+                  }
+                }}
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
