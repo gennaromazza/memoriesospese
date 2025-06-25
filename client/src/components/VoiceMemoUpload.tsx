@@ -78,7 +78,7 @@ export default function VoiceMemoUpload({
             }, 500);
           }}
           defaultTab="login"
-        /></>
+        />
       </>
     );
   }
