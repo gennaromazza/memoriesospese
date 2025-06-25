@@ -59,6 +59,15 @@ export default function InteractionPanel({
   const userEmail = user?.email || '';
   const userName = userProfile?.displayName || user?.displayName || '';
 
+  // Debug logging
+  console.log('InteractionPanel Debug:', {
+    isAuthenticated,
+    user: user ? { email: user.email, displayName: user.displayName } : null,
+    userProfile: userProfile ? { displayName: userProfile.displayName } : null,
+    userEmail,
+    userName
+  });
+
   // Fetch interaction stats
   const fetchStats = async () => {
     try {
@@ -159,7 +168,15 @@ export default function InteractionPanel({
 
   // Handle comment submission
   const handleSubmitComment = async () => {
-    if (!isAuthenticated || !userEmail || !userName) {
+    console.log('Submit comment attempt:', {
+      isAuthenticated,
+      userEmail,
+      userName,
+      newComment: newComment.trim()
+    });
+
+    if (!isAuthenticated || !userEmail) {
+      console.log('Auth required - missing auth or email');
       handleAuthRequired();
       return;
     }
@@ -191,7 +208,7 @@ export default function InteractionPanel({
         },
         body: JSON.stringify({ 
           userEmail, 
-          userName, 
+          userName: userName || userEmail.split('@')[0], 
           content: newComment.trim() 
         }),
       });
@@ -340,7 +357,7 @@ export default function InteractionPanel({
       </div>
 
       {/* Comment form for authenticated users */}
-      {isAuthenticated && userEmail && userName && (
+      {isAuthenticated && userEmail && (userName || userEmail) && (
         <Card className="border-gray-200">
           <CardContent className="p-3">
             <div className="space-y-3">
