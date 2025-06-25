@@ -90,8 +90,24 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                 Galleria di <span>{galleryOwner}</span>
               </span>
               <Link href={createUrl("/")}>
-                <button className="ml-4 btn-primary px-4 py-2">
-                  Esci
+                <button 
+                  className="ml-4 btn-primary px-4 py-2"
+                  onClick={() => {
+                    // Clear all authentication data
+                    const keys = Object.keys(localStorage);
+                    keys.forEach(key => {
+                      if (key.startsWith('gallery_auth_') || 
+                          key.startsWith('user_email_') || 
+                          key.startsWith('user_name_') ||
+                          key === 'userEmail' ||
+                          key === 'userName' ||
+                          key === 'isAdmin') {
+                        localStorage.removeItem(key);
+                      }
+                    });
+                  }}
+                >
+                  Logout
                 </button>
               </Link>
             </div>

@@ -5,6 +5,7 @@ import { useStudio } from "@/context/StudioContext";
 import Navigation from "@/components/Navigation";
 import ImageLightbox from "@/components/ImageLightbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import GalleryHeader from "@/components/gallery/GalleryHeader";
 import YouTubeEmbed from "@/components/gallery/YouTubeEmbed";
 import LoadMoreButton from "@/components/gallery/LoadMoreButton";
@@ -380,13 +381,38 @@ export default function Gallery() {
                         window.location.reload();
                       }}
                     />
+                    {(userEmail || userName) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Clear all authentication data
+                          const keys = Object.keys(localStorage);
+                          keys.forEach(key => {
+                            if (key.startsWith('gallery_auth_') || 
+                                key.startsWith('user_email_') || 
+                                key.startsWith('user_name_') ||
+                                key === 'userEmail' ||
+                                key === 'userName' ||
+                                key === 'isAdmin') {
+                              localStorage.removeItem(key);
+                            }
+                          });
+                          // Refresh page to reflect logout state
+                          window.location.reload();
+                        }}
+                        className="text-xs px-3 py-1.5 h-8"
+                      >
+                        Logout
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Solo pulsante carica foto per tab ospiti */}
               {activeTab === 'guests' && (
-                <div className="flex justify-center mb-6">
+                <div className="flex justify-center items-center gap-3 mb-6">
                   <GuestUpload 
                     galleryId={gallery.id}
                     galleryName={gallery.name}
@@ -394,12 +420,36 @@ export default function Gallery() {
                       window.location.reload();
                     }}
                   />
+                  {(userEmail || userName) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Clear all authentication data
+                        const keys = Object.keys(localStorage);
+                        keys.forEach(key => {
+                          if (key.startsWith('gallery_auth_') || 
+                              key.startsWith('user_email_') || 
+                              key.startsWith('user_name_') ||
+                              key === 'userEmail' ||
+                              key === 'userName' ||
+                              key === 'isAdmin') {
+                            localStorage.removeItem(key);
+                          }
+                        });
+                        window.location.reload();
+                      }}
+                      className="text-xs px-3 py-1.5 h-8"
+                    >
+                      Logout
+                    </Button>
+                  )}
                 </div>
               )}
 
               {/* Azioni per tab vocali segreti */}
               {activeTab === 'voice-memos' && (
-                <div className="flex justify-center mb-6">
+                <div className="flex justify-center items-center gap-3 mb-6">
                   <VoiceMemoUpload 
                     galleryId={gallery.id}
                     galleryName={gallery.name}
@@ -412,6 +462,30 @@ export default function Gallery() {
                       refreshUserCredentials();
                     }}
                   />
+                  {(userEmail || userName) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Clear all authentication data
+                        const keys = Object.keys(localStorage);
+                        keys.forEach(key => {
+                          if (key.startsWith('gallery_auth_') || 
+                              key.startsWith('user_email_') || 
+                              key.startsWith('user_name_') ||
+                              key === 'userEmail' ||
+                              key === 'userName' ||
+                              key === 'isAdmin') {
+                            localStorage.removeItem(key);
+                          }
+                        });
+                        window.location.reload();
+                      }}
+                      className="text-xs px-3 py-1.5 h-8"
+                    >
+                      Logout
+                    </Button>
+                  )}
                 </div>
               )}
 
