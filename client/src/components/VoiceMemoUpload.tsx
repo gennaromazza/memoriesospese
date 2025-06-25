@@ -37,6 +37,20 @@ export default function VoiceMemoUpload({
   userName,
   onUploadComplete 
 }: VoiceMemoUploadProps) {
+  
+  // Controllo autenticazione iniziale
+  if (!userEmail || !userName) {
+    return (
+      <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
+        <p className="text-amber-800 font-medium">
+          Autenticazione richiesta per registrare voice memos
+        </p>
+        <p className="text-amber-700 text-sm mt-1">
+          Effettua l'accesso per utilizzare questa funzionalità
+        </p>
+      </div>
+    );
+  }
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [message, setMessage] = useState('');
@@ -247,6 +261,16 @@ export default function VoiceMemoUpload({
       const fileSize = audioData.size;
       const duration = recordedBlob ? recordedDuration : undefined;
 
+      // Verifica autenticazione prima del caricamento
+      if (!userEmail || !userName) {
+        toast({
+          title: "Autenticazione richiesta",
+          description: "Devi essere autenticato per registrare voice memos",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Prepare voice memo data with user authentication
       const voiceMemoData = {
         galleryId,
@@ -257,8 +281,8 @@ export default function VoiceMemoUpload({
         fileName,
         fileSize,
         duration,
-        userEmail: userEmail || 'guest@example.com', // Required for auth
-        userName: userName || guestName.trim() // Required for auth
+        userEmail: userEmail, // Required for auth
+        userName: userName // Required for auth
       };
 
       // Send to backend API

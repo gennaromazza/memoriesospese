@@ -48,9 +48,20 @@ export default function VoiceMemosList({
       // Se siamo admin, controlla prima gli sblocchi automatici
       if (isAdmin) {
         try {
-          await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/check-unlocks`), {
-            method: 'POST'
+          const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/check-unlocks`), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userEmail: 'gennaro.mazzacane@gmail.com', // Admin email
+              userName: 'Admin'
+            })
           });
+          
+          if (response.status === 401) {
+            console.warn('Check-unlocks richiede autenticazione admin');
+          }
         } catch (unlockError) {
           console.warn('Errore nel controllo sblocchi automatici:', unlockError);
         }

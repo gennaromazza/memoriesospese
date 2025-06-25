@@ -386,6 +386,8 @@ export default function Gallery() {
                   <VoiceMemoUpload 
                     galleryId={gallery.id}
                     galleryName={gallery.name}
+                    userEmail={user?.email}
+                    userName={user?.displayName}
                     onUploadComplete={() => {
                       // Trigger refresh of voice memos list
                       setRefreshTrigger(prev => prev + 1);

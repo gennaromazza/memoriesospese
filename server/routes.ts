@@ -294,6 +294,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { galleryId } = req.params;
       const voiceMemoData = req.body;
 
+      // Verifica che l'utente sia autenticato
+      if (!req.user) {
+        return sendError(res, 401, 'Autenticazione richiesta per registrare voice memos');
+      }
+
       // Validazione dati voice memo
       const validationErrors = validateVoiceMemoData(voiceMemoData);
       if (validationErrors.length > 0) {
@@ -317,6 +322,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileName: voiceMemoData.fileName,
         fileSize: voiceMemoData.fileSize,
         isUnlocked,
+        userEmail: req.user.email, // Usa dati autenticati
+        userName: req.user.name,   // Usa dati autenticati
         createdAt: serverTimestamp()
       };
 
@@ -441,8 +448,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Controllo manuale degli sblocchi per una galleria (admin)
-  app.post('/api/galleries/:galleryId/voice-memos/check-unlocks', validateGallery, requireAuth, requireAdmin, async (req, res) => {
+  // Controllo manuale degli sblocchi per una galleria (solo admin autenticati)
+  app.post('/api/galleries/:galleryId/voice-memos/check-unlocks', validateParams, validateGallery, requireAuth, requireAdmin, async (req, res) => {
     try {
       const { galleryId } = req.params;
 
