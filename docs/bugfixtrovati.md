@@ -1,0 +1,4 @@
+Verificare il meccanismo di sblocco dei vocali segreti, quelli che bisogna sbloccare al raggiungimento della data
+Verrificare sistema e stato login e registrazione che dovrebbe essere centralizzato, per il sistema delle gallerie per cui gli ospiti fanno accesso. Non ho capito se il meccanismo è matchato col sistema e se fa registare vocali anche se non loggati
+migliorare il meccanismo di download delle foto della galleria per smartphone, alcuni miei clienti dicono che a volte non parte il download delle immagini quando si clicca sul corretto simbolo. A volte funziona, a volte no. Bisogna trovare una sluzione che fixa completamente per smartphone
+migliorare la resposnività della pagina Vista Gallerie, sugli smartphone deve essere adatto tutto alla perfezione senza scroll destra o sx, da pc invece mi sembra tutto perfetto
