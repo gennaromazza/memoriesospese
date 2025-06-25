@@ -16,6 +16,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import CommentModal from './CommentModal';
+import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 import { Comment, InteractionStats } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -49,6 +50,7 @@ export default function InteractionPanel({
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   const { user, userProfile, isAuthenticated } = useAuth();
   const { toast } = useToast();
@@ -99,10 +101,16 @@ export default function InteractionPanel({
     }
   };
 
+  // Handle authentication requirement
+  const handleAuthRequired = () => {
+    setShowAuthDialog(true);
+    onAuthRequired?.();
+  };
+
   // Handle like functionality
   const handleLike = async () => {
     if (!isAuthenticated || !userEmail || !userName) {
-      onAuthRequired?.();
+      handleAuthRequired();
       return;
     }
 
@@ -152,7 +160,7 @@ export default function InteractionPanel({
   // Handle comment submission
   const handleSubmitComment = async () => {
     if (!isAuthenticated || !userEmail || !userName) {
-      onAuthRequired?.();
+      handleAuthRequired();
       return;
     }
 
@@ -335,9 +343,19 @@ export default function InteractionPanel({
       {!isAuthenticated && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-3">
-            <div className="flex items-center gap-2 text-blue-800 text-sm">
-              <User className="h-4 w-4" />
-              <span>Accedi per mettere like e commentare</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-blue-800 text-sm">
+                <User className="h-4 w-4" />
+                <span>Accedi per mettere like e commentare</span>
+              </div>
+              <Button
+                onClick={handleAuthRequired}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <LogIn className="h-4 w-4 mr-1" />
+                Accedi
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -356,6 +374,18 @@ export default function InteractionPanel({
         isAdmin={isAdmin}
         userEmail={userEmail}
         userName={userName}
+      />
+
+      {/* Authentication Dialog */}
+      <UnifiedAuthDialog
+        isOpen={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        galleryId={galleryId}
+        onAuthComplete={() => {
+          setShowAuthDialog(false);
+          // Refresh stats after authentication
+          fetchStats();
+        }}
       />
     </div>
   );
