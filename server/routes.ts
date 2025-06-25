@@ -301,13 +301,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Prepara i dati base obbligatori
+      const now = new Date();
+      let isUnlocked = true;
+      
+      // Se c'è una data di sblocco, controlla se è nel futuro
+      if (voiceMemoData.unlockDate && voiceMemoData.unlockDate !== null) {
+        const unlockDateTime = new Date(voiceMemoData.unlockDate);
+        isUnlocked = unlockDateTime <= now;
+      }
+
       const firebaseData: any = {
         galleryId,
         guestName: voiceMemoData.guestName,
         audioUrl: voiceMemoData.audioUrl,
         fileName: voiceMemoData.fileName,
         fileSize: voiceMemoData.fileSize,
-        isUnlocked: !voiceMemoData.unlockDate || new Date(voiceMemoData.unlockDate) <= new Date(),
+        isUnlocked,
         createdAt: serverTimestamp()
       };
 
@@ -363,20 +372,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Verifica e aggiorna lo stato di unlock per i memo con data di sblocco
       const now = new Date();
       const updates = [];
+      let unlockedCount = 0;
 
       for (const memo of voiceMemos) {
-        if (!memo.isUnlocked && memo.unlockDate && new Date(memo.unlockDate) <= now) {
-          const updatePromise = updateDoc(doc(db, 'voiceMemos', memo.id), {
-            isUnlocked: true
-          });
-          updates.push(updatePromise);
-          memo.isUnlocked = true;
+        if (!memo.isUnlocked && memo.unlockDate) {
+          // Confronta con data e ora precise
+          const unlockDateTime = new Date(memo.unlockDate);
+          if (unlockDateTime <= now) {
+            const updatePromise = updateDoc(doc(db, 'voiceMemos', memo.id), {
+              isUnlocked: true,
+              unlockedAt: serverTimestamp()
+            });
+            updates.push(updatePromise);
+            memo.isUnlocked = true;
+            unlockedCount++;
+          }
         }
       }
 
       // Esegui tutti gli aggiornamenti
       if (updates.length > 0) {
         await Promise.all(updates);
+        console.log(`✓ Sbloccati automaticamente ${unlockedCount} voice memos per galleria ${galleryId}`);
       }
 
       // Filtra i memo in base ai permessi
@@ -420,6 +437,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Errore nello sblocco voice memo:', error);
       res.status(500).json({ 
         error: 'Errore nello sblocco del voice memo' 
+      });
+    }
+  });
+
+  // Controllo manuale degli sblocchi per una galleria (admin)
+  app.post('/api/galleries/:galleryId/voice-memos/check-unlocks', validateGallery, requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { galleryId } = req.params;
+
+      // Recupera tutti i voice memos della galleria che sono ancora bloccati ma dovrebbero essere sbloccati
+      const q = query(
+        collection(db, 'voiceMemos'),
+        where('galleryId', '==', galleryId),
+        where('isUnlocked', '==', false)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const now = new Date();
+      const updates = [];
+      let unlockedCount = 0;
+
+      for (const docSnap of querySnapshot.docs) {
+        const memoData = docSnap.data();
+        if (memoData.unlockDate) {
+          const unlockDateTime = new Date(memoData.unlockDate);
+          if (unlockDateTime <= now) {
+            const updatePromise = updateDoc(doc(db, 'voiceMemos', docSnap.id), {
+              isUnlocked: true,
+              unlockedAt: serverTimestamp()
+            });
+            updates.push(updatePromise);
+            unlockedCount++;
+          }
+        }
+      }
+
+      // Esegui tutti gli aggiornamenti
+      if (updates.length > 0) {
+        await Promise.all(updates);
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Controllo completato. ${unlockedCount} voice memos sono stati sbloccati automaticamente.`,
+        unlockedCount 
+      });
+    } catch (error) {
+      console.error('Errore nel controllo sblocchi:', error);
+      res.status(500).json({ 
+        error: 'Errore nel controllo degli sblocchi automatici' 
       });
     }
   });

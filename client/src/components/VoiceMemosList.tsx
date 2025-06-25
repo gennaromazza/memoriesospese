@@ -44,6 +44,18 @@ export default function VoiceMemosList({
   const fetchVoiceMemos = async () => {
     try {
       setError(null);
+      
+      // Se siamo admin, controlla prima gli sblocchi automatici
+      if (isAdmin) {
+        try {
+          await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/check-unlocks`), {
+            method: 'POST'
+          });
+        } catch (unlockError) {
+          console.warn('Errore nel controllo sblocchi automatici:', unlockError);
+        }
+      }
+      
       const url = `/api/galleries/${galleryId}/voice-memos${isAdmin ? '?includeAll=true' : ''}`;
       const response = await fetch(createUrl(url));
       
@@ -74,7 +86,24 @@ export default function VoiceMemosList({
 
   useEffect(() => {
     fetchVoiceMemos();
-  }, [galleryId, refreshTrigger]);
+    
+    // Controllo periodico ogni 5 minuti per gli sblocchi automatici
+    const interval = setInterval(() => {
+      if (isAdmin) {
+        fetchVoiceMemos();
+      } else {
+        // Per i non-admin, controlla solo se ci sono memo in attesa di sblocco
+        const hasPendingUnlocks = voiceMemos.some(memo => 
+          !memo.isUnlocked && memo.unlockDate && new Date(memo.unlockDate) <= new Date()
+        );
+        if (hasPendingUnlocks) {
+          fetchVoiceMemos();
+        }
+      }
+    }, 5 * 60 * 1000); // 5 minuti
+
+    return () => clearInterval(interval);
+  }, [galleryId, refreshTrigger, isAdmin, voiceMemos]);
 
   const handleUnlockMemo = async (memoId: string) => {
     try {
@@ -314,8 +343,8 @@ export default function VoiceMemosList({
         ))}
       </div>
 
-      {/* Refresh button */}
-      <div className="text-center">
+      {/* Refresh and unlock check buttons */}
+      <div className="text-center space-x-2">
         <Button 
           onClick={fetchVoiceMemos} 
           variant="outline"
@@ -324,6 +353,36 @@ export default function VoiceMemosList({
           <RefreshCw className="h-4 w-4 mr-2" />
           Aggiorna elenco
         </Button>
+        {isAdmin && (
+          <Button 
+            onClick={async () => {
+              try {
+                const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/check-unlocks`), {
+                  method: 'POST'
+                });
+                const result = await response.json();
+                if (result.success) {
+                  toast({
+                    title: "Controllo sblocchi completato",
+                    description: result.message,
+                  });
+                  fetchVoiceMemos();
+                }
+              } catch (error) {
+                toast({
+                  title: "Errore",
+                  description: "Errore nel controllo degli sblocchi",
+                  variant: "destructive",
+                });
+              }
+            }} 
+            variant="outline"
+            className="text-blue-600 border-blue-300 hover:bg-blue-50"
+          >
+            <Unlock className="h-4 w-4 mr-2" />
+            Controlla sblocchi
+          </Button>
+        )}
       </div>
     </div>
   );
