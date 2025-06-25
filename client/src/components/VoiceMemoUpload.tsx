@@ -238,6 +238,12 @@ export default function VoiceMemoUpload({
       return;
     }
 
+     // Verifica autenticazione prima del caricamento
+     if (!currentUserEmail || !currentUserName || currentUserEmail.trim() === '' || currentUserName.trim() === '') {
+      setShowAuthDialog(true);
+      return;
+    }
+
     setIsUploading(true);
     setUploadStatus('uploading-audio');
 
@@ -258,15 +264,6 @@ export default function VoiceMemoUpload({
       // Calculate file size and duration
       const fileSize = audioData.size;
       const duration = recordedBlob ? recordedDuration : undefined;
-
-      // Verifica autenticazione prima del caricamento
-      if (!currentUserEmail || !currentUserName || currentUserEmail.trim() === '' || currentUserName.trim() === '') {
-        setShowAuthDialog(true);
-        setIsUploading(false);
-        setUploadProgress(0);
-        setUploadStatus('idle');
-        return;
-      }
 
       // Prepare voice memo data with user authentication
       const voiceMemoData = {
@@ -357,13 +354,7 @@ export default function VoiceMemoUpload({
               variant="outline" 
               size="lg"
               className="bg-[#6d7e6d] hover:bg-[#5a6b5a] text-[#e2f3ff] border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
-              onClick={() => {
-                if (!currentUserEmail || !currentUserName || currentUserEmail.trim() === '' || currentUserName.trim() === '') {
-                    setShowAuthDialog(true);
-                } else {
-                    setIsDialogOpen(true);
-                }
-              }}
+              onClick={() => setIsDialogOpen(true)}
             >
               <Mic2 className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
               <span className="font-medium hidden xs:inline">Registra un ricordo</span>
@@ -593,7 +584,13 @@ export default function VoiceMemoUpload({
             {/* Action buttons */}
             <div className="flex gap-3">
               <Button
-                onClick={handleSubmit}
+                onClick={() => {
+                  if (!currentUserEmail || !currentUserName || currentUserEmail.trim() === '' || currentUserName.trim() === '') {
+                    setShowAuthDialog(true);
+                  } else {
+                    handleSubmit();
+                  }
+                }}
                 disabled={!guestName.trim() || (!recordedBlob && !selectedFile) || isUploading}
                 className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base relative"
               >
@@ -661,7 +658,7 @@ export default function VoiceMemoUpload({
             const name = localStorage.getItem('userName') || '';
             setCurrentUserEmail(email);
             setCurrentUserName(name);
-            setIsDialogOpen(true); // Open dialog after auth
+            handleSubmit();
             if (onUploadComplete) {
               onUploadComplete();
             }
