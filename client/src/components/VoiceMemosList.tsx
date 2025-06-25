@@ -97,7 +97,9 @@ export default function VoiceMemosList({
 
   useEffect(() => {
     fetchVoiceMemos();
-    
+  }, [galleryId, refreshTrigger]);
+
+  useEffect(() => {
     // Controllo periodico ogni 5 minuti per gli sblocchi automatici
     const interval = setInterval(() => {
       if (isAdmin) {
@@ -114,7 +116,7 @@ export default function VoiceMemosList({
     }, 5 * 60 * 1000); // 5 minuti
 
     return () => clearInterval(interval);
-  }, [galleryId, refreshTrigger, isAdmin, voiceMemos]);
+  }, [isAdmin, voiceMemos]);
 
   const handleUnlockMemo = async (memoId: string) => {
     try {

@@ -97,6 +97,15 @@ export default function Gallery() {
 
     checkAdmin();
     getUserCredentials();
+    
+    // Listen for localStorage changes
+    const handleStorageChange = () => {
+      checkAdmin();
+      getUserCredentials();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Function to refresh user credentials

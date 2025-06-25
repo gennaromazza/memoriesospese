@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,7 +39,7 @@ export default function VoiceMemoUpload({
   userName,
   onUploadComplete 
 }: VoiceMemoUploadProps) {
-  
+
   const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   // Controllo autenticazione iniziale
@@ -145,7 +145,7 @@ export default function VoiceMemoUpload({
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const arrayBuffer = await audioBlob.arrayBuffer();
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      
+
       // Reduce sample rate for compression
       const targetSampleRate = Math.min(audioBuffer.sampleRate, 22050);
       const compressedBuffer = audioContext.createBuffer(
@@ -153,28 +153,28 @@ export default function VoiceMemoUpload({
         audioBuffer.duration * targetSampleRate,
         targetSampleRate
       );
-      
+
       // Mix down to mono and resample
       const inputData = audioBuffer.getChannelData(0);
       const outputData = compressedBuffer.getChannelData(0);
       const ratio = inputData.length / outputData.length;
-      
+
       for (let i = 0; i < outputData.length; i++) {
         outputData[i] = inputData[Math.floor(i * ratio)];
       }
-      
+
       // Convert back to blob
       const offlineContext = new OfflineAudioContext(1, compressedBuffer.length, targetSampleRate);
       const source = offlineContext.createBufferSource();
       source.buffer = compressedBuffer;
       source.connect(offlineContext.destination);
       source.start();
-      
+
       const renderedBuffer = await offlineContext.startRendering();
-      
+
       // Convert to WAV format (smaller than WebM for voice)
       const wavBlob = await audioBufferToWav(renderedBuffer);
-      
+
       return wavBlob.size < audioBlob.size ? wavBlob : audioBlob;
     } catch (error) {
       console.warn('Audio compression failed, using original:', error);
@@ -188,14 +188,14 @@ export default function VoiceMemoUpload({
       const arrayBuffer = new ArrayBuffer(44 + length * 2);
       const view = new DataView(arrayBuffer);
       const channels = [buffer.getChannelData(0)];
-      
+
       // WAV header
       const writeString = (offset: number, string: string) => {
         for (let i = 0; i < string.length; i++) {
           view.setUint8(offset + i, string.charCodeAt(i));
         }
       };
-      
+
       writeString(0, 'RIFF');
       view.setUint32(4, 36 + length * 2, true);
       writeString(8, 'WAVE');
@@ -209,7 +209,7 @@ export default function VoiceMemoUpload({
       view.setUint16(34, 16, true);
       writeString(36, 'data');
       view.setUint32(40, length * 2, true);
-      
+
       // Convert float samples to 16-bit PCM
       let offset = 44;
       for (let i = 0; i < length; i++) {
@@ -217,7 +217,7 @@ export default function VoiceMemoUpload({
         view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
         offset += 2;
       }
-      
+
       resolve(new Blob([arrayBuffer], { type: 'audio/wav' }));
     });
   };
@@ -226,7 +226,7 @@ export default function VoiceMemoUpload({
     const storage = getStorage();
     const audioRef = ref(storage, `voice-memos/${galleryId}/${fileName}`);
     const uploadTask = uploadBytesResumable(audioRef, audioData);
-    
+
     return new Promise((resolve, reject) => {
       uploadTask.on(
         'state_changed',
@@ -354,7 +354,7 @@ export default function VoiceMemoUpload({
       setRecordedBlob(null);
       setRecordedDuration(0);
       setIsDialogOpen(false);
-      
+
       if (onUploadComplete) {
         onUploadComplete();
       }
@@ -385,6 +385,16 @@ export default function VoiceMemoUpload({
     return tomorrow.toISOString().split('T')[0];
   };
 
+  // Aggiorna i dati di autenticazione quando cambiano le props
+  useEffect(() => {
+    setCurrentUserEmail(userEmail || '');
+    setCurrentUserName(userName || '');
+  }, [userEmail, userName]);
+
+  // State per memorizzare i dati dell'utente corrente
+  const [currentUserEmail, setCurrentUserEmail] = useState(userEmail || '');
+  const [currentUserName, setCurrentUserName] = useState(userName || '');
+
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
@@ -400,7 +410,7 @@ export default function VoiceMemoUpload({
             <span className="font-medium xs:hidden">Vocale</span>
             <Heart className="h-3 w-3 sm:h-4 sm:w-4 ml-1.5 sm:ml-2 animate-pulse" />
           </Button>
-          
+
           {/* Tooltip */}
           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs text-[#707d6e] bg-[#667f9a]">
             <div className="flex items-center gap-2 mb-1">
@@ -456,14 +466,14 @@ export default function VoiceMemoUpload({
                 Carica file
               </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="record" className="mt-4">
               <VoiceRecorder 
                 onRecordingComplete={handleRecordingComplete}
                 maxDuration={300} // 5 minutes
               />
             </TabsContent>
-            
+
             <TabsContent value="upload" className="mt-4">
               <Card>
                 <CardContent className="p-4 sm:p-6">
@@ -477,7 +487,7 @@ export default function VoiceMemoUpload({
                         Seleziona un file audio dal tuo dispositivo (max 50MB)
                       </p>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="audio-file" className="sr-only">File audio</Label>
                       <Input
@@ -488,7 +498,7 @@ export default function VoiceMemoUpload({
                         className="border-2 border-dashed border-gray-300 hover:border-sage-400 transition-colors"
                       />
                     </div>
-                    
+
                     {selectedFile && (
                       <div className="bg-sage-50 p-3 rounded-lg border border-sage-200">
                         <div className="flex items-center gap-2">
