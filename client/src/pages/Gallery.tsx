@@ -35,7 +35,7 @@ export default function Gallery() {
     loadedPhotos: 0,
     progress: 0
   });
-  
+
   // Stato per i filtri
   const [filters, setFilters] = useState<FilterCriteria>({
     startDate: undefined,
@@ -44,16 +44,16 @@ export default function Gallery() {
     endTime: undefined,
     sortOrder: 'newest'
   });
-  
+
   // Stato per tracciare se i filtri sono attivi
   const [areFiltersActive, setAreFiltersActive] = useState(false);
-  
+
   // Stato per il tab attivo (foto del fotografo, ospiti o vocali segreti)
   const [activeTab, setActiveTab] = useState<'photographer' | 'guests' | 'voice-memos'>('photographer');
-  
+
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  
+
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -146,11 +146,11 @@ export default function Gallery() {
   const closeLightbox = () => {
     setLightboxOpen(false);
   };
-  
+
   // Funzione per applicare i filtri
   const handleFilterChange = (newFilters: FilterCriteria) => {
     setFilters(newFilters);
-    
+
     // Verifica se c'è almeno un filtro attivo
     const hasActiveFilter = 
       newFilters.startDate !== undefined || 
@@ -158,10 +158,10 @@ export default function Gallery() {
       newFilters.startTime !== undefined || 
       newFilters.endTime !== undefined || 
       newFilters.sortOrder !== 'newest';
-    
+
     setAreFiltersActive(hasActiveFilter);
   };
-  
+
   // Funzione per resettare i filtri
   const resetFilters = () => {
     setFilters({
@@ -173,15 +173,15 @@ export default function Gallery() {
     });
     setAreFiltersActive(false);
   };
-  
+
   // Filtra le foto in base ai criteri impostati
   const filteredPhotos = useMemo(() => {
     if (!areFiltersActive) return photos;
-    
+
     return photos.filter(photo => {
       const photoDate = photo.createdAt ? new Date(photo.createdAt) : null;
       if (!photoDate) return true; // Se non c'è data, include la foto
-      
+
       // Filtra per data
       if (filters.startDate && photoDate < filters.startDate) return false;
       if (filters.endDate) {
@@ -190,22 +190,22 @@ export default function Gallery() {
         endDateWithTime.setHours(23, 59, 59);
         if (photoDate > endDateWithTime) return false;
       }
-      
+
       // Filtra per ora
       if (filters.startTime || filters.endTime) {
         const hours = photoDate.getHours();
         const minutes = photoDate.getMinutes();
         const photoTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-        
+
         if (filters.startTime && photoTime < filters.startTime) return false;
         if (filters.endTime && photoTime > filters.endTime) return false;
       }
-      
+
       return true;
     }).sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
       const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-      
+
       return filters.sortOrder === 'newest' 
         ? dateB.getTime() - dateA.getTime() 
         : dateA.getTime() - dateB.getTime();
@@ -348,7 +348,7 @@ export default function Gallery() {
                       resetFilters={resetFilters}
                     />
                   </div>
-                  
+
                   {/* Azioni galleria */}
                   <div className="flex gap-2">
                     <SubscriptionManager 
@@ -386,8 +386,8 @@ export default function Gallery() {
                   <VoiceMemoUpload 
                     galleryId={gallery.id}
                     galleryName={gallery.name}
-                    userEmail={user?.email}
-                    userName={user?.displayName}
+                    userEmail={userEmail}
+                    userName={userName}
                     onUploadComplete={() => {
                       // Trigger refresh of voice memos list
                       setRefreshTrigger(prev => prev + 1);
@@ -433,7 +433,7 @@ export default function Gallery() {
                             }}
                             title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                           />
-                          
+
                           {/* Interaction panel */}
                           <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                             <div 
@@ -510,7 +510,7 @@ export default function Gallery() {
                             {photo.uploaderName}
                           </div>
                         )}
-                        
+
                         {/* Interaction panel */}
                         <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <div 

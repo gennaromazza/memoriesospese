@@ -39,7 +39,7 @@ export default function VoiceMemoUpload({
 }: VoiceMemoUploadProps) {
   
   // Controllo autenticazione iniziale
-  if (!userEmail || !userName) {
+  if (!userEmail || !userName || userEmail.trim() === '' || userName.trim() === '') {
     return (
       <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
         <p className="text-amber-800 font-medium">
@@ -262,12 +262,15 @@ export default function VoiceMemoUpload({
       const duration = recordedBlob ? recordedDuration : undefined;
 
       // Verifica autenticazione prima del caricamento
-      if (!userEmail || !userName) {
+      if (!userEmail || !userName || userEmail.trim() === '' || userName.trim() === '') {
         toast({
           title: "Autenticazione richiesta",
           description: "Devi essere autenticato per registrare voice memos",
           variant: "destructive",
         });
+        setIsUploading(false);
+        setUploadProgress(0);
+        setUploadStatus('idle');
         return;
       }
 

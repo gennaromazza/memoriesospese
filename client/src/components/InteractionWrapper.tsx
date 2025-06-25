@@ -19,7 +19,7 @@ export default function InteractionWrapper({
   className = ''
 }: InteractionWrapperProps) {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
-  
+
   const { user, userProfile, isAuthenticated } = useAuth();
   const { hasAccess, grantAccess } = useGalleryAccess(galleryId);
 
@@ -50,7 +50,7 @@ export default function InteractionWrapper({
         className={className}
         onAuthRequired={handleInteractionAttempt}
       />
-      
+
       <UnifiedAuthDialog
         isOpen={showAuthDialog}
         onOpenChange={setShowAuthDialog}
