@@ -99,6 +99,14 @@ export default function Gallery() {
     getUserCredentials();
   }, []);
 
+  // Function to refresh user credentials
+  const refreshUserCredentials = () => {
+    const email = localStorage.getItem('userEmail') || '';
+    const name = localStorage.getItem('userName') || '';
+    setUserEmail(email);
+    setUserName(name);
+  };
+
   // Verifica autenticazione
   useEffect(() => {
     const checkAuth = () => {
@@ -391,6 +399,8 @@ export default function Gallery() {
                     onUploadComplete={() => {
                       // Trigger refresh of voice memos list
                       setRefreshTrigger(prev => prev + 1);
+                      // Refresh user credentials in case they were updated
+                      refreshUserCredentials();
                     }}
                   />
                 </div>

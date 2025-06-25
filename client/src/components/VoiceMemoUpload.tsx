@@ -71,13 +71,14 @@ export default function VoiceMemoUpload({
           galleryId={galleryId}
           onAuthComplete={() => {
             setShowAuthDialog(false);
-            // Ricarica la pagina o notifica il parent component
-            if (onUploadComplete) {
-              onUploadComplete();
-            }
+            // Aspetta un momento per permettere l'aggiornamento del localStorage
+            setTimeout(() => {
+              // Ricarica la pagina per aggiornare le credenziali
+              window.location.reload();
+            }, 500);
           }}
           defaultTab="login"
-        />
+        /></>
       </>
     );
   }
