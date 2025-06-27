@@ -414,8 +414,7 @@ export default function Gallery() {
                                   key === 'isAdmin') {
                                 localStorage.removeItem(key);
                               }
-                            }
-                          });
+                            });
                             // Refresh page to reflect logout state
                             window.location.reload();
                           }}
