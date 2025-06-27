@@ -19,6 +19,7 @@ import GuestUpload from "@/components/GuestUpload";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionWrapper from "@/components/InteractionWrapper";
+import InteractionPanel from "@/components/InteractionPanel";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
 import { useAuth } from "@/hooks/useAuth";
@@ -525,48 +526,49 @@ export default function Gallery() {
                   <div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
                       {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
-                        <div
-                          key={photo.id}
-                          className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative group"
-                          onClick={() => openLightbox(index)}
-                        >
-                          <img
-                            src={photo.url}
-                            alt={photo.name || `Foto ${index + 1}`}
-                            className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
-                            loading="lazy"
-                            onLoad={(e) => {
-                              (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
-                            }}
-                            style={{ 
-                              backgroundColor: '#f3f4f6',
-                              objectFit: 'cover',
-                            }}
-                            title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
-                          />
+                        <div key={photo.id} className="space-y-2">
+                          <div
+                            className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative group"
+                            onClick={() => openLightbox(index)}
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.name || `Foto ${index + 1}`}
+                              className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                              loading="lazy"
+                              onLoad={(e) => {
+                                (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                              }}
+                              style={{ 
+                                backgroundColor: '#f3f4f6',
+                                objectFit: 'cover',
+                              }}
+                              title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
+                            />
 
-                          {/* Small floating action buttons */}
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                            <InteractionWrapper
+                            {/* Small floating action buttons */}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                              <InteractionWrapper
+                                itemId={photo.id}
+                                itemType="photo"
+                                galleryId={gallery.id}
+                                isAdmin={isAdmin}
+                                variant="floating"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Interaction panel below photo */}
+                          <div className="mt-2">
+                            <InteractionPanel
                               itemId={photo.id}
                               itemType="photo"
                               galleryId={gallery.id}
                               isAdmin={isAdmin}
-                              variant="floating"
-                              onClick={(e) => e.stopPropagation()}
+                              variant="default"
                             />
                           </div>
-                        </div>
-                        
-                        {/* Interaction panel below photo */}
-                        <div className="mt-2">
-                          <InteractionPanel
-                            itemId={photo.id}
-                            itemType="photo"
-                            galleryId={gallery.id}
-                            isAdmin={isAdmin}
-                            variant="default"
-                          />
                         </div>
                       ))}
                     </div>
@@ -671,8 +673,6 @@ export default function Gallery() {
                 <SocialActivityPanel 
                   galleryId={gallery.id}
                   className="w-full"
-                  userEmail={userEmail}
-                  userName={userName}
                   onPhotoClick={(photoId) => {
                     // Find photo index in allPhotos array
                     const photoIndex = allPhotos.findIndex(photo => photo.id === photoId);

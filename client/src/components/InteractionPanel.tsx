@@ -208,7 +208,7 @@ export default function InteractionPanel({
         hasLocalAuth
       });
 
-      const response = await authInterceptor(`${createUrl()}/api/comments`, {
+      const response = await fetch(`${createUrl('/api/comments')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
