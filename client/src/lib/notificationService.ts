@@ -1,5 +1,6 @@
 import { db } from './firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import { apiRequest } from './queryClient';
 
 interface NotificationData {
   galleryId: string;
@@ -27,29 +28,18 @@ export async function notifySubscribers(data: NotificationData): Promise<{ succe
       return { success: 0, failed: 0 };
     }
 
-    // Invia richiesta al backend per inviare le email
-    const response = await fetch(`/api/galleries/${data.galleryId}/notify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        galleryName: data.galleryName,
-        newPhotosCount: data.newPhotosCount,
-        uploaderName: data.uploaderName,
-        galleryUrl: data.galleryUrl,
-        subscribers: subscriberEmails
-      }),
+    // Invia richiesta al backend per inviare le email usando apiRequest centralizzato
+    const response = await apiRequest('POST', `/api/galleries/${data.galleryId}/notify`, {
+      galleryName: data.galleryName,
+      newPhotosCount: data.newPhotosCount,
+      uploaderName: data.uploaderName,
+      galleryUrl: data.galleryUrl,
+      subscribers: subscriberEmails
     });
 
-    if (response.ok) {
-      const result = await response.json();
-      console.log(`Notifiche inviate: ${result.success} successi, ${result.failed} errori`);
-      return { success: result.success, failed: result.failed };
-    } else {
-      console.error('Errore nell\'invio notifiche:', await response.text());
-      return { success: 0, failed: subscriberEmails.length };
-    }
+    const result = await response.json();
+    console.log(`Notifiche inviate: ${result.success} successi, ${result.failed} errori`);
+    return { success: result.success, failed: result.failed };
     
   } catch (error) {
     console.error('Errore nel servizio di notificazione:', error);

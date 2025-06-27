@@ -240,8 +240,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Endpoint per notificare nuove foto (richiede admin)
-  app.post('/api/galleries/:galleryId/notify', validateGallery, requireAuth, requireAdmin, async (req, res) => {
+  // Endpoint per notificare nuove foto (richiede autenticazione)
+  app.post('/api/galleries/:galleryId/notify', validateGallery, requireAuth, async (req, res) => {
     try {
       const { galleryId } = req.params;
       const { galleryName, newPhotosCount, uploaderName, galleryUrl, subscribers } = req.body;
@@ -295,7 +295,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const voiceMemoData = req.body;
 
       // Verifica che l'utente sia autenticato
-      if (!req.user) {
+      const authReq = req as AuthenticatedRequest;
+      if (!authReq.user) {
         return sendError(res, 401, 'Autenticazione richiesta per registrare voice memos');
       }
 
@@ -322,8 +323,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileName: voiceMemoData.fileName,
         fileSize: voiceMemoData.fileSize,
         isUnlocked,
-        userEmail: req.user.email, // Usa dati autenticati
-        userName: req.user.name,   // Usa dati autenticati
+        userEmail: authReq.user?.email, // Usa dati autenticati
+        userName: authReq.user?.name,   // Usa dati autenticati
         createdAt: serverTimestamp()
       };
 
