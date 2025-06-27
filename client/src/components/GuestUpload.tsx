@@ -393,7 +393,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
           </div>
         </DialogHeader>
 
-        {!isAuthenticated ? (
+        {!user ? (
           <Tabs defaultValue="register" className="w-full">
             <TabsList className="grid w-full grid-cols-3 h-auto">
               <TabsTrigger value="register" className="flex items-center gap-1 sm:gap-2 py-2 px-2 sm:px-3 text-xs sm:text-sm">
