@@ -64,14 +64,7 @@ export default function InteractionPanel({
   const userEmail = user?.email || localStorage.getItem('userEmail') || '';
   const userName = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || (userEmail ? userEmail.split('@')[0] : 'Utente');
 
-  console.log('InteractionPanel Auth Debug:', {
-    isAuthenticated,
-    user: user ? { email: user.email, displayName: user.displayName } : null,
-    userProfile: userProfile || {},
-    userEmail,
-    userName,
-    itemType
-  });
+
 
   // Fetch interaction stats
   const fetchStats = async () => {
@@ -200,13 +193,7 @@ export default function InteractionPanel({
       const finalUserEmail = user?.email || userEmail;
       const finalUserName = userProfile?.displayName || user?.displayName || userName || finalUserEmail.split('@')[0];
 
-      console.log('Submitting comment with auth data:', {
-        finalUserEmail,
-        finalUserName,
-        itemType,
-        hasFirebaseAuth,
-        hasLocalAuth
-      });
+
 
       const response = await fetch(`${createUrl('/api/comments')}`, {
         method: 'POST',
