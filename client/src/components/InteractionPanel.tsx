@@ -449,8 +449,8 @@ export default function InteractionPanel({
       </div>
 
       {/* Comment form for authenticated users */}
-      {isAuthenticated && userEmail && (userName || userEmail) && (
-        <Card className="border-gray-200">
+      {hasAuth && (
+        <Card className="border-gray-200 mt-3">
           <CardContent className="p-3">
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-gray-700 text-sm font-medium">
@@ -493,9 +493,52 @@ export default function InteractionPanel({
         </Card>
       )}
 
+      {/* Recent comments display */}
+      {comments.length > 0 && (
+        <Card className="border-gray-200 mt-3">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 text-gray-700 text-sm font-medium mb-3">
+              <MessageCircle className="h-4 w-4" />
+              <span>Commenti recenti</span>
+            </div>
+            <div className="space-y-3 max-h-60 overflow-y-auto">
+              {comments.slice(0, 3).map((comment) => (
+                <div key={comment.id} className="flex items-start gap-3 p-2 bg-gray-50 rounded-lg">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <User className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-gray-900 truncate">
+                        {comment.userName || comment.userEmail.split('@')[0]}
+                      </span>
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatDate(comment.createdAt)}</span>
+                      </div>
+                      {isAdmin && (
+                        <Button
+                          onClick={() => handleDeleteComment(comment.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 ml-auto"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-700 break-words">{comment.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Authentication prompt */}
-      {!isAuthenticated && (
-        <Card className="border-blue-200 bg-blue-50">
+      {!hasAuth && (
+        <Card className="border-blue-200 bg-blue-50 mt-3">
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-blue-800 text-sm">

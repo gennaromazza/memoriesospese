@@ -73,21 +73,7 @@ export default function PhotoCard({ photo, index, onClick, galleryId, isAdmin = 
         </div>
       )}
 
-      {/* Interaction panel - like e commenti */}
-      <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <div 
-          className="bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-sm"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <InteractionWrapper
-            itemId={photo.id}
-            itemType="photo"
-            galleryId={galleryId}
-            isAdmin={isAdmin}
-            className="scale-90"
-          />
-        </div>
-      </div>
+      
     </div>
   );
 }

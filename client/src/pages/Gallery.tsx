@@ -557,6 +557,17 @@ export default function Gallery() {
                             />
                           </div>
                         </div>
+                        
+                        {/* Interaction panel below photo */}
+                        <div className="mt-2">
+                          <InteractionPanel
+                            itemId={photo.id}
+                            itemType="photo"
+                            galleryId={gallery.id}
+                            isAdmin={isAdmin}
+                            variant="default"
+                          />
+                        </div>
                       ))}
                     </div>
 
