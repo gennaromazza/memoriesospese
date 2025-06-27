@@ -95,8 +95,8 @@ export default function InteractionWrapper({
         itemType={itemType}
         galleryId={galleryId}
         isAdmin={isAdmin}
-        userEmail={user?.email || undefined}
-        userName={userProfile?.displayName || user?.email?.split('@')[0] || undefined}
+        userEmail={userEmail}
+        userName={userName}
       />
 
       <UnifiedAuthDialog

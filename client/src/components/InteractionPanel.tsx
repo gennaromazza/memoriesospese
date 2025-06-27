@@ -31,6 +31,8 @@ interface InteractionPanelProps {
   className?: string;
   onAuthRequired?: () => void;
   variant?: 'default' | 'floating';
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export default function InteractionPanel({
@@ -60,7 +62,7 @@ export default function InteractionPanel({
 
   // Get authentication data from centralized system
   const userEmail = user?.email || localStorage.getItem('userEmail') || '';
-  const userName = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || (userEmail ? userEmail.split('@')[0] : '');
+  const userName = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || (userEmail ? userEmail.split('@')[0] : 'Utente');
 
   console.log('InteractionPanel Auth Debug:', {
     isAuthenticated,
@@ -69,15 +71,6 @@ export default function InteractionPanel({
     userEmail,
     userName,
     itemType
-  });
-
-  // Debug logging
-  console.log('InteractionPanel Debug:', {
-    isAuthenticated,
-    user: user ? { email: user.email, displayName: user.displayName } : null,
-    userProfile: userProfile ? { displayName: userProfile.displayName } : null,
-    userEmail,
-    userName
   });
 
   // Fetch interaction stats
@@ -189,6 +182,11 @@ export default function InteractionPanel({
       });
       return;
     }
+
+    // Combined authentication check - ensure we have proper user identification
+    const hasFirebaseAuth = isAuthenticated && user && userEmail;
+    const hasLocalAuth = !isAuthenticated && userEmail && userName;
+    const hasAuth = hasFirebaseAuth || hasLocalAuth;
 
     if (!hasAuth) {
       setShowAuthDialog(true);
