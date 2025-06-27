@@ -583,7 +583,11 @@ export default function VoiceMemoUpload({
             <div className="flex gap-3">
               <Button
                 onClick={() => {
-                  if (!isAuthenticated || !currentUserEmail || !currentUserName) {
+                  // Check both Firebase auth and localStorage auth
+                  const hasAuth = isAuthenticated && currentUserEmail && currentUserName;
+                  const hasLocalAuth = localStorage.getItem('userEmail') && localStorage.getItem('userName');
+                  
+                  if (!hasAuth && !hasLocalAuth) {
                     setShowAuthDialog(true);
                   } else {
                     handleSubmit();

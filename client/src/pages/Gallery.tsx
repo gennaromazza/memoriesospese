@@ -19,6 +19,8 @@ import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionWrapper from "@/components/InteractionWrapper";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
+import RegistrationCTA from "@/components/RegistrationCTA";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -29,6 +31,7 @@ export default function Gallery() {
   const [userEmail, setUserEmail] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
   const { studioSettings } = useStudio();
+  const { user, userProfile, isAuthenticated } = useAuth();
 
   // Stato locale per il tracciamento del caricamento
   const [loadingState, setLoadingState] = useState({
@@ -85,13 +88,14 @@ export default function Gallery() {
   // Check if current user is admin and get user credentials
   useEffect(() => {
     const checkAdmin = () => {
-      const admin = localStorage.getItem('isAdmin') === 'true';
+      const admin = localStorage.getItem('isAdmin') === 'true' || userProfile?.role === 'admin';
       setIsAdmin(admin);
     };
 
     const getUserCredentials = () => {
-      const email = localStorage.getItem('userEmail') || '';
-      const name = localStorage.getItem('userName') || '';
+      // Priority: Firebase auth user, then localStorage fallback
+      const email = user?.email || localStorage.getItem('userEmail') || '';
+      const name = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || '';
       setUserEmail(email);
       setUserName(name);
     };
@@ -107,12 +111,12 @@ export default function Gallery() {
     
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [user, userProfile]);
 
   // Function to refresh user credentials
   const refreshUserCredentials = () => {
-    const email = localStorage.getItem('userEmail') || '';
-    const name = localStorage.getItem('userName') || '';
+    const email = user?.email || localStorage.getItem('userEmail') || '';
+    const name = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || '';
     setUserEmail(email);
     setUserName(name);
   };
@@ -624,6 +628,17 @@ export default function Gallery() {
                   isAdmin={isAdmin}
                   refreshTrigger={refreshTrigger}
                 />
+              )}
+
+              {/* Registration CTA for non-authenticated users */}
+              {!isAuthenticated && !userEmail && (
+                <div className="mt-8 mb-8">
+                  <RegistrationCTA
+                    galleryId={gallery.id}
+                    onAuthComplete={refreshUserCredentials}
+                    className="max-w-4xl mx-auto"
+                  />
+                </div>
               )}
 
               {/* Social Activity Panel */}
