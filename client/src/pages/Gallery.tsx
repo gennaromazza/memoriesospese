@@ -527,10 +527,10 @@ export default function Gallery() {
                             title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                           />
 
-                          {/* Interaction panel */}
-                          <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          {/* Interaction panel - positioned in top-right corner */}
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
                             <div 
-                              className="bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-sm"
+                              className="bg-white/95 backdrop-blur-sm rounded-lg p-1.5 shadow-sm"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <InteractionWrapper
@@ -538,7 +538,7 @@ export default function Gallery() {
                                 itemType="photo"
                                 galleryId={gallery.id}
                                 isAdmin={isAdmin}
-                                className="scale-90"
+                                className="scale-75"
                               />
                             </div>
                           </div>
@@ -604,10 +604,10 @@ export default function Gallery() {
                           </div>
                         )}
 
-                        {/* Interaction panel */}
-                        <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        {/* Interaction panel - positioned in top-right corner */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
                           <div 
-                            className="bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-sm"
+                            className="bg-white/95 backdrop-blur-sm rounded-lg p-1.5 shadow-sm"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <InteractionWrapper
@@ -615,7 +615,7 @@ export default function Gallery() {
                               itemType="photo"
                               galleryId={gallery.id}
                               isAdmin={isAdmin}
-                              className="scale-90"
+                              className="scale-75"
                             />
                           </div>
                         </div>
