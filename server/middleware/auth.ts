@@ -37,6 +37,7 @@ export const getSecurityQuestionText = (type: SecurityQuestionType, customQuesti
 
 // Middleware per autenticazione utente su operazioni sensibili
 export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  // Estrai credenziali dal body (inviate automaticamente dal frontend)
   const { userEmail, userName } = req.body;
 
   // Controllo presenza credenziali

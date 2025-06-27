@@ -20,6 +20,7 @@ import DeleteGalleryPage from "@/pages/DeleteGalleryPage";
 import SecurityTestPage from "@/pages/SecurityTestPage";
 import NotFound from "@/pages/not-found";
 import PathDebugInfo from "@/components/PathDebugInfo";
+import { authInterceptor } from "@/lib/authInterceptor";
 
 // Hook per tracciare le visualizzazioni delle pagine
 function useAnalytics() {

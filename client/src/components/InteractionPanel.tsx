@@ -19,6 +19,7 @@ import CommentModal from './CommentModal';
 import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 import { Comment, InteractionStats } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
+import { authInterceptor } from '@/lib/authInterceptor';
 
 interface InteractionPanelProps {
   itemId: string;
@@ -120,19 +121,20 @@ export default function InteractionPanel({
 
   // Handle like functionality
   const handleLike = async () => {
-    if (!isAuthenticated || !userEmail || !userName) {
-      handleAuthRequired();
+    // Verifica autenticazione con sistema centralizzato
+    if (!(await authInterceptor.requireAuth())) {
       return;
     }
 
     try {
       setIsLoading(true);
+      // Le credenziali verranno aggiunte automaticamente dal queryClient
       const response = await fetch(createUrl(`/api/galleries/${galleryId}/likes/${itemType}/${itemId}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userEmail, userName }),
+        body: JSON.stringify({}), // Credenziali aggiunte automaticamente
       });
 
       if (!response.ok) {
@@ -170,16 +172,8 @@ export default function InteractionPanel({
 
   // Handle comment submission
   const handleSubmitComment = async () => {
-    console.log('Submit comment attempt:', {
-      isAuthenticated,
-      userEmail,
-      userName,
-      newComment: newComment.trim()
-    });
-
-    if (!isAuthenticated || !userEmail) {
-      console.log('Auth required - missing auth or email');
-      handleAuthRequired();
+    // Verifica autenticazione con sistema centralizzato
+    if (!(await authInterceptor.requireAuth())) {
       return;
     }
 
@@ -209,8 +203,6 @@ export default function InteractionPanel({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          userEmail, 
-          userName: userName || userEmail.split('@')[0], 
           content: newComment.trim() 
         }),
       });

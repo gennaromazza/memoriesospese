@@ -53,10 +53,7 @@ export default function VoiceMemosList({
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              userEmail: 'gennaro.mazzacane@gmail.com', // Admin email
-              userName: 'Admin'
-            })
+            body: JSON.stringify({}) // Credenziali aggiunte automaticamente
           });
           
           if (response.status === 401) {
