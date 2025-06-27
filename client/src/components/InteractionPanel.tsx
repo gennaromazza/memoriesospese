@@ -388,16 +388,7 @@ export default function InteractionPanel({
   const hasLocalAuth = !isAuthenticated && userEmail && userName;
   const hasAuth = hasFirebaseAuth || hasLocalAuth;
 
-  // Debug log for voice memos specifically
-  if (itemType === 'voice_memo') {
-    console.log('Voice Memo Auth Check:', {
-      hasFirebaseAuth,
-      hasLocalAuth,
-      hasAuth,
-      userEmail,
-      userName
-    });
-  }
+
 
   return (
     <div className={`space-y-3 ${className}`}>
