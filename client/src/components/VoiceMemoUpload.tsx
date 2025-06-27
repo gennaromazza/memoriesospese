@@ -236,8 +236,11 @@ export default function VoiceMemoUpload({
       return;
     }
 
-     // Verifica autenticazione prima del caricamento
-     if (!isAuthenticated || !currentUserEmail) {
+    // Verifica autenticazione usando il sistema centralizzato
+    const hasFirebaseAuth = isAuthenticated && currentUserEmail;
+    const hasLocalAuth = userEmail && userName;
+    
+    if (!hasFirebaseAuth && !hasLocalAuth) {
       setShowAuthDialog(true);
       return;
     }
@@ -263,7 +266,10 @@ export default function VoiceMemoUpload({
       const fileSize = audioData.size;
       const duration = recordedBlob ? recordedDuration : undefined;
 
-      // Prepare voice memo data with user authentication
+      // Prepare voice memo data with centralized user authentication
+      const finalUserEmail = currentUserEmail || userEmail || '';
+      const finalUserName = currentUserName || userName || finalUserEmail.split('@')[0];
+      
       const voiceMemoData = {
         galleryId,
         guestName: guestName.trim(),
@@ -273,8 +279,8 @@ export default function VoiceMemoUpload({
         fileName,
         fileSize,
         duration,
-        userEmail: currentUserEmail, // Required for auth
-        userName: currentUserName || currentUserEmail.split('@')[0] // Use email prefix if no display name
+        userEmail: finalUserEmail, // Required for auth
+        userName: finalUserName // Use centralized auth data
       };
 
       // Send to backend API
@@ -583,11 +589,11 @@ export default function VoiceMemoUpload({
             <div className="flex gap-3">
               <Button
                 onClick={() => {
-                  // Check both Firebase auth and localStorage auth
-                  const hasAuth = isAuthenticated && currentUserEmail && currentUserName;
-                  const hasLocalAuth = localStorage.getItem('userEmail') && localStorage.getItem('userName');
+                  // Check centralized auth system
+                  const hasFirebaseAuth = isAuthenticated && currentUserEmail;
+                  const hasLocalAuth = userEmail && userName;
                   
-                  if (!hasAuth && !hasLocalAuth) {
+                  if (!hasFirebaseAuth && !hasLocalAuth) {
                     setShowAuthDialog(true);
                   } else {
                     handleSubmit();

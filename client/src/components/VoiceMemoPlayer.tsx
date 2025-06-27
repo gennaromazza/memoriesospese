@@ -416,6 +416,7 @@ export default function VoiceMemoPlayer({
               itemType="voice_memo"
               galleryId={galleryId}
               isAdmin={isAdmin}
+              variant="inline"
             />
           </div>
         </div>
