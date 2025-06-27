@@ -18,6 +18,7 @@ import RequestPassword from "@/pages/RequestPassword";
 import PasswordResult from "@/pages/PasswordResult";
 import DeleteGalleryPage from "@/pages/DeleteGalleryPage";
 import SecurityTestPage from "@/pages/SecurityTestPage";
+import UserProfile from "@/pages/UserProfile";
 import NotFound from "@/pages/not-found";
 import PathDebugInfo from "@/components/PathDebugInfo";
 import AuthDebugPanel from "@/components/AuthDebugPanel";
@@ -26,13 +27,13 @@ import { authInterceptor } from "@/lib/authInterceptor";
 // Hook per tracciare le visualizzazioni delle pagine
 function useAnalytics() {
   const [location] = useLocation();
-  
+
   useEffect(() => {
     // Traccia il cambio di pagina
     trackPageView(location);
-    
+
   }, [location]);
-  
+
   return null;
 }
 
@@ -40,9 +41,9 @@ function useAnalytics() {
 function Router() {
   // Utilizza il hook per tracciare le navigazioni
   useAnalytics();
-  
-  
-  
+
+
+
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -55,6 +56,7 @@ function Router() {
       <Route path="/request-password" component={RequestPassword} />
       <Route path="/password-result/:id" component={PasswordResult} />
       <Route path="/security-test" component={SecurityTestPage} />
+      <Route path="/profile" component={UserProfile} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -63,11 +65,11 @@ function Router() {
 function App() {
   // Configure base path for subdirectory deployment
   const basePath = import.meta.env.PROD ? '/wedgallery' : '/';
-  
+
   // URL validation and normalization
   useEffect(() => {
     const { origin, pathname, search } = window.location;
-    
+
     // Handle double slashes in pathname
     if (/\/\/+/.test(pathname)) {
       const correctedPath = pathname.replace(/\/\/+/g, '/');
@@ -75,7 +77,7 @@ function App() {
       window.history.replaceState(null, '', correctedUrl);
     }
   }, [basePath]);
-  
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light">

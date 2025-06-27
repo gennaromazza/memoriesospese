@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
+import { User } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import ImageLightbox from "@/components/ImageLightbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -386,29 +387,43 @@ export default function Gallery() {
                       }}
                     />
                     {(userEmail || userName) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // Clear all authentication data
-                          const keys = Object.keys(localStorage);
-                          keys.forEach(key => {
-                            if (key.startsWith('gallery_auth_') || 
-                                key.startsWith('user_email_') || 
-                                key.startsWith('user_name_') ||
-                                key === 'userEmail' ||
-                                key === 'userName' ||
-                                key === 'isAdmin') {
-                              localStorage.removeItem(key);
+                      <div className="flex gap-2">
+                        {isAuthenticated && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(createUrl("/profile"))}
+                            className="text-xs px-3 py-1.5 h-8"
+                          >
+                            <User className="h-3 w-3 mr-1" />
+                            Profilo
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Clear all authentication data
+                            const keys = Object.keys(localStorage);
+                            keys.forEach(key => {
+                              if (key.startsWith('gallery_auth_') || 
+                                  key.startsWith('user_email_') || 
+                                  key.startsWith('user_name_') ||
+                                  key === 'userEmail' ||
+                                  key === 'userName' ||
+                                  key === 'isAdmin') {
+                                localStorage.removeItem(key);
+                              }
                             }
                           });
-                          // Refresh page to reflect logout state
-                          window.location.reload();
-                        }}
-                        className="text-xs px-3 py-1.5 h-8"
-                      >
-                        Logout
-                      </Button>
+                            // Refresh page to reflect logout state
+                            window.location.reload();
+                          }}
+                          className="text-xs px-3 py-1.5 h-8"
+                        >
+                          Logout
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

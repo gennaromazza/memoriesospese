@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useStudio } from "@/context/StudioContext";
+import { useAuth } from "@/hooks/useAuth";
+import { Menu, X, User } from "lucide-react";
 import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
 import authService from "@/services/authService";
 
@@ -13,7 +15,8 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [location, navigate] = useLocation();
   const { studioSettings } = useStudio();
-  
+  const { isAuthenticated, user, userProfile } = useAuth();
+
   // Implementazione sicura per i metodi di autenticazione
   // Usando valori predefiniti per evitare errori quando il provider non è disponibile
   const currentUser = null;
@@ -28,7 +31,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
       await signOut();
       navigate("/");
     } catch (error) {
-      
+
     }
   };
 
@@ -42,14 +45,14 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
               <div className="flex-shrink-0 flex items-center">
                 <h1 className="text-off-white font-playfair font-semibold text-2xl">Admin Dashboard</h1>
               </div>
-              <div className="ml-6 flex items-center">
-                <a 
-                  href={createAbsoluteUrl("/")}
-                  className="text-white text-sm hover:text-sage"
-                >
-                  Vai al sito
-                </a>
-              </div>
+              <div className="ml-6 flex items-center space-x-4">
+              <a 
+                href={createAbsoluteUrl("/")}
+                className="text-white text-sm hover:text-sage"
+              >
+                Vai al sito
+              </a>
+            </div>
             </div>
             <div className="flex items-center">
               <button 
@@ -96,7 +99,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                   try {
                     // Firebase logout
                     await authService.logout();
-                    
+
                     // Clear all authentication data from localStorage
                     const keys = Object.keys(localStorage);
                     keys.forEach(key => {
@@ -109,10 +112,10 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                         localStorage.removeItem(key);
                       }
                     });
-                    
+
                     // Navigate to home page
                     navigate("/");
-                    
+
                     // Reload to ensure clean state
                     window.location.reload();
                   } catch (error) {
@@ -170,9 +173,20 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
               </Link>
               <a href="#about" className="font-medium text-blue-gray hover:text-dark-sage transition">Come Funziona</a>
               <a href="#contact" className="font-medium text-blue-gray hover:text-dark-sage transition">Contatti</a>
-              <Link href={createUrl("/admin")} className="px-4 py-2 rounded-md text-off-white bg-blue-gray hover:bg-dark-sage transition">
+              <div className="hidden md:flex md:items-center md:ml-6 space-x-4">
+            {isAuthenticated && user && (
+              <a
+                href={createUrl("/profile")}
+                className="text-blue-gray hover:text-dark-sage px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+              >
+                <User className="h-4 w-4" />
+                {userProfile?.displayName || user.displayName || 'Profilo'}
+              </a>
+            )}
+            <Link href={createUrl("/admin")} className="px-4 py-2 rounded-md text-off-white bg-blue-gray hover:bg-dark-sage transition">
                 Admin
               </Link>
+          </div>
             </div>
           </div>
           <div className="md:hidden flex items-center">
@@ -187,7 +201,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
           </div>
         </div>
       </div>
-      
+
       {/* Mobile menu */}
       <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-off-white`}>
         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
@@ -196,9 +210,20 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
           </Link>
           <a href="#about" className="block px-3 py-2 text-base font-medium text-blue-gray">Come Funziona</a>
           <a href="#contact" className="block px-3 py-2 text-base font-medium text-blue-gray">Contatti</a>
-          <Link href={createUrl("/admin")} className="block px-3 py-2 text-base font-medium text-blue-gray">
-            Admin
-          </Link>
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            {isAuthenticated && user && (
+              <a
+                href={createUrl("/profile")}
+                className="block px-3 py-2 text-base font-medium text-blue-gray"
+              >
+                <User className="h-4 w-4" />
+                {userProfile?.displayName || user.displayName || 'Il Mio Profilo'}
+              </a>
+            )}
+            <Link href={createUrl("/admin")} className="block px-3 py-2 text-base font-medium text-blue-gray">
+              Admin
+            </Link>
+          </div>
         </div>
       </div>
     </nav>
