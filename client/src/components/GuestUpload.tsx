@@ -207,10 +207,10 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   const handleUpload = async () => {
 
     const currentUserEmail = user?.email || '';
-    const currentUserName = userProfile?.displayName || user?.displayName || '';
+    const currentUserName = userProfile?.displayName || user?.displayName || guestName.trim() || 'Utente';
 
     // Verifica autenticazione prima del caricamento
-    if (!isAuthenticated || !currentUserEmail || !currentUserName) {
+    if (!isAuthenticated || !currentUserEmail) {
       toast({
         title: "Non sei autenticato",
         description: "Per favore, effettua il login per caricare le foto",
@@ -257,7 +257,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
           contentType: compressedFile.type,
           createdAt: serverTimestamp(),
           uploadedBy: 'guest',
-          uploaderName: currentUser?.displayName || guestName.trim(),
+          uploaderName: currentUserName,
           uploaderRole: 'guest',
           uploaderEmail: currentUser?.email,
           uploaderUid: currentUser?.uid
@@ -280,13 +280,12 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       // Invia notifiche email ai subscribers
       try {
         const galleryUrl = createGalleryUrl(galleryId);
-        const uploaderDisplayName = currentUser?.displayName || guestName.trim();
 
         await notifySubscribers({
           galleryId,
           galleryName,
           newPhotosCount: uploadedPhotos.length,
-          uploaderName: uploaderDisplayName,
+          uploaderName: currentUserName,
           galleryUrl
         });
       } catch (notifyError) {
