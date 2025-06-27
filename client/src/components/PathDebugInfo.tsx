@@ -103,21 +103,10 @@ export default function PathDebugInfo() {
           size="sm"
           className="w-full"
           onClick={() => {
-            console.log('Path Debug Info:', {
-              pathInfo,
-              isSubdirectory: isSubdirectory(),
-              env: {
-                MODE: import.meta.env.MODE,
-                BASE_PATH: import.meta.env.VITE_BASE_PATH,
-              },
-              testUrls: {
-                api: createUrl('/api/test-email'),
-                gallery: createUrl('/gallery/123'),
-              }
-            });
+            // Debug functionality removed for cleaner console output
           }}
         >
-          Log to Console
+          Debug Info
         </Button>
       </CardContent>
     </Card>

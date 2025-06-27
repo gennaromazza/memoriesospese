@@ -106,8 +106,6 @@ export class PerformanceMonitor {
   
   static logMeasure(name: string): void {
     const duration = this.endMeasure(name);
-    if (duration > 0) {
-      console.log(`[Performance] ${name}: ${duration.toFixed(2)}ms`);
-    }
+    // Performance logging disabled for cleaner console output
   }
 }

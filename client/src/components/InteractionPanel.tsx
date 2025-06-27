@@ -129,7 +129,10 @@ export default function InteractionPanel({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({}), // Credenziali aggiunte automaticamente
+        body: JSON.stringify({
+          userEmail,
+          userName
+        }),
       });
 
       if (!response.ok) {
