@@ -32,22 +32,19 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   const [guestName, setGuestName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
   // Dati per recupero password
   const [resetEmail, setResetEmail] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
   const { toast } = useToast();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, isAuthenticated } = useAuth();
 
   const resetForm = () => {
     setGuestName('');
     setEmail('');
     setPassword('');
     setSelectedFiles([]);
-    setIsAuthenticated(false);
     setUploadProgress(0);
     setResetEmail('');
     setResetEmailSent(false);
@@ -176,7 +173,6 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
         await addDoc(collection(db, 'users'), userData);
       }
 
-      setIsAuthenticated(true);
       toast({
         title: "Autenticazione completata",
         description: `Benvenuto! Ora puoi caricare le tue foto.`,

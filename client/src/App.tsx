@@ -20,6 +20,7 @@ import DeleteGalleryPage from "@/pages/DeleteGalleryPage";
 import SecurityTestPage from "@/pages/SecurityTestPage";
 import NotFound from "@/pages/not-found";
 import PathDebugInfo from "@/components/PathDebugInfo";
+import AuthDebugPanel from "@/components/AuthDebugPanel";
 import { authInterceptor } from "@/lib/authInterceptor";
 
 // Hook per tracciare le visualizzazioni delle pagine
@@ -85,8 +86,13 @@ function App() {
               <WouterRouter base={basePath}>
                 <Router />
               </WouterRouter>
-              {/* Debug component - solo in sviluppo */}
-              {import.meta.env.MODE === 'development' && <PathDebugInfo />}
+              {/* Debug components - solo in sviluppo */}
+              {import.meta.env.MODE === 'development' && (
+                <>
+                  <PathDebugInfo />
+                  <AuthDebugPanel />
+                </>
+              )}
             </StudioProvider>
           </AuthProvider>
         </TooltipProvider>
