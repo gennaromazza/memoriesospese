@@ -417,6 +417,7 @@ export default function VoiceMemoPlayer({
               galleryId={galleryId}
               isAdmin={isAdmin}
               variant="inline"
+              className="bg-transparent"
             />
           </div>
         </div>

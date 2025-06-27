@@ -31,13 +31,17 @@ export default function InteractionWrapper({
   const { isAuthenticated, user, userProfile } = useAuth();
   const { hasAccess, grantAccess } = useGalleryAccess(galleryId);
 
-  // Check if user is authenticated (either through Firebase or localStorage)
+  // Get authentication data from centralized system
   const userEmail = user?.email || localStorage.getItem('userEmail') || '';
-  const userName = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || '';
-  const hasUserData = isAuthenticated || (userEmail && userName);
+  const userName = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || (userEmail ? userEmail.split('@')[0] : '');
+
+  // Combined authentication check - prioritize Firebase auth, fallback to localStorage
+  const hasFirebaseAuth = isAuthenticated && user && userEmail;
+  const hasLocalAuth = !isAuthenticated && userEmail && userName;
+  const hasAuth = hasFirebaseAuth || hasLocalAuth;
 
   const handleInteractionClick = () => {
-    if (!hasUserData || !hasAccess) {
+    if (!hasAuth || !hasAccess) {
       setShowAuthDialog(true);
       return;
     }

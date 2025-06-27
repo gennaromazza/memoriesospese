@@ -58,9 +58,18 @@ export default function InteractionPanel({
   const { user, userProfile, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
-  // Get user data from Firebase Auth
-  const userEmail = user?.email || '';
-  const userName = userProfile?.displayName || user?.displayName || '';
+  // Get authentication data from centralized system
+  const userEmail = user?.email || localStorage.getItem('userEmail') || '';
+  const userName = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || (userEmail ? userEmail.split('@')[0] : '');
+
+  console.log('InteractionPanel Auth Debug:', {
+    isAuthenticated,
+    user: user ? { email: user.email, displayName: user.displayName } : null,
+    userProfile: userProfile || {},
+    userEmail,
+    userName,
+    itemType
+  });
 
   // Debug logging
   console.log('InteractionPanel Debug:', {
@@ -172,38 +181,47 @@ export default function InteractionPanel({
 
   // Handle comment submission
   const handleSubmitComment = async () => {
-    // Verifica autenticazione con sistema centralizzato
-    if (!(await authInterceptor.requireAuth())) {
-      return;
-    }
-
     if (!newComment.trim()) {
       toast({
-        title: 'Errore',
-        description: 'Il commento non può essere vuoto',
-        variant: 'destructive',
+        title: "Errore",
+        description: "Il commento non può essere vuoto",
+        variant: "destructive"
       });
       return;
     }
 
-    if (newComment.length > 500) {
-      toast({
-        title: 'Errore',
-        description: 'Il commento non può superare i 500 caratteri',
-        variant: 'destructive',
-      });
+    if (!hasAuth) {
+      setShowAuthDialog(true);
       return;
     }
 
     try {
       setIsSubmittingComment(true);
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`), {
+
+      // Use the correct user data based on auth method
+      const finalUserEmail = user?.email || userEmail;
+      const finalUserName = userProfile?.displayName || user?.displayName || userName || finalUserEmail.split('@')[0];
+
+      console.log('Submitting comment with auth data:', {
+        finalUserEmail,
+        finalUserName,
+        itemType,
+        hasFirebaseAuth,
+        hasLocalAuth
+      });
+
+      const response = await authInterceptor(`${createUrl()}/api/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          content: newComment.trim() 
+        body: JSON.stringify({
+          itemId,
+          itemType,
+          content: newComment.trim(),
+          userEmail: finalUserEmail,
+          userName: finalUserName,
+          galleryId
         }),
       });
 
@@ -378,6 +396,22 @@ export default function InteractionPanel({
         />
       </>
     );
+  }
+
+  // Combined authentication check - ensure we have proper user identification
+  const hasFirebaseAuth = isAuthenticated && user && userEmail;
+  const hasLocalAuth = !isAuthenticated && userEmail && userName;
+  const hasAuth = hasFirebaseAuth || hasLocalAuth;
+
+  // Debug log for voice memos specifically
+  if (itemType === 'voice_memo') {
+    console.log('Voice Memo Auth Check:', {
+      hasFirebaseAuth,
+      hasLocalAuth,
+      hasAuth,
+      userEmail,
+      userName
+    });
   }
 
   return (
