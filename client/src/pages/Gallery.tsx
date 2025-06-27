@@ -527,20 +527,16 @@ export default function Gallery() {
                             title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                           />
 
-                          {/* Interaction panel - positioned in top-right corner */}
+                          {/* Small floating action buttons */}
                           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                            <div 
-                              className="bg-white/95 backdrop-blur-sm rounded-lg p-1.5 shadow-sm"
+                            <InteractionWrapper
+                              itemId={photo.id}
+                              itemType="photo"
+                              galleryId={gallery.id}
+                              isAdmin={isAdmin}
+                              variant="floating"
                               onClick={(e) => e.stopPropagation()}
-                            >
-                              <InteractionWrapper
-                                itemId={photo.id}
-                                itemType="photo"
-                                galleryId={gallery.id}
-                                isAdmin={isAdmin}
-                                className="scale-75"
-                              />
-                            </div>
+                            />
                           </div>
                         </div>
                       ))}
@@ -604,20 +600,16 @@ export default function Gallery() {
                           </div>
                         )}
 
-                        {/* Interaction panel - positioned in top-right corner */}
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                          <div 
-                            className="bg-white/95 backdrop-blur-sm rounded-lg p-1.5 shadow-sm"
+                        {/* Small floating action buttons */}
+                        <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                          <InteractionWrapper
+                            itemId={photo.id}
+                            itemType="photo"
+                            galleryId={gallery.id}
+                            isAdmin={isAdmin}
+                            variant="floating"
                             onClick={(e) => e.stopPropagation()}
-                          >
-                            <InteractionWrapper
-                              itemId={photo.id}
-                              itemType="photo"
-                              galleryId={gallery.id}
-                              isAdmin={isAdmin}
-                              className="scale-75"
-                            />
-                          </div>
+                          />
                         </div>
                       </div>
                     ))}

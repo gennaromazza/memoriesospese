@@ -24,11 +24,12 @@ interface InteractionPanelProps {
   itemId: string;
   itemType: 'photo' | 'voice_memo';
   galleryId: string;
+  isAdmin?: boolean;
   userEmail?: string;
   userName?: string;
-  isAdmin?: boolean;
   className?: string;
   onAuthRequired?: () => void;
+  variant?: 'default' | 'floating';
 }
 
 export default function InteractionPanel({
@@ -37,7 +38,8 @@ export default function InteractionPanel({
   galleryId,
   isAdmin = false,
   className = '',
-  onAuthRequired
+  onAuthRequired,
+  variant = 'default'
 }: InteractionPanelProps) {
   const [stats, setStats] = useState<InteractionStats>({
     likesCount: 0,
@@ -320,6 +322,72 @@ export default function InteractionPanel({
     fetchStats();
   }, [itemId, itemType, galleryId, userEmail]);
 
+  const handleAuthSuccess = () => {
+    setShowAuthDialog(false);
+    fetchStats();
+  };
+
+  if (variant === 'floating') {
+    return (
+      <>
+        <div className="flex gap-1">
+          {/* Like button - floating */}
+          <Button
+            onClick={handleLike}
+            variant="ghost"
+            size="sm"
+            className={`h-8 w-8 p-0 rounded-full bg-white/90 backdrop-blur-sm shadow-sm ${
+              stats.hasUserLiked
+                ? 'text-red-500 hover:text-red-600 hover:bg-red-50'
+                : 'text-gray-600 hover:text-red-500 hover:bg-red-50'
+            }`}
+            disabled={isLoading || isLoadingStats}
+          >
+            <Heart 
+              className={`h-4 w-4 ${stats.hasUserLiked ? 'fill-current' : ''}`} 
+            />
+          </Button>
+
+          {/* Comments button - floating */}
+          <Button
+            onClick={() => {
+              setShowCommentModal(true);
+              fetchComments();
+            }}
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 rounded-full bg-white/90 backdrop-blur-sm shadow-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Comment Modal */}
+        <CommentModal
+          isOpen={showCommentModal}
+          onOpenChange={setShowCommentModal}
+          comments={comments}
+          newComment={newComment}
+          onNewCommentChange={setNewComment}
+          onSubmitComment={handleSubmitComment}
+          onDeleteComment={handleDeleteComment}
+          isSubmitting={isSubmittingComment}
+          isAdmin={isAdmin}
+          userEmail={userEmail}
+          userName={userName}
+        />
+
+        {/* Authentication Dialog */}
+        <UnifiedAuthDialog
+          isOpen={showAuthDialog}
+          onOpenChange={setShowAuthDialog}
+          galleryId={galleryId}
+          onAuthComplete={handleAuthSuccess}
+        />
+      </>
+    );
+  }
+
   return (
     <div className={`space-y-3 ${className}`}>
       {/* Like and comment buttons */}
@@ -443,11 +511,7 @@ export default function InteractionPanel({
         isOpen={showAuthDialog}
         onOpenChange={setShowAuthDialog}
         galleryId={galleryId}
-        onAuthComplete={() => {
-          setShowAuthDialog(false);
-          // Refresh stats after authentication
-          fetchStats();
-        }}
+        onAuthComplete={handleAuthSuccess}
       />
     </div>
   );

@@ -7,16 +7,20 @@ interface InteractionWrapperProps {
   itemId: string;
   itemType: 'photo' | 'voice_memo';
   galleryId: string;
-  isAdmin?: boolean;
+  isAdmin: boolean;
   className?: string;
+  variant?: 'default' | 'floating';
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 export default function InteractionWrapper({
   itemId,
   itemType,
   galleryId,
-  isAdmin = false,
-  className = ''
+  isAdmin,
+  className = "",
+  variant = "default",
+  onClick
 }: InteractionWrapperProps) {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
 
@@ -37,6 +41,23 @@ export default function InteractionWrapper({
     }
     return true;
   };
+
+  if (variant === 'floating') {
+    return (
+      <div className={`flex gap-1 ${className}`} onClick={onClick}>
+        <InteractionPanel
+          itemId={itemId}
+          itemType={itemType}
+          galleryId={galleryId}
+          isAdmin={isAdmin}
+          userEmail={user?.email || undefined}
+          userName={userProfile?.displayName || user?.email?.split('@')[0] || undefined}
+          variant="floating"
+          onAuthRequired={handleInteractionAttempt}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
