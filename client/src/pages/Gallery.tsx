@@ -4,6 +4,12 @@ import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
 import { User } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import ImageLightbox from "@/components/ImageLightbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -319,46 +325,71 @@ export default function Gallery() {
             <div className="px-4 py-4">
               {/* Tab per switchare tra foto del fotografo, ospiti e vocali segreti */}
               <div className="flex items-center justify-center mb-8">
-                <div className="flex bg-gray-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setActiveTab('photographer')}
-                    className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
-                      activeTab === 'photographer'
-                        ? 'bg-white shadow-sm text-blue-gray'
-                        : 'text-gray-600 hover:text-blue-gray'
-                    }`}
-                  >
-                    <span className="hidden sm:inline">Foto del fotografo</span>
-                    <span className="sm:hidden">Fotografo</span>
-                    <span className="ml-1">({photos.length})</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('guests')}
-                    className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
-                      activeTab === 'guests'
-                        ? 'bg-white shadow-sm text-blue-gray'
-                        : 'text-gray-600 hover:text-blue-gray'
-                    }`}
-                  >
-                    <span className="hidden sm:inline">Foto degli ospiti</span>
-                    <span className="sm:hidden">Ospiti</span>
-                    <span className="ml-1">({guestPhotos.length})</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('voice-memos')}
-                    className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
-                      activeTab === 'voice-memos'
-                        ? 'bg-gradient-to-r from-sage-100 to-blue-gray-100 shadow-lg text-sage-800 border border-sage-200'
-                        : 'text-gray-600 hover:text-sage-700 hover:bg-sage-50'
-                    }`}
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                    <span className="hidden sm:inline">Vocali Segreti</span>
-                    <span className="sm:hidden">Vocali</span>
-                  </button>
-                </div>
+                <TooltipProvider>
+                  <div className="flex bg-gray-100 rounded-lg p-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setActiveTab('photographer')}
+                          className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
+                            activeTab === 'photographer'
+                              ? 'bg-white shadow-sm text-blue-gray'
+                              : 'text-gray-600 hover:text-blue-gray'
+                          }`}
+                        >
+                          <span className="hidden sm:inline">Foto del fotografo</span>
+                          <span className="sm:hidden">Fotografo</span>
+                          <span className="ml-1">({photos.length})</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-sm">
+                        <p>Visualizza le foto professionali scattate dal fotografo</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setActiveTab('guests')}
+                          className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
+                            activeTab === 'guests'
+                              ? 'bg-white shadow-sm text-blue-gray'
+                              : 'text-gray-600 hover:text-blue-gray'
+                          }`}
+                        >
+                          <span className="hidden sm:inline">Foto degli ospiti</span>
+                          <span className="sm:hidden">Ospiti</span>
+                          <span className="ml-1">({guestPhotos.length})</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-sm">
+                        <p>Guarda le foto caricate dagli ospiti dell'evento</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setActiveTab('voice-memos')}
+                          className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
+                            activeTab === 'voice-memos'
+                              ? 'bg-gradient-to-r from-sage-100 to-blue-gray-100 shadow-lg text-sage-800 border border-sage-200'
+                              : 'text-gray-600 hover:text-sage-700 hover:bg-sage-50'
+                          }`}
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          </svg>
+                          <span className="hidden sm:inline">Vocali Segreti</span>
+                          <span className="sm:hidden">Vocali</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-sm">
+                        <p>Ascolta i messaggi vocali privati lasciati dagli ospiti</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TooltipProvider>
               </div>
 
               {/* Barra con filtri e azioni - solo per tab fotografo */}
@@ -375,56 +406,92 @@ export default function Gallery() {
 
                   {/* Azioni galleria */}
                   <div className="flex gap-2">
-                    <SubscriptionManager 
-                      galleryId={gallery.id}
-                      galleryName={gallery.name}
-                    />
-                    <GuestUpload 
-                      galleryId={gallery.id}
-                      galleryName={gallery.name}
-                      onPhotosUploaded={() => {
-                        // Ricarica i dati della galleria quando vengono caricate nuove foto
-                        window.location.reload();
-                      }}
-                    />
-                    {(userEmail || userName) && (
-                      <div className="flex gap-2">
-                        {isAuthenticated && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(createUrl("/profile"))}
-                            className="text-xs px-3 py-1.5 h-8"
-                          >
-                            <User className="h-3 w-3 mr-1" />
-                            Profilo
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Clear all authentication data
-                            const keys = Object.keys(localStorage);
-                            keys.forEach(key => {
-                              if (key.startsWith('gallery_auth_') || 
-                                  key.startsWith('user_email_') || 
-                                  key.startsWith('user_name_') ||
-                                  key === 'userEmail' ||
-                                  key === 'userName' ||
-                                  key === 'isAdmin') {
-                                localStorage.removeItem(key);
-                              }
-                            });
-                            // Refresh page to reflect logout state
-                            window.location.reload();
-                          }}
-                          className="text-xs px-3 py-1.5 h-8"
-                        >
-                          Logout
-                        </Button>
-                      </div>
-                    )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <SubscriptionManager 
+                              galleryId={gallery.id}
+                              galleryName={gallery.name}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>Iscriviti per ricevere notifiche quando vengono aggiunte nuove foto</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <GuestUpload 
+                              galleryId={gallery.id}
+                              galleryName={gallery.name}
+                              onPhotosUploaded={() => {
+                                // Ricarica i dati della galleria quando vengono caricate nuove foto
+                                window.location.reload();
+                              }}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>Carica le tue foto per condividerle con tutti gli ospiti</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      
+                      {(userEmail || userName) && (
+                        <div className="flex gap-2">
+                          {isAuthenticated && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => navigate(createUrl("/profile"))}
+                                  className="text-xs px-3 py-1.5 h-8"
+                                >
+                                  <User className="h-3 w-3 mr-1" />
+                                  Profilo
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="text-sm">
+                                <p>Gestisci il tuo profilo utente</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  // Clear all authentication data
+                                  const keys = Object.keys(localStorage);
+                                  keys.forEach(key => {
+                                    if (key.startsWith('gallery_auth_') || 
+                                        key.startsWith('user_email_') || 
+                                        key.startsWith('user_name_') ||
+                                        key === 'userEmail' ||
+                                        key === 'userName' ||
+                                        key === 'isAdmin') {
+                                      localStorage.removeItem(key);
+                                    }
+                                  });
+                                  // Refresh page to reflect logout state
+                                  window.location.reload();
+                                }}
+                                className="text-xs px-3 py-1.5 h-8"
+                              >
+                                Logout
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="text-sm">
+                              <p>Disconnettiti dal tuo account</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )}
+                    </TooltipProvider>
                   </div>
                 </div>
               )}
@@ -432,79 +499,117 @@ export default function Gallery() {
               {/* Solo pulsante carica foto per tab ospiti */}
               {activeTab === 'guests' && (
                 <div className="flex justify-center items-center gap-3 mb-6">
-                  <GuestUpload 
-                    galleryId={gallery.id}
-                    galleryName={gallery.name}
-                    onPhotosUploaded={() => {
-                      window.location.reload();
-                    }}
-                  />
-                  {(userEmail || userName) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Clear all authentication data
-                        const keys = Object.keys(localStorage);
-                        keys.forEach(key => {
-                          if (key.startsWith('gallery_auth_') || 
-                              key.startsWith('user_email_') || 
-                              key.startsWith('user_name_') ||
-                              key === 'userEmail' ||
-                              key === 'userName' ||
-                              key === 'isAdmin') {
-                            localStorage.removeItem(key);
-                          }
-                        });
-                        window.location.reload();
-                      }}
-                      className="text-xs px-3 py-1.5 h-8"
-                    >
-                      Logout
-                    </Button>
-                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <GuestUpload 
+                            galleryId={gallery.id}
+                            galleryName={gallery.name}
+                            onPhotosUploaded={() => {
+                              window.location.reload();
+                            }}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-sm">
+                        <p>Aggiungi le tue foto personali alla galleria degli ospiti</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    {(userEmail || userName) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Clear all authentication data
+                              const keys = Object.keys(localStorage);
+                              keys.forEach(key => {
+                                if (key.startsWith('gallery_auth_') || 
+                                    key.startsWith('user_email_') || 
+                                    key.startsWith('user_name_') ||
+                                    key === 'userEmail' ||
+                                    key === 'userName' ||
+                                    key === 'isAdmin') {
+                                  localStorage.removeItem(key);
+                                }
+                              });
+                              window.location.reload();
+                            }}
+                            className="text-xs px-3 py-1.5 h-8"
+                          >
+                            Logout
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>Disconnettiti dal tuo account</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </TooltipProvider>
                 </div>
               )}
 
               {/* Azioni per tab vocali segreti */}
               {activeTab === 'voice-memos' && (
                 <div className="flex justify-center items-center gap-3 mb-6">
-                  <VoiceMemoUpload 
-                    galleryId={gallery.id}
-                    galleryName={gallery.name}
-                    userEmail={userEmail}
-                    userName={userName}
-                    onUploadComplete={() => {
-                      // Trigger refresh of voice memos list
-                      setRefreshTrigger(prev => prev + 1);
-                      // Refresh user credentials in case they were updated
-                      refreshUserCredentials();
-                    }}
-                  />
-                  {(userEmail || userName) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Clear all authentication data
-                        const keys = Object.keys(localStorage);
-                        keys.forEach(key => {
-                          if (key.startsWith('gallery_auth_') || 
-                              key.startsWith('user_email_') || 
-                              key.startsWith('user_name_') ||
-                              key === 'userEmail' ||
-                              key === 'userName' ||
-                              key === 'isAdmin') {
-                            localStorage.removeItem(key);
-                          }
-                        });
-                        window.location.reload();
-                      }}
-                      className="text-xs px-3 py-1.5 h-8"
-                    >
-                      Logout
-                    </Button>
-                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <VoiceMemoUpload 
+                            galleryId={gallery.id}
+                            galleryName={gallery.name}
+                            userEmail={userEmail}
+                            userName={userName}
+                            onUploadComplete={() => {
+                              // Trigger refresh of voice memos list
+                              setRefreshTrigger(prev => prev + 1);
+                              // Refresh user credentials in case they were updated
+                              refreshUserCredentials();
+                            }}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-sm">
+                        <p>Registra un messaggio vocale privato per gli sposi</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    {(userEmail || userName) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Clear all authentication data
+                              const keys = Object.keys(localStorage);
+                              keys.forEach(key => {
+                                if (key.startsWith('gallery_auth_') || 
+                                    key.startsWith('user_email_') || 
+                                    key.startsWith('user_name_') ||
+                                    key === 'userEmail' ||
+                                    key === 'userName' ||
+                                    key === 'isAdmin') {
+                                  localStorage.removeItem(key);
+                                }
+                              });
+                              window.location.reload();
+                            }}
+                            className="text-xs px-3 py-1.5 h-8"
+                          >
+                            Logout
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>Disconnettiti dal tuo account</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </TooltipProvider>
                 </div>
               )}
 
@@ -514,18 +619,27 @@ export default function Gallery() {
                   {/* Discrete registration link for non-authenticated users - only show when not logged in */}
                   {!isAuthenticated && !userEmail && !userName && (
                     <div className="mb-6 text-center">
-                      <button
-                        onClick={() => {
-                          const registrationSection = document.getElementById('registration-section');
-                          registrationSection?.scrollIntoView({ behavior: 'smooth' });
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sage-100 to-blue-gray-100 hover:from-sage-200 hover:to-blue-gray-200 text-sage-800 rounded-full border border-sage-300 transition-all duration-300 hover:shadow-md text-sm font-medium"
-                      >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        🎁 Sblocca tutte le funzionalità - Scopri i vantaggi
-                      </button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => {
+                                const registrationSection = document.getElementById('registration-section');
+                                registrationSection?.scrollIntoView({ behavior: 'smooth' });
+                              }}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sage-100 to-blue-gray-100 hover:from-sage-200 hover:to-blue-gray-200 text-sage-800 rounded-full border border-sage-300 transition-all duration-300 hover:shadow-md text-sm font-medium"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                              🎁 Sblocca tutte le funzionalità - Scopri i vantaggi
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-sm max-w-xs">
+                            <p>Registrati per commentare, mettere "mi piace" e accedere a tutte le funzionalità della galleria</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   )}
 
