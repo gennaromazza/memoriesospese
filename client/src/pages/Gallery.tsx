@@ -637,9 +637,27 @@ export default function Gallery() {
                 />
               )}
 
-              {/* Registration CTA for non-authenticated users */}
+              {/* Discrete registration link for non-authenticated users */}
               {!isAuthenticated && !userEmail && (
-                <div className="mt-8 mb-8">
+                <div className="mt-6 mb-6 text-center">
+                  <button
+                    onClick={() => {
+                      const registrationSection = document.getElementById('registration-section');
+                      registrationSection?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sage-100 to-blue-gray-100 hover:from-sage-200 hover:to-blue-gray-200 text-sage-800 rounded-full border border-sage-300 transition-all duration-300 hover:shadow-md text-sm font-medium"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    🎁 Sblocca tutte le funzionalità - Scopri i vantaggi
+                  </button>
+                </div>
+              )}
+
+              {/* Registration CTA section - moved to bottom */}
+              {!isAuthenticated && !userEmail && (
+                <div id="registration-section" className="mt-12 mb-8">
                   <RegistrationCTA
                     galleryId={gallery.id}
                     onAuthComplete={refreshUserCredentials}
