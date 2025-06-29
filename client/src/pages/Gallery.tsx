@@ -663,17 +663,17 @@ export default function Gallery() {
                     </div>
                   ) : (
                     <div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+                      <div className="masonry-grid">
                         {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
-                          <div key={photo.id} className="space-y-2">
+                          <div key={photo.id} className="masonry-item">
                             <div
-                              className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg"
+                              className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
                               onClick={() => openLightbox(index)}
                             >
                               <img
                                 src={photo.url}
                                 alt={photo.name || `Foto ${index + 1}`}
-                                className="w-full h-auto object-contain transition-opacity duration-300 opacity-0 hover:opacity-95 max-h-64"
+                                className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
                                 loading="lazy"
                                 onLoad={(e) => {
                                   (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
@@ -726,39 +726,37 @@ export default function Gallery() {
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+                    <div className="masonry-grid">
                       {guestPhotos.map((photo, index) => (
-                        <div
-                          key={photo.id}
-                          className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg"
-                          onClick={() => openLightbox(photos.length + index)}
-                        >
-                          <img
-                            src={photo.url}
-                            alt={photo.name || `Foto ospite ${index + 1}`}
-                            className="w-full h-auto object-contain transition-opacity duration-300 opacity-0 hover:opacity-95 max-h-64"
-                            loading="lazy"
-                            onLoad={(e) => {
-                              (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
-                            }}
-                            style={{ 
-                              backgroundColor: '#f3f4f6',
-                            }}
-                            title={`Caricata da: ${photo.uploaderName || 'Ospite'} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}`}
-                          />
-                          {/* Badge per indicare che è una foto ospite */}
-                          <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
-                            Ospite
-                          </div>
-                          {/* Nome dell'uploader in basso a sinistra */}
-                          {photo.uploaderName && (
-                            <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                              {photo.uploaderName}
+                        <div key={photo.id} className="masonry-item">
+                          <div
+                            className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+                            onClick={() => openLightbox(photos.length + index)}
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.name || `Foto ospite ${index + 1}`}
+                              className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                              loading="lazy"
+                              onLoad={(e) => {
+                                (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                              }}
+                              style={{ 
+                                backgroundColor: '#f3f4f6',
+                              }}
+                              title={`Caricata da: ${photo.uploaderName || 'Ospite'} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}`}
+                            />
+                            {/* Badge per indicare che è una foto ospite */}
+                            <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
+                              Ospite
                             </div>
-                          )}
-
-                          {/* Small floating action buttons */}
-                          
+                            {/* Nome dell'uploader in basso a sinistra */}
+                            {photo.uploaderName && (
+                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                                {photo.uploaderName}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

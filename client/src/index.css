@@ -86,11 +86,50 @@
 
 @layer components {
   .gallery-image {
-    @apply overflow-hidden rounded-lg shadow-md cursor-pointer transition-transform duration-300 h-64 bg-gray-100;
+    @apply overflow-hidden rounded-lg shadow-md cursor-pointer transition-transform duration-300 bg-gray-100;
   }
   
   .gallery-image:hover {
     @apply transform scale-[1.02];
+  }
+
+  /* Masonry grid layout */
+  .masonry-grid {
+    column-count: 2;
+    column-gap: 0.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .masonry-grid {
+      column-count: 3;
+      column-gap: 1rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .masonry-grid {
+      column-count: 4;
+      column-gap: 1.5rem;
+    }
+  }
+
+  .masonry-item {
+    display: inline-block;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    break-inside: avoid;
+  }
+
+  @media (min-width: 640px) {
+    .masonry-item {
+      margin-bottom: 1rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .masonry-item {
+      margin-bottom: 1.5rem;
+    }
   }
 
   .btn-primary {
