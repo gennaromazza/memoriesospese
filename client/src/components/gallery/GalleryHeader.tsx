@@ -60,14 +60,16 @@ export default function GalleryHeader({
       // Fallback: se abbiamo solo l'ID, usiamo quello
       relativePath = `/gallery/${galleryId}`;
     } else {
-      // Altrimenti condividiamo la pagina corrente
-      // Rimuoviamo il base path dall'URL per evitare duplicazioni
+      // Altrimenti condividiamo la pagina corrente, ma convertiamo /view/ in /gallery/
       relativePath = window.location.pathname;
       
       // Se siamo in produzione, rimuoviamo il prefisso /wedgallery dall'URL
       if (import.meta.env.PROD) {
         relativePath = relativePath.replace(import.meta.env.BASE_URL, '');
       }
+      
+      // Converti /view/ in /gallery/ per il link di condivisione
+      relativePath = relativePath.replace(/^\/view\//, '/gallery/');
     }
     
     // Generiamo l'URL assoluto che includerà automaticamente il base path corretto
