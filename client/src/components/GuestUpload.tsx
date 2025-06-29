@@ -336,7 +336,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
           <Button 
             variant="outline" 
             size="lg"
-            className="bg-[#7c80ae] hover:bg-[#6b6f9c] text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
+            className="bg-sage hover:bg-sage/80 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
             onClick={handleDialogOpen}
           >
             <Camera className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
