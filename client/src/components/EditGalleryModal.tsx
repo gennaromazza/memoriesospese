@@ -51,7 +51,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: UploadProgressInfo}>({});
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [photoToDelete, setPhotoToDelete] = useState<File | null>(null);
+  const [photoToDelete, setPhotoToDelete] = useState<any | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -343,7 +343,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden" aria-describedby="edit-gallery-dialog-description">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby="edit-gallery-dialog-description">
         <DialogHeader>
           <DialogTitle>Modifica Galleria: {gallery.name}</DialogTitle>
           <DialogDescription id="edit-gallery-dialog-description">
@@ -351,13 +351,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2 shrink-0">
             <TabsTrigger value="details">Dettagli</TabsTrigger>
             <TabsTrigger value="photos">Foto ({photos.length})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="space-y-4">
+          <TabsContent value="details" className="space-y-4 overflow-y-auto flex-1 pr-2">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Nome Galleria</Label>
@@ -448,7 +448,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             </DialogFooter>
           </TabsContent>
 
-          <TabsContent value="photos" className="space-y-4">
+          <TabsContent value="photos" className="space-y-4 overflow-y-auto flex-1 pr-2">
             <div>
               <Label htmlFor="photo-upload">Carica Nuove Foto</Label>
               <div className="flex items-center space-x-2">

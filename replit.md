@@ -32,6 +32,16 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 29 Giugno 2025 - Fix Critico Upload Foto Admin
+- ✓ **PROBLEMA IDENTIFICATO**: Upload admin salvava in `gallery-photos` ma frontend leggeva da `galleries/{galleryId}/photos`
+- ✓ Corretta funzione handleUploadPhotos in EditGalleryModal per salvare in collezione corretta
+- ✓ Aggiornata funzione loadPhotos per leggere dalla subcollection specifica della galleria
+- ✓ Corretta funzione deletePhoto per eliminare dalla collezione corretta
+- ✓ Risolti errori di sintassi in EditGalleryModal.tsx che bloccavano l'applicazione
+- ✓ Implementato scroll corretto nel dialog di modifica galleria
+- ✓ Aggiornata documentazione Collections and Variables con struttura corretta
+- ✓ Testato: 6 foto caricate correttamente da admin e visibili in galleria
+
 ### 27 Gennaio 2025 - Sistema Autenticazione Centralizzato
 - ✓ Identificate 6 discrepanze critiche nel sistema di autenticazione
 - ✓ Mappate richieste di login ridondanti nei moduli Like, Commenti e Audio
@@ -39,7 +49,6 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 - ✓ Creato AuthInterceptor per gestione automatica errori 401
 - ✓ Aggiornati componenti InteractionPanel e VoiceMemosList per eliminare login ridondanti
 - ✓ Implementata inclusione automatica credenziali per endpoint che richiedono autenticazione
-- → Testing sistema per verificare eliminazione richieste duplicate
 
 ### Gennaio 2025 - Implementazione Base Path Automatico
 - ✓ Sistema automatico di rilevamento base path per sottocartelle

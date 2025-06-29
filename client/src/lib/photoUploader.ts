@@ -27,6 +27,7 @@ export interface UploadSummary {
   inProgress: number;
   waiting: number;
   avgProgress: number;
+  overallProgress: number;
   totalSize: number;
   uploadedSize: number;
 }
@@ -167,6 +168,7 @@ export const calculateUploadSummary = (progressMap: { [filename: string]: Upload
     inProgress: 0,
     waiting: 0,
     avgProgress: 0,
+    overallProgress: 0,
     totalSize: 0,
     uploadedSize: 0
   };
@@ -204,6 +206,7 @@ export const calculateUploadSummary = (progressMap: { [filename: string]: Upload
   });
 
   summary.avgProgress = totalProgress / summary.total;
+  summary.overallProgress = totalProgress / summary.total;
 
   return summary;
 };
