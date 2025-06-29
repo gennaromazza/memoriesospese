@@ -345,8 +345,8 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
             <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 ml-1.5 sm:ml-2 animate-pulse" />
           </Button>
 
-          {/* Tooltip con guida - nascosto su mobile */}
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-blue-gray-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden sm:block max-w-xs">
+          {/* Tooltip con guida - nascosto su mobile per evitare sovrapposizioni */}
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-blue-gray-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-50 hidden lg:block max-w-xs">
             <div className="flex items-center gap-2 mb-1">
               <Heart className="h-3 w-3 text-sage-300" />
               <span className="font-medium text-[#7c80ae]">Aggiungi le tue foto!</span>
