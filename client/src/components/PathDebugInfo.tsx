@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getPathInfo, createUrl, isSubdirectory } from '@/lib/config';
+import { getPathDebugInfo, createUrl, isInSubdirectory, refreshBasePath } from '@/lib/basePath';
 import { Info, Eye, EyeOff } from 'lucide-react';
 
 export default function PathDebugInfo() {
@@ -21,7 +21,7 @@ export default function PathDebugInfo() {
     );
   }
 
-  const pathInfo = getPathInfo();
+  const pathInfo = getPathDebugInfo();
 
   return (
     <Card className="fixed bottom-4 right-4 z-50 w-80 max-h-96 overflow-auto">
@@ -44,6 +44,32 @@ export default function PathDebugInfo() {
             {import.meta.env.MODE}
           </Badge>
         </div>
+        
+        <div>
+          <strong>Auto-detected Base Path:</strong>
+          <code className="ml-2 text-xs bg-gray-100 px-1 rounded">
+            {pathInfo?.detectedBasePath || '/'}
+          </code>
+        </div>
+        
+        <div>
+          <strong>Env Base Path:</strong>
+          <code className="ml-2 text-xs bg-gray-100 px-1 rounded">
+            {pathInfo?.envBasePath || 'not set'}
+          </code>
+        </div>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            refreshBasePath();
+            window.location.reload();
+          }}
+          className="mt-2"
+        >
+          Refresh Detection
+        </Button>
 
         <div>
           <strong>Current URL:</strong>
