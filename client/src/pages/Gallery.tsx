@@ -667,20 +667,19 @@ export default function Gallery() {
                         {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
                           <div key={photo.id} className="space-y-2">
                             <div
-                              className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative group"
+                              className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg"
                               onClick={() => openLightbox(index)}
                             >
                               <img
                                 src={photo.url}
                                 alt={photo.name || `Foto ${index + 1}`}
-                                className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                                className="w-full h-auto object-contain transition-opacity duration-300 opacity-0 hover:opacity-95 max-h-64"
                                 loading="lazy"
                                 onLoad={(e) => {
                                   (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
                                 }}
                                 style={{ 
                                   backgroundColor: '#f3f4f6',
-                                  objectFit: 'cover',
                                 }}
                                 title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                               />
@@ -731,20 +730,19 @@ export default function Gallery() {
                       {guestPhotos.map((photo, index) => (
                         <div
                           key={photo.id}
-                          className="gallery-image h-40 sm:h-52 lg:h-64 cursor-pointer relative group"
+                          className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg"
                           onClick={() => openLightbox(photos.length + index)}
                         >
                           <img
                             src={photo.url}
                             alt={photo.name || `Foto ospite ${index + 1}`}
-                            className="w-full h-full object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                            className="w-full h-auto object-contain transition-opacity duration-300 opacity-0 hover:opacity-95 max-h-64"
                             loading="lazy"
                             onLoad={(e) => {
                               (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
                             }}
                             style={{ 
                               backgroundColor: '#f3f4f6',
-                              objectFit: 'cover',
                             }}
                             title={`Caricata da: ${photo.uploaderName || 'Ospite'} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}`}
                           />
