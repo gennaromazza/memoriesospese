@@ -104,13 +104,13 @@ export default function Gallery() {
 
     checkAdmin();
     getUserCredentials();
-    
+
     // Listen for localStorage changes
     const handleStorageChange = () => {
       checkAdmin();
       getUserCredentials();
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [user, userProfile]);
@@ -546,19 +546,8 @@ export default function Gallery() {
                               title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                             />
 
-                            {/* Small floating action buttons */}
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                              <InteractionWrapper
-                                itemId={photo.id}
-                                itemType="photo"
-                                galleryId={gallery.id}
-                                isAdmin={isAdmin}
-                                variant="floating"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </div>
                           </div>
-                          
+
                           {/* Interaction panel below photo */}
                           <div className="mt-2">
                             <InteractionPanel
@@ -632,16 +621,7 @@ export default function Gallery() {
                         )}
 
                         {/* Small floating action buttons */}
-                        <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                          <InteractionWrapper
-                            itemId={photo.id}
-                            itemType="photo"
-                            galleryId={gallery.id}
-                            isAdmin={isAdmin}
-                            variant="floating"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
+                        
                       </div>
                     ))}
                   </div>
