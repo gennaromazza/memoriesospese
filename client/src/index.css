@@ -101,6 +101,27 @@
     @apply py-2 px-4 rounded-md bg-white/15 text-white flex items-center justify-center 
       backdrop-blur-sm hover:bg-white/25 transition-all;
   }
+
+  /* Menu responsive styles */
+  .gallery-action-button {
+    @apply transition-all duration-200 flex items-center justify-center;
+  }
+  
+  .gallery-menu-mobile {
+    @apply flex flex-col gap-3 w-full;
+  }
+  
+  .gallery-menu-desktop {
+    @apply sm:flex sm:flex-row sm:gap-2 sm:items-center;
+  }
+  
+  .gallery-button-container {
+    @apply w-full sm:w-auto flex-1 sm:flex-initial;
+  }
+  
+  .gallery-user-controls {
+    @apply flex gap-2 justify-end sm:justify-start w-full sm:w-auto;
+  }
 }
 
 /* Custom font and color utilities */

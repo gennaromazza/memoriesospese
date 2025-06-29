@@ -394,8 +394,9 @@ export default function Gallery() {
 
               {/* Barra con filtri e azioni - solo per tab fotografo */}
               {activeTab === 'photographer' && (
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <div className="flex-1">
+                <div className="space-y-4 mb-6">
+                  {/* Filtri - sempre sopra su mobile */}
+                  <div className="w-full">
                     <GalleryFilter 
                       onFilterChange={handleFilterChange}
                       totalPhotos={photos.length}
@@ -404,43 +405,49 @@ export default function Gallery() {
                     />
                   </div>
 
-                  {/* Azioni galleria */}
-                  <div className="flex gap-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div>
-                            <SubscriptionManager 
-                              galleryId={gallery.id}
-                              galleryName={gallery.name}
-                            />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="text-sm">
-                          <p>Iscriviti per ricevere notifiche quando vengono aggiunte nuove foto</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div>
-                            <GuestUpload 
-                              galleryId={gallery.id}
-                              galleryName={gallery.name}
-                              onPhotosUploaded={() => {
-                                // Ricarica i dati della galleria quando vengono caricate nuove foto
-                                window.location.reload();
-                              }}
-                            />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="text-sm">
-                          <p>Carica le tue foto per condividerle con tutti gli ospiti</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      
-                      {(userEmail || userName) && (
-                        <div className="flex gap-2">
+                  {/* Azioni galleria - layout responsive */}
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-2">
+                    {/* Pulsanti principali */}
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 flex-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex-1 sm:flex-initial">
+                              <SubscriptionManager 
+                                galleryId={gallery.id}
+                                galleryName={gallery.name}
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-sm">
+                            <p>Iscriviti per ricevere notifiche quando vengono aggiunte nuove foto</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex-1 sm:flex-initial">
+                              <GuestUpload 
+                                galleryId={gallery.id}
+                                galleryName={gallery.name}
+                                onPhotosUploaded={() => {
+                                  // Ricarica i dati della galleria quando vengono caricate nuove foto
+                                  window.location.reload();
+                                }}
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-sm">
+                            <p>Carica le tue foto per condividerle con tutti gli ospiti</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    
+                    {/* Pulsanti utente */}
+                    {(userEmail || userName) && (
+                      <div className="flex gap-2 justify-end sm:justify-start">
+                        <TooltipProvider>
                           {isAuthenticated && (
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -448,7 +455,7 @@ export default function Gallery() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => navigate(createUrl("/profile"))}
-                                  className="text-xs px-3 py-1.5 h-8"
+                                  className="text-xs px-3 py-1.5 h-8 min-w-[80px]"
                                 >
                                   <User className="h-3 w-3 mr-1" />
                                   Profilo
@@ -480,7 +487,7 @@ export default function Gallery() {
                                   // Refresh page to reflect logout state
                                   window.location.reload();
                                 }}
-                                className="text-xs px-3 py-1.5 h-8"
+                                className="text-xs px-3 py-1.5 h-8 min-w-[70px]"
                               >
                                 Logout
                               </Button>
@@ -489,20 +496,20 @@ export default function Gallery() {
                               <p>Disconnettiti dal tuo account</p>
                             </TooltipContent>
                           </Tooltip>
-                        </div>
-                      )}
-                    </TooltipProvider>
+                        </TooltipProvider>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Solo pulsante carica foto per tab ospiti */}
               {activeTab === 'guests' && (
-                <div className="flex justify-center items-center gap-3 mb-6">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div>
+                        <div className="w-full sm:w-auto">
                           <GuestUpload 
                             galleryId={gallery.id}
                             galleryName={gallery.name}
@@ -538,7 +545,7 @@ export default function Gallery() {
                               });
                               window.location.reload();
                             }}
-                            className="text-xs px-3 py-1.5 h-8"
+                            className="text-xs px-3 py-1.5 h-8 min-w-[70px] w-full sm:w-auto"
                           >
                             Logout
                           </Button>
@@ -554,11 +561,11 @@ export default function Gallery() {
 
               {/* Azioni per tab vocali segreti */}
               {activeTab === 'voice-memos' && (
-                <div className="flex justify-center items-center gap-3 mb-6">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div>
+                        <div className="w-full sm:w-auto">
                           <VoiceMemoUpload 
                             galleryId={gallery.id}
                             galleryName={gallery.name}
@@ -599,7 +606,7 @@ export default function Gallery() {
                               });
                               window.location.reload();
                             }}
-                            className="text-xs px-3 py-1.5 h-8"
+                            className="text-xs px-3 py-1.5 h-8 min-w-[70px] w-full sm:w-auto"
                           >
                             Logout
                           </Button>
