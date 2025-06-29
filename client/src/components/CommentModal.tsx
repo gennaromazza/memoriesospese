@@ -9,6 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Send, 
@@ -16,7 +21,8 @@ import {
   MessageCircle,
   User,
   Clock,
-  Trash2
+  Trash2,
+  Smile
 } from 'lucide-react';
 import { Comment } from '@shared/schema';
 
@@ -48,6 +54,20 @@ export default function CommentModal({
   userName
 }: CommentModalProps) {
   const { toast } = useToast();
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Lista di emoji comuni per matrimoni e eventi
+  const emojiCategories = {
+    'Emozioni': ['😍', '🥰', '😘', '💕', '💖', '❤️', '💝', '😊', '😄', '🤩', '😭', '🥺', '😳'],
+    'Matrimonio': ['💒', '👰', '🤵', '💍', '💐', '🌹', '🥂', '🍾', '🎂', '💒', '⛪', '🎊', '🎉'],
+    'Gesti': ['👏', '🙌', '👍', '✌️', '🤞', '💪', '🤝', '👌', '👸', '🤴', '💃', '🕺'],
+    'Altro': ['✨', '🌟', '⭐', '💫', '🎆', '🎇', '🔥', '💯', '🎈', '🎁', '🌈', '☀️', '🌸']
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    onNewCommentChange(newComment + emoji);
+    setShowEmojiPicker(false);
+  };
 
   const formatDateTime = (timestamp: any): string => {
     try {
@@ -149,15 +169,52 @@ export default function CommentModal({
               <Label htmlFor="comment-input" className="text-sm font-medium">
                 Scrivi un commento
               </Label>
-              <Textarea
-                id="comment-input"
-                placeholder="Condividi i tuoi pensieri..."
-                value={newComment}
-                onChange={(e) => onNewCommentChange(e.target.value)}
-                className="min-h-[80px] resize-none"
-                maxLength={500}
-                disabled={isSubmitting}
-              />
+              <div className="relative">
+                <Textarea
+                  id="comment-input"
+                  placeholder="Condividi i tuoi pensieri..."
+                  value={newComment}
+                  onChange={(e) => onNewCommentChange(e.target.value)}
+                  className="min-h-[80px] resize-none pr-12"
+                  maxLength={500}
+                  disabled={isSubmitting}
+                />
+                {/* Emoji picker button */}
+                <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-2 right-2 h-8 w-8 p-0 hover:bg-gray-100"
+                      disabled={isSubmitting}
+                    >
+                      <Smile className="h-4 w-4 text-gray-500" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-4" align="end">
+                    <div className="space-y-3">
+                      {Object.entries(emojiCategories).map(([category, emojis]) => (
+                        <div key={category}>
+                          <h4 className="text-xs font-medium text-gray-600 mb-2">{category}</h4>
+                          <div className="grid grid-cols-8 gap-1">
+                            {emojis.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => handleEmojiSelect(emoji)}
+                                className="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 rounded transition-colors"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">
                   {newComment.length}/500 caratteri
