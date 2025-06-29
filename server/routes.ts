@@ -659,6 +659,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add comment endpoint semplificato (per compatibilità frontend)
+  app.post('/api/comments', rateLimit, async (req, res) => {
+    try {
+      const { itemId, itemType, galleryId, userEmail, userName, content } = req.body;
+
+      // Validazione base dei dati
+      if (!itemId || !itemType || !galleryId || !userEmail || !userName || !content) {
+        return sendError(res, 400, 'Tutti i campi sono obbligatori');
+      }
+
+      // Validazione dati utente
+      const userValidationErrors = validateUserData(userEmail, userName);
+      if (userValidationErrors.length > 0) {
+        return sendError(res, 400, 'Dati utente non validi', userValidationErrors.join(', '));
+      }
+
+      // Validazione contenuto commento
+      const commentValidationErrors = validateCommentData(content);
+      if (commentValidationErrors.length > 0) {
+        return sendError(res, 400, 'Contenuto commento non valido', commentValidationErrors.join(', '));
+      }
+
+      // Validazione itemType
+      if (!ValidationUtils.isValidItemType(itemType)) {
+        return sendError(res, 400, 'Tipo elemento non valido');
+      }
+
+      const commentData = {
+        itemId,
+        itemType,
+        galleryId,
+        userEmail,
+        userName,
+        content: content.trim(),
+        createdAt: serverTimestamp()
+      };
+      
+      const docRef = await addDoc(collection(db, 'comments'), commentData);
+      
+      return sendSuccess(res, { 
+        id: docRef.id, 
+        ...commentData,
+        createdAt: new Date() // Per il frontend
+      }, 'Commento aggiunto con successo', 201);
+    } catch (error) {
+      console.error('Errore nell\'aggiunta commento:', error);
+      return sendError(res, 500, 'Errore nell\'aggiunta del commento', error instanceof Error ? error.message : 'Errore sconosciuto');
+    }
+  });
+
   // Add comment (richiede autenticazione)
   app.post('/api/galleries/:galleryId/comments/:itemType/:itemId', validateParams, rateLimit, validateGallery, requireAuth, async (req, res) => {
     try {

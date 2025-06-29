@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Bell, BellOff, Mail, Check } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { createWelcomeEmailTemplate } from '@/lib/emailTemplates';
@@ -145,12 +145,15 @@ export default function SubscriptionManager({ galleryId, galleryName }: Subscrip
           Ricevi notifiche
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" aria-describedby="subscription-dialog-description">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-sage-600" />
             Iscriviti agli aggiornamenti
           </DialogTitle>
+          <DialogDescription id="subscription-dialog-description">
+            Ricevi notifiche via email quando vengono aggiunte nuove foto alla galleria
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-gray-600">

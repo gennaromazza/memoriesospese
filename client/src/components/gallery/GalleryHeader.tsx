@@ -284,10 +284,13 @@ export default function GalleryHeader({
 
       {/* Modale per l'immagine ingrandita */}
       <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-        <DialogContent className="max-w-[90vw] h-[90vh] p-0 bg-transparent border-none shadow-none">
+        <DialogContent className="max-w-[90vw] h-[90vh] p-0 bg-transparent border-none shadow-none" aria-describedby="image-dialog-description">
           <DialogTitle>
             <VisuallyHidden>Immagine di copertina: {name}</VisuallyHidden>
           </DialogTitle>
+          <VisuallyHidden id="image-dialog-description">
+            Visualizzazione ingrandita dell'immagine di copertina della galleria
+          </VisuallyHidden>
           
           <div className="w-full h-full relative flex items-center justify-center bg-black/90 rounded-lg overflow-hidden">
             <button 

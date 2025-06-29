@@ -82,7 +82,13 @@ export default function InteractionPanel({
       const data = result.success ? result.data : result; // Handle both standardized and legacy response formats
       setStats(data);
     } catch (error) {
-      console.error('Errore nel caricamento statistiche:', error);
+      console.error('Errore nel caricamento statistiche:', error instanceof Error ? error.message : 'Errore sconosciuto');
+      // Set default stats in case of error
+      setStats({
+        likesCount: 0,
+        commentsCount: 0,
+        hasUserLiked: false
+      });
     } finally {
       setIsLoadingStats(false);
     }
@@ -102,7 +108,9 @@ export default function InteractionPanel({
       const data = await response.json();
       setComments(data);
     } catch (error) {
-      console.error('Errore nel caricamento commenti:', error);
+      console.error('Errore nel caricamento commenti:', error instanceof Error ? error.message : 'Errore sconosciuto');
+      // Set empty comments array in case of error
+      setComments([]);
     } finally {
       setIsLoadingStats(false);
     }

@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -381,7 +381,7 @@ export default function VoiceMemoUpload({
             </div>
           </div>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto" aria-describedby="voice-memo-dialog-description">
           <DialogHeader className="text-center pb-4 sm:pb-6">
             <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-sage-600 to-blue-gray-600 rounded-full flex items-center justify-center mb-3 sm:mb-4">
               <Mic2 className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
@@ -389,9 +389,9 @@ export default function VoiceMemoUpload({
             <DialogTitle className="text-xl sm:text-2xl font-bold text-blue-gray-900">
               Vocali Segreti
             </DialogTitle>
-            <p className="text-sage-700 mt-1 sm:mt-2 text-sm sm:text-base px-2">
+            <DialogDescription id="voice-memo-dialog-description" className="text-sage-700 mt-1 sm:mt-2 text-sm sm:text-base px-2">
               Registra un messaggio speciale per "{galleryName}"
-            </p>
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 sm:space-y-6">
