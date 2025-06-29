@@ -47,7 +47,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
               </div>
               <div className="ml-6 flex items-center space-x-4">
               <a 
-                href={createAbsoluteUrl("/")}
+                href={createUrl("/")}
                 className="text-white text-sm hover:text-sage"
               >
                 Vai al sito
