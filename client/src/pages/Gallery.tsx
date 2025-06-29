@@ -511,19 +511,38 @@ export default function Gallery() {
               {/* Contenuto del tab selezionato */}
               {activeTab === 'photographer' && (
                 /* Tab foto del fotografo */
-                (areFiltersActive ? filteredPhotos : photos).length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="flex flex-col items-center">
-                      <h3 className="text-xl font-playfair text-blue-gray mb-2">
-                        {areFiltersActive ? 'Nessuna foto corrisponde ai filtri selezionati' : 'Nessuna foto del fotografo'}
-                      </h3>
-                      <p className="text-gray-500">
-                        {areFiltersActive ? 'Prova a modificare i criteri di filtro per visualizzare più foto.' : 'Non ci sono ancora foto del fotografo in questa galleria.'}
-                      </p>
+                <div>
+                  {/* Discrete registration link for non-authenticated users - moved before photos */}
+                  {!isAuthenticated && !userEmail && (
+                    <div className="mb-6 text-center">
+                      <button
+                        onClick={() => {
+                          const registrationSection = document.getElementById('registration-section');
+                          registrationSection?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sage-100 to-blue-gray-100 hover:from-sage-200 hover:to-blue-gray-200 text-sage-800 rounded-full border border-sage-300 transition-all duration-300 hover:shadow-md text-sm font-medium"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        🎁 Sblocca tutte le funzionalità - Scopri i vantaggi
+                      </button>
                     </div>
-                  </div>
-                ) : (
-                  <div>
+                  )}
+
+                  {(areFiltersActive ? filteredPhotos : photos).length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="flex flex-col items-center">
+                        <h3 className="text-xl font-playfair text-blue-gray mb-2">
+                          {areFiltersActive ? 'Nessuna foto corrisponde ai filtri selezionati' : 'Nessuna foto del fotografo'}
+                        </h3>
+                        <p className="text-gray-500">
+                          {areFiltersActive ? 'Prova a modificare i criteri di filtro per visualizzare più foto.' : 'Non ci sono ancora foto del fotografo in questa galleria.'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
                       {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
                         <div key={photo.id} className="space-y-2">
@@ -570,8 +589,9 @@ export default function Gallery() {
                         hasMore={hasMorePhotos}
                       />
                     )}
-                  </div>
-                )
+                    </div>
+                  )
+                </div>
               )}
 
               {activeTab === 'guests' && (
@@ -635,24 +655,6 @@ export default function Gallery() {
                   isAdmin={isAdmin}
                   refreshTrigger={refreshTrigger}
                 />
-              )}
-
-              {/* Discrete registration link for non-authenticated users */}
-              {!isAuthenticated && !userEmail && (
-                <div className="mt-6 mb-6 text-center">
-                  <button
-                    onClick={() => {
-                      const registrationSection = document.getElementById('registration-section');
-                      registrationSection?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sage-100 to-blue-gray-100 hover:from-sage-200 hover:to-blue-gray-200 text-sage-800 rounded-full border border-sage-300 transition-all duration-300 hover:shadow-md text-sm font-medium"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    🎁 Sblocca tutte le funzionalità - Scopri i vantaggi
-                  </button>
-                </div>
               )}
 
               {/* Registration CTA section - moved to bottom */}
