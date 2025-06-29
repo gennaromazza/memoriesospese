@@ -433,17 +433,17 @@ export default function InteractionPanel({
 
       {/* Authentication prompt */}
       {!hasAuth && (
-        <Card className="border-blue-200 bg-blue-50 mt-3">
+        <Card className="border-sage/30 bg-sage/10 mt-3">
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-blue-800 text-sm">
+              <div className="flex items-center gap-2 text-sage-700 text-sm">
                 <User className="h-4 w-4" />
                 <span>Accedi per mettere like e commentare</span>
               </div>
               <Button
                 onClick={handleAuthRequired}
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-sage hover:bg-sage/80 text-white shadow-sm"
               >
                 <LogIn className="h-4 w-4 mr-1" />
                 Accedi
