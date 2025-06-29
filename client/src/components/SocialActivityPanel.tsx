@@ -350,15 +350,20 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                                 )}
                               </div>
                               {(memo as any).audioUrl && (
-                                <audio 
-                                  controls 
-                                  className="h-6 w-16"
-                                  preload="none"
+                                <button
+                                  onClick={() => {
+                                    const audio = new Audio((memo as any).audioUrl);
+                                    audio.play().catch(console.error);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded transition-colors"
+                                  title="Ascolta audio"
                                 >
-                                  <source src={(memo as any).audioUrl} type="audio/webm" />
-                                  <source src={(memo as any).audioUrl} type="audio/mpeg" />
-                                  Il tuo browser non supporta l'elemento audio.
-                                </audio>
+                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1l4 4 4-4h1m-9-4h4v3H9V6z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 18v-1a5.95 5.95 0 005.95-5.95 5.95 5.95 0 00-5.95-5.95V4" />
+                                  </svg>
+                                  Play
+                                </button>
                               )}
                             </div>
                           </div>
