@@ -511,8 +511,8 @@ export default function Gallery() {
               {/* Contenuto del tab selezionato */}
               {activeTab === 'photographer' && (
                 <div>
-                  {/* Discrete registration link for non-authenticated users - moved before photos */}
-                  {!isAuthenticated && !userEmail && (
+                  {/* Discrete registration link for non-authenticated users - only show when not logged in */}
+                  {!isAuthenticated && !userEmail && !userName && (
                     <div className="mb-6 text-center">
                       <button
                         onClick={() => {
@@ -655,8 +655,8 @@ export default function Gallery() {
                 />
               )}
 
-              {/* Registration CTA section - moved to bottom */}
-              {!isAuthenticated && !userEmail && (
+              {/* Registration CTA section - only show when user is not logged in */}
+              {!isAuthenticated && !userEmail && !userName && (
                 <div id="registration-section" className="mt-12 mb-8">
                   <RegistrationCTA
                     galleryId={gallery.id}
