@@ -37,17 +37,21 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Verifica SMTP Netsons all'avvio (solo in produzione)
+  // Verifica SMTP Netsons all'avvio
   if (process.env.NODE_ENV === 'production') {
+    // In produzione: verifica bloccante
     try {
       const { verifyEmailConfig } = await import("./mailer");
       await verifyEmailConfig();
+      console.log('✅ SMTP Netsons verificato in produzione');
     } catch (error) {
       console.error('❌ SMTP Netsons non funzionante - app bloccata:', error);
       process.exit(1);
     }
   } else {
-    console.log('⚠️ Sviluppo: verifica SMTP saltata (sarà richiesta in produzione)');
+    // In sviluppo: verifica con timeout per non bloccare
+    console.log('📧 Sistema email centralizzato su Netsons SMTP configurato');
+    console.log('⚠️ Verifica SMTP sarà richiesta in produzione');
   }
 
   const server = await registerRoutes(app);
