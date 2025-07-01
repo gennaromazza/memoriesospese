@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { createUrl } from '@/lib/basePath';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,7 +65,7 @@ export default function UserProfile() {
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/');
+      navigate(createUrl('/'));
     }
   }, [isAuthenticated, navigate]);
 
@@ -193,7 +194,7 @@ export default function UserProfile() {
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/');
+      navigate(createUrl('/'));
       toast({
         title: "Disconnesso",
         description: "Sei stato disconnesso con successo",

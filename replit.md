@@ -32,6 +32,16 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 1 Luglio 2025 - FIX CRITICO DUPLICAZIONE URL /wedgallery/wedgallery/ - RISOLTO
+- ✓ **Problema Identificato**: URL duplicati in produzione per sottocartella `/wedgallery/`
+- ✓ **Causa Root**: Conflitto tra VITE_BASE_PATH e rilevamento automatico in `basePath.ts`
+- ✓ **Soluzione Implementata**: Disabilitato rilevamento automatico, solo variabile d'ambiente Vite
+- ✓ **Navigate Corretti**: Aggiunti `createUrl()` in Navigation.tsx e UserProfile.tsx
+- ✓ **TypeScript Fix**: Risolto errore iterazione NodeList in detectBasePath()
+- ✓ **Test Validazione**: Script automatico conferma zero duplicazioni URL
+- ✓ **Coverage Completo**: Analizzati tutti i componenti routing e navigazione
+- → **RISULTATO**: Sistema routing pulito e funzionante per deployment sottocartella
+
 ### 1 Luglio 2025 - SISTEMA EMAIL NETSONS CENTRALIZZATO E STABILIZZATO - COMPLETATO
 - ✓ **SMTP Centralizzato**: Configurazione Netsons SSL porta 465 in `server/mailer.ts`
 - ✓ **Credenziali Hardcoded**: easygallery@gennaromazzacane.it con password definita

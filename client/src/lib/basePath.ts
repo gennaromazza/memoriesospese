@@ -25,7 +25,8 @@ function detectBasePath(): string {
   
   // Rileva da script o asset caricati
   const scripts = document.querySelectorAll('script[src]');
-  for (const script of scripts) {
+  for (let i = 0; i < scripts.length; i++) {
+    const script = scripts[i];
     const src = (script as HTMLScriptElement).src;
     if (src.includes('/src/main.tsx') || src.includes('/assets/')) {
       try {
@@ -73,8 +74,14 @@ function getBasePath(): string {
     if (import.meta.env.DEV) {
       cachedBasePath = '';
     } else {
-      // In produzione, usa variabile d'ambiente o rilevamento automatico
-      cachedBasePath = import.meta.env.BASE_URL?.replace(/\/$/, '') || detectBasePath();
+      // In produzione, usa SOLO la variabile d'ambiente di Vite
+      // Non fare rilevamento automatico per evitare duplicazioni
+      const baseUrl = import.meta.env.BASE_URL;
+      if (baseUrl && baseUrl !== '/') {
+        cachedBasePath = baseUrl.replace(/\/$/, '');
+      } else {
+        cachedBasePath = '';
+      }
     }
   }
   
