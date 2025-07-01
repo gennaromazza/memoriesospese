@@ -1,7 +1,10 @@
-// Centralized email service using Netsons SMTP via mailer.ts
-import { sendWelcomeEmail as mailerSendWelcome, sendNewPhotosNotification as mailerSendNotification } from './mailer';
+// Centralized email wrappers using mailer.ts
+import {
+  sendWelcomeEmail as mailerSendWelcome,
+  sendGalleryUpdateEmail as mailerSendGalleryUpdate,
+} from "./mailer";
 
-// Backward compatibility interface (deprecated)
+// Deprecated generic interface
 interface EmailOptions {
   to: string;
   subject: string;
@@ -10,30 +13,33 @@ interface EmailOptions {
   fromName?: string;
 }
 
-// Deprecated: use mailer.ts functions directly
+/**
+ * @deprecated Use specific functions from mailer.ts directly
+ */
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
-  console.warn('⚠️ sendEmail è deprecata, usa funzioni specifiche da mailer.ts');
-  // Fallback generico non disponibile - richiede parametri specifici
+  console.warn(
+    "⚠️ sendEmail è deprecata, usa funzioni specifiche da mailer.ts",
+  );
   return false;
 }
 
-// Redirect to centralized mailer.ts
+/**
+ * Invia email di benvenuto utilizzando il servizio centralizzato
+ */
 export async function sendWelcomeEmail(
-  email: string, 
-  galleryName: string, 
-  fromName?: string
+  email: string,
+  galleryName: string,
 ): Promise<boolean> {
-  return await mailerSendWelcome(email, galleryName, fromName);
+  return await mailerSendWelcome(email, galleryName);
 }
 
-// Redirect to centralized mailer.ts
+/**
+ * Invia notifica di nuove foto utilizzando il servizio centralizzato
+ */
 export async function sendNewPhotosNotification(
   email: string,
   galleryName: string,
-  newPhotosCount: number,
-  uploaderName: string,
-  galleryUrl: string,
-  fromName?: string
+  photoCount: number,
 ): Promise<boolean> {
-  return await mailerSendNotification(email, galleryName, newPhotosCount, uploaderName, galleryUrl);
+  return await mailerSendGalleryUpdate(email, galleryName, photoCount);
 }

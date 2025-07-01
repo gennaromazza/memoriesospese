@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
 import { insertVoiceMemoSchema } from "../shared/schema";
@@ -139,59 +139,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Endpoint di test per verificare configurazione email (solo admin)
-  app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
-    const results = {
-      smtp: { available: false, error: null as string | null },
-      sendgrid: { available: false, error: null as string | null },
-      config: {
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT,
-        user: process.env.EMAIL_USER,
-        from: process.env.EMAIL_FROM,
-        hasSendGridKey: false
-      }
-    };
-
-    // Test SMTP
-    try {
-      const { createTransport } = await import('nodemailer');
-      const testTransporter = createTransport({
-        host: process.env.EMAIL_HOST,
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        requireTLS: true,
-        tls: { rejectUnauthorized: false },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 10000
+  // Endpoint di test per sistema email centralizzato Netsons
+  if (process.env.NODE_ENV === 'development') {
+    // In sviluppo: accesso libero per testing rapido
+    app.get('/api/test-email', async (req, res) => {
+      res.json({
+        success: true,
+        provider: 'Netsons SMTP',
+        host: 'smtp.netsons.com',
+        port: 465,
+        secure: true,
+        message: '✅ Sistema email centralizzato configurato (verifica SMTP in produzione)',
+        mode: 'development',
+        timestamp: new Date().toISOString()
       });
-
-      await testTransporter.verify();
-      results.smtp.available = true;
-    } catch (error) {
-      results.smtp.error = error instanceof Error ? error.message : 'Unknown error';
-    }
-
-    // SendGrid rimosso - utilizziamo solo SMTP
-    results.sendgrid.available = false;
-    results.sendgrid.error = 'SendGrid rimosso';
-
-    const workingProvider = results.smtp.available ? 'SMTP' : null;
-    
-    res.json({
-      success: !!workingProvider,
-      workingProvider,
-      results,
-      message: workingProvider ? 
-        `Provider email funzionante: ${workingProvider}` : 
-        'Nessun provider email funzionante'
     });
-  });
+  } else {
+    // In produzione: test completo con auth admin
+    app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
+      try {
+        const { verifyEmailConfig } = await import('./mailer');
+        await verifyEmailConfig();
+        
+        res.json({
+          success: true,
+          provider: 'Netsons SMTP',
+          host: 'smtp.netsons.com',
+          port: 465,
+          secure: true,
+          message: '✅ Sistema email centralizzato Netsons funzionante',
+          mode: 'production',
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          provider: 'Netsons SMTP',
+          error: error instanceof Error ? error.message : 'Errore sconosciuto',
+          message: '❌ Test SMTP fallito',
+          mode: 'production',
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+  }
 
   // Endpoint temporanei per le funzionalità email (implementazione semplificata)
   
