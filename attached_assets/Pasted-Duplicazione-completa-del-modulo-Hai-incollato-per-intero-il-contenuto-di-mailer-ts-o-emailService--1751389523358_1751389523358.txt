@@ -1,0 +1,51 @@
+Duplicazione completa del modulo
+Hai incollato per intero il contenuto di mailer.ts (o emailService.ts) due volte nello stesso file: dalla riga iniziale con
+
+ts
+Copia
+Modifica
+import nodemailer from 'nodemailer';
+…
+export async function sendGalleryUpdateEmail(…)
+e poi un secondo blocco identico in coda. Questo provoca:
+
+Errori di “duplicate identifier” in TypeScript/JavaScript (stesso nome di funzioni e variabili due volte nello stesso scope).
+
+Il secondo blocco sovrascrive (o confonde) il primo, rendendo incerta la configurazione reale di transporter.
+
+Soluzione: lascia solo un’istanza di tutto il codice: un singolo import nodemailer, un singolo const transporter = …, e poi tutte le funzioni collegate. Rimuovi il secondo blocco duplicato!
+
+2. Manca il punto di avvio dell’app che chiama verifyEmailConfig
+Ora che il transporter usa SSL su porta 465, devi essere sicuro di:
+
+Chiamare await verifyEmailConfig() prima di iniziare a gestire le richieste (tipicamente in index.ts o app.ts), così da far fallire subito l’avvio se la connessione SMTP non va a buon fine.
+
+Se non lo fai, potresti trovarsi in produzione con un transporter non verificato e potenziali errori di handshake in fase di sendMail.
+
+Esempio in index.ts:
+
+ts
+Copia
+Modifica
+import { verifyEmailConfig } from './server/mailer';
+
+(async () => {
+  try {
+    await verifyEmailConfig();
+    // poi avvia il server Express/Nuxt/…  
+    app.listen(port, () => console.log(`Server avviato su ${port}`));
+  } catch (err) {
+    console.error('Avvio interrotto per errore SMTP:', err);
+    process.exit(1);
+  }
+})();
+Checklist finale
+Rimuovi il blocco duplicato (tutto dopo il primo export async function sendGalleryUpdateEmail).
+
+Verifica che tutto il codice SMTP (import, transporter, tutte le funzioni) sia presente una sola volta.
+
+Chiama sincronamente verifyEmailConfig() all’avvio del server.
+
+Controlla che non ci siano più vecchie chiamate a initializeEmailProvider o al modulo Replit/Gmail/Ethereal: ora tutto deve passare dal tuo unico transporter Netsons.
+
+Dopo queste due correzioni, dovresti eliminare gli errori di compilazione e avere un flusso SMTP stabile verso Netsons.
