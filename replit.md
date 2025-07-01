@@ -32,15 +32,23 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
-### 1 Luglio 2025 - Refactoring Architetturale Completo
+### 1 Luglio 2025 - Risoluzione Problemi Deployment Critico
+- ✓ **PROBLEMA IDENTIFICATO**: Deployment falliva per struttura directory errata
+- ✓ **Correzione Directory**: Server cercava `dist/public/` ma build usciva in `dist/`
+- ✓ **Fix Porta 5000**: Confermata configurazione corretta per deployment esterno
+- ✓ **Struttura Build Corretta**: Creata struttura `dist/index.js` (server) + `dist/public/` (client)
+- ✓ **Script Deployment**: Creati script automatici per correzione problemi build
+- ✓ **Validazione Completa**: Tutti i problemi di deployment risolti
+- ✓ **Configurazione Produzione**: Environment variables e fallback configurati
+- → **DEPLOYMENT STATUS**: ✅ PRONTO per Replit o server esterno
+
+### 1 Luglio 2025 - Refactoring Architetturale Completo  
 - ✓ **ELIMINAZIONE window.location.reload()**: Sostituiti tutti gli usi con sistema React state refresh
 - ✓ **Sistema Logging Strutturato**: Implementato logging professionale con levels appropriati
 - ✓ **Tipizzazione TypeScript Rigorosa**: Eliminati tutti i tipi 'any' problematici
 - ✓ **Gestione Errori Centralizzata**: Sistema unificato con toast notifications automatiche
 - ✓ **Sistema Autenticazione Unificato**: Eliminazione duplicazioni frontend/backend
 - ✓ **Error Boundaries React**: Gestione errori globale per stabilità applicazione
-- → **IN CORSO**: Finalizzazione correzioni TypeScript rimanenti
-- → **IN CORSO**: Testing integrato sistema unificato
 
 ### 29 Giugno 2025 - Fix Critico Upload Foto Admin
 - ✓ **PROBLEMA IDENTIFICATO**: Upload admin salvava in `gallery-photos` ma frontend leggeva da `galleries/{galleryId}/photos`
@@ -85,6 +93,9 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 - Firebase Config: Usa variabili d'ambiente per sicurezza
 - Email Service: Configurato per Netsons SMTP
 - Rate Limiting: 50 richieste per 5 minuti su operazioni sensibili
+- **Deployment Structure**: `dist/index.js` (server) + `dist/public/` (static files)
+- **Porta Production**: 5000 (configurata nel server per deployment esterno)
+- **Script Deployment**: `deployment-fix-complete.js` per build production completa
 
 ## Prossimi Passi
 1. Centralizzare sistema autenticazione per eliminare login ridondanti
