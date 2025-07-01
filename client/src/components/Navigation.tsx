@@ -113,11 +113,8 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                       }
                     });
 
-                    // Navigate to home page
+                    // Navigate to home page with clean state
                     navigate("/");
-
-                    // Reload to ensure clean state
-                    window.location.reload();
                   } catch (error) {
                     console.error("Logout error:", error);
                     // Fallback: still clear localStorage and navigate
@@ -133,7 +130,6 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                       }
                     });
                     navigate("/");
-                    window.location.reload();
                   }
                 }}
               >

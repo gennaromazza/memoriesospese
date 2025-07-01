@@ -8,6 +8,7 @@ import { StudioProvider } from "./context/StudioContext";
 import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
 import { useEffect } from "react";
+import { ErrorBoundary, GalleryErrorBoundary, AdminErrorBoundary } from "@/components/ErrorBoundary";
 
 import Home from "@/pages/Home";
 import GalleryAccess from "@/pages/GalleryAccess";
@@ -79,27 +80,29 @@ function App() {
   }, [basePath]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light">
-        <TooltipProvider>
-          <AuthProvider>
-            <StudioProvider>
-              <Toaster />
-              <WouterRouter base={basePath}>
-                <Router />
-              </WouterRouter>
-              {/* Debug components - solo in sviluppo */}
-              {import.meta.env.MODE === 'development' && (
-                <>
-                  <PathDebugInfo />
-                  <AuthDebugPanel />
-                </>
-              )}
-            </StudioProvider>
-          </AuthProvider>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="light">
+          <TooltipProvider>
+            <AuthProvider>
+              <StudioProvider>
+                <Toaster />
+                <WouterRouter base={basePath}>
+                  <Router />
+                </WouterRouter>
+                {/* Debug components - solo in sviluppo */}
+                {import.meta.env.MODE === 'development' && (
+                  <>
+                    <PathDebugInfo />
+                    <AuthDebugPanel />
+                  </>
+                )}
+              </StudioProvider>
+            </AuthProvider>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

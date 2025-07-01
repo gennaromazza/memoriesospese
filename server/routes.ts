@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
 import { insertVoiceMemoSchema } from "../shared/schema";
+import { logger, createContextLogger } from "../shared/logger";
 import { 
   collection, 
   addDoc, 
@@ -52,7 +53,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(accessInfo);
     } catch (error) {
-      console.error('Errore nel recupero info accesso:', error);
+      logger.error('Errore nel recupero info accesso', {
+        error: error as Error,
+        contextName: 'GalleryAccessAPI',
+        galleryId: req.params.galleryId
+      });
       res.status(500).json({ error: 'Errore interno del server' });
     }
   });
@@ -66,7 +71,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         galleryId: req.gallery!.id
       });
     } catch (error) {
-      console.error('Errore nella verifica accesso:', error);
+      logger.error('Errore nella verifica accesso', { error: error as Error, contextName: 'GalleryVerificationAPI', galleryId: req.params.galleryId });
       res.status(500).json({ error: 'Errore interno del server' });
     }
   });

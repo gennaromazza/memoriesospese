@@ -28,6 +28,7 @@ import InteractionWrapper from "@/components/InteractionWrapper";
 import InteractionPanel from "@/components/InteractionPanel";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
+import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Gallery() {
@@ -62,6 +63,9 @@ export default function Gallery() {
 
   // Stato per il tab attivo (foto del fotografo, ospiti o vocali segreti)
   const [activeTab, setActiveTab] = useState<'photographer' | 'guests' | 'voice-memos'>('photographer');
+
+  // Hook per il refresh intelligente dei dati
+  const { refreshPhotos, refreshGallery, refreshVoiceMemos, refreshInteractions } = useGalleryRefresh(id);
 
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -431,8 +435,8 @@ export default function Gallery() {
                                 galleryId={gallery.id}
                                 galleryName={gallery.name}
                                 onPhotosUploaded={() => {
-                                  // Ricarica i dati della galleria quando vengono caricate nuove foto
-                                  window.location.reload();
+                                  // Aggiorna i dati della galleria quando vengono caricate nuove foto
+                                  refreshPhotos();
                                 }}
                               />
                             </div>
@@ -484,8 +488,8 @@ export default function Gallery() {
                                       localStorage.removeItem(key);
                                     }
                                   });
-                                  // Refresh page to reflect logout state
-                                  window.location.reload();
+                                  // Refresh gallery to reflect logout state
+                                  refreshGallery();
                                 }}
                                 className="text-xs px-3 py-1.5 h-8 min-w-[70px]"
                               >
@@ -514,7 +518,7 @@ export default function Gallery() {
                             galleryId={gallery.id}
                             galleryName={gallery.name}
                             onPhotosUploaded={() => {
-                              window.location.reload();
+                              refreshPhotos();
                             }}
                           />
                         </div>
@@ -543,7 +547,7 @@ export default function Gallery() {
                                   localStorage.removeItem(key);
                                 }
                               });
-                              window.location.reload();
+                              refreshGallery();
                             }}
                             className="text-xs px-3 py-1.5 h-8 min-w-[70px] w-full sm:w-auto"
                           >
@@ -604,7 +608,7 @@ export default function Gallery() {
                                   localStorage.removeItem(key);
                                 }
                               });
-                              window.location.reload();
+                              refreshGallery();
                             }}
                             className="text-xs px-3 py-1.5 h-8 min-w-[70px] w-full sm:w-auto"
                           >

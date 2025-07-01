@@ -4,8 +4,7 @@ import { cn } from '@/lib/utils';
 import { Button } from './button';
 import { compressImages } from '@/lib/imageCompression';
 import ImageCompressionInfo from '@/components/ImageCompressionInfo';
-import { extractChaptersFromFolders } from '@/lib/folderChapterMapper';
-import { Chapter, PhotoWithChapter } from '@/components/ChaptersManager';
+import { ChapterData, PhotoWithChapterInfo } from '@shared/types';
 // Importa il nuovo lettore di cartelle semplificato
 import { processFilesFromFolders } from '@/lib/simpleFolderReader';
 
@@ -28,8 +27,8 @@ interface FileUploadProps {
   };
   enableFolderUpload?: boolean;
   onChaptersExtracted?: (result: { 
-    chapters: any[]; 
-    photosWithChapters: any[];
+    chapters: ChapterData[]; 
+    photosWithChapters: PhotoWithChapterInfo[];
   }) => void;
 }
 
@@ -249,9 +248,8 @@ export default function FileUpload({
             
             updateProgress(50, 'Nessuna struttura di cartelle trovata, passaggio alla creazione manuale...', 0, 0);
           }
-        } catch (error: any) {
-          
-          setProcessingStatus(`Errore: ${error.message || 'Errore sconosciuto'}`);
+        } catch (error) {
+          setProcessingStatus(`Errore: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
           // Mostra l'errore per alcuni secondi prima di passare al fallback
           setTimeout(() => {
             // Continua con l'approccio di fallback
