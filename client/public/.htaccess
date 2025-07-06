@@ -4,16 +4,25 @@ RewriteEngine On
 # Imposta il base path per la sottocartella
 RewriteBase /wedgallery/
 
+# Gestione specifica per gli assets della React app
+# Questo deve essere prima delle altre regole
+RewriteCond %{REQUEST_URI} ^/wedgallery/assets/
+RewriteRule ^assets/(.*)$ /wedgallery/assets/$1 [L]
+
+# Gestione per file statici React (CSS, JS, immagini)
+RewriteCond %{REQUEST_URI} \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ /wedgallery/$1 [L]
+
 # Skip rewrite per file e directory esistenti
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 
-# Reindirizza tutte le altre richieste a index.html nella sottocartella
-RewriteRule . /wedgallery/index.html [L]
+# Escludi le richieste che iniziano con wp- (WordPress)
+RewriteCond %{REQUEST_URI} !^/wp-
 
-# Forza il caricamento degli assets dalla sottocartella corretta
-RewriteCond %{REQUEST_URI} ^/assets/
-RewriteRule ^assets/(.*)$ /wedgallery/assets/$1 [L]
+# Reindirizza solo le richieste della React app a index.html
+RewriteRule ^(.*)$ /wedgallery/index.html [L]
 
 # Enable compression
 <IfModule mod_deflate.c>
