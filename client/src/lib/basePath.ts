@@ -17,24 +17,7 @@ function detectBasePath(): string {
     return import.meta.env.VITE_BASE_PATH;
   }
 
-  // Rileva automaticamente dal pathname corrente solo se non siamo in produzione
-  // In produzione con hosting esterno, forza il rilevamento del base path
-  const pathname = window.location.pathname;
-  const segments = pathname.split('/').filter(Boolean);
-
-  // Se il primo segmento è "wedgallery", usa quello come base path
-  if (segments.length > 0 && segments[0] === 'wedgallery') {
-    return '/wedgallery/';
-  }
-
-  // Se il primo segmento è una delle route dell'app, non c'è base path
-  if (segments.length > 0) {
-    const appRoutes = ['gallery', 'admin', 'view', 'request-password', 'profile'];
-    if (!appRoutes.includes(segments[0])) {
-      return '/' + segments[0] + '/';
-    }
-  }
-
+  // Fallback - non usare auto-rilevamento per evitare duplicazioni
   return '/';
 }
 
@@ -92,9 +75,9 @@ export function createUrl(urlPath: string): string {
  * Crea un URL assoluto per la condivisione
  */
 export const createAbsoluteUrl = (path: string): string => {
-  const relativePath = createUrl(path);
-  const url = new URL(relativePath, window.location.origin);
-  return url.toString();
+  const basePath = getBasePath();
+  const fullPath = basePath === '/' ? path : `${basePath}${path}`;
+  return import.meta.env.VITE_APP_URL ? `${import.meta.env.VITE_APP_URL}${fullPath}` : fullPath;
 };
 
 /**
@@ -125,12 +108,8 @@ export const getPathDebugInfo = () => {
   if (typeof window === 'undefined') return null;
 
   return {
-    pathname: window.location.pathname,
     basePath: getBasePath(),
     isSubdirectory: isInSubdirectory(),
-    host: window.location.host,
-    origin: window.location.origin,
-    detectedBasePath: detectBasePath(),
     envBasePath: import.meta.env.BASE_URL,
     isDev: import.meta.env.DEV
   };

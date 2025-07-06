@@ -32,6 +32,16 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 6 Luglio 2025 - RISOLUZIONE DEFINITIVA DUPLICAZIONE URL - COMPLETATA
+- ✓ **PROBLEMA CRITICO RISOLTO**: Eliminata completamente la duplicazione `/wedgallery/wedgallery/` 
+- ✓ **Causa Root Identificata**: Logica di auto-rilevamento in `basePath.ts` causava conflitti con `VITE_BASE_PATH`
+- ✓ **Soluzione Implementata**: Rimossa tutta la logica di auto-rilevamento mantenendo solo variabile d'ambiente
+- ✓ **Sistema Semplificato**: Solo `VITE_BASE_PATH="/wedgallery/"` controlla il routing
+- ✓ **Test Automatici**: Script conferma zero duplicazioni URL in tutti i percorsi
+- ✓ **Verifica Pre-Build**: Tutti i controlli superati per deployment Netsons
+- ✓ **Build Pronta**: Applicazione completamente funzionante per sottocartella
+- → **RISULTATO**: Sistema routing completamente pulito e stabile
+
 ### 1 Luglio 2025 - SOLUZIONE DEFINITIVA HOSTING NETSONS - COMPLETATA
 - ✓ **Problema Risolto**: Tutti gli errori API 404 eliminati definitivamente
 - ✓ **API Client Robusto**: Creato `api-client.ts` con gestione automatica fallback
