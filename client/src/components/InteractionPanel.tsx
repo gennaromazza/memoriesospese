@@ -206,18 +206,15 @@ export default function InteractionPanel({
 
 
 
-      const response = await fetch(`${createUrl('/api/comments')}`, {
+      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          itemId,
-          itemType,
           content: newComment.trim(),
           userEmail: finalUserEmail,
-          userName: finalUserName,
-          galleryId
+          userName: finalUserName
         }),
       });
 

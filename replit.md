@@ -32,14 +32,14 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
-### 1 Luglio 2025 - FIX CRITICO API 404 SU HOSTING NETSONS - RISOLTO
-- ✓ **Problema Identificato**: API calls 404 su hosting Netsons dopo modifiche routing
-- ✓ **Causa Root**: Modifiche al routing avevano rimosso base path dalle API
-- ✓ **Soluzione Implementata**: Ripristinato base path per API in `queryClient.ts`
+### 1 Luglio 2025 - FIX CRITICO ERRORI COMMENTI E API - RISOLTO
+- ✓ **Problema Identificato**: Errore aggiunta commenti e API 404 su hosting Netsons
+- ✓ **Endpoint Commenti**: Corretto da `/api/comments` a `/api/galleries/{id}/comments/{type}/{itemId}`
+- ✓ **Base Path API**: Ripristinato base path per API in `queryClient.ts`
 - ✓ **Logica Corretta**: API e pagine con base path per deployment completo in sottocartella
 - ✓ **Test Validazione**: Script conferma configurazione corretta `/wedgallery/api/...`
 - ✓ **Compatibilità Netsons**: Deployment completo in sottocartella `/wedgallery/`
-- → **RISULTATO**: Sistema API/routing corretto per hosting Netsons
+- → **RISULTATO**: Sistema API/routing e commenti corretto per hosting Netsons
 
 ### 1 Luglio 2025 - FIX CRITICO DUPLICAZIONE URL /wedgallery/wedgallery/ - RISOLTO
 - ✓ **Problema Identificato**: URL duplicati in produzione per sottocartella `/wedgallery/`
