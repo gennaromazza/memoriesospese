@@ -283,18 +283,12 @@ export default function VoiceMemoUpload({
         userName: finalUserName // Use centralized auth data
       };
 
-      // Send to backend API
-      const response = await fetch(`/api/galleries/${galleryId}/voice-memos`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(voiceMemoData),
-      });
+      // Send to backend API using robust client
+      const { apiClient } = await import('@/lib/api-client');
+      const result = await apiClient.uploadVoiceMemo(galleryId, voiceMemoData);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore nel caricamento del voice memo' }));
-        throw new Error(errorData.error || 'Errore nel caricamento del voice memo');
+      if (!result) {
+        throw new Error('Errore nel caricamento del voice memo - servizio non disponibile');
       }
 
       setUploadStatus('complete');

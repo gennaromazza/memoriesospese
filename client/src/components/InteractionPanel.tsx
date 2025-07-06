@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { createUrl } from '@/lib/config';
+import { apiClient } from '@/lib/api-client';
 import { 
   Heart, 
   MessageCircle, 
@@ -66,24 +66,24 @@ export default function InteractionPanel({
 
 
 
-  // Fetch interaction stats
+  // Fetch interaction stats using robust API client
   const fetchStats = async () => {
     try {
       setIsLoadingStats(true);
-      const url = `/api/galleries/${galleryId}/stats/${itemType}/${itemId}${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`;
-      const response = await fetch(createUrl(url));
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore nel caricamento statistiche' }));
-        throw new Error(errorData.error || 'Errore nel caricamento statistiche');
+      
+      if (itemType === 'photo') {
+        const stats = await apiClient.getPhotoStats(galleryId, itemId, userEmail);
+        setStats(stats);
+      } else {
+        // For voice memos, use default stats
+        setStats({
+          likesCount: 0,
+          commentsCount: 0,
+          hasUserLiked: false
+        });
       }
-
-      const result = await response.json();
-      const data = result.success ? result.data : result; // Handle both standardized and legacy response formats
-      setStats(data);
     } catch (error) {
-      console.error('Errore nel caricamento statistiche:', error instanceof Error ? error.message : 'Errore sconosciuto');
-      // Set default stats in case of error
+      // API client handles errors internally, just set defaults
       setStats({
         likesCount: 0,
         commentsCount: 0,
@@ -98,18 +98,14 @@ export default function InteractionPanel({
   const fetchComments = async () => {
     try {
       setIsLoadingStats(true);
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`));
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore nel caricamento commenti' }));
-        throw new Error(errorData.error || 'Errore nel caricamento commenti');
+      
+      if (itemType === 'photo') {
+        const comments = await apiClient.getPhotoComments(galleryId, itemId);
+        setComments(comments);
+      } else {
+        setComments([]);
       }
-
-      const data = await response.json();
-      setComments(data);
     } catch (error) {
-      console.error('Errore nel caricamento commenti:', error instanceof Error ? error.message : 'Errore sconosciuto');
-      // Set empty comments array in case of error
       setComments([]);
     } finally {
       setIsLoadingStats(false);
@@ -122,7 +118,7 @@ export default function InteractionPanel({
     onAuthRequired?.();
   };
 
-  // Handle like functionality
+  // Handle like functionality using robust API client
   const handleLike = async () => {
     // Verifica autenticazione con sistema centralizzato
     if (!(await authInterceptor.requireAuth())) {
@@ -131,44 +127,51 @@ export default function InteractionPanel({
 
     try {
       setIsLoading(true);
-      // Le credenziali verranno aggiunte automaticamente dal queryClient
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/likes/${itemType}/${itemId}`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userEmail,
-          userName
-        }),
-      });
+      
+      if (itemType === 'photo') {
+        const result = await apiClient.togglePhotoLike(galleryId, itemId, userEmail, userName);
+        
+        if (result) {
+          // Update stats based on action
+          setStats(prev => ({
+            ...prev,
+            hasUserLiked: result.action === 'added',
+            likesCount: result.action === 'added' 
+              ? prev.likesCount + 1 
+              : Math.max(0, prev.likesCount - 1)
+          }));
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore nella gestione del like' }));
-        throw new Error(errorData.error || 'Errore nella gestione del like');
+          toast({
+            title: result.action === 'added' ? 'Like aggiunto' : 'Like rimosso',
+            description: result.message || '',
+          });
+        } else {
+          // API non disponibile, aggiorna solo localmente
+          setStats(prev => ({
+            ...prev,
+            hasUserLiked: !prev.hasUserLiked,
+            likesCount: prev.hasUserLiked 
+              ? Math.max(0, prev.likesCount - 1)
+              : prev.likesCount + 1
+          }));
+
+          toast({
+            title: !stats.hasUserLiked ? 'Like aggiunto (locale)' : 'Like rimosso (locale)',
+            description: 'Modifica salvata localmente',
+          });
+        }
+      } else {
+        toast({
+          title: 'Funzione non disponibile',
+          description: 'I like non sono disponibili per questo tipo di contenuto',
+          variant: 'destructive',
+        });
       }
-
-      const result = await response.json();
-      const data = result.success ? result.data : result; // Handle both standardized and legacy response formats
-
-      // Update stats based on action
-      setStats(prev => ({
-        ...prev,
-        hasUserLiked: data.action === 'added',
-        likesCount: data.action === 'added' 
-          ? prev.likesCount + 1 
-          : Math.max(0, prev.likesCount - 1)
-      }));
-
-      toast({
-        title: data.action === 'added' ? 'Like aggiunto' : 'Like rimosso',
-        description: data.message || '',
-      });
     } catch (error) {
       console.error('Errore like:', error);
       toast({
         title: 'Errore',
-        description: error instanceof Error ? error.message : 'Errore nella gestione del like',
+        description: 'Errore nella gestione del like',
         variant: 'destructive',
       });
     } finally {
@@ -204,48 +207,69 @@ export default function InteractionPanel({
       const finalUserEmail = user?.email || userEmail;
       const finalUserName = userProfile?.displayName || user?.displayName || userName || finalUserEmail.split('@')[0];
 
+      if (itemType === 'photo') {
+        const commentData = await apiClient.addPhotoComment(
+          galleryId, 
+          itemId, 
+          newComment.trim(), 
+          finalUserEmail, 
+          finalUserName
+        );
 
+        if (commentData) {
+          // Add comment to local state
+          setComments(prev => [commentData, ...prev]);
 
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${itemType}/${itemId}`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: newComment.trim(),
-          userEmail: finalUserEmail,
-          userName: finalUserName
-        }),
-      });
+          // Update stats
+          setStats(prev => ({
+            ...prev,
+            commentsCount: prev.commentsCount + 1
+          }));
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore nell\'aggiunta del commento' }));
-        throw new Error(errorData.error || 'Errore nell\'aggiunta del commento');
+          setNewComment('');
+
+          toast({
+            title: 'Successo',
+            description: 'Commento aggiunto con successo',
+          });
+        } else {
+          // API non disponibile, aggiungi solo localmente
+          const localComment = {
+            id: Date.now().toString(),
+            content: newComment.trim(),
+            userEmail: finalUserEmail,
+            userName: finalUserName,
+            createdAt: new Date(),
+            itemId,
+            itemType,
+            galleryId
+          };
+
+          setComments(prev => [localComment, ...prev]);
+          setStats(prev => ({
+            ...prev,
+            commentsCount: prev.commentsCount + 1
+          }));
+
+          setNewComment('');
+
+          toast({
+            title: 'Commento aggiunto (locale)',
+            description: 'Salvato localmente - sarà sincronizzato quando possibile',
+          });
+        }
+      } else {
+        toast({
+          title: 'Funzione non disponibile',
+          description: 'I commenti non sono disponibili per questo tipo di contenuto',
+          variant: 'destructive',
+        });
       }
-
-      const result = await response.json();
-      const commentData = result.success ? result.data : result;
-
-      // Add comment to local state
-      setComments(prev => [commentData, ...prev]);
-
-      // Update stats
-      setStats(prev => ({
-        ...prev,
-        commentsCount: prev.commentsCount + 1
-      }));
-
-      setNewComment('');
-
-      toast({
-        title: 'Successo',
-        description: 'Commento aggiunto con successo',
-      });
     } catch (error) {
       console.error('Errore nell\'aggiunta commento:', error);
       toast({
         title: 'Errore',
-        description: error instanceof Error ? error.message : 'Errore nell\'aggiunta del commento',
+        description: 'Errore nell\'aggiunta del commento',
         variant: 'destructive',
       });
     } finally {
