@@ -1,4 +1,3 @@
-
 /**
  * Sistema dinamico per la gestione del base path
  * Rileva automaticamente in quale sottocartella si trova l'applicazione
@@ -8,56 +7,35 @@
  * Rileva automaticamente il base path dall'URL corrente
  */
 function detectBasePath(): string {
-  if (typeof window === 'undefined') return '';
-  
+  // In sviluppo, usa sempre '/'
+  if (import.meta.env.DEV) {
+    return '/';
+  }
+
+  // Usa variabile d'ambiente se disponibile
+  if (import.meta.env.VITE_BASE_PATH) {
+    return import.meta.env.VITE_BASE_PATH;
+  }
+
+  // Rileva automaticamente dal pathname corrente solo se non siamo in produzione
+  // In produzione con hosting esterno, forza il rilevamento del base path
   const pathname = window.location.pathname;
-  
-  // Se siamo nella root del dominio
-  if (pathname === '/' || pathname === '') {
-    return '';
-  }
-  
-  // Cerca index.html nell'URL per determinare il base path
-  if (pathname.includes('/index.html')) {
-    const basePath = pathname.replace('/index.html', '');
-    return basePath || '';
-  }
-  
-  // Rileva da script o asset caricati
-  const scripts = document.querySelectorAll('script[src]');
-  for (let i = 0; i < scripts.length; i++) {
-    const script = scripts[i];
-    const src = (script as HTMLScriptElement).src;
-    if (src.includes('/src/main.tsx') || src.includes('/assets/')) {
-      try {
-        const url = new URL(src);
-        const pathParts = url.pathname.split('/').filter(Boolean);
-        
-        // Rimuovi le parti finali (assets, src, etc.)
-        const assetIndex = pathParts.findIndex(part => 
-          part === 'assets' || part === 'src' || part.endsWith('.js') || part.endsWith('.tsx')
-        );
-        
-        if (assetIndex > 0) {
-          return '/' + pathParts.slice(0, assetIndex).join('/');
-        }
-      } catch (e) {
-        // Ignora errori di parsing URL
-      }
-    }
-  }
-  
-  // Fallback: usa il primo segmento del path se sembra essere una sottocartella
   const segments = pathname.split('/').filter(Boolean);
+
+  // Se il primo segmento è "wedgallery", usa quello come base path
+  if (segments.length > 0 && segments[0] === 'wedgallery') {
+    return '/wedgallery/';
+  }
+
+  // Se il primo segmento è una delle route dell'app, non c'è base path
   if (segments.length > 0) {
-    // Controlla se il primo segmento non è una route dell'app
     const appRoutes = ['gallery', 'admin', 'view', 'request-password', 'profile'];
     if (!appRoutes.includes(segments[0])) {
-      return '/' + segments[0];
+      return '/' + segments[0] + '/';
     }
   }
-  
-  return '';
+
+  return '/';
 }
 
 /**
@@ -84,30 +62,31 @@ function getBasePath(): string {
       }
     }
   }
-  
+
   return cachedBasePath;
 }
 
-/**
- * Crea un URL corretto combinando base path e path
- */
-export const createUrl = (path: string): string => {
-  // Se path è vuoto o root, restituisci solo il base path + '/'
-  if (!path || path === '/') {
-    const basePath = getBasePath();
-    return basePath ? basePath + '/' : '/';
+export function createUrl(urlPath: string): string {
+  const basePath = getBasePath();
+
+  // Gestione percorsi speciali
+  if (urlPath === '' || urlPath === '/') {
+    return basePath;
   }
 
-  // Normalizza il percorso richiesto
-  let cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const basePath = getBasePath();
-  
-  if (basePath) {
-    return basePath + cleanPath;
+  // Rimuovi slash iniziale dal path se presente
+  const normalizedPath = urlPath.startsWith('/') ? urlPath.substring(1) : urlPath;
+
+  // Protezione contro duplicazione del base path
+  // Se il base path è "/wedgallery/" e il path inizia con "wedgallery/", 
+  // non duplicare
+  if (basePath !== '/' && normalizedPath.startsWith(basePath.substring(1))) {
+    return `/${normalizedPath}`;
   }
-  
-  return cleanPath;
-};
+
+  // Concatena il percorso base con il percorso relativo
+  return `${basePath}${normalizedPath}`;
+}
 
 /**
  * Crea un URL assoluto per la condivisione
@@ -144,7 +123,7 @@ export const refreshBasePath = (): void => {
  */
 export const getPathDebugInfo = () => {
   if (typeof window === 'undefined') return null;
-  
+
   return {
     pathname: window.location.pathname,
     basePath: getBasePath(),
