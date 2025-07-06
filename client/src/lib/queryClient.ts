@@ -62,7 +62,7 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // Applica automaticamente il base path se l'URL inizia con /api
+  // Se l'app è in sottocartella, anche le API devono avere il base path
   const finalUrl = url.startsWith('/api') ? createUrl(url) : url;
   
   // Includi automaticamente credenziali auth per richieste che lo richiedono
@@ -86,7 +86,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const url = queryKey[0] as string;
-    // Applica automaticamente il base path se l'URL inizia con /api
+    // Se l'app è in sottocartella, anche le API devono avere il base path
     const finalUrl = url.startsWith('/api') ? createUrl(url) : url;
     
     const res = await fetch(finalUrl, {
