@@ -1,16 +1,19 @@
 
-# Enable URL rewriting
 RewriteEngine On
 
-# Handle client-side routing for SPA
-RewriteBase /
+# Imposta il base path per la sottocartella
+RewriteBase /wedgallery/
 
-# Skip rewrite for existing files and directories
+# Skip rewrite per file e directory esistenti
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 
-# Redirect all other requests to index.html
-RewriteRule . /index.html [L]
+# Reindirizza tutte le altre richieste a index.html nella sottocartella
+RewriteRule . /wedgallery/index.html [L]
+
+# Forza il caricamento degli assets dalla sottocartella corretta
+RewriteCond %{REQUEST_URI} ^/assets/
+RewriteRule ^assets/(.*)$ /wedgallery/assets/$1 [L]
 
 # Enable compression
 <IfModule mod_deflate.c>
