@@ -32,6 +32,16 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 6 Luglio 2025 - SISTEMA COMPRESSIONE IMMAGINI UNIVERSALE - COMPLETATO
+- ✓ **COMPRESSIONE UNIVERSALE**: Verificato funzionamento compressione per TUTTI i caricamenti foto
+- ✓ **Ospiti (GuestUpload)**: Usa compressione centralizzata con impostazioni ottimali
+- ✓ **Admin (EditGalleryModal)**: Sistema photoUploader integra compressione automatica
+- ✓ **Nuove Gallerie**: NewGalleryModal utilizza compressione centralizzata
+- ✓ **Sistema Unificato**: Tutte le funzioni usano `compressImage()` da `imageCompression.ts`
+- ✓ **Impostazioni Coerenti**: maxSizeMB=1, maxWidthOrHeight=1920, useWebWorker=true
+- ✓ **Test Automatici**: Script conferma compressione funzionante in tutti gli 8 punti chiave
+- → **RISULTATO**: Riduzione automatica dimensioni foto per tutti gli upload
+
 ### 6 Luglio 2025 - RISOLUZIONE DEFINITIVA DUPLICAZIONE URL - COMPLETATA
 - ✓ **PROBLEMA CRITICO RISOLTO**: Eliminata completamente la duplicazione `/wedgallery/wedgallery/` 
 - ✓ **Causa Root Identificata**: Logica di auto-rilevamento in `basePath.ts` causava conflitti con `VITE_BASE_PATH`

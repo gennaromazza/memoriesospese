@@ -15,7 +15,7 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from 'uuid';
 import ImageCompressionInfo from "./ImageCompressionInfo";
-import imageCompression from "browser-image-compression";
+import { compressImage } from "@/lib/imageCompression";
 import FileUpload from '@/components/ui/file-upload';
 
 interface NewGalleryModalProps {
@@ -91,13 +91,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
       
       try {
         // Compressione dell'immagine
-        const options = {
-          maxSizeMB: 1,
-          maxWidthOrHeight: 1200,
-          useWebWorker: true
-        };
-        
-        const compressedFile = await imageCompression(file, options);
+        const compressedFile = await compressImage(file);
         setCompressedSize(compressedFile.size);
         
         // Calcola il rapporto di compressione (originale / compresso)
@@ -193,13 +187,7 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
             
             try {
               // Comprimi l'immagine prima del caricamento
-              const options = {
-                maxSizeMB: 1,
-                maxWidthOrHeight: 1800,
-                useWebWorker: true,
-              };
-              
-              const compressedFile = await imageCompression(file, options);
+              const compressedFile = await compressImage(file);
               
               // Carica il file compresso
               await uploadBytes(fileRef, compressedFile);

@@ -12,7 +12,7 @@ import { auth, storage, db } from '@/lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDocs, query, where, arrayUnion } from 'firebase/firestore';
-import imageCompression from 'browser-image-compression';
+import { compressImage } from '@/lib/imageCompression';
 import { notifySubscribers, createGalleryUrl } from '@/lib/notificationService';
 
 interface GuestUploadProps {
@@ -102,20 +102,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     }
   };
 
-  const compressImage = async (file: File): Promise<File> => {
-    const options = {
-      maxSizeMB: 1,
-      maxWidthOrHeight: 1920,
-      useWebWorker: true,
-    };
-
-    try {
-      return await imageCompression(file, options);
-    } catch (error) {
-      console.error('Errore nella compressione:', error);
-      return file;
-    }
-  };
+  // Rimuovo la funzione locale - uso quella centralizzata importata
 
   const handleAuth = async (isLogin: boolean = false) => {
     if (!email.trim() || !password.trim() || (!isLogin && !guestName.trim())) {

@@ -1,6 +1,7 @@
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from './firebase';
 import { serverTimestamp } from 'firebase/firestore';
+import { compressImage } from './imageCompression';
 
 export interface UploadProgressInfo {
   file: File;
@@ -52,26 +53,30 @@ export const uploadSinglePhoto = async (
   progressCallback?: (progress: UploadProgressInfo) => void,
   attempt: number = 1
 ): Promise<UploadedPhoto> => {
-  return new Promise((resolve, reject) => {
-    // Utilizza un identificatore univoco per evitare collisioni di nomi
-    const safeFileName = file.name.replace(/[#$]/g, '_'); // Caratteri problematici in Firebase Storage
-    const fileId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const storagePath = `galleries/${galleryId}/${fileId}-${safeFileName}`;
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Comprimi l'immagine prima dell'upload
+      const compressedFile = await compressImage(file);
+      
+      // Utilizza un identificatore univoco per evitare collisioni di nomi
+      const safeFileName = compressedFile.name.replace(/[#$]/g, '_'); // Caratteri problematici in Firebase Storage
+      const fileId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const storagePath = `galleries/${galleryId}/${fileId}-${safeFileName}`;
 
-    // Notifica lo stato iniziale
-    if (progressCallback) {
-      progressCallback({
-        file,
-        progress: 0,
-        state: 'running',
-        uploadedBytes: 0,
-        totalBytes: file.size,
-        attempt
-      });
-    }
+      // Notifica lo stato iniziale
+      if (progressCallback) {
+        progressCallback({
+          file: compressedFile,
+          progress: 0,
+          state: 'running',
+          uploadedBytes: 0,
+          totalBytes: compressedFile.size,
+          attempt
+        });
+      }
 
-    const storageRef = ref(storage, storagePath);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+      const storageRef = ref(storage, storagePath);
+      const uploadTask = uploadBytesResumable(storageRef, compressedFile);
 
     uploadTask.on(
       'state_changed',
@@ -152,6 +157,11 @@ export const uploadSinglePhoto = async (
         }
       }
     );
+    } catch (compressionError) {
+      // Errore nella compressione dell'immagine
+      console.error('Errore compressione immagine:', compressionError);
+      reject(compressionError);
+    }
   });
 };
 
