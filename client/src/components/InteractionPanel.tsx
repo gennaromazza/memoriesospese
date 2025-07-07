@@ -16,10 +16,8 @@ import {
   UserPlus
 } from 'lucide-react';
 import CommentModal from './CommentModal';
-import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 import { Comment, InteractionStats } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
-import { authInterceptor } from '@/lib/authInterceptor';
 
 interface InteractionPanelProps {
   itemId: string;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { PhotoData } from '@/hooks/use-gallery-data';
 import { User, Camera } from 'lucide-react';
-import InteractionWrapper from './InteractionWrapper';
+// Removed InteractionWrapper component
 
 interface PhotoCardProps {
   photo: PhotoData;

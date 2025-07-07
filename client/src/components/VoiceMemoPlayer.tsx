@@ -19,7 +19,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { VoiceMemo } from '@shared/schema';
-import InteractionWrapper from './InteractionWrapper';
+// Removed InteractionWrapper component
 
 interface VoiceMemoPlayerProps {
   memo: VoiceMemo;
@@ -411,14 +411,7 @@ export default function VoiceMemoPlayer({
 
           {/* Interaction Panel - Like e Commenti */}
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <InteractionWrapper
-              itemId={memo.id}
-              itemType="voice_memo"
-              galleryId={galleryId}
-              isAdmin={isAdmin}
-              variant="inline"
-              className="bg-transparent"
-            />
+            {/* InteractionWrapper removed */}
           </div>
         </div>
       </CardContent>

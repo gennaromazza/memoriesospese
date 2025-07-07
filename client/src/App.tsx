@@ -23,7 +23,7 @@ import UserProfile from "@/pages/UserProfile";
 import NotFound from "@/pages/not-found";
 import PathDebugInfo from "@/components/PathDebugInfo";
 import AuthDebugPanel from "@/components/AuthDebugPanel";
-import { authInterceptor } from "@/lib/authInterceptor";
+
 
 // Hook per tracciare le visualizzazioni delle pagine
 function useAnalytics() {
