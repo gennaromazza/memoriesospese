@@ -53,7 +53,7 @@ export default function InteractionPanel({
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  // Auth dialog state removed
 
   const { user, userProfile, isAuthenticated } = useAuth();
   const { toast } = useToast();
@@ -112,7 +112,7 @@ export default function InteractionPanel({
 
   // Handle authentication requirement
   const handleAuthRequired = () => {
-    setShowAuthDialog(true);
+    // Auth dialog functionality removed
     onAuthRequired?.();
   };
 
@@ -194,7 +194,7 @@ export default function InteractionPanel({
     const hasAuth = hasFirebaseAuth || hasLocalAuth;
 
     if (!hasAuth) {
-      setShowAuthDialog(true);
+      // Auth dialog functionality removed
       return;
     }
 
@@ -347,10 +347,7 @@ export default function InteractionPanel({
     fetchStats();
   }, [itemId, itemType, galleryId, userEmail]);
 
-  const handleAuthSuccess = () => {
-    setShowAuthDialog(false);
-    fetchStats();
-  };
+  // Auth success handler removed with auth dialog
 
   if (variant === 'floating') {
     return (
@@ -403,12 +400,7 @@ export default function InteractionPanel({
         />
 
         {/* Authentication Dialog */}
-        <UnifiedAuthDialog
-          isOpen={showAuthDialog}
-          onOpenChange={setShowAuthDialog}
-          galleryId={galleryId}
-          onAuthComplete={handleAuthSuccess}
-        />
+        {/* Auth dialog removed - functionality integrated */}
       </>
     );
   }
@@ -495,13 +487,7 @@ export default function InteractionPanel({
         userName={userName}
       />
 
-      {/* Authentication Dialog */}
-      <UnifiedAuthDialog
-        isOpen={showAuthDialog}
-        onOpenChange={setShowAuthDialog}
-        galleryId={galleryId}
-        onAuthComplete={handleAuthSuccess}
-      />
+      {/* Authentication Dialog removed - functionality integrated */}
     </div>
   );
 }
