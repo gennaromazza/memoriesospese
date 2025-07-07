@@ -70,7 +70,7 @@ export default function InteractionPanel({
   const fetchStats = async () => {
     try {
       setIsLoadingStats(true);
-      
+
       if (itemType === 'photo') {
         const stats = await apiClient.getPhotoStats(galleryId, itemId, userEmail);
         setStats(stats);
@@ -98,7 +98,7 @@ export default function InteractionPanel({
   const fetchComments = async () => {
     try {
       setIsLoadingStats(true);
-      
+
       if (itemType === 'photo') {
         const comments = await apiClient.getPhotoComments(galleryId, itemId);
         setComments(comments);
@@ -127,10 +127,10 @@ export default function InteractionPanel({
 
     try {
       setIsLoading(true);
-      
+
       if (itemType === 'photo') {
         const result = await apiClient.togglePhotoLike(galleryId, itemId, userEmail, userName);
-        
+
         if (result) {
           // Update stats based on action
           setStats(prev => ({
@@ -458,7 +458,7 @@ export default function InteractionPanel({
         </Button>
       </div>
 
-      
+
 
       {/* Authentication prompt */}
       {!hasAuth && (

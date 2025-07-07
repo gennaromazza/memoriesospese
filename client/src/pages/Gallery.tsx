@@ -30,6 +30,15 @@ import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from '@tanstack/react-query';
+import { 
+  usePhotoLikeStatus, 
+  useTopLikedPhotos, 
+  useRecentComments, 
+  useRecentVoiceMemos,
+  useTogglePhotoLike,
+  useAddPhotoComment 
+} from '@/hooks/useFirebaseQueries';
 
 export default function Gallery() {
   const { id } = useParams();
@@ -350,7 +359,7 @@ export default function Gallery() {
                         <p>Visualizza le foto professionali scattate dal fotografo</p>
                       </TooltipContent>
                     </Tooltip>
-                    
+
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
@@ -370,7 +379,7 @@ export default function Gallery() {
                         <p>Guarda le foto caricate dagli ospiti dell'evento</p>
                       </TooltipContent>
                     </Tooltip>
-                    
+
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
@@ -427,7 +436,7 @@ export default function Gallery() {
                             <p>Iscriviti per ricevere notifiche quando vengono aggiunte nuove foto</p>
                           </TooltipContent>
                         </Tooltip>
-                        
+
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="flex-1 sm:flex-initial">
@@ -447,7 +456,7 @@ export default function Gallery() {
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    
+
                     {/* Pulsanti utente */}
                     {(userEmail || userName) && (
                       <div className="flex gap-2 justify-end sm:justify-start">
@@ -527,7 +536,7 @@ export default function Gallery() {
                         <p>Aggiungi le tue foto personali alla galleria degli ospiti</p>
                       </TooltipContent>
                     </Tooltip>
-                    
+
                     {(userEmail || userName) && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -588,7 +597,7 @@ export default function Gallery() {
                         <p>Registra un messaggio vocale privato per gli sposi</p>
                       </TooltipContent>
                     </Tooltip>
-                    
+
                     {(userEmail || userName) && (
                       <Tooltip>
                         <TooltipTrigger asChild>
