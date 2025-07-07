@@ -538,7 +538,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                 </div>
                 <div>
                   <p className="font-medium text-sage-900 text-sm sm:text-base">
-                    Ciao <span className="text-sage-700">{userProfile?.displayName || user?.displayName}</span>!
+                    Ciao <span className="text-sage-700">{currentUser?.displayName || 'Utente'}</span>!
                   </p>
                   <p className="text-xs sm:text-sm text-sage-700">
                     Sei pronto per condividere i tuoi ricordi speciali
