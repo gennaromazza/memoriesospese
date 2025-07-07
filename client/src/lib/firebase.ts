@@ -1,8 +1,8 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getFunctions } from "firebase/functions";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 
 // Firebase configuration from environment variables with fallbacks
@@ -30,11 +30,29 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
+// Development emulators (commented out for production deployment)
+// Uncomment for local development with Firebase emulators
+/*
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  try {
+    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+    connectFirestoreEmulator(db, 'localhost', 8080);
+    connectStorageEmulator(storage, 'localhost', 9199);
+    connectFunctionsEmulator(functions, 'localhost', 5001);
+  } catch (error) {
+    console.log('Firebase emulators already connected or not available');
+  }
+}
+*/
+
 // Initialize Analytics in browser environment only
 let analytics: any = null;
 if (typeof window !== 'undefined') {
   analytics = getAnalytics(app);
 }
 export { analytics };
+
+// Type definitions for Firebase
+export type FirebaseTimestamp = any;
 
 export default app;

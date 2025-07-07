@@ -1,0 +1,54 @@
+Agisci come un esperto sviluppatore full-stack specializzato in React, TypeScript e Firebase. Il tuo compito è convertire un'applicazione web esistente in un'app **Firebase-Only Single Page Application (SPA)**, eliminando completamente la dipendenza dal backend Express/Node.js. L'obiettivo finale è una web app interamente client-side, ospitabile su un server condiviso Netsons (senza server Node), e deployabile come cartella `build` statica.
+
+### 📌 Requisiti Chiave:
+- Rimuovi tutto il codice backend (`server/`), migrando logica e API calls nel frontend con Firebase SDK.
+- Tutte le API attualmente gestite da Express (autenticazione, gallerie, commenti, like, memos vocali, ecc.) devono essere convertite in interazioni sicure e dirette con Firestore, Firebase Auth e Firebase Storage.
+- Tutta la logica di autenticazione, autorizzazione e access control deve essere gestita tramite Firebase Auth + Firestore security rules.
+- Trasforma tutte le chiamate HTTP in `fetch()` verso `/api/...` in corrispondenti chiamate Firebase SDK.
+- Migra l’invio email da Netsons SMTP a soluzioni come:
+  - Firebase Cloud Functions (solo se esportabile come file separato per trigger esterni)
+  - Oppure segnala che dovrà essere gestito tramite servizio esterno lato admin
+- Garantire compatibilità 100% con le seguenti funzionalità:
+  - Gallerie private con protezione via password/domanda di sicurezza
+  - Caricamento e visualizzazione immagini (Storage)
+  - Commenti, like e statistiche (Firestore)
+  - Voice Memos (registrazione/upload/audio player)
+- Mantenere struttura codebase pulita con:
+  - Modularizzazione componenti
+  - Tipizzazione completa TypeScript
+  - Uso di `hooks`, `context`, `lib/firebase.ts` centralizzato
+  - Routing React Router con `basename = /wedgallery`
+
+### 🛠️ Output Richiesto
+1. Genera un **refactoring plan dettagliato** con:
+   - Modifiche da fare ai file
+   - Eliminazioni dei file server-side
+   - Nuove funzioni/client SDK da introdurre
+2. Riscrivi (o convertila step-by-step):
+   - `firebase.ts` (inizializzazione SDK + Firestore/Storage/Auth)
+   - `auth` (login, logout, verifica accesso, protezione admin)
+   - `galleryService.ts` (fetch, upload, accesso foto)
+   - `commentService.ts`, `likeService.ts` (social system)
+   - `voiceMemoService.ts` (registrazione, salvataggio, unlocking)
+3. Migrazione sicurezza:
+   - Suggerisci **Firestore e Storage Rules** per protezione dati
+   - Descrivi come gestire i permessi granulari lato Firestore
+4. Ottimizzazioni:
+   - Lazy load pagine
+   - Codice compatibile con Vite + Netsons hosting
+   - Real-time updates con `onSnapshot()`
+
+### 📁 Deployment Note:
+- L’app deve essere compilabile con `npm run build`
+- Deve funzionare come SPA statica (`/index.html` fallback per 404)
+- Deve poter essere caricata in sottocartella `/wedgallery/` su Netsons via FTP
+
+### 📚 Contesto Applicazione:
+- React + TypeScript
+- Shadcn/UI
+- Firebase Firestore + Auth + Storage
+- Attualmente usa Express API + Netsons SMTP (da rimuovere)
+
+---
+
+Conferma se vuoi generare la nuova versione del progetto partendo dai file `client/` e `firebase.ts`. Fornisci struttura refactoring, poi procedi modulo per modulo.
