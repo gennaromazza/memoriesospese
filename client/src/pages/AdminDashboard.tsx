@@ -195,7 +195,7 @@ export default function AdminDashboard() {
 
   // Stati per la paginazione delle richieste password
   const [currentRequestPage, setCurrentRequestPage] = useState(1);
-  const [requestsPerPage] = useState(5); // Numero di richieste per pagina
+  const [requestsPerPage] = useState(10); // Numero di richieste per pagina
   const [studioSettings, setStudioSettings] = useState<StudioSettings>({
     name: '',
     slogan: '',
