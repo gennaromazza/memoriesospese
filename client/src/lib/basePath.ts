@@ -7,14 +7,14 @@
  * Rileva automaticamente il base path dall'URL corrente
  */
 function detectBasePath(): string {
+  // Usa sempre la variabile d'ambiente se disponibile
+  if (import.meta.env.VITE_BASE_PATH) {
+    return import.meta.env.VITE_BASE_PATH;
+  }
+
   // In sviluppo, usa sempre '/'
   if (import.meta.env.DEV) {
     return '/';
-  }
-
-  // Usa variabile d'ambiente se disponibile
-  if (import.meta.env.VITE_BASE_PATH) {
-    return import.meta.env.VITE_BASE_PATH;
   }
 
   // Fallback - non usare auto-rilevamento per evitare duplicazioni
@@ -31,30 +31,18 @@ let cachedBasePath: string | null = null;
  */
 function getBasePath(): string {
   if (cachedBasePath === null) {
-    // In sviluppo, usa sempre root
-    if (import.meta.env.DEV) {
-      cachedBasePath = '';
-    } else {
-      // In produzione, usa SOLO la variabile d'ambiente di Vite
-      // Non fare rilevamento automatico per evitare duplicazioni
-      const baseUrl = import.meta.env.BASE_URL;
-      if (baseUrl && baseUrl !== '/') {
-        cachedBasePath = baseUrl.replace(/\/$/, '');
-      } else {
-        cachedBasePath = '';
-      }
-    }
+    cachedBasePath = detectBasePath();
   }
-
   return cachedBasePath;
 }
 
 export function createUrl(urlPath: string): string {
   const basePath = getBasePath();
+  console.log('createUrl debug:', { urlPath, basePath, result: basePath || '/' });
 
   // Gestione percorsi speciali
   if (urlPath === '' || urlPath === '/') {
-    return basePath;
+    return basePath || '/';
   }
 
   // Rimuovi slash iniziale dal path se presente
