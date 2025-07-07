@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Heart, MessageCircle } from 'lucide-react';
 import InteractionPanel from './InteractionPanel';
 import UnifiedAuthDialog from '@/components/auth/UnifiedAuthDialog';
-import { useAuth } from '@/hooks/useAuth';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { cn } from '@/lib/utils';
 import { useGalleryAccess } from '@/hooks/useAuth';
 
@@ -28,7 +28,7 @@ export default function InteractionWrapper({
 }: InteractionWrapperProps) {
   const [showPanel, setShowPanel] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
-  const { isAuthenticated, user, userProfile } = useAuth();
+  const { isAuthenticated, user, userProfile } = useFirebaseAuth();
   const { hasAccess, grantAccess } = useGalleryAccess(galleryId);
 
   // Get authentication data from centralized system

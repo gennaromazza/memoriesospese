@@ -158,7 +158,7 @@ export default function CommentModal({
             Commenti
           </DialogTitle>
           <DialogDescription id="comment-modal-description">
-            Lascia un commento o leggi cosa hanno scritto gli altri ospiti
+            Visualizza e aggiungi commenti per questa foto
           </DialogDescription>
         </DialogHeader>
 
@@ -280,7 +280,7 @@ export default function CommentModal({
                         </Button>
                       )}
                     </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{comment.content}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{comment.text}</p>
                   </div>
                 ))
               )}
