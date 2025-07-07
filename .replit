@@ -8,7 +8,7 @@ channel = "stable-24_05"
 [deployment]
 deploymentTarget = "autoscale"
 build = ["sh", "-c", "npm run build"]
-run = ["sh", "-c", "npm start"]
+run = ["sh", "-c", "npx serve dist -s -l 5000"]
 
 [workflows]
 runButton = "Project"
@@ -39,6 +39,19 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run build-deploy"
+
+[[workflows.workflow]]
+name = "Deploy Static App"
+author = 41213760
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx serve dist -s -l 5000"
 
 [[ports]]
 localPort = 3000
