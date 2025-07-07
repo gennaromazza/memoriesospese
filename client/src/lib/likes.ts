@@ -42,24 +42,22 @@ export class LikeService {
    */
   static async toggleLike(photoId: string, userId: string, userEmail: string, userName: string): Promise<boolean> {
     try {
+      // Validazione input
+      if (!photoId || !userId || !userEmail || !userName) {
+        throw new Error('Parametri mancanti per toggle like');
+      }
+
       const likeId = `${photoId}_${userId}`;
       
       return await runTransaction(db, async (transaction) => {
         const likeRef = doc(db, 'likes', likeId);
-        const photoRef = doc(db, 'photos', photoId);
-        
         const likeDoc = await transaction.get(likeRef);
-        const photoDoc = await transaction.get(photoRef);
         
         const isLiked = likeDoc.exists();
-        const currentLikeCount = photoDoc.exists() ? (photoDoc.data().likeCount || 0) : 0;
 
         if (isLiked) {
           // Remove like
           transaction.delete(likeRef);
-          transaction.update(photoRef, { 
-            likeCount: Math.max(0, currentLikeCount - 1)
-          });
           return false;
         } else {
           // Add like
@@ -69,9 +67,6 @@ export class LikeService {
             userEmail,
             userName,
             createdAt: serverTimestamp()
-          });
-          transaction.update(photoRef, { 
-            likeCount: currentLikeCount + 1
           });
           return true;
         }

@@ -71,14 +71,21 @@ export class CommentService {
    */
   static async getPhotoComments(photoId: string): Promise<Comment[]> {
     try {
+      // Semplifichiamo la query per evitare errori di indici mancanti
       const commentsQuery = query(
         collection(db, 'comments'),
-        where('photoId', '==', photoId),
-        orderBy('createdAt', 'asc')
+        where('photoId', '==', photoId)
       );
       
       const snapshot = await getDocs(commentsQuery);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      
+      // Ordiniamo manualmente per evitare problemi con gli indici Firebase
+      return comments.sort((a, b) => {
+        const timeA = a.createdAt?.toDate?.() || new Date(0);
+        const timeB = b.createdAt?.toDate?.() || new Date(0);
+        return timeA.getTime() - timeB.getTime();
+      });
     } catch (error) {
       console.error('Errore recupero commenti foto:', error);
       return [];
@@ -90,18 +97,27 @@ export class CommentService {
    */
   static async getGalleryComments(galleryId: string, limitCount?: number): Promise<Comment[]> {
     try {
-      let commentsQuery = query(
+      // Semplifichiamo la query per evitare errori di indici mancanti
+      const commentsQuery = query(
         collection(db, 'comments'),
-        where('galleryId', '==', galleryId),
-        orderBy('createdAt', 'desc')
+        where('galleryId', '==', galleryId)
       );
-
-      if (limitCount) {
-        commentsQuery = query(commentsQuery, limit(limitCount));
-      }
       
       const snapshot = await getDocs(commentsQuery);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      let comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      
+      // Ordiniamo manualmente
+      comments = comments.sort((a, b) => {
+        const timeA = a.createdAt?.toDate?.() || new Date(0);
+        const timeB = b.createdAt?.toDate?.() || new Date(0);
+        return timeB.getTime() - timeA.getTime(); // desc order
+      });
+
+      if (limitCount) {
+        comments = comments.slice(0, limitCount);
+      }
+      
+      return comments;
     } catch (error) {
       console.error('Errore recupero commenti galleria:', error);
       return [];
