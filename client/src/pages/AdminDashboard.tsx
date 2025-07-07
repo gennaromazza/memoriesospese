@@ -185,7 +185,7 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'subscriptions' | 'slideshow' | 'requests' | 'email' | 'settings' | 'security'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'subscriptions' | 'slideshow' | 'requests' | 'email' | 'settings'>('galleries');
   const [securityGalleryId, setSecurityGalleryId] = useState<string | null>(null);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
 
@@ -874,10 +874,7 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Sistema Email</span>
                 <span className="sm:hidden">✉️</span>
               </TabsTrigger>
-              <TabsTrigger value="security" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
-                <span className="hidden sm:inline">Sicurezza</span>
-                <span className="sm:hidden">🛡️</span>
-              </TabsTrigger>
+              
               <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
                 <span className="hidden sm:inline">Impostazioni</span>
                 <span className="sm:hidden">⚙️</span>
@@ -1043,18 +1040,7 @@ export default function AdminDashboard() {
                                     </div>
                                   </PopoverContent>
                                 </Popover>
-                                <Button 
-                                  variant="outline" 
-                                  size="icon"
-                                  className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200" 
-                                  onClick={() => {
-                                    setSecurityGalleryId(gallery.id);
-                                    setActiveTab('security');
-                                  }}
-                                  title="Configura domanda di sicurezza"
-                                >
-                                  <Shield className="h-4 w-4 text-blue-600" />
-                                </Button>
+                                
                                 <Button 
                                   variant="destructive" 
                                   size="icon"
@@ -1225,67 +1211,7 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* Contenuto Tab Sicurezza */}
-            <TabsContent value="security">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Sicurezza Gallerie</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Configura domande di sicurezza aggiuntive per proteggere l'accesso alle gallerie.
-                    </p>
-                  </div>
-                </div>
-
-                {securityGalleryId ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center space-x-3">
-                        <Shield className="h-5 w-5 text-blue-600" />
-                        <div>
-                          <h3 className="font-medium text-blue-900">
-                            Configurazione domanda di sicurezza
-                          </h3>
-                          <p className="text-sm text-blue-700">
-                            Galleria ID: {securityGalleryId}
-                          </p>
-                        </div>
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => {
-                          setSecurityGalleryId(null);
-                          setActiveTab('galleries');
-                        }}
-                      >
-                        Torna alle gallerie
-                      </Button>
-                    </div>
-
-                    <SecurityQuestionManager 
-                      galleryId={securityGalleryId}
-                      initialData={{}}
-                    />
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Shield className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      Seleziona una galleria
-                    </h3>
-                    <p className="text-gray-500 mb-4">
-                      Clicca sull'icona scudo di una galleria per configurare la sua domanda di sicurezza.
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setActiveTab('galleries')}
-                    >
-                      Vai alle gallerie
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
+            
 
             {/* Contenuto Tab Impostazioni */}
             <TabsContent value="settings">
