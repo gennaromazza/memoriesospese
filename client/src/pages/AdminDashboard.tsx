@@ -1040,7 +1040,18 @@ export default function AdminDashboard() {
                                     </div>
                                   </PopoverContent>
                                 </Popover>
-                                
+                                <Button 
+                                  variant="outline" 
+                                  size="icon"
+                                  className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200" 
+                                  onClick={() => {
+                                    setSecurityGalleryId(gallery.id);
+                                    setShowSecurityModal(true);
+                                  }}
+                                  title="Configura domanda di sicurezza"
+                                >
+                                  <Shield className="h-4 w-4 text-blue-600" />
+                                </Button>
                                 <Button 
                                   variant="destructive" 
                                   size="icon"
@@ -1480,6 +1491,31 @@ export default function AdminDashboard() {
           onClose={closeEditModal}
           gallery={selectedGallery}
         />
+      )}
+
+      {/* Modale per configurazione domanda di sicurezza */}
+      {securityGalleryId && (
+        <div className={`fixed inset-0 z-50 ${showSecurityModal ? 'flex' : 'hidden'} items-center justify-center bg-black bg-opacity-50`}>
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Configurazione Domanda di Sicurezza</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowSecurityModal(false);
+                  setSecurityGalleryId(null);
+                }}
+              >
+                Chiudi
+              </Button>
+            </div>
+            <SecurityQuestionManager 
+              galleryId={securityGalleryId}
+              initialData={{}}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
