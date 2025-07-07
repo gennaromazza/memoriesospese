@@ -1,0 +1,32 @@
+Warning: validateDOMNesting(...): %s cannot appear as a descendant of <%s>.%s <div> p 
+    at div
+    at p
+    at div
+    at div
+    at div
+    at div
+    at div
+    at form
+    at div
+    at div
+    at div
+    at div
+    at div
+    at div
+    at NewGalleryModal (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/src/components/NewGalleryModal.tsx:34:43)
+    at div
+    at AdminDashboard (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/src/pages/AdminDashboard.tsx:249:41)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/node_modules/.vite/deps/wouter.js?v=3ee1e8a1:323:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/node_modules/.vite/deps/wouter.js?v=3ee1e8a1:379:17)
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/src/App.tsx?v=p5mdLfnccQ6GyLEdCGqhA:51:3)
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/node_modules/.vite/deps/wouter.js?v=3ee1e8a1:291:17)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/src/context/StudioContext.tsx:55:34)
+    at AuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/src/context/AuthContext.tsx:37:32)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/node_modules/.vite/deps/chunk-7AGJXJKN.js?v=3ee1e8a1:48:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=3ee1e8a1:59:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/node_modules/.vite/deps/next-themes.js?v=3ee1e8a1:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/node_modules/.vite/deps/next-themes.js?v=3ee1e8a1:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/node_modules/.vite/deps/@tanstack_react-query.js?v=3ee1e8a1:2805:3)
+    at App (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/src/App.tsx?v=p5mdLfnccQ6GyLEdCGqhA:108:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/src/context/StudioContext.tsx?v=p5mdLfnccQ6GyLEdCGqhA:55:34)
+    at AuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/wedgallery/src/context/AuthContext.tsx?v=p5mdLfnccQ6GyLEdCGqhA:37:32)

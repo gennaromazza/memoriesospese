@@ -338,26 +338,3 @@ export function createChaptersFromFolderStructure(
     photosWithChapters
   };
 }
-
-/**
- * Funzione principale per processare file da cartelle con progresso
- * Combina tutte le funzionalità di lettura cartelle e creazione capitoli
- */
-export async function processFilesFromFolders(
-  items: DataTransferItem[],
-  progressCallback?: (progress: number, status: string, filesFound?: number, filesProcessed?: number) => void
-): Promise<{ chapters: Chapter[]; photosWithChapters: PhotoWithChapter[] }> {
-  
-  // Fase 1: Estrazione file dalle cartelle
-  const { files, folderMap } = await processItemsWithFolders(items, progressCallback);
-  
-  // Fase 2: Creazione capitoli dalla struttura
-  const result = createChaptersFromFolderStructure(files, folderMap, progressCallback);
-  
-  // Aggiornamento progresso finale
-  if (progressCallback) {
-    progressCallback(100, 'Completato!', files.length, files.length);
-  }
-  
-  return result;
-}

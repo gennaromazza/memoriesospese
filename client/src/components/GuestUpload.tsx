@@ -13,7 +13,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfi
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDocs, query, where, arrayUnion } from 'firebase/firestore';
 import { compressImage } from '@/lib/imageCompression';
-// Notification service functionality integrated into other components
+import { notifySubscribers, createGalleryUrl } from '@/lib/notificationService';
 
 interface GuestUploadProps {
   galleryId: string;
@@ -266,9 +266,18 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
 
       // Invia notifiche email ai subscribers
       try {
-        // Notification functionality moved to server-side
-      } catch (error) {
-        // Notification handled server-side
+        const galleryUrl = createGalleryUrl(galleryId);
+
+        await notifySubscribers({
+          galleryId,
+          galleryName,
+          newPhotosCount: uploadedPhotos.length,
+          uploaderName: currentUserName,
+          galleryUrl
+        });
+      } catch (notifyError) {
+        console.warn('Errore invio notifiche:', notifyError);
+        // Non bloccare l'upload per errori di notifica
       }
 
       toast({

@@ -5,8 +5,8 @@ import { Button } from './button';
 import { compressImages } from '@/lib/imageCompression';
 import ImageCompressionInfo from '@/components/ImageCompressionInfo';
 import { ChapterData, PhotoWithChapterInfo } from '@shared/types';
-// Funzione per elaborare file da cartelle
-import { processFilesFromFolders } from '@/lib/folderReader';
+// Importa il nuovo lettore di cartelle semplificato
+import { processFilesFromFolders } from '@/lib/simpleFolderReader';
 
 // Esportiamo l'interfaccia PhotoWithChapter per compatibilità
 export type { PhotoWithChapter } from '@/components/ChaptersManager';

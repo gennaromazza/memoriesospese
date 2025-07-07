@@ -5,7 +5,7 @@ import { getAuth, signOut } from "firebase/auth";
 import { db, storage, auth } from "@/lib/firebase";
 import { createUrl } from "@/lib/basePath";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-// Excel export functionality removed
+import { formatPasswordRequestsForExcel, exportToExcel } from "@/lib/excelExport";
 import { ref, listAll, deleteObject, uploadBytes, getDownloadURL } from "firebase/storage";
 import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
@@ -495,7 +495,16 @@ export default function AdminDashboard() {
         return;
       }
 
-      // Excel export functionality removed
+      // Formatta i dati per l'export
+      const formattedData = formatPasswordRequestsForExcel(passwordRequests);
+
+      // Genera nome file con data corrente
+      const today = new Date();
+      const dateStr = today.toISOString().split('T')[0]; // formato YYYY-MM-DD
+      const fileName = `richieste_password_${dateStr}.xlsx`;
+
+      // Esporta in Excel
+      exportToExcel(formattedData, fileName, "Richieste Password");
 
       toast({
         title: "Esportazione completata",

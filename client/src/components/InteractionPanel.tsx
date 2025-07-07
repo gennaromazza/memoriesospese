@@ -5,7 +5,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api-client';
-import { createUrl } from '@/lib/config';
 import { 
   Heart, 
   MessageCircle, 
@@ -17,9 +16,10 @@ import {
   UserPlus
 } from 'lucide-react';
 import CommentModal from './CommentModal';
-import UserAuthDialog from './UserAuthDialog';
+import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 import { Comment, InteractionStats } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
+import { authInterceptor } from '@/lib/authInterceptor';
 
 interface InteractionPanelProps {
   itemId: string;
@@ -114,18 +114,14 @@ export default function InteractionPanel({
 
   // Handle authentication requirement
   const handleAuthRequired = () => {
-    if (onAuthRequired) {
-      onAuthRequired();
-    } else {
-      setShowAuthDialog(true);
-    }
+    setShowAuthDialog(true);
+    onAuthRequired?.();
   };
 
   // Handle like functionality using robust API client
   const handleLike = async () => {
     // Verifica autenticazione con sistema centralizzato
-    if (!userEmail) {
-      handleAuthRequired();
+    if (!(await authInterceptor.requireAuth())) {
       return;
     }
 
@@ -353,7 +349,7 @@ export default function InteractionPanel({
     fetchStats();
   }, [itemId, itemType, galleryId, userEmail]);
 
-  const handleAuthSuccess = (email: string, name: string) => {
+  const handleAuthSuccess = () => {
     setShowAuthDialog(false);
     fetchStats();
   };
@@ -409,7 +405,7 @@ export default function InteractionPanel({
         />
 
         {/* Authentication Dialog */}
-        <UserAuthDialog
+        <UnifiedAuthDialog
           isOpen={showAuthDialog}
           onOpenChange={setShowAuthDialog}
           galleryId={galleryId}
@@ -502,7 +498,7 @@ export default function InteractionPanel({
       />
 
       {/* Authentication Dialog */}
-      <UserAuthDialog
+      <UnifiedAuthDialog
         isOpen={showAuthDialog}
         onOpenChange={setShowAuthDialog}
         galleryId={galleryId}

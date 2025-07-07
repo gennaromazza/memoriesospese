@@ -22,9 +22,12 @@ import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress"
 import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
 import SubscriptionManager from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
+import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
+import InteractionWrapper from "@/components/InteractionWrapper";
 import InteractionPanel from "@/components/InteractionPanel";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
+import RegistrationCTA from "@/components/RegistrationCTA";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -770,16 +773,17 @@ export default function Gallery() {
                   galleryId={gallery.id}
                   isAdmin={isAdmin}
                   refreshTrigger={refreshTrigger}
-                  userEmail={userEmail}
-                  userName={userName}
-                  onAuthRequired={handleAuthRequired}
                 />
               )}
 
               {/* Registration CTA section - only show when user is not logged in */}
               {!isAuthenticated && !userEmail && !userName && (
                 <div id="registration-section" className="mt-12 mb-8">
-                  {/* RegistrationCTA removed */}
+                  <RegistrationCTA
+                    galleryId={gallery.id}
+                    onAuthComplete={refreshUserCredentials}
+                    className="max-w-4xl mx-auto"
+                  />
                 </div>
               )}
 

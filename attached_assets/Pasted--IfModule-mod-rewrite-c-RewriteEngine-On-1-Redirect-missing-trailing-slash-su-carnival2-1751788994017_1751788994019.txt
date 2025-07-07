@@ -1,0 +1,100 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # 1) Redirect missing trailing slash su /carnival2025 (case-insensitive)
+  RewriteCond %{REQUEST_URI} ^/carnival2025$ [NC]
+  RewriteRule ^carnival2025$ /carnival2025/ [R=301,L]
+
+  # 2) SPA: /wedgallery → index.html
+  RewriteCond %{REQUEST_URI} ^/wedgallery(/.*)?$ [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^wedgallery(/.*)?$ /wedgallery/index.html [L]
+
+  # 3) SPA: /carnival2025 → index.html
+  RewriteCond %{REQUEST_URI} ^/carnival2025(/.*)?$ [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^carnival2025(/.*)?$ /carnival2025/index.html [L]
+
+  # 4) Gestione assets React in /wedgallery/ (referrer wedgallery o wedgallery/)
+  RewriteCond %{REQUEST_URI} ^/assets/.*\.(css|js|png|jpg|jpeg|gif|ico|svg|woff2?|ttf|eot)$ [NC]
+  RewriteCond %{HTTP_REFERER} ^https?://[^/]+/wedgallery(/|$) [NC]
+  RewriteRule ^assets/(.*)$ /wedgallery/assets/$1 [L]
+
+  # 5) File statici root → wedgallery se referrer da wedgallery
+  RewriteCond %{REQUEST_URI} ^/(.*\.(css|js|png|jpg|jpeg|gif|ico|svg|woff2?|ttf|eot))$ [NC]
+  RewriteCond %{HTTP_REFERER} ^https?://[^/]+/wedgallery(/|$) [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(.*)$ /wedgallery/$1 [L]
+
+  # 6) Regole WordPress (sempre per ultima)
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+  RewriteBase /
+  RewriteRule ^index\.php$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.php [L]
+</IfModule>
+
+# LiteSpeed
+<IfModule Litespeed>
+  SetEnv noabort 1
+</IfModule>
+
+# cPanel-generated php.ini directives, PHP 7
+<IfModule php7_module>
+  php_flag display_errors Off
+  php_value max_execution_time 300
+  php_value max_input_time 600
+  php_value max_input_vars 100000
+  php_value memory_limit 3000M
+  php_value post_max_size 2000M
+  php_value session.gc_maxlifetime 1440
+  php_value session.save_path "/var/cpanel/php/sessions/ea-php72"
+  php_value upload_max_filesize 3000M
+  php_flag zlib.output_compression Off
+</IfModule>
+<IfModule lsapi_module>
+  php_flag display_errors Off
+  php_value max_execution_time 300
+  php_value max_input_time 600
+  php_value max_input_vars 100000
+  php_value memory_limit 3000M
+  php_value post_max_size 2000M
+  php_value session.gc_maxlifetime 1440
+  php_value session.save_path "/var/cpanel/php/sessions/ea-php72"
+  php_value upload_max_filesize 3000M
+  php_flag zlib.output_compression Off
+</IfModule>
+
+# cPanel-generated php.ini directives, PHP 8 (session path corretto)
+<IfModule php8_module>
+  php_flag display_errors Off
+  php_value max_execution_time 300
+  php_value max_input_time 600
+  php_value max_input_vars 100000
+  php_value memory_limit 3000M
+  php_value post_max_size 64M
+  php_value session.gc_maxlifetime 1440
+  php_value session.save_path "/var/cpanel/php/sessions/ea-php81"
+  php_value upload_max_filesize 64M
+  php_flag zlib.output_compression Off
+</IfModule>
+<IfModule lsapi_module>
+  php_flag display_errors Off
+  php_value max_execution_time 300
+  php_value max_input_time 600
+  php_value max_input_vars 100000
+  php_value memory_limit 3000M
+  php_value post_max_size 64M
+  php_value session.gc_maxlifetime 1440
+  php_value session.save_path "/var/cpanel/php/sessions/ea-php81"
+  php_value upload_max_filesize 64M
+  php_flag zlib.output_compression Off
+</IfModule>
+
+# php -- handler per ea-php81
+<IfModule mime_module>
+  AddHandler application/x-httpd-ea-php81___lsphp .php .php8 .phtml
+</IfModule>

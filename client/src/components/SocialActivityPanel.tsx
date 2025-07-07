@@ -17,7 +17,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Comment, VoiceMemo } from '@shared/schema';
-// Componente VoiceMemoUpload rimosso - funzionalità integrata
+import VoiceMemoUpload from './VoiceMemoUpload';
 
 interface PhotoStats {
   id: string;
@@ -40,7 +40,7 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
   const [topPhotos, setTopPhotos] = useState<PhotoStats[]>([]);
   const [recentVoiceMemos, setRecentVoiceMemos] = useState<VoiceMemo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // Voice memo upload functionality removed
+  const [showVoiceMemoUpload, setShowVoiceMemoUpload] = useState(false);
 
   const formatDateTime = (timestamp: any): string => {
     try {
@@ -293,7 +293,7 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
               Note Audio
             </CardTitle>
             <button
-              onClick={() => {/* Voice memo upload removed */}}
+              onClick={() => setShowVoiceMemoUpload(true)}
               className="text-purple-600 hover:text-purple-700 transition-colors p-1 rounded-full hover:bg-purple-50"
               title="Aggiungi nota audio"
             >
@@ -380,7 +380,18 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       </Card>
     </div>
 
-    {/* Voice Memo Upload Modal removed */}
+    {/* Voice Memo Upload Modal */}
+    {showVoiceMemoUpload && (
+      <VoiceMemoUpload
+        galleryId={galleryId}
+        galleryName="Galleria"
+        onUploadComplete={() => {
+          setShowVoiceMemoUpload(false);
+          // Refresh voice memos list
+          fetchRecentVoiceMemos();
+        }}
+      />
+    )}
     </>
   );
 }

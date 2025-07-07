@@ -19,7 +19,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { VoiceMemo } from '@shared/schema';
-import InteractionPanel from './InteractionPanel';
+import InteractionWrapper from './InteractionWrapper';
 
 interface VoiceMemoPlayerProps {
   memo: VoiceMemo;
@@ -27,9 +27,6 @@ interface VoiceMemoPlayerProps {
   isAdmin?: boolean;
   onUnlock?: (memoId: string) => void;
   onDelete?: (memoId: string) => void;
-  userEmail?: string;
-  userName?: string;
-  onAuthRequired?: () => void;
 }
 
 export default function VoiceMemoPlayer({ 
@@ -37,10 +34,7 @@ export default function VoiceMemoPlayer({
   galleryId,
   isAdmin = false, 
   onUnlock, 
-  onDelete,
-  userEmail,
-  userName,
-  onAuthRequired
+  onDelete 
 }: VoiceMemoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -417,14 +411,13 @@ export default function VoiceMemoPlayer({
 
           {/* Interaction Panel - Like e Commenti */}
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <InteractionPanel
+            <InteractionWrapper
               itemId={memo.id}
               itemType="voice_memo"
               galleryId={galleryId}
               isAdmin={isAdmin}
-              userEmail={userEmail}
-              userName={userName}
-              onAuthRequired={onAuthRequired}
+              variant="inline"
+              className="bg-transparent"
             />
           </div>
         </div>

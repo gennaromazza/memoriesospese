@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { sendWelcomeEmail, sendNewPhotosNotification } from "./mailer";
+import { sendWelcomeEmail, sendNewPhotosNotification } from "./emailService";
 import { insertVoiceMemoSchema } from "../shared/schema";
 import { logger, createContextLogger } from "../shared/logger";
 import { 
