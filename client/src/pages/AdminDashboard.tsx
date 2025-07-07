@@ -849,15 +849,39 @@ export default function AdminDashboard() {
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <Tabs defaultValue="galleries" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-            <TabsList className="mb-6">
-              <TabsTrigger value="galleries">Gallerie</TabsTrigger>
-              <TabsTrigger value="users">Utenti</TabsTrigger>
-              <TabsTrigger value="subscriptions">Iscrizioni</TabsTrigger>
-              <TabsTrigger value="slideshow">Slideshow</TabsTrigger>
-              <TabsTrigger value="requests">Richieste Password</TabsTrigger>
-              <TabsTrigger value="email">Sistema Email</TabsTrigger>
-              <TabsTrigger value="security">Sicurezza</TabsTrigger>
-              <TabsTrigger value="settings">Impostazioni</TabsTrigger>
+            <TabsList className="mb-6 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto">
+              <TabsTrigger value="galleries" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Gallerie</span>
+                <span className="sm:hidden">📸</span>
+              </TabsTrigger>
+              <TabsTrigger value="users" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Utenti</span>
+                <span className="sm:hidden">👥</span>
+              </TabsTrigger>
+              <TabsTrigger value="subscriptions" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Iscrizioni</span>
+                <span className="sm:hidden">📧</span>
+              </TabsTrigger>
+              <TabsTrigger value="slideshow" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Slideshow</span>
+                <span className="sm:hidden">🎬</span>
+              </TabsTrigger>
+              <TabsTrigger value="requests" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Richieste Password</span>
+                <span className="sm:hidden">🔑</span>
+              </TabsTrigger>
+              <TabsTrigger value="email" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Sistema Email</span>
+                <span className="sm:hidden">✉️</span>
+              </TabsTrigger>
+              <TabsTrigger value="security" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Sicurezza</span>
+                <span className="sm:hidden">🛡️</span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Impostazioni</span>
+                <span className="sm:hidden">⚙️</span>
+              </TabsTrigger>
             </TabsList>
 
             {/* Contenuto Tab Gallerie */}
