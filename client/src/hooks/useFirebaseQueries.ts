@@ -1,6 +1,6 @@
 /**
- * Hook Firebase diretto - IMPLEMENTAZIONE COMPLETA
- * Sostituisce completamente il backend Node.js/Express
+ * Hook personalizzati per sostituire le chiamate API con Firebase diretto
+ * Per hosting statico senza backend Node.js
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

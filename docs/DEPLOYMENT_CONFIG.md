@@ -1,96 +1,99 @@
+# Configurazione Deployment - Base Path
 
-# Configurazione Deployment - Firebase Only
+L'applicazione supporta automaticamente sia il deployment in sottocartella che come dominio principale.
 
-## 🎯 Architettura Attuale
+## Configurazione Automatica
 
-L'applicazione è stata convertita a **Firebase-only**, eliminando il backend Node.js/Express.
-
-## 📦 Struttura Deployment
-
-### Client Build
+### Sottocartella (Attuale: `/wedgallery/`)
 ```bash
-npm run build
-```
-Genera:
-- `dist/public/` - Assets statici (HTML, CSS, JS)
-- `dist/index.js` - Server statico per servire i file
-
-### Firebase Services
-- **Firestore**: Database principale
-- **Storage**: File e immagini
-- **Auth**: Autenticazione admin
-
-## 🔧 Configurazione Replit
-
-### Deployment Settings
-```yaml
-build: npm run build
-run: npm start
-port: 5000
-```
-
-### Environment Variables
-```bash
-# Firebase (Obbligatorio)
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
-
-# App Settings
+# Nel file .env o .env.production
 VITE_BASE_PATH="/wedgallery"
-NODE_ENV=production
 ```
 
-## 🚀 Processo Deploy
-
-### Automatico (Raccomandato)
-1. Configura variabili d'ambiente nel Secrets manager
-2. Usa "Autoscale Deployment" in Replit
-3. Il sistema eseguirà automaticamente build e deploy
-
-### Manuale
+### Dominio Principale (Futuro)
 ```bash
-# 1. Build
+# Nel file .env o .env.production
+VITE_BASE_PATH=""
+# oppure rimuovi completamente la variabile
+```
+
+## Come Funziona
+
+L'applicazione utilizza una logica automatica per determinare il base path:
+
+1. **Variabile d'ambiente**: Se `VITE_BASE_PATH` è definita, la usa
+2. **Riconoscimento automatico**: Rileva sottocartelle note (`wedgallery`, `gallery`, `app`)
+3. **Fallback**: Default a root `/` se non trova pattern noti
+
+## Esempi di URL
+
+### Sottocartella
+- **Sito**: `https://gennaromazzacane.it/wedgallery/`
+- **API**: `https://gennaromazzacane.it/wedgallery/api/test-email`
+- **Foto**: `https://gennaromazzacane.it/wedgallery/gallery/abc123`
+
+### Dominio Principale
+- **Sito**: `https://miodominio.com/`
+- **API**: `https://miodominio.com/api/test-email`
+- **Foto**: `https://miodominio.com/gallery/abc123`
+
+## Migrazione da Sottocartella a Dominio
+
+### Passo 1: Aggiorna Configurazione
+```bash
+# Cambia in .env.production
+VITE_BASE_PATH=""
+```
+
+### Passo 2: Rebuild Applicazione
+```bash
 npm run build
-
-# 2. Deploy
-# Usa il pulsante Deploy nel dashboard Replit
 ```
 
-## 🔍 Verifica Deploy
-
-### Test Endpoints
-- **Home**: `https://your-app.replit.app/`
-- **Admin**: `https://your-app.replit.app/admin`
-- **Gallery**: `https://your-app.replit.app/gallery/[code]`
-
-### Controlli Salute
-- [ ] Frontend carica correttamente
-- [ ] Firebase connesso (check console)
-- [ ] Routing funziona (navigazione diretta URL)
-- [ ] Assets caricano (immagini, CSS, JS)
-
-## 🐛 Troubleshooting
-
-### App non si avvia
-```bash
-# Verifica build
-ls -la dist/
-# Deve contenere: index.js, public/
+### Passo 3: Configura Server Web
+```apache
+# Per Apache (.htaccess nella root)
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]
 ```
 
-### Errori Firebase
-1. Verifica configurazione in `.env`
-2. Controlla regole Firestore/Storage
-3. Verifica billing Firebase (se necessario)
+```nginx
+# Per Nginx
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
 
-### Problemi Routing
-1. Verifica `VITE_BASE_PATH` 
-2. Controlla configurazione Vite
-3. Testa con URL diretti
+## Test Configurazione
 
----
-**Nota**: Questa configurazione è ottimizzata per deployment su Replit con Firebase backend.
+Apri la console del browser e verifica:
+```javascript
+// Controlla configurazione corrente
+console.log(window.location.pathname);
+
+// Verifica che le API vengano chiamate correttamente
+fetch('/api/test-email').then(r => console.log('API chiamata:', r.url));
+```
+
+## Troubleshooting
+
+### Problema: API restituisce 404
+- **Causa**: Base path non configurato correttamente
+- **Soluzione**: Verifica `VITE_BASE_PATH` e ricompila
+
+### Problema: CSS/JS non si caricano
+- **Causa**: Vite base path non allineato
+- **Soluzione**: Assicurati che Vite e il runtime usino lo stesso base path
+
+### Problema: Routing non funziona
+- **Causa**: Server web non configurato per SPA
+- **Soluzione**: Configura fallback a `index.html` per tutte le route
+
+## Note Importanti
+
+- **Variabili d'ambiente**: `VITE_BASE_PATH` deve essere definita al build time
+- **Cache**: Pulisci cache browser dopo cambio configurazione
+- **Testing**: Testa sempre in ambiente di produzione prima del rilascio
+- **Backup**: Salva configurazione funzionante prima di modifiche

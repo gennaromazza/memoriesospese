@@ -24,7 +24,6 @@ import {
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import VoiceRecorder from './VoiceRecorder';
 import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
-import { useAddVoiceMemo } from '@/hooks/useAddVoiceMemo';
 
 interface VoiceMemoUploadProps {
   galleryId: string;
@@ -44,7 +43,7 @@ export default function VoiceMemoUpload({
 
   const { user, userProfile, isAuthenticated } = useAuth();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
-
+  
   // Get user data from Firebase Auth
   const currentUserEmail = user?.email || '';
   const currentUserName = userProfile?.displayName || user?.displayName || '';
@@ -217,9 +216,6 @@ export default function VoiceMemoUpload({
     });
   };
 
-  // Carica voice memo - Firebase diretto
-  const uploadVoiceMemo = useAddVoiceMemo(galleryId);
-
   const handleSubmit = async () => {
     if (!guestName.trim()) {
       toast({
@@ -243,7 +239,7 @@ export default function VoiceMemoUpload({
     // Verifica autenticazione usando il sistema centralizzato
     const hasFirebaseAuth = isAuthenticated && currentUserEmail;
     const hasLocalAuth = userEmail && userName;
-
+    
     if (!hasFirebaseAuth && !hasLocalAuth) {
       setShowAuthDialog(true);
       return;
@@ -273,7 +269,7 @@ export default function VoiceMemoUpload({
       // Prepare voice memo data with centralized user authentication
       const finalUserEmail = currentUserEmail || userEmail || '';
       const finalUserName = currentUserName || userName || finalUserEmail.split('@')[0];
-
+      
       const voiceMemoData = {
         galleryId,
         guestName: guestName.trim(),
@@ -288,10 +284,8 @@ export default function VoiceMemoUpload({
       };
 
       // Send to backend API using robust client
-      // const { apiClient } = await import('@/lib/api-client');
-      // const result = await apiClient.uploadVoiceMemo(galleryId, voiceMemoData);
-      const result = await uploadVoiceMemo.mutateAsync(voiceMemoData);
-
+      const { apiClient } = await import('@/lib/api-client');
+      const result = await apiClient.uploadVoiceMemo(galleryId, voiceMemoData);
 
       if (!result) {
         throw new Error('Errore nel caricamento del voice memo - servizio non disponibile');
@@ -592,7 +586,7 @@ export default function VoiceMemoUpload({
                   // Check centralized auth system
                   const hasFirebaseAuth = isAuthenticated && currentUserEmail;
                   const hasLocalAuth = userEmail && userName;
-
+                  
                   if (!hasFirebaseAuth && !hasLocalAuth) {
                     setShowAuthDialog(true);
                   } else {
