@@ -16,6 +16,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import CommentModal from './CommentModal';
+import UserAuthDialog from './UserAuthDialog';
 import { Comment, InteractionStats } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -53,7 +54,7 @@ export default function InteractionPanel({
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  // Auth dialog state removed
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   const { user, userProfile, isAuthenticated } = useAuth();
   const { toast } = useToast();
@@ -112,8 +113,11 @@ export default function InteractionPanel({
 
   // Handle authentication requirement
   const handleAuthRequired = () => {
-    // Auth dialog functionality removed
-    onAuthRequired?.();
+    if (onAuthRequired) {
+      onAuthRequired();
+    } else {
+      setShowAuthDialog(true);
+    }
   };
 
   // Handle like functionality using robust API client
@@ -194,7 +198,7 @@ export default function InteractionPanel({
     const hasAuth = hasFirebaseAuth || hasLocalAuth;
 
     if (!hasAuth) {
-      // Auth dialog functionality removed
+      setShowAuthDialog(true);
       return;
     }
 
@@ -347,7 +351,10 @@ export default function InteractionPanel({
     fetchStats();
   }, [itemId, itemType, galleryId, userEmail]);
 
-  // Auth success handler removed with auth dialog
+  const handleAuthSuccess = (email: string, name: string) => {
+    setShowAuthDialog(false);
+    fetchStats();
+  };
 
   if (variant === 'floating') {
     return (
@@ -400,7 +407,12 @@ export default function InteractionPanel({
         />
 
         {/* Authentication Dialog */}
-        {/* Auth dialog removed - functionality integrated */}
+        <UserAuthDialog
+          isOpen={showAuthDialog}
+          onOpenChange={setShowAuthDialog}
+          galleryId={galleryId}
+          onAuthComplete={handleAuthSuccess}
+        />
       </>
     );
   }
@@ -487,7 +499,13 @@ export default function InteractionPanel({
         userName={userName}
       />
 
-      {/* Authentication Dialog removed - functionality integrated */}
+      {/* Authentication Dialog */}
+      <UserAuthDialog
+        isOpen={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        galleryId={galleryId}
+        onAuthComplete={handleAuthSuccess}
+      />
     </div>
   );
 }
