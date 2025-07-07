@@ -23,12 +23,18 @@ interface VoiceMemosListProps {
   galleryId: string;
   isAdmin?: boolean;
   refreshTrigger?: number;
+  userEmail?: string;
+  userName?: string;
+  onAuthRequired?: () => void;
 }
 
 export default function VoiceMemosList({ 
   galleryId, 
   isAdmin = false, 
-  refreshTrigger = 0 
+  refreshTrigger = 0,
+  userEmail,
+  userName,
+  onAuthRequired
 }: VoiceMemosListProps) {
   const [voiceMemos, setVoiceMemos] = useState<VoiceMemo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -351,6 +357,9 @@ export default function VoiceMemosList({
             isAdmin={isAdmin}
             onUnlock={handleUnlockMemo}
             onDelete={handleDeleteMemo}
+            userEmail={userEmail}
+            userName={userName}
+            onAuthRequired={onAuthRequired}
           />
         ))}
       </div>

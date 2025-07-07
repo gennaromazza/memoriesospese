@@ -770,6 +770,9 @@ export default function Gallery() {
                   galleryId={gallery.id}
                   isAdmin={isAdmin}
                   refreshTrigger={refreshTrigger}
+                  userEmail={userEmail}
+                  userName={userName}
+                  onAuthRequired={handleAuthRequired}
                 />
               )}
 

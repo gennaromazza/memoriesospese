@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api-client';
+import { createUrl } from '@/lib/config';
 import { 
   Heart, 
   MessageCircle, 
@@ -123,7 +124,8 @@ export default function InteractionPanel({
   // Handle like functionality using robust API client
   const handleLike = async () => {
     // Verifica autenticazione con sistema centralizzato
-    if (!(await authInterceptor.requireAuth())) {
+    if (!userEmail) {
+      handleAuthRequired();
       return;
     }
 
