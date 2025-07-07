@@ -114,7 +114,9 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                     });
 
                     // Navigate to home page with clean state
-                    navigate(createUrl("/"));
+                    const homeUrl = createUrl("/");
+                    console.log("Logout navigation URL:", homeUrl);
+                    navigate(homeUrl);
                   } catch (error) {
                     console.error("Logout error:", error);
                     // Fallback: still clear localStorage and navigate
@@ -129,7 +131,9 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                         localStorage.removeItem(key);
                       }
                     });
-                    navigate(createUrl("/"));
+                    const fallbackUrl = createUrl("/");
+                    console.log("Fallback logout navigation URL:", fallbackUrl);
+                    navigate(fallbackUrl);
                   }
                 }}
               >

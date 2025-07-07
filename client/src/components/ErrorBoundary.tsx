@@ -68,7 +68,8 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleGoHome = () => {
-    window.location.href = createUrl('/');
+    // Usa navigate invece di window.location per evitare 404
+    window.location.replace(createUrl('/'));
   };
 
   render() {
