@@ -115,7 +115,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
 
                     // Navigate to home page with clean state
                     const homeUrl = createUrl("/");
-                    console.log("Logout navigation URL:", homeUrl);
+                    // console.log("Logout navigation URL:", homeUrl); // Debug disabilitato
                     navigate(homeUrl);
                   } catch (error) {
                     console.error("Logout error:", error);
@@ -132,7 +132,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                       }
                     });
                     const fallbackUrl = createUrl("/");
-                    console.log("Fallback logout navigation URL:", fallbackUrl);
+                    // console.log("Fallback logout navigation URL:", fallbackUrl); // Debug disabilitato
                     navigate(fallbackUrl);
                   }
                 }}

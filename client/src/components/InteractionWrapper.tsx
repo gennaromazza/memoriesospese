@@ -5,7 +5,7 @@ import InteractionPanel from './InteractionPanel';
 import UnifiedAuthDialog from '@/components/auth/UnifiedAuthDialog';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { cn } from '@/lib/utils';
-import { useGalleryAccess } from '@/hooks/useAuth';
+// import { useGalleryAccess } from '@/hooks/useAuth'; // Rimosso per Firebase-only
 
 interface InteractionWrapperProps {
   itemId: string;
@@ -29,7 +29,8 @@ export default function InteractionWrapper({
   const [showPanel, setShowPanel] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const { isAuthenticated, user, userProfile } = useFirebaseAuth();
-  const { hasAccess, grantAccess } = useGalleryAccess(galleryId);
+  // Firebase-only: simplified access control
+  const hasAccess = true; // In Firebase-only mode, access is handled by Firebase Auth
 
   // Get authentication data from centralized system
   const userEmail = user?.email || localStorage.getItem('userEmail') || '';

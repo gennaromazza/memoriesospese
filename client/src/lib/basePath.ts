@@ -38,7 +38,7 @@ function getBasePath(): string {
 
 export function createUrl(urlPath: string): string {
   const basePath = getBasePath();
-  console.log('createUrl debug:', { urlPath, basePath, result: basePath || '/' });
+  // console.log('createUrl debug:', { urlPath, basePath, result: basePath || '/' }); // Debug disabilitato
 
   // Gestione percorsi speciali
   if (urlPath === '' || urlPath === '/') {

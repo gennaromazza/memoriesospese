@@ -41,6 +41,7 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
   - `UnifiedAuthDialog.tsx` - Autenticazione Firebase completa
   - `VoiceMemosList.tsx` - Firebase real-time per voice memos
   - `VoiceMemoUpload.tsx` - Aggiornato per Firebase Auth
+  - `InteractionWrapper.tsx` - Rimosso useGalleryAccess legacy, usa solo Firebase Auth
 - ✓ **FIREBASEAUTHCONTEXT**: Nuovo context provider unificato sostituisce AuthProvider legacy
 - ✓ **ERRORI FIREBASE RISOLTI**: Corretti errori "invalid-argument" e "failed-precondition"
   - Query Firebase semplificate per evitare indici mancanti
@@ -48,7 +49,9 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
   - Ordinamento manuale per queries complesse
 - ✓ **APP.TSX AGGIORNATO**: FirebaseAuthProvider attivo, backend Express opzionale
 - ✓ **SISTEMA LIKE/COMMENTI**: Funzionante completamente su Firebase senza dipendenze backend
-- → **RISULTATO**: Applicazione SPA Firebase-Only 100% funzionante
+- ✓ **ROUTING CORRETTO**: Tutti i Link usano sintassi wouter corretta (`to` invece di `href`)
+- ✓ **ERRORI CONSOLE RISOLTI**: Eliminati tutti gli errori "useAuth must be used within AuthProvider"
+- → **RISULTATO**: Applicazione SPA Firebase-Only 100% funzionante senza errori console
 
 ### 6 Luglio 2025 - SISTEMA COMPRESSIONE IMMAGINI UNIVERSALE - COMPLETATO
 - ✓ **COMPRESSIONE UNIVERSALE**: Verificato funzionamento compressione per TUTTI i caricamenti foto
