@@ -29,7 +29,7 @@ import InteractionPanel from "@/components/InteractionPanel";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
-import { useAuth } from "@/hooks/useAuth";
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -40,7 +40,7 @@ export default function Gallery() {
   const [userEmail, setUserEmail] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
   const { studioSettings } = useStudio();
-  const { user, userProfile, isAuthenticated } = useAuth();
+  const { user, userProfile, isAuthenticated } = useFirebaseAuth();
 
   // Stato locale per il tracciamento del caricamento
   const [loadingState, setLoadingState] = useState({

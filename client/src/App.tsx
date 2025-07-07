@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/hooks/useAuth";
+import { FirebaseAuthProvider } from "@/context/FirebaseAuthContext";
 import { StudioProvider } from "./context/StudioContext";
 import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
@@ -23,7 +23,7 @@ import UserProfile from "@/pages/UserProfile";
 import NotFound from "@/pages/not-found";
 import PathDebugInfo from "@/components/PathDebugInfo";
 import AuthDebugPanel from "@/components/AuthDebugPanel";
-import { authInterceptor } from "@/lib/authInterceptor";
+
 
 // Hook per tracciare le visualizzazioni delle pagine
 function useAnalytics() {
@@ -84,7 +84,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider attribute="class" defaultTheme="light">
           <TooltipProvider>
-            <AuthProvider>
+            <FirebaseAuthProvider>
               <StudioProvider>
                 <Toaster />
                 <WouterRouter base={basePath}>
@@ -98,7 +98,7 @@ function App() {
                   </>
                 )}
               </StudioProvider>
-            </AuthProvider>
+            </FirebaseAuthProvider>
           </TooltipProvider>
         </ThemeProvider>
       </QueryClientProvider>

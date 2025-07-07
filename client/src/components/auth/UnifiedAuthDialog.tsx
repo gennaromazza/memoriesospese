@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { 
   User, 
   Mail, 
@@ -61,7 +61,7 @@ export default function UnifiedAuthDialog({
   const [resetEmail, setResetEmail] = useState('');
   const [showResetForm, setShowResetForm] = useState(false);
 
-  const { login, register, resetPassword, grantGalleryAccess } = useAuth();
+  const { login, register, resetPassword } = useFirebaseAuth();
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -79,33 +79,22 @@ export default function UnifiedAuthDialog({
     setIsLoading(true);
     
     try {
-      const result = await login(loginData.email.trim(), loginData.password);
+      const user = await login(loginData.email.trim(), loginData.password, galleryId);
       
-      if (result.success) {
-        // Grant access to this gallery
-        await grantGalleryAccess(galleryId);
-        
-        toast({
-          title: "Accesso effettuato",
-          description: "Benvenuto! Ora puoi interagire con la galleria",
-        });
-        
-        onAuthComplete();
-        onOpenChange(false);
-        
-        // Reset form
-        setLoginData({ email: '', password: '' });
-      } else {
-        toast({
-          title: "Errore di accesso",
-          description: result.error || "Credenziali non valide",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
       toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'accesso",
+        title: "Accesso effettuato",
+        description: "Benvenuto! Ora puoi interagire con la galleria",
+      });
+      
+      onAuthComplete();
+      onOpenChange(false);
+      
+      // Reset form
+      setLoginData({ email: '', password: '' });
+    } catch (error: any) {
+      toast({
+        title: "Errore di accesso",
+        description: error.message || "Credenziali non valide",
         variant: "destructive"
       });
     } finally {
@@ -146,38 +135,28 @@ export default function UnifiedAuthDialog({
     setIsLoading(true);
     
     try {
-      const result = await register(
+      const user = await register(
         registerData.email.trim(),
         registerData.password,
         registerData.displayName.trim(),
-        'guest'
+        'guest',
+        galleryId
       );
       
-      if (result.success) {
-        // Grant access to this gallery
-        await grantGalleryAccess(galleryId);
-        
-        toast({
-          title: "Registrazione completata",
-          description: "Account creato con successo! Ora puoi interagire con la galleria",
-        });
-        
-        onAuthComplete();
-        onOpenChange(false);
-        
-        // Reset form
-        setRegisterData({ email: '', password: '', confirmPassword: '', displayName: '' });
-      } else {
-        toast({
-          title: "Errore di registrazione",
-          description: result.error || "Impossibile creare l'account",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
       toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante la registrazione",
+        title: "Registrazione completata",
+        description: "Account creato con successo! Ora puoi interagire con la galleria",
+      });
+      
+      onAuthComplete();
+      onOpenChange(false);
+      
+      // Reset form
+      setRegisterData({ email: '', password: '', confirmPassword: '', displayName: '' });
+    } catch (error: any) {
+      toast({
+        title: "Errore di registrazione",
+        description: error.message || "Impossibile creare l'account",
         variant: "destructive"
       });
     } finally {
@@ -200,26 +179,18 @@ export default function UnifiedAuthDialog({
     setIsLoading(true);
     
     try {
-      const result = await resetPassword(resetEmail.trim());
+      await resetPassword(resetEmail.trim());
       
-      if (result.success) {
-        toast({
-          title: "Email inviata",
-          description: "Controlla la tua email per reimpostare la password",
-        });
-        setShowResetForm(false);
-        setResetEmail('');
-      } else {
-        toast({
-          title: "Errore",
-          description: result.error || "Impossibile inviare l'email di recupero",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Email inviata",
+        description: "Controlla la tua email per reimpostare la password",
+      });
+      setShowResetForm(false);
+      setResetEmail('');
+    } catch (error: any) {
       toast({
         title: "Errore",
-        description: "Si è verificato un errore durante il recupero password",
+        description: error.message || "Impossibile inviare l'email di recupero",
         variant: "destructive"
       });
     } finally {

@@ -3,16 +3,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
 import { Upload, User, LogIn, UserPlus, Camera, Heart, Sparkles, Share2, ImageIcon, KeyRound, Mail } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { auth, storage, db } from '@/lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDocs, query, where, arrayUnion } from 'firebase/firestore';
-import { compressImage } from '@/lib/imageCompression';
+import { auth } from '@/lib/firebase';
+import { AuthService } from '@/lib/auth';
+import { PhotoService } from '@/lib/photos';
+import { StorageService } from '@/lib/storage';
+import { GalleryService } from '@/lib/galleries';
 import { notifySubscribers, createGalleryUrl } from '@/lib/notificationService';
 
 interface GuestUploadProps {
@@ -38,7 +37,9 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
   const { toast } = useToast();
-  const { user, userProfile, isAuthenticated } = useAuth();
+  // Recupera utente corrente direttamente da Firebase Auth
+  const currentUser = auth.currentUser;
+  const isAuthenticated = !!currentUser;
 
   const resetForm = () => {
     setGuestName('');
@@ -63,8 +64,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     setIsResettingPassword(true);
 
     try {
-      // Usa Firebase direttamente per inviare l'email di reset
-      await sendPasswordResetEmail(auth, resetEmail);
+      await AuthService.resetPassword(resetEmail);
 
       setResetEmailSent(true);
       toast({
@@ -118,46 +118,17 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
 
     try {
       if (isLogin) {
-        // Login esistente
-        await signInWithEmailAndPassword(auth, email, password);
-        // Ottieni il nome dal profilo esistente
-        const user = auth.currentUser;
-        if (user?.displayName) {
+        // Login esistente usando AuthService
+        const user = await AuthService.loginUser(email, password);
+        await AuthService.updateLastLogin(user, galleryId);
+        
+        // Aggiorna il nome locale se disponibile
+        if (user.displayName) {
           setGuestName(user.displayName);
         }
-
-        // Aggiorna lastLoginAt per utenti esistenti
-        if (user) {
-          const userQuery = collection(db, 'users');
-          const userDocs = await getDocs(query(userQuery, where('uid', '==', user.uid)));
-
-          if (!userDocs.empty) {
-            const userDoc = userDocs.docs[0];
-            await updateDoc(userDoc.ref, {
-              lastLoginAt: serverTimestamp(),
-              galleries: arrayUnion(galleryId) // Aggiungi la galleria se non presente
-            });
-          }
-        }
       } else {
-        // Registrazione nuovo utente
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, {
-          displayName: guestName.trim()
-        });
-
-        // Salva i dati dell'utente in Firestore per l'admin
-        const userData = {
-          uid: userCredential.user.uid,
-          name: guestName.trim(),
-          email: userCredential.user.email,
-          createdAt: serverTimestamp(),
-          lastLoginAt: serverTimestamp(),
-          role: 'guest',
-          galleries: [galleryId] // Array delle gallerie a cui ha accesso
-        };
-
-        await addDoc(collection(db, 'users'), userData);
+        // Registrazione nuovo utente usando AuthService
+        const user = await AuthService.registerUser(email, password, guestName.trim(), galleryId);
       }
 
       toast({
@@ -192,9 +163,9 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   };
 
   const handleUpload = async () => {
-
-    const currentUserEmail = user?.email || '';
-    const currentUserName = userProfile?.displayName || user?.displayName || guestName.trim() || 'Utente';
+    const currentUser = auth.currentUser;
+    const currentUserEmail = currentUser?.email || '';
+    const currentUserName = currentUser?.displayName || guestName.trim() || 'Utente';
 
     // Verifica autenticazione prima del caricamento
     if (!isAuthenticated || !currentUserEmail) {
@@ -219,50 +190,22 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     setUploadProgress(0);
 
     try {
-      const uploadedPhotos = [];
-      const totalFiles = selectedFiles.length;
-      const currentUser = auth.currentUser;
+      // Upload foto usando PhotoService
+      const uploadedPhotos = await PhotoService.uploadPhotosToGallery(
+        selectedFiles,
+        galleryId,
+        currentUser.uid,
+        currentUserEmail,
+        currentUserName,
+        (progress) => {
+          // Calcola progresso medio
+          const avgProgress = progress.reduce((sum, p) => sum + p.progress, 0) / progress.length;
+          setUploadProgress(avgProgress);
+        }
+      );
 
-      for (let i = 0; i < selectedFiles.length; i++) {
-        const file = selectedFiles[i];
-
-        // Comprimi l'immagine
-        const compressedFile = await compressImage(file);
-
-        // Upload su Firebase Storage
-        const fileName = `guest-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${compressedFile.name}`;
-        const storageRef = ref(storage, `galleries/${galleryId}/guests/${fileName}`);
-
-        const snapshot = await uploadBytes(storageRef, compressedFile);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-
-        // Salva i metadati in Firestore
-        const photoData = {
-          name: compressedFile.name,
-          url: downloadURL,
-          size: compressedFile.size,
-          contentType: compressedFile.type,
-          createdAt: serverTimestamp(),
-          uploadedBy: 'guest',
-          uploaderName: currentUserName,
-          uploaderRole: 'guest',
-          uploaderEmail: currentUser?.email,
-          uploaderUid: currentUser?.uid
-        };
-
-        await addDoc(collection(db, 'galleries', galleryId, 'photos'), photoData);
-        uploadedPhotos.push(photoData);
-
-        // Aggiorna il progresso
-        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
-      }
-
-      // Aggiorna il conteggio delle foto nella galleria
-      const galleryRef = doc(db, 'galleries', galleryId);
-      await updateDoc(galleryRef, {
-        photoCount: increment(uploadedPhotos.length),
-        updatedAt: serverTimestamp()
-      });
+      // Aggiorna conteggio foto nella galleria
+      await GalleryService.incrementPhotoCount(galleryId, uploadedPhotos.length);
 
       // Invia notifiche email ai subscribers
       try {

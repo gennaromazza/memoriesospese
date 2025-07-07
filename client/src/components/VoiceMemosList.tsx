@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { createUrl } from '@/lib/config';
 import { 
   Mic2, 
@@ -41,7 +41,7 @@ export default function VoiceMemosList({
   });
 
   const { toast } = useToast();
-  const { user, userProfile, isAuthenticated } = useAuth();
+  const { user, userProfile, isAuthenticated } = useFirebaseAuth();
 
   const fetchVoiceMemos = async () => {
     try {

@@ -4,7 +4,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient } from '@/lib/api-client';
 import { 
   Heart, 
   MessageCircle, 
@@ -17,9 +16,11 @@ import {
 } from 'lucide-react';
 import CommentModal from './CommentModal';
 import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
-import { Comment, InteractionStats } from '@shared/schema';
-import { useAuth } from '@/hooks/useAuth';
-import { authInterceptor } from '@/lib/authInterceptor';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { LikeService } from '@/lib/likes';
+import { CommentService, Comment } from '@/lib/comments';
+import { PhotoService } from '@/lib/photos';
+import { RealtimeService } from '@/lib/realtime';
 
 interface InteractionPanelProps {
   itemId: string;
@@ -44,7 +45,7 @@ export default function InteractionPanel({
   onAuthRequired,
   variant = 'default'
 }: InteractionPanelProps) {
-  const [stats, setStats] = useState<InteractionStats>({
+  const [stats, setStats] = useState({
     likesCount: 0,
     commentsCount: 0,
     hasUserLiked: false
@@ -57,33 +58,34 @@ export default function InteractionPanel({
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
 
-  const { user, userProfile, isAuthenticated } = useAuth();
+  const { user, userProfile, isAuthenticated } = useFirebaseAuth();
   const { toast } = useToast();
 
   // Get authentication data from centralized system
-  const userEmail = user?.email || localStorage.getItem('userEmail') || '';
-  const userName = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || (userEmail ? userEmail.split('@')[0] : 'Utente');
+  const userEmail = user?.email || '';
+  const userName = userProfile?.displayName || user?.displayName || (userEmail ? userEmail.split('@')[0] : 'Utente');
 
 
 
-  // Fetch interaction stats using robust API client
+  // Fetch interaction stats using Firebase services
   const fetchStats = async () => {
     try {
       setIsLoadingStats(true);
       
-      if (itemType === 'photo') {
-        const stats = await apiClient.getPhotoStats(galleryId, itemId, userEmail);
-        setStats(stats);
-      } else {
-        // For voice memos, use default stats
-        setStats({
-          likesCount: 0,
-          commentsCount: 0,
-          hasUserLiked: false
-        });
-      }
+      const [likesCount, commentsCount, hasUserLiked] = await Promise.all([
+        LikeService.getLikesCount(galleryId, itemId, itemType),
+        CommentService.getCommentsCount(galleryId, itemId, itemType),
+        isAuthenticated ? LikeService.hasUserLiked(galleryId, itemId, itemType, user!.uid) : false
+      ]);
+
+      setStats({
+        likesCount,
+        commentsCount,
+        hasUserLiked
+      });
     } catch (error) {
-      // API client handles errors internally, just set defaults
+      console.error('Error fetching stats:', error);
+      // Set default stats on error
       setStats({
         likesCount: 0,
         commentsCount: 0,
@@ -94,18 +96,15 @@ export default function InteractionPanel({
     }
   };
 
-  // Fetch comments
+  // Fetch comments using Firebase services
   const fetchComments = async () => {
     try {
       setIsLoadingStats(true);
       
-      if (itemType === 'photo') {
-        const comments = await apiClient.getPhotoComments(galleryId, itemId);
-        setComments(comments);
-      } else {
-        setComments([]);
-      }
+      const comments = await CommentService.getComments(galleryId, itemId, itemType);
+      setComments(comments);
     } catch (error) {
+      console.error('Error fetching comments:', error);
       setComments([]);
     } finally {
       setIsLoadingStats(false);
@@ -118,55 +117,32 @@ export default function InteractionPanel({
     onAuthRequired?.();
   };
 
-  // Handle like functionality using robust API client
+  // Handle like functionality using Firebase services
   const handleLike = async () => {
-    // Verifica autenticazione con sistema centralizzato
-    if (!(await authInterceptor.requireAuth())) {
+    // Verifica autenticazione
+    if (!isAuthenticated || !user) {
+      handleAuthRequired();
       return;
     }
 
     try {
       setIsLoading(true);
       
-      if (itemType === 'photo') {
-        const result = await apiClient.togglePhotoLike(galleryId, itemId, userEmail, userName);
-        
-        if (result) {
-          // Update stats based on action
-          setStats(prev => ({
-            ...prev,
-            hasUserLiked: result.action === 'added',
-            likesCount: result.action === 'added' 
-              ? prev.likesCount + 1 
-              : Math.max(0, prev.likesCount - 1)
-          }));
+      const result = await LikeService.toggleLike(galleryId, itemId, itemType, user.uid, userEmail, userName);
+      
+      // Update stats based on action
+      setStats(prev => ({
+        ...prev,
+        hasUserLiked: result.action === 'added',
+        likesCount: result.action === 'added' 
+          ? prev.likesCount + 1 
+          : Math.max(0, prev.likesCount - 1)
+      }));
 
-          toast({
-            title: result.action === 'added' ? 'Like aggiunto' : 'Like rimosso',
-            description: result.message || '',
-          });
-        } else {
-          // API non disponibile, aggiorna solo localmente
-          setStats(prev => ({
-            ...prev,
-            hasUserLiked: !prev.hasUserLiked,
-            likesCount: prev.hasUserLiked 
-              ? Math.max(0, prev.likesCount - 1)
-              : prev.likesCount + 1
-          }));
-
-          toast({
-            title: !stats.hasUserLiked ? 'Like aggiunto (locale)' : 'Like rimosso (locale)',
-            description: 'Modifica salvata localmente',
-          });
-        }
-      } else {
-        toast({
-          title: 'Funzione non disponibile',
-          description: 'I like non sono disponibili per questo tipo di contenuto',
-          variant: 'destructive',
-        });
-      }
+      toast({
+        title: result.action === 'added' ? 'Like aggiunto' : 'Like rimosso',
+        description: result.message || '',
+      });
     } catch (error) {
       console.error('Errore like:', error);
       toast({
@@ -179,7 +155,7 @@ export default function InteractionPanel({
     }
   };
 
-  // Handle comment submission
+  // Handle comment submission using Firebase services
   const handleSubmitComment = async () => {
     if (!newComment.trim()) {
       toast({
@@ -190,12 +166,8 @@ export default function InteractionPanel({
       return;
     }
 
-    // Combined authentication check - ensure we have proper user identification
-    const hasFirebaseAuth = isAuthenticated && user && userEmail;
-    const hasLocalAuth = !isAuthenticated && userEmail && userName;
-    const hasAuth = hasFirebaseAuth || hasLocalAuth;
-
-    if (!hasAuth) {
+    // Verifica autenticazione Firebase
+    if (!isAuthenticated || !user) {
       setShowAuthDialog(true);
       return;
     }
@@ -203,68 +175,34 @@ export default function InteractionPanel({
     try {
       setIsSubmittingComment(true);
 
-      // Use the correct user data based on auth method
-      const finalUserEmail = user?.email || userEmail;
-      const finalUserName = userProfile?.displayName || user?.displayName || userName || finalUserEmail.split('@')[0];
+      const finalUserEmail = user.email || '';
+      const finalUserName = userProfile?.displayName || user.displayName || finalUserEmail.split('@')[0];
 
-      if (itemType === 'photo') {
-        const commentData = await apiClient.addPhotoComment(
-          galleryId, 
-          itemId, 
-          newComment.trim(), 
-          finalUserEmail, 
-          finalUserName
-        );
+      const commentData = await CommentService.addComment(
+        galleryId, 
+        itemId, 
+        itemType,
+        newComment.trim(),
+        user.uid, 
+        finalUserEmail, 
+        finalUserName
+      );
 
-        if (commentData) {
-          // Add comment to local state
-          setComments(prev => [commentData, ...prev]);
+      // Add comment to local state
+      setComments(prev => [commentData, ...prev]);
 
-          // Update stats
-          setStats(prev => ({
-            ...prev,
-            commentsCount: prev.commentsCount + 1
-          }));
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        commentsCount: prev.commentsCount + 1
+      }));
 
-          setNewComment('');
+      setNewComment('');
 
-          toast({
-            title: 'Successo',
-            description: 'Commento aggiunto con successo',
-          });
-        } else {
-          // API non disponibile, aggiungi solo localmente
-          const localComment = {
-            id: Date.now().toString(),
-            content: newComment.trim(),
-            userEmail: finalUserEmail,
-            userName: finalUserName,
-            createdAt: new Date(),
-            itemId,
-            itemType,
-            galleryId
-          };
-
-          setComments(prev => [localComment, ...prev]);
-          setStats(prev => ({
-            ...prev,
-            commentsCount: prev.commentsCount + 1
-          }));
-
-          setNewComment('');
-
-          toast({
-            title: 'Commento aggiunto (locale)',
-            description: 'Salvato localmente - sarà sincronizzato quando possibile',
-          });
-        }
-      } else {
-        toast({
-          title: 'Funzione non disponibile',
-          description: 'I commenti non sono disponibili per questo tipo di contenuto',
-          variant: 'destructive',
-        });
-      }
+      toast({
+        title: 'Successo',
+        description: 'Commento aggiunto con successo',
+      });
     } catch (error) {
       console.error('Errore nell\'aggiunta commento:', error);
       toast({
@@ -277,19 +215,12 @@ export default function InteractionPanel({
     }
   };
 
-  // Handle comment deletion (admin only)
+  // Handle comment deletion (admin only) using Firebase services
   const handleDeleteComment = async (commentId: string) => {
     if (!isAdmin) return;
 
     try {
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/${commentId}`), {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore nell\'eliminazione del commento' }));
-        throw new Error(errorData.error || 'Errore nell\'eliminazione del commento');
-      }
+      await CommentService.deleteComment(galleryId, commentId, itemType);
 
       // Remove comment from local state
       setComments(prev => prev.filter(comment => comment.id !== commentId));
