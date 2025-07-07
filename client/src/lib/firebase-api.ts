@@ -22,7 +22,7 @@ import {
   DocumentReference
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { logger } from '@/shared/logger';
+// Logger rimosso durante conversione a Firebase-only
 
 // Tipi per le operazioni API
 export interface GalleryData {
