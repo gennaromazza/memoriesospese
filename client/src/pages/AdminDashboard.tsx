@@ -257,9 +257,9 @@ export default function AdminDashboard() {
         requestsList.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
         setPasswordRequests(requestsList);
-        
+
       } catch (error) {
-        
+
       }
 
       // Carica impostazioni studio
@@ -273,7 +273,7 @@ export default function AdminDashboard() {
           setStudioSettings(settingsData);
         }
       } catch (error) {
-        
+
       } finally {
         setIsSettingsLoading(false);
       }
@@ -342,7 +342,7 @@ export default function AdminDashboard() {
         description: "Il logo è stato caricato con successo."
       });
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il caricamento del logo.",
@@ -361,7 +361,7 @@ export default function AdminDashboard() {
       // Reindirizza alla pagina di login usando il percorso assoluto
       navigate(createUrl("/admin"));
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il logout.",
@@ -381,7 +381,7 @@ export default function AdminDashboard() {
         description: "Le impostazioni dello studio sono state salvate con successo."
       });
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Si è verificato un errore nel salvataggio delle impostazioni.",
@@ -439,10 +439,10 @@ export default function AdminDashboard() {
 
       setGalleries(galleryList);
 
-      
-      
+
+
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Si è verificato un errore nel caricamento delle gallerie.",
@@ -474,7 +474,7 @@ export default function AdminDashboard() {
         description: "La richiesta è stata eliminata con successo.",
       });
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'eliminazione.",
@@ -511,7 +511,7 @@ export default function AdminDashboard() {
         description: `Le richieste sono state esportate in ${fileName}`,
       });
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'esportazione delle richieste.",
@@ -522,17 +522,17 @@ export default function AdminDashboard() {
 
   const toggleGalleryStatus = async (gallery: GalleryItem) => {
     try {
-      
-      
+
+
       const galleryRef = doc(db, "galleries", gallery.id);
       const newActiveStatus = !gallery.active;
-      
+
       await updateDoc(galleryRef, {
         active: newActiveStatus,
         updatedAt: new Date() // Track when the status was changed
       });
 
-      
+
 
       // Update local state
       setGalleries(prev => 
@@ -544,7 +544,7 @@ export default function AdminDashboard() {
         description: `La galleria "${gallery.name}" è stata ${newActiveStatus ? "attivata" : "disattivata"} con successo.`
       });
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Non è stato possibile modificare lo stato della galleria.",
@@ -580,40 +580,40 @@ export default function AdminDashboard() {
       for (const path of storagePaths) {
         try {
           const storageRef = ref(storage, path);
-          
+
 
           const listResult = await listAll(storageRef);
           if (listResult.items.length > 0) {
             // Dividi l'array in gruppi più piccoli per evitare sovraccarichi
             const chunkSize = 10;
             const chunks = [];
-            
+
             for (let i = 0; i < listResult.items.length; i += chunkSize) {
               chunks.push(listResult.items.slice(i, i + chunkSize));
             }
-            
+
             // Elabora un gruppo alla volta con un breve ritardo tra i gruppi
             for (const chunk of chunks) {
               const deletePromises = chunk.map(async (itemRef) => {
                 try {
                   await deleteObject(itemRef);
-                  
+
                 } catch (deleteError) {
-                  
+
                 }
               });
 
               await Promise.all(deletePromises);
-              
-              
+
+
               // Piccolo ritardo tra i gruppi per evitare throttling
               await delay(500);
             }
-            
-            
+
+
           }
         } catch (error) {
-          
+
         }
       }
 
@@ -629,30 +629,30 @@ export default function AdminDashboard() {
       for (const col of collections) {
         try {
           const snapshot = await getDocs(col.ref);
-          
+
           if (snapshot.docs.length > 0) {
             // Dividi l'eliminazione in gruppi più piccoli
             const chunkSize = 20;
             const chunks = [];
-            
+
             for (let i = 0; i < snapshot.docs.length; i += chunkSize) {
               chunks.push(snapshot.docs.slice(i, i + chunkSize));
             }
-            
+
             // Elabora un gruppo alla volta
             for (const chunk of chunks) {
               const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
               await Promise.all(deletePromises);
-              
-              
+
+
               // Piccolo ritardo tra i gruppi
               await delay(500);
             }
-            
-            
+
+
           }
         } catch (error) {
-          
+
         }
       }
 
@@ -664,30 +664,30 @@ export default function AdminDashboard() {
         const galleryPhotosRef = collection(db, "gallery-photos");
         const q = query(galleryPhotosRef, where("galleryId", "==", gallery.id));
         const snapshot = await getDocs(q);
-        
+
         if (snapshot.docs.length > 0) {
           // Dividi l'eliminazione in gruppi più piccoli
           const chunkSize = 20;
           const chunks = [];
-          
+
           for (let i = 0; i < snapshot.docs.length; i += chunkSize) {
             chunks.push(snapshot.docs.slice(i, i + chunkSize));
           }
-          
+
           // Elabora un gruppo alla volta
           for (const chunk of chunks) {
             const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
-            
-            
+
+
             // Piccolo ritardo tra i gruppi
             await delay(500);
           }
-          
-          
+
+
         }
       } catch (error) {
-        
+
       }
 
       // Piccolo ritardo prima di eliminare il documento principale
@@ -704,7 +704,7 @@ export default function AdminDashboard() {
         description: `La galleria "${gallery.name}" e tutte le sue foto sono state eliminate con successo.`
       });
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Non è stato possibile eliminare completamente la galleria. Alcune risorse potrebbero essere rimaste.",
@@ -742,7 +742,7 @@ export default function AdminDashboard() {
 
       return true;
     } catch (error) {
-      
+
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'aggiornamento della password.",
@@ -916,7 +916,7 @@ export default function AdminDashboard() {
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="mb-4">
                         <Skeleton className="h-10 w-full mb-2" />
-                        <Skeleton className="h-6 w-4/5" />
+                        <Skeleton className="h-6 w-4/5"                />
                       </div>
                     ))}
                   </div>
@@ -948,8 +948,7 @@ export default function AdminDashboard() {
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Foto
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray<replit_final_file>
--500 uppercase tracking-wider">
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Stato
                           </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1201,6 +1200,15 @@ export default function AdminDashboard() {
                         ))}
                       </tbody>
                     </table>
+
+                    {/* Controlli di paginazione per le richieste password */}
+                    <PaginationControls
+                      currentPage={currentRequestPage}
+                      totalPages={totalRequestPages}
+                      onPageChange={paginateRequests}
+                      onPrevious={goToPreviousRequestPage}
+                      onNext={goToNextRequestPage}
+                    />
                   </div>
                 )}
               </div>
