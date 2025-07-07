@@ -73,9 +73,9 @@ export default function InteractionPanel({
       setIsLoadingStats(true);
       
       const [likesCount, commentsCount, hasUserLiked] = await Promise.all([
-        LikeService.getLikesCount(galleryId, itemId, itemType),
-        CommentService.getCommentsCount(galleryId, itemId, itemType),
-        isAuthenticated ? LikeService.hasUserLiked(galleryId, itemId, itemType, user!.uid) : false
+        LikeService.getPhotoLikesCount(itemId),
+        CommentService.getPhotoCommentsCount(itemId),
+        isAuthenticated ? LikeService.isPhotoLikedByUser(itemId, user!.uid) : false
       ]);
 
       setStats({
@@ -101,7 +101,7 @@ export default function InteractionPanel({
     try {
       setIsLoadingStats(true);
       
-      const comments = await CommentService.getComments(galleryId, itemId, itemType);
+      const comments = await CommentService.getPhotoComments(itemId);
       setComments(comments);
     } catch (error) {
       console.error('Error fetching comments:', error);
@@ -128,20 +128,20 @@ export default function InteractionPanel({
     try {
       setIsLoading(true);
       
-      const result = await LikeService.toggleLike(galleryId, itemId, itemType, user.uid, userEmail, userName);
+      const isNowLiked = await LikeService.toggleLike(itemId, user.uid, userEmail, userName);
       
       // Update stats based on action
       setStats(prev => ({
         ...prev,
-        hasUserLiked: result.action === 'added',
-        likesCount: result.action === 'added' 
+        hasUserLiked: isNowLiked,
+        likesCount: isNowLiked 
           ? prev.likesCount + 1 
           : Math.max(0, prev.likesCount - 1)
       }));
 
       toast({
-        title: result.action === 'added' ? 'Like aggiunto' : 'Like rimosso',
-        description: result.message || '',
+        title: isNowLiked ? 'Like aggiunto' : 'Like rimosso',
+        description: '',
       });
     } catch (error) {
       console.error('Errore like:', error);
@@ -178,18 +178,28 @@ export default function InteractionPanel({
       const finalUserEmail = user.email || '';
       const finalUserName = userProfile?.displayName || user.displayName || finalUserEmail.split('@')[0];
 
-      const commentData = await CommentService.addComment(
+      const commentId = await CommentService.addComment({
         galleryId, 
-        itemId, 
-        itemType,
-        newComment.trim(),
-        user.uid, 
-        finalUserEmail, 
-        finalUserName
-      );
+        photoId: itemId, 
+        userId: user.uid, 
+        userEmail: finalUserEmail, 
+        userName: finalUserName,
+        text: newComment.trim()
+      });
+
+      const newCommentData = {
+        id: commentId,
+        galleryId,
+        photoId: itemId,
+        userId: user.uid,
+        userEmail: finalUserEmail,
+        userName: finalUserName,
+        text: newComment.trim(),
+        createdAt: new Date()
+      };
 
       // Add comment to local state
-      setComments(prev => [commentData, ...prev]);
+      setComments(prev => [newCommentData, ...prev]);
 
       // Update stats
       setStats(prev => ({

@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { 
   Mic2, 
   Upload, 
@@ -41,7 +41,7 @@ export default function VoiceMemoUpload({
   onUploadComplete 
 }: VoiceMemoUploadProps) {
 
-  const { user, userProfile, isAuthenticated } = useAuth();
+  const { user, userProfile, isAuthenticated } = useFirebaseAuth();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   
   // Get user data from Firebase Auth
