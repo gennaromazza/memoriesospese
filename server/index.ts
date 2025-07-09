@@ -67,30 +67,49 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
+  
+  // Gestione graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('📍 Ricevuto SIGTERM, chiusura server...');
+    server.close(() => {
+      console.log('✅ Server chiuso correttamente');
+      process.exit(0);
+    });
+  });
+  
+  process.on('SIGINT', () => {
+    console.log('📍 Ricevuto SIGINT, chiusura server...');
+    server.close(() => {
+      console.log('✅ Server chiuso correttamente');
+      process.exit(0);
+    });
+  });
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  const port = process.env.PORT || 5000;
+  const host = process.env.HOST || "0.0.0.0";
+  
+  server.listen(port, host, () => {
     console.log(`✅ Server avviato con successo!`);
     console.log(`🌐 Porta: ${port}`);
-    console.log(`🏠 Host: 0.0.0.0`);
+    console.log(`🏠 Host: ${host}`);
     console.log(`🚀 Ambiente: ${process.env.NODE_ENV || 'development'}`);
     console.log(`📍 Server pronto per deployment su Replit`);
     log(`serving on port ${port}`);
   }).on('error', (err) => {
     console.error('❌ Errore avvio server:', err);
     console.error('💡 Verifica che la porta 5000 sia libera');
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ La porta ${port} è già in uso`);
+      console.error('💡 Prova a killare i processi esistenti o riavviare il Repl');
+    }
     process.exit(1);
   });
 })();
