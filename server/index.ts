@@ -37,21 +37,21 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Verifica SMTP Netsons all'avvio
-  if (process.env.NODE_ENV === 'production') {
-    // In produzione: verifica bloccante
-    try {
+  // Verifica SMTP Netsons all'avvio (non bloccante)
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      console.log('📧 Sistema email centralizzato su Netsons SMTP configurato');
+      // Verifica SMTP in background senza bloccare l'avvio
       const { verifyEmailConfig } = await import("./mailer");
-      await verifyEmailConfig();
-      console.log('✅ SMTP Netsons verificato in produzione');
-    } catch (error) {
-      console.error('❌ SMTP Netsons non funzionante - app bloccata:', error);
-      process.exit(1);
+      verifyEmailConfig()
+        .then(() => console.log('✅ SMTP Netsons verificato in produzione'))
+        .catch(error => console.warn('⚠️ SMTP Netsons non raggiungibile, continuando senza email:', error));
+    } else {
+      console.log('📧 Sistema email centralizzato su Netsons SMTP configurato');
+      console.log('⚠️ Verifica SMTP sarà richiesta in produzione');
     }
-  } else {
-    // In sviluppo: verifica con timeout per non bloccare
-    console.log('📧 Sistema email centralizzato su Netsons SMTP configurato');
-    console.log('⚠️ Verifica SMTP sarà richiesta in produzione');
+  } catch (error) {
+    console.warn('⚠️ Errore inizializzazione email service, continuando senza email:', error);
   }
 
   const server = await registerRoutes(app);
@@ -82,6 +82,15 @@ app.use((req, res, next) => {
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
+    console.log(`✅ Server avviato con successo!`);
+    console.log(`🌐 Porta: ${port}`);
+    console.log(`🏠 Host: 0.0.0.0`);
+    console.log(`🚀 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📍 Server pronto per deployment su Replit`);
     log(`serving on port ${port}`);
+  }).on('error', (err) => {
+    console.error('❌ Errore avvio server:', err);
+    console.error('💡 Verifica che la porta 5000 sia libera');
+    process.exit(1);
   });
 })();

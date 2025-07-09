@@ -37,12 +37,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(sanitizeInput);
 
   // ==================== GALLERY ACCESS API ====================
-  
+
   // Get gallery access requirements
   app.get('/api/galleries/:galleryId/access-info', validateGallery, async (req: AuthenticatedRequest, res) => {
     try {
       const gallery = req.gallery!;
-      
+
       const accessInfo = {
         requiresPassword: !!gallery.password,
         requiresSecurityQuestion: !!gallery.requiresSecurityQuestion,
@@ -50,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? getSecurityQuestionText(gallery.securityQuestionType, gallery.securityQuestionCustom)
           : null
       };
-      
+
       res.json(accessInfo);
     } catch (error) {
       logger.error('Errore nel recupero info accesso', {
@@ -96,7 +96,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!securityQuestionType) {
           return res.status(400).json({ error: 'Tipo di domanda di sicurezza richiesto' });
         }
-        
+
         if (!securityAnswer || securityAnswer.trim().length === 0) {
           return res.status(400).json({ error: 'Risposta alla domanda di sicurezza richiesta' });
         }
@@ -160,7 +160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { verifyEmailConfig } = await import('./mailer');
         await verifyEmailConfig();
-        
+
         res.json({
           success: true,
           provider: 'Netsons SMTP',
@@ -185,7 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Endpoint temporanei per le funzionalità email (implementazione semplificata)
-  
+
   // Store temporaneo in memoria per i subscribers
   const subscribersStore: { [galleryId: string]: string[] } = {};
 
@@ -201,11 +201,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!subscribersStore[galleryId]) {
         subscribersStore[galleryId] = [];
       }
-      
+
       if (subscribersStore[galleryId].includes(email)) {
         return res.status(400).json({ error: 'Email già iscritta' });
       }
-      
+
       subscribersStore[galleryId].push(email);
       res.json({ message: 'Iscrizione completata con successo' });
     } catch (error) {
@@ -224,7 +224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const success = await sendWelcomeEmail(email, galleryName);
-      
+
       if (success) {
         res.json({ message: 'Email di benvenuto inviata con successo' });
       } else {
@@ -259,7 +259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             uploaderName,
             galleryUrl
           );
-          
+
           if (success) {
             successCount++;
           } else {
@@ -283,7 +283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Voice Memos API Routes
-  
+
   // Caricamento di un nuovo voice memo (richiede autenticazione)
   app.post('/api/galleries/:galleryId/voice-memos', validateParams, rateLimit, validateGallery, requireAuth, async (req, res) => {
     try {
@@ -305,7 +305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Prepara i dati base obbligatori
       const now = new Date();
       let isUnlocked = true;
-      
+
       // Se c'è una data di sblocco, controlla se è nel futuro
       if (voiceMemoData.unlockDate && voiceMemoData.unlockDate !== null) {
         const unlockDateTime = new Date(voiceMemoData.unlockDate);
@@ -421,7 +421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verifica che il memo esista e appartenga alla galleria
       const memoDoc = await getDoc(doc(db, 'voiceMemos', memoId));
-      
+
       if (!memoDoc.exists()) {
         return res.status(404).json({ error: 'Voice memo non trovato' });
       }
@@ -502,7 +502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verifica che il memo esista e appartenga alla galleria
       const memoDoc = await getDoc(doc(db, 'voiceMemos', memoId));
-      
+
       if (!memoDoc.exists()) {
         return res.status(404).json({ error: 'Voice memo non trovato' });
       }
@@ -534,7 +534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== LIKES API ====================
-  
+
   // Get likes for an item
   app.get('/api/galleries/:galleryId/likes/:itemType/:itemId', async (req, res) => {
     try {
@@ -549,13 +549,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where('itemType', '==', itemType),
         where('itemId', '==', itemId)
       );
-      
+
       const querySnapshot = await getDocs(q);
       const likes = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
+
       // Check if current user has liked
       const hasUserLiked = userEmail ? likes.some((like: any) => like.userEmail === userEmail) : false;
-      
+
       res.json({
         likesCount: likes.length,
         hasUserLiked,
@@ -593,9 +593,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where('itemId', '==', itemId),
         where('userEmail', '==', userEmail)
       );
-      
+
       const existingLikes = await getDocs(existingLikeQuery);
-      
+
       if (!existingLikes.empty) {
         // Remove like
         await deleteDoc(existingLikes.docs[0].ref);
@@ -610,7 +610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userName,
           createdAt: serverTimestamp()
         };
-        
+
         await addDoc(likesRef, likeData);
         return sendSuccess(res, { action: 'added' }, 'Like aggiunto');
       }
@@ -621,7 +621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== COMMENTS API ====================
-  
+
   // Get comments for an item
   app.get('/api/galleries/:galleryId/comments/:itemType/:itemId', async (req, res) => {
     try {
@@ -634,7 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where('galleryId', '==', galleryId),
         where('itemId', '==', itemId)
       );
-      
+
       const querySnapshot = await getDocs(q);
       const comments = querySnapshot.docs
         .map(doc => ({ 
@@ -647,7 +647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!a.createdAt || !b.createdAt) return 0;
           return b.createdAt.toMillis() - a.createdAt.toMillis();
         });
-      
+
       res.json(comments);
     } catch (error) {
       console.error('Errore nel recupero commenti:', error);
@@ -691,9 +691,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: content.trim(),
         createdAt: serverTimestamp()
       };
-      
+
       const docRef = await addDoc(collection(db, 'comments'), commentData);
-      
+
       return sendSuccess(res, { 
         id: docRef.id, 
         ...commentData,
@@ -737,9 +737,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: content.trim(),
         createdAt: serverTimestamp()
       };
-      
+
       const docRef = await addDoc(collection(db, 'comments'), commentData);
-      
+
       return sendSuccess(res, { 
         id: docRef.id, 
         ...commentData
@@ -757,7 +757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verify comment exists and belongs to gallery
       const commentDoc = await getDoc(doc(db, 'comments', commentId));
-      
+
       if (!commentDoc.exists()) {
         return sendError(res, 404, 'Commento non trovato');
       }
@@ -768,7 +768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await deleteDoc(doc(db, 'comments', commentId));
-      
+
       return sendSuccess(res, { success: true }, 'Commento eliminato con successo');
     } catch (error) {
       console.error('Errore nell\'eliminazione commento:', error);
@@ -777,7 +777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== INTERACTION STATS API ====================
-  
+
   // Get interaction stats for an item
   app.get('/api/galleries/:galleryId/stats/:itemType/:itemId', async (req, res) => {
     try {
@@ -794,7 +794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       const likesSnapshot = await getDocs(likesQuery);
       const likes = likesSnapshot.docs.map(doc => doc.data());
-      
+
       // Get comments count
       const commentsRef = collection(db, 'comments');
       const commentsQuery = query(
@@ -804,10 +804,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where('itemId', '==', itemId)
       );
       const commentsSnapshot = await getDocs(commentsQuery);
-      
+
       // Check if current user has liked
       const hasUserLiked = userEmail ? likes.some(like => like.userEmail === userEmail) : false;
-      
+
       // Validate itemType
       if (!ValidationUtils.isValidItemType(itemType)) {
         return sendError(res, 400, 'Tipo elemento non valido');
@@ -833,25 +833,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const likesRef = collection(db, 'likes');
       const likesQuery = query(likesRef, where('galleryId', '==', galleryId));
       const likesSnapshot = await getDocs(likesQuery);
-      
+
       // Get all comments for gallery
       const commentsRef = collection(db, 'comments');
       const commentsQuery = query(commentsRef, where('galleryId', '==', galleryId));
       const commentsSnapshot = await getDocs(commentsQuery);
-      
+
       // Group by item type
       const likesData = likesSnapshot.docs.map(doc => doc.data());
       const commentsData = commentsSnapshot.docs.map(doc => doc.data());
-      
+
       const photoLikes = likesData.filter(like => like.itemType === 'photo').length;
       const voiceMemoLikes = likesData.filter(like => like.itemType === 'voice_memo').length;
       const photoComments = commentsData.filter(comment => comment.itemType === 'photo').length;
       const voiceMemoComments = commentsData.filter(comment => comment.itemType === 'voice_memo').length;
-      
+
       // Get unique users
       const uniqueLikeUsers = new Set(likesData.map(like => like.userEmail)).size;
       const uniqueCommentUsers = new Set(commentsData.map(comment => comment.userEmail)).size;
-      
+
       res.json({
         totalLikes: likesData.length,
         totalComments: commentsData.length,
@@ -873,7 +873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== SOCIAL ACTIVITY API ====================
-  
+
   // Get recent comments across the gallery
   app.get('/api/galleries/:galleryId/comments/recent', async (req, res) => {
     try {
@@ -885,7 +885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         commentsRef,
         where('galleryId', '==', galleryId)
       );
-      
+
       const querySnapshot = await getDocs(q);
       const allComments = querySnapshot.docs
         .map(doc => ({ 
@@ -895,10 +895,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .sort((a: any, b: any) => {
           // Sort by createdAt descending
           if (!a.createdAt || !b.createdAt) return 0;
-          
+
           const aTime = a.createdAt.seconds || new Date(a.createdAt).getTime() / 1000;
           const bTime = b.createdAt.seconds || new Date(b.createdAt).getTime() / 1000;
-          
+
           return bTime - aTime;
         })
         .slice(0, limit); // Apply limit after sorting
@@ -923,7 +923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         return comment;
       }));
-      
+
       res.json(comments);
     } catch (error) {
       console.error('Errore nel recupero commenti recenti:', error);
@@ -945,7 +945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const photosRef = collection(db, 'galleries', galleryId, 'photos');
       const photosSnapshot = await getDocs(photosRef);
-      
+
       // Get likes for all photos
       const likesRef = collection(db, 'likes');
       const likesQuery = query(
@@ -954,7 +954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where('itemType', '==', 'photo')
       );
       const likesSnapshot = await getDocs(likesQuery);
-      
+
       // Get comments for all photos
       const commentsRef = collection(db, 'comments');
       const commentsQuery = query(
@@ -994,7 +994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const topPhotos = photoStats
         .sort((a, b) => b.likesCount - a.likesCount)
         .slice(0, limit);
-      
+
       res.json(topPhotos);
     } catch (error) {
       console.error('Errore nel recupero foto top:', error);
@@ -1014,7 +1014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where('galleryId', '==', galleryId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       const voiceMemos = querySnapshot.docs
         .map(doc => ({ 
           id: doc.id, 
@@ -1024,14 +1024,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .sort((a: any, b: any) => {
           // Sort by createdAt descending
           if (!a.createdAt || !b.createdAt) return 0;
-          
+
           const aTime = a.createdAt.seconds || new Date(a.createdAt).getTime() / 1000;
           const bTime = b.createdAt.seconds || new Date(b.createdAt).getTime() / 1000;
-          
+
           return bTime - aTime;
         })
         .slice(0, limit);
-      
+
       res.json(voiceMemos);
     } catch (error) {
       console.error('Errore nel recupero note audio recenti:', error);
@@ -1040,18 +1040,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== USER AUTHENTICATION API ====================
-  
+
   // Get user profile by Firebase UID
   app.get('/api/users/:uid', async (req, res) => {
     try {
       const { uid } = req.params;
-      
+
       const userDoc = await getDoc(doc(db, 'users', uid));
-      
+
       if (!userDoc.exists()) {
         return res.status(404).json({ error: 'Utente non trovato' });
       }
-      
+
       res.json({ id: userDoc.id, ...userDoc.data() });
     } catch (error) {
       console.error('Errore nel recupero profilo utente:', error);
@@ -1064,16 +1064,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { uid } = req.params;
       const updateData = req.body;
-      
+
       // Remove sensitive fields that shouldn't be updated via API
       delete updateData.uid;
       delete updateData.createdAt;
-      
+
       await updateDoc(doc(db, 'users', uid), {
         ...updateData,
         updatedAt: serverTimestamp()
       });
-      
+
       res.json({ success: true, message: 'Profilo aggiornato' });
     } catch (error) {
       console.error('Errore nell\'aggiornamento profilo:', error);
@@ -1085,25 +1085,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/users/:uid/gallery-access/:galleryId', async (req, res) => {
     try {
       const { uid, galleryId } = req.params;
-      
+
       const userDoc = await getDoc(doc(db, 'users', uid));
-      
+
       if (!userDoc.exists()) {
         return res.status(404).json({ error: 'Utente non trovato' });
       }
-      
+
       const userData = userDoc.data();
       const galleryAccess = userData.galleryAccess || [];
-      
+
       if (!galleryAccess.includes(galleryId)) {
         galleryAccess.push(galleryId);
-        
+
         await updateDoc(doc(db, 'users', uid), {
           galleryAccess: galleryAccess,
           updatedAt: serverTimestamp()
         });
       }
-      
+
       res.json({ success: true, message: 'Accesso alla galleria concesso' });
     } catch (error) {
       console.error('Errore nella concessione accesso galleria:', error);
@@ -1115,17 +1115,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/users/:uid/gallery-access/:galleryId', async (req, res) => {
     try {
       const { uid, galleryId } = req.params;
-      
+
       const userDoc = await getDoc(doc(db, 'users', uid));
-      
+
       if (!userDoc.exists()) {
         return res.status(404).json({ error: 'Utente non trovato' });
       }
-      
+
       const userData = userDoc.data();
       const galleryAccess = userData.galleryAccess || [];
       const hasAccess = galleryAccess.includes(galleryId);
-      
+
       res.json({ hasAccess });
     } catch (error) {
       console.error('Errore nella verifica accesso galleria:', error);
@@ -1135,7 +1135,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Keep only basic server endpoints if needed
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", message: "Server is running" });
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      port: 5000,
+      host: '0.0.0.0',
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: process.version
+    });
   });
 
   const httpServer = createServer(app);
