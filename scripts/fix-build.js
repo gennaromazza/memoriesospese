@@ -1,9 +1,10 @@
+
 #!/usr/bin/env node
 
 /**
  * Script per correggere la struttura di build per il deployment
- * Questo script riorganizza i file di build nella struttura corretta
- * che il server si aspetta: dist/public/
+ * Sposta i file client da dist/ a dist/public/
+ * Mantiene dist/index.js per il server
  */
 
 import fs from 'fs';
@@ -14,7 +15,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-// Colori per output
 const colors = {
   green: '\x1b[32m',
   yellow: '\x1b[33m',
@@ -28,7 +28,7 @@ function log(message, color = 'reset') {
 }
 
 function fixBuildStructure() {
-  log('🔧 Correzione struttura di build...', 'blue');
+  log('🔧 Correzione struttura di build per deployment...', 'blue');
   
   const distDir = path.join(rootDir, 'dist');
   const publicDir = path.join(distDir, 'public');
@@ -45,8 +45,10 @@ function fixBuildStructure() {
     log('✅ Creata directory dist/public/', 'green');
   }
   
-  // Lista dei file/cartelle da spostare in public
-  const itemsToMove = ['index.html', 'assets', 'favicon.png'];
+  // File/cartelle da spostare in public (tutto tranne index.js del server)
+  const allItems = fs.readdirSync(distDir);
+  const itemsToMove = allItems.filter(item => item !== 'index.js' && item !== 'public');
+  
   let movedItems = 0;
   
   for (const item of itemsToMove) {
@@ -61,28 +63,34 @@ function fixBuildStructure() {
       
       // Sposta il file/cartella
       fs.renameSync(sourcePath, targetPath);
-      log(`✅ Spostato ${item} in public/`, 'green');
+      log(`✅ Spostato ${item} → dist/public/`, 'green');
       movedItems++;
     }
   }
   
-  if (movedItems === 0) {
-    log('⚠️  Nessun file da spostare trovato', 'yellow');
+  // Verifica che index.js del server sia rimasto in dist/
+  const serverFile = path.join(distDir, 'index.js');
+  if (!fs.existsSync(serverFile)) {
+    log('⚠️  File server dist/index.js non trovato', 'yellow');
   } else {
-    log(`🎉 Struttura di build corretta! Spostati ${movedItems} elementi`, 'green');
+    log('✅ File server dist/index.js mantenuto', 'green');
   }
   
   // Verifica la struttura finale
-  const expectedFiles = ['index.html', 'assets'];
-  const allExist = expectedFiles.every(file => 
+  const requiredFiles = ['index.html', 'assets'];
+  const allExist = requiredFiles.every(file => 
     fs.existsSync(path.join(publicDir, file))
   );
   
   if (allExist) {
-    log('✅ Struttura di build verificata e corretta', 'green');
+    log('✅ Struttura di build corretta per deployment', 'green');
+    log(`📁 Server: dist/index.js`, 'blue');
+    log(`📁 Client: dist/public/`, 'blue');
   } else {
     log('⚠️  Alcuni file potrebbero mancare nella struttura finale', 'yellow');
   }
+  
+  log(`🎉 Deployment ready! Spostati ${movedItems} elementi`, 'green');
 }
 
 // Esegui la correzione

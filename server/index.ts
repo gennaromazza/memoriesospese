@@ -81,10 +81,17 @@ app.use((req, res, next) => {
   
   server.listen(port, host, () => {
     console.log(`✅ Server avviato con successo!`);
-    console.log(`🌐 Porta: ${port}`);
-    console.log(`🏠 Host: ${host}`);
+    console.log(`🌐 Porta: ${port} (forwarded to 80/443)`);
+    console.log(`🏠 Host: ${host} (external access enabled)`);
     console.log(`🚀 Ambiente: ${process.env.NODE_ENV || 'development'}`);
     console.log(`📍 Server pronto per deployment su Replit`);
     log(`serving on port ${port}`);
+  }).on('error', (err) => {
+    console.error('❌ Errore binding server:', err);
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ Porta ${port} già in uso`);
+    } else if (err.code === 'EACCES') {
+      console.error(`❌ Permessi insufficienti per porta ${port}`);
+    }
   });
 })();
