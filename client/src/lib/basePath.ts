@@ -1,34 +1,19 @@
 /**
  * Sistema dinamico per la gestione del base path
- * Rileva automaticamente in quale sottocartella si trova l'applicazione
+ * Compatibile con ambienti locali, produzione e sottocartelle.
  */
 
-/**
- * Rileva automaticamente il base path dall'URL corrente
- */
+/** Rileva automaticamente il base path dall'ambiente o fallback */
 function detectBasePath(): string {
-  // Usa sempre la variabile d'ambiente se disponibile
-  if (import.meta.env.VITE_BASE_PATH) {
-    return import.meta.env.VITE_BASE_PATH;
-  }
-
-  // In sviluppo, usa sempre '/'
-  if (import.meta.env.DEV) {
-    return '/';
-  }
-
-  // Fallback - non usare auto-rilevamento per evitare duplicazioni
-  return '/';
+  if (import.meta.env.VITE_BASE_PATH) return import.meta.env.VITE_BASE_PATH;
+  if (import.meta.env.BASE_URL) return import.meta.env.BASE_URL;
+  return import.meta.env.DEV ? "/" : "/";
 }
 
-/**
- * Cache del base path per evitare rilevamenti multipli
- */
+/** Cache del base path per evitarne il ricalcolo */
 let cachedBasePath: string | null = null;
 
-/**
- * Ottiene il base path con cache
- */
+/** Restituisce il base path corrente (con cache) */
 function getBasePath(): string {
   if (cachedBasePath === null) {
     cachedBasePath = detectBasePath();
@@ -36,69 +21,54 @@ function getBasePath(): string {
   return cachedBasePath;
 }
 
-export function createUrl(urlPath: string): string {
-  const basePath = getBasePath();
-  // console.log('createUrl debug:', { urlPath, basePath, result: basePath || '/' }); // Debug disabilitato
-
-  // Gestione percorsi speciali
-  if (urlPath === '' || urlPath === '/') {
-    return basePath || '/';
-  }
-
-  // Rimuovi slash iniziale dal path se presente
-  const normalizedPath = urlPath.startsWith('/') ? urlPath.substring(1) : urlPath;
-
-  // Protezione contro duplicazione del base path
-  // Se il base path è "/wedgallery/" e il path inizia con "wedgallery/", 
-  // non duplicare
-  if (basePath !== '/' && normalizedPath.startsWith(basePath.substring(1))) {
-    return `/${normalizedPath}`;
-  }
-
-  // Concatena il percorso base con il percorso relativo
-  return `${basePath}${normalizedPath}`;
-}
-
-/**
- * Crea un URL assoluto per la condivisione
- */
+/** Crea un URL assoluto completo di dominio e base path */
 export const createAbsoluteUrl = (path: string): string => {
-  const basePath = getBasePath();
-  const fullPath = basePath === '/' ? path : `${basePath}${path}`;
-  return import.meta.env.VITE_APP_URL ? `${import.meta.env.VITE_APP_URL}${fullPath}` : fullPath;
+  const basePath = getBasePath().replace(/\/+$/, ""); // rimuove slash finali
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const fullPath = `${basePath}${cleanPath}`;
+
+  const origin =
+    import.meta.env.VITE_APP_URL?.replace(/\/+$/, "") || window.location.origin;
+  return `${origin}${fullPath}`;
 };
 
-/**
- * Verifica se l'applicazione è in produzione
- */
-export const isProduction = (): boolean => {
-  return import.meta.env.PROD === true;
+/** Crea un URL relativo al base path, utile per routing o link interni */
+export const createUrl = (urlPath: string): string => {
+  const basePath = getBasePath().replace(/\/+$/, "");
+  const cleanPath = urlPath.startsWith("/") ? urlPath.slice(1) : urlPath;
+
+  // Evita duplicazione se il path contiene già il basePath
+  if (basePath !== "/" && cleanPath.startsWith(basePath.slice(1))) {
+    return `/${cleanPath}`;
+  }
+
+  return `${basePath}/${cleanPath}`;
 };
 
-/**
- * Verifica se siamo in una sottodirectory
- */
+/** Verifica se siamo in produzione */
+export const isProduction = (): boolean => import.meta.env.PROD === true;
+
+/** Verifica se l'app è caricata in sottocartella */
 export const isInSubdirectory = (): boolean => {
-  return getBasePath() !== '';
+  const base = getBasePath().replace(/^\/|\/$/g, "");
+  return base !== "";
 };
 
-/**
- * Forza il refresh del base path (utile per test o cambi dinamici)
- */
+/** Forza il reset della cache del basePath (per test/debug) */
 export const refreshBasePath = (): void => {
   cachedBasePath = null;
 };
 
-/**
- * Debug: mostra informazioni sul base path corrente
- */
+/** Info di debug utili */
 export const getPathDebugInfo = () => {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
 
   return {
     basePath: getBasePath(),
     isSubdirectory: isInSubdirectory(),
     envBasePath: import.meta.env.BASE_URL,
-    isDev: import.meta.env.DEV
+    viteBase: import.meta.env.VITE_BASE_PATH,
+    appUrl: import.meta.env.VITE_APP_URL,
+    isDev: import.meta.env.DEV,
   };
 };
