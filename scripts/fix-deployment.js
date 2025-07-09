@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// Deployment fix script
 
 /**
  * Script per correggere i problemi di deployment identificati:

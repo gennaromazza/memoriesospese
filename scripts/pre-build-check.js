@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// Pre-build check script
 
 /**
  * Script di verifica pre-build per deployment Netsons

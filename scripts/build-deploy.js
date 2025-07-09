@@ -1,5 +1,5 @@
 
-#!/usr/bin/env node
+// Build and deployment script
 
 /**
  * Script automatico per build e deployment

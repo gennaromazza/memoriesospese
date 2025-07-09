@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// Test comment fix script
 
 /**
  * Test per verificare che la correzione dell'endpoint commenti sia corretta

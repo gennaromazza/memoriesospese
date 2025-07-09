@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// Deployment check script
 
 /**
  * Script di verifica deployment

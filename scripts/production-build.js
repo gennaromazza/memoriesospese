@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// Production build script
 
 /**
  * Script completo per build di produzione

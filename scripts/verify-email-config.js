@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// Email configuration verification script
 
 /**
  * Verifica rapida della configurazione email centralizzata

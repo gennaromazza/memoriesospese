@@ -1,5 +1,5 @@
 
-#!/usr/bin/env node
+// Build fix script - removed shebang for Node.js compatibility
 
 /**
  * Script per correggere la struttura di build per il deployment
