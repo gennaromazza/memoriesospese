@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from './use-toast';
 
 interface AccessInfo {
   requiresPassword: boolean;
@@ -26,7 +26,7 @@ export function useGalleryAccess() {
     try {
       // Prima controlla se la galleria esiste su Firebase
       const { collection, query, where, getDocs } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
+      const { db } = await import('../lib/firebase');
       
       const galleriesRef = collection(db, "galleries");
       const q = query(galleriesRef, where("code", "==", galleryId));
@@ -81,7 +81,7 @@ export function useGalleryAccess() {
     try {
       // Verifica tramite Firebase
       const { collection, query, where, getDocs } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
+      const { db } = await import('../lib/firebase');
       
       const galleriesRef = collection(db, "galleries");
       const q = query(galleriesRef, where("code", "==", params.galleryId));

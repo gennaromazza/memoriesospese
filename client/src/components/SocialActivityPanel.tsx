@@ -80,11 +80,10 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
 
   const fetchRecentComments = async () => {
     try {
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/comments/recent`));
-      if (response.ok) {
-        const data = await response.json();
-        setRecentComments(data.slice(0, 8)); // Limit to 8 recent comments
-      }
+      // Import Firebase functions directly
+      const { getRecentComments } = await import('@/lib/comments');
+      const data = await getRecentComments(galleryId, 8);
+      setRecentComments(data);
     } catch (error) {
       console.error('Error fetching recent comments:', error);
     }
@@ -92,11 +91,10 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
 
   const fetchTopPhotos = async () => {
     try {
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/photos/top-liked`));
-      if (response.ok) {
-        const data = await response.json();
-        setTopPhotos(data.slice(0, 5)); // Top 5 photos
-      }
+      // Import Firebase functions directly  
+      const { getTopLikedPhotos } = await import('@/lib/photos');
+      const data = await getTopLikedPhotos(galleryId, 5);
+      setTopPhotos(data);
     } catch (error) {
       console.error('Error fetching top photos:', error);
     }
@@ -104,11 +102,10 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
 
   const fetchRecentVoiceMemos = async () => {
     try {
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/recent`));
-      if (response.ok) {
-        const data = await response.json();
-        setRecentVoiceMemos(data.slice(0, 5)); // Recent 5 voice memos
-      }
+      // Import Firebase functions directly
+      const { getRecentVoiceMemos } = await import('@/lib/voiceMemos');
+      const data = await getRecentVoiceMemos(galleryId, 5);
+      setRecentVoiceMemos(data);
     } catch (error) {
       console.error('Error fetching recent voice memos:', error);
     }
