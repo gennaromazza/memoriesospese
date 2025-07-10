@@ -1,13 +1,13 @@
 import nodemailer from 'nodemailer';
 
-// Configurazione centralizzata SMTP Netsons con SSL
+// Configurazione centralizzata SMTP Brevo (ex-Sendinblue)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.netsons.com',
-  port: 465,
-  secure: true, // SSL su porta 465
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false, // STARTTLS su porta 587
   auth: {
-    user: 'easygallery@gennaromazzacane.it',
-    pass: '@Antonio2017'
+    user: process.env.BREVO_SMTP_USER || 'your-brevo-email@domain.com',
+    pass: process.env.BREVO_SMTP_PASS || 'your-brevo-smtp-key'
   },
   tls: {
     rejectUnauthorized: false
@@ -36,7 +36,7 @@ export async function sendNewPhotosNotification(
 ): Promise<boolean> {
   try {
     const mailOptions = {
-      from: `"Wedding Gallery" <easygallery@gennaromazzacane.it>`,
+      from: `"Wedding Gallery" <${process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'}>`,
       to: toEmail,
       subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
       html: generateNewPhotosHTML(galleryName, newPhotosCount, uploaderName, galleryUrl),
@@ -44,8 +44,8 @@ export async function sendNewPhotosNotification(
       headers: {
         'X-Mailer': 'Wedding Gallery System',
         'X-Priority': '3',
-        'List-Unsubscribe': '<mailto:easygallery@gennaromazzacane.it?subject=Unsubscribe>',
-        'Reply-To': 'easygallery@gennaromazzacane.it'
+        'List-Unsubscribe': `<mailto:${process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'}?subject=Unsubscribe>`,
+        'Reply-To': process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'
       }
     };
 
@@ -66,7 +66,7 @@ export async function sendWelcomeEmail(
 ): Promise<boolean> {
   try {
     const mailOptions = {
-      from: `"Wedding Gallery" <easygallery@gennaromazzacane.it>`,
+      from: `"Wedding Gallery" <${process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'}>`,
       to: toEmail,
       subject: `✨ Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`,
       html: generateWelcomeHTML(galleryName, toEmail),
@@ -74,8 +74,8 @@ export async function sendWelcomeEmail(
       headers: {
         'X-Mailer': 'Wedding Gallery System',
         'X-Priority': '3',
-        'List-Unsubscribe': '<mailto:easygallery@gennaromazzacane.it?subject=Unsubscribe>',
-        'Reply-To': 'easygallery@gennaromazzacane.it'
+        'List-Unsubscribe': `<mailto:${process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'}?subject=Unsubscribe>`,
+        'Reply-To': process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'
       }
     };
 
@@ -109,7 +109,7 @@ export async function notifySubscribers(
     } else {
       failed++;
     }
-    
+
     // Pausa tra invii per evitare rate limiting Netsons
     await new Promise(resolve => setTimeout(resolve, 200));
   }
@@ -192,17 +192,17 @@ function generateWelcomeHTML(galleryName: string, userEmail: string): string {
             <h1>🎉 Benvenuto!</h1>
             <p style="margin: 10px 0 0 0; opacity: 0.9;">Iscrizione confermata con successo</p>
         </div>
-        
+
         <div class="content">
             <p>Ciao!</p>
-            
+
             <p>Grazie per esserti iscritto alle notifiche per la galleria fotografica:</p>
-            
+
             <div class="gallery-info">
                 <div class="gallery-name">"${galleryName}"</div>
                 <p style="margin: 0; color: #6b7280;">Riceverai aggiornamenti quando verranno aggiunte nuove foto</p>
             </div>
-            
+
             <div class="features">
                 <h3>📬 Cosa riceverai:</h3>
                 <ul>
@@ -212,15 +212,15 @@ function generateWelcomeHTML(galleryName: string, userEmail: string): string {
                     <li>💌 Email eleganti e non invasive</li>
                 </ul>
             </div>
-            
+
             <p>Ti ringraziamo per aver scelto il nostro servizio per rimanere aggiornato sui momenti più belli!</p>
-            
+
             <p style="margin-top: 30px;">
                 Con affetto,<br>
                 <strong>Il Team della Galleria</strong>
             </p>
         </div>
-        
+
         <div class="footer">
             <p>Questa email è stata inviata a <strong>${userEmail}</strong></p>
             <p>perché ti sei iscritto alle notifiche della galleria "${galleryName}".</p>
@@ -327,27 +327,27 @@ function generateNewPhotosHTML(galleryName: string, newPhotosCount: number, uplo
         <div class="header">
             <h1>📸 Nuove foto disponibili!</h1>
         </div>
-        
+
         <div class="content">
             <p>Ciao!</p>
-            
+
             <p>Abbiamo una bella notizia per te:</p>
-            
+
             <div class="photo-alert">
                 <div class="count">${newPhotosCount}</div>
                 <p style="margin: 0; font-weight: 600;">nuova${newPhotosCount > 1 ? 'e' : ''} foto ${newPhotosCount > 1 ? 'sono state aggiunte' : 'è stata aggiunta'}</p>
                 <p style="margin: 8px 0 0 0; color: #666;">da ${uploaderName}</p>
             </div>
-            
+
             <p>nella galleria <strong>"${galleryName}"</strong></p>
-            
+
             <div style="text-align: center;">
                 <a href="${galleryUrl}" class="cta-button">
                     🖼️ Visualizza le nuove foto
                 </a>
             </div>
         </div>
-        
+
         <div class="footer">
             <p>Questa notifica è stata inviata perché sei iscritto agli aggiornamenti di "${galleryName}"</p>
         </div>
