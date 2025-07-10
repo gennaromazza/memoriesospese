@@ -2,9 +2,9 @@
 import { useState } from "react";
 import { deleteDoc, doc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
-import { PhotoData } from "@/hooks/use-gallery-data";
-import { useToast } from "@/hooks/use-toast";
+import { db, storage } from "../lib/firebase";
+import { PhotoData } from "../hooks/use-gallery-data";
+import { useToast } from "../hooks/use-toast";
 
 interface DeletePhotoProps {
   galleryId: string;

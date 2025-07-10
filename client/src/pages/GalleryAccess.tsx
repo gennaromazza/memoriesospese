@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "../lib/firebase";
 import { Link } from "wouter";
-import { useToast } from "@/hooks/use-toast";
-import { createUrl } from "@/lib/basePath";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import Navigation from "@/components/Navigation";
-import Footer from "@/components/Footer";
-import GalleryAccessFlow from "@/components/GalleryAccessFlow";
+import { useToast } from "../hooks/use-toast";
+import { createUrl } from "../lib/basePath";
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
+import Navigation from "../components/Navigation";
+import Footer from "../components/Footer";
+import GalleryAccessFlow from "../components/GalleryAccessFlow";
 
 export default function GalleryAccess() {
   const { id } = useParams();

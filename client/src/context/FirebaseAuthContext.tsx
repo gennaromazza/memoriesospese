@@ -5,7 +5,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
-import { AuthService, UserProfile } from '@/lib/auth';
+import { AuthService, UserProfile } from '../lib/auth';
 
 interface FirebaseAuthContextType {
   user: User | null;

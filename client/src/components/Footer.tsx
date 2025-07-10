@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { useStudio } from "@/context/StudioContext";
+import { useStudio } from "../context/StudioContext";
 import { FloralCorner, FloralDivider } from '@/components/WeddingIllustrations';
 import { WeddingImage, DecorativeImage } from '@/components/WeddingImages';
 
