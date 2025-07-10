@@ -40,14 +40,14 @@ app.use((req, res, next) => {
   // Verifica SMTP Netsons all'avvio (non bloccante)
   try {
     if (process.env.NODE_ENV === 'production') {
-      console.log('📧 Sistema email centralizzato su Netsons SMTP configurato');
+      console.log('📧 Sistema email centralizzato su Brevo SMTP configurato');
       // Verifica SMTP in background senza bloccare l'avvio
       const { verifyEmailConfig } = await import("./mailer");
       verifyEmailConfig()
         .then(() => console.log('✅ SMTP Netsons verificato in produzione'))
         .catch(error => console.warn('⚠️ SMTP Netsons non raggiungibile, continuando senza email:', error));
     } else {
-      console.log('📧 Sistema email centralizzato su Netsons SMTP configurato');
+      console.log('📧 Sistema email centralizzato su Brevo SMTP configurato');
       console.log('⚠️ Verifica SMTP sarà richiesta in produzione');
     }
   } catch (error) {
