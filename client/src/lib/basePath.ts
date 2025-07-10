@@ -5,9 +5,11 @@
 
 /** Rileva automaticamente il base path dall'ambiente o fallback */
 function detectBasePath(): string {
+  // In produzione su Replit, usa sempre root path
+  if (import.meta.env.PROD) return "/";
   if (import.meta.env.VITE_BASE_PATH) return import.meta.env.VITE_BASE_PATH;
   if (import.meta.env.BASE_URL) return import.meta.env.BASE_URL;
-  return import.meta.env.DEV ? "/" : "/";
+  return "/";
 }
 
 /** Cache del base path per evitarne il ricalcolo */

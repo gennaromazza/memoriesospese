@@ -64,8 +64,8 @@ function Router() {
 }
 
 function App() {
-  // Configure base path for subdirectory deployment
-  const basePath = import.meta.env.PROD ? '/wedgallery' : '/';
+  // Configure base path for Replit deployment (always root)
+  const basePath = '/';
 
   // URL validation and normalization
   useEffect(() => {
