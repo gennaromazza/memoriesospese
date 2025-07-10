@@ -1,16 +1,16 @@
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { createUrl } from '@/lib/basePath';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
-import Navigation from '@/components/Navigation';
+import { createUrl } from '../lib/basePath';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Separator } from '../components/ui/separator';
+import { useToast } from '../hooks/use-toast';
+import { useAuth } from '../hooks/useAuth';
+import Navigation from '../components/Navigation';
 import { 
   User, 
   Mail, 
@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '../lib/firebase';
 
 export default function UserProfile() {
   const { user, userProfile, isAuthenticated, logout, refreshUserProfile } = useAuth();

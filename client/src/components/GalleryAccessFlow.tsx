@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useGalleryAccess } from '@/hooks/use-gallery-access';
+import { useGalleryAccess } from '../hooks/use-gallery-access';
 import SecurityQuestionPrompt from './SecurityQuestionPrompt';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Alert, AlertDescription } from './ui/alert';
 import { Lock, AlertCircle } from 'lucide-react';
 
 interface GalleryAccessFlowProps {

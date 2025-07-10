@@ -324,4 +324,8 @@ export class VoiceMemoService {
   }
 }
 
+// Funzioni di convenienza per importazione diretta
+export const getRecentVoiceMemos = (galleryId: string, limitCount: number = 5) => 
+  VoiceMemoService.getGalleryVoiceMemos(galleryId, limitCount);
+
 export default VoiceMemoService;

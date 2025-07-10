@@ -279,4 +279,8 @@ export class CommentService {
   }
 }
 
+// Funzioni di convenienza per importazione diretta
+export const getRecentComments = (galleryId: string, limitCount: number = 8) => 
+  CommentService.getGalleryComments(galleryId, limitCount);
+
 export default CommentService;
