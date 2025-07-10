@@ -40,6 +40,19 @@ mode = "sequential"
 task = "shell.exec"
 args = "npm run build-deploy"
 
+[[workflows.workflow]]
+name = "Deploy Production"
+author = 41213760
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "NODE_ENV=production node dist/index.js"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
