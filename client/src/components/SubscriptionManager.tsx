@@ -1,217 +1,143 @@
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
-import { Bell, BellOff, Mail, Check } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
-import { createWelcomeEmailTemplate } from '@/lib/emailTemplates';
+import React, { useState } from 'react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Mail, Bell, CheckCircle } from 'lucide-react';
+import { subscribeToGallery, testEmailSystem } from '../lib/email';
+import { useToast } from '../hooks/use-toast';
 
 interface SubscriptionManagerProps {
   galleryId: string;
   galleryName: string;
 }
 
-export default function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProps) {
+export function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProps) {
   const [email, setEmail] = useState('');
-  const [isSubscribing, setIsSubscribing] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isAlreadySubscribed, setIsAlreadySubscribed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
   const { toast } = useToast();
 
-  const checkIfSubscribed = async (emailToCheck: string) => {
-    if (!emailToCheck || !emailToCheck.includes('@')) return false;
-    
-    try {
-      const subscriptionsRef = collection(db, 'subscriptions');
-      const q = query(
-        subscriptionsRef, 
-        where('galleryId', '==', galleryId),
-        where('email', '==', emailToCheck.toLowerCase())
-      );
-      const querySnapshot = await getDocs(q);
-      return !querySnapshot.empty;
-    } catch (error) {
-      console.error('Errore nel controllo iscrizione:', error);
-      return false;
-    }
-  };
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  const handleEmailChange = async (newEmail: string) => {
-    setEmail(newEmail);
-    if (newEmail && newEmail.includes('@')) {
-      const isSubscribed = await checkIfSubscribed(newEmail);
-      setIsAlreadySubscribed(isSubscribed);
-    } else {
-      setIsAlreadySubscribed(false);
-    }
-  };
-
-  const handleSubscribe = async () => {
     if (!email || !email.includes('@')) {
       toast({
-        title: "Email non valida",
+        title: "❌ Email non valida",
         description: "Inserisci un indirizzo email valido",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
 
-    if (isAlreadySubscribed) {
-      toast({
-        title: "Email già iscritta",
-        description: `L'email ${email} è già iscritta per ricevere notifiche da questa galleria`,
-        variant: "destructive",
-      });
-      return;
-    }
+    setIsLoading(true);
 
-    setIsSubscribing(true);
-    
     try {
-      // Controlla nuovamente prima di procedere
-      const alreadyExists = await checkIfSubscribed(email);
-      if (alreadyExists) {
+      const result = await subscribeToGallery(galleryId, galleryName, email);
+
+      if (result.success) {
+        setIsSubscribed(true);
         toast({
-          title: "Email già iscritta",
-          description: "Questa email è già registrata per le notifiche di questa galleria",
-          variant: "destructive",
+          title: "✅ Iscrizione completata!",
+          description: `Riceverai notifiche quando verranno aggiunte nuove foto a "${galleryName}"`,
         });
-        setIsAlreadySubscribed(true);
-        return;
+        setEmail('');
+      } else {
+        throw new Error(result.error);
       }
-
-      // Salva l'iscrizione direttamente in Firestore
-      await addDoc(collection(db, 'subscriptions'), {
-        galleryId: galleryId,
-        galleryName: galleryName,
-        email: email.toLowerCase(),
-        createdAt: serverTimestamp(),
-        active: true
-      });
-
-      // Invia email di benvenuto
-      try {
-        const response = await fetch('/api/send-welcome-email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: email.toLowerCase(),
-            galleryName: galleryName
-          }),
-        });
-
-        if (!response.ok) {
-          console.warn('Email di benvenuto non inviata:', await response.text());
-        }
-      } catch (emailError) {
-        console.warn('Errore nell\'invio email di benvenuto:', emailError);
-        // Non bloccare l'iscrizione per errori email
-      }
-
-      toast({
-        title: "Iscrizione completata!",
-        description: `Riceverai notifiche quando verranno aggiunte nuove foto a "${galleryName}". Controlla la tua email per la conferma.`,
-      });
-      
-      setEmail('');
-      setIsDialogOpen(false);
-      setIsAlreadySubscribed(false);
-      
     } catch (error) {
-      console.error('Errore nell\'iscrizione:', error);
       toast({
-        title: "Errore nell'iscrizione",
-        description: "Si è verificato un errore durante l'iscrizione. Riprova più tardi.",
-        variant: "destructive",
+        title: "❌ Errore iscrizione",
+        description: error.message || "Non è stato possibile completare l'iscrizione",
+        variant: "destructive"
       });
     } finally {
-      setIsSubscribing(false);
+      setIsLoading(false);
     }
   };
 
+  const handleTestEmail = async () => {
+    setIsLoading(true);
+    try {
+      await testEmailSystem();
+      toast({
+        title: "✅ Test email inviato!",
+        description: "Controlla la tua casella email",
+      });
+    } catch (error) {
+      toast({
+        title: "❌ Errore test email",
+        description: "Impossibile inviare email di test",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isSubscribed) {
+    return (
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
+          <CardTitle className="text-green-700">Iscrizione Completata!</CardTitle>
+          <CardDescription>
+            Riceverai notifiche email quando verranno aggiunte nuove foto
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm"
-          className="bg-sage-50 hover:bg-sage-100 text-sage-700 border-sage-200"
-        >
-          <Bell className="h-4 w-4 mr-2" />
-          Ricevi notifiche
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md" aria-describedby="subscription-dialog-description">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5 text-sage-600" />
-            Iscriviti agli aggiornamenti
-          </DialogTitle>
-          <DialogDescription id="subscription-dialog-description">
-            Ricevi notifiche via email quando vengono aggiunte nuove foto alla galleria
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Ricevi una notifica via email ogni volta che vengono aggiunte nuove foto alla galleria 
-            <strong className="text-gray-800"> "{galleryName}"</strong>.
-          </p>
-          
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Input
-                type="email"
-                placeholder="Il tuo indirizzo email"
-                value={email}
-                onChange={(e) => handleEmailChange(e.target.value)}
-                className={`w-full ${isAlreadySubscribed ? 'border-amber-300 bg-amber-50' : ''}`}
-              />
-              {isAlreadySubscribed && (
-                <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-md border border-amber-200">
-                  <Check className="h-4 w-4" />
-                  <span>Questa email è già iscritta alle notifiche di questa galleria</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex gap-2">
-              <Button 
-                onClick={handleSubscribe}
-                disabled={isSubscribing || !email}
-                className="flex-1"
-              >
-                {isSubscribing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Iscrizione...
-                  </>
-                ) : (
-                  <>
-                    <Bell className="h-4 w-4 mr-2" />
-                    Iscriviti
-                  </>
-                )}
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                onClick={() => setIsDialogOpen(false)}
-                disabled={isSubscribing}
-              >
-                Annulla
-              </Button>
-            </div>
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Bell className="w-5 h-5" />
+          Notifiche Email
+        </CardTitle>
+        <CardDescription>
+          Iscriviti per ricevere una notifica quando vengono aggiunte nuove foto a "{galleryName}"
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubscribe} className="space-y-4">
+          <div className="space-y-2">
+            <Input
+              type="email"
+              placeholder="Inserisci la tua email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
+              required
+            />
           </div>
 
-          <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-            <p><strong>Privacy:</strong> Il tuo indirizzo email verrà utilizzato solo per inviarti notifiche di aggiornamento di questa galleria. Non condivideremo mai i tuoi dati con terze parti.</p>
+          <div className="flex gap-2">
+            <Button 
+              type="submit" 
+              className="flex-1"
+              disabled={isLoading}
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              {isLoading ? 'Iscrizione...' : 'Iscriviti alle Notifiche'}
+            </Button>
+
+            <Button 
+              type="button" 
+              variant="outline"
+              onClick={handleTestEmail}
+              disabled={isLoading}
+              title="Test configurazione email"
+            >
+              🧪
+            </Button>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </form>
+
+        <p className="text-xs text-gray-500 mt-4 text-center">
+          📧 Powered by Brevo SMTP • Firebase Functions
+        </p>
+      </CardContent>
+    </Card>
   );
 }

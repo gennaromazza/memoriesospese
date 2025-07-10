@@ -57,7 +57,7 @@ export const uploadSinglePhoto = async (
     try {
       // Comprimi l'immagine prima dell'upload
       const compressedFile = await compressImage(file);
-      
+
       // Utilizza un identificatore univoco per evitare collisioni di nomi
       const safeFileName = compressedFile.name.replace(/[#$]/g, '_'); // Caratteri problematici in Firebase Storage
       const fileId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -95,7 +95,7 @@ export const uploadSinglePhoto = async (
         }
       },
       async (error) => {
-        
+
 
         // Gestione automatica dei ritentativi
         if (attempt < MAX_RETRY_ATTEMPTS) {
@@ -152,7 +152,7 @@ export const uploadSinglePhoto = async (
 
           resolve(photoData);
         } catch (error) {
-          
+
           reject(error);
         }
       }
@@ -244,7 +244,7 @@ export const uploadPhotos = async (
       ? concurrency 
       : Math.max(3, concurrency - 2); // Riduce per piccoli volumi
 
-  
+
 
   // Per tenere traccia del progresso di tutti i file
   const progressMap: { [filename: string]: UploadProgressInfo } = {};
@@ -291,7 +291,7 @@ export const uploadPhotos = async (
   // Elabora i file in chunk per gestire meglio la memoria
   for (let chunkStart = 0; chunkStart < totalFiles; chunkStart += CHUNK_SIZE) {
     const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, totalFiles);
-    
+
 
     const fileChunk = files.slice(chunkStart, chunkEnd);
     const queue = [...fileChunk];
@@ -328,7 +328,7 @@ export const uploadPhotos = async (
           return photoData;
         })
         .catch(error => {
-          
+
           updateProgress({
             file,
             progress: 0,
@@ -361,11 +361,11 @@ export const uploadPhotos = async (
     const chunkFiles = fileChunk.length;
     const filesPerSecond = (chunkFiles / (chunkDuration / 1000)).toFixed(2);
 
-    
+
 
     // Libera memoria dopo ogni chunk
     if (chunkEnd < totalFiles) {
-      
+
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
@@ -375,14 +375,14 @@ export const uploadPhotos = async (
   const totalDuration = (endTime - startTime) / 1000; // in secondi
   const averageSpeed = (successfulUploads / totalDuration).toFixed(2);
 
-  
-  
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
+
 
   // Filtra eventuali null (file che hanno fallito l'upload)
   return uploadedPhotos.filter(Boolean) as UploadedPhoto[];
