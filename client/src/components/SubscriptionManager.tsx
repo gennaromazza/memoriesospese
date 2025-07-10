@@ -11,7 +11,7 @@ interface SubscriptionManagerProps {
   galleryName: string;
 }
 
-export function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProps) {
+function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProps) {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -141,3 +141,6 @@ export function SubscriptionManager({ galleryId, galleryName }: SubscriptionMana
     </Card>
   );
 }
+
+export { SubscriptionManager };
+export default SubscriptionManager;

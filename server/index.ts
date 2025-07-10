@@ -4,6 +4,7 @@
  */
 
 import { createServer } from 'vite'
+import path from 'path'
 
 async function startServer() {
   try {
@@ -14,10 +15,18 @@ async function startServer() {
       server: {
         port: 5000,
         host: '0.0.0.0',
-        open: false
+        open: false,
+        allowedHosts: 'all'
       },
-      root: './client',
-      base: process.env.VITE_BASE_PATH || '/'
+      root: path.resolve(process.cwd(), 'client'),
+      base: process.env.VITE_BASE_PATH || '/',
+      resolve: {
+        alias: {
+          "@": path.resolve(process.cwd(), "client", "src"),
+          "@shared": path.resolve(process.cwd(), "shared"),
+          "@assets": path.resolve(process.cwd(), "attached_assets"),
+        },
+      },
     });
 
     await server.listen();
