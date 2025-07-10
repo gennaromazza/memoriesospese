@@ -20,7 +20,7 @@ import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
 import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
-import SubscriptionManager from "@/components/SubscriptionManager";
+import { SubscriptionManager } from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
