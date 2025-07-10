@@ -5,14 +5,14 @@ import { db, storage } from '../lib/firebase';
 import { useToast } from "../hooks/use-toast";
 import { 
   Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle 
-} from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
-import { Separator } from "../../components/ui/separator";
-import { Switch } from "../../components/ui/switch";
-import FileUpload from "../../components/ui/file-upload";
-import { PhotoWithChapter } from "../../components/ChaptersManager";
+} from "./ui/card";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Separator } from "./ui/separator";
+import { Switch } from "./ui/switch";
+import FileUpload from "./ui/file-upload";
+import { PhotoWithChapter } from "./ChaptersManager";
 
 interface SlideshowImage {
   id: string;

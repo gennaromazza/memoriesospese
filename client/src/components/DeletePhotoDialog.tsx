@@ -13,7 +13,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from "../../components/ui/alert-dialog";
+} from "./ui/alert-dialog";
 
 interface DeletePhotoDialogProps {
   isOpen: boolean;
