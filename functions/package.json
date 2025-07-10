@@ -1,0 +1,27 @@
+
+{
+  "name": "wedding-gallery-functions",
+  "version": "1.0.0",
+  "description": "Firebase Cloud Functions for Wedding Gallery email system",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "18"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^4.0.0",
+    "nodemailer": "^6.9.8"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.14",
+    "typescript": "^4.9.5"
+  }
+}
