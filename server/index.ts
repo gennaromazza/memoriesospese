@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -53,7 +54,7 @@ app.use((req, res, next) => {
     console.warn('⚠️ Errore inizializzazione email service, continuando senza email:', error);
   }
 
-  const server = require('http').createServer(app);
+  const server = createServer(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
