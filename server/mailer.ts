@@ -6,8 +6,8 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false, // STARTTLS su porta 587
   auth: {
-    user: process.env.BREVO_SMTP_USER || 'your-brevo-email@domain.com',
-    pass: process.env.BREVO_SMTP_PASS || 'your-brevo-smtp-key'
+    user: '91c91c001@smtp-brevo.com',
+    pass: 'sIBRNp2r1y6Y0WTZ'
   },
   tls: {
     rejectUnauthorized: false
@@ -36,7 +36,7 @@ export async function sendNewPhotosNotification(
 ): Promise<boolean> {
   try {
     const mailOptions = {
-      from: `"Wedding Gallery" <${process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'}>`,
+      from: `"Wedding Gallery" <91c91c001@smtp-brevo.com>`,
       to: toEmail,
       subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
       html: generateNewPhotosHTML(galleryName, newPhotosCount, uploaderName, galleryUrl),
@@ -44,8 +44,8 @@ export async function sendNewPhotosNotification(
       headers: {
         'X-Mailer': 'Wedding Gallery System',
         'X-Priority': '3',
-        'List-Unsubscribe': `<mailto:${process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'}?subject=Unsubscribe>`,
-        'Reply-To': process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'
+        'List-Unsubscribe': `<mailto:91c91c001@smtp-brevo.com?subject=Unsubscribe>`,
+        'Reply-To': '91c91c001@smtp-brevo.com'
       }
     };
 
@@ -66,7 +66,7 @@ export async function sendWelcomeEmail(
 ): Promise<boolean> {
   try {
     const mailOptions = {
-      from: `"Wedding Gallery" <${process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'}>`,
+      from: `"Wedding Gallery" <91c91c001@smtp-brevo.com>`,
       to: toEmail,
       subject: `✨ Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`,
       html: generateWelcomeHTML(galleryName, toEmail),
@@ -74,8 +74,8 @@ export async function sendWelcomeEmail(
       headers: {
         'X-Mailer': 'Wedding Gallery System',
         'X-Priority': '3',
-        'List-Unsubscribe': `<mailto:${process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'}?subject=Unsubscribe>`,
-        'Reply-To': process.env.BREVO_SENDER_EMAIL || 'noreply@yourdomain.com'
+        'List-Unsubscribe': `<mailto:91c91c001@smtp-brevo.com?subject=Unsubscribe>`,
+        'Reply-To': '91c91c001@smtp-brevo.com'
       }
     };
 
