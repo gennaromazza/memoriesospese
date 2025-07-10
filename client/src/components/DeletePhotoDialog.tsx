@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { PhotoData } from "@/hooks/use-gallery-data";
+import { PhotoData } from "../hooks/use-gallery-data";
 import { deleteDoc, doc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
-import { useToast } from "@/hooks/use-toast";
+import { db, storage } from "../lib/firebase";
+import { useToast } from "../hooks/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +13,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from "@/components/ui/alert-dialog";
+} from "../../components/ui/alert-dialog";
 
 interface DeletePhotoDialogProps {
   isOpen: boolean;

@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "../hooks/use-toast";
 import { 
   Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle 
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import FileUpload from "@/components/ui/file-upload";
-import { PhotoWithChapter } from "@/components/ChaptersManager";
+} from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Separator } from "../../components/ui/separator";
+import { Switch } from "../../components/ui/switch";
+import FileUpload from "../../components/ui/file-upload";
+import { PhotoWithChapter } from "../../components/ChaptersManager";
 
 interface SlideshowImage {
   id: string;

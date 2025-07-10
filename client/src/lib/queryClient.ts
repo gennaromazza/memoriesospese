@@ -1,6 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { createUrl } from "./config";
-import { auth } from "@/lib/firebase";
+import { auth } from "./firebase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {

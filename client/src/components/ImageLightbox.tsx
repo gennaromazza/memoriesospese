@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { PhotoData } from "@/hooks/use-gallery-data";
+import { PhotoData } from "../hooks/use-gallery-data";
 import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "../hooks/use-mobile";
+import { useToast } from "../hooks/use-toast";
 
 interface ImageLightboxProps {
   isOpen: boolean;

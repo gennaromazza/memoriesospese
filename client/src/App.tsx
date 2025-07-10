@@ -1,28 +1,28 @@
 import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { FirebaseAuthProvider } from "@/context/FirebaseAuthContext";
+import { Toaster } from "./components/ui/toaster";
+import { TooltipProvider } from "./components/ui/tooltip";
+import { FirebaseAuthProvider } from "./context/FirebaseAuthContext";
 import { StudioProvider } from "./context/StudioContext";
 import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
 import { useEffect } from "react";
-import { ErrorBoundary, GalleryErrorBoundary, AdminErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary, GalleryErrorBoundary, AdminErrorBoundary } from "./components/ErrorBoundary";
 
-import Home from "@/pages/Home";
-import GalleryAccess from "@/pages/GalleryAccess";
-import Gallery from "@/pages/Gallery";
-import AdminLogin from "@/pages/AdminLogin";
-import AdminDashboard from "@/pages/AdminDashboard";
-import RequestPassword from "@/pages/RequestPassword";
-import PasswordResult from "@/pages/PasswordResult";
-import DeleteGalleryPage from "@/pages/DeleteGalleryPage";
-import SecurityTestPage from "@/pages/SecurityTestPage";
-import UserProfile from "@/pages/UserProfile";
-import NotFound from "@/pages/not-found";
-import PathDebugInfo from "@/components/PathDebugInfo";
-import AuthDebugPanel from "@/components/AuthDebugPanel";
+import Home from "./pages/Home";
+import GalleryAccess from "./pages/GalleryAccess";
+import Gallery from "./pages/Gallery";
+import AdminLogin from "./pages/AdminLogin";
+import AdminDashboard from "./pages/AdminDashboard";
+import RequestPassword from "./pages/RequestPassword";
+import PasswordResult from "./pages/PasswordResult";
+import DeleteGalleryPage from "./pages/DeleteGalleryPage";
+import SecurityTestPage from "./pages/SecurityTestPage";
+import UserProfile from "./pages/UserProfile";
+import NotFound from "./pages/not-found";
+import PathDebugInfo from "./components/PathDebugInfo";
+import AuthDebugPanel from "./components/AuthDebugPanel";
 
 
 // Hook per tracciare le visualizzazioni delle pagine
