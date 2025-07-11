@@ -91,7 +91,7 @@ export async function getGalleryById(galleryId: string): Promise<GalleryData | n
       ...galleryDoc.data()
     } as GalleryData;
   } catch (error) {
-    logger.error('Errore nel caricamento galleria', { error, galleryId });
+    logger.error('Errore nel caricamento galleria', { error: error as Error, galleryId });
     throw error;
   }
 }

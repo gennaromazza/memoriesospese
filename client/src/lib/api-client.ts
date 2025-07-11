@@ -115,7 +115,7 @@ class ApiClient {
     const endpoint = `/api/galleries/${galleryId}/voice-memos/recent?limit=${limit}`;
     const memos = await this.makeRequest(endpoint);
     
-    return memos || [];
+    return Array.isArray(memos) ? memos : [];
   }
 
   async uploadVoiceMemo(galleryId: string, memoData: any): Promise<any | null> {
@@ -133,7 +133,7 @@ class ApiClient {
     const endpoint = `/api/galleries/${galleryId}/comments/recent?limit=${limit}`;
     const comments = await this.makeRequest(endpoint);
     
-    return comments || [];
+    return Array.isArray(comments) ? comments : [];
   }
 
   async getTopLikedPhotos(galleryId: string, limit: number = 10): Promise<any[]> {

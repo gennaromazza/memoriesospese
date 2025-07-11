@@ -112,8 +112,9 @@ class UnifiedAuthService {
       return { success: true };
 
     } catch (error) {
-      errorHandler.handleAuthError(error, {
-        contextName: 'UnifiedAuth'
+      errorHandler.handle(error, {
+        component: 'UnifiedAuth',
+        action: 'authenticate'
       });
       return { 
         success: false, 
