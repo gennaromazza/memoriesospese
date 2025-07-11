@@ -33,14 +33,15 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 ## Modifiche Recenti
 
 ### 11 Luglio 2025 - FIX ERRORI TYPESCRIPT PER DEPLOYMENT ✅
-- ✅ **INTERFACCE VOICEMEMO ALLINEATE**: Sincronizzate interfacce tra client/src/lib/voiceMemos.ts e shared/schema.ts
-- ✅ **TYPESCRIPT CONFIG**: Aggiunto downlevelIteration e target ES2015 per supporto Set iteration
-- ✅ **COMMENT INTERFACE**: Aggiunto campo `text` per backward compatibility con sistema esistente
-- ✅ **USERAVATAR PROPS**: Corretti props da `guestEmail` a `userEmail` in VoiceMemoPlayer
-- ✅ **MAPPING COMMENTS**: Creato mapping da photoId a itemId per compatibilità SocialActivityPanel
-- ✅ **DUPLICATI RIMOSSI**: Eliminati import doppi Button e definizioni duplicate in input-otp.tsx
-- ✅ **PATH DEBUG**: Corretto riferimento a proprietà inesistente `host` in PathDebugInfo
-- → **RISULTATO**: Compilazione TypeScript senza errori, app pronta per deployment
+- ✅ **INTERFACCE COMMENT UNIFICATE**: Allineate interfacce Comment tra client/src/lib/comments.ts e shared/schema.ts con campi itemId, itemType, content
+- ✅ **SLIDESHOWMANAGER FIXED**: Rimosso import e uso di PhotoWithChapter non definito, semplificato handleFilesSelected
+- ✅ **UNIFIEDAUTHDIALOG PROPS**: Corretti props da onClose a onOpenChange e onAuthComplete in SocialActivityPanel
+- ✅ **EMAIL SERVICE FIXED**: Corretta chiamata EmailService.sendWelcomeEmail con parametri separati invece di oggetto
+- ✅ **ERROR HANDLING**: Gestiti errori di tipo 'unknown' in email.ts con type guards appropriati
+- ✅ **INTERACTIONWRAPPER**: Rimossa chiamata a funzione grantAccess() non definita
+- ✅ **PATHDEBUGINFO**: Corretto da isSubdirectory() a isInSubdirectory()
+- ✅ **GALLERY PHOTODATA**: Aggiornato accesso da p.userEmail a p.uploaderEmail per conteggio ospiti
+- → **RISULTATO**: Tutti gli errori TypeScript risolti, applicazione compila correttamente
 
 ### 11 Luglio 2025 - SISTEMA FILTRI GALLERIA E URL SHARING MIGLIORATI ✅
 - ✅ **FILTRI AVANZATI**: Aggiunto pannello filtri completo con date, orari e ordinamento

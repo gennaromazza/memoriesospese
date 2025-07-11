@@ -87,8 +87,8 @@ export default function PathDebugInfo() {
 
         <div>
           <strong>Is Subdirectory:</strong>
-          <Badge variant={isSubdirectory() ? "destructive" : "default"} className="ml-2">
-            {isSubdirectory() ? 'Yes' : 'No'}
+          <Badge variant={isInSubdirectory() ? "destructive" : "default"} className="ml-2">
+            {isInSubdirectory() ? 'Yes' : 'No'}
           </Badge>
         </div>
 
