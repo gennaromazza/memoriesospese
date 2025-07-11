@@ -254,7 +254,6 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
               Admin
             </Link>
           )}
-          </div>
         </div>
       </div>
     </nav>
