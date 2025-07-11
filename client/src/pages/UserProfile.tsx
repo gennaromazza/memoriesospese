@@ -194,7 +194,23 @@ export default function UserProfile() {
   const handleLogout = async () => {
     try {
       await logout();
+      
+      // Clear local storage
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('gallery_auth_') || 
+            key.startsWith('user_email_') || 
+            key.startsWith('user_name_') ||
+            key === 'userEmail' ||
+            key === 'userName' ||
+            key === 'isAdmin') {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // Navigate to home
       navigate(createUrl('/'));
+      
       toast({
         title: "Disconnesso",
         description: "Sei stato disconnesso con successo",
