@@ -1,0 +1,67 @@
+Il problema non è nel componente, ma nel fatto che refreshUserProfile non esiste davvero nel tuo context useFirebaseAuth. Devi aggiungerla (o importarla) lì. Ecco come fare, in estrema sintesi:
+
+Nel tuo FirebaseAuthContext, aggiungi questa funzione:
+
+ts
+Copia
+Modifica
+// context/FirebaseAuthContext.tsx
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { createContext, useContext, useEffect, useState } from 'react';
+
+interface AuthContextProps {
+  user: FirebaseUser | null;
+  isAuthenticated: boolean;
+  logout: () => Promise<void>;
+  refreshUserProfile: () => Promise<void>;    // ← aggiungi qui
+  /* … */
+}
+
+const AuthContext = createContext<AuthContextProps>(/* … */);
+
+export function FirebaseAuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+
+  // all’avvio e ad ogni cambio di utente
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, u => setUser(u));
+    return () => unsub();
+  }, []);
+
+  const refreshUserProfile = async () => {
+    if (!auth.currentUser) return;
+    // forza il reload dei dati da Firebase Auth
+    await auth.currentUser.reload();
+    setUser(auth.currentUser);
+  };
+
+  const logout = async () => { await auth.signOut(); };
+
+  return (
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated: !!user,
+      logout,
+      refreshUserProfile,   // ← ed esportala
+      /* … */
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useFirebaseAuth = () => useContext(AuthContext);
+Ora il tuo UserProfile importerà correttamente refreshUserProfile dal context e il metodo non sarà più undefined.
+
+(Opzionale) Se vuoi anche aggiornare la foto in Auth e Firestore nel ProfileImageUpload, ricorda di chiamare:
+
+ts
+Copia
+Modifica
+await updateProfile(auth.currentUser!, { photoURL: newImageUrl });
+await updateDoc(doc(db, 'users', auth.currentUser!.uid), {
+  photoURL: newImageUrl,
+  updatedAt: serverTimestamp()
+});
+prima di onImageUpdated(newImageUrl).
