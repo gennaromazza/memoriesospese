@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { getPathDebugInfo, createUrl, isInSubdirectory, refreshBasePath } from '../lib/basePath';
+import { getPathDebugInfo, createUrl, isInSubdirectory, refreshBasePath } from '@/lib/basePath';
 import { Info, Eye, EyeOff } from 'lucide-react';
 
 export default function PathDebugInfo() {

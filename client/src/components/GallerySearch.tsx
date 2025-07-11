@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { useLocation } from "wouter";
 import { db } from "../lib/firebase";
-import { createUrl, createAbsoluteUrl } from "../lib/basePath";
+import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
 import { formatDateString } from "../lib/dateFormatter";
 import { Input } from "./ui/input";
 import { Card, CardContent } from "./ui/card";

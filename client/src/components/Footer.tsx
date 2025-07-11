@@ -1,3 +1,4 @@
+import React from "react";
 import { Link } from "wouter";
 import { useStudio } from "../context/StudioContext";
 import { FloralCorner, FloralDivider } from '@/components/WeddingIllustrations';
