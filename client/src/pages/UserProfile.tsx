@@ -273,7 +273,7 @@ export default function UserProfile() {
         <div className="mb-8">
           <ProfileImageUpload
             userId={user?.uid || ''}
-            currentImageUrl={profileData.profileImageUrl}
+            currentImageUrl={userProfile?.profileImageUrl || profileData.profileImageUrl}
             displayName={profileData.displayName || 'Utente'}
             onImageUpdated={handleProfileImageUpdate}
           />
