@@ -463,59 +463,99 @@ export default function Gallery() {
                 </div>
               )}
 
-              {/* Solo pulsante carica foto per tab ospiti */}
+              {/* Sezione caricamento foto per ospiti con call-to-action accattivante */}
               {activeTab === 'guests' && (
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="w-full sm:w-auto">
-                          <GuestUpload 
-                            galleryId={gallery.id}
-                            galleryName={gallery.name}
-                            onPhotosUploaded={() => {
-                              refreshPhotos();
-                            }}
-                          />
+                <div className="mb-8">
+                  {/* Call-to-action accattivante */}
+                  <div className="bg-gradient-to-r from-sage/5 to-blue-gray/5 border border-sage/20 rounded-xl p-6 mb-4">
+                    <div className="text-center">
+                      <div className="flex justify-center mb-4">
+                        <div className="bg-sage/10 p-4 rounded-full">
+                          <svg className="w-8 h-8 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
                         </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-sm">
-                        <p>Aggiungi le tue foto personali alla galleria degli ospiti</p>
-                      </TooltipContent>
-                    </Tooltip>
+                      </div>
+                      <h3 className="text-lg font-semibold text-blue-gray mb-2">
+                        🎉 Condividi i tuoi ricordi speciali!
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
+                        Hai catturato momenti magici? Carica le tue foto e aiuta a completare la storia di questo giorno indimenticabile!
+                      </p>
+                      
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="w-full sm:w-auto">
+                                <GuestUpload 
+                                  galleryId={gallery.id}
+                                  galleryName={gallery.name}
+                                  onPhotosUploaded={() => {
+                                    refreshPhotos();
+                                  }}
+                                />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="text-sm">
+                              <p>Aggiungi le tue foto personali alla galleria degli ospiti</p>
+                            </TooltipContent>
+                          </Tooltip>
 
-                    {(userEmail || userName) && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              // Clear all authentication data
-                              const keys = Object.keys(localStorage);
-                              keys.forEach(key => {
-                                if (key.startsWith('gallery_auth_') || 
-                                    key.startsWith('user_email_') || 
-                                    key.startsWith('user_name_') ||
-                                    key === 'userEmail' ||
-                                    key === 'userName' ||
-                                    key === 'isAdmin') {
-                                  localStorage.removeItem(key);
-                                }
-                              });
-                              refreshGallery();
-                            }}
-                            className="text-xs px-3 py-1.5 h-8 min-w-[70px] w-full sm:w-auto"
-                          >
-                            Logout
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="text-sm">
-                          <p>Disconnettiti dal tuo account</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </TooltipProvider>
+                          {(userEmail || userName) && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    // Clear all authentication data
+                                    const keys = Object.keys(localStorage);
+                                    keys.forEach(key => {
+                                      if (key.startsWith('gallery_auth_') || 
+                                          key.startsWith('user_email_') || 
+                                          key.startsWith('user_name_') ||
+                                          key === 'userEmail' ||
+                                          key === 'userName' ||
+                                          key === 'isAdmin') {
+                                        localStorage.removeItem(key);
+                                      }
+                                    });
+                                    refreshGallery();
+                                  }}
+                                  className="text-xs px-3 py-1.5 h-8 min-w-[70px] w-full sm:w-auto"
+                                >
+                                  Logout
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="text-sm">
+                                <p>Disconnettiti dal tuo account</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </TooltipProvider>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Statistiche rapide */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
+                    <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-gray-100">
+                      <div className="text-lg font-bold text-sage">{guestPhotos.length}</div>
+                      <div className="text-xs text-gray-600">Foto caricate</div>
+                    </div>
+                    <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-gray-100">
+                      <div className="text-lg font-bold text-sage">
+                        {new Set(guestPhotos.map(p => p.userEmail)).size}
+                      </div>
+                      <div className="text-xs text-gray-600">Ospiti partecipanti</div>
+                    </div>
+                    <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-gray-100 col-span-2 sm:col-span-1">
+                      <div className="text-lg font-bold text-sage">📸</div>
+                      <div className="text-xs text-gray-600">Ogni ricordo conta</div>
+                    </div>
+                  </div>
                 </div>
               )}
 
