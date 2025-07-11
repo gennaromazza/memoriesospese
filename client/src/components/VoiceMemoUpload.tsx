@@ -412,9 +412,9 @@ export default function VoiceMemoUpload({
               {/* User profile display */}
               <div className="flex items-center gap-3 p-3 bg-sage-50 rounded-lg">
                 <UserAvatar
-                  email={currentUserEmail}
-                  name={currentUserName}
-                  profileImageUrl={userProfile?.profileImageUrl}
+                  userEmail={currentUserEmail}
+                  userName={currentUserName}
+                  userProfileImageUrl={userProfile?.profileImageUrl}
                   size="sm"
                 />
                 <div>

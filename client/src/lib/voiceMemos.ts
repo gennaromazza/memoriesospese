@@ -242,7 +242,7 @@ export class VoiceMemoService {
         const memo = { id: doc.id, ...data } as VoiceMemo;
         
         // Controlla se dovrebbe essere sbloccato
-        if (!memo.isUnlocked && new Date() >= memo.unlockAt?.toDate()) {
+        if (!memo.isUnlocked && memo.unlockDate && new Date() >= new Date(memo.unlockDate)) {
           memo.isUnlocked = true;
           // Aggiorna in background
           this.updateUnlockStatus(memo.id).catch(console.error);
