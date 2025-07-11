@@ -160,11 +160,10 @@ export default function InteractionWrapper({
         isOpen={showAuthDialog}
         onOpenChange={setShowAuthDialog}
         galleryId={galleryId}
-        onAuthComplete={async () => {
+        onAuthComplete={() => {
           setShowAuthDialog(false);
           // After auth, open the interaction panel
           setShowPanel(true);
-          await grantAccess();
         }}
         defaultTab="register"
       />

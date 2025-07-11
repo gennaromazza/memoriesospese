@@ -20,24 +20,30 @@ import { db } from './firebase';
 
 export interface Comment {
   id: string;
+  itemId: string;
+  itemType: 'photo' | 'voice_memo';
   galleryId: string;
-  photoId: string;
-  userId: string;
+  userId?: string; // optional for backward compatibility
+  photoId?: string; // optional for backward compatibility
   userEmail: string;
   userName: string;
   userProfileImageUrl?: string;
-  text: string;
+  content: string;
+  text: string; // Alias for content for backward compatibility
   createdAt: any;
 }
 
 export interface CommentData {
   galleryId: string;
-  photoId: string;
-  userId: string;
+  photoId?: string; // optional for backward compatibility
+  itemId: string;
+  itemType: 'photo' | 'voice_memo';
+  userId?: string; // optional for backward compatibility
   userEmail: string;
   userName: string;
   userProfileImageUrl?: string;
   text: string;
+  content?: string; // optional alias
 }
 
 export class CommentService {
@@ -51,13 +57,18 @@ export class CommentService {
         throw new Error('Testo commento richiesto');
       }
       
-      if (!commentData.userId || !commentData.photoId || !commentData.galleryId) {
+      if (!commentData.itemId || !commentData.galleryId) {
         throw new Error('Dati commento incompleti');
       }
 
       const docRef = await addDoc(collection(db, 'comments'), {
         ...commentData,
         text: commentData.text.trim(),
+        content: commentData.text.trim(), // Store both for compatibility
+        itemId: commentData.itemId,
+        itemType: commentData.itemType || 'photo',
+        photoId: commentData.photoId || commentData.itemId, // backward compatibility
+        userId: commentData.userId || commentData.userEmail,
         createdAt: serverTimestamp()
       });
       
@@ -80,7 +91,17 @@ export class CommentService {
       );
       
       const snapshot = await getDocs(commentsQuery);
-      const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      const comments = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          itemId: data.itemId || data.photoId || photoId,
+          itemType: data.itemType || 'photo',
+          content: data.content || data.text || '',
+          text: data.text || data.content || ''
+        } as Comment;
+      });
       
       // Ordiniamo manualmente per evitare problemi con gli indici Firebase
       return comments.sort((a, b) => {
@@ -106,7 +127,17 @@ export class CommentService {
       );
       
       const snapshot = await getDocs(commentsQuery);
-      let comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      let comments = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          itemId: data.itemId || data.photoId || '',
+          itemType: data.itemType || 'photo',
+          content: data.content || data.text || '',
+          text: data.text || data.content || ''
+        } as Comment;
+      });
       
       // Ordiniamo manualmente
       comments = comments.sort((a, b) => {

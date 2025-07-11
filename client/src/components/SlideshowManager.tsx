@@ -86,15 +86,9 @@ export default function SlideshowManager() {
     }
   };
   
-  const handleFilesSelected = (files: File[] | PhotoWithChapter[]) => {
+  const handleFilesSelected = (files: File[]) => {
     if (files.length > 0) {
-      if ('file' in files[0]) {
-        // Se è un PhotoWithChapter, estrai il file
-        setFile((files[0] as PhotoWithChapter).file);
-      } else {
-        // Altrimenti è un File diretto
-        setFile(files[0] as File);
-      }
+      setFile(files[0]);
     }
   };
 
