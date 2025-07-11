@@ -166,11 +166,35 @@ export class AuthService {
    * Aggiorna immagine profilo utente
    */
   static async updateProfileImage(uid: string, imageUrl: string): Promise<void> {
-    const userRef = doc(db, 'users', uid);
-    await updateDoc(userRef, {
-      profileImageUrl: imageUrl,
-      updatedAt: serverTimestamp()
-    });
+    try {
+      const userRef = doc(db, 'users', uid);
+      
+      // Controlla se il documento esiste
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) {
+        console.log('User document does not exist, creating it...');
+        // Se non esiste, crea il documento
+        await setDoc(userRef, {
+          uid: uid,
+          profileImageUrl: imageUrl,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        console.log('User document exists, updating...');
+        // Se esiste, aggiorna
+        await updateDoc(userRef, {
+          profileImageUrl: imageUrl,
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      console.log('Profile image updated successfully for user:', uid);
+    } catch (error) {
+      console.error('Error updating profile image:', error);
+      throw error;
+    }
   }
 
   /**
