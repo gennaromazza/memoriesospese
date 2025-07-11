@@ -1,6 +1,7 @@
 import { useLocation } from 'wouter';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { createUrl } from '@/lib/basePath';
 
 /**
  * Hook centralizzato per gestire il logout
@@ -32,10 +33,10 @@ export function useLogout() {
       
       // Redirect appropriato basato sul percorso corrente
       if (window.location.pathname.includes('/admin')) {
-        navigate('/admin');
+        navigate(createUrl('/admin'));
       } else {
         // Torna alla home dopo logout
-        navigate('/');
+        navigate(createUrl('/'));
       }
       
       toast({

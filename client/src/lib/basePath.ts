@@ -1,27 +1,12 @@
 /**
- * Sistema dinamico per la gestione del base path
- * Compatibile con ambienti locali, produzione e sottocartelle.
+ * Sistema di gestione del base path per deployment in sottocartelle
+ * Usa esclusivamente VITE_BASE_PATH per evitare duplicazioni URL
  */
 
-/** Rileva automaticamente il base path dall'ambiente o fallback */
-function detectBasePath(): string {
-  // Priorità a VITE_BASE_PATH se definito (sia in dev che prod)
-  if (import.meta.env.VITE_BASE_PATH) return import.meta.env.VITE_BASE_PATH;
-  // Fallback a BASE_URL di Vite
-  if (import.meta.env.BASE_URL) return import.meta.env.BASE_URL;
-  // Default a root path
-  return "/";
-}
-
-/** Cache del base path per evitarne il ricalcolo */
-let cachedBasePath: string | null = null;
-
-/** Restituisce il base path corrente (con cache) */
+/** Restituisce il base path dall'ambiente (no auto-detection) */
 function getBasePath(): string {
-  if (cachedBasePath === null) {
-    cachedBasePath = detectBasePath();
-  }
-  return cachedBasePath;
+  // Usa solo VITE_BASE_PATH, default "/" se non definito
+  return import.meta.env.VITE_BASE_PATH || "/";
 }
 
 /** Crea un URL assoluto completo di dominio e base path */

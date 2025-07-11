@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useStudio } from "../context/StudioContext";
 import { FloralCorner, FloralDivider } from '@/components/WeddingIllustrations';
 import { WeddingImage, DecorativeImage } from '@/components/WeddingImages';
+import { createUrl } from '@/lib/basePath';
 
 export default function Footer() {
   const { studioSettings } = useStudio();
@@ -51,7 +52,7 @@ export default function Footer() {
         
         <nav className="flex flex-wrap justify-center mb-8">
           <div className="px-5 py-2">
-            <Link href="/" className="text-base text-off-white hover:text-cream">
+            <Link to={createUrl("/")} className="text-base text-off-white hover:text-cream">
               Home
             </Link>
           </div>
@@ -62,7 +63,7 @@ export default function Footer() {
             <a href="#contact" className="text-base text-off-white hover:text-cream">Contatti</a>
           </div>
           <div className="px-5 py-2">
-            <Link href="/admin" className="text-base text-off-white hover:text-cream">
+            <Link to={createUrl("/admin")} className="text-base text-off-white hover:text-cream">
               Admin
             </Link>
           </div>
