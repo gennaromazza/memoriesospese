@@ -322,13 +322,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Ricarica le foto
       loadPhotos();
 
-      // Invia notifiche ai subscribers
-      try {
-        await notifyNewPhotos(gallery.id, gallery.name, 'Admin', uploadedPhotos.length);
-      } catch (notificationError) {
-        console.warn('⚠️ Errore invio notifiche:', notificationError);
-        // Non bloccare l'upload per errori di notifica
-      }
+      // Invia notifiche ai subscribers (non-blocking)
+      Promise.resolve().then(async () => {
+        try {
+          await notifyNewPhotos(gallery.id, gallery.name, 'Admin', uploadedPhotos.length);
+        } catch (notificationError) {
+          console.warn('⚠️ Errore invio notifiche:', notificationError);
+          // Non bloccare l'upload per errori di notifica
+        }
+      }).catch(() => {
+        // Gestione silent per evitare unhandledrejection
+      });
       
     } catch (error) {
       console.error('Errore upload foto:', error);
