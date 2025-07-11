@@ -8,8 +8,23 @@ import { ChapterData, PhotoWithChapterInfo } from '@shared/types';
 // Importa il nuovo lettore di cartelle semplificato
 import { processFilesFromFolders } from '@/lib/simpleFolderReader';
 
-// Esportiamo l'interfaccia PhotoWithChapter per compatibilità
-export type { PhotoWithChapter } from '@/components/ChaptersManager';
+// Define interfaces locally since they're not properly exported from ChaptersManager
+export interface Chapter {
+  id: string;
+  title: string;
+  description: string;
+  position: number;
+}
+
+export interface PhotoWithChapter {
+  id: string;
+  file: File;
+  url: string;
+  name: string;
+  chapterId: string;
+  position: number;
+  folderPath?: string;
+}
 
 interface FileUploadProps {
   onFilesSelected: (files: File[] | PhotoWithChapter[]) => void;
