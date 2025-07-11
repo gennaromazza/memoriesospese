@@ -19,11 +19,20 @@ import {
 import { Comment, VoiceMemo } from '@shared/schema';
 import VoiceMemoUpload from './VoiceMemoUpload';
 import UserAvatar from './UserAvatar';
-import CommentModal from './CommentModal';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { LikeService } from '@/lib/likes';
+import { CommentService } from '@/lib/comments';
 import { useToast } from '@/hooks/use-toast';
 import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 interface PhotoStats {
   id: string;
@@ -51,8 +60,10 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
   const [selectedPhotoForComment, setSelectedPhotoForComment] = useState<string | null>(null);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [likedPhotos, setLikedPhotos] = useState<Set<string>>(new Set());
+  const [commentText, setCommentText] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   
-  const { user } = useFirebaseAuth();
+  const { user, userProfile } = useFirebaseAuth();
   const { toast } = useToast();
 
   const formatDateTime = (timestamp: any): string => {
@@ -143,32 +154,36 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
     }
 
     try {
-      const isLiked = likedPhotos.has(photoId);
+      const userName = userProfile?.displayName || user.displayName || user.email?.split('@')[0] || 'Ospite';
       
-      if (isLiked) {
-        await LikeService.removeLike(photoId);
+      const isNowLiked = await LikeService.toggleLike(
+        photoId, 
+        user.uid, 
+        user.email!, 
+        userName
+      );
+      
+      if (isNowLiked) {
+        setLikedPhotos(prev => new Set([...prev, photoId]));
+      } else {
         setLikedPhotos(prev => {
           const newSet = new Set(prev);
           newSet.delete(photoId);
           return newSet;
         });
-      } else {
-        await LikeService.addLike({
-          galleryId,
-          photoId,
-          userId: user.uid,
-          userEmail: user.email!,
-          userName: user.displayName || user.email?.split('@')[0] || 'Ospite'
-        });
-        setLikedPhotos(prev => new Set(prev).add(photoId));
       }
       
       // Aggiorna conteggio like localmente
       setTopPhotos(prev => prev.map(photo => 
         photo.id === photoId 
-          ? { ...photo, likesCount: photo.likesCount + (isLiked ? -1 : 1) }
+          ? { ...photo, likesCount: photo.likesCount + (isNowLiked ? 1 : -1) }
           : photo
       ));
+      
+      toast({
+        title: isNowLiked ? "Like aggiunto!" : "Like rimosso",
+        description: isNowLiked ? "Hai messo like a questa foto" : "Hai rimosso il like da questa foto"
+      });
     } catch (error) {
       console.error('Errore nel like:', error);
       toast({
@@ -202,6 +217,51 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
     fetchRecentComments();
   };
 
+  const handleSubmitComment = async () => {
+    if (!commentText.trim()) {
+      toast({
+        title: "Errore",
+        description: "Il commento non può essere vuoto",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!user || !selectedPhotoForComment) return;
+
+    try {
+      setIsSubmittingComment(true);
+      
+      await CommentService.addComment({
+        galleryId,
+        photoId: selectedPhotoForComment,
+        userId: user.uid,
+        userEmail: user.email!,
+        userName: userProfile?.displayName || user.displayName || user.email?.split('@')[0] || 'Ospite',
+        userProfileImageUrl: userProfile?.profileImageUrl,
+        text: commentText.trim()
+      });
+
+      toast({
+        title: "Commento aggiunto",
+        description: "Il tuo commento è stato pubblicato"
+      });
+
+      handleCommentSuccess(selectedPhotoForComment);
+      setCommentText('');
+      setSelectedPhotoForComment(null);
+    } catch (error) {
+      console.error('Errore invio commento:', error);
+      toast({
+        title: "Errore",
+        description: "Non è stato possibile aggiungere il commento",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -226,7 +286,7 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       const checkLikes = async () => {
         const likedSet = new Set<string>();
         for (const photo of topPhotos) {
-          const isLiked = await LikeService.checkUserLike(photo.id, user.uid);
+          const isLiked = await LikeService.isPhotoLikedByUser(photo.id, user.uid);
           if (isLiked) {
             likedSet.add(photo.id);
           }
@@ -543,19 +603,58 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       />
     )}
     
-    {/* Comment Modal */}
-    {selectedPhotoForComment && (
-      <CommentModal
-        isOpen={!!selectedPhotoForComment}
-        onClose={() => setSelectedPhotoForComment(null)}
-        photoId={selectedPhotoForComment}
-        galleryId={galleryId}
-        onCommentAdded={() => {
-          handleCommentSuccess(selectedPhotoForComment);
-          setSelectedPhotoForComment(null);
-        }}
-      />
-    )}
+    {/* Comment Dialog */}
+    <Dialog open={!!selectedPhotoForComment} onOpenChange={(open) => !open && setSelectedPhotoForComment(null)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5" />
+            Aggiungi un commento
+          </DialogTitle>
+          <DialogDescription>
+            Condividi i tuoi pensieri su questa foto
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Textarea
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder="Scrivi il tuo commento..."
+            className="min-h-[100px] resize-none"
+            maxLength={500}
+          />
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-gray-500">
+              {commentText.length}/500 caratteri
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedPhotoForComment(null);
+                  setCommentText('');
+                }}
+              >
+                Annulla
+              </Button>
+              <Button
+                onClick={handleSubmitComment}
+                disabled={!commentText.trim() || isSubmittingComment}
+              >
+                {isSubmittingComment ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 mr-2">⏳</span>
+                    Invio...
+                  </>
+                ) : (
+                  'Invia'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
     
     {/* Auth Dialog */}
     {showAuthDialog && (
