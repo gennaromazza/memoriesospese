@@ -49,21 +49,71 @@ export default function VoiceMemosList({
       setError(null);
       setIsLoading(true);
       
-      // For now, set empty data as Firebase collection might not exist
-      // This prevents the failed-precondition error
-      console.log('Caricamento voice memos per galleria:', galleryId);
+      // Automatic unlock check for admin users
+      if (isAdmin) {
+        try {
+          const now = new Date();
+          const memosToUnlock = query(
+            collection(db, 'voiceMemos'),
+            where('galleryId', '==', galleryId),
+            where('isUnlocked', '==', false),
+            where('unlockDate', '<=', now)
+          );
+          
+          const unlockSnapshot = await getDocs(memosToUnlock);
+          const unlockPromises = unlockSnapshot.docs.map(doc => 
+            updateDoc(doc.ref, { isUnlocked: true })
+          );
+          
+          if (unlockPromises.length > 0) {
+            await Promise.all(unlockPromises);
+            console.log(`Sbloccati automaticamente ${unlockPromises.length} voice memos`);
+          }
+        } catch (unlockError) {
+          console.warn('Errore nel controllo sblocchi automatici:', unlockError);
+        }
+      }
       
-      // Initialize with empty data
-      setVoiceMemos([]);
-      setStats({ total: 0, unlocked: 0, locked: 0, upcomingUnlocks: 0 });
+      // Fetch voice memos from Firebase
+      let memosQuery;
+      if (isAdmin) {
+        // Admin can see all voice memos
+        memosQuery = query(
+          collection(db, 'voiceMemos'),
+          where('galleryId', '==', galleryId),
+          orderBy('createdAt', 'desc')
+        );
+      } else {
+        // Non-admin can only see unlocked voice memos
+        memosQuery = query(
+          collection(db, 'voiceMemos'),
+          where('galleryId', '==', galleryId),
+          where('isUnlocked', '==', true),
+          orderBy('createdAt', 'desc')
+        );
+      }
       
-      // TODO: Implement Firebase query when collection is properly set up
-      // For now, just log that we're trying to load voice memos
-      console.log('Voice memos collection non ancora implementata per Firebase-Only');
+      const memosSnapshot = await getDocs(memosQuery);
+      const memos: VoiceMemo[] = memosSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as VoiceMemo));
+      
+      setVoiceMemos(memos);
+      
+      // Calculate stats
+      const total = memos.length;
+      const unlocked = memos.filter((memo: VoiceMemo) => memo.isUnlocked).length;
+      const locked = total - unlocked;
+      const upcomingUnlocks = memos.filter((memo: VoiceMemo) => 
+        !memo.isUnlocked && memo.unlockDate && new Date(memo.unlockDate) > new Date()
+      ).length;
+      
+      setStats({ total, unlocked, locked, upcomingUnlocks });
       
     } catch (error) {
       console.error('Errore recupero voice memos galleria:', error);
-      setError('Impossibile caricare i voice memos. La collezione potrebbe non esistere ancora.');
+      setError(error instanceof Error ? error.message : 'Errore sconosciuto');
       setVoiceMemos([]);
       setStats({ total: 0, unlocked: 0, locked: 0, upcomingUnlocks: 0 });
     } finally {
@@ -96,13 +146,10 @@ export default function VoiceMemosList({
 
   const handleUnlockMemo = async (memoId: string) => {
     try {
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/${memoId}/unlock`), {
-        method: 'PUT',
+      const memoRef = doc(db, 'voiceMemos', memoId);
+      await updateDoc(memoRef, {
+        isUnlocked: true
       });
-      
-      if (!response.ok) {
-        throw new Error('Errore nello sblocco del voice memo');
-      }
       
       toast({
         title: "Voice memo sbloccato",
@@ -128,13 +175,8 @@ export default function VoiceMemosList({
     }
     
     try {
-      const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/${memoId}`), {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Errore nell\'eliminazione del voice memo');
-      }
+      const memoRef = doc(db, 'voiceMemos', memoId);
+      await deleteDoc(memoRef);
       
       toast({
         title: "Voice memo eliminato",
