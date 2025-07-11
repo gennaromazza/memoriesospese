@@ -43,7 +43,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
   useEffect(() => {
     const unsubscribe = AuthService.onAuthStateChange(async (firebaseUser) => {
       setUser(firebaseUser);
-      
+
       if (firebaseUser) {
         // Fetch profilo utente da Firestore
         try {
@@ -56,7 +56,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
       } else {
         setUserProfile(null);
       }
-      
+
       setIsLoading(false);
     });
 

@@ -8,6 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Camera, Upload, X, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ProfileImageService } from '../lib/profileImageService';
+import { auth, storage, db } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { updateProfile } from 'firebase/auth';
 
 interface ProfileImageUploadProps {
   userId: string;
@@ -63,13 +67,13 @@ export default function ProfileImageUpload({
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
-    
+
     try {
       const imageUrl = await ProfileImageService.uploadProfileImage(userId, file);
-      
+
       onImageUpdated(imageUrl);
       setPreviewUrl(null);
-      
+
       toast({
         title: "Immagine profilo aggiornata",
         description: "La tua immagine profilo è stata caricata con successo"
@@ -91,11 +95,11 @@ export default function ProfileImageUpload({
     if (!currentImageUrl) return;
 
     setIsUploading(true);
-    
+
     try {
       await ProfileImageService.deleteProfileImage(userId, currentImageUrl);
       onImageUpdated('');
-      
+
       toast({
         title: "Immagine rimossa",
         description: "L'immagine profilo è stata rimossa"
@@ -129,7 +133,7 @@ export default function ProfileImageUpload({
                   {displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
-              
+
               {/* Overlay di caricamento */}
               {isUploading && (
                 <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
@@ -139,7 +143,7 @@ export default function ProfileImageUpload({
                   </div>
                 </div>
               )}
-              
+
               {/* Indicatore hover */}
               <div className="absolute inset-0 bg-black/0 hover:bg-black/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer"
                    onClick={() => fileInputRef.current?.click()}>
