@@ -93,10 +93,20 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
 
   const fetchTopPhotos = async () => {
     try {
-      // Import Firebase functions directly  
-      const { getTopLikedPhotos } = await import('@/lib/photos');
+      // Import Firebase functions directly from firebase-api
+      const { getTopLikedPhotos } = await import('@/lib/firebase-api');
       const data = await getTopLikedPhotos(galleryId, 5);
-      setTopPhotos(data);
+      
+      // Converti i dati nel formato atteso dal componente
+      const formattedData = data.map(photo => ({
+        id: photo.id,
+        name: photo.name,
+        url: photo.url,
+        likesCount: photo.likes || 0,
+        commentsCount: photo.comments || 0
+      }));
+      
+      setTopPhotos(formattedData);
     } catch (error) {
       console.error('Error fetching top photos:', error);
     }

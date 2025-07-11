@@ -546,18 +546,31 @@ export class PhotoService {
 // Funzioni di convenienza per importazione diretta
 export const getTopLikedPhotos = async (galleryId: string, limitCount: number = 5) => {
   try {
+    // Importa LikeService dinamicamente
+    const { LikeService } = await import('./likes');
+    
+    // Ottieni tutte le foto della galleria
     const photos = await PhotoService.getGalleryPhotos(galleryId);
-    return photos
-      .filter(photo => photo.likeCount > 0)
-      .sort((a, b) => b.likeCount - a.likeCount)
-      .slice(0, limitCount)
-      .map(photo => ({
-        id: photo.id,
-        name: photo.name,
-        url: photo.url,
-        likesCount: photo.likeCount,
-        commentsCount: photo.commentCount
-      }));
+    
+    // Per ogni foto, conta i like dalla collezione 'likes'
+    const photosWithLikes = await Promise.all(
+      photos.map(async (photo) => {
+        const likesCount = await LikeService.getPhotoLikesCount(photo.id);
+        return {
+          id: photo.id,
+          name: photo.name,
+          url: photo.url,
+          likesCount,
+          commentsCount: photo.commentCount || 0
+        };
+      })
+    );
+    
+    // Filtra solo le foto con like > 0 e ordina per numero di like
+    return photosWithLikes
+      .filter(photo => photo.likesCount > 0)
+      .sort((a, b) => b.likesCount - a.likesCount)
+      .slice(0, limitCount);
   } catch (error) {
     console.error('Errore recupero foto top liked:', error);
     return [];
