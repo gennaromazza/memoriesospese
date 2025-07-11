@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Comment, VoiceMemo } from '@shared/schema';
 import VoiceMemoUpload from './VoiceMemoUpload';
+import UserAvatar from './UserAvatar';
 
 interface PhotoStats {
   id: string;
@@ -41,6 +42,7 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
   const [recentVoiceMemos, setRecentVoiceMemos] = useState<VoiceMemo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showVoiceMemoUpload, setShowVoiceMemoUpload] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   const formatDateTime = (timestamp: any): string => {
     try {
@@ -129,6 +131,16 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
     return () => clearInterval(interval);
   }, [galleryId]);
 
+  // Auto-slide for comments
+  useEffect(() => {
+    if (recentComments.length > 3) {
+      const slideInterval = setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % Math.ceil(recentComments.length / 3));
+      }, 4000);
+      return () => clearInterval(slideInterval);
+    }
+  }, [recentComments.length]);
+
   const getRankIcon = (index: number) => {
     switch (index) {
       case 0: return <Crown className="h-4 w-4 text-yellow-500" />;
@@ -170,51 +182,75 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                   <p className="text-xs text-gray-500">Nessun commento</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {recentComments.map((comment, index) => (
-                    <div key={comment.id} className="group">
-                      <div 
-                        className={`p-2 rounded-lg hover:bg-gray-50 transition-colors ${
-                          comment.itemType === 'photo' && onPhotoClick ? 'cursor-pointer' : ''
-                        }`}
-                        onClick={() => {
-                          if (comment.itemType === 'photo' && onPhotoClick) {
-                            onPhotoClick(comment.itemId);
-                          }
-                        }}
-                      >
-                        <div className="flex items-start gap-2">
-                          <div className="w-6 h-6 bg-gradient-to-br from-sage-100 to-blue-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <User className="h-3 w-3 text-sage-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <p className="text-xs font-medium text-gray-900 truncate">
-                                {comment.userName}
-                              </p>
-                              <span className="text-xs text-gray-500">
-                                {formatDateTime(comment.createdAt)}
-                              </span>
+                <div className="relative">
+                  {/* Slide Container */}
+                  <div 
+                    className="flex transition-transform duration-500 ease-in-out"
+                    style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+                  >
+                    {Array.from({ length: Math.ceil(recentComments.length / 3) }, (_, slideIndex) => (
+                      <div key={slideIndex} className="w-full flex-shrink-0 space-y-1">
+                        {recentComments.slice(slideIndex * 3, (slideIndex + 1) * 3).map((comment, index) => (
+                          <div 
+                            key={comment.id} 
+                            className="group p-2 rounded-lg hover:bg-gray-50 transition-all duration-200 cursor-pointer border border-transparent hover:border-gray-200"
+                            onClick={() => {
+                              if (comment.itemType === 'photo' && onPhotoClick) {
+                                onPhotoClick(comment.itemId);
+                              }
+                            }}
+                          >
+                            <div className="flex items-start gap-3">
+                              <UserAvatar
+                                userEmail={comment.userEmail}
+                                userName={comment.userName}
+                                userProfileImageUrl={comment.userProfileImageUrl}
+                                size="sm"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-xs font-medium text-gray-900 truncate">
+                                    {comment.userName}
+                                  </p>
+                                  <span className="text-xs text-gray-500">
+                                    {formatDateTime(comment.createdAt)}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-2">
+                                  {comment.content}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                                    {comment.itemType === 'photo' ? 'Foto' : 'Audio'}
+                                  </Badge>
+                                  {comment.itemType === 'photo' && (comment as any).photoName && (
+                                    <span className="text-xs text-gray-500 truncate">
+                                      su "{(comment as any).photoName}"
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-1">
-                              {comment.content}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs px-1 py-0">
-                                {comment.itemType === 'photo' ? 'Foto' : 'Audio'}
-                              </Badge>
-                              {comment.itemType === 'photo' && (comment as any).photoName && (
-                                <span className="text-xs text-gray-500 truncate">
-                                  su "{(comment as any).photoName}"
-                                </span>
-                              )}
-                            </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
-                      {index < recentComments.length - 1 && <Separator className="my-1" />}
+                    ))}
+                  </div>
+                  
+                  {/* Slide Indicators */}
+                  {recentComments.length > 3 && (
+                    <div className="flex justify-center mt-3 gap-1">
+                      {Array.from({ length: Math.ceil(recentComments.length / 3) }, (_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentSlide(index)}
+                          className={`w-2 h-2 rounded-full transition-colors ${
+                            index === currentSlide ? 'bg-sage-600' : 'bg-gray-300'
+                          }`}
+                        />
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
@@ -239,14 +275,22 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                   <p className="text-xs text-gray-500">Nessuna foto con like</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {topPhotos.map((photo, index) => (
-                    <div key={photo.id} className="group">
-                      <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div 
+                      key={photo.id} 
+                      className="group p-2 rounded-lg hover:bg-gray-50 transition-all duration-200 cursor-pointer border border-transparent hover:border-gray-200"
+                      onClick={() => {
+                        if (onPhotoClick) {
+                          onPhotoClick(photo.id);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-6 h-6 flex-shrink-0">
                           {getRankIcon(index)}
                         </div>
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 shadow-sm">
                           <img 
                             src={photo.url} 
                             alt={photo.name}
@@ -258,14 +302,14 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                           <p className="text-xs font-medium text-gray-900 truncate mb-1">
                             {photo.name || 'Foto senza nome'}
                           </p>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
                             <div className="flex items-center gap-1">
-                              <Heart className="h-2 w-2 text-red-500" />
-                              <span>{photo.likesCount}</span>
+                              <Heart className="h-3 w-3 text-red-500" />
+                              <span className="font-medium">{photo.likesCount}</span>
                             </div>
                             <div className="flex items-center gap-1">
-                              <MessageCircle className="h-2 w-2 text-blue-500" />
-                              <span>{photo.commentsCount}</span>
+                              <MessageCircle className="h-3 w-3 text-blue-500" />
+                              <span className="font-medium">{photo.commentsCount}</span>
                             </div>
                           </div>
                         </div>
