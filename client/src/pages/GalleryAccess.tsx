@@ -57,11 +57,11 @@ export default function GalleryAccess() {
 
   const handleAccessGranted = () => {
     if (!id) return;
-    
+
     // Store session and navigate to gallery view
     localStorage.setItem(`gallery_auth_${id}`, "true");
     setAccessGranted(true);
-    
+
     // Navigate to gallery view
     navigate(`/view/${id}`);
   };

@@ -20,7 +20,7 @@ export default function HeroSlideshow() {
       try {
         // Semplifica la query iniziale e aggiungi gestione errori
         const slideshowCollection = collection(db, 'slideshow');
-        
+
         try {
           // Carica solo le prime 5 immagini per migliorare performance
           const slideshowQuery = query(
@@ -29,7 +29,7 @@ export default function HeroSlideshow() {
             limit(5)
           );
           const querySnapshot = await getDocs(slideshowQuery);
-          
+
           if (!querySnapshot.empty) {
             const fetchedImages: SlideshowImage[] = [];
             querySnapshot.forEach((doc) => {
@@ -41,17 +41,17 @@ export default function HeroSlideshow() {
                 position: data.position || 0
               });
             });
-            
+
             setImages(fetchedImages);
           }
         } catch (innerError) {
-          
+
           // In caso di errore, non facciamo nulla e lasciamo l'array vuoto
         }
-        
+
         setLoading(false);
       } catch (error) {
-        
+
         setLoading(false);
       }
     }
