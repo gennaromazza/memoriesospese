@@ -152,16 +152,17 @@ export default function ProfileImageUpload({
 
   return (
     <div className="w-full">
-      {/* Header con gradiente e decorazione */}
-      <div className="bg-gradient-to-r from-sage/10 to-blue-gray/10 border border-sage/20 rounded-2xl p-6 mb-6">
-        <div className="flex flex-col items-center space-y-6">
-          {/* Avatar container con effetti */}
+      {/* Header con gradiente e decorazione più prominente */}
+      <div className="bg-gradient-to-r from-sage/20 to-blue-gray/20 border-2 border-sage/40 rounded-3xl p-8 mb-8 shadow-2xl">
+        <div className="flex flex-col items-center space-y-8">
+          {/* Avatar container con effetti più evidenti */}
           <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-sage to-blue-gray rounded-full opacity-20 group-hover:opacity-40 transition-opacity duration-300"></div>
+            <div className="absolute -inset-2 bg-gradient-to-r from-sage to-blue-gray rounded-full opacity-40 group-hover:opacity-70 transition-opacity duration-300 blur-sm"></div>
+            <div className="absolute -inset-1 bg-gradient-to-r from-sage to-blue-gray rounded-full opacity-30 group-hover:opacity-60 transition-opacity duration-300"></div>
             <div className="relative">
-              <Avatar className="w-32 h-32 border-4 border-white shadow-xl">
+              <Avatar className="w-40 h-40 border-6 border-white shadow-2xl ring-4 ring-sage/30">
                 <AvatarImage src={displayImageUrl} alt={displayName} className="object-cover" />
-                <AvatarFallback className="bg-sage text-white text-2xl font-bold">
+                <AvatarFallback className="bg-gradient-to-br from-sage-600 to-blue-gray-600 text-white text-3xl font-bold">
                   {displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
@@ -186,37 +187,38 @@ export default function ProfileImageUpload({
             </div>
           </div>
 
-          {/* Titolo con decorazione */}
-          <div className="text-center space-y-2">
-            <div className="flex items-center justify-center gap-2">
-              <Sparkles className="w-5 h-5 text-sage animate-pulse" />
-              <h3 className="text-lg font-semibold text-blue-gray">
+          {/* Titolo con decorazione più prominente */}
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-3">
+              <Sparkles className="w-7 h-7 text-sage animate-pulse" />
+              <h3 className="text-2xl font-bold text-blue-gray-800 bg-gradient-to-r from-sage-600 to-blue-gray-600 bg-clip-text text-transparent">
                 {currentImageUrl ? 'Personalizza la tua immagine' : 'Aggiungi una foto profilo'}
               </h3>
-              <Sparkles className="w-5 h-5 text-sage animate-pulse" />
+              <Sparkles className="w-7 h-7 text-sage animate-pulse" />
             </div>
-            <p className="text-sm text-gray-600 max-w-sm">
+            <p className="text-base text-gray-700 max-w-md font-medium">
               {currentImageUrl 
                 ? 'La tua foto apparirà nei commenti e messaggi vocali' 
                 : 'Carica una foto per personalizzare i tuoi commenti e messaggi vocali'}
             </p>
+            <div className="w-24 h-1 bg-gradient-to-r from-sage to-blue-gray rounded-full mx-auto"></div>
           </div>
 
-          {/* Pulsanti stilizzati */}
-          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
+          {/* Pulsanti stilizzati più prominenti */}
+          <div className="flex flex-col sm:flex-row gap-4 w-full max-w-lg">
             <Button
               variant="outline"
-              size="default"
+              size="lg"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="flex-1 bg-white/60 backdrop-blur-sm hover:bg-sage hover:text-white border-sage/30 hover:border-sage transition-all duration-300 transform hover:scale-105"
+              className="flex-1 bg-gradient-to-r from-sage-500 to-blue-gray-500 hover:from-sage-600 hover:to-blue-gray-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 hover:-translate-y-1"
             >
-              <div className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4" />
-                <span className="font-medium">
+              <div className="flex items-center gap-3">
+                <ImageIcon className="w-5 h-5" />
+                <span className="font-bold text-lg">
                   {currentImageUrl ? 'Cambia foto' : 'Scegli foto'}
                 </span>
-                <Camera className="w-4 h-4" />
+                <Camera className="w-5 h-5" />
               </div>
             </Button>
 
