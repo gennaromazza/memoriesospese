@@ -421,7 +421,8 @@ export default function VoiceMemoPlayer({
             className="hidden"
           />
 
-          {/* Interaction Panel - Like e Commenti */}
+          {/* Interaction Panel - Like e Commenti - Rimosso per evitare icone duplicate */}
+          {/* 
           <div className="mt-4 pt-4 border-t border-gray-100">
             <InteractionWrapper
               itemId={memo.id}
@@ -432,6 +433,7 @@ export default function VoiceMemoPlayer({
               className="bg-transparent"
             />
           </div>
+          */}
         </div>
       </CardContent>
     </Card>

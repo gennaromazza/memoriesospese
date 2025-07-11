@@ -13,7 +13,7 @@ interface InteractionWrapperProps {
   galleryId: string;
   isAdmin: boolean;
   className?: string;
-  variant?: 'default' | 'floating';
+  variant?: 'default' | 'floating' | 'inline';
   onClick?: (e: React.MouseEvent) => void;
 }
 
@@ -48,6 +48,62 @@ export default function InteractionWrapper({
     }
     setShowPanel(true);
   };
+
+  // Per la variante inline, rimuovi le icone duplicate
+  if (variant === 'inline') {
+    return (
+      <>
+        <div 
+          className={cn("flex gap-2 text-sm text-gray-600", className)}
+          onClick={onClick}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleInteractionClick();
+            }}
+            className="hover:text-red-600 transition-colors"
+          >
+            <Heart className="h-4 w-4 inline mr-1" />
+            0
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleInteractionClick();
+            }}
+            className="hover:text-blue-600 transition-colors"
+          >
+            <MessageCircle className="h-4 w-4 inline mr-1" />
+            1
+          </button>
+        </div>
+
+        <InteractionPanel
+          isOpen={showPanel}
+          onClose={() => setShowPanel(false)}
+          itemId={itemId}
+          itemType={itemType}
+          galleryId={galleryId}
+          isAdmin={isAdmin}
+          userEmail={userEmail}
+          userName={userName}
+        />
+
+        <UnifiedAuthDialog
+          isOpen={showAuthDialog}
+          onOpenChange={setShowAuthDialog}
+          galleryId={galleryId}
+          onAuthComplete={async () => {
+            setShowAuthDialog(false);
+            setShowPanel(true);
+            // await grantAccess(); // Removed for Firebase-only
+          }}
+          defaultTab="register"
+        />
+      </>
+    );
+  }
 
   return (
     <>
