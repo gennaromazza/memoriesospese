@@ -155,21 +155,74 @@ export async function getGalleryPhotos(galleryId: string, chapterId?: string): P
 
 export async function getTopLikedPhotos(galleryId: string, limitCount: number = 10): Promise<PhotoData[]> {
   try {
-    const photosQuery = query(
-      collection(db, 'galleries', galleryId, 'photos'),
-      orderBy('likes', 'desc'),
-      limit(limitCount)
+    // Prima ottieni tutte le foto della galleria
+    const photosSnapshot = await getDocs(
+      collection(db, 'galleries', galleryId, 'photos')
     );
     
-    const photosSnapshot = await getDocs(photosQuery);
-    
-    return photosSnapshot.docs.map(doc => ({
+    // Mappa le foto con i loro dati
+    const photos = photosSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as PhotoData[];
+    
+    logger.info('Foto totali nella galleria', { galleryId, totalPhotos: photos.length });
+    
+    // Se non ci sono foto, restituisci array vuoto
+    if (photos.length === 0) {
+      logger.info('Nessuna foto trovata nella galleria', { galleryId });
+      return [];
+    }
+    
+    // Ora ottieni tutti i like per contare quanti like ha ogni foto
+    const likesSnapshot = await getDocs(collection(db, 'likes'));
+    const likesData = likesSnapshot.docs.map(doc => doc.data());
+    
+    // Conta i like per ogni foto
+    const photoLikesCount: Record<string, number> = {};
+    likesData.forEach(like => {
+      if (like.photoId) {
+        photoLikesCount[like.photoId] = (photoLikesCount[like.photoId] || 0) + 1;
+      }
+    });
+    
+    // Aggiungi il conteggio dei like a ogni foto
+    const photosWithLikes = photos.map(photo => ({
+      ...photo,
+      likes: photoLikesCount[photo.id] || 0
+    }));
+    
+    // Ordina le foto per numero di like e prendi le top
+    const sortedPhotos = photosWithLikes
+      .sort((a, b) => (b.likes || 0) - (a.likes || 0))
+      .slice(0, limitCount);
+    
+    // Log per debug
+    logger.info('Top foto per like', { 
+      galleryId, 
+      topPhotos: sortedPhotos.map(p => ({ id: p.id, likes: p.likes, name: p.name }))
+    });
+    
+    return sortedPhotos;
   } catch (error) {
     logger.error('Errore nel caricamento foto più apprezzate', { error, galleryId });
-    throw error;
+    // In caso di errore, prova un approccio alternativo
+    try {
+      // Ottieni semplicemente le prime foto della galleria
+      const fallbackQuery = query(
+        collection(db, 'galleries', galleryId, 'photos'),
+        limit(limitCount)
+      );
+      const fallbackSnapshot = await getDocs(fallbackQuery);
+      return fallbackSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        likes: 0
+      })) as PhotoData[];
+    } catch (fallbackError) {
+      logger.error('Errore anche nel fallback', { fallbackError, galleryId });
+      return [];
+    }
   }
 }
 

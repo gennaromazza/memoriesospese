@@ -282,7 +282,7 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
               {topPhotos.length === 0 ? (
                 <div className="text-center py-4">
                   <Heart className="h-6 w-6 text-gray-300 mx-auto mb-2" />
-                  <p className="text-xs text-gray-500">Nessuna foto con like</p>
+                  <p className="text-xs text-gray-500">Nessuna foto disponibile</p>
                 </div>
               ) : (
                 <div className="space-y-1">
