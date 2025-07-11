@@ -32,6 +32,16 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 11 Luglio 2025 - CENTRALIZZAZIONE SISTEMA AUTENTICAZIONE E UI MIGLIORATA ✅
+- ✅ **HOOK CENTRALIZZATI CREATI**: Creati useLogout, useIsAdmin, useUserInfo per eliminare duplicazioni
+- ✅ **NAVIGATION MIGLIORATA**: Aggiunta sezione utente persistente con avatar, profilo e logout nella navbar
+- ✅ **GALLERY REFACTORING**: Rimossa logica autenticazione duplicata, ora usa hook centralizzati
+- ✅ **LOGOUT UNIFICATO**: Eliminati pulsanti logout duplicati nei tab fotografo/ospiti/voice memos
+- ✅ **UI CONSISTENTE**: Avatar utente sempre visibile nella navbar con nome e opzioni profilo/logout
+- ✅ **MOBILE RESPONSIVE**: Menu mobile aggiornato con sezione utente completa e avatar
+- ✅ **CODICE PULITO**: Eliminati useEffect ridondanti e variabili state duplicate
+- → **RISULTATO**: Sistema autenticazione centralizzato con UI consistente e moderna
+
 ### 11 Luglio 2025 - SISTEMA SOCIAL GALLERIA MIGLIORATO ✅
 - ✅ **COMMENTI RECENTI CON AVATAR**: Aggiunte immagini profilo nei commenti del SocialActivityPanel
 - ✅ **MODALITÀ SLIDE**: Implementato carousel automatico per commenti recenti (3 commenti per slide)

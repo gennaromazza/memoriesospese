@@ -30,17 +30,18 @@ import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useUserInfo } from "@/hooks/useUserInfo";
 
 export default function Gallery() {
   const { id } = useParams();
   const [, navigate] = useLocation();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [userName, setUserName] = useState<string>('');
   const { studioSettings } = useStudio();
   const { user, userProfile, isAuthenticated } = useFirebaseAuth();
+  const isAdmin = useIsAdmin();
+  const userInfo = useUserInfo();
 
   // Stato locale per il tracciamento del caricamento
   const [loadingState, setLoadingState] = useState({
@@ -97,41 +98,7 @@ export default function Gallery() {
     }));
   }, [photos.length, guestPhotos.length, gallery]);
 
-  // Check if current user is admin and get user credentials
-  useEffect(() => {
-    const checkAdmin = () => {
-      const admin = localStorage.getItem('isAdmin') === 'true' || userProfile?.role === 'admin';
-      setIsAdmin(admin);
-    };
 
-    const getUserCredentials = () => {
-      // Priority: Firebase auth user, then localStorage fallback
-      const email = user?.email || localStorage.getItem('userEmail') || '';
-      const name = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || '';
-      setUserEmail(email);
-      setUserName(name);
-    };
-
-    checkAdmin();
-    getUserCredentials();
-
-    // Listen for localStorage changes
-    const handleStorageChange = () => {
-      checkAdmin();
-      getUserCredentials();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [user, userProfile]);
-
-  // Function to refresh user credentials
-  const refreshUserCredentials = () => {
-    const email = user?.email || localStorage.getItem('userEmail') || '';
-    const name = userProfile?.displayName || user?.displayName || localStorage.getItem('userName') || '';
-    setUserEmail(email);
-    setUserName(name);
-  };
 
   // Verifica autenticazione
   useEffect(() => {
@@ -419,45 +386,6 @@ export default function Gallery() {
                           galleryName={gallery.name}
                         />
                       </div>
-
-                      {/* Sezione utente - profilo e logout */}
-                      {(userEmail || userName) && (
-                        <div className="flex flex-col sm:flex-row lg:flex-col gap-2 lg:min-w-[120px]">
-                          {isAuthenticated && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => navigate(createUrl("/profile"))}
-                              className="text-xs px-3 py-2 h-8 flex items-center gap-2"
-                            >
-                              <User className="h-3 w-3" />
-                              Profilo
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              // Clear all authentication data
-                              const keys = Object.keys(localStorage);
-                              keys.forEach(key => {
-                                if (key.startsWith('gallery_auth_') || 
-                                    key.startsWith('user_email_') || 
-                                    key.startsWith('user_name_') ||
-                                    key === 'userEmail' ||
-                                    key === 'userName' ||
-                                    key === 'isAdmin') {
-                                  localStorage.removeItem(key);
-                                }
-                              });
-                              refreshGallery();
-                            }}
-                            className="text-xs px-3 py-2 h-8"
-                          >
-                            Logout
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -503,37 +431,7 @@ export default function Gallery() {
                             </TooltipContent>
                           </Tooltip>
 
-                          {(userEmail || userName) && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    // Clear all authentication data
-                                    const keys = Object.keys(localStorage);
-                                    keys.forEach(key => {
-                                      if (key.startsWith('gallery_auth_') || 
-                                          key.startsWith('user_email_') || 
-                                          key.startsWith('user_name_') ||
-                                          key === 'userEmail' ||
-                                          key === 'userName' ||
-                                          key === 'isAdmin') {
-                                        localStorage.removeItem(key);
-                                      }
-                                    });
-                                    refreshGallery();
-                                  }}
-                                  className="text-xs px-3 py-1.5 h-8 min-w-[70px] w-full sm:w-auto"
-                                >
-                                  Logout
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="text-sm">
-                                <p>Disconnettiti dal tuo account</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
+
                         </TooltipProvider>
                       </div>
                     </div>
@@ -569,13 +467,11 @@ export default function Gallery() {
                           <VoiceMemoUpload 
                             galleryId={gallery.id}
                             galleryName={gallery.name}
-                            userEmail={userEmail}
-                            userName={userName}
+                            userEmail={userInfo.email}
+                            userName={userInfo.displayName}
                             onUploadComplete={() => {
                               // Trigger refresh of voice memos list
                               setRefreshTrigger(prev => prev + 1);
-                              // Refresh user credentials in case they were updated
-                              refreshUserCredentials();
                             }}
                           />
                         </div>
@@ -585,37 +481,7 @@ export default function Gallery() {
                       </TooltipContent>
                     </Tooltip>
 
-                    {(userEmail || userName) && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              // Clear all authentication data
-                              const keys = Object.keys(localStorage);
-                              keys.forEach(key => {
-                                if (key.startsWith('gallery_auth_') || 
-                                    key.startsWith('user_email_') || 
-                                    key.startsWith('user_name_') ||
-                                    key === 'userEmail' ||
-                                    key === 'userName' ||
-                                    key === 'isAdmin') {
-                                  localStorage.removeItem(key);
-                                }
-                              });
-                              refreshGallery();
-                            }}
-                            className="text-xs px-3 py-1.5 h-8 min-w-[70px] w-full sm:w-auto"
-                          >
-                            Logout
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="text-sm">
-                          <p>Disconnettiti dal tuo account</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
+
                   </TooltipProvider>
                 </div>
               )}
@@ -624,7 +490,7 @@ export default function Gallery() {
               {activeTab === 'photographer' && (
                 <div>
                   {/* Discrete registration link for non-authenticated users - only show when not logged in */}
-                  {!isAuthenticated && !userEmail && !userName && (
+                  {!isAuthenticated && !userInfo.email && (
                     <div className="mb-6 text-center">
                       <TooltipProvider>
                         <Tooltip>
@@ -773,11 +639,13 @@ export default function Gallery() {
               )}
 
               {/* Registration CTA section - only show when user is not logged in */}
-              {!isAuthenticated && !userEmail && !userName && (
+              {!isAuthenticated && !userInfo.email && (
                 <div id="registration-section" className="mt-12 mb-8">
                   <RegistrationCTA
                     galleryId={gallery.id}
-                    onAuthComplete={refreshUserCredentials}
+                    onAuthComplete={() => {
+                      // Auth state will update automatically via context
+                    }}
                     className="max-w-4xl mx-auto"
                   />
                 </div>

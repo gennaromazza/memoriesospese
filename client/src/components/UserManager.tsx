@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Download, Search, Calendar, Mail, UserCheck } from 'lucide-react';
+import { Users, Download, Search, Calendar, Mail, UserCheck, Edit } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 
 interface UserData {
@@ -28,6 +30,9 @@ export default function UserManager() {
   const [filteredUsers, setFilteredUsers] = useState<UserData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', role: '' });
   const { toast } = useToast();
 
   const fetchUsers = async () => {
@@ -111,6 +116,49 @@ export default function UserManager() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const handleEditUser = (user: UserData) => {
+    setEditingUser(user);
+    setEditForm({ name: user.name, role: user.role });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveUser = async () => {
+    if (!editingUser) return;
+
+    try {
+      const userRef = doc(db, 'users', editingUser.id);
+      await updateDoc(userRef, {
+        name: editForm.name,
+        role: editForm.role,
+        updatedAt: new Date()
+      });
+
+      // Aggiorna la lista locale
+      const updatedUsers = users.map(u => 
+        u.id === editingUser.id 
+          ? { ...u, name: editForm.name, role: editForm.role }
+          : u
+      );
+      setUsers(updatedUsers);
+      setFilteredUsers(updatedUsers);
+
+      toast({
+        title: "Utente aggiornato",
+        description: "Le modifiche sono state salvate con successo",
+      });
+
+      setEditDialogOpen(false);
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Errore nel salvare le modifiche:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile salvare le modifiche",
+        variant: "destructive",
+      });
+    }
   };
 
   const exportToExcel = () => {
@@ -243,18 +291,19 @@ export default function UserManager() {
                   <TableHead>Ultimo Accesso</TableHead>
                   <TableHead>Gallerie</TableHead>
                   <TableHead>Foto</TableHead>
+                  <TableHead>Azioni</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       Caricamento utenti...
                     </TableCell>
                   </TableRow>
                 ) : filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       {searchTerm ? 'Nessun utente trovato' : 'Nessun utente registrato'}
                     </TableCell>
                   </TableRow>
@@ -297,6 +346,16 @@ export default function UserManager() {
                           {user.photoCount || 0}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditUser(user)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -305,6 +364,75 @@ export default function UserManager() {
           </div>
         </div>
       </DialogContent>
+
+      {/* Dialog per modificare utente */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modifica Utente</DialogTitle>
+            <DialogDescription>
+              Modifica le informazioni dell'utente
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingUser && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Nome</Label>
+                <Input
+                  id="edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="Nome utente"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  value={editingUser.email}
+                  disabled
+                  className="bg-gray-50"
+                />
+                <p className="text-xs text-gray-500">L'email non può essere modificata</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-role">Ruolo</Label>
+                <Select
+                  value={editForm.role}
+                  onValueChange={(value) => setEditForm({ ...editForm, role: value })}
+                >
+                  <SelectTrigger id="edit-role">
+                    <SelectValue placeholder="Seleziona ruolo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Utente</SelectItem>
+                    <SelectItem value="admin">Amministratore</SelectItem>
+                    <SelectItem value="guest">Ospite</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditDialogOpen(false)}
+                >
+                  Annulla
+                </Button>
+                <Button
+                  onClick={handleSaveUser}
+                  disabled={!editForm.name}
+                >
+                  Salva Modifiche
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
