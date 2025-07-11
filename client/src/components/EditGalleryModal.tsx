@@ -10,6 +10,7 @@ import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
+import { notifyNewPhotos } from "../lib/email";
 import { UploadCloud, Image, Trash } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
@@ -320,6 +321,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       // Ricarica le foto
       loadPhotos();
+
+      // Invia notifiche ai subscribers
+      try {
+        await notifyNewPhotos(gallery.id, gallery.name, 'Admin', uploadedPhotos.length);
+      } catch (notificationError) {
+        console.warn('⚠️ Errore invio notifiche:', notificationError);
+        // Non bloccare l'upload per errori di notifica
+      }
       
     } catch (error) {
       console.error('Errore upload foto:', error);
