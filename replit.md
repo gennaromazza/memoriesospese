@@ -32,6 +32,15 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 11 Luglio 2025 - SISTEMA EMAIL BREVO COMPLETAMENTE INTEGRATO ✅
+- ✓ **BREVO CONFIGURATO**: Sistema email tramite Firebase Functions con credenziali Brevo già configurate
+- ✓ **NOTIFICHE AUTOMATICHE**: Usa Firebase Functions per invio notifiche nuove foto
+- ✓ **EMAIL BENVENUTO**: Integrata con Firebase Functions per iscrizioni
+- ✓ **SMTP BREVO**: Configurazione completa in `functions/src/index.ts` con credenziali 91c91c001@smtp-brevo.com
+- ✓ **FALLBACK ROBUSTO**: Sistema coda Firestore se Firebase Functions non disponibili
+- ✓ **ZERO CONFIGURAZIONE CLIENT**: Nessuna API key necessaria nel frontend
+- → **RISULTATO**: Sistema email completamente funzionale con Brevo tramite Firebase Functions
+
 ### 10 Luglio 2025 - FIREBASE-ONLY SPA MIGRATION - FASE 3 COMPLETATA ✅ - EXPRESS ELIMINATO
 - ✓ **BACKEND COMPLETAMENTE ELIMINATO**: Rimosso server Express, ora app 100% Firebase-only
 - ✓ **VITE-ONLY DEVELOPMENT**: Server usa solo Vite senza dipendenze Express
