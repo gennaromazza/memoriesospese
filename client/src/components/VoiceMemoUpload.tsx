@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +24,6 @@ import {
   FileAudio,
   LogIn
 } from 'lucide-react';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import VoiceRecorder from './VoiceRecorder';
 import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 
@@ -280,16 +282,13 @@ export default function VoiceMemoUpload({
         fileSize,
         duration,
         userEmail: finalUserEmail, // Required for auth
-        userName: finalUserName // Use centralized auth data
+        userName: finalUserName, // Use centralized auth data
+        isUnlocked: !unlockDate, // If no unlock date, it's immediately unlocked
+        createdAt: serverTimestamp()
       };
 
-      // Send to backend API using robust client
-      const { apiClient } = await import('@/lib/api-client');
-      const result = await apiClient.uploadVoiceMemo(galleryId, voiceMemoData);
-
-      if (!result) {
-        throw new Error('Errore nel caricamento del voice memo - servizio non disponibile');
-      }
+      // Save to Firebase Firestore directly
+      await addDoc(collection(db, 'voiceMemos'), voiceMemoData);
 
       setUploadStatus('complete');
       setUploadProgress(100);
