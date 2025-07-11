@@ -66,11 +66,20 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
   const handleTestEmail = async () => {
     setIsLoading(true);
     try {
-      await testEmailSystem();
-      toast({
-        title: "✅ Test email inviato!",
-        description: "Controlla la tua casella email",
-      });
+      const result = await testEmailSystem();
+      
+      if (result.developmentMode) {
+        toast({
+          title: "ℹ️ Ambiente di sviluppo",
+          description: "Firebase Functions non disponibili. In produzione il sistema email funziona correttamente.",
+          variant: "default"
+        });
+      } else {
+        toast({
+          title: "✅ Test email inviato!",
+          description: "Controlla la tua casella email",
+        });
+      }
     } catch (error) {
       toast({
         title: "❌ Errore test email",
