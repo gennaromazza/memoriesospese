@@ -100,9 +100,9 @@ export default function PathDebugInfo() {
         </div>
 
         <div>
-          <strong>Host:</strong>
+          <strong>App URL:</strong>
           <p className="text-muted-foreground">
-            {pathInfo?.host || 'N/A'}
+            {pathInfo?.appUrl || window.location.origin}
           </p>
         </div>
 
