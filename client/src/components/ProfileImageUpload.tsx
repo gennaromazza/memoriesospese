@@ -236,11 +236,10 @@ export default function ProfileImageUpload({
           {/* Pulsanti stilizzati più prominenti */}
           <div className="flex flex-col sm:flex-row gap-4 w-full max-w-lg">
             <Button
-              variant="outline"
               size="lg"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="flex-1 bg-gradient-to-r from-sage-700 via-blue-gray-600 to-sage-600 hover:from-sage-600 hover:via-blue-gray-600 hover:to-sage-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 hover:-translate-y-1 ring-2 ring-sage-300 hover:ring-sage-400"
+              className="flex-1 bg-gradient-to-r from-sage-600 via-blue-gray-600 to-sage-700 hover:from-sage-700 hover:via-blue-gray-700 hover:to-sage-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 ring-2 ring-sage-300 hover:ring-sage-400"
             >
               <div className="flex items-center gap-3">
                 <ImageIcon className="w-5 h-5" />
