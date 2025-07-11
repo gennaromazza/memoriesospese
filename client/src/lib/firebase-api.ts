@@ -186,10 +186,23 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
       }
     });
     
-    // Aggiungi il conteggio dei like a ogni foto
+    // Ora ottieni tutti i commenti per contare quanti commenti ha ogni foto
+    const commentsSnapshot = await getDocs(collection(db, 'comments'));
+    const commentsData = commentsSnapshot.docs.map(doc => doc.data());
+    
+    // Conta i commenti per ogni foto
+    const photoCommentsCount: Record<string, number> = {};
+    commentsData.forEach(comment => {
+      if (comment.photoId) {
+        photoCommentsCount[comment.photoId] = (photoCommentsCount[comment.photoId] || 0) + 1;
+      }
+    });
+    
+    // Aggiungi il conteggio dei like e commenti a ogni foto
     const photosWithLikes = photos.map(photo => ({
       ...photo,
-      likes: photoLikesCount[photo.id] || 0
+      likes: photoLikesCount[photo.id] || 0,
+      comments: photoCommentsCount[photo.id] || 0
     }));
     
     // Ordina le foto per numero di like e prendi le top
@@ -200,7 +213,7 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
     // Log per debug
     logger.info('Top foto per like', { 
       galleryId, 
-      topPhotos: sortedPhotos.map(p => ({ id: p.id, likes: p.likes, name: p.name }))
+      topPhotos: sortedPhotos.map(p => ({ id: p.id, likes: p.likes, comments: p.comments, name: p.name }))
     });
     
     return sortedPhotos;

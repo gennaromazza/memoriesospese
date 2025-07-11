@@ -32,14 +32,15 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
-### 11 Luglio 2025 - FIX COMPLETO PANNELLO SOCIALE E COMMENTI ✅
-- ✅ **PROBLEMA LIKE RISOLTO**: getTopLikedPhotos ora conta correttamente dalla collezione 'likes' separata
-- ✅ **COMMENTI RECENTI FUNZIONANTI**: Corretto mapping dei campi da 'content' a 'text' nel SocialActivityPanel
-- ✅ **STRUTTURA DATI CORRETTA**: Commenti salvati in collezione globale 'comments' con campi {text, photoId, galleryId, userId}
-- ✅ **CLICK FOTO FUNZIONANTE**: Aggiornato handler per usare comment.photoId invece di comment.itemId
-- ✅ **BADGE DINAMICI**: Badge mostrano "Foto" se commento ha photoId, altrimenti "Galleria"
-- ✅ **NAVIGAZIONE ADMIN MIGLIORATA**: Aggiunto codice galleria per permettere ritorno rapido dalla dashboard admin
-- → **RISULTATO**: Pannello sociale completamente funzionante con like, commenti e navigazione
+### 11 Luglio 2025 - PANNELLO SOCIALE INTERATTIVO COMPLETO ✅
+- ✅ **LIKE FOTO TOP**: Aggiunto pulsante like interattivo nel pannello "Foto Top" con animazioni
+- ✅ **COMMENTI FOTO TOP**: Aggiunto pulsante commenti che apre modal per aggiungere commenti
+- ✅ **CONTEGGIO COMMENTI CORRETTO**: getTopLikedPhotos ora conta anche i commenti dalla collezione 'comments'
+- ✅ **AUTENTICAZIONE INTEGRATA**: Dialog login automatico se utente non autenticato tenta like/commento
+- ✅ **AGGIORNAMENTO REAL-TIME**: Conteggi like/commenti aggiornati immediatamente dopo azione
+- ✅ **STATO LIKE PERSISTENTE**: Cuori pieni per foto già piaciute dall'utente corrente
+- ✅ **FIX CAMPI COMMENTI**: Corretto mapping da 'content' a 'text' per visualizzazione commenti recenti
+- → **RISULTATO**: Pannello sociale completamente interattivo con like, commenti e autenticazione
 
 ### 11 Luglio 2025 - SISTEMA GESTIONE UTENTI ADMIN COMPLETATO ✅
 - ✅ **AZIONI ADMIN COMPLETE**: Aggiunto menu dropdown con azioni multiple per ogni utente
