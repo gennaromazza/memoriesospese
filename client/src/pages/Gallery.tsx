@@ -409,100 +409,69 @@ export default function Gallery() {
                     />
                   </div>
 
-                  {/* Azioni galleria - layout responsive */}
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-2">
-                    {/* Pulsanti principali */}
-                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 flex-1">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex-1 sm:flex-initial">
-                              <SubscriptionManager 
-                                galleryId={gallery.id}
-                                galleryName={gallery.name}
-                              />
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="text-sm">
-                            <p>Iscriviti per ricevere notifiche quando vengono aggiunte nuove foto</p>
-                          </TooltipContent>
-                        </Tooltip>
-
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex-1 sm:flex-initial">
-                              <GuestUpload 
-                                galleryId={gallery.id}
-                                galleryName={gallery.name}
-                                onPhotosUploaded={() => {
-                                  // Aggiorna i dati della galleria quando vengono caricate nuove foto
-                                  refreshPhotos();
-                                }}
-                              />
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="text-sm">
-                            <p>Carica le tue foto per condividerle con tutti gli ospiti</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-
-                    {/* Pulsanti utente */}
-                    {(userEmail || userName) && (
-                      <div className="flex gap-2 justify-end sm:justify-start">
-                        <TooltipProvider>
-                          {isAuthenticated && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => navigate(createUrl("/profile"))}
-                                  className="text-xs px-3 py-1.5 h-8 min-w-[80px]"
-                                >
-                                  <User className="h-3 w-3 mr-1" />
-                                  Profilo
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="text-sm">
-                                <p>Gestisci il tuo profilo utente</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  // Clear all authentication data
-                                  const keys = Object.keys(localStorage);
-                                  keys.forEach(key => {
-                                    if (key.startsWith('gallery_auth_') || 
-                                        key.startsWith('user_email_') || 
-                                        key.startsWith('user_name_') ||
-                                        key === 'userEmail' ||
-                                        key === 'userName' ||
-                                        key === 'isAdmin') {
-                                      localStorage.removeItem(key);
-                                    }
-                                  });
-                                  // Refresh gallery to reflect logout state
-                                  refreshGallery();
-                                }}
-                                className="text-xs px-3 py-1.5 h-8 min-w-[70px]"
-                              >
-                                Logout
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="text-sm">
-                              <p>Disconnettiti dal tuo account</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                  {/* Azioni galleria - layout pulito e organizzato */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                    <div className="flex flex-col lg:flex-row gap-4">
+                      {/* Sezione principale - notifiche e caricamento */}
+                      <div className="flex-1 space-y-3">
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <div className="flex-1">
+                            <SubscriptionManager 
+                              galleryId={gallery.id}
+                              galleryName={gallery.name}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <GuestUpload 
+                              galleryId={gallery.id}
+                              galleryName={gallery.name}
+                              onPhotosUploaded={() => {
+                                refreshPhotos();
+                              }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                    )}
+
+                      {/* Sezione utente - profilo e logout */}
+                      {(userEmail || userName) && (
+                        <div className="flex flex-col sm:flex-row lg:flex-col gap-2 lg:min-w-[120px]">
+                          {isAuthenticated && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(createUrl("/profile"))}
+                              className="text-xs px-3 py-2 h-8 flex items-center gap-2"
+                            >
+                              <User className="h-3 w-3" />
+                              Profilo
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Clear all authentication data
+                              const keys = Object.keys(localStorage);
+                              keys.forEach(key => {
+                                if (key.startsWith('gallery_auth_') || 
+                                    key.startsWith('user_email_') || 
+                                    key.startsWith('user_name_') ||
+                                    key === 'userEmail' ||
+                                    key === 'userName' ||
+                                    key === 'isAdmin') {
+                                  localStorage.removeItem(key);
+                                }
+                              });
+                              refreshGallery();
+                            }}
+                            className="text-xs px-3 py-2 h-8"
+                          >
+                            Logout
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
