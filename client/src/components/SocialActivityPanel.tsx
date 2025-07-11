@@ -19,6 +19,11 @@ import {
 import { Comment, VoiceMemo } from '@shared/schema';
 import VoiceMemoUpload from './VoiceMemoUpload';
 import UserAvatar from './UserAvatar';
+import CommentModal from './CommentModal';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { LikeService } from '@/lib/likes';
+import { useToast } from '@/hooks/use-toast';
+import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 
 interface PhotoStats {
   id: string;
@@ -43,6 +48,12 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
   const [isLoading, setIsLoading] = useState(true);
   const [showVoiceMemoUpload, setShowVoiceMemoUpload] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [selectedPhotoForComment, setSelectedPhotoForComment] = useState<string | null>(null);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [likedPhotos, setLikedPhotos] = useState<Set<string>>(new Set());
+  
+  const { user } = useFirebaseAuth();
+  const { toast } = useToast();
 
   const formatDateTime = (timestamp: any): string => {
     try {
@@ -123,6 +134,74 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
     }
   };
 
+  const handleLikePhoto = async (photoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      setShowAuthDialog(true);
+      return;
+    }
+
+    try {
+      const isLiked = likedPhotos.has(photoId);
+      
+      if (isLiked) {
+        await LikeService.removeLike(photoId);
+        setLikedPhotos(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(photoId);
+          return newSet;
+        });
+      } else {
+        await LikeService.addLike({
+          galleryId,
+          photoId,
+          userId: user.uid,
+          userEmail: user.email!,
+          userName: user.displayName || user.email?.split('@')[0] || 'Ospite'
+        });
+        setLikedPhotos(prev => new Set(prev).add(photoId));
+      }
+      
+      // Aggiorna conteggio like localmente
+      setTopPhotos(prev => prev.map(photo => 
+        photo.id === photoId 
+          ? { ...photo, likesCount: photo.likesCount + (isLiked ? -1 : 1) }
+          : photo
+      ));
+    } catch (error) {
+      console.error('Errore nel like:', error);
+      toast({
+        title: "Errore",
+        description: "Non è stato possibile aggiungere il like",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleCommentPhoto = (photoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      setShowAuthDialog(true);
+      return;
+    }
+    
+    setSelectedPhotoForComment(photoId);
+  };
+
+  const handleCommentSuccess = (photoId: string) => {
+    // Aggiorna conteggio commenti localmente
+    setTopPhotos(prev => prev.map(photo => 
+      photo.id === photoId 
+        ? { ...photo, commentsCount: photo.commentsCount + 1 }
+        : photo
+    ));
+    
+    // Ricarica commenti recenti
+    fetchRecentComments();
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -140,6 +219,23 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, [galleryId]);
+
+  // Carica stato like per l'utente corrente
+  useEffect(() => {
+    if (user && topPhotos.length > 0) {
+      const checkLikes = async () => {
+        const likedSet = new Set<string>();
+        for (const photo of topPhotos) {
+          const isLiked = await LikeService.checkUserLike(photo.id, user.uid);
+          if (isLiked) {
+            likedSet.add(photo.id);
+          }
+        }
+        setLikedPhotos(likedSet);
+      };
+      checkLikes();
+    }
+  }, [user, topPhotos]);
 
   // Auto-slide for comments
   useEffect(() => {
@@ -308,14 +404,22 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                             {photo.name || 'Foto senza nome'}
                           </p>
                           <div className="flex items-center gap-3 text-xs text-gray-500">
-                            <div className="flex items-center gap-1">
-                              <Heart className="h-3 w-3 text-red-500" />
+                            <button
+                              onClick={(e) => handleLikePhoto(photo.id, e)}
+                              className={`flex items-center gap-1 hover:scale-110 transition-transform ${
+                                likedPhotos.has(photo.id) ? 'text-red-500' : ''
+                              }`}
+                            >
+                              <Heart className={`h-3 w-3 ${likedPhotos.has(photo.id) ? 'fill-current' : ''}`} />
                               <span className="font-medium">{photo.likesCount}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <MessageCircle className="h-3 w-3 text-blue-500" />
+                            </button>
+                            <button
+                              onClick={(e) => handleCommentPhoto(photo.id, e)}
+                              className="flex items-center gap-1 hover:scale-110 transition-transform hover:text-blue-600"
+                            >
+                              <MessageCircle className="h-3 w-3" />
                               <span className="font-medium">{photo.commentsCount}</span>
-                            </div>
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -436,6 +540,30 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
           // Refresh voice memos list
           fetchRecentVoiceMemos();
         }}
+      />
+    )}
+    
+    {/* Comment Modal */}
+    {selectedPhotoForComment && (
+      <CommentModal
+        isOpen={!!selectedPhotoForComment}
+        onClose={() => setSelectedPhotoForComment(null)}
+        photoId={selectedPhotoForComment}
+        galleryId={galleryId}
+        onCommentAdded={() => {
+          handleCommentSuccess(selectedPhotoForComment);
+          setSelectedPhotoForComment(null);
+        }}
+      />
+    )}
+    
+    {/* Auth Dialog */}
+    {showAuthDialog && (
+      <UnifiedAuthDialog
+        isOpen={showAuthDialog}
+        onClose={() => setShowAuthDialog(false)}
+        galleryId={galleryId}
+        redirectPath={window.location.pathname}
       />
     )}
     </>
