@@ -25,6 +25,7 @@ export interface Comment {
   userId: string;
   userEmail: string;
   userName: string;
+  userProfileImageUrl?: string;
   text: string;
   createdAt: any;
 }
@@ -35,6 +36,7 @@ export interface CommentData {
   userId: string;
   userEmail: string;
   userName: string;
+  userProfileImageUrl?: string;
   text: string;
 }
 

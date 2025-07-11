@@ -28,6 +28,7 @@ import {
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import ProfileImageUpload from '../components/ProfileImageUpload';
 
 export default function UserProfile() {
   const { user, isAuthenticated, logout } = useFirebaseAuth();
@@ -42,7 +43,8 @@ export default function UserProfile() {
   // Form state for profile updates
   const [profileData, setProfileData] = useState({
     displayName: '',
-    email: ''
+    email: '',
+    profileImageUrl: ''
   });
 
   // Form state for password change
@@ -57,10 +59,19 @@ export default function UserProfile() {
     if (user) {
       setProfileData({
         displayName: user.displayName || '',
-        email: user.email || ''
+        email: user.email || '',
+        profileImageUrl: user.photoURL || ''
       });
     }
   }, [user]);
+
+  // Handler per aggiornamento immagine profilo
+  const handleProfileImageUpdate = (newImageUrl: string) => {
+    setProfileData(prev => ({
+      ...prev,
+      profileImageUrl: newImageUrl
+    }));
+  };
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -247,6 +258,16 @@ export default function UserProfile() {
           </div>
           <h1 className="text-3xl font-bold text-blue-gray-900 mb-2">Il Mio Profilo</h1>
           <p className="text-sage-700">Gestisci le tue informazioni personali e le impostazioni account</p>
+        </div>
+
+        {/* Sezione immagine profilo */}
+        <div className="mb-8">
+          <ProfileImageUpload
+            userId={user?.uid || ''}
+            currentImageUrl={profileData.profileImageUrl}
+            displayName={profileData.displayName || 'Utente'}
+            onImageUpdated={handleProfileImageUpdate}
+          />
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">

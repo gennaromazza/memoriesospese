@@ -33,6 +33,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  profileImageUrl?: string;
   role: 'admin' | 'user';
   galleries: string[];
   createdAt: any;
@@ -159,6 +160,17 @@ export class AuthService {
    */
   static async resetPassword(email: string): Promise<void> {
     await sendPasswordResetEmail(auth, email);
+  }
+
+  /**
+   * Aggiorna immagine profilo utente
+   */
+  static async updateProfileImage(uid: string, imageUrl: string): Promise<void> {
+    const userRef = doc(db, 'users', uid);
+    await updateDoc(userRef, {
+      profileImageUrl: imageUrl,
+      updatedAt: serverTimestamp()
+    });
   }
 
   /**
