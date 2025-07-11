@@ -48,7 +48,7 @@ export default function PathDebugInfo() {
         <div>
           <strong>Auto-detected Base Path:</strong>
           <code className="ml-2 text-xs bg-gray-100 px-1 rounded">
-            {pathInfo?.detectedBasePath || '/'}
+            {pathInfo?.basePath || '/'}
           </code>
         </div>
         
@@ -74,7 +74,7 @@ export default function PathDebugInfo() {
         <div>
           <strong>Current URL:</strong>
           <p className="break-all text-muted-foreground">
-            {pathInfo?.pathname || 'N/A'}
+            {window.location.pathname}
           </p>
         </div>
 
