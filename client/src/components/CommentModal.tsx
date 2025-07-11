@@ -25,6 +25,7 @@ import {
   Smile
 } from 'lucide-react';
 import { Comment } from '@shared/schema';
+import UserAvatar from './UserAvatar';
 
 interface CommentModalProps {
   isOpen: boolean;
@@ -255,12 +256,15 @@ export default function CommentModal({
                 </div>
               ) : (
                 comments.map((comment) => (
-                  <div key={comment.id} className="bg-gray-50 p-4 rounded-lg">
+                  <div key={comment.id} className="bg-white/80 backdrop-blur-sm border border-gray-100 p-4 rounded-lg shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <User className="h-4 w-4 text-sage-600" />
-                        </div>
+                        <UserAvatar
+                          userEmail={comment.userEmail}
+                          userName={comment.userName}
+                          userProfileImageUrl={comment.userProfileImageUrl}
+                          size="sm"
+                        />
                         <div>
                           <p className="font-medium text-gray-900 text-sm">{comment.userName}</p>
                           <p className="text-xs text-gray-500 flex items-center gap-1">

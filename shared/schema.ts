@@ -97,6 +97,8 @@ export interface VoiceMemo {
   id: string;
   galleryId: string;
   guestName: string;
+  userEmail?: string;
+  userProfileImageUrl?: string;
   audioUrl: string;
   message?: string;
   unlockDate?: string; // ISO string date
@@ -149,6 +151,7 @@ export interface Comment {
   galleryId: string;
   userEmail: string;
   userName: string;
+  userProfileImageUrl?: string;
   content: string;
   createdAt: any; // Firebase Timestamp
 }

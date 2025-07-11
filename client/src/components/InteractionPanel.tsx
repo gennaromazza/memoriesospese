@@ -184,6 +184,7 @@ export default function InteractionPanel({
         userId: user.uid, 
         userEmail: finalUserEmail, 
         userName: finalUserName,
+        userProfileImageUrl: userProfile?.profileImageUrl,
         text: newComment.trim()
       });
 
@@ -194,6 +195,7 @@ export default function InteractionPanel({
         userId: user.uid,
         userEmail: finalUserEmail,
         userName: finalUserName,
+        userProfileImageUrl: userProfile?.profileImageUrl,
         text: newComment.trim(),
         createdAt: new Date()
       };
