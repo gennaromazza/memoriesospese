@@ -55,8 +55,15 @@ export const uploadSinglePhoto = async (
 ): Promise<UploadedPhoto> => {
   return new Promise(async (resolve, reject) => {
     try {
-      // Comprimi l'immagine prima dell'upload
-      const compressedFile = await compressImage(file);
+      // Comprimi l'immagine prima dell'upload con gestione errori robusta
+      let compressedFile: File;
+      try {
+        compressedFile = await compressImage(file);
+      } catch (compressionError) {
+        console.error('❌ Errore compressione immagine:', compressionError);
+        console.log(`⚠️ Usando file originale per: ${file.name}`);
+        compressedFile = file; // Usa il file originale in caso di errore
+      }
 
       // Utilizza un identificatore univoco per evitare collisioni di nomi
       const safeFileName = compressedFile.name.replace(/[#$]/g, '_'); // Caratteri problematici in Firebase Storage
@@ -157,10 +164,10 @@ export const uploadSinglePhoto = async (
         }
       }
     );
-    } catch (compressionError) {
-      // Errore nella compressione dell'immagine
-      console.error('Errore compressione immagine:', compressionError);
-      reject(compressionError);
+    } catch (uploadError) {
+      // Errore generale nell'upload
+      console.error('❌ Errore upload foto:', uploadError);
+      reject(uploadError);
     }
   });
 };
