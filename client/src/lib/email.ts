@@ -105,28 +105,48 @@ export async function notifyNewPhotos(galleryId: string, galleryName: string, up
  */
 export async function subscribeToGallery(galleryId: string, galleryName: string, email: string) {
   try {
-    // 1. Aggiungi subscription a Firestore
+    const normalizedEmail = email.toLowerCase();
+    
+    // 1. Controlla se l'utente è già iscritto
     const subscriptionsRef = collection(db, 'subscriptions');
+    const existingSubscription = await getDocs(
+      query(
+        subscriptionsRef,
+        where('galleryId', '==', galleryId),
+        where('email', '==', normalizedEmail)
+      )
+    );
+
+    if (!existingSubscription.empty) {
+      console.log(`ℹ️ ${email} è già iscritto alle notifiche di "${galleryName}"`);
+      return { success: true, alreadySubscribed: true };
+    }
+
+    // 2. Salva nuova iscrizione in Firestore
     await addDoc(subscriptionsRef, {
       galleryId,
       galleryName,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       active: true,
       subscribedAt: new Date(),
       lastNotified: null
     });
 
-    // 2. Invia email di benvenuto tramite Firebase Functions
-    try {
-      const result = await sendWelcomeEmail(email, galleryName);
-      console.log(`✅ Email di benvenuto inviata tramite Firebase Functions a ${email}`);
-    } catch (emailError) {
-      console.warn('⚠️ Impossibile inviare email di benvenuto tramite Firebase Functions:', emailError);
-      // L'iscrizione è comunque riuscita, solo l'email non è stata inviata
-    }
+    // 3. Invia email di benvenuto (con gestione errori robusta)
+    Promise.resolve().then(async () => {
+      try {
+        await sendWelcomeEmail(email, galleryName);
+        console.log(`✅ Email di benvenuto inviata a ${email}`);
+      } catch (emailError) {
+        console.warn('⚠️ Email di benvenuto non inviata (Firebase Functions non disponibili)');
+        // L'iscrizione è comunque riuscita, solo l'email non è stata inviata
+      }
+    }).catch(() => {
+      // Gestione silent per evitare unhandledrejection
+    });
 
     console.log(`✅ ${email} iscritto alle notifiche di "${galleryName}"`);
-    return { success: true };
+    return { success: true, alreadySubscribed: false };
 
   } catch (error) {
     console.error('❌ Errore iscrizione:', error);

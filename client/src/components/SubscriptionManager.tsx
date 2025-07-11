@@ -36,10 +36,18 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
 
       if (result.success) {
         setIsSubscribed(true);
-        toast({
-          title: "✅ Iscrizione completata!",
-          description: `Riceverai notifiche quando verranno aggiunte nuove foto a "${galleryName}"`,
-        });
+        if (result.alreadySubscribed) {
+          toast({
+            title: "ℹ️ Già iscritto",
+            description: `${email} è già iscritto alle notifiche di "${galleryName}"`,
+            variant: "default"
+          });
+        } else {
+          toast({
+            title: "✅ Iscrizione completata!",
+            description: `Riceverai notifiche quando verranno aggiunte nuove foto a "${galleryName}"`,
+          });
+        }
         setEmail('');
       } else {
         throw new Error(result.error);
