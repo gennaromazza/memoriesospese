@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGalleryAccess } from '../hooks/use-gallery-access';
 import SecurityQuestionPrompt from './SecurityQuestionPrompt';
 import { Button } from './ui/button';
