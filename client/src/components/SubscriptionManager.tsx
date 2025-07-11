@@ -93,11 +93,11 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
 
   if (isSubscribed) {
     return (
-      <div className="bg-green-50 border border-green-200 rounded-md p-3 flex items-center gap-3">
-        <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+      <div className="bg-gradient-to-r from-sage-100 to-blue-gray-100 border border-sage-300 rounded-md p-3 flex items-center gap-3 shadow-sm">
+        <CheckCircle className="w-4 h-4 text-sage-600 flex-shrink-0" />
         <div className="flex-1">
-          <p className="text-sm font-medium text-green-800">Notifiche attive</p>
-          <p className="text-xs text-green-600">Email per nuove foto</p>
+          <p className="text-sm font-medium text-sage-800">Notifiche attive</p>
+          <p className="text-xs text-sage-600">Email per nuove foto</p>
         </div>
         <Button 
           type="button" 
@@ -106,7 +106,7 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
           onClick={handleTestEmail}
           disabled={isLoading}
           title="Test configurazione email"
-          className="text-green-600 hover:text-green-800 hover:bg-green-100 w-8 h-8 p-0"
+          className="text-sage-600 hover:text-sage-800 hover:bg-sage-200 w-8 h-8 p-0"
         >
           🧪
         </Button>
@@ -115,10 +115,10 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
   }
 
   return (
-    <div className="border border-gray-200 rounded-md p-3">
+    <div className="border border-sage-200 rounded-md p-3 bg-gradient-to-r from-sage-50 to-blue-gray-50">
       <div className="flex items-center gap-2 mb-2">
-        <Bell className="w-4 h-4 text-gray-600" />
-        <h3 className="text-sm font-medium text-gray-900">Notifiche Email</h3>
+        <Bell className="w-4 h-4 text-sage-600" />
+        <h3 className="text-sm font-medium text-sage-900">Notifiche Email</h3>
       </div>
       
       <form onSubmit={handleSubscribe} className="space-y-2">
@@ -130,12 +130,12 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
             onChange={(e) => setEmail(e.target.value)}
             disabled={isLoading}
             required
-            className="flex-1 text-sm h-8"
+            className="flex-1 text-sm h-8 border-sage-200 focus:border-sage-400 focus:ring-sage-200"
           />
           <Button 
             type="submit" 
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white h-8 w-8 p-0"
+            className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white h-8 w-8 p-0 shadow-lg"
           >
             {isLoading ? (
               <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -149,13 +149,13 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
             onClick={handleTestEmail}
             disabled={isLoading}
             title="Test configurazione email"
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 border-sage-300 hover:bg-sage-100 hover:border-sage-400"
           >
             🧪
           </Button>
         </div>
         
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-sage-600">
           Notifiche per nuove foto
         </p>
       </form>
