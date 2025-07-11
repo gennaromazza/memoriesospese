@@ -446,6 +446,7 @@ export default function Gallery() {
                     <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-gray-100">
                       <div className="text-lg font-bold text-sage">
                         {new Set(guestPhotos.map(p => p.userEmail)).size}
+
                       </div>
                       <div className="text-xs text-gray-600">Ospiti partecipanti</div>
                     </div>
