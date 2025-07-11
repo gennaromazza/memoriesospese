@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import VoiceRecorder from './VoiceRecorder';
 import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
+import UserAvatar from './UserAvatar';
 
 interface VoiceMemoUploadProps {
   galleryId: string;
@@ -50,7 +51,6 @@ export default function VoiceMemoUpload({
   const currentUserEmail = user?.email || '';
   const currentUserName = userProfile?.displayName || user?.displayName || '';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [guestName, setGuestName] = useState('');
   const [message, setMessage] = useState('');
   const [unlockDate, setUnlockDate] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -62,6 +62,20 @@ export default function VoiceMemoUpload({
   const [activeTab, setActiveTab] = useState('record');
 
   const { toast } = useToast();
+
+  // Handle authentication requirement like in InteractionPanel
+  const handleAuthRequired = () => {
+    setShowAuthDialog(true);
+  };
+
+  // Handle successful authentication
+  const handleAuthSuccess = () => {
+    setShowAuthDialog(false);
+    toast({
+      title: "Autenticazione completata",
+      description: "Ora puoi registrare vocali segreti",
+    });
+  };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -219,12 +233,9 @@ export default function VoiceMemoUpload({
   };
 
   const handleSubmit = async () => {
-    if (!guestName.trim()) {
-      toast({
-        title: "Errore",
-        description: "Inserisci il tuo nome",
-        variant: "destructive",
-      });
+    // CONTROLLO AUTENTICAZIONE OBBLIGATORIO - Come in InteractionPanel
+    if (!isAuthenticated || !user || !currentUserEmail) {
+      handleAuthRequired();
       return;
     }
 
@@ -235,15 +246,6 @@ export default function VoiceMemoUpload({
         description: "Registra un audio o seleziona un file",
         variant: "destructive",
       });
-      return;
-    }
-
-    // Verifica autenticazione usando il sistema centralizzato
-    const hasFirebaseAuth = isAuthenticated && currentUserEmail;
-    const hasLocalAuth = userEmail && userName;
-    
-    if (!hasFirebaseAuth && !hasLocalAuth) {
-      setShowAuthDialog(true);
       return;
     }
 
@@ -269,21 +271,18 @@ export default function VoiceMemoUpload({
       const duration = recordedBlob ? recordedDuration : undefined;
 
       // Prepare voice memo data with centralized user authentication
-      const finalUserEmail = currentUserEmail || userEmail || '';
-      const finalUserName = currentUserName || userName || finalUserEmail.split('@')[0];
-      
       const voiceMemoData = {
         galleryId,
-        guestName: guestName.trim(),
-        guestEmail: finalUserEmail, // Add guestEmail for consistent naming
+        guestName: currentUserName || currentUserEmail.split('@')[0], // Use authenticated user data
+        guestEmail: currentUserEmail, // Add guestEmail for consistent naming
         audioUrl,
         message: message.trim() || undefined,
         unlockDate: unlockDate || undefined,
         fileName,
         fileSize,
         duration,
-        userEmail: finalUserEmail, // Required for auth
-        userName: finalUserName, // Use centralized auth data
+        userEmail: currentUserEmail, // Required for auth
+        userName: currentUserName || currentUserEmail.split('@')[0], // Use centralized auth data
         userProfileImageUrl: userProfile?.profileImageUrl || '', // Add profile image URL
         isUnlocked: !unlockDate, // If no unlock date, it's immediately unlocked
         createdAt: serverTimestamp()
@@ -306,7 +305,6 @@ export default function VoiceMemoUpload({
       });
 
       // Reset form
-      setGuestName('');
       setMessage('');
       setUnlockDate('');
       setSelectedFile(null);
@@ -389,20 +387,41 @@ export default function VoiceMemoUpload({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 sm:space-y-6">
-            {/* Guest name input */}
-            <div className="space-y-2">
-              <Label htmlFor="guest-name" className="text-sage-700 font-medium text-sm">
-                Il tuo nome
-              </Label>
-              <Input
-                id="guest-name"
-                placeholder="Es. Marco e Lisa"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                className="border-gray-300 focus:border-sage-500 focus:ring-sage-500 text-sm sm:text-base h-10 sm:h-11"
-              />
+          {/* Authentication check like in InteractionPanel */}
+          {!isAuthenticated || !user ? (
+            <div className="text-center py-8 px-4">
+              <div className="mx-auto w-16 h-16 bg-sage-100 rounded-full flex items-center justify-center mb-4">
+                <User className="h-8 w-8 text-sage-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Accesso richiesto
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Per registrare vocali segreti devi essere registrato nella galleria
+              </p>
+              <Button
+                onClick={handleAuthRequired}
+                className="bg-sage hover:bg-sage/80 text-white"
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                Accedi per continuare
+              </Button>
             </div>
+          ) : (
+            <div className="space-y-4 sm:space-y-6">
+              {/* User profile display */}
+              <div className="flex items-center gap-3 p-3 bg-sage-50 rounded-lg">
+                <UserAvatar
+                  email={currentUserEmail}
+                  name={currentUserName}
+                  profileImageUrl={userProfile?.profileImageUrl}
+                  size="sm"
+                />
+                <div>
+                  <p className="font-medium text-sage-900">{currentUserName}</p>
+                  <p className="text-sm text-sage-600">{currentUserEmail}</p>
+                </div>
+              </div>
 
             {/* Tabs for record vs upload */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -551,7 +570,7 @@ export default function VoiceMemoUpload({
             )}
 
             {/* Validation messages */}
-            {(!guestName.trim() || (!recordedBlob && !selectedFile)) && !isUploading && (
+            {(!recordedBlob && !selectedFile) && !isUploading && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -559,15 +578,9 @@ export default function VoiceMemoUpload({
                   </div>
                   <div className="space-y-2">
                     <p className="font-medium text-red-900 text-sm">
-                      Completa questi campi per salvare il ricordo:
+                      Completa per salvare il ricordo:
                     </p>
                     <ul className="text-red-800 text-sm space-y-1">
-                      {!guestName.trim() && (
-                        <li className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                          Inserisci il tuo nome
-                        </li>
-                      )}
                       {(!recordedBlob && !selectedFile) && (
                         <li className="flex items-center gap-2">
                           <div className="w-2 h-2 bg-red-400 rounded-full"></div>
@@ -583,18 +596,8 @@ export default function VoiceMemoUpload({
             {/* Action buttons */}
             <div className="flex gap-3">
               <Button
-                onClick={() => {
-                  // Check centralized auth system
-                  const hasFirebaseAuth = isAuthenticated && currentUserEmail;
-                  const hasLocalAuth = userEmail && userName;
-                  
-                  if (!hasFirebaseAuth && !hasLocalAuth) {
-                    setShowAuthDialog(true);
-                  } else {
-                    handleSubmit();
-                  }
-                }}
-                disabled={!guestName.trim() || (!recordedBlob && !selectedFile) || isUploading}
+                onClick={handleSubmit}
+                disabled={(!recordedBlob && !selectedFile) || isUploading}
                 className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base relative"
               >
                 {isUploading ? (
@@ -607,10 +610,10 @@ export default function VoiceMemoUpload({
                 ) : (
                   <div className="flex items-center gap-2">
                     <Heart className="h-4 w-4" />
-                    {(!guestName.trim() || (!recordedBlob && !selectedFile)) ? 'Completa i campi' : 'Salva ricordo'}
+                    {(!recordedBlob && !selectedFile) ? 'Completa i campi' : 'Salva ricordo'}
                   </div>
                 )}
-                {(!guestName.trim() || (!recordedBlob && !selectedFile)) && !isUploading && (
+                {(!recordedBlob && !selectedFile) && !isUploading && (
                   <div className="absolute inset-0 bg-gray-400 bg-opacity-10 rounded-md flex items-center justify-center">
                     <div className="w-4 h-4 border-2 border-gray-400 rounded-full flex items-center justify-center">
                       <span className="text-gray-400 font-bold text-xs">!</span>
@@ -645,6 +648,7 @@ export default function VoiceMemoUpload({
               </div>
             )}
           </div>
+          )}
         </DialogContent>
       </Dialog>
 
