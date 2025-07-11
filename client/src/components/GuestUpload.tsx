@@ -194,7 +194,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       const uploadedPhotos = await PhotoService.uploadPhotosToGallery(
         selectedFiles,
         galleryId,
-        currentUser.uid,
+        currentUser?.uid || '',
         currentUserEmail,
         currentUserName,
         (progress) => {

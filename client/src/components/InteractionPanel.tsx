@@ -232,7 +232,7 @@ export default function InteractionPanel({
     if (!isAdmin) return;
 
     try {
-      await CommentService.deleteComment(galleryId, commentId, itemType);
+      await CommentService.deleteComment(commentId);
 
       // Remove comment from local state
       setComments(prev => prev.filter(comment => comment.id !== commentId));
