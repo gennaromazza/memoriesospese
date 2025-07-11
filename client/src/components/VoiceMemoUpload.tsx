@@ -275,6 +275,7 @@ export default function VoiceMemoUpload({
       const voiceMemoData = {
         galleryId,
         guestName: guestName.trim(),
+        guestEmail: finalUserEmail, // Add guestEmail for consistent naming
         audioUrl,
         message: message.trim() || undefined,
         unlockDate: unlockDate || undefined,
@@ -283,6 +284,7 @@ export default function VoiceMemoUpload({
         duration,
         userEmail: finalUserEmail, // Required for auth
         userName: finalUserName, // Use centralized auth data
+        userProfileImageUrl: userProfile?.profileImageUrl || '', // Add profile image URL
         isUnlocked: !unlockDate, // If no unlock date, it's immediately unlocked
         createdAt: serverTimestamp()
       };
