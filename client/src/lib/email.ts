@@ -168,6 +168,17 @@ export async function testEmailSystem() {
 
   } catch (error) {
     console.error('❌ Errore test email:', error);
+    
+    // In sviluppo, Firebase Functions non sono disponibili
+    if (error.code === 'functions/internal') {
+      console.log('ℹ️ Firebase Functions non disponibili in sviluppo - test simulato');
+      return { 
+        success: false, 
+        message: 'Firebase Functions non disponibili in ambiente di sviluppo',
+        developmentMode: true 
+      };
+    }
+    
     throw error;
   }
 }
