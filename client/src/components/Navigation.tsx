@@ -2,9 +2,14 @@ import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useStudio } from "../context/StudioContext";
 import { useFirebaseAuth } from "../context/FirebaseAuthContext";
-import { Menu, X, User } from "lucide-react";
+import { Menu, X, User, LogOut } from "lucide-react";
 import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
 import authService from "../services/authService";
+import { useLogout } from "../hooks/useLogout";
+import { useUserInfo } from "../hooks/useUserInfo";
+import { useIsAdmin } from "../hooks/useIsAdmin";
+import UserAvatar from "./UserAvatar";
+import { Button } from "@/components/ui/button";
 
 interface NavigationProps {
   isAdminNav?: boolean;
@@ -16,24 +21,9 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
   const [location, navigate] = useLocation();
   const { studioSettings } = useStudio();
   const { isAuthenticated, user, userProfile } = useFirebaseAuth();
-
-  // Implementazione sicura per i metodi di autenticazione
-  // Usando valori predefiniti per evitare errori quando il provider non è disponibile
-  const currentUser = null;
-  const signOut = async () => {
-    // Implementazione predefinita sicura
-    localStorage.removeItem('isAdmin');
-    navigate("/admin");
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate("/");
-    } catch (error) {
-
-    }
-  };
+  const { handleLogout } = useLogout();
+  const userInfo = useUserInfo();
+  const isAdmin = useIsAdmin();
 
   // Admin navigation bar
   if (isAdminNav) {
@@ -56,7 +46,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
             </div>
             <div className="flex items-center">
               <button 
-                onClick={handleSignOut}
+                onClick={handleLogout}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-gray bg-opacity-20 hover:bg-opacity-30"
               >
                 Esci
@@ -89,56 +79,45 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                 )}
               </Link>
             </div>
-            <div className="ml-4 flex items-center md:ml-6">
+            <div className="ml-4 flex items-center md:ml-6 gap-4">
               <span className="px-4 py-2 rounded-md text-blue-gray bg-light-mint font-medium">
                 Galleria di <span>{galleryOwner}</span>
               </span>
-              <button 
-                className="ml-4 btn-primary px-4 py-2"
-                onClick={async () => {
-                  try {
-                    // Firebase logout
-                    await authService.logout();
-
-                    // Clear all authentication data from localStorage
-                    const keys = Object.keys(localStorage);
-                    keys.forEach(key => {
-                      if (key.startsWith('gallery_auth_') || 
-                          key.startsWith('user_email_') || 
-                          key.startsWith('user_name_') ||
-                          key === 'userEmail' ||
-                          key === 'userName' ||
-                          key === 'isAdmin') {
-                        localStorage.removeItem(key);
-                      }
-                    });
-
-                    // Navigate to home page with clean state
-                    const homeUrl = createUrl("/");
-                    // console.log("Logout navigation URL:", homeUrl); // Debug disabilitato
-                    navigate(homeUrl);
-                  } catch (error) {
-                    console.error("Logout error:", error);
-                    // Fallback: still clear localStorage and navigate
-                    const keys = Object.keys(localStorage);
-                    keys.forEach(key => {
-                      if (key.startsWith('gallery_auth_') || 
-                          key.startsWith('user_email_') || 
-                          key.startsWith('user_name_') ||
-                          key === 'userEmail' ||
-                          key === 'userName' ||
-                          key === 'isAdmin') {
-                        localStorage.removeItem(key);
-                      }
-                    });
-                    const fallbackUrl = createUrl("/");
-                    // console.log("Fallback logout navigation URL:", fallbackUrl); // Debug disabilitato
-                    navigate(fallbackUrl);
-                  }
-                }}
-              >
-                Logout
-              </button>
+              
+              {/* Sezione utente con avatar, profilo e logout */}
+              {userInfo.isAuthenticated && userInfo.email && (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <UserAvatar 
+                      userEmail={userInfo.email}
+                      userName={userInfo.displayName}
+                      userProfileImageUrl={userInfo.profileImageUrl}
+                      size="sm"
+                    />
+                    <span className="text-sm font-medium hidden lg:block text-blue-gray">
+                      {userInfo.displayName || 'Ospite'}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate(createUrl("/profile"))}
+                    className="text-blue-gray hover:text-sage"
+                  >
+                    <User className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-2">Profilo</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="text-blue-gray hover:text-sage"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-2">Esci</span>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -173,20 +152,47 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
               </Link>
               <a href="#about" className="font-medium text-blue-gray hover:text-dark-sage transition">Come Funziona</a>
               <a href="#contact" className="font-medium text-blue-gray hover:text-dark-sage transition">Contatti</a>
+              
+              {/* Sezione utente e admin */}
               <div className="hidden md:flex md:items-center md:ml-6 space-x-4">
-            {isAuthenticated && user && (
-              <a
-                href={createUrl("/profile")}
-                className="text-blue-gray hover:text-dark-sage px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-              >
-                <User className="h-4 w-4" />
-                {userProfile?.displayName || user.displayName || 'Profilo'}
-              </a>
-            )}
-            <Link to={createUrl("/admin")} className="px-4 py-2 rounded-md text-off-white bg-blue-gray hover:bg-dark-sage transition">
-                Admin
-              </Link>
-          </div>
+                {userInfo.isAuthenticated && userInfo.email ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <UserAvatar 
+                        userEmail={userInfo.email}
+                        userName={userInfo.displayName}
+                        userProfileImageUrl={userInfo.profileImageUrl}
+                        size="sm"
+                      />
+                      <span className="text-sm font-medium text-blue-gray">
+                        {userInfo.displayName || 'Ospite'}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(createUrl("/profile"))}
+                      className="text-blue-gray hover:text-dark-sage"
+                    >
+                      <User className="h-4 w-4" />
+                      <span className="ml-2">Profilo</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleLogout}
+                      className="text-blue-gray hover:text-dark-sage"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span className="ml-2">Esci</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <Link to={createUrl("/admin")} className="px-4 py-2 rounded-md text-off-white bg-blue-gray hover:bg-dark-sage transition">
+                    Admin
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
           <div className="md:hidden flex items-center">
@@ -210,19 +216,44 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
           </Link>
           <a href="#about" className="block px-3 py-2 text-base font-medium text-blue-gray">Come Funziona</a>
           <a href="#contact" className="block px-3 py-2 text-base font-medium text-blue-gray">Contatti</a>
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {isAuthenticated && user && (
-              <a
-                href={createUrl("/profile")}
-                className="block px-3 py-2 text-base font-medium text-blue-gray"
-              >
-                <User className="h-4 w-4" />
-                {userProfile?.displayName || user.displayName || 'Il Mio Profilo'}
-              </a>
-            )}
+          
+          {/* Sezione utente mobile */}
+          {userInfo.isAuthenticated && userInfo.email ? (
+            <div className="border-t border-gray-200 pt-4 pb-3">
+              <div className="flex items-center px-5">
+                <UserAvatar 
+                  userEmail={userInfo.email}
+                  userName={userInfo.displayName}
+                  userProfileImageUrl={userInfo.profileImageUrl}
+                  size="md"
+                />
+                <div className="ml-3">
+                  <div className="text-base font-medium text-blue-gray">{userInfo.displayName || 'Ospite'}</div>
+                  <div className="text-sm font-medium text-gray-500">{userInfo.email}</div>
+                </div>
+              </div>
+              <div className="mt-3 px-2 space-y-1">
+                <Link
+                  to={createUrl("/profile")}
+                  className="block px-3 py-2 rounded-md text-base font-medium text-blue-gray hover:bg-gray-50"
+                >
+                  <User className="h-4 w-4 inline mr-2" />
+                  Il Mio Profilo
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-blue-gray hover:bg-gray-50"
+                >
+                  <LogOut className="h-4 w-4 inline mr-2" />
+                  Esci
+                </button>
+              </div>
+            </div>
+          ) : (
             <Link to={createUrl("/admin")} className="block px-3 py-2 text-base font-medium text-blue-gray">
               Admin
             </Link>
+          )}
           </div>
         </div>
       </div>
