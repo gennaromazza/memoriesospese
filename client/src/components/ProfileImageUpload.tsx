@@ -211,7 +211,7 @@ export default function ProfileImageUpload({
               size="lg"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="flex-1 bg-gradient-to-r from-sage-500 to-blue-gray-500 hover:from-sage-600 hover:to-blue-gray-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 hover:-translate-y-1"
+              className="flex-1 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 hover:from-blue-700 hover:via-purple-700 hover:to-blue-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 hover:-translate-y-1 ring-2 ring-blue-300 hover:ring-blue-400"
             >
               <div className="flex items-center gap-3">
                 <ImageIcon className="w-5 h-5" />
