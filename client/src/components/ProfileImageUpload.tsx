@@ -140,7 +140,7 @@ export default function ProfileImageUpload({
     setIsUploading(true);
 
     try {
-      await ProfileImageService.deleteProfileImage(userId, currentImageUrl);
+      await ProfileImageService.deleteProfileImage(finalUserId!, currentImageUrl);
       if (onImageUpdated) {
         onImageUpdated("");
       }
