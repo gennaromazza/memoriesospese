@@ -66,11 +66,20 @@ export default function UserProfile() {
   }, [user]);
 
   // Handler per aggiornamento immagine profilo
-  const handleProfileImageUpdate = (newImageUrl: string) => {
-    setProfileData(prev => ({
-      ...prev,
-      profileImageUrl: newImageUrl
-    }));
+  const handleProfileImageUpdate = async (newImageUrl: string) => {
+    try {
+      setProfileData(prev => ({
+        ...prev,
+        profileImageUrl: newImageUrl
+      }));
+      
+      // Refresh user profile data in context
+      await refreshUserProfile();
+      
+      console.log('Profile image updated successfully');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
   };
 
   // Redirect if not authenticated

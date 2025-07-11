@@ -29,7 +29,9 @@ export class ProfileImageService {
       const downloadURL = await getDownloadURL(snapshot.ref);
 
       // Aggiorna profilo utente con nuova immagine
+      console.log('Attempting to update profile image for user:', userId, 'with URL:', downloadURL);
       await AuthService.updateProfileImage(userId, downloadURL);
+      console.log('Profile image updated successfully');
 
       return downloadURL;
     } catch (error) {
