@@ -22,7 +22,7 @@ import {
   DocumentReference
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { logger } from '@/shared/logger';
+import { logger } from '@shared/logger';
 
 // Tipi per le operazioni API
 export interface GalleryData {
