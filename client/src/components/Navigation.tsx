@@ -14,9 +14,10 @@ import { Button } from "@/components/ui/button";
 interface NavigationProps {
   isAdminNav?: boolean;
   galleryOwner?: string;
+  galleryCode?: string;
 }
 
-export default function Navigation({ isAdminNav = false, galleryOwner }: NavigationProps) {
+export default function Navigation({ isAdminNav = false, galleryOwner, galleryCode }: NavigationProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [location, navigate] = useLocation();
   const { studioSettings } = useStudio();
@@ -83,6 +84,31 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
               <span className="px-4 py-2 rounded-md text-blue-gray bg-light-mint font-medium">
                 Galleria di <span>{galleryOwner}</span>
               </span>
+              
+              {/* Pulsante Pannello Admin per amministratori */}
+              {isAdmin && (
+                <Button
+                  onClick={() => {
+                    // Salva le informazioni della galleria corrente nel sessionStorage
+                    if (galleryOwner) {
+                      sessionStorage.setItem('adminReferrerGallery', JSON.stringify({
+                        name: galleryOwner,
+                        code: galleryCode,
+                        from: 'gallery'
+                      }));
+                    }
+                    navigate(createUrl("/admin/dashboard"));
+                  }}
+                  className="bg-blue-gray hover:bg-dark-sage text-white"
+                  size="sm"
+                >
+                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="hidden sm:inline">Pannello Admin</span>
+                </Button>
+              )}
               
               {/* Sezione utente con avatar, profilo e logout */}
               {userInfo.isAuthenticated && userInfo.email && (
@@ -157,6 +183,20 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
               <div className="hidden md:flex md:items-center md:ml-6 space-x-4">
                 {userInfo.isAuthenticated && userInfo.email ? (
                   <div className="flex items-center gap-3">
+                    {/* Pulsante Pannello Admin per amministratori */}
+                    {isAdmin && (
+                      <Button
+                        onClick={() => navigate(createUrl("/admin/dashboard"))}
+                        className="bg-blue-gray hover:bg-dark-sage text-white"
+                        size="sm"
+                      >
+                        <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Pannello Admin
+                      </Button>
+                    )}
                     <div className="flex items-center gap-2">
                       <UserAvatar 
                         userEmail={userInfo.email}
@@ -233,6 +273,30 @@ export default function Navigation({ isAdminNav = false, galleryOwner }: Navigat
                 </div>
               </div>
               <div className="mt-3 px-2 space-y-1">
+                {/* Pulsante Pannello Admin per amministratori mobile */}
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      // Salva le informazioni della galleria corrente nel sessionStorage per mobile
+                      if (galleryOwner) {
+                        sessionStorage.setItem('adminReferrerGallery', JSON.stringify({
+                          name: galleryOwner,
+                          code: galleryCode,
+                          from: 'gallery'
+                        }));
+                      }
+                      navigate(createUrl("/admin/dashboard"));
+                      setIsMenuOpen(false);
+                    }}
+                    className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-white bg-blue-gray hover:bg-dark-sage"
+                  >
+                    <svg className="h-4 w-4 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Pannello Admin
+                  </button>
+                )}
                 <Link
                   to={createUrl("/profile")}
                   className="block px-3 py-2 rounded-md text-base font-medium text-blue-gray hover:bg-gray-50"
