@@ -180,7 +180,9 @@ export default function InteractionPanel({
 
       const commentId = await CommentService.addComment({
         galleryId, 
-        photoId: itemId, 
+        itemId: itemId,
+        itemType: itemType,
+        photoId: itemId, // backward compatibility
         userId: user.uid, 
         userEmail: finalUserEmail, 
         userName: finalUserName,
