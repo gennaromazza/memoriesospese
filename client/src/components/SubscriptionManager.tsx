@@ -93,69 +93,73 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
 
   if (isSubscribed) {
     return (
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
-          <CardTitle className="text-green-700">Iscrizione Completata!</CardTitle>
-          <CardDescription>
-            Riceverai notifiche email quando verranno aggiunte nuove foto
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+        <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-green-800">Notifiche attive</p>
+          <p className="text-xs text-green-600">Riceverai email per nuove foto</p>
+        </div>
+        <Button 
+          type="button" 
+          variant="ghost"
+          size="sm"
+          onClick={handleTestEmail}
+          disabled={isLoading}
+          title="Test configurazione email"
+          className="text-green-600 hover:text-green-800 hover:bg-green-100"
+        >
+          🧪
+        </Button>
+      </div>
     );
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="w-5 h-5" />
-          Notifiche Email
-        </CardTitle>
-        <CardDescription>
-          Iscriviti per ricevere una notifica quando vengono aggiunte nuove foto a "{galleryName}"
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubscribe} className="space-y-4">
-          <div className="space-y-2">
-            <Input
-              type="email"
-              placeholder="Inserisci la tua email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Button 
-              type="submit" 
-              className="flex-1"
-              disabled={isLoading}
-            >
-              <Mail className="w-4 h-4 mr-2" />
-              {isLoading ? 'Iscrizione...' : 'Iscriviti alle Notifiche'}
-            </Button>
-
-            <Button 
-              type="button" 
-              variant="outline"
-              onClick={handleTestEmail}
-              disabled={isLoading}
-              title="Test configurazione email"
-            >
-              🧪
-            </Button>
-          </div>
-        </form>
-
-        <p className="text-xs text-gray-500 mt-4 text-center">
-          📧 Powered by Brevo SMTP • Firebase Functions
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Bell className="w-4 h-4 text-gray-600" />
+        <h3 className="text-sm font-medium text-gray-900">Notifiche Email</h3>
+      </div>
+      
+      <form onSubmit={handleSubscribe} className="space-y-3">
+        <div className="flex gap-2">
+          <Input
+            type="email"
+            placeholder="La tua email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={isLoading}
+            required
+            className="flex-1 text-sm"
+          />
+          <Button 
+            type="submit" 
+            disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4"
+          >
+            {isLoading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <Mail className="w-4 h-4" />
+            )}
+          </Button>
+          <Button 
+            type="button" 
+            variant="outline"
+            onClick={handleTestEmail}
+            disabled={isLoading}
+            title="Test configurazione email"
+            className="px-3"
+          >
+            🧪
+          </Button>
+        </div>
+        
+        <p className="text-xs text-gray-500">
+          Ricevi notifiche per nuove foto di "{galleryName}"
         </p>
-      </CardContent>
-    </Card>
+      </form>
+    </div>
   );
 }
 
