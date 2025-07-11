@@ -32,6 +32,14 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 11 Luglio 2025 - FIX SISTEMA LIKE E TOP FOTO COMPLETATO ✅
+- ✅ **PROBLEMA IDENTIFICATO**: getTopLikedPhotos cercava campo 'likes' nelle foto invece di contare la collezione 'likes'
+- ✅ **SISTEMA LIKE CORRETTO**: I like sono salvati in collezione separata 'likes' con struttura {photoId, userId, userEmail}
+- ✅ **CONTEGGIO LIKE IMPLEMENTATO**: Funzione ora conta correttamente i documenti nella collezione likes per ogni foto
+- ✅ **TOP FOTO FUNZIONANTE**: Pannello sociale ora mostra correttamente le foto ordinate per numero di like
+- ✅ **NAVIGAZIONE ADMIN MIGLIORATA**: Aggiunto codice galleria per permettere ritorno rapido dalla dashboard admin
+- → **RISULTATO**: Sistema like e visualizzazione top foto completamente funzionante
+
 ### 11 Luglio 2025 - SISTEMA GESTIONE UTENTI ADMIN COMPLETATO ✅
 - ✅ **AZIONI ADMIN COMPLETE**: Aggiunto menu dropdown con azioni multiple per ogni utente
 - ✅ **MODIFICA UTENTI**: Admin può modificare nome e ruolo (admin/user/guest) di ogni utente
