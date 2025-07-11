@@ -88,7 +88,7 @@ export async function notifyNewPhotos(galleryId: string, galleryName: string, up
         recipients: subscribers,
         status: 'pending',
         createdAt: new Date(),
-        error: error.message
+        error: error instanceof Error ? error.message : 'Errore sconosciuto'
       };
       await addDoc(notificationQueue, queueData);
       return { success: true, notified: 0, method: 'queued_after_functions_error' };
@@ -96,7 +96,7 @@ export async function notifyNewPhotos(galleryId: string, galleryName: string, up
 
   } catch (error) {
     console.error('❌ Errore invio notifiche:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : 'Errore sconosciuto' };
   }
 }
 
@@ -135,7 +135,7 @@ export async function subscribeToGallery(galleryId: string, galleryName: string,
     // 3. Invia email di benvenuto (con gestione errori robusta)
     Promise.resolve().then(async () => {
       try {
-        await sendWelcomeEmail(email, galleryName);
+        await EmailService.sendWelcomeEmail(email, galleryName);
         console.log(`✅ Email di benvenuto inviata a ${email}`);
       } catch (emailError) {
         console.warn('⚠️ Email di benvenuto non inviata (Firebase Functions non disponibili)');
@@ -150,7 +150,7 @@ export async function subscribeToGallery(galleryId: string, galleryName: string,
 
   } catch (error) {
     console.error('❌ Errore iscrizione:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : 'Errore sconosciuto' };
   }
 }
 
@@ -170,7 +170,7 @@ export async function testEmailSystem() {
     console.error('❌ Errore test email:', error);
     
     // In sviluppo, Firebase Functions non sono disponibili
-    if (error.code === 'functions/internal') {
+    if (error instanceof Error && 'code' in error && (error as any).code === 'functions/internal') {
       console.log('ℹ️ Firebase Functions non disponibili in sviluppo - test simulato');
       return { 
         success: false, 

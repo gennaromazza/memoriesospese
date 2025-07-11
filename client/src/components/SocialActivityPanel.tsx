@@ -401,7 +401,7 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                                 </p>
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                                    {comment.photoId ? 'Foto' : 'Galleria'}
+                                    {comment.itemId ? 'Foto' : 'Galleria'}
                                   </Badge>
                                 </div>
                               </div>
@@ -674,9 +674,15 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
     {showAuthDialog && (
       <UnifiedAuthDialog
         isOpen={showAuthDialog}
-        onClose={() => setShowAuthDialog(false)}
+        onOpenChange={(open) => setShowAuthDialog(open)}
         galleryId={galleryId}
-        redirectPath={window.location.pathname}
+        onAuthComplete={() => {
+          setShowAuthDialog(false);
+          // Refresh data after auth
+          fetchRecentComments();
+          fetchTopPhotos();
+          fetchRecentVoiceMemos();
+        }}
       />
     )}
     </>

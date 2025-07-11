@@ -141,7 +141,9 @@ export default function ProfileImageUpload({
 
     try {
       await ProfileImageService.deleteProfileImage(userId, currentImageUrl);
-      onImageUpdated("");
+      if (onImageUpdated) {
+        onImageUpdated("");
+      }
 
       toast({
         title: "Immagine rimossa",
@@ -182,11 +184,13 @@ export default function ProfileImageUpload({
                 />
                 <AvatarFallback className="bg-gradient-to-br from-sage-600 to-blue-gray-600 text-white text-3xl font-bold">
                   {displayName
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()
-                    .slice(0, 2)}
+                    ? displayName
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2)
+                    : "U"}
                 </AvatarFallback>
               </Avatar>
 
