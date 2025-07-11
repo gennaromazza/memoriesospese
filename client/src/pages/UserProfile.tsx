@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { useToast } from '../hooks/use-toast';
-import { useAuth } from '../hooks/useAuth';
+import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import Navigation from '../components/Navigation';
 import { 
   User, 
@@ -30,7 +30,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export default function UserProfile() {
-  const { user, userProfile, isAuthenticated, logout, refreshUserProfile } = useAuth();
+  const { user, isAuthenticated, logout } = useFirebaseAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -54,13 +54,13 @@ export default function UserProfile() {
 
   // Initialize form data when user data is available
   useEffect(() => {
-    if (user && userProfile) {
+    if (user) {
       setProfileData({
-        displayName: userProfile.displayName || user.displayName || '',
+        displayName: user.displayName || '',
         email: user.email || ''
       });
     }
-  }, [user, userProfile]);
+  }, [user]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -417,8 +417,8 @@ export default function UserProfile() {
                   <p className="font-medium text-sm">Tipo Account</p>
                   <p className="text-xs text-gray-600">Il tuo ruolo nel sistema</p>
                 </div>
-                <Badge variant={userProfile?.role === 'admin' ? 'default' : 'secondary'}>
-                  {userProfile?.role === 'admin' ? 'Amministratore' : 'Ospite'}
+                <Badge variant="secondary">
+                  Ospite
                 </Badge>
               </div>
               
@@ -428,8 +428,8 @@ export default function UserProfile() {
                   <p className="text-xs text-gray-600">Data di registrazione</p>
                 </div>
                 <p className="text-sm font-medium">
-                  {userProfile?.createdAt ? 
-                    new Date(userProfile.createdAt.seconds * 1000).toLocaleDateString('it-IT') : 
+                  {user?.metadata?.creationTime ? 
+                    new Date(user.metadata.creationTime).toLocaleDateString('it-IT') : 
                     'N/A'
                   }
                 </p>
@@ -441,7 +441,7 @@ export default function UserProfile() {
                   <p className="text-xs text-gray-600">Numero di gallerie a cui hai accesso</p>
                 </div>
                 <Badge variant="outline">
-                  {userProfile?.galleryAccess?.length || 0}
+                  0
                 </Badge>
               </div>
 
@@ -451,8 +451,8 @@ export default function UserProfile() {
                   <p className="text-xs text-gray-600">Ultima volta online</p>
                 </div>
                 <p className="text-sm font-medium">
-                  {userProfile?.lastLoginAt ? 
-                    new Date(userProfile.lastLoginAt.seconds * 1000).toLocaleDateString('it-IT') : 
+                  {user?.metadata?.lastSignInTime ? 
+                    new Date(user.metadata.lastSignInTime).toLocaleDateString('it-IT') : 
                     'N/A'
                   }
                 </p>
