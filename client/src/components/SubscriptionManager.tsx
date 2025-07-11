@@ -68,7 +68,7 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
     try {
       const result = await testEmailSystem();
       
-      if (result.developmentMode) {
+      if (result && typeof result === 'object' && 'developmentMode' in result && result.developmentMode) {
         toast({
           title: "ℹ️ Ambiente di sviluppo",
           description: "Firebase Functions non disponibili. In produzione il sistema email funziona correttamente.",

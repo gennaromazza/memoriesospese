@@ -139,9 +139,7 @@ export default function UnifiedAuthDialog({
         registerData.email.trim(),
         registerData.password,
         registerData.displayName.trim(),
-        'guest',
         galleryId
-
       );
       
       toast({

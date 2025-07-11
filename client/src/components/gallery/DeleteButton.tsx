@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Loader2 } from 'lucide-react';
 import { db, storage } from '@/lib/firebase';
 import { doc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle } from 'lucide-react';
 
 interface DeleteButtonProps {
   photoId: string;
@@ -98,7 +97,7 @@ export default function DeleteButton({ photoId, photoName, galleryId, onPhotoDel
       title="Elimina foto"
     >
       {isDeleting ? (
-        <LoaderCircle className="h-3 w-3 animate-spin" />
+        <Loader2 className="h-3 w-3 animate-spin" />
       ) : (
         <Trash2 className="h-3 w-3" />
       )}
