@@ -3,7 +3,7 @@
  * Sostituisce il doppio sistema di autenticazione esistente
  */
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
 import { AuthService, UserProfile } from '../lib/auth';
 

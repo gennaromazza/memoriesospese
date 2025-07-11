@@ -1,3 +1,4 @@
+import React, { useEffect } from "react";
 import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,7 +8,6 @@ import { FirebaseAuthProvider } from "./context/FirebaseAuthContext";
 import { StudioProvider } from "./context/StudioContext";
 import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
-import { useEffect } from "react";
 import { ErrorBoundary, GalleryErrorBoundary, AdminErrorBoundary } from "./components/ErrorBoundary";
 
 import Home from "./pages/Home";

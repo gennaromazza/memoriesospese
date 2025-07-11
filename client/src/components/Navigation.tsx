@@ -1,9 +1,9 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useStudio } from "../context/StudioContext";
 import { useFirebaseAuth } from "../context/FirebaseAuthContext";
 import { Menu, X, User } from "lucide-react";
-import { createUrl, createAbsoluteUrl } from "../lib/basePath";
+import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
 import authService from "../services/authService";
 
 interface NavigationProps {

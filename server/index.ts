@@ -16,7 +16,7 @@ async function startServer() {
         port: 5000,
         host: '0.0.0.0',
         open: false,
-        allowedHosts: 'all'
+        allowedHosts: ['all', '.replit.dev']
       },
       root: path.resolve(process.cwd(), 'client'),
       base: process.env.VITE_BASE_PATH || '/',

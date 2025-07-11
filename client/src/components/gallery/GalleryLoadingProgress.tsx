@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { Progress } from "../ui/progress";
-import { createUrl } from "../lib/basePath";
+import { createUrl } from "@/lib/basePath";
 
 interface GalleryLoadingProgressProps {
   totalPhotos: number;
