@@ -182,7 +182,6 @@ export default function InteractionPanel({
         galleryId, 
         itemId: itemId,
         itemType: itemType,
-        photoId: itemId, // backward compatibility
         userId: user.uid, 
         userEmail: finalUserEmail, 
         userName: finalUserName,
