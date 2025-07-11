@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { VoiceMemo } from '@shared/schema';
 import InteractionWrapper from './InteractionWrapper';
+import UserAvatar from './UserAvatar';
 
 interface VoiceMemoPlayerProps {
   memo: VoiceMemo;
@@ -214,8 +215,16 @@ export default function VoiceMemoPlayer({
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                <Lock className="h-5 w-5 text-gray-500" />
+              <div className="relative">
+                <UserAvatar
+                  userEmail={memo.guestEmail}
+                  userName={memo.guestName}
+                  userProfileImageUrl={memo.userProfileImageUrl}
+                  size="md"
+                />
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                  <Lock className="h-3 w-3 text-white" />
+                </div>
               </div>
               <div>
                 <p className="font-medium text-gray-700">{memo.guestName}</p>
@@ -241,9 +250,12 @@ export default function VoiceMemoPlayer({
           {/* Header with guest info */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-sage-500 to-blue-gray-500 rounded-full flex items-center justify-center">
-                <User className="h-5 w-5 sm:h-6 sm:w-6 text-[#707d6e]" />
-              </div>
+              <UserAvatar
+                userEmail={memo.guestEmail}
+                userName={memo.guestName}
+                userProfileImageUrl={memo.userProfileImageUrl}
+                size="md"
+              />
               <div>
                 <p className="font-medium text-gray-900 text-sm sm:text-base">{memo.guestName}</p>
                 <p className="text-xs sm:text-sm text-gray-500">

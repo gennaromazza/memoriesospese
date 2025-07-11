@@ -15,10 +15,12 @@ import {
   RefreshCw,
   Heart,
   Clock,
-  AlertCircle
+  AlertCircle,
+  User
 } from 'lucide-react';
 import { VoiceMemo } from '@shared/schema';
 import VoiceMemoPlayer from './VoiceMemoPlayer';
+import UserAvatar from './UserAvatar';
 
 interface VoiceMemosListProps {
   galleryId: string;
