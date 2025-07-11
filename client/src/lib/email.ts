@@ -56,30 +56,14 @@ export async function notifyNewPhotos(galleryId: string, galleryName: string, up
     // 2. Crea URL galleria
     const galleryUrl = `${window.location.origin}/gallery/${galleryId}`;
 
-    // 3. Prova a chiamare Cloud Function per inviare email
-    try {
-      const result = await sendNewPhotosNotification({
-        galleryName,
-        newPhotosCount,
-        uploaderName,
-        galleryUrl,
-        recipients: subscribers
-      });
-
-      console.log(`✅ Notifiche inviate a ${subscribers.length} subscribers`);
-      return { 
-        success: true, 
-        notified: subscribers.length,
-        details: result.data 
-      };
-    } catch (emailError) {
-      console.warn('⚠️ Impossibile inviare notifiche email (Firebase Functions non configurate):', emailError);
-      return { 
-        success: true, 
-        notified: 0,
-        warning: 'Email notifications disabled - Firebase Functions not configured'
-      };
-    }
+    // 3. Notifiche email disabilitate temporaneamente
+    // TODO: Riattivare quando Firebase Functions saranno configurate
+    console.log(`📧 Notifiche email disabilitate per ${subscribers.length} subscribers (Firebase Functions non configurate)`);
+    return { 
+      success: true, 
+      notified: 0,
+      warning: 'Email notifications disabled - Firebase Functions not configured'
+    };
 
   } catch (error) {
     console.error('❌ Errore invio notifiche:', error);
@@ -104,6 +88,9 @@ export async function subscribeToGallery(galleryId: string, galleryName: string,
     });
 
     // 2. Prova a inviare email di benvenuto (opzionale)
+    // Disabilitato temporaneamente per evitare errori unhandled rejection
+    // TODO: Riattivare quando Firebase Functions saranno configurate
+    /*
     try {
       await sendWelcomeEmail({
         recipientEmail: email,
@@ -114,6 +101,8 @@ export async function subscribeToGallery(galleryId: string, galleryName: string,
       console.warn('⚠️ Impossibile inviare email di benvenuto (Firebase Functions non configurate):', emailError);
       // L'iscrizione è comunque riuscita, solo l'email non è stata inviata
     }
+    */
+    console.log('📧 Email di benvenuto disabilitata (Firebase Functions non configurate)');
 
     console.log(`✅ ${email} iscritto alle notifiche di "${galleryName}"`);
     return { success: true };
