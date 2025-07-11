@@ -76,7 +76,7 @@ export default function UserProfile() {
       // Refresh user profile data in context
       await refreshUserProfile();
       
-      console.log('Profile image updated successfully');
+      console.log('Profile image updated successfully in UI');
     } catch (error) {
       console.error('Error updating profile:', error);
     }

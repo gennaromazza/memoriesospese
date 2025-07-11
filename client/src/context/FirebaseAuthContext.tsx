@@ -102,11 +102,17 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
   const refreshUserProfile = async () => {
     if (user) {
       try {
+        console.log('Refreshing user profile for user:', user.uid);
         const profile = await AuthService.getUserProfile(user.uid);
+        console.log('Profile data retrieved:', profile);
         setUserProfile(profile);
+        console.log('Profile updated successfully in context');
       } catch (error) {
         console.error('Errore refresh profilo utente:', error);
+        throw error;
       }
+    } else {
+      console.warn('No user available for profile refresh');
     }
   };
 
