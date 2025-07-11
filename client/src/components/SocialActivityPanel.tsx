@@ -32,7 +32,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 
 interface PhotoStats {
   id: string;
@@ -107,7 +106,22 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       // Import Firebase functions directly
       const { getRecentComments } = await import('@/lib/comments');
       const data = await getRecentComments(galleryId, 8);
-      setRecentComments(data);
+      
+      // Map the comment structure to match the expected interface
+      const mappedComments = data.map(comment => ({
+        id: comment.id,
+        itemId: comment.photoId, // Map photoId to itemId
+        itemType: 'photo' as const,
+        galleryId: comment.galleryId,
+        userEmail: comment.userEmail,
+        userName: comment.userName,
+        userProfileImageUrl: comment.userProfileImageUrl,
+        content: comment.text, // Map text to content
+        text: comment.text, // Keep text for backward compatibility
+        createdAt: comment.createdAt
+      })) as Comment[];
+      
+      setRecentComments(mappedComments);
     } catch (error) {
       console.error('Error fetching recent comments:', error);
     }
@@ -361,8 +375,8 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                             key={comment.id} 
                             className="group p-2 rounded-lg hover:bg-gray-50 transition-all duration-200 cursor-pointer border border-transparent hover:border-gray-200"
                             onClick={() => {
-                              if (comment.photoId && onPhotoClick) {
-                                onPhotoClick(comment.photoId);
+                              if (comment.itemId && onPhotoClick) {
+                                onPhotoClick(comment.itemId);
                               }
                             }}
                           >
