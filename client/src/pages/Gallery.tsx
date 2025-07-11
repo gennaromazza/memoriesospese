@@ -412,25 +412,12 @@ export default function Gallery() {
                   {/* Azioni galleria - layout pulito e organizzato */}
                   <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                     <div className="flex flex-col lg:flex-row gap-4">
-                      {/* Sezione principale - notifiche e caricamento */}
-                      <div className="flex-1 space-y-3">
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <div className="flex-1">
-                            <SubscriptionManager 
-                              galleryId={gallery.id}
-                              galleryName={gallery.name}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <GuestUpload 
-                              galleryId={gallery.id}
-                              galleryName={gallery.name}
-                              onPhotosUploaded={() => {
-                                refreshPhotos();
-                              }}
-                            />
-                          </div>
-                        </div>
+                      {/* Sezione principale - solo notifiche */}
+                      <div className="flex-1">
+                        <SubscriptionManager 
+                          galleryId={gallery.id}
+                          galleryName={gallery.name}
+                        />
                       </div>
 
                       {/* Sezione utente - profilo e logout */}
