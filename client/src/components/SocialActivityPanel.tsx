@@ -205,8 +205,8 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                             key={comment.id} 
                             className="group p-2 rounded-lg hover:bg-gray-50 transition-all duration-200 cursor-pointer border border-transparent hover:border-gray-200"
                             onClick={() => {
-                              if (comment.itemType === 'photo' && onPhotoClick) {
-                                onPhotoClick(comment.itemId);
+                              if (comment.photoId && onPhotoClick) {
+                                onPhotoClick(comment.photoId);
                               }
                             }}
                           >
@@ -227,17 +227,12 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                                   </span>
                                 </div>
                                 <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-2">
-                                  {comment.content}
+                                  {(comment as any).text || comment.content || ''}
                                 </p>
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                                    {comment.itemType === 'photo' ? 'Foto' : 'Audio'}
+                                    {comment.photoId ? 'Foto' : 'Galleria'}
                                   </Badge>
-                                  {comment.itemType === 'photo' && (comment as any).photoName && (
-                                    <span className="text-xs text-gray-500 truncate">
-                                      su "{(comment as any).photoName}"
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                             </div>
