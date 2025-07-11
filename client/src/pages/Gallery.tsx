@@ -274,7 +274,7 @@ export default function Gallery() {
   return (
     <div className="min-h-screen bg-off-white">
 
-      <Navigation galleryOwner={gallery.name} />
+      <Navigation galleryOwner={gallery.name} galleryCode={id} />
 
       <div>
         {/* Intestazione galleria */}
