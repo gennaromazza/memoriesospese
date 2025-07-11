@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Download, Search, Calendar, Mail, UserCheck, Edit } from 'lucide-react';
+import { Users, Download, Search, Calendar, Mail, UserCheck, Edit, MoreVertical, Eye, Key, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { db, auth } from '@/lib/firebase';
+import { collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import * as XLSX from 'xlsx';
 
 interface UserData {
@@ -33,6 +36,8 @@ export default function UserManager() {
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', role: '' });
+  const [deleteUser, setDeleteUser] = useState<UserData | null>(null);
+  const [detailsUser, setDetailsUser] = useState<UserData | null>(null);
   const { toast } = useToast();
 
   const fetchUsers = async () => {
@@ -156,6 +161,59 @@ export default function UserManager() {
       toast({
         title: "Errore",
         description: "Impossibile salvare le modifiche",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleViewDetails = (user: UserData) => {
+    setDetailsUser(user);
+  };
+
+  const handleResetPassword = async (user: UserData) => {
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      toast({
+        title: "Email inviata",
+        description: `Email di reset password inviata a ${user.email}`,
+      });
+    } catch (error) {
+      console.error('Errore nel reset password:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile inviare l'email di reset password",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteUser = (user: UserData) => {
+    setDeleteUser(user);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteUser) return;
+
+    try {
+      // Elimina il documento utente
+      await deleteDoc(doc(db, 'users', deleteUser.id));
+
+      // Aggiorna la lista locale
+      const updatedUsers = users.filter(u => u.id !== deleteUser.id);
+      setUsers(updatedUsers);
+      setFilteredUsers(updatedUsers);
+
+      toast({
+        title: "Utente eliminato",
+        description: "L'utente è stato eliminato con successo",
+      });
+
+      setDeleteUser(null);
+    } catch (error) {
+      console.error('Errore nell\'eliminazione:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile eliminare l'utente",
         variant: "destructive",
       });
     }
@@ -323,8 +381,11 @@ export default function UserManager() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                          {user.role}
+                        <Badge 
+                          variant={user.role === 'admin' ? 'default' : user.role === 'user' ? 'secondary' : 'outline'}
+                          className={user.role === 'admin' ? 'bg-blue-600' : ''}
+                        >
+                          {user.role === 'admin' ? 'Amministratore' : user.role === 'user' ? 'Utente' : 'Ospite'}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -347,14 +408,42 @@ export default function UserManager() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditUser(user)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditUser(user)}
+                            className="h-8 w-8 p-0"
+                            title="Modifica utente"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewDetails(user)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Visualizza dettagli
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleResetPassword(user)}>
+                                <Key className="h-4 w-4 mr-2" />
+                                Reset password
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => handleDeleteUser(user)}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Elimina utente
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -427,6 +516,99 @@ export default function UserManager() {
                   disabled={!editForm.name}
                 >
                   Salva Modifiche
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog conferma eliminazione */}
+      <AlertDialog open={!!deleteUser} onOpenChange={() => setDeleteUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare l'utente <strong>{deleteUser?.name}</strong> ({deleteUser?.email})?
+              Questa azione non può essere annullata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteUser}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog dettagli utente */}
+      <Dialog open={!!detailsUser} onOpenChange={() => setDetailsUser(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Dettagli Utente</DialogTitle>
+          </DialogHeader>
+          {detailsUser && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-500">Nome</Label>
+                  <p className="font-medium">{detailsUser.name}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-500">Email</Label>
+                  <p className="font-medium">{detailsUser.email}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-500">Ruolo</Label>
+                  <Badge variant={detailsUser.role === 'admin' ? 'default' : 'secondary'}>
+                    {detailsUser.role}
+                  </Badge>
+                </div>
+                <div>
+                  <Label className="text-gray-500">ID Utente</Label>
+                  <p className="font-mono text-xs">{detailsUser.uid}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-500">Registrazione</Label>
+                  <p className="text-sm">{formatDate(detailsUser.createdAt)}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-500">Ultimo accesso</Label>
+                  <p className="text-sm">{formatDate(detailsUser.lastLoginAt)}</p>
+                </div>
+              </div>
+              
+              <div>
+                <Label className="text-gray-500">Gallerie associate ({detailsUser.galleries.length})</Label>
+                <div className="mt-2 max-h-32 overflow-y-auto">
+                  {detailsUser.galleries.length === 0 ? (
+                    <p className="text-sm text-gray-500">Nessuna galleria associata</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {detailsUser.galleries.map((galleryId, index) => (
+                        <Badge key={index} variant="outline" className="mr-2">
+                          {galleryId}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div>
+                  <p className="text-sm text-gray-500">Foto caricate</p>
+                  <p className="text-2xl font-bold text-blue-600">{detailsUser.photoCount || 0}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setDetailsUser(null)}
+                >
+                  Chiudi
                 </Button>
               </div>
             </div>
