@@ -217,7 +217,7 @@ export default function VoiceMemoPlayer({
             <div className="flex items-center gap-3">
               <div className="relative">
                 <UserAvatar
-                  userEmail={memo.guestEmail}
+                  userEmail={memo.userEmail}
                   userName={memo.guestName}
                   userProfileImageUrl={memo.userProfileImageUrl}
                   size="md"
@@ -251,7 +251,7 @@ export default function VoiceMemoPlayer({
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <UserAvatar
-                userEmail={memo.guestEmail}
+                userEmail={memo.userEmail}
                 userName={memo.guestName}
                 userProfileImageUrl={memo.userProfileImageUrl}
                 size="md"
