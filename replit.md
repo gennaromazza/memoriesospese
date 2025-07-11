@@ -32,6 +32,16 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 11 Luglio 2025 - SISTEMA GESTIONE UTENTI ADMIN COMPLETATO ✅
+- ✅ **AZIONI ADMIN COMPLETE**: Aggiunto menu dropdown con azioni multiple per ogni utente
+- ✅ **MODIFICA UTENTI**: Admin può modificare nome e ruolo (admin/user/guest) di ogni utente
+- ✅ **RESET PASSWORD**: Invio email di reset password direttamente dal pannello admin
+- ✅ **ELIMINA UTENTI**: Rimozione utenti con dialog di conferma per sicurezza
+- ✅ **VISUALIZZA DETTAGLI**: Dialog dettagliato con tutte le info utente, gallerie associate e foto caricate
+- ✅ **UI MIGLIORATA**: Badge colorati per ruoli, icone intuitive, azioni raggruppate in dropdown menu
+- ✅ **FEEDBACK UTENTE**: Toast notifications per ogni azione completata con successo o errore
+- → **RISULTATO**: Sistema completo di gestione utenti con tutte le funzionalità richieste da un admin
+
 ### 11 Luglio 2025 - CENTRALIZZAZIONE SISTEMA AUTENTICAZIONE E UI MIGLIORATA ✅
 - ✅ **HOOK CENTRALIZZATI CREATI**: Creati useLogout, useIsAdmin, useUserInfo per eliminare duplicazioni
 - ✅ **NAVIGATION MIGLIORATA**: Aggiunta sezione utente persistente con avatar, profilo e logout nella navbar
