@@ -31,7 +31,7 @@ import { db } from '../lib/firebase';
 import ProfileImageUpload from '../components/ProfileImageUpload';
 
 export default function UserProfile() {
-  const { user, isAuthenticated, logout, refreshUserProfile } = useFirebaseAuth();
+  const { user, userProfile, isAuthenticated, logout, refreshUserProfile } = useFirebaseAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
