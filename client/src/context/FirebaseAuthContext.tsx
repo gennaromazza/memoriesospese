@@ -13,11 +13,13 @@ interface FirebaseAuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  showProfileWelcome: boolean;
   login: (email: string, password: string, galleryId?: string) => Promise<User>;
   register: (email: string, password: string, displayName: string, galleryId?: string) => Promise<User>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshUserProfile: () => Promise<void>;
+  setShowProfileWelcome: (show: boolean) => void;
 }
 
 const FirebaseAuthContext = createContext<FirebaseAuthContextType | null>(null);
@@ -38,6 +40,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showProfileWelcome, setShowProfileWelcome] = useState(false);
 
   // Inizializza stato autenticazione
   useEffect(() => {
@@ -80,6 +83,12 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     setIsLoading(true);
     try {
       const user = await AuthService.registerUser(email, password, displayName, galleryId);
+      
+      // Show profile welcome modal for new users after a brief delay
+      setTimeout(() => {
+        setShowProfileWelcome(true);
+      }, 1500);
+      
       return user;
     } finally {
       setIsLoading(false);
@@ -122,11 +131,13 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     isLoading,
     isAuthenticated: !!user,
     isAdmin: AuthService.isCurrentUserAdmin(),
+    showProfileWelcome,
     login,
     register,
     logout,
     resetPassword,
-    refreshUserProfile
+    refreshUserProfile,
+    setShowProfileWelcome
   };
 
   return (

@@ -23,6 +23,7 @@ import UserProfile from "./pages/UserProfile";
 import NotFound from "./pages/not-found";
 import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
+import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
 
 
 // Hook per tracciare le visualizzazioni delle pagine
@@ -90,6 +91,10 @@ function App() {
                 <WouterRouter base={basePath}>
                   <Router />
                 </WouterRouter>
+                
+                {/* Profile Image Welcome Modal */}
+                <ProfileImageWelcomeProvider />
+                
                 {/* Debug components - solo in sviluppo */}
                 {import.meta.env.MODE === 'development' && (
                   <>

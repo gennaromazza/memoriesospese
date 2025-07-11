@@ -12,23 +12,34 @@ import { auth, storage, db } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 
 interface ProfileImageUploadProps {
-  userId: string;
+  userId?: string;
   currentImageUrl?: string;
-  displayName: string;
-  onImageUpdated: (newImageUrl: string) => void;
+  displayName?: string;
+  onImageUpdated?: (newImageUrl: string) => void;
+  onUploadComplete?: () => void;
+  compact?: boolean;
 }
 
 export default function ProfileImageUpload({
   userId,
   currentImageUrl,
   displayName,
-  onImageUpdated
+  onImageUpdated,
+  onUploadComplete,
+  compact = false
 }: ProfileImageUploadProps) {
+  const { user, userProfile, refreshUserProfile } = useFirebaseAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Use Firebase Auth data when available
+  const finalUserId = userId || user?.uid;
+  const finalDisplayName = displayName || userProfile?.displayName || user?.displayName || '';
+  const finalCurrentImageUrl = currentImageUrl || userProfile?.profileImageUrl;
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -66,18 +77,39 @@ export default function ProfileImageUpload({
   };
 
   const handleUpload = async (file: File) => {
+    if (!finalUserId) {
+      toast({
+        title: "Errore autenticazione",
+        description: "Devi essere autenticato per caricare un'immagine profilo",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsUploading(true);
 
     try {
-      const imageUrl = await ProfileImageService.uploadProfileImage(userId, file);
+      const imageUrl = await ProfileImageService.uploadProfileImage(finalUserId, file);
 
-      onImageUpdated(imageUrl);
+      // Update local callback if provided
+      if (onImageUpdated) {
+        onImageUpdated(imageUrl);
+      }
+      
+      // Refresh Firebase Auth context
+      await refreshUserProfile();
+      
       setPreviewUrl(null);
 
       toast({
         title: "Immagine profilo aggiornata",
         description: "La tua immagine profilo è stata caricata con successo"
       });
+
+      // Call completion callback if provided
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
     } catch (error) {
       console.error('Errore upload immagine profilo:', error);
       toast({
