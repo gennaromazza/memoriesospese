@@ -24,23 +24,26 @@ import { db, storage } from './firebase';
 export interface VoiceMemo {
   id: string;
   galleryId: string;
-  userId: string;
-  userEmail: string;
-  userName: string;
+  guestName: string;
+  userEmail?: string;
+  userProfileImageUrl?: string;
   audioUrl: string;
+  message?: string;
+  unlockDate?: string; // ISO string date
   fileName: string;
-  duration: number;
-  unlockAt: any;
+  fileSize: number;
+  duration?: number; // in seconds
   isUnlocked: boolean;
-  createdAt: any;
+  createdAt: any; // Firebase Timestamp
 }
 
 export interface VoiceMemoData {
   galleryId: string;
-  userId: string;
-  userEmail: string;
-  userName: string;
-  duration: number;
+  guestName: string;
+  userEmail?: string;
+  userProfileImageUrl?: string;
+  message?: string;
+  duration?: number;
   unlockDelayMinutes?: number;
 }
 
@@ -53,11 +56,11 @@ export class VoiceMemoService {
     memoData: VoiceMemoData
   ): Promise<string> {
     try {
-      const { galleryId, userId, userEmail, userName, duration, unlockDelayMinutes = 60 } = memoData;
+      const { galleryId, guestName, userEmail, userProfileImageUrl, message, duration, unlockDelayMinutes = 60 } = memoData;
 
       // Genera nome file unico
       const timestamp = Date.now();
-      const fileName = `voice-memos/${galleryId}/${timestamp}-${userId}.wav`;
+      const fileName = `voice-memos/${galleryId}/${timestamp}-${guestName}.wav`;
       
       // Upload audio to Firebase Storage
       const storageRef = ref(storage, fileName);
@@ -65,18 +68,20 @@ export class VoiceMemoService {
       const audioUrl = await getDownloadURL(storageRef);
 
       // Calcola tempo di sblocco
-      const unlockAt = new Date(Date.now() + unlockDelayMinutes * 60 * 1000);
+      const unlockDate = new Date(Date.now() + unlockDelayMinutes * 60 * 1000).toISOString();
 
       // Salva metadata in Firestore
       const docRef = await addDoc(collection(db, 'voiceMemos'), {
         galleryId,
-        userId,
+        guestName,
         userEmail,
-        userName,
+        userProfileImageUrl,
         audioUrl,
+        message,
+        unlockDate,
         fileName,
+        fileSize: audioBlob.size,
         duration,
-        unlockAt,
         isUnlocked: false,
         createdAt: serverTimestamp()
       });
@@ -110,7 +115,7 @@ export class VoiceMemoService {
         const memo = { id: doc.id, ...data } as VoiceMemo;
         
         // Controlla se dovrebbe essere sbloccato
-        if (!memo.isUnlocked && new Date() >= memo.unlockAt?.toDate()) {
+        if (!memo.isUnlocked && memo.unlockDate && new Date() >= new Date(memo.unlockDate)) {
           memo.isUnlocked = true;
           // Aggiorna in background
           this.updateUnlockStatus(memo.id).catch(console.error);
@@ -127,11 +132,11 @@ export class VoiceMemoService {
   /**
    * Ottieni voice memos per un utente
    */
-  static async getUserVoiceMemos(userId: string): Promise<VoiceMemo[]> {
+  static async getUserVoiceMemos(userEmail: string): Promise<VoiceMemo[]> {
     try {
       const memosQuery = query(
         collection(db, 'voiceMemos'),
-        where('userId', '==', userId),
+        where('userEmail', '==', userEmail),
         orderBy('createdAt', 'desc')
       );
       

@@ -153,6 +153,7 @@ export interface Comment {
   userName: string;
   userProfileImageUrl?: string;
   content: string;
+  text: string; // Alias for content for backward compatibility
   createdAt: any; // Firebase Timestamp
 }
 

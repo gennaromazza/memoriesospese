@@ -141,6 +141,7 @@ export default function UnifiedAuthDialog({
         registerData.displayName.trim(),
         'guest',
         galleryId
+
       );
       
       toast({
