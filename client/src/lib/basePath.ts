@@ -5,10 +5,11 @@
 
 /** Rileva automaticamente il base path dall'ambiente o fallback */
 function detectBasePath(): string {
-  // In produzione su Replit, usa sempre root path
-  if (import.meta.env.PROD) return "/";
+  // Priorità a VITE_BASE_PATH se definito (sia in dev che prod)
   if (import.meta.env.VITE_BASE_PATH) return import.meta.env.VITE_BASE_PATH;
+  // Fallback a BASE_URL di Vite
   if (import.meta.env.BASE_URL) return import.meta.env.BASE_URL;
+  // Default a root path
   return "/";
 }
 

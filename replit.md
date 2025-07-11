@@ -32,6 +32,15 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 11 Luglio 2025 - SISTEMA FILTRI GALLERIA E URL SHARING MIGLIORATI ✅
+- ✅ **FILTRI AVANZATI**: Aggiunto pannello filtri completo con date, orari e ordinamento
+- ✅ **UI FILTRI MIGLIORATA**: Sheet panel laterale con icona filtro, indicatore stato attivo
+- ✅ **BASE PATH DINAMICO**: Corretto sistema basePath per supportare sottocartelle in produzione
+- ✅ **URL SHARING ROBUSTO**: Link condivisione galleria funziona correttamente con sottocartelle
+- ✅ **ROUTER DINAMICO**: App.tsx usa VITE_BASE_PATH dinamicamente invece di hardcoded '/'
+- ✅ **TEST VALIDAZIONE**: Creati test automatici per verificare generazione URL corretta
+- → **RISULTATO**: Sistema filtri completo e URL sharing affidabile per deployment in sottocartelle
+
 ### 11 Luglio 2025 - PANNELLO SOCIALE INTERATTIVO COMPLETO ✅
 - ✅ **LIKE FOTO TOP**: Aggiunto pulsante like interattivo nel pannello "Foto Top" con animazioni
 - ✅ **COMMENTI FOTO TOP**: Aggiunto pulsante commenti che apre modal per aggiungere commenti
@@ -40,6 +49,7 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 - ✅ **AGGIORNAMENTO REAL-TIME**: Conteggi like/commenti aggiornati immediatamente dopo azione
 - ✅ **STATO LIKE PERSISTENTE**: Cuori pieni per foto già piaciute dall'utente corrente
 - ✅ **FIX CAMPI COMMENTI**: Corretto mapping da 'content' a 'text' per visualizzazione commenti recenti
+- ✅ **FIX FIREBASE FUNCTIONS**: Corretti nomi funzioni (isPhotoLikedByUser, toggleLike)
 - → **RISULTATO**: Pannello sociale completamente interattivo con like, commenti e autenticazione
 
 ### 11 Luglio 2025 - SISTEMA GESTIONE UTENTI ADMIN COMPLETATO ✅
