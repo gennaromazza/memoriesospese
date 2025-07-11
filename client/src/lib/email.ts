@@ -56,67 +56,26 @@ export async function notifyNewPhotos(galleryId: string, galleryName: string, up
     // 2. Crea URL galleria
     const galleryUrl = `${window.location.origin}/gallery/${galleryId}`;
 
-    // 3. Invia notifiche tramite Brevo API
+    // 3. Invia notifiche tramite Firebase Functions (Brevo già configurato)
     try {
-      const brevoApiKey = import.meta.env.VITE_BREVO_API_KEY;
-      if (!brevoApiKey) {
-        console.warn('⚠️ VITE_BREVO_API_KEY non configurata, salvo notifiche per processamento futuro');
-        // Fallback: salva in Firestore per processamento futuro
-        const notificationQueue = collection(db, 'emailQueue');
-        const queueData = {
-          type: 'new_photos_notification',
-          galleryId,
-          galleryName,
-          newPhotosCount,
-          uploaderName,
-          galleryUrl,
-          recipients: subscribers,
-          status: 'pending',
-          createdAt: new Date()
-        };
-        await addDoc(notificationQueue, queueData);
-        return { success: true, notified: 0, method: 'queued' };
-      }
-
-      // Invia tramite Brevo API
-      const emailData = {
-        sender: {
-          name: "Wedding Gallery",
-          email: "noreply@gennaromazzacane.it"
-        },
-        to: subscribers.map(email => ({ email })),
-        subject: `Nuove foto in "${galleryName}"`,
-        htmlContent: `
-          <h2>Nuove foto aggiunte alla galleria!</h2>
-          <p><strong>${uploaderName}</strong> ha aggiunto <strong>${newPhotosCount}</strong> nuove foto alla galleria <strong>"${galleryName}"</strong>.</p>
-          <p><a href="${galleryUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Vedi le foto</a></p>
-          <p>Grazie per essere iscritto alle notifiche!</p>
-        `
-      };
-
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api-key': brevoApiKey
-        },
-        body: JSON.stringify(emailData)
+      const result = await sendNewPhotosNotification({
+        galleryName,
+        newPhotosCount,
+        uploaderName,
+        galleryUrl,
+        recipients: subscribers
       });
 
-      if (response.ok) {
-        console.log(`✅ Notifiche inviate tramite Brevo a ${subscribers.length} subscribers`);
-        return { 
-          success: true, 
-          notified: subscribers.length,
-          method: 'brevo',
-          message: 'Notifiche inviate tramite Brevo'
-        };
-      } else {
-        throw new Error(`Brevo API error: ${response.status}`);
-      }
+      console.log(`✅ Notifiche inviate tramite Firebase Functions a ${subscribers.length} subscribers`);
+      return { 
+        success: true, 
+        notified: subscribers.length,
+        method: 'firebase_functions',
+        details: result.data 
+      };
 
     } catch (error) {
-      console.error('❌ Errore invio tramite Brevo:', error);
+      console.warn('⚠️ Firebase Functions non disponibili, salvo notifiche per processamento futuro:', error);
       // Fallback: salva in Firestore
       const notificationQueue = collection(db, 'emailQueue');
       const queueData = {
@@ -132,7 +91,7 @@ export async function notifyNewPhotos(galleryId: string, galleryName: string, up
         error: error.message
       };
       await addDoc(notificationQueue, queueData);
-      return { success: true, notified: 0, method: 'queued_after_error' };
+      return { success: true, notified: 0, method: 'queued_after_functions_error' };
     }
 
   } catch (error) {
@@ -157,46 +116,12 @@ export async function subscribeToGallery(galleryId: string, galleryName: string,
       lastNotified: null
     });
 
-    // 2. Invia email di benvenuto tramite Brevo
+    // 2. Invia email di benvenuto tramite Firebase Functions
     try {
-      const brevoApiKey = import.meta.env.VITE_BREVO_API_KEY;
-      if (brevoApiKey) {
-        const emailData = {
-          sender: {
-            name: "Wedding Gallery",
-            email: "noreply@gennaromazzacane.it"
-          },
-          to: [{ email: email }],
-          subject: `Benvenuto nella galleria "${galleryName}"`,
-          htmlContent: `
-            <h2>Benvenuto nella galleria "${galleryName}"!</h2>
-            <p>Grazie per esserti iscritto alle notifiche della galleria <strong>"${galleryName}"</strong>.</p>
-            <p>Riceverai una email ogni volta che verranno aggiunte nuove foto.</p>
-            <p>Grazie per far parte dei nostri momenti speciali!</p>
-            <hr>
-            <p><small>Se non vuoi più ricevere queste notifiche, puoi disiscriverti in qualsiasi momento.</small></p>
-          `
-        };
-
-        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'api-key': brevoApiKey
-          },
-          body: JSON.stringify(emailData)
-        });
-
-        if (response.ok) {
-          console.log(`✅ Email di benvenuto inviata tramite Brevo a ${email}`);
-        } else {
-          throw new Error(`Brevo API error: ${response.status}`);
-        }
-      } else {
-        console.warn('⚠️ VITE_BREVO_API_KEY non configurata per email di benvenuto');
-      }
+      const result = await sendWelcomeEmail(email, galleryName);
+      console.log(`✅ Email di benvenuto inviata tramite Firebase Functions a ${email}`);
     } catch (emailError) {
-      console.warn('⚠️ Impossibile inviare email di benvenuto tramite Brevo:', emailError);
+      console.warn('⚠️ Impossibile inviare email di benvenuto tramite Firebase Functions:', emailError);
       // L'iscrizione è comunque riuscita, solo l'email non è stata inviata
     }
 
