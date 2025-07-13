@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, ChangeEvent } from "react";
-import { doc, updateDoc, collection, getDocs, addDoc, serverTimestamp, where, query, deleteDoc } from "firebase/firestore";
+import { doc, updateDoc, collection, getDocs, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -15,6 +15,19 @@ import { UploadCloud, Image, Trash } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
 import { Progress } from "./ui/progress";
+
+interface PhotoData {
+  id: string;
+  name: string;
+  url: string;
+  contentType: string;
+  size: number;
+  createdAt: Timestamp;
+  galleryId: string;
+  uploaderEmail?: string;
+  uploaderName?: string;
+  uploaderRole?: string;
+}
 
 interface GalleryType {
   id: string;
@@ -47,12 +60,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("details");
-  const [photos, setPhotos] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<PhotoData[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: UploadProgressInfo}>({});
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [photoToDelete, setPhotoToDelete] = useState<any | null>(null);
+  const [photoToDelete, setPhotoToDelete] = useState<PhotoData | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -151,7 +164,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   };
   
   // Funzione per eliminare una foto sia da Firestore che da Storage
-  const deletePhoto = async (photoToDelete: any) => {
+  const deletePhoto = async (photoToDelete: PhotoData) => {
     if (!gallery) return;
     
     try {

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, where, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 
 interface SubscriptionData {
@@ -16,7 +16,7 @@ interface SubscriptionData {
   galleryId: string;
   galleryName: string;
   email: string;
-  createdAt: any;
+  createdAt: Timestamp;
   active: boolean;
 }
 
@@ -133,7 +133,7 @@ export default function SubscriptionsManager() {
     }
   };
 
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: Timestamp | null | undefined) => {
     if (!timestamp || !timestamp.toDate) return 'N/A';
     return timestamp.toDate().toLocaleDateString('it-IT', {
       day: '2-digit',

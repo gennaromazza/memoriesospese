@@ -5,6 +5,31 @@
 
 import { Chapter, PhotoWithChapter } from '@/components/ChaptersManager';
 
+// FileSystem API types
+interface FileSystemEntry {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+  fullPath: string;
+}
+
+interface FileSystemFileEntry extends FileSystemEntry {
+  isFile: true;
+  file(successCallback: (file: File) => void, errorCallback?: (error: Error) => void): void;
+}
+
+interface FileSystemDirectoryEntry extends FileSystemEntry {
+  isDirectory: true;
+  createReader(): FileSystemDirectoryReader;
+}
+
+interface FileSystemDirectoryReader {
+  readEntries(
+    successCallback: (entries: FileSystemEntry[]) => void,
+    errorCallback?: (error: Error) => void
+  ): void;
+}
+
 /**
  * Utilizza metodo semplificato per leggere file dalle DataTransferItems
  * e assegnarli alle cartelle corrette
@@ -27,8 +52,8 @@ export async function processFilesFromFolders(
   updateProgress(5, 'Analisi delle cartelle...', 0, 0);
   
   // Per prima cosa, analizziamo le cartelle e creiamo una mappa
-  const folderEntries: { entry: any, name: string }[] = [];
-  const fileEntries: { entry: any, folderName: string | null }[] = [];
+  const folderEntries: { entry: FileSystemDirectoryEntry, name: string }[] = [];
+  const fileEntries: { entry: FileSystemFileEntry, folderName: string | null }[] = [];
   
   // Identifica tutte le entry di cartelle e file
   for (let i = 0; i < items.length; i++) {
@@ -37,11 +62,11 @@ export async function processFilesFromFolders(
       const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
       if (entry) {
         if (entry.isDirectory) {
-          folderEntries.push({ entry, name: entry.name });
+          folderEntries.push({ entry: entry as FileSystemDirectoryEntry, name: entry.name });
           
         } else if (entry.isFile) {
           // I file nella radice non hanno una cartella
-          fileEntries.push({ entry, folderName: null });
+          fileEntries.push({ entry: entry as FileSystemFileEntry, folderName: null });
         }
       }
     }
@@ -78,19 +103,19 @@ export async function processFilesFromFolders(
   
   // Ora leggiamo i file da ogni cartella
   // Funzione per leggere tutti i file da una cartella
-  const readFilesFromDirectory = async (directoryEntry: any, folderName: string) => {
+  const readFilesFromDirectory = async (directoryEntry: FileSystemDirectoryEntry, folderName: string) => {
     const files: File[] = [];
     let filesToProcess = 0;
     let filesProcessed = 0;
     
     // Funzione ricorsiva per leggere una cartella e le sue sottocartelle
-    const readDirectory = async (entry: any): Promise<void> => {
+    const readDirectory = async (entry: FileSystemEntry): Promise<void> => {
       return new Promise((resolve) => {
-        const reader = entry.createReader();
+        const reader = (entry as FileSystemDirectoryEntry).createReader();
         
         // Legge i batch di entries
         const readNextBatch = () => {
-          reader.readEntries(async (entries: any[]) => {
+          reader.readEntries(async (entries: FileSystemEntry[]) => {
             if (entries.length === 0) {
               // Cartella completamente letta
               resolve();
@@ -108,7 +133,7 @@ export async function processFilesFromFolders(
                 
                 // Leggi il file
                 return new Promise<void>((resolveFile) => {
-                  entry.file((file: File) => {
+                  (entry as FileSystemFileEntry).file((file: File) => {
                     files.push(file);
                     filesProcessed++;
                     

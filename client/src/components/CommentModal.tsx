@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Comment } from '@shared/schema';
 import UserAvatar from './UserAvatar';
+import { Timestamp } from 'firebase/firestore';
 
 interface CommentModalProps {
   isOpen: boolean;
@@ -70,7 +71,7 @@ export default function CommentModal({
     setShowEmojiPicker(false);
   };
 
-  const formatDateTime = (timestamp: any): string => {
+  const formatDateTime = (timestamp: Timestamp | Date | string | number | null | undefined): string => {
     try {
       let date: Date;
 
