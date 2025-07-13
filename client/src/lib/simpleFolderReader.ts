@@ -133,7 +133,8 @@ export async function processFilesFromFolders(
                 
                 // Leggi il file
                 return new Promise<void>((resolveFile) => {
-                  (entry as FileSystemFileEntry).file((file: File) => {
+                  const fileEntry = entry as FileSystemFileEntry;
+                  fileEntry.file((file: File) => {
                     files.push(file);
                     filesProcessed++;
                     
@@ -213,7 +214,8 @@ export async function processFilesFromFolders(
       // È un file nella radice
       try {
         await new Promise<void>((resolve) => {
-          entry.file((file: File) => {
+          const fileEntry = entry as FileSystemFileEntry;
+          fileEntry.file((file: File) => {
             rootFiles.push(file);
             allFiles.push(file);
             totalProcessed++;
