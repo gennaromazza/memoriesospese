@@ -13,7 +13,7 @@ export function useIsAdmin(): boolean {
   
   const isAdmin = useMemo(() => {
     // Check multipli con priorità
-    return (
+    const result = (
       // Check localStorage per compatibilità con vecchio sistema
       localStorage.getItem('isAdmin') === 'true' ||
       // Check ruolo nel profilo Firebase
@@ -21,6 +21,8 @@ export function useIsAdmin(): boolean {
       // Check email nella lista admin
       (userProfile?.email && ADMIN_EMAILS.includes(userProfile.email))
     );
+    
+    return Boolean(result);
   }, [userProfile]);
   
   return isAdmin;

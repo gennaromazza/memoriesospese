@@ -10,14 +10,14 @@ import { processFilesFromFolders } from '@/lib/simpleFolderReader';
 
 // Extend File interface to include webkitRelativePath
 interface FileWithWebkitPath extends File {
-  webkitRelativePath?: string;
+  readonly webkitRelativePath: string;
 }
 
 // Define interfaces locally since they're not properly exported from ChaptersManager
 export interface Chapter {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   position: number;
 }
 
@@ -250,8 +250,8 @@ export default function FileUpload({
             
             // Notifica i capitoli estratti attraverso il callback
             onChaptersExtracted({
-              chapters: result.chapters,
-              photosWithChapters: result.photosWithChapters
+              chapters: result.chapters as ChapterData[],
+              photosWithChapters: result.photosWithChapters as unknown as PhotoWithChapterInfo[]
             });
             
             // Aggiorna lo stato
@@ -318,7 +318,10 @@ export default function FileUpload({
         };
         
         
-        onChaptersExtracted(manualResult);
+        onChaptersExtracted({
+          chapters: manualResult.chapters as ChapterData[],
+          photosWithChapters: manualResult.photosWithChapters as unknown as PhotoWithChapterInfo[]
+        });
         
         // Procedi con la compressione e l'upload
         await processFiles(newFiles);
@@ -439,8 +442,8 @@ export default function FileUpload({
             
             if (onChaptersExtracted) {
               onChaptersExtracted({
-                chapters,
-                photosWithChapters
+                chapters: chapters as ChapterData[],
+                photosWithChapters: photosWithChapters as unknown as PhotoWithChapterInfo[]
               });
             }
             

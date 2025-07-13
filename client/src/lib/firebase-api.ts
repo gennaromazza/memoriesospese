@@ -119,7 +119,7 @@ export async function verifyGalleryAccess(galleryId: string, password?: string, 
     
     return true;
   } catch (error) {
-    logger.error('Errore nella verifica accesso galleria', { error, galleryId });
+    logger.error('Errore nella verifica accesso galleria', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     return false;
   }
 }
@@ -148,7 +148,7 @@ export async function getGalleryPhotos(galleryId: string, chapterId?: string): P
       ...doc.data()
     })) as PhotoData[];
   } catch (error) {
-    logger.error('Errore nel caricamento foto', { error, galleryId });
+    logger.error('Errore nel caricamento foto', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     throw error;
   }
 }
@@ -166,7 +166,7 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
       ...doc.data()
     })) as PhotoData[];
     
-    logger.info('Foto totali nella galleria', { galleryId, totalPhotos: photos.length });
+    logger.info('Foto totali nella galleria', { galleryId, metadata: { totalPhotos: photos.length } });
     
     // Se non ci sono foto, restituisci array vuoto
     if (photos.length === 0) {
@@ -213,12 +213,12 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
     // Log per debug
     logger.info('Top foto per like', { 
       galleryId, 
-      topPhotos: sortedPhotos.map(p => ({ id: p.id, likes: p.likes, comments: p.comments, name: p.name }))
+      metadata: { topPhotos: sortedPhotos.map(p => ({ id: p.id, likes: p.likes, comments: p.comments, name: p.name })) }
     });
     
     return sortedPhotos;
   } catch (error) {
-    logger.error('Errore nel caricamento foto più apprezzate', { error, galleryId });
+    logger.error('Errore nel caricamento foto più apprezzate', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     // In caso di errore, prova un approccio alternativo
     try {
       // Ottieni semplicemente le prime foto della galleria
@@ -233,7 +233,7 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
         likes: 0
       })) as PhotoData[];
     } catch (fallbackError) {
-      logger.error('Errore anche nel fallback', { fallbackError, galleryId });
+      logger.error('Errore anche nel fallback', { error: fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError)), galleryId });
       return [];
     }
   }
@@ -270,7 +270,7 @@ export async function togglePhotoLike(galleryId: string, photoId: string, userEm
       return true;
     }
   } catch (error) {
-    logger.error('Errore nel toggle like', { error, galleryId, photoId, userEmail });
+    logger.error('Errore nel toggle like', { error: error instanceof Error ? error : new Error(String(error)), galleryId, metadata: { photoId, userEmail } });
     throw error;
   }
 }
@@ -292,7 +292,7 @@ export async function getPhotoLikeStatus(galleryId: string, photoId: string, use
       count: photoData.likes || 0
     };
   } catch (error) {
-    logger.error('Errore nel caricamento stato like', { error, galleryId, photoId, userEmail });
+    logger.error('Errore nel caricamento stato like', { error: error instanceof Error ? error : new Error(String(error)), galleryId, metadata: { photoId, userEmail } });
     return { isLiked: false, count: 0 };
   }
 }
@@ -314,7 +314,7 @@ export async function getPhotoComments(galleryId: string, photoId: string): Prom
       ...doc.data()
     })) as CommentData[];
   } catch (error) {
-    logger.error('Errore nel caricamento commenti', { error, galleryId, photoId });
+    logger.error('Errore nel caricamento commenti', { error: error instanceof Error ? error : new Error(String(error)), galleryId, metadata: { photoId } });
     throw error;
   }
 }
@@ -344,7 +344,7 @@ export async function addPhotoComment(galleryId: string, photoId: string, text: 
       createdAt: new Date()
     } as CommentData;
   } catch (error) {
-    logger.error('Errore nell\'aggiunta commento', { error, galleryId, photoId, userEmail });
+    logger.error('Errore nell\'aggiunta commento', { error: error instanceof Error ? error : new Error(String(error)), galleryId, metadata: { photoId, userEmail } });
     throw error;
   }
 }
@@ -364,7 +364,7 @@ export async function getRecentComments(galleryId: string, limitCount: number = 
       ...doc.data()
     })) as CommentData[];
   } catch (error) {
-    logger.error('Errore nel caricamento commenti recenti', { error, galleryId });
+    logger.error('Errore nel caricamento commenti recenti', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     throw error;
   }
 }
@@ -386,7 +386,7 @@ export async function getRecentVoiceMemos(galleryId: string, limitCount: number 
       ...doc.data()
     })) as VoiceMemoData[];
   } catch (error) {
-    logger.error('Errore nel caricamento voice memos', { error, galleryId });
+    logger.error('Errore nel caricamento voice memos', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     throw error;
   }
 }
@@ -411,7 +411,7 @@ export async function addVoiceMemo(galleryId: string, userEmail: string, userNam
       createdAt: new Date()
     } as VoiceMemoData;
   } catch (error) {
-    logger.error('Errore nell\'aggiunta voice memo', { error, galleryId, userEmail });
+    logger.error('Errore nell\'aggiunta voice memo', { error: error instanceof Error ? error : new Error(String(error)), galleryId, metadata: { userEmail } });
     throw error;
   }
 }
@@ -432,7 +432,7 @@ export async function getAllGalleries(): Promise<GalleryData[]> {
       ...doc.data()
     })) as GalleryData[];
   } catch (error) {
-    logger.error('Errore nel caricamento gallerie', { error });
+    logger.error('Errore nel caricamento gallerie', { error: error instanceof Error ? error : new Error(String(error)) });
     throw error;
   }
 }
@@ -454,7 +454,7 @@ export async function createGallery(galleryData: Omit<GalleryData, 'id' | 'creat
       updatedAt: new Date()
     } as GalleryData;
   } catch (error) {
-    logger.error('Errore nella creazione galleria', { error });
+    logger.error('Errore nella creazione galleria', { error: error instanceof Error ? error : new Error(String(error)) });
     throw error;
   }
 }
@@ -467,7 +467,7 @@ export async function updateGallery(galleryId: string, updates: Partial<GalleryD
       updatedAt: serverTimestamp()
     });
   } catch (error) {
-    logger.error('Errore nell\'aggiornamento galleria', { error, galleryId });
+    logger.error('Errore nell\'aggiornamento galleria', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     throw error;
   }
 }
@@ -477,7 +477,7 @@ export async function deleteGallery(galleryId: string): Promise<void> {
     const galleryRef = doc(db, 'galleries', galleryId);
     await deleteDoc(galleryRef);
   } catch (error) {
-    logger.error('Errore nell\'eliminazione galleria', { error, galleryId });
+    logger.error('Errore nell\'eliminazione galleria', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     throw error;
   }
 }

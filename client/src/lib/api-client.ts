@@ -70,10 +70,18 @@ class ApiClient {
     const stats = await this.makeRequest(endpoint);
 
     // Fallback a valori predefiniti se l'API non è disponibile
-    return stats || {
-      likesCount: 0,
-      commentsCount: 0,
-      hasUserLiked: false
+    if (!stats || typeof stats !== 'object') {
+      return {
+        likesCount: 0,
+        commentsCount: 0,
+        hasUserLiked: false
+      };
+    }
+    
+    return {
+      likesCount: (stats as any).likesCount || 0,
+      commentsCount: (stats as any).commentsCount || 0,
+      hasUserLiked: (stats as any).hasUserLiked || false
     };
   }
 
@@ -97,7 +105,10 @@ class ApiClient {
     const endpoint = `/api/galleries/${galleryId}/comments/photo/${photoId}`;
     const comments = await this.makeRequest(endpoint);
     
-    return comments || [];
+    if (!comments || !Array.isArray(comments)) {
+      return [];
+    }
+    return comments;
   }
 
   async addPhotoComment(galleryId: string, photoId: string, content: string, userEmail: string, userName: string): Promise<any | null> {
@@ -140,7 +151,7 @@ class ApiClient {
     const endpoint = `/api/galleries/${galleryId}/photos/top-liked?limit=${limit}`;
     const photos = await this.makeRequest(endpoint);
     
-    return photos || [];
+    return Array.isArray(photos) ? photos : [];
   }
 
   // ==================== GALLERY ACCESS ====================
@@ -166,7 +177,7 @@ class ApiClient {
     const endpoint = '/api/galleries';
     const galleries = await this.makeRequest(endpoint);
     
-    return galleries || [];
+    return Array.isArray(galleries) ? galleries : [];
   }
 
   async createGallery(galleryData: any): Promise<any | null> {
