@@ -16,7 +16,7 @@ import { cn } from "../lib/utils";
 import { v4 as uuidv4 } from 'uuid';
 import ImageCompressionInfo from "./ImageCompressionInfo";
 import { compressImage } from "../lib/imageCompression";
-import FileUpload from '@/components/ui/file-upload';
+import FileUpload, { PhotoWithChapter } from '@/components/ui/file-upload';
 
 interface NewGalleryModalProps {
   isOpen: boolean;
@@ -119,8 +119,8 @@ export default function NewGalleryModal({ isOpen, onClose, onSuccess }: NewGalle
     }
   };
 
-  const handlePhotoSelection = (files: File[]) => {
-    setSelectedFiles(files);
+  const handlePhotoSelection = (files: File[] | PhotoWithChapter[]) => {
+    setSelectedFiles(files as File[]);
   };
 
   const handleCreateGallery = async (e: React.FormEvent) => {

@@ -76,16 +76,16 @@ export default function CommentModal({
       let date: Date;
 
       // Handle Firebase Timestamp
-      if (timestamp && timestamp.toDate && typeof timestamp.toDate === 'function') {
-        date = timestamp.toDate();
+      if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp && typeof (timestamp as any).toDate === 'function') {
+        date = (timestamp as any).toDate();
       }
       // Handle Firebase Timestamp object with seconds
-      else if (timestamp && timestamp.seconds && typeof timestamp.seconds === 'number') {
-        date = new Date(timestamp.seconds * 1000);
+      else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp && typeof (timestamp as any).seconds === 'number') {
+        date = new Date((timestamp as any).seconds * 1000);
       }
       // Handle standard date string or Date object
       else if (timestamp) {
-        date = new Date(timestamp);
+        date = new Date(timestamp as string | number | Date);
       }
       // Handle null/undefined
       else {

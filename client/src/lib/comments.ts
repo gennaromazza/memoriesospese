@@ -42,8 +42,8 @@ export interface CommentData {
   userEmail: string;
   userName: string;
   userProfileImageUrl?: string;
-  text: string;
-  content?: string; // optional alias
+  text?: string; // optional for backward compatibility
+  content: string; // primary field
 }
 
 export class CommentService {
