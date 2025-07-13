@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { db, auth } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import * as XLSX from 'xlsx';
 
@@ -21,8 +21,8 @@ interface UserData {
   name: string;
   email: string;
   role: string;
-  createdAt: any;
-  lastLoginAt: any;
+  createdAt: Timestamp;
+  lastLoginAt: Timestamp | null;
   galleries: string[];
   photoCount?: number;
 }
@@ -112,7 +112,7 @@ export default function UserManager() {
     }
   };
 
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: Timestamp | null | undefined) => {
     if (!timestamp || !timestamp.toDate) return 'N/A';
     return timestamp.toDate().toLocaleDateString('it-IT', {
       day: '2-digit',

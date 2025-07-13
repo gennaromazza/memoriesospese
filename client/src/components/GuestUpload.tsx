@@ -72,15 +72,18 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
         description: "Controlla la tua casella email per le istruzioni di reset",
         variant: "default"
       });
-    } catch (error: any) {
+    } catch (error) {
       let errorMessage = "Errore nell'invio dell'email di reset";
 
-      if (error.code === 'auth/user-not-found') {
-        errorMessage = "Nessun account trovato con questa email";
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = "Indirizzo email non valido";
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = "Troppi tentativi. Riprova più tardi";
+      if (error && typeof error === 'object' && 'code' in error) {
+        const errorCode = (error as { code: string }).code;
+        if (errorCode === 'auth/user-not-found') {
+          errorMessage = "Nessun account trovato con questa email";
+        } else if (errorCode === 'auth/invalid-email') {
+          errorMessage = "Indirizzo email non valido";
+        } else if (errorCode === 'auth/too-many-requests') {
+          errorMessage = "Troppi tentativi. Riprova più tardi";
+        }
       }
 
       toast({
@@ -136,20 +139,23 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
         description: `Benvenuto! Ora puoi caricare le tue foto.`,
       });
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Errore autenticazione:', error);
       let message = "Si è verificato un errore durante l'autenticazione";
 
-      if (error.code === 'auth/email-already-in-use') {
-        message = "Questa email è già registrata. Prova ad accedere invece di registrarti.";
-      } else if (error.code === 'auth/weak-password') {
-        message = "La password deve essere di almeno 6 caratteri";
-      } else if (error.code === 'auth/invalid-email') {
-        message = "Email non valida";
-      } else if (error.code === 'auth/user-not-found') {
-        message = "Utente non trovato. Prova a registrarti.";
-      } else if (error.code === 'auth/wrong-password') {
-        message = "Password errata";
+      if (error && typeof error === 'object' && 'code' in error) {
+        const errorCode = (error as { code: string }).code;
+        if (errorCode === 'auth/email-already-in-use') {
+          message = "Questa email è già registrata. Prova ad accedere invece di registrarti.";
+        } else if (errorCode === 'auth/weak-password') {
+          message = "La password deve essere di almeno 6 caratteri";
+        } else if (errorCode === 'auth/invalid-email') {
+          message = "Email non valida";
+        } else if (errorCode === 'auth/user-not-found') {
+          message = "Utente non trovato. Prova a registrarti.";
+        } else if (errorCode === 'auth/wrong-password') {
+          message = "Password errata";
+        }
       }
 
       toast({

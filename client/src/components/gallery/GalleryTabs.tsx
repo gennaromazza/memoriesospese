@@ -1,6 +1,7 @@
 
 import React, { useState } from "react";
 import { WeddingImage } from '@/components/WeddingImages';
+import { Timestamp } from 'firebase/firestore';
 
 interface PhotoData {
   id: string;
@@ -8,7 +9,7 @@ interface PhotoData {
   url: string;
   contentType: string;
   size: number;
-  createdAt: any;
+  createdAt: Timestamp;
   galleryId?: string;
 }
 

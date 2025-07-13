@@ -8,6 +8,11 @@ import { ChapterData, PhotoWithChapterInfo } from '@shared/types';
 // Importa il nuovo lettore di cartelle semplificato
 import { processFilesFromFolders } from '@/lib/simpleFolderReader';
 
+// Extend File interface to include webkitRelativePath
+interface FileWithWebkitPath extends File {
+  webkitRelativePath?: string;
+}
+
 // Define interfaces locally since they're not properly exported from ChaptersManager
 export interface Chapter {
   id: string;
@@ -323,9 +328,9 @@ export default function FileUpload({
       // Fallback senza capitoli: processo standard
       
       await processFiles(newFiles);
-    } catch (error: any) {
+    } catch (error) {
       
-      alert(`Si è verificato un errore durante l'elaborazione dei file: ${error.message || 'Errore sconosciuto'}`);
+      alert(`Si è verificato un errore durante l'elaborazione dei file: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     }
   };
 
@@ -339,7 +344,7 @@ export default function FileUpload({
         
         // Controlla se abbiamo un input di tipo directory
         const webkitFilesWithPaths = newFiles.filter(file => 
-          'webkitRelativePath' in file && (file as any).webkitRelativePath
+          'webkitRelativePath' in file && (file as FileWithWebkitPath).webkitRelativePath
         );
         
         const hasWebkitRelativePaths = webkitFilesWithPaths.length > 0;
@@ -375,7 +380,7 @@ export default function FileUpload({
             // Primo passaggio: raggruppa i file per cartella
             for (const file of webkitFilesWithPaths) {
               // Ottieni il percorso relativo
-              const path = (file as any).webkitRelativePath || '';
+              const path = (file as FileWithWebkitPath).webkitRelativePath || '';
               if (path && path.includes('/')) {
                 // Estrai il nome della cartella principale
                 const folderName = path.split('/')[0];
@@ -424,7 +429,7 @@ export default function FileUpload({
                   name: file.name,
                   chapterId: chapterId,
                   position: j,
-                  folderPath: (file as any).webkitRelativePath
+                  folderPath: (file as FileWithWebkitPath).webkitRelativePath
                 });
               }
             }
@@ -446,9 +451,9 @@ export default function FileUpload({
             updateProgress(100, 'Elaborazione completata!', newFiles.length, newFiles.length);
             setTimeout(() => setIsProcessingFolders(false), 1000);
             
-          } catch (error: any) {
+          } catch (error) {
             
-            setProcessingStatus(`Errore: ${error.message || 'Errore sconosciuto'}`);
+            setProcessingStatus(`Errore: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
             // Continua con il metodo standard
             setTimeout(() => {
               setIsProcessingFolders(false);

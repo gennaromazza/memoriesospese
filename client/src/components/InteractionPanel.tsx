@@ -21,6 +21,7 @@ import { LikeService } from '@/lib/likes';
 import { CommentService, Comment } from '@/lib/comments';
 import { PhotoService } from '@/lib/photos';
 import { RealtimeService } from '@/lib/realtime';
+import { Timestamp } from 'firebase/firestore';
 
 interface InteractionPanelProps {
   itemId: string;
@@ -259,7 +260,7 @@ export default function InteractionPanel({
   };
 
   // Format date helper
-  const formatDate = (timestamp: any): string => {
+  const formatDate = (timestamp: Timestamp | Date | string | number | null | undefined): string => {
     try {
       let date: Date;
 

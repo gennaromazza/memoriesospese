@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Timestamp } from 'firebase/firestore';
 
 interface PhotoStats {
   id: string;
@@ -65,7 +66,7 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
   const { user, userProfile } = useFirebaseAuth();
   const { toast } = useToast();
 
-  const formatDateTime = (timestamp: any): string => {
+  const formatDateTime = (timestamp: Timestamp | Date | string | number | null | undefined): string => {
     try {
       let date: Date;
       

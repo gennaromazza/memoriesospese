@@ -21,6 +21,7 @@ import {
 import { VoiceMemo } from '@shared/schema';
 import InteractionWrapper from './InteractionWrapper';
 import UserAvatar from './UserAvatar';
+import { Timestamp } from 'firebase/firestore';
 
 interface VoiceMemoPlayerProps {
   memo: VoiceMemo;
@@ -168,7 +169,7 @@ export default function VoiceMemoPlayer({
     }
   };
 
-  const formatDateTime = (timestamp: any) => {
+  const formatDateTime = (timestamp: Timestamp | Date | string | number | null | undefined) => {
     if (!timestamp) return '';
     
     try {

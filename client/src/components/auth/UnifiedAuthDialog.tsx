@@ -91,10 +91,11 @@ export default function UnifiedAuthDialog({
       
       // Reset form
       setLoginData({ email: '', password: '' });
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Credenziali non valide";
       toast({
         title: "Errore di accesso",
-        description: error.message || "Credenziali non valide",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -152,10 +153,11 @@ export default function UnifiedAuthDialog({
       
       // Reset form
       setRegisterData({ email: '', password: '', confirmPassword: '', displayName: '' });
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Impossibile creare l'account";
       toast({
         title: "Errore di registrazione",
-        description: error.message || "Impossibile creare l'account",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -186,10 +188,11 @@ export default function UnifiedAuthDialog({
       });
       setShowResetForm(false);
       setResetEmail('');
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Impossibile inviare l'email di recupero";
       toast({
         title: "Errore",
-        description: error.message || "Impossibile inviare l'email di recupero",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
