@@ -128,9 +128,9 @@ class UnifiedAuthService {
    */
   async logout(): Promise<void> {
     try {
-      logger.info('Logout unificato', {
+      logger.info('Effettuazione logout unificato riuscita', {
         contextName: 'UnifiedAuth',
-        userId: this.authState.userEmail
+        userId: this.authState.userEmail || 'Utente sconosciuto'
       });
 
       // Pulisci localStorage
