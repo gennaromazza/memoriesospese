@@ -176,16 +176,16 @@ export default function VoiceMemoPlayer({
       let date: Date;
       
       // Gestisci timestamp Firebase
-      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-        date = timestamp.toDate();
+      if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp && typeof (timestamp as any).toDate === 'function') {
+        date = (timestamp as any).toDate();
       } 
       // Gestisci timestamp in secondi (Firebase formato alternativo)
-      else if (timestamp.seconds && typeof timestamp.seconds === 'number') {
-        date = new Date(timestamp.seconds * 1000);
+      else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp && typeof (timestamp as any).seconds === 'number') {
+        date = new Date((timestamp as any).seconds * 1000);
       }
       // Gestisci stringhe ISO o timestamp numerici
       else {
-        date = new Date(timestamp);
+        date = new Date(timestamp as string | number | Date);
       }
       
       // Verifica che la data sia valida

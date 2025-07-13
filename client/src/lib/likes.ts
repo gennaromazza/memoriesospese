@@ -16,7 +16,8 @@ import {
   query,
   where,
   serverTimestamp,
-  onSnapshot
+  onSnapshot,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -250,7 +251,7 @@ export class LikeService {
       );
       
       const snapshot = await getDocs(likesQuery);
-      const batch = db.batch();
+      const batch = writeBatch(db);
       
       snapshot.docs.forEach(doc => {
         batch.delete(doc.ref);

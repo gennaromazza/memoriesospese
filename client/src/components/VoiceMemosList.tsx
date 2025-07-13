@@ -390,7 +390,7 @@ export default function VoiceMemosList({
           <Button 
             onClick={async () => {
               try {
-                const response = await fetch(createUrl(`/api/galleries/${galleryId}/voice-memos/check-unlocks`), {
+                const response = await fetch(`/api/galleries/${galleryId}/voice-memos/check-unlocks`, {
                   method: 'POST'
                 });
                 const result = await response.json();

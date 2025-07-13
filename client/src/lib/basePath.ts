@@ -44,7 +44,7 @@ export const isInSubdirectory = (): boolean => {
 
 /** Forza il reset della cache del basePath (per test/debug) */
 export const refreshBasePath = (): void => {
-  cachedBasePath = null;
+  // cachedBasePath = null; // Variabile non definita, rimossa per evitare errori
 };
 
 /** Info di debug utili */

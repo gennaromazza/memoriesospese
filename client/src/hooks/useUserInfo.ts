@@ -6,7 +6,7 @@ export interface UserInfo {
   displayName: string;
   profileImageUrl: string;
   isAuthenticated: boolean;
-  role: 'admin' | 'user' | 'guest';
+  role: string;
 }
 
 /**

@@ -231,8 +231,8 @@ class UnifiedAuthService {
       return true;
     } catch (error) {
       logger.warn('Errore validazione autenticazione', {
-        context: 'UnifiedAuth',
-        error: error as Error
+        contextName: 'UnifiedAuth',
+        metadata: { error: error as Error }
       });
       return false;
     }

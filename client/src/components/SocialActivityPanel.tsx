@@ -75,7 +75,7 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       } else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp && typeof (timestamp as any).seconds === 'number') {
         date = new Date((timestamp as any).seconds * 1000);
       } else if (timestamp) {
-        date = new Date(timestamp);
+        date = new Date(timestamp as string | number | Date);
       } else {
         return 'Ora';
       }
@@ -250,11 +250,13 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       await CommentService.addComment({
         galleryId,
         photoId: selectedPhotoForComment,
+        itemId: selectedPhotoForComment,
+        itemType: 'photo',
         userId: user.uid,
         userEmail: user.email!,
         userName: userProfile?.displayName || user.displayName || user.email?.split('@')[0] || 'Ospite',
         userProfileImageUrl: userProfile?.profileImageUrl,
-        text: commentText.trim()
+        content: commentText.trim()
       });
 
       toast({

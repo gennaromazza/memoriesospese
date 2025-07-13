@@ -55,7 +55,7 @@ function SubscriptionManager({ galleryId, galleryName }: SubscriptionManagerProp
     } catch (error) {
       toast({
         title: "❌ Errore iscrizione",
-        description: error.message || "Non è stato possibile completare l'iscrizione",
+        description: error instanceof Error ? error.message : "Non è stato possibile completare l'iscrizione",
         variant: "destructive"
       });
     } finally {
