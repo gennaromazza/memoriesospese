@@ -174,15 +174,15 @@ export function createContextLogger(defaultContext: {
       error?: Error;
       metadata?: Record<string, any>;
     }) => logger.error(message, { ...defaultContext, ...additionalContext }),
-    
+
     warn: (message: string, additionalContext?: {
       metadata?: Record<string, any>;
     }) => logger.warn(message, { ...defaultContext, ...additionalContext }),
-    
+
     info: (message: string, additionalContext?: {
       metadata?: Record<string, any>;
     }) => logger.info(message, { ...defaultContext, ...additionalContext }),
-    
+
     debug: (message: string, additionalContext?: {
       metadata?: Record<string, any>;
     }) => logger.debug(message, { ...defaultContext, ...additionalContext })
