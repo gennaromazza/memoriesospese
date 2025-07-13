@@ -70,10 +70,10 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
     try {
       let date: Date;
       
-      if (timestamp && timestamp.toDate && typeof timestamp.toDate === 'function') {
-        date = timestamp.toDate();
-      } else if (timestamp && timestamp.seconds && typeof timestamp.seconds === 'number') {
-        date = new Date(timestamp.seconds * 1000);
+      if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp && typeof (timestamp as any).toDate === 'function') {
+        date = (timestamp as any).toDate();
+      } else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp && typeof (timestamp as any).seconds === 'number') {
+        date = new Date((timestamp as any).seconds * 1000);
       } else if (timestamp) {
         date = new Date(timestamp);
       } else {

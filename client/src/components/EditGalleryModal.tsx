@@ -131,7 +131,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       const photosCollection = collection(db, "galleries", gallery.id, "photos");
       const photosSnapshot = await getDocs(photosCollection);
       
-      const loadedPhotos = photosSnapshot.docs.map(doc => {
+      const loadedPhotos: PhotoData[] = photosSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
@@ -139,14 +139,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           url: data.url || "",
           contentType: data.contentType || "image/jpeg",
           size: data.size || 0,
-          createdAt: data.createdAt,
-        };
+          createdAt: data.createdAt || new Date(),
+        } as PhotoData;
       });
       
       // Ordina le foto per data di creazione (più recenti prima)
       loadedPhotos.sort((a, b) => {
         if (!a.createdAt || !b.createdAt) return 0;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return new Date(b.createdAt as unknown as string | number | Date).getTime() - new Date(a.createdAt as unknown as string | number | Date).getTime();
       });
       
       setPhotos(loadedPhotos);

@@ -11,7 +11,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { Switch } from "./ui/switch";
-import FileUpload from "./ui/file-upload";
+import FileUpload, { PhotoWithChapter } from "./ui/file-upload";
 
 interface SlideshowImage {
   id: string;
@@ -86,9 +86,9 @@ export default function SlideshowManager() {
     }
   };
   
-  const handleFilesSelected = (files: File[]) => {
+  const handleFilesSelected = (files: File[] | PhotoWithChapter[]) => {
     if (files.length > 0) {
-      setFile(files[0]);
+      setFile(files[0] as File);
     }
   };
 

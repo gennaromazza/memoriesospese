@@ -187,17 +187,19 @@ export default function InteractionPanel({
         userEmail: finalUserEmail, 
         userName: finalUserName,
         userProfileImageUrl: userProfile?.profileImageUrl,
-        text: newComment.trim()
+        content: newComment.trim()
       });
 
-      const newCommentData = {
+      const newCommentData: Comment = {
         id: commentId,
         galleryId,
-        photoId: itemId,
+        itemId,
+        itemType,
         userId: user.uid,
         userEmail: finalUserEmail,
         userName: finalUserName,
         userProfileImageUrl: userProfile?.profileImageUrl,
+        content: newComment.trim(),
         text: newComment.trim(),
         createdAt: new Date()
       };
@@ -264,12 +266,12 @@ export default function InteractionPanel({
     try {
       let date: Date;
 
-      if (timestamp?.toDate) {
+      if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp) {
         // Firestore Timestamp
-        date = timestamp.toDate();
-      } else if (timestamp?.seconds) {
+        date = (timestamp as any).toDate();
+      } else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
         // Firestore Timestamp object
-        date = new Date(timestamp.seconds * 1000);
+        date = new Date((timestamp as any).seconds * 1000);
       } else if (timestamp) {
         // Regular Date or string
         date = new Date(timestamp);

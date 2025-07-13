@@ -62,11 +62,11 @@ export async function processFilesFromFolders(
       const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
       if (entry) {
         if (entry.isDirectory) {
-          folderEntries.push({ entry: entry as FileSystemDirectoryEntry, name: entry.name });
+          folderEntries.push({ entry: entry as unknown as FileSystemDirectoryEntry, name: entry.name });
           
         } else if (entry.isFile) {
           // I file nella radice non hanno una cartella
-          fileEntries.push({ entry: entry as FileSystemFileEntry, folderName: null });
+          fileEntries.push({ entry: entry as unknown as FileSystemFileEntry, folderName: null });
         }
       }
     }
