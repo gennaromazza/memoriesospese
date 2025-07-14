@@ -127,9 +127,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     
     setIsLoading(true);
     try {
-      // Carica le foto dalla collezione specifica della galleria
-      const photosCollection = collection(db, "galleries", gallery.id, "photos");
-      const photosSnapshot = await getDocs(photosCollection);
+      // Carica le foto dalla collezione globale photos filtrata per galleryId
+      const photosQuery = query(
+        collection(db, "photos"),
+        where("galleryId", "==", gallery.id),
+        where("uploadedBy", "==", "admin"),
+        orderBy("createdAt", "desc")
+      );
+      const photosSnapshot = await getDocs(photosQuery);
       
       const loadedPhotos: PhotoData[] = photosSnapshot.docs.map(doc => {
         const data = doc.data();
@@ -140,6 +145,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           contentType: data.contentType || "image/jpeg",
           size: data.size || 0,
           createdAt: data.createdAt || new Date(),
+          galleryId: data.galleryId || gallery.id,
+          uploaderEmail: data.uploaderEmail,
+          uploaderName: data.uploaderName,
+          uploaderRole: data.uploaderRole
         } as PhotoData;
       });
       
@@ -170,8 +179,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     try {
       setIsDeletingPhoto(true);
       
-      // 1. Elimina il documento dalla collezione specifica della galleria
-      const photoRef = doc(db, "galleries", gallery.id, "photos", photoToDelete.id);
+      // 1. Elimina il documento dalla collezione globale photos
+      const photoRef = doc(db, "photos", photoToDelete.id);
       await deleteDoc(photoRef);
       
       // 2. Elimina il file da Firebase Storage
@@ -292,18 +301,24 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       console.log(`${uploadedPhotos.length} foto caricate su Storage`);
       
-      // Salva i metadati delle foto in Firestore nella collezione corretta
+      // Salva i metadati delle foto in Firestore nella collezione globale photos
       const photoPromises = uploadedPhotos.map(async (photo, index) => {
         try {
-          // Salva nella collezione specifica della galleria dove vengono lette le foto
-          await addDoc(collection(db, "galleries", gallery.id, "photos"), {
+          // Salva nella collezione globale photos come fanno gli ospiti
+          await addDoc(collection(db, "photos"), {
             name: photo.name,
             url: photo.url,
             size: photo.size,
             contentType: photo.contentType,
             createdAt: photo.createdAt || serverTimestamp(),
             galleryId: gallery.id,
-            uploadedBy: 'admin' // Importante: marca come foto amministratore
+            uploadedBy: 'admin', // Importante: marca come foto amministratore
+            uploaderEmail: 'admin@wedding-gallery.app',
+            uploaderName: 'Fotografo',
+            uploaderUid: 'admin',
+            likeCount: 0,
+            commentCount: 0,
+            position: 0
           });
         } catch (err) {
           console.error('Errore nel salvare foto:', err);

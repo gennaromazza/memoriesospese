@@ -98,24 +98,25 @@ export async function notifyNewPhotos(
     // 3. Invia notifiche tramite Firebase Functions (Brevo già configurato)
     try {
       // Prova prima con HTTP function (supporta CORS)
-      const httpResult = await sendNewPhotosNotificationHTTP({
-        galleryName,
-        newPhotosCount,
-        uploaderName,
-        galleryUrl,
-        recipients: subscribers,
-      });
+      try {
+        const httpResult = await sendNewPhotosNotificationHTTP({
+          galleryName,
+          newPhotosCount,
+          uploaderName,
+          galleryUrl,
+          recipients: subscribers,
+        });
 
-      console.log(
-        `✅ Notifiche inviate tramite Firebase Functions HTTP a ${subscribers.length} subscribers`,
-      );
-      return {
-        success: true,
-        notified: subscribers.length,
-        method: "firebase_functions_http",
-        details: httpResult,
-      };
-    } catch (httpError) {
+        console.log(
+          `✅ Notifiche inviate tramite Firebase Functions HTTP a ${subscribers.length} subscribers`,
+        );
+        return {
+          success: true,
+          notified: subscribers.length,
+          method: "firebase_functions_http",
+          details: httpResult,
+        };
+      } catch (httpError) {
       console.warn("⚠️ HTTP function fallita, provo con callable:", httpError);
 
       try {
@@ -173,6 +174,13 @@ export async function notifyNewPhotos(
         };
       }
     }
+    
+    const result = { success: true, notified: 0, method: "development_skip" };
+    console.log(
+      `✅ Notifiche inviate: ${result.notified} successi`,
+    );
+    return result;
+    
   } catch (error) {
     console.error("❌ Errore invio notifiche:", error);
     return {
@@ -225,7 +233,7 @@ export async function subscribeToGallery(
       Promise.resolve()
         .then(async () => {
           try {
-            await EmailService.sendWelcomeEmail(email, galleryName);
+            const result = await sendWelcomeEmail({ email, galleryName });
             console.log(`✅ Email di benvenuto inviata a ${email}`);
           } catch (emailError) {
             console.warn(

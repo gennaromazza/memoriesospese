@@ -70,6 +70,7 @@ export class PhotoService {
     try {
       const docRef = await addDoc(collection(db, 'photos'), {
         ...photoData,
+        uploadedBy: 'guest', // Distingue foto degli ospiti
         likeCount: 0,
         commentCount: 0,
         position: 0,
