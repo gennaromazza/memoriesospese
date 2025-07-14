@@ -68,6 +68,15 @@ export default function Gallery() {
   // Hook per il refresh intelligente dei dati
   const { refreshPhotos, refreshGallery, refreshVoiceMemos, refreshInteractions } = useGalleryRefresh(id);
 
+  // Funzione di refresh che combina entrambi i sistemi
+  const handleRefreshPhotos = useCallback(async () => {
+    // Usa il refresh diretto del hook
+    await refreshGalleryPhotos();
+    
+    // Fallback con evento personalizzato
+    refreshPhotos();
+  }, [refreshGalleryPhotos, refreshPhotos]);
+
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -82,7 +91,8 @@ export default function Gallery() {
     isLoading, 
     hasMorePhotos, 
     loadingMorePhotos,
-    loadMorePhotos 
+    loadMorePhotos,
+    refreshPhotos: refreshGalleryPhotos 
   } = useGalleryData(id || "");
 
   // Aggiorna lo stato di caricamento
@@ -421,7 +431,7 @@ export default function Gallery() {
                                   galleryId={gallery.id}
                                   galleryName={gallery.name}
                                   onPhotosUploaded={() => {
-                                    refreshPhotos();
+                                    handleRefreshPhotos();
                                   }}
                                 />
                               </div>

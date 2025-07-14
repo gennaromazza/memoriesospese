@@ -1,57 +1,55 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
 /**
- * Hook per il refresh intelligente dei dati della galleria
- * Sostituisce window.location.reload() con aggiornamenti React state
+ * Hook per il refresh intelligente dei dati della galleria Firebase
+ * Sostituisce window.location.reload() con refresh React state
  */
 export function useGalleryRefresh(galleryId?: string) {
-  const queryClient = useQueryClient();
 
   const refreshGallery = useCallback(async () => {
     if (!galleryId) return;
 
-    // Invalida tutte le query correlate alla galleria
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['/api/galleries', galleryId] }),
-      queryClient.invalidateQueries({ queryKey: ['/api/galleries', galleryId, 'photos'] }),
-      queryClient.invalidateQueries({ queryKey: ['/api/galleries', galleryId, 'stats'] }),
-      queryClient.invalidateQueries({ queryKey: ['/api/galleries', galleryId, 'voice-memos'] }),
-      queryClient.invalidateQueries({ queryKey: ['/api/galleries', galleryId, 'interactions'] })
-    ]);
-  }, [queryClient, galleryId]);
+    // Trigger refresh tramite evento personalizzato
+    window.dispatchEvent(new CustomEvent('galleryRefresh', { 
+      detail: { galleryId, type: 'all' }
+    }));
+  }, [galleryId]);
 
   const refreshPhotos = useCallback(async () => {
     if (!galleryId) return;
 
-    await queryClient.invalidateQueries({ 
-      queryKey: ['/api/galleries', galleryId, 'photos'] 
-    });
-  }, [queryClient, galleryId]);
+    // Trigger refresh specifico per foto
+    window.dispatchEvent(new CustomEvent('galleryRefresh', { 
+      detail: { galleryId, type: 'photos' }
+    }));
+  }, [galleryId]);
 
   const refreshStats = useCallback(async () => {
     if (!galleryId) return;
 
-    await queryClient.invalidateQueries({ 
-      queryKey: ['/api/galleries', galleryId, 'stats'] 
-    });
-  }, [queryClient, galleryId]);
+    // Trigger refresh specifico per statistiche
+    window.dispatchEvent(new CustomEvent('galleryRefresh', { 
+      detail: { galleryId, type: 'stats' }
+    }));
+  }, [galleryId]);
 
   const refreshVoiceMemos = useCallback(async () => {
     if (!galleryId) return;
 
-    await queryClient.invalidateQueries({ 
-      queryKey: ['/api/galleries', galleryId, 'voice-memos'] 
-    });
-  }, [queryClient, galleryId]);
+    // Trigger refresh specifico per voice memos
+    window.dispatchEvent(new CustomEvent('galleryRefresh', { 
+      detail: { galleryId, type: 'voice-memos' }
+    }));
+  }, [galleryId]);
 
   const refreshInteractions = useCallback(async () => {
     if (!galleryId) return;
 
-    await queryClient.invalidateQueries({ 
-      queryKey: ['/api/galleries', galleryId, 'interactions'] 
-    });
-  }, [queryClient, galleryId]);
+    // Trigger refresh specifico per interazioni
+    window.dispatchEvent(new CustomEvent('galleryRefresh', { 
+      detail: { galleryId, type: 'interactions' }
+    }));
+  }, [galleryId]);
 
   return {
     refreshGallery,
