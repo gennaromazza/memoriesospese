@@ -292,8 +292,8 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
 
     loadData();
     
-    // Refresh data every 30 seconds
-    const interval = setInterval(loadData, 30000);
+    // Refresh data every 5 minutes to reduce server load
+    const interval = setInterval(loadData, 300000);
     return () => clearInterval(interval);
   }, [galleryId]);
 

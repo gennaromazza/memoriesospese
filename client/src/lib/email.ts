@@ -138,29 +138,38 @@ export async function notifyNewPhotos(
           details: result.data,
         };
       } catch (error) {
+        // In sviluppo, le Firebase Functions non sono disponibili
         console.warn(
-          "⚠️ Firebase Functions non disponibili, salvo notifiche per processamento futuro:",
-          error,
+          "⚠️ Firebase Functions non disponibili in ambiente di sviluppo:",
+          error instanceof Error ? error.message : "Errore sconosciuto",
         );
-        // Fallback: salva in Firestore
-        const notificationQueue = collection(db, "emailQueue");
-        const queueData = {
-          type: "new_photos_notification",
-          galleryId,
-          galleryName,
-          newPhotosCount,
-          uploaderName,
-          galleryUrl,
-          recipients: subscribers,
-          status: "pending",
-          createdAt: new Date(),
-          error: error instanceof Error ? error.message : "Errore sconosciuto",
-        };
-        await addDoc(notificationQueue, queueData);
+        
+        // Fallback: salva in Firestore solo se non è un errore di sviluppo
+        if (process.env.NODE_ENV === 'production') {
+          try {
+            const notificationQueue = collection(db, "emailQueue");
+            const queueData = {
+              type: "new_photos_notification",
+              galleryId,
+              galleryName,
+              newPhotosCount,
+              uploaderName,
+              galleryUrl,
+              recipients: subscribers,
+              status: "pending",
+              createdAt: new Date(),
+              error: error instanceof Error ? error.message : "Errore sconosciuto",
+            };
+            await addDoc(notificationQueue, queueData);
+          } catch (queueError) {
+            console.error("Errore salvataggio in coda:", queueError);
+          }
+        }
+        
         return {
           success: true,
           notified: 0,
-          method: "queued_after_functions_error",
+          method: "development_skip",
         };
       }
     }
@@ -212,21 +221,25 @@ export async function subscribeToGallery(
     });
 
     // 3. Invia email di benvenuto (con gestione errori robusta)
-    Promise.resolve()
-      .then(async () => {
-        try {
-          await EmailService.sendWelcomeEmail(email, galleryName);
-          console.log(`✅ Email di benvenuto inviata a ${email}`);
-        } catch (emailError) {
-          console.warn(
-            "⚠️ Email di benvenuto non inviata (Firebase Functions non disponibili)",
-          );
-          // L'iscrizione è comunque riuscita, solo l'email non è stata inviata
-        }
-      })
-      .catch(() => {
-        // Gestione silent per evitare unhandledrejection
-      });
+    if (process.env.NODE_ENV === 'production') {
+      Promise.resolve()
+        .then(async () => {
+          try {
+            await EmailService.sendWelcomeEmail(email, galleryName);
+            console.log(`✅ Email di benvenuto inviata a ${email}`);
+          } catch (emailError) {
+            console.warn(
+              "⚠️ Email di benvenuto non inviata (Firebase Functions non disponibili)",
+            );
+            // L'iscrizione è comunque riuscita, solo l'email non è stata inviata
+          }
+        })
+        .catch(() => {
+          // Gestione silent per evitare unhandledrejection
+        });
+    } else {
+      console.log(`ℹ️ Email di benvenuto saltata in ambiente di sviluppo`);
+    }
 
     console.log(`✅ ${email} iscritto alle notifiche di "${galleryName}"`);
     return { success: true, alreadySubscribed: false };
