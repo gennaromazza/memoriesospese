@@ -71,7 +71,7 @@ export default function Gallery() {
   // Funzione di refresh che combina entrambi i sistemi
   const handleRefreshPhotos = useCallback(async () => {
     // Usa il refresh diretto del hook
-    await refreshGalleryPhotos();
+    await refreshPhotos();
     
     // Fallback con evento personalizzato
     refreshPhotos();
