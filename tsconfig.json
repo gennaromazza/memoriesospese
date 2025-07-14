@@ -4,8 +4,7 @@
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
-    "noEmit": false,
-    "outDir": "./dist",
+    "noEmit": true,
     "module": "ESNext",
     "strict": true,
     "lib": ["es2015", "esnext", "dom", "dom.iterable"],
