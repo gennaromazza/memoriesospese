@@ -32,14 +32,16 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
-### 14 Luglio 2025 - POLLING OTTIMIZZATO E ERRORI GESTITI - SISTEMA COMPLETO ✅
+### 14 Luglio 2025 - REFRESH FOTO RISOLTO E COLLECTIONS ALLINEATE - SISTEMA COMPLETO ✅
+- ✅ **COLLECTIONS ALLINEATE**: Risolto disallineamento tra lettura (subcollection) e scrittura (global collection) foto
+- ✅ **REFRESH FOTO FUNZIONANTE**: Photo refresh dopo upload ora funziona correttamente
 - ✅ **POLLING RIDOTTO**: SocialActivityPanel polling ogni 5 minuti invece di 30 secondi per ridurre carico server
 - ✅ **ERRORI FIREBASE FUNCTIONS GESTITI**: Gestione corretta errori in ambiente di sviluppo
 - ✅ **UNHANDLED REJECTIONS RISOLTE**: Eliminati errori Promise non gestiti
 - ✅ **EMAIL SVILUPPO OTTIMIZZATE**: Email di benvenuto saltate in ambiente di sviluppo
 - ✅ **LOGGING PULITO**: Ridotti spam di log e messaggi di errore eccessivi
 - ✅ **GESTIONE ERRORI ROBUSTA**: Try-catch appropriati per tutti i servizi Firebase
-- → **RISULTATO**: Console log puliti e prestazioni ottimizzate
+- → **RISULTATO**: Upload foto e voice memos completamente funzionanti con refresh immediato
 
 ### 14 Luglio 2025 - ERRORI JAVASCRIPT RISOLTI E SISTEMA REFRESH FOTO RISOLTO - SISTEMA COMPLETO ✅
 - ✅ **ERRORE REFRESHGALLERYPHOTOS RISOLTO**: Eliminato errore "Cannot access 'refreshGalleryPhotos' before initialization"

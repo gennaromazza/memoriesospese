@@ -153,14 +153,15 @@ export function useGalleryData(galleryCode: string) {
         for (const photo of photoData) {
           // Verifica se la foto esiste già nel database della galleria specifica
           const existingPhotosQuery = query(
-            collection(db, "galleries", galleryId, "photos"),
+            collection(db, "photos"),
+            where("galleryId", "==", galleryId),
             where("url", "==", photo.url)
           );
           const existingPhotosSnapshot = await getDocs(existingPhotosQuery);
 
           if (existingPhotosSnapshot.empty) {
             // Aggiungi la foto al database se non esiste già
-            await addDoc(collection(db, "galleries", galleryId, "photos"), {
+            await addDoc(collection(db, "photos"), {
               ...photo,
               createdAt: serverTimestamp()
             });
@@ -202,10 +203,11 @@ export function useGalleryData(galleryCode: string) {
 
       
 
-      // Utilizziamo la collezione corretta per le foto della galleria specifica
-      const photosRef = collection(db, "galleries", galleryId, "photos");
+      // Utilizziamo la collezione globale photos filtrata per galleryId
+      const photosRef = collection(db, "photos");
       const q = query(
         photosRef, 
+        where("galleryId", "==", galleryId),
         orderBy("createdAt", "desc")
       );
 
@@ -265,7 +267,8 @@ export function useGalleryData(galleryCode: string) {
         
         if (foundInStorage) {
           // Dopo la sincronizzazione, ricarica dal database per ottenere tutte le foto
-          const refreshQuery = await getDocs(q);
+          const refreshPhotosRef = collection(db, "photos");
+          const refreshQuery = await getDocs(query(refreshPhotosRef, where("galleryId", "==", galleryId), orderBy("createdAt", "desc")));
           photosList = []; // Reset della lista
           guestPhotosList = []; // Reset anche per le foto ospiti
           const refreshedPhotoNames = new Set<string>();
@@ -441,11 +444,12 @@ export function useGalleryData(galleryCode: string) {
     setLoadingMorePhotos(true);
 
     try {
-      const photosRef = collection(db, "galleries", gallery.id, "photos");
+      const photosRef = collection(db, "photos");
       
       // Query ottimizzata per il prossimo batch
       const q = query(
         photosRef,
+        where("galleryId", "==", gallery.id),
         orderBy("createdAt", "desc"),
         limit(photosPerPage)
       );
