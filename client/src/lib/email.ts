@@ -26,9 +26,30 @@ export interface GalleryPasswordData {
 
 // Cloud Functions per email
 export const testEmailConfiguration = httpsCallable(functions, 'testEmailConfiguration');
-export const sendNewPhotosNotification = httpsCallable(functions, 'sendNewPhotosNotification');
+export const sendNewPhotosNotification = httpsCallable(functions, 'sendNewPhotosNotificationCall');
 export const sendGalleryPassword = httpsCallable(functions, 'sendGalleryPassword');
 export const sendWelcomeEmail = httpsCallable(functions, 'sendWelcomeEmail');
+
+/**
+ * Funzione HTTP per invio notifiche nuove foto (supporta CORS)
+ */
+export async function sendNewPhotosNotificationHTTP(data: EmailNotificationData) {
+  const functionUrl = `https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendNewPhotosNotification`;
+  
+  const response = await fetch(functionUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data)
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  return await response.json();
+}
 
 /**
  * Notifica automatica quando vengono caricate nuove foto
@@ -58,7 +79,8 @@ export async function notifyNewPhotos(galleryId: string, galleryName: string, up
 
     // 3. Invia notifiche tramite Firebase Functions (Brevo già configurato)
     try {
-      const result = await sendNewPhotosNotification({
+      // Prova prima con HTTP function (supporta CORS)
+      const httpResult = await sendNewPhotosNotificationHTTP({
         galleryName,
         newPhotosCount,
         uploaderName,
@@ -66,15 +88,36 @@ export async function notifyNewPhotos(galleryId: string, galleryName: string, up
         recipients: subscribers
       });
 
-      console.log(`✅ Notifiche inviate tramite Firebase Functions a ${subscribers.length} subscribers`);
+      console.log(`✅ Notifiche inviate tramite Firebase Functions HTTP a ${subscribers.length} subscribers`);
       return { 
         success: true, 
         notified: subscribers.length,
-        method: 'firebase_functions',
-        details: result.data 
+        method: 'firebase_functions_http',
+        details: httpResult 
       };
 
-    } catch (error) {
+    } catch (httpError) {
+      console.warn('⚠️ HTTP function fallita, provo con callable:', httpError);
+      
+      try {
+        // Fallback con callable function
+        const result = await sendNewPhotosNotification({
+          galleryName,
+          newPhotosCount,
+          uploaderName,
+          galleryUrl,
+          recipients: subscribers
+        });
+
+        console.log(`✅ Notifiche inviate tramite Firebase Functions callable a ${subscribers.length} subscribers`);
+        return { 
+          success: true, 
+          notified: subscribers.length,
+          method: 'firebase_functions_callable',
+          details: result.data 
+        };
+
+      } catch (error) {
       console.warn('⚠️ Firebase Functions non disponibili, salvo notifiche per processamento futuro:', error);
       // Fallback: salva in Firestore
       const notificationQueue = collection(db, 'emailQueue');

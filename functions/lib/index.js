@@ -1,13 +1,15 @@
-
 /**
  * Firebase Cloud Functions per Wedding Gallery
- * Gestisce invio email tramite Brevo SMTP con supporto CORS
+ * Versione compilata manualmente per deployment
  */
 
-import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
-import { logger } from 'firebase-functions';
-import * as nodemailer from 'nodemailer';
-import * as cors from 'cors';
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const nodemailer = require('nodemailer');
+const cors = require('cors');
+
+// Inizializza Firebase Admin
+admin.initializeApp();
 
 // Configurazione CORS per permettere richieste da gennaromazzacane.it
 const corsHandler = cors({
@@ -43,16 +45,16 @@ const transporter = nodemailer.createTransport(smtpConfig);
 // Verifica configurazione SMTP al caricamento
 transporter.verify((error, success) => {
   if (error) {
-    logger.error('SMTP configuration error:', error);
+    console.error('SMTP configuration error:', error);
   } else {
-    logger.info('SMTP server ready for email sending');
+    console.log('SMTP server ready for email sending');
   }
 });
 
 /**
  * Function per invio notifiche nuove foto - Con supporto CORS
  */
-export const sendNewPhotosNotification = onRequest(async (req, res) => {
+exports.sendNewPhotosNotification = functions.https.onRequest(async (req, res) => {
   corsHandler(req, res, async () => {
     try {
       // Gestione preflight OPTIONS
@@ -108,11 +110,11 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
       };
 
       await transporter.sendMail(mailOptions);
-      logger.info(`New photos notification sent to ${recipients.length} recipients`);
+      console.log(`New photos notification sent to ${recipients.length} recipients`);
       
       res.status(200).json({ success: true, message: 'Notification sent successfully' });
     } catch (error) {
-      logger.error('Error sending new photos notification:', error);
+      console.error('Error sending new photos notification:', error);
       res.status(500).json({ error: 'Failed to send notification email' });
     }
   });
@@ -121,12 +123,12 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
 /**
  * Function per invio notifiche nuove foto - Versione onCall per compatibilità
  */
-export const sendNewPhotosNotificationCall = onCall(async (request) => {
+exports.sendNewPhotosNotificationCall = functions.https.onCall(async (data, context) => {
   try {
-    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = request.data;
+    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
 
     if (!recipients || recipients.length === 0) {
-      throw new HttpsError('invalid-argument', 'Recipients list is required');
+      throw new functions.https.HttpsError('invalid-argument', 'Recipients list is required');
     }
 
     const mailOptions = {
@@ -164,24 +166,24 @@ export const sendNewPhotosNotificationCall = onCall(async (request) => {
     };
 
     await transporter.sendMail(mailOptions);
-    logger.info(`New photos notification sent to ${recipients.length} recipients`);
+    console.log(`New photos notification sent to ${recipients.length} recipients`);
     
     return { success: true, message: 'Notification sent successfully' };
   } catch (error) {
-    logger.error('Error sending new photos notification:', error);
-    throw new HttpsError('internal', 'Failed to send notification email');
+    console.error('Error sending new photos notification:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send notification email');
   }
 });
 
 /**
  * Function per invio password galleria
  */
-export const sendGalleryPassword = onCall(async (request) => {
+exports.sendGalleryPassword = functions.https.onCall(async (data, context) => {
   try {
-    const { recipientEmail, galleryName, galleryCode, galleryPassword } = request.data;
+    const { recipientEmail, galleryName, galleryCode, galleryPassword } = data;
 
     if (!recipientEmail || !galleryName || !galleryCode) {
-      throw new HttpsError('invalid-argument', 'Missing required parameters');
+      throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
     }
 
     const mailOptions = {
@@ -223,21 +225,21 @@ export const sendGalleryPassword = onCall(async (request) => {
     };
 
     await transporter.sendMail(mailOptions);
-    logger.info(`Gallery password sent to ${recipientEmail}`);
+    console.log(`Gallery password sent to ${recipientEmail}`);
     
     return { success: true, message: 'Gallery password sent successfully' };
   } catch (error) {
-    logger.error('Error sending gallery password:', error);
-    throw new HttpsError('internal', 'Failed to send gallery password email');
+    console.error('Error sending gallery password:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send gallery password email');
   }
 });
 
 /**
  * Function per test configurazione email
  */
-export const testEmailConfiguration = onCall(async (request) => {
+exports.testEmailConfiguration = functions.https.onCall(async (data, context) => {
   try {
-    const { testRecipient } = request.data;
+    const { testRecipient } = data;
     const recipient = testRecipient || 'gennaro.mazzacane@gmail.com';
 
     const mailOptions = {
@@ -258,24 +260,24 @@ export const testEmailConfiguration = onCall(async (request) => {
     };
 
     await transporter.sendMail(mailOptions);
-    logger.info(`Test email sent to ${recipient}`);
+    console.log(`Test email sent to ${recipient}`);
     
     return { success: true, message: 'Test email sent successfully' };
   } catch (error) {
-    logger.error('Error sending test email:', error);
-    throw new HttpsError('internal', 'Failed to send test email');
+    console.error('Error sending test email:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send test email');
   }
 });
 
 /**
  * Function per email di benvenuto
  */
-export const sendWelcomeEmail = onCall(async (request) => {
+exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
   try {
-    const { recipientEmail, galleryName } = request.data;
+    const { recipientEmail, galleryName } = data;
 
     if (!recipientEmail || !galleryName) {
-      throw new HttpsError('invalid-argument', 'Missing required parameters');
+      throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
     }
 
     const mailOptions = {
@@ -295,11 +297,11 @@ export const sendWelcomeEmail = onCall(async (request) => {
     };
 
     await transporter.sendMail(mailOptions);
-    logger.info(`Welcome email sent to ${recipientEmail}`);
+    console.log(`Welcome email sent to ${recipientEmail}`);
     
     return { success: true, message: 'Welcome email sent successfully' };
   } catch (error) {
-    logger.error('Error sending welcome email:', error);
-    throw new HttpsError('internal', 'Failed to send welcome email');
+    console.error('Error sending welcome email:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send welcome email');
   }
 });
