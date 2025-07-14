@@ -413,6 +413,26 @@ export function useGalleryData(galleryCode: string) {
     fetchGallery();
   }, [galleryCode]);
 
+  // Listener per eventi di refresh
+  useEffect(() => {
+    const handleGalleryRefresh = async (event: CustomEvent) => {
+      const { galleryId, type } = event.detail;
+      
+      if (!gallery || gallery.id !== galleryId) return;
+
+      if (type === 'photos' || type === 'all') {
+        // Ricarica le foto
+        await loadPhotos(gallery.id, gallery);
+      }
+    };
+
+    window.addEventListener('galleryRefresh', handleGalleryRefresh as EventListener);
+    
+    return () => {
+      window.removeEventListener('galleryRefresh', handleGalleryRefresh as EventListener);
+    };
+  }, [gallery]);
+
   // Funzione ottimizzata per caricare più foto
   const loadMorePhotos = useCallback(async () => {
     if (!gallery || !hasMorePhotos || loadingMorePhotos) return;
@@ -496,6 +516,13 @@ export function useGalleryData(galleryCode: string) {
     }
   }, [gallery]);
 
+  // Funzione di refresh esplicita per l'uso esterno
+  const refreshPhotos = useCallback(async () => {
+    if (!gallery) return;
+    
+    await loadPhotos(gallery.id, gallery);
+  }, [gallery, loadPhotos]);
+
   return { 
     gallery, 
     photos, 
@@ -504,6 +531,7 @@ export function useGalleryData(galleryCode: string) {
     hasMorePhotos, 
     loadingMorePhotos,
     loadMorePhotos,
+    refreshPhotos,
     totalPhotoCount,
     loadedPhotoCount,
     loadingProgress
