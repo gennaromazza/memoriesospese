@@ -1,5 +1,5 @@
 modules = ["nodejs-20", "web", "postgresql-16"]
-run = "npm run dev"
+run = "npm install && npm run build && node dist/index.js"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
@@ -7,70 +7,34 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "npm run build"]
+build = ["sh", "-c", "npm install && npm run build"]
 run = ["sh", "-c", "node dist/index.js"]
 
 [workflows]
-runButton = "Firebase SPA Dev"
+runButton = "Dev"
 
 [[workflows.workflow]]
-name = "Project"
-mode = "parallel"
+name = "Dev Workflow"
+mode = "sequential"
 author = "agent"
-
 [[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
+task = "shell.exec"
+args = "npm install"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
 
 [[workflows.workflow]]
-name = "Build and Deploy"
-author = 41213760
+name = "Prod Build & Start"
 mode = "sequential"
-
+author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run build-deploy"
-
-[[workflows.workflow]]
-name = "Deploy Production"
-author = 41213760
-mode = "sequential"
-
+args = "npm install"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run build"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "NODE_ENV=production node dist/index.js"
-
-[[workflows.workflow]]
-name = "Firebase SPA Dev"
-author = 41213760
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-
-[[workflows.workflow]]
-name = "Build and Start Production"
-author = 41213760
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run build"
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm start"
