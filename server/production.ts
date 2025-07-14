@@ -3,18 +3,14 @@
  * Serves static files built by Vite
  */
 
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import * as express from 'express';
+import * as path from 'path';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 
 // Serve static files from dist directory
-const staticPath = path.join(__dirname, '..', 'dist');
+const staticPath = path.resolve(process.cwd(), 'dist');
 app.use(express.static(staticPath));
 
 // Handle SPA routing - serve index.html for all routes
