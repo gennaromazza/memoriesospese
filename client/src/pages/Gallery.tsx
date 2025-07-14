@@ -75,7 +75,7 @@ export default function Gallery() {
     
     // Fallback con evento personalizzato
     refreshPhotos();
-  }, [refreshGalleryPhotos, refreshPhotos]);
+  }, [refreshPhotos]);
 
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -92,7 +92,7 @@ export default function Gallery() {
     hasMorePhotos, 
     loadingMorePhotos,
     loadMorePhotos,
-    refreshPhotos: refreshGalleryPhotos 
+    refreshPhotos: refreshGalleryPhotosHook 
   } = useGalleryData(id || "");
 
   // Aggiorna lo stato di caricamento
