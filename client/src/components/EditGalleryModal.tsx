@@ -27,6 +27,7 @@ interface PhotoData {
   uploaderEmail?: string;
   uploaderName?: string;
   uploaderRole?: string;
+  uploadedBy?: 'admin' | 'guest' | 'legacy';
 }
 
 interface GalleryType {
@@ -127,22 +128,24 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     
     setIsLoading(true);
     try {
-      console.log('🔍 Caricamento foto admin per galleria:', gallery.id);
+      console.log('🔍 Caricamento TUTTE le foto per galleria:', gallery.id);
       
-      // Carica le foto dalla collezione globale photos filtrata per galleryId e uploadedBy
+      // 1. Carica foto dal nuovo sistema (collezione photos con uploadedBy)
       const photosQuery = query(
         collection(db, "photos"),
-        where("galleryId", "==", gallery.id),
-        where("uploadedBy", "==", "admin")
+        where("galleryId", "==", gallery.id)
       );
       
       const photosSnapshot = await getDocs(photosQuery);
-      console.log('📊 Foto admin trovate:', photosSnapshot.docs.length);
+      console.log('📊 Foto trovate in collezione photos:', photosSnapshot.docs.length);
       
-      const loadedPhotos: PhotoData[] = photosSnapshot.docs.map(doc => {
+      const loadedPhotos: PhotoData[] = [];
+      
+      // Aggiungi foto dal nuovo sistema
+      photosSnapshot.docs.forEach(doc => {
         const data = doc.data();
-        console.log('📷 Foto admin:', data.name, '- uploadedBy:', data.uploadedBy);
-        return {
+        console.log('📷 Foto:', data.name, '- uploadedBy:', data.uploadedBy || 'non specificato');
+        loadedPhotos.push({
           id: doc.id,
           name: data.name || "",
           url: data.url || "",
@@ -152,11 +155,63 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           galleryId: data.galleryId || gallery.id,
           uploaderEmail: data.uploaderEmail,
           uploaderName: data.uploaderName,
-          uploaderRole: data.uploaderRole
-        } as PhotoData;
+          uploaderRole: data.uploaderRole,
+          uploadedBy: data.uploadedBy || 'legacy'
+        } as PhotoData);
       });
       
-      // Ordina le foto manualmente per data di creazione (più recenti prima)
+      // 2. Carica foto dal vecchio sistema (solo Storage) se ce ne sono poche in Firestore
+      if (loadedPhotos.length < (gallery.photoCount || 0)) {
+        console.log('🔍 Cercando foto aggiuntive nel Storage...');
+        
+        try {
+          const { listAll, getDownloadURL, getMetadata } = await import('firebase/storage');
+          const { ref } = await import('firebase/storage');
+          
+          const storageRef = ref(storage, `gallery-photos/${gallery.id}`);
+          const storageList = await listAll(storageRef);
+          console.log('📦 Foto trovate in Storage:', storageList.items.length);
+          
+          // Ottieni nomi foto già caricate da Firestore
+          const existingNames = new Set(loadedPhotos.map(p => p.name));
+          
+          // Carica foto dal Storage che non sono in Firestore
+          const storagePromises = storageList.items
+            .filter(item => !existingNames.has(item.name))
+            .map(async (item) => {
+              try {
+                const url = await getDownloadURL(item);
+                const metadata = await getMetadata(item);
+                
+                return {
+                  id: `storage-${item.name}`, // ID speciale per foto di storage
+                  name: item.name,
+                  url: url,
+                  contentType: metadata.contentType || 'image/jpeg',
+                  size: metadata.size || 0,
+                  createdAt: metadata.timeCreated ? new Date(metadata.timeCreated) : new Date(),
+                  galleryId: gallery.id,
+                  uploaderEmail: 'legacy@storage',
+                  uploaderName: 'Sistema Legacy',
+                  uploaderRole: 'admin',
+                  uploadedBy: 'legacy'
+                } as PhotoData;
+              } catch (error) {
+                console.warn('⚠️ Errore caricamento foto Storage:', item.name, error);
+                return null;
+              }
+            });
+          
+          const storagePhotos = (await Promise.all(storagePromises)).filter(Boolean) as PhotoData[];
+          console.log('✅ Foto legacy caricate:', storagePhotos.length);
+          
+          loadedPhotos.push(...storagePhotos);
+        } catch (storageError) {
+          console.warn('⚠️ Errore accesso Storage:', storageError);
+        }
+      }
+      
+      // Ordina tutte le foto per data di creazione (più recenti prima)
       loadedPhotos.sort((a, b) => {
         if (!a.createdAt || !b.createdAt) return 0;
         
@@ -179,7 +234,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         return bTime - aTime;
       });
       
-      console.log('✅ Foto admin caricate:', loadedPhotos.length);
+      console.log('✅ TUTTE le foto caricate:', loadedPhotos.length);
+      console.log('📊 Nuove:', loadedPhotos.filter(p => p.uploadedBy !== 'legacy').length);
+      console.log('📦 Legacy:', loadedPhotos.filter(p => p.uploadedBy === 'legacy').length);
+      
       setPhotos(loadedPhotos);
       
     } catch (error) {
@@ -201,13 +259,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     try {
       setIsDeletingPhoto(true);
       
-      // 1. Elimina il documento dalla collezione globale photos
-      const photoRef = doc(db, "photos", photoToDelete.id);
-      await deleteDoc(photoRef);
+      // 1. Elimina il documento da Firestore (se non è una foto solo di Storage)
+      if (!photoToDelete.id.startsWith('storage-')) {
+        console.log(`🗑️ Eliminando documento Firestore: ${photoToDelete.id}`);
+        const photoRef = doc(db, "photos", photoToDelete.id);
+        await deleteDoc(photoRef);
+        console.log(`✅ Documento Firestore eliminato`);
+      } else {
+        console.log(`📦 Foto legacy solo Storage, skip Firestore`);
+      }
       
       // 2. Elimina il file da Firebase Storage
-      // Il path corretto è quello usato da uploadSinglePhoto: galleries/{galleryId}/{fileId}-{filename}
-      // Estrai il nome del file dall'URL Firebase Storage
       let photoDeleted = false;
       
       try {
@@ -227,19 +289,37 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         }
       } catch (storageError) {
         console.warn(`⚠️ Errore eliminazione Storage:`, storageError);
-        // Continua comunque con l'eliminazione da Firestore
+        // Continua comunque - l'eliminazione da Firestore è più importante
       }
       
-      // 3. Aggiorna l'array locale delle foto
+      // 3. Aggiorna conteggio foto nella galleria
+      try {
+        const newPhotoCount = Math.max(0, (gallery.photoCount || 0) - 1);
+        const galleryRef = doc(db, "galleries", gallery.id);
+        await updateDoc(galleryRef, { 
+          photoCount: newPhotoCount,
+          updatedAt: serverTimestamp()
+        });
+      } catch (countError) {
+        console.warn('⚠️ Errore aggiornamento conteggio foto:', countError);
+      }
+      
+      // 4. Aggiorna l'array locale delle foto
       setPhotos(photos.filter(photo => photo.id !== photoToDelete.id));
+      
+      const photoType = photoToDelete.uploadedBy === 'admin' ? 'admin' : 
+                       photoToDelete.uploadedBy === 'guest' ? 'ospite' : 'legacy';
       
       toast({
         title: "Foto eliminata",
-        description: "La foto è stata eliminata con successo dalla galleria."
+        description: `La foto ${photoType} è stata eliminata con successo dalla galleria.`
       });
       
+      // 5. Forza il refresh della galleria principale
+      window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
+      
     } catch (error) {
-      console.error('Errore durante l\'eliminazione:', error);
+      console.error('❌ Errore durante l\'eliminazione:', error);
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'eliminazione della foto.",
@@ -550,7 +630,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             {/* Sezione foto esistenti */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">Foto del Fotografo ({photos.length})</h4>
+                <h4 className="font-medium">Tutte le Foto della Galleria ({photos.length})</h4>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -561,10 +641,26 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 </Button>
               </div>
               
+              {/* Statistiche foto per tipo */}
+              <div className="flex gap-4 text-sm text-gray-600 mb-4">
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  Admin: {photos.filter(p => p.uploadedBy === 'admin').length}
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  Ospiti: {photos.filter(p => p.uploadedBy === 'guest').length}
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                  Legacy: {photos.filter(p => p.uploadedBy === 'legacy').length}
+                </span>
+              </div>
+              
               {photos.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Image className="mx-auto h-12 w-12 text-gray-400" />
-                  <p className="mt-2">Nessuna foto caricata dal fotografo</p>
+                  <p className="mt-2">Nessuna foto caricata nella galleria</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
@@ -575,6 +671,25 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     alt={photo.name}
                     className="w-full h-24 object-cover rounded border"
                   />
+                  
+                  {/* Indicatore tipo foto */}
+                  <div className={`absolute top-1 left-1 w-3 h-3 rounded-full ${
+                    photo.uploadedBy === 'admin' ? 'bg-blue-500' :
+                    photo.uploadedBy === 'guest' ? 'bg-green-500' :
+                    'bg-orange-500'
+                  }`} title={
+                    photo.uploadedBy === 'admin' ? 'Foto Admin' :
+                    photo.uploadedBy === 'guest' ? 'Foto Ospite' :
+                    'Foto Legacy'
+                  }></div>
+                  
+                  {/* Nome uploader */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b">
+                    {photo.uploadedBy === 'admin' ? 'Admin' :
+                     photo.uploadedBy === 'guest' ? (photo.uploaderName || 'Ospite') :
+                     'Legacy'}
+                  </div>
+                  
                   <AlertDialog open={isDeleteDialogOpen && photoToDelete?.id === photo.id}>
                     <AlertDialogTrigger asChild>
                       <Button
@@ -593,7 +708,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       <AlertDialogHeader>
                         <AlertDialogTitle>Elimina Foto</AlertDialogTitle>
                         <AlertDialogDescription id="delete-photo-dialog-description">
-                          Sei sicuro di voler eliminare questa foto? Questa azione non può essere annullata.
+                          Sei sicuro di voler eliminare questa foto {photo.uploadedBy === 'admin' ? 'admin' : 
+                          photo.uploadedBy === 'guest' ? 'dell\'ospite' : 'legacy'}? Questa azione non può essere annullata.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
