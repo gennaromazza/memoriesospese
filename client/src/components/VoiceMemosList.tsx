@@ -128,23 +128,19 @@ export default function VoiceMemosList({
   }, [galleryId, refreshTrigger]);
 
   useEffect(() => {
-    // Controllo periodico ogni 5 minuti per gli sblocchi automatici
+    // Controllo periodico ogni 5 minuti per gli sblocchi automatici (solo refresh UI)
     const interval = setInterval(() => {
-      if (isAdmin) {
+      // Per i non-admin, controlla solo se ci sono memo in attesa di sblocco
+      const hasPendingUnlocks = voiceMemos.some(memo => 
+        !memo.isUnlocked && memo.unlockDate && new Date(memo.unlockDate) <= new Date()
+      );
+      if (hasPendingUnlocks) {
         fetchVoiceMemos();
-      } else {
-        // Per i non-admin, controlla solo se ci sono memo in attesa di sblocco
-        const hasPendingUnlocks = voiceMemos.some(memo => 
-          !memo.isUnlocked && memo.unlockDate && new Date(memo.unlockDate) <= new Date()
-        );
-        if (hasPendingUnlocks) {
-          fetchVoiceMemos();
-        }
       }
     }, 5 * 60 * 1000); // 5 minuti
 
     return () => clearInterval(interval);
-  }, [isAdmin, voiceMemos]);
+  }, [voiceMemos]);
 
   const handleUnlockMemo = async (memoId: string) => {
     try {
@@ -390,18 +386,18 @@ export default function VoiceMemosList({
           <Button 
             onClick={async () => {
               try {
-                const response = await fetch(`/api/galleries/${galleryId}/voice-memos/check-unlocks`, {
-                  method: 'POST'
+                console.log('🔍 Avvio controllo sblocchi automatici...');
+                // Usa direttamente VoiceMemoService invece di API endpoint
+                const { VoiceMemoService } = await import('@/lib/voiceMemos');
+                const unlockedCount = await VoiceMemoService.checkAndUnlockMemos();
+                
+                toast({
+                  title: "Controllo sblocchi completato",
+                  description: `${unlockedCount} voice memo${unlockedCount !== 1 ? 's' : ''} sbloccati`,
                 });
-                const result = await response.json();
-                if (result.success) {
-                  toast({
-                    title: "Controllo sblocchi completato",
-                    description: result.message,
-                  });
-                  fetchVoiceMemos();
-                }
+                fetchVoiceMemos();
               } catch (error) {
+                console.error('Errore nel controllo sblocchi automatici:', error);
                 toast({
                   title: "Errore",
                   description: "Errore nel controllo degli sblocchi",

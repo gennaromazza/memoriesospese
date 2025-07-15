@@ -43,6 +43,10 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 - ✅ **ORDINAMENTO UNIFICATO**: Ordina per data di creazione elementi da entrambe le collection
 - ✅ **FALLBACK ROBUSTO**: Continua a funzionare anche se una collection non è disponibile
 - ✅ **LOGGING DETTAGLIATO**: Traccia separatamente caricamento da collection nuova vs legacy
+- ✅ **SBLOCCHI AUTOMATICI RISOLTI**: Corretto errore "failed-precondition" nel controllo sblocchi voice memos
+- ✅ **QUERY SEMPLIFICATA**: Rimossa query con campo unlockAt, ora usa filtri lato client
+- ✅ **CAMPI UNIFICATI**: Supporta sia unlockDate che unlockAt per compatibilità
+- ✅ **CONTROLLO PERIODICO**: Sblocchi automatici funzionano ogni 5 minuti senza errori
 - → **RISULTATO**: Sistema sociale completamente compatibile con tutte le versioni precedenti
 
 ### 15 Luglio 2025 - BUG CRITICO UPLOAD RISOLTO - PROPRIETÀ FILE MANCANTI ✅
