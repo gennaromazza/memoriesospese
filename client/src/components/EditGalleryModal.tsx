@@ -162,11 +162,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       // 2. COMPATIBILITÀ: Carica foto ospiti dalla vecchia collezione galleries/{galleryId}/photos
       try {
-        console.log('🔍 Caricando foto ospiti dalla vecchia collezione per compatibilità...');
         const oldGuestPhotosRef = collection(db, "galleries", gallery.id, "photos");
         const oldGuestPhotosSnapshot = await getDocs(oldGuestPhotosRef);
-        
-        console.log('📦 Foto trovate nella vecchia collezione ospiti:', oldGuestPhotosSnapshot.docs.length);
         
         // Ottieni nomi foto già caricate per evitare duplicati
         const existingPhotoNames = new Set(loadedPhotos.map(p => p.name));
@@ -174,29 +171,38 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         oldGuestPhotosSnapshot.docs.forEach(doc => {
           const photoData = doc.data();
           const photoName = photoData.name || "";
+          const photoUrl = photoData.url || "";
+          
+          // Determina se è una foto ospite basandoci sull'URL del Storage
           
           // Evita duplicati basandoci sul nome della foto
           if (!existingPhotoNames.has(photoName)) {
-            const oldGuestPhoto: PhotoData = {
+            // Determina se è una foto ospite basandoci sull'URL del Storage
+            const isGuestPhoto = photoUrl.includes('/guests/') || 
+                               photoUrl.includes('guest-') ||
+                               photoData.uploadedBy === 'guest' ||
+                               photoData.uploaderRole === 'guest';
+            
+            const oldPhoto: PhotoData = {
               id: `old-guest-${doc.id}`, // ID speciale per foto vecchie
               name: photoName,
-              url: photoData.url || "",
+              url: photoUrl,
               contentType: photoData.contentType || "image/jpeg",
               size: photoData.size || 0,
               createdAt: photoData.createdAt || new Date(),
               galleryId: gallery.id,
-              uploaderEmail: photoData.uploaderEmail || 'guest@legacy',
-              uploaderName: photoData.uploaderName || 'Ospite Legacy',
-              uploaderRole: 'guest',
-              uploadedBy: 'guest' // Marchia come foto ospite
+              uploaderEmail: photoData.uploaderEmail || (isGuestPhoto ? 'guest@legacy' : 'admin@legacy'),
+              uploaderName: photoData.uploaderName || (isGuestPhoto ? 'Ospite Legacy' : 'Admin Legacy'),
+              uploaderRole: isGuestPhoto ? 'guest' : 'admin',
+              uploadedBy: isGuestPhoto ? 'guest' : 'legacy' // Marchia correttamente il tipo
             } as PhotoData;
             
-            loadedPhotos.push(oldGuestPhoto);
+            loadedPhotos.push(oldPhoto);
             existingPhotoNames.add(photoName);
           }
         });
         
-        console.log('✅ Foto ospiti legacy aggiunte in EditGalleryModal');
+        // Foto ospiti legacy caricate con successo
         
       } catch (legacyError) {
         console.warn('⚠️ Errore caricamento foto ospiti legacy:', legacyError);
