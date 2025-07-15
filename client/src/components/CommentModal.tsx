@@ -127,7 +127,7 @@ export default function CommentModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newComment.trim()) {
@@ -148,7 +148,26 @@ export default function CommentModal({
       return;
     }
 
-    onSubmitComment();
+    if (!userEmail || !userName) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato per commentare",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log('🔍 Invio commento con dati:', { userEmail, userName, text: newComment.trim() });
+      await onSubmitComment();
+    } catch (error) {
+      console.error('❌ Errore invio commento:', error);
+      toast({
+        title: "Errore",
+        description: error instanceof Error ? error.message : "Errore nell'invio del commento",
+        variant: "destructive"
+      });
+    }
   };
 
   return (

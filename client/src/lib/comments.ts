@@ -43,7 +43,7 @@ export interface CommentData {
   userName: string;
   userProfileImageUrl?: string;
   text?: string; // optional for backward compatibility
-  content: string; // primary field
+  content?: string; // optional, fallback if text is not provided
 }
 
 export class CommentService {
@@ -52,30 +52,55 @@ export class CommentService {
    */
   static async addComment(commentData: CommentData): Promise<string> {
     try {
-      // Validazione input
-      if (!commentData.text?.trim()) {
+      console.log('🔍 Dati commento ricevuti:', commentData);
+
+      // Validazione input migliorata
+      const text = commentData.text || commentData.content;
+      if (!text?.trim()) {
         throw new Error('Testo commento richiesto');
       }
       
       if (!commentData.itemId || !commentData.galleryId) {
-        throw new Error('Dati commento incompleti');
+        console.error('❌ Dati mancanti:', { itemId: commentData.itemId, galleryId: commentData.galleryId });
+        throw new Error('Dati commento incompleti: itemId e galleryId sono richiesti');
       }
 
-      const docRef = await addDoc(collection(db, 'comments'), {
-        ...commentData,
-        text: commentData.text.trim(),
-        content: commentData.text.trim(), // Store both for compatibility
+      if (!commentData.userEmail || !commentData.userName) {
+        console.error('❌ Dati utente mancanti:', { userEmail: commentData.userEmail, userName: commentData.userName });
+        throw new Error('Dati utente richiesti per aggiungere commento');
+      }
+
+      // Prepara i dati per Firebase
+      const firebaseData = {
+        galleryId: commentData.galleryId,
         itemId: commentData.itemId,
         itemType: commentData.itemType || 'photo',
         photoId: commentData.photoId || commentData.itemId, // backward compatibility
         userId: commentData.userId || commentData.userEmail,
+        userEmail: commentData.userEmail,
+        userName: commentData.userName,
+        userProfileImageUrl: commentData.userProfileImageUrl || null,
+        text: text.trim(),
+        content: text.trim(), // Store both for compatibility
         createdAt: serverTimestamp()
-      });
+      };
+
+      console.log('📤 Invio dati a Firebase:', firebaseData);
+
+      const docRef = await addDoc(collection(db, 'comments'), firebaseData);
       
+      console.log('✅ Commento aggiunto con ID:', docRef.id);
       return docRef.id;
     } catch (error) {
-      console.error('Errore aggiunta commento:', error);
-      throw error;
+      console.error('❌ Errore aggiunta commento:', error);
+      console.error('📋 Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+      
+      // Rilancia l'errore con più informazioni
+      if (error instanceof Error) {
+        throw new Error(`Errore aggiunta commento: ${error.message}`);
+      } else {
+        throw new Error('Errore sconosciuto durante l\'aggiunta del commento');
+      }
     }
   }
 
