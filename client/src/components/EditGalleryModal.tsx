@@ -173,7 +173,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           url: data.url || "",
           contentType: data.contentType || "image/jpeg",
           size: data.size || 0,
-          createdAt: data.createdAt || new Date(),
+          createdAt: data.createdAt || Timestamp.now(),
           galleryId: data.galleryId || gallery.id,
           uploaderEmail: data.uploaderEmail,
           uploaderName: data.uploaderName,
@@ -211,7 +211,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               url: photoUrl,
               contentType: photoData.contentType || "image/jpeg",
               size: photoData.size || 0,
-              createdAt: photoData.createdAt || new Date(),
+              createdAt: photoData.createdAt || Timestamp.now(),
               galleryId: gallery.id,
               uploaderEmail: photoData.uploaderEmail || (isGuestPhoto ? 'guest@legacy' : 'admin@legacy'),
               uploaderName: photoData.uploaderName || (isGuestPhoto ? 'Ospite Legacy' : 'Admin Legacy'),
@@ -259,7 +259,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   url: url,
                   contentType: metadata.contentType || 'image/jpeg',
                   size: metadata.size || 0,
-                  createdAt: metadata.timeCreated ? new Date(metadata.timeCreated) : new Date(),
+                  createdAt: metadata.timeCreated ? Timestamp.fromDate(new Date(metadata.timeCreated)) : Timestamp.now(),
                   galleryId: gallery.id,
                   uploaderEmail: 'legacy@storage',
                   uploaderName: 'Sistema Legacy',
@@ -289,16 +289,16 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         let aTime: number;
         let bTime: number;
         
-        if (a.createdAt.seconds) {
-          aTime = a.createdAt.seconds * 1000;
+        if (a.createdAt && typeof a.createdAt === 'object' && 'seconds' in a.createdAt) {
+          aTime = (a.createdAt as Timestamp).seconds * 1000;
         } else {
-          aTime = new Date(a.createdAt).getTime();
+          aTime = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
         }
         
-        if (b.createdAt.seconds) {
-          bTime = b.createdAt.seconds * 1000;
+        if (b.createdAt && typeof b.createdAt === 'object' && 'seconds' in b.createdAt) {
+          bTime = (b.createdAt as Timestamp).seconds * 1000;
         } else {
-          bTime = new Date(b.createdAt).getTime();
+          bTime = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
         }
         
         return bTime - aTime;

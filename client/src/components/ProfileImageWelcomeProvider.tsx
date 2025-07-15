@@ -1,5 +1,5 @@
 import React from 'react';
-import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import ProfileImageWelcome from './ProfileImageWelcome';
 
 export default function ProfileImageWelcomeProvider() {
