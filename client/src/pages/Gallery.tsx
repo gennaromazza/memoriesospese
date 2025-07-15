@@ -381,7 +381,7 @@ export default function Gallery() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => setIsEditGalleryOpen(true)}
-                            className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 border border-blue-200"
+                            className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 shadow-sm"
                           >
                             <Edit3 className="h-4 w-4" />
                             <span className="hidden sm:inline">Edit Gallery</span>
