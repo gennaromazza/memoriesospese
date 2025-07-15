@@ -264,19 +264,50 @@ export class VoiceMemoService {
   static async checkAndUnlockMemos(): Promise<number> {
     try {
       const now = new Date();
-      const memosQuery = query(
-        collection(db, 'voiceMemos'),
-        where('isUnlocked', '==', false),
-        where('unlockAt', '<=', now)
-      );
+      console.log('🔍 Controllo sblocchi automatici voice memos:', { now });
+      
+      // Ottieni tutti i voice memos senza filtri per evitare problemi con indici Firebase
+      const memosQuery = query(collection(db, 'voiceMemos'));
       
       const snapshot = await getDocs(memosQuery);
-      const unlockPromises = snapshot.docs.map(doc => 
-        updateDoc(doc.ref, { isUnlocked: true })
-      );
+      console.log('🔍 Voice memos totali trovati:', { count: snapshot.docs.length });
       
-      await Promise.all(unlockPromises);
-      return snapshot.docs.length;
+      // Filtra lato client per trovare quelli da sbloccare
+      const memosToUnlock = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        
+        // Controlla se è già sbloccato
+        if (data.isUnlocked === true) return false;
+        
+        const unlockDate = data.unlockDate || data.unlockAt || data.unlockTime;
+        
+        if (!unlockDate) return false;
+        
+        // Converti la data di sblocco in Date object
+        let unlockDateObj: Date;
+        if (unlockDate.toDate) {
+          unlockDateObj = unlockDate.toDate();
+        } else if (unlockDate.seconds) {
+          unlockDateObj = new Date(unlockDate.seconds * 1000);
+        } else {
+          unlockDateObj = new Date(unlockDate);
+        }
+        
+        return now >= unlockDateObj;
+      });
+      
+      console.log('🔍 Voice memos da sbloccare:', { count: memosToUnlock.length });
+      
+      if (memosToUnlock.length > 0) {
+        const unlockPromises = memosToUnlock.map(doc => 
+          updateDoc(doc.ref, { isUnlocked: true })
+        );
+        
+        await Promise.all(unlockPromises);
+        console.log('✅ Voice memos sbloccati:', { count: memosToUnlock.length });
+      }
+      
+      return memosToUnlock.length;
     } catch (error) {
       console.error('Errore sblocco automatico voice memos:', error);
       return 0;
