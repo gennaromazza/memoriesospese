@@ -36,8 +36,9 @@ export interface UploadSummary {
 // Costanti per la configurazione
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 2000;
-const DEFAULT_CONCURRENCY = 3; // Upload paralleli ridotti per stabilità
+const DEFAULT_CONCURRENCY = 1; // Upload sequenziali per massima stabilità
 const CHUNK_SIZE = 50; // Chunk più piccoli per migliore gestione memoria
+const UPLOAD_TIMEOUT_MS = 30000; // Timeout di 30 secondi per upload
 
 /**
  * Carica un singolo file su Firebase Storage con supporto per i ritentativi automatici
@@ -88,8 +89,29 @@ export const uploadSinglePhoto = async (
         });
       }
 
+      // Verifica che Firebase Storage sia configurato correttamente
+      if (!storage) {
+        throw new Error('Firebase Storage non configurato correttamente');
+      }
+      
+      console.log(`📤 Inizio upload: ${file.name} -> ${storagePath}`);
+      console.log(`📋 Dimensioni file: ${(compressedFile.size / 1024).toFixed(2)} KB`);
+      console.log(`📄 Tipo file: ${compressedFile.type}`);
+      
       const storageRef = ref(storage, storagePath);
+      
+      // Verifica che la referenza sia valida
+      if (!storageRef) {
+        throw new Error('Impossibile creare riferimento Storage');
+      }
+      
       const uploadTask = uploadBytesResumable(storageRef, compressedFile);
+
+      // Crea un timeout per evitare upload bloccati
+      const timeoutId = setTimeout(() => {
+        console.warn(`⏰ Timeout upload per ${file.name} dopo ${UPLOAD_TIMEOUT_MS}ms`);
+        uploadTask.cancel();
+      }, UPLOAD_TIMEOUT_MS);
 
     uploadTask.on(
       'state_changed',
@@ -108,10 +130,17 @@ export const uploadSinglePhoto = async (
         }
       },
       async (error) => {
+        clearTimeout(timeoutId); // Pulizia timeout
+        
         console.error('❌ Errore upload Firebase Storage:', error);
+        console.error('❌ Tipo errore:', error.code);
+        console.error('❌ Messaggio errore:', error.message);
+        console.error('❌ Stack trace:', error.stack);
         
         // Gestione automatica dei ritentativi
         if (attempt < MAX_RETRY_ATTEMPTS) {
+          console.log(`🔄 Tentativo ${attempt + 1} di ${MAX_RETRY_ATTEMPTS} per ${file.name}`);
+          
           if (progressCallback) {
             progressCallback({
               file,
@@ -131,15 +160,18 @@ export const uploadSinglePhoto = async (
             const result = await uploadSinglePhoto(galleryId, file, progressCallback, attempt + 1);
             resolve(result);
           } catch (retryError) {
+            console.error('❌ Errore durante retry:', retryError);
             reject(retryError);
           }
         } else {
-          // Troppi tentativi falliti
+          console.error(`❌ Troppi tentativi falliti per ${file.name}`);
           reject(error);
         }
       },
       async () => {
         try {
+          clearTimeout(timeoutId); // Pulizia timeout
+          
           // Upload completato con successo, ottieni l'URL di download
           const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
@@ -165,6 +197,7 @@ export const uploadSinglePhoto = async (
 
           resolve(photoData);
         } catch (error) {
+          clearTimeout(timeoutId); // Pulizia timeout anche in caso di errore
           console.error('❌ Errore nel getDownloadURL:', error);
           reject(error);
         }
@@ -173,7 +206,26 @@ export const uploadSinglePhoto = async (
     } catch (uploadError) {
       // Errore generale nell'upload
       console.error('❌ Errore upload foto:', uploadError);
-      reject(uploadError);
+      console.error('❌ Tipo errore generale:', uploadError?.code || 'Unknown');
+      console.error('❌ Messaggio errore generale:', uploadError?.message || 'Unknown error');
+      console.error('❌ Stack trace generale:', uploadError?.stack || 'No stack trace');
+      
+      // Anche per gli errori generali, prova il retry
+      if (attempt < MAX_RETRY_ATTEMPTS) {
+        console.log(`🔄 Retry per errore generale - Tentativo ${attempt + 1} di ${MAX_RETRY_ATTEMPTS} per ${file.name}`);
+        
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        
+        try {
+          const result = await uploadSinglePhoto(galleryId, file, progressCallback, attempt + 1);
+          resolve(result);
+        } catch (retryError) {
+          console.error('❌ Errore durante retry generale:', retryError);
+          reject(retryError);
+        }
+      } else {
+        reject(uploadError);
+      }
     }
   });
 };
