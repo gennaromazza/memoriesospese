@@ -70,7 +70,13 @@ export async function notifyNewPhotos(
   galleryName: string,
   uploaderName: string,
   newPhotosCount: number,
-) {
+): Promise<{
+  success: boolean;
+  notified?: number;
+  method?: string;
+  details?: any;
+  error?: string;
+}> {
   try {
     console.log(
       `🔔 Iniziando notifica per ${newPhotosCount} nuove foto in "${galleryName}"`,
@@ -85,7 +91,7 @@ export async function notifyNewPhotos(
     );
 
     const snapshot = await getDocs(q);
-    const subscribers = snapshot.docs.map((doc) => doc.data().email);
+    const subscribers = snapshot.docs.map((doc) => doc.data().email as string);
 
     if (subscribers.length === 0) {
       console.log("📭 Nessun subscriber trovato per questa galleria");
@@ -117,70 +123,71 @@ export async function notifyNewPhotos(
           details: httpResult,
         };
       } catch (httpError) {
-      console.warn("⚠️ HTTP function fallita, provo con callable:", httpError);
+        console.warn("⚠️ HTTP function fallita, provo con callable:", httpError);
 
-      try {
-        // Fallback con callable function
-        const result = await sendNewPhotosNotification({
-          galleryName,
-          newPhotosCount,
-          uploaderName,
-          galleryUrl,
-          recipients: subscribers,
-        });
+        try {
+          // Fallback con callable function
+          const result = await sendNewPhotosNotification({
+            galleryName,
+            newPhotosCount,
+            uploaderName,
+            galleryUrl,
+            recipients: subscribers,
+          });
 
-        console.log(
-          `✅ Notifiche inviate tramite Firebase Functions callable a ${subscribers.length} subscribers`,
-        );
-        return {
-          success: true,
-          notified: subscribers.length,
-          method: "firebase_functions_callable",
-          details: result.data,
-        };
-      } catch (error) {
-        // In sviluppo, le Firebase Functions non sono disponibili
-        console.warn(
-          "⚠️ Firebase Functions non disponibili in ambiente di sviluppo:",
-          error instanceof Error ? error.message : "Errore sconosciuto",
-        );
-        
-        // Fallback: salva in Firestore solo se non è un errore di sviluppo
-        if (process.env.NODE_ENV === 'production') {
-          try {
-            const notificationQueue = collection(db, "emailQueue");
-            const queueData = {
-              type: "new_photos_notification",
-              galleryId,
-              galleryName,
-              newPhotosCount,
-              uploaderName,
-              galleryUrl,
-              recipients: subscribers,
-              status: "pending",
-              createdAt: new Date(),
-              error: error instanceof Error ? error.message : "Errore sconosciuto",
-            };
-            await addDoc(notificationQueue, queueData);
-          } catch (queueError) {
-            console.error("Errore salvataggio in coda:", queueError);
+          console.log(
+            `✅ Notifiche inviate tramite Firebase Functions callable a ${subscribers.length} subscribers`,
+          );
+          return {
+            success: true,
+            notified: subscribers.length,
+            method: "firebase_functions_callable",
+            details: result.data,
+          };
+        } catch (error) {
+          console.warn(
+            "⚠️ Firebase Functions non disponibili in ambiente di sviluppo:",
+            error instanceof Error ? error.message : "Errore sconosciuto",
+          );
+
+          // Fallback: salva in Firestore solo se in produzione
+          if (process.env.NODE_ENV === "production") {
+            try {
+              const notificationQueue = collection(db, "emailQueue");
+              const queueData = {
+                type: "new_photos_notification",
+                galleryId,
+                galleryName,
+                newPhotosCount,
+                uploaderName,
+                galleryUrl,
+                recipients: subscribers,
+                status: "pending",
+                createdAt: new Date(),
+                error:
+                  error instanceof Error ? error.message : "Errore sconosciuto",
+              };
+              await addDoc(notificationQueue, queueData);
+            } catch (queueError) {
+              console.error("Errore salvataggio in coda:", queueError);
+            }
           }
+
+          return {
+            success: true,
+            notified: 0,
+            method: "development_skip",
+          };
         }
-        
-        return {
-          success: true,
-          notified: 0,
-          method: "development_skip",
-        };
       }
+    } catch (outerError) {
+      console.error("❌ Errore generale durante l'invio notifiche:", outerError);
+      return {
+        success: true,
+        notified: 0,
+        method: "development_skip",
+      };
     }
-    
-    const result = { success: true, notified: 0, method: "development_skip" };
-    console.log(
-      `✅ Notifiche inviate: ${result.notified} successi`,
-    );
-    return result;
-    
   } catch (error) {
     console.error("❌ Errore invio notifiche:", error);
     return {
@@ -197,7 +204,7 @@ export async function subscribeToGallery(
   galleryId: string,
   galleryName: string,
   email: string,
-) {
+): Promise<{ success: boolean; alreadySubscribed?: boolean; error?: string }> {
   try {
     const normalizedEmail = email.toLowerCase();
 
@@ -229,17 +236,16 @@ export async function subscribeToGallery(
     });
 
     // 3. Invia email di benvenuto (con gestione errori robusta)
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === "production") {
       Promise.resolve()
         .then(async () => {
           try {
-            const result = await sendWelcomeEmail({ email, galleryName });
+            await sendWelcomeEmail({ recipientEmail: email, galleryName });
             console.log(`✅ Email di benvenuto inviata a ${email}`);
           } catch (emailError) {
             console.warn(
               "⚠️ Email di benvenuto non inviata (Firebase Functions non disponibili)",
             );
-            // L'iscrizione è comunque riuscita, solo l'email non è stata inviata
           }
         })
         .catch(() => {
@@ -263,7 +269,7 @@ export async function subscribeToGallery(
 /**
  * Test sistema email
  */
-export async function testEmailSystem() {
+export async function testEmailSystem(): Promise<any> {
   try {
     const result = await testEmailConfiguration({
       testRecipient: "gennaro.mazzacane@gmail.com",
@@ -355,10 +361,7 @@ export class EmailService {
   ): Promise<boolean> {
     try {
       const sendWelcome = httpsCallable(functions, "sendWelcomeEmail");
-      const result = await sendWelcome({
-        recipientEmail: email,
-        galleryName,
-      });
+      const result = await sendWelcome({ recipientEmail: email, galleryName });
       return (result.data as any)?.success || false;
     } catch (error) {
       console.error("Errore invio email benvenuto:", error);
