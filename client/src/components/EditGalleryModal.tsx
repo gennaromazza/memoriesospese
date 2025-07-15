@@ -77,6 +77,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   // Carica i dati della galleria quando cambia
   useEffect(() => {
     if (gallery) {
+      console.log('🔄 Caricamento dati galleria nel modal:', gallery.id);
       setName(gallery.name || "");
       setDate(gallery.date || "");
       setLocation(gallery.location || "");
@@ -92,10 +93,23 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         setCoverPreview(null);
       }
       
-      // Carica le foto
-      loadPhotos();
+      // Reset loading state quando cambia la galleria
+      setIsLoading(false);
+      
+      // Carica le foto solo se il modal è aperto
+      if (isOpen) {
+        loadPhotos();
+      }
     }
-  }, [gallery]);
+  }, [gallery, isOpen]);
+
+  // Reset loading state quando il modal si apre
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🔄 Modal aperto, reset loading state');
+      setIsLoading(false);
+    }
+  }, [isOpen]);
   
   // Gestisce il caricamento dell'immagine di copertina
   const handleCoverImageChange = (e: ChangeEvent<HTMLInputElement>) => {
