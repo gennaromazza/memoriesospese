@@ -49,10 +49,16 @@ export async function compressImage(
 
     const compressedFile = await imageCompression(file, options);
     
-    console.log(`✅ Compressione completata: ${file.name}`);
-    console.log(`📊 Dimensioni: ${(file.size / 1024).toFixed(2)} KB → ${(compressedFile.size / 1024).toFixed(2)} KB`);
+    // Assicuriamoci che il file compresso abbia tutte le proprietà necessarie
+    const finalFile = new File([compressedFile], file.name, {
+      type: compressedFile.type || file.type,
+      lastModified: file.lastModified
+    });
     
-    return compressedFile;
+    console.log(`✅ Compressione completata: ${file.name}`);
+    console.log(`📊 Dimensioni: ${(file.size / 1024).toFixed(2)} KB → ${(finalFile.size / 1024).toFixed(2)} KB`);
+    
+    return finalFile;
   } catch (error) {
     console.error('❌ Errore compressione immagine:', error);
     console.log(`⚠️ Usando file originale per: ${file.name}`);

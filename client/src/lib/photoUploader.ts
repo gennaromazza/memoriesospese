@@ -66,6 +66,15 @@ export const uploadSinglePhoto = async (
         compressedFile = file; // Usa il file originale in caso di errore
       }
       
+      // Verifica che il file compresso abbia tutte le proprietà necessarie
+      if (!compressedFile.name || !compressedFile.type || compressedFile.size === undefined) {
+        console.warn(`⚠️ File compresso con proprietà mancanti, ricostruendo file: ${file.name}`);
+        compressedFile = new File([compressedFile], file.name, {
+          type: compressedFile.type || file.type,
+          lastModified: file.lastModified
+        });
+      }
+      
       // Log dettagliato della compressione
       const originalSize = (file.size / 1024).toFixed(2);
       const compressedSize = (compressedFile.size / 1024).toFixed(2);
@@ -73,7 +82,7 @@ export const uploadSinglePhoto = async (
       console.log(`📊 Dimensioni: ${originalSize} KB → ${compressedSize} KB`);
 
       // Utilizza un identificatore univoco per evitare collisioni di nomi
-      const safeFileName = compressedFile.name.replace(/[#$]/g, '_'); // Caratteri problematici in Firebase Storage
+      const safeFileName = (compressedFile.name || file.name).replace(/[#$]/g, '_'); // Caratteri problematici in Firebase Storage
       const fileId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const storagePath = `galleries/${galleryId}/${fileId}-${safeFileName}`;
 
