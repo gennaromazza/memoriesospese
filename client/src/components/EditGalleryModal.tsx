@@ -127,29 +127,21 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     
     setIsLoading(true);
     try {
+      console.log('🔍 Caricamento foto admin per galleria:', gallery.id);
+      
       // Carica le foto dalla collezione globale photos filtrata per galleryId e uploadedBy
-      let photosQuery;
-      try {
-        // Prova prima con l'ordinamento
-        photosQuery = query(
-          collection(db, "photos"),
-          where("galleryId", "==", gallery.id),
-          where("uploadedBy", "==", "admin"),
-          orderBy("createdAt", "desc")
-        );
-      } catch (indexError) {
-        // Se l'indice non esiste, usa query semplice
-        photosQuery = query(
-          collection(db, "photos"),
-          where("galleryId", "==", gallery.id),
-          where("uploadedBy", "==", "admin")
-        );
-      }
+      const photosQuery = query(
+        collection(db, "photos"),
+        where("galleryId", "==", gallery.id),
+        where("uploadedBy", "==", "admin")
+      );
       
       const photosSnapshot = await getDocs(photosQuery);
+      console.log('📊 Foto admin trovate:', photosSnapshot.docs.length);
       
       const loadedPhotos: PhotoData[] = photosSnapshot.docs.map(doc => {
         const data = doc.data();
+        console.log('📷 Foto admin:', data.name, '- uploadedBy:', data.uploadedBy);
         return {
           id: doc.id,
           name: data.name || "",
@@ -187,10 +179,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         return bTime - aTime;
       });
       
+      console.log('✅ Foto admin caricate:', loadedPhotos.length);
       setPhotos(loadedPhotos);
       
     } catch (error) {
-      console.error('Errore nel caricamento foto:', error);
+      console.error('❌ Errore nel caricamento foto:', error);
       toast({
         title: "Errore",
         description: "Impossibile caricare le foto della galleria",
@@ -559,8 +552,28 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               </div>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
-              {photos.map((photo) => (
+            {/* Sezione foto esistenti */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Foto del Fotografo ({photos.length})</h4>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={loadPhotos}
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Caricamento..." : "Ricarica"}
+                </Button>
+              </div>
+              
+              {photos.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Image className="mx-auto h-12 w-12 text-gray-400" />
+                  <p className="mt-2">Nessuna foto caricata dal fotografo</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
+                  {photos.map((photo) => (
                 <div key={photo.id} className="relative group">
                   <img
                     src={photo.url}
@@ -603,6 +616,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   </AlertDialog>
                 </div>
               ))}
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
