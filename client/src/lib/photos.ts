@@ -215,19 +215,24 @@ export class PhotoService {
       const photo = await this.getPhotoById(photoId);
       
       if (photo) {
-        // Estrai path del file dall'URL
-        const url = new URL(photo.url);
-        const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
-        if (pathMatch) {
-          const filePath = decodeURIComponent(pathMatch[1]);
-          await StorageService.deleteFile(filePath);
+        // Usa il nome del file per costruire il path corretto
+        const storagePath = `galleries/${photo.galleryId}/photos/${photo.name}`;
+        console.log('🗑️ Eliminando foto da Storage:', storagePath);
+        
+        try {
+          await StorageService.deleteFile(storagePath);
+          console.log('✅ Foto eliminata da Storage');
+        } catch (storageError) {
+          console.warn('⚠️ Errore eliminazione Storage (potrebbe non esistere):', storageError);
+          // Continua comunque con l'eliminazione da Firestore
         }
       }
       
       // Elimina documento Firestore
       await deleteDoc(doc(db, 'photos', photoId));
+      console.log('✅ Foto eliminata da Firestore:', photoId);
     } catch (error) {
-      console.error('Errore eliminazione foto:', error);
+      console.error('❌ Errore eliminazione foto:', error);
       throw error;
     }
   }

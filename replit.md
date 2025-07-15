@@ -33,6 +33,11 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 ## Modifiche Recenti
 
 ### 15 Luglio 2025 - SISTEMA FOTO ADMIN/OSPITI COMPLETAMENTE RISOLTO - UPLOAD E VISUALIZZAZIONE FUNZIONANTI ✅
+- ✅ **CORREZIONE ELIMINAZIONE FOTO**: Risolto path errato in EditGalleryModal, ora usa URL parsing corretto
+- ✅ **LOGGING MIGLIORATO**: Aggiunto logging dettagliato compressione e eliminazione foto
+- ✅ **UNHANDLED REJECTIONS RISOLTE**: Corretta gestione promise notifiche email
+- ✅ **STORAGE PATH CORRETTO**: Usa URL parsing per estrarre path corretto da Firebase Storage
+- ✅ **GESTIONE ERRORI ROBUSTA**: Migliore reporting errori upload con fallback appropriati
 - ✅ **PARAMETRO UPLOADEDBY AGGIUNTO**: PhotoService.addPhoto ora accetta parametro uploadedBy per distinguere admin vs guest
 - ✅ **GUESTUPLOAD MARCATO**: Foto ospiti marcate correttamente con uploadedBy: 'guest' in PhotoService.uploadPhotosToGallery
 - ✅ **EDITGALLERYMODAL MARCATO**: Foto admin marcate con uploadedBy: 'admin' nel salvataggio Firestore
