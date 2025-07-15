@@ -103,6 +103,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       // Carica le foto solo se il modal è aperto
       if (isOpen) {
+        console.log('🔄 Chiamando loadPhotos perché modal è aperto');
         loadPhotos();
       }
     }
@@ -114,6 +115,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       currentGalleryId.current = null;
     }
   }, [isOpen]);
+
+  // Forza il caricamento foto quando il modal si apre ma non ci sono foto
+  useEffect(() => {
+    if (isOpen && gallery && photos.length === 0 && !isLoading) {
+      console.log('🔄 Forzando loadPhotos perché modal aperto ma nessuna foto');
+      loadPhotos();
+    }
+  }, [isOpen, gallery, photos.length, isLoading, loadPhotos]);
 
   // Cleanup dell'anteprima cover per evitare memory leak
   useEffect(() => {
@@ -149,9 +158,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   
   // Carica le foto dalla galleria (memoizzata per performance)
   const loadPhotos = useCallback(async () => {
-    if (!gallery) return;
+    if (!gallery) {
+      console.log('❌ loadPhotos: Gallery non definita');
+      return;
+    }
     
     console.log('🔄 Inizio caricamento foto per galleria:', gallery.id);
+    console.log('🔄 Stato photos prima del caricamento:', photos.length);
     setIsLoading(true);
     try {
       // 1. Carica foto dal nuovo sistema (collezione photos con uploadedBy)
@@ -307,8 +320,20 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       });
       
       // Foto caricate con successo, incluse quelle legacy compatibili
+      console.log('📸 Totale foto caricate:', loadedPhotos.length);
+      console.log('📊 Breakdown foto:', {
+        nuove: loadedPhotos.filter(p => !p.id.startsWith('old-guest-') && !p.id.startsWith('storage-')).length,
+        legacy: loadedPhotos.filter(p => p.id.startsWith('old-guest-')).length,
+        storage: loadedPhotos.filter(p => p.id.startsWith('storage-')).length
+      });
       
       setPhotos(loadedPhotos);
+      console.log('✅ Foto settate nello stato, lunghezza:', loadedPhotos.length);
+      
+      // Verifica immediata che le foto siano state settate
+      setTimeout(() => {
+        console.log('🔍 Verifica stato photos dopo setPhotos:', photos.length);
+      }, 100);
       
     } catch (error) {
       console.error('❌ Errore nel caricamento foto:', error);
