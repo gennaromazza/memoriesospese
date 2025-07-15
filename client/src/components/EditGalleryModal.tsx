@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, ChangeEvent } from "react";
+import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
 import { doc, updateDoc, collection, getDocs, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
@@ -114,6 +114,15 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       currentGalleryId.current = null;
     }
   }, [isOpen]);
+
+  // Cleanup dell'anteprima cover per evitare memory leak
+  useEffect(() => {
+    return () => {
+      if (coverPreview && coverPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(coverPreview);
+      }
+    };
+  }, [coverPreview]);
   
   // Gestisce il caricamento dell'immagine di copertina
   const handleCoverImageChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -136,13 +145,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     // Crea un'anteprima dell'immagine
     const objectUrl = URL.createObjectURL(file);
     setCoverPreview(objectUrl);
-    
-    // Cleanup URL quando il componente viene smontato
-    return () => URL.revokeObjectURL(objectUrl);
   };
   
-  // Carica le foto dalla galleria
-  const loadPhotos = async () => {
+  // Carica le foto dalla galleria (memoizzata per performance)
+  const loadPhotos = useCallback(async () => {
     if (!gallery) return;
     
     setIsLoading(true);
@@ -312,10 +318,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [gallery, toast]);
   
-  // Funzione per eliminare una foto sia da Firestore che da Storage
-  const deletePhoto = async (photoToDelete: PhotoData) => {
+  // Funzione per eliminare una foto sia da Firestore che da Storage (memoizzata)
+  const deletePhoto = useCallback(async (photoToDelete: PhotoData) => {
     if (!gallery) return;
     
     try {
@@ -399,10 +405,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setIsDeletingPhoto(false);
       setIsDeleteDialogOpen(false);
     }
-  };
+  }, [gallery, photos, toast]);
 
-  // Salva le modifiche alla galleria
-  const saveGallery = async () => {
+  // Salva le modifiche alla galleria (memoizzata per performance)
+  const saveGallery = useCallback(async () => {
     if (!gallery) {
       console.error('❌ Galleria non trovata per salvare');
       return;
@@ -437,7 +443,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         coverImageUrl: newCoverImageUrl,
         youtubeUrl,
         hasChapters: false,
-        updatedAt: new Date()
+        updatedAt: serverTimestamp()
       });
       
       console.log('✅ Galleria salvata con successo');
@@ -458,7 +464,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  };
+  }, [gallery, coverImage, coverImageUrl, name, date, location, description, password, youtubeUrl, onClose, toast]);
   
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
