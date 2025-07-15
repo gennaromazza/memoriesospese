@@ -32,6 +32,17 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 15 Luglio 2025 - COMPATIBILITÀ VERSIONE LEGACY IMPLEMENTATA - SISTEMA COMPLETO ✅
+- ✅ **COMPATIBILITÀ FOTO OSPITI LEGACY**: Implementato caricamento foto ospiti dalla vecchia collezione `galleries/{galleryId}/photos`
+- ✅ **DUAL SYSTEM SUPPORT**: Sistema ora supporta sia nuovo (`photos` globale) che vecchio (`galleries/{id}/photos`) sistema
+- ✅ **ELIMINAZIONE LEGACY**: EditGalleryModal può eliminare foto ospiti sia da nuova che vecchia collezione
+- ✅ **ZERO DUPLICATI**: Sistema previene duplicati confrontando nomi file tra le due collezioni
+- ✅ **BACKWARD COMPATIBILITY**: Applicazione completamente compatibile con deployment precedenti
+- ✅ **LOGGING DETTAGLIATO**: Tracciamento completo caricamento foto da entrambe le fonti
+- ✅ **GUEST PHOTOS UNIFICATI**: Tab ospiti ora mostra foto da entrambi i sistemi (es. 416 foto legacy + nuove)
+- ✅ **EDIT GALLERY COMPLETO**: Pannello admin gestisce foto di tutti i tipi e periodi
+- → **RISULTATO**: Sistema completamente retrocompatibile con versioni precedenti dell'applicazione
+
 ### 15 Luglio 2025 - SISTEMA FOTO ADMIN/OSPITI COMPLETAMENTE RISOLTO - UPLOAD E VISUALIZZAZIONE FUNZIONANTI ✅
 - ✅ **CORREZIONE ELIMINAZIONE FOTO**: Risolto path errato in EditGalleryModal, ora usa URL parsing corretto
 - ✅ **LOGGING MIGLIORATO**: Aggiunto logging dettagliato compressione e eliminazione foto
