@@ -69,6 +69,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [photoToDelete, setPhotoToDelete] = useState<PhotoData | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
+  const [photoFilter, setPhotoFilter] = useState<'all' | 'admin' | 'guest' | 'legacy'>('all');
   const coverInputRef = useRef<HTMLInputElement>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -128,8 +129,6 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     
     setIsLoading(true);
     try {
-      console.log('🔍 Caricamento TUTTE le foto per galleria:', gallery.id);
-      
       // 1. Carica foto dal nuovo sistema (collezione photos con uploadedBy)
       const photosQuery = query(
         collection(db, "photos"),
@@ -137,14 +136,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       );
       
       const photosSnapshot = await getDocs(photosQuery);
-      console.log('📊 Foto trovate in collezione photos:', photosSnapshot.docs.length);
       
       const loadedPhotos: PhotoData[] = [];
       
       // Aggiungi foto dal nuovo sistema
       photosSnapshot.docs.forEach(doc => {
         const data = doc.data();
-        console.log('📷 Foto:', data.name, '- uploadedBy:', data.uploadedBy || 'non specificato');
+        // Foto caricata dal nuovo sistema
         loadedPhotos.push({
           id: doc.id,
           name: data.name || "",
@@ -282,9 +280,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         return bTime - aTime;
       });
       
-      console.log('✅ TUTTE le foto caricate:', loadedPhotos.length);
-      console.log('📊 Nuove:', loadedPhotos.filter(p => p.uploadedBy !== 'legacy').length);
-      console.log('📦 Legacy:', loadedPhotos.filter(p => p.uploadedBy === 'legacy').length);
+      // Foto caricate con successo, incluse quelle legacy compatibili
       
       setPhotos(loadedPhotos);
       
@@ -697,20 +693,42 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 </Button>
               </div>
               
-              {/* Statistiche foto per tipo */}
-              <div className="flex gap-4 text-sm text-gray-600 mb-4">
-                <span className="flex items-center gap-1">
+              {/* Tab filtri foto */}
+              <div className="flex gap-2 mb-4">
+                <Button
+                  variant={photoFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPhotoFilter('all')}
+                >
+                  Tutte ({photos.length})
+                </Button>
+                <Button
+                  variant={photoFilter === 'admin' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPhotoFilter('admin')}
+                  className="flex items-center gap-1"
+                >
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  Admin: {photos.filter(p => p.uploadedBy === 'admin').length}
-                </span>
-                <span className="flex items-center gap-1">
+                  Admin ({photos.filter(p => p.uploadedBy === 'admin').length})
+                </Button>
+                <Button
+                  variant={photoFilter === 'guest' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPhotoFilter('guest')}
+                  className="flex items-center gap-1"
+                >
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  Ospiti: {photos.filter(p => p.uploadedBy === 'guest').length}
-                </span>
-                <span className="flex items-center gap-1">
+                  Ospiti ({photos.filter(p => p.uploadedBy === 'guest').length})
+                </Button>
+                <Button
+                  variant={photoFilter === 'legacy' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPhotoFilter('legacy')}
+                  className="flex items-center gap-1"
+                >
                   <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                  Legacy: {photos.filter(p => p.uploadedBy === 'legacy').length}
-                </span>
+                  Legacy ({photos.filter(p => p.uploadedBy === 'legacy').length})
+                </Button>
               </div>
               
               {photos.length === 0 ? (
@@ -720,7 +738,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
-                  {photos.map((photo) => (
+                  {photos
+                    .filter(photo => {
+                      if (photoFilter === 'all') return true;
+                      return photo.uploadedBy === photoFilter;
+                    })
+                    .map((photo) => (
                 <div key={photo.id} className="relative group">
                   <img
                     src={photo.url}
