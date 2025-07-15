@@ -74,10 +74,15 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Carica i dati della galleria quando cambia
+  // Traccia l'ID della galleria per evitare loop infiniti
+  const currentGalleryId = useRef<string | null>(null);
+
+  // Carica i dati della galleria quando cambia l'ID
   useEffect(() => {
-    if (gallery) {
+    if (gallery && gallery.id && currentGalleryId.current !== gallery.id) {
       console.log('🔄 Caricamento dati galleria nel modal:', gallery.id);
+      currentGalleryId.current = gallery.id;
+      
       setName(gallery.name || "");
       setDate(gallery.date || "");
       setLocation(gallery.location || "");
@@ -103,11 +108,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [gallery, isOpen]);
 
-  // Reset loading state quando il modal si apre
+  // Reset currentGalleryId quando il modal si chiude
   useEffect(() => {
-    if (isOpen) {
-      console.log('🔄 Modal aperto, reset loading state');
-      setIsLoading(false);
+    if (!isOpen) {
+      currentGalleryId.current = null;
     }
   }, [isOpen]);
   
