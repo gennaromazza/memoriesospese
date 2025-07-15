@@ -32,6 +32,18 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 15 Luglio 2025 - SISTEMA FOTO ADMIN/OSPITI COMPLETAMENTE RISOLTO - UPLOAD E VISUALIZZAZIONE FUNZIONANTI ✅
+- ✅ **PARAMETRO UPLOADEDBY AGGIUNTO**: PhotoService.addPhoto ora accetta parametro uploadedBy per distinguere admin vs guest
+- ✅ **GUESTUPLOAD MARCATO**: Foto ospiti marcate correttamente con uploadedBy: 'guest' in PhotoService.uploadPhotosToGallery
+- ✅ **EDITGALLERYMODAL MARCATO**: Foto admin marcate con uploadedBy: 'admin' nel salvataggio Firestore
+- ✅ **LOADPHOTOS QUERY ROBUSTA**: Gestione query Firestore con fallback per indici mancanti
+- ✅ **TIMESTAMP HANDLING**: Gestione corretta timestamp Firebase per ordinamento foto
+- ✅ **VOICE MEMO ERRORI RISOLTI**: Campi undefined sostituiti con valori di default (string vuota, null, 0)
+- ✅ **REFRESH EVENTS UNIFICATI**: galleryPhotosUpdated e voiceMemosUpdated per refresh automatico
+- ✅ **USEEFFECT LISTENERS**: Hook useGalleryData ascolta eventi personalizzati per refresh real-time
+- ✅ **ADMIN PHOTO REFRESH**: EditGalleryModal ricarica foto e triggera refresh galleria principale
+- → **RISULTATO**: Sistema completo per distinguere foto admin/ospiti con refresh automatico perfetto
+
 ### 14 Luglio 2025 - REFRESH FOTO RISOLTO E COLLECTIONS ALLINEATE - SISTEMA COMPLETO ✅
 - ✅ **COLLECTIONS ALLINEATE**: Risolto disallineamento tra lettura (subcollection) e scrittura (global collection) foto
 - ✅ **REFRESH FOTO FUNZIONANTE**: Photo refresh dopo upload ora funziona correttamente

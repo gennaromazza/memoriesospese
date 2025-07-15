@@ -127,13 +127,25 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     
     setIsLoading(true);
     try {
-      // Carica le foto dalla collezione globale photos filtrata per galleryId
-      const photosQuery = query(
-        collection(db, "photos"),
-        where("galleryId", "==", gallery.id),
-        where("uploadedBy", "==", "admin"),
-        orderBy("createdAt", "desc")
-      );
+      // Carica le foto dalla collezione globale photos filtrata per galleryId e uploadedBy
+      let photosQuery;
+      try {
+        // Prova prima con l'ordinamento
+        photosQuery = query(
+          collection(db, "photos"),
+          where("galleryId", "==", gallery.id),
+          where("uploadedBy", "==", "admin"),
+          orderBy("createdAt", "desc")
+        );
+      } catch (indexError) {
+        // Se l'indice non esiste, usa query semplice
+        photosQuery = query(
+          collection(db, "photos"),
+          where("galleryId", "==", gallery.id),
+          where("uploadedBy", "==", "admin")
+        );
+      }
+      
       const photosSnapshot = await getDocs(photosQuery);
       
       const loadedPhotos: PhotoData[] = photosSnapshot.docs.map(doc => {
@@ -152,10 +164,27 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         } as PhotoData;
       });
       
-      // Ordina le foto per data di creazione (più recenti prima)
+      // Ordina le foto manualmente per data di creazione (più recenti prima)
       loadedPhotos.sort((a, b) => {
         if (!a.createdAt || !b.createdAt) return 0;
-        return new Date(b.createdAt as unknown as string | number | Date).getTime() - new Date(a.createdAt as unknown as string | number | Date).getTime();
+        
+        // Gestione per diversi tipi di timestamp
+        let aTime: number;
+        let bTime: number;
+        
+        if (a.createdAt.seconds) {
+          aTime = a.createdAt.seconds * 1000;
+        } else {
+          aTime = new Date(a.createdAt).getTime();
+        }
+        
+        if (b.createdAt.seconds) {
+          bTime = b.createdAt.seconds * 1000;
+        } else {
+          bTime = new Date(b.createdAt).getTime();
+        }
+        
+        return bTime - aTime;
       });
       
       setPhotos(loadedPhotos);
@@ -349,6 +378,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       // Ricarica le foto
       loadPhotos();
+      
+      // Forza il refresh della galleria principale
+      window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
 
       // Invia notifiche ai subscribers (non-blocking)
       Promise.resolve().then(async () => {
