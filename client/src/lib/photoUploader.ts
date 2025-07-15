@@ -108,8 +108,8 @@ export const uploadSinglePhoto = async (
         }
       },
       async (error) => {
-
-
+        console.error('❌ Errore upload Firebase Storage:', error);
+        
         // Gestione automatica dei ritentativi
         if (attempt < MAX_RETRY_ATTEMPTS) {
           if (progressCallback) {
@@ -165,7 +165,7 @@ export const uploadSinglePhoto = async (
 
           resolve(photoData);
         } catch (error) {
-
+          console.error('❌ Errore nel getDownloadURL:', error);
           reject(error);
         }
       }
@@ -334,6 +334,7 @@ export const uploadPhotos = async (
           (progress) => updateProgress(progress, fileIndex)
         )
         .then(photoData => {
+          console.log(`✅ Upload completato: ${file.name}`);
           uploadedPhotos.push(photoData);
           activeUploads.delete(file.name);
           // Incrementa il contatore dei successi
@@ -341,7 +342,7 @@ export const uploadPhotos = async (
           return photoData;
         })
         .catch(error => {
-
+          console.error(`❌ Errore upload ${file.name}:`, error);
           updateProgress({
             file,
             progress: 0,
