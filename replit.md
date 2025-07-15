@@ -32,6 +32,17 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 15 Luglio 2025 - BUG CRITICO UPLOAD RISOLTO - PROPRIETÀ FILE MANCANTI ✅
+- ✅ **PROBLEMA IDENTIFICATO**: Errore "Cannot read properties of undefined (reading 'replace')" causato da compressedFile.name undefined
+- ✅ **CAUSA ROOT**: Libreria browser-image-compression restituisce Blob senza proprietà name complete
+- ✅ **RICOSTRUZIONE FILE**: Creato nuovo File() con proprietà name, type e lastModified corrette
+- ✅ **CONTROLLI SICUREZZA**: Verifica che file compresso abbia name, type e size definiti
+- ✅ **FALLBACK ROBUSTO**: Ricostruisce file se proprietà mancanti o undefined
+- ✅ **LOGGING DETTAGLIATO**: Tracciamento completo errori per debugging efficace
+- ✅ **CONCORRENZA RIDOTTA**: Upload sequenziali (concorrenza 1) per massima stabilità
+- ✅ **TIMEOUT IMPLEMENTATO**: 30 secondi per evitare upload bloccati
+- → **RISULTATO**: Risolto bug che causava fallimento 3 upload su 4, sistema ora stabile
+
 ### 15 Luglio 2025 - UPLOAD MULTIPLO OTTIMIZZATO - MAGGIORE STABILITÀ E ROBUSTEZZA ✅
 - ✅ **CONCORRENZA RIDOTTA**: Ridotta concorrenza da 6 a 2-3 upload simultanei per maggiore stabilità
 - ✅ **CHUNK PROCESSING**: Ridotti chunk da 200 a 50 file per migliore gestione memoria
