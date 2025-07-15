@@ -492,7 +492,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       const uploadedPhotos = await uploadPhotos(
         gallery.id,
         filesToUpload,
-        6, // concorrenza
+        2, // concorrenza ridotta per stabilità
         (progress) => setUploadProgress(progress),
         (summary) => setUploadSummary(summary)
       );
