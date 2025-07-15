@@ -160,7 +160,49 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         } as PhotoData);
       });
       
-      // 2. Carica foto dal vecchio sistema (solo Storage) se ce ne sono poche in Firestore
+      // 2. COMPATIBILITÀ: Carica foto ospiti dalla vecchia collezione galleries/{galleryId}/photos
+      try {
+        console.log('🔍 Caricando foto ospiti dalla vecchia collezione per compatibilità...');
+        const oldGuestPhotosRef = collection(db, "galleries", gallery.id, "photos");
+        const oldGuestPhotosSnapshot = await getDocs(oldGuestPhotosRef);
+        
+        console.log('📦 Foto trovate nella vecchia collezione ospiti:', oldGuestPhotosSnapshot.docs.length);
+        
+        // Ottieni nomi foto già caricate per evitare duplicati
+        const existingPhotoNames = new Set(loadedPhotos.map(p => p.name));
+        
+        oldGuestPhotosSnapshot.docs.forEach(doc => {
+          const photoData = doc.data();
+          const photoName = photoData.name || "";
+          
+          // Evita duplicati basandoci sul nome della foto
+          if (!existingPhotoNames.has(photoName)) {
+            const oldGuestPhoto: PhotoData = {
+              id: `old-guest-${doc.id}`, // ID speciale per foto vecchie
+              name: photoName,
+              url: photoData.url || "",
+              contentType: photoData.contentType || "image/jpeg",
+              size: photoData.size || 0,
+              createdAt: photoData.createdAt || new Date(),
+              galleryId: gallery.id,
+              uploaderEmail: photoData.uploaderEmail || 'guest@legacy',
+              uploaderName: photoData.uploaderName || 'Ospite Legacy',
+              uploaderRole: 'guest',
+              uploadedBy: 'guest' // Marchia come foto ospite
+            } as PhotoData;
+            
+            loadedPhotos.push(oldGuestPhoto);
+            existingPhotoNames.add(photoName);
+          }
+        });
+        
+        console.log('✅ Foto ospiti legacy aggiunte in EditGalleryModal');
+        
+      } catch (legacyError) {
+        console.warn('⚠️ Errore caricamento foto ospiti legacy:', legacyError);
+      }
+
+      // 3. Carica foto dal vecchio sistema (solo Storage) se ce ne sono poche in Firestore
       if (loadedPhotos.length < (gallery.photoCount || 0)) {
         console.log('🔍 Cercando foto aggiuntive nel Storage...');
         
@@ -259,8 +301,16 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     try {
       setIsDeletingPhoto(true);
       
-      // 1. Elimina il documento da Firestore (se non è una foto solo di Storage)
-      if (!photoToDelete.id.startsWith('storage-')) {
+      // 1. Elimina il documento da Firestore (nuovo sistema o vecchia collezione ospiti)
+      if (photoToDelete.id.startsWith('old-guest-')) {
+        // Foto ospite dalla vecchia collezione galleries/{galleryId}/photos
+        const oldGuestPhotoId = photoToDelete.id.replace('old-guest-', '');
+        console.log(`🗑️ Eliminando foto ospite legacy: ${oldGuestPhotoId}`);
+        const oldGuestPhotoRef = doc(db, "galleries", gallery.id, "photos", oldGuestPhotoId);
+        await deleteDoc(oldGuestPhotoRef);
+        console.log(`✅ Foto ospite legacy eliminata da collezione vecchia`);
+      } else if (!photoToDelete.id.startsWith('storage-')) {
+        // Foto dal nuovo sistema (collezione globale photos)
         console.log(`🗑️ Eliminando documento Firestore: ${photoToDelete.id}`);
         const photoRef = doc(db, "photos", photoToDelete.id);
         await deleteDoc(photoRef);

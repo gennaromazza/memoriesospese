@@ -314,7 +314,53 @@ export function useGalleryData(galleryCode: string) {
         }
       }
 
-      // Aggiorna gli stati con le foto separate
+      // COMPATIBILITÀ: Carica anche le foto degli ospiti dalla vecchia collezione galleries/{galleryId}/photos
+      try {
+        console.log('🔍 Caricando foto ospiti dalla vecchia collezione per compatibilità...');
+        const oldGuestPhotosRef = collection(db, "galleries", galleryId, "photos");
+        const oldGuestPhotosSnapshot = await getDocs(oldGuestPhotosRef);
+        
+        console.log('📦 Foto trovate nella vecchia collezione ospiti:', oldGuestPhotosSnapshot.docs.length);
+        
+        // Ottieni nomi foto già caricate per evitare duplicati
+        const existingPhotoNames = new Set([
+          ...photosList.map(p => p.name),
+          ...guestPhotosList.map(p => p.name)
+        ]);
+        
+        oldGuestPhotosSnapshot.docs.forEach(doc => {
+          const photoData = doc.data();
+          const photoName = photoData.name || "";
+          
+          // Evita duplicati basandoci sul nome della foto
+          if (!existingPhotoNames.has(photoName)) {
+            const oldGuestPhoto: PhotoData = {
+              id: `old-guest-${doc.id}`, // ID speciale per foto vecchie
+              name: photoName,
+              url: photoData.url || "",
+              contentType: photoData.contentType || "image/jpeg",
+              size: photoData.size || 0,
+              createdAt: photoData.createdAt || new Date(),
+              galleryId: galleryId,
+              uploadedBy: 'guest', // Marchia come foto ospite
+              uploaderName: photoData.uploaderName || 'Ospite Legacy',
+              uploaderEmail: photoData.uploaderEmail || 'guest@legacy',
+              uploaderRole: 'guest'
+            };
+            
+            guestPhotosList.push(oldGuestPhoto);
+            existingPhotoNames.add(photoName);
+          }
+        });
+        
+        console.log('✅ Foto ospiti legacy caricate:', guestPhotosList.length - (querySnapshot.docs.filter(doc => doc.data().uploadedBy === 'guest').length));
+        
+      } catch (legacyError) {
+        console.warn('⚠️ Errore caricamento foto ospiti legacy:', legacyError);
+        // Continua comunque con le foto moderne
+      }
+
+      // Aggiorna gli stati con le foto separate (incluse quelle legacy)
       setHasMorePhotos(photosList.length >= photosPerPage);
       setPhotos(photosList);
       setGuestPhotos(guestPhotosList);
