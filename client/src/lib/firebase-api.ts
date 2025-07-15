@@ -128,25 +128,76 @@ export async function verifyGalleryAccess(galleryId: string, password?: string, 
 
 export async function getGalleryPhotos(galleryId: string, chapterId?: string): Promise<PhotoData[]> {
   try {
-    let photosQuery = query(
+    // DOPPIA LOGICA: Prima ottieni foto dalla nuova collection globale
+    let newPhotosQuery = query(
+      collection(db, 'photos'),
+      where('galleryId', '==', galleryId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    if (chapterId) {
+      newPhotosQuery = query(
+        collection(db, 'photos'),
+        where('galleryId', '==', galleryId),
+        where('chapterId', '==', chapterId),
+        orderBy('chapterPosition', 'asc')
+      );
+    }
+    
+    let newPhotos: PhotoData[] = [];
+    try {
+      const newPhotosSnapshot = await getDocs(newPhotosQuery);
+      newPhotos = newPhotosSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PhotoData[];
+    } catch (error) {
+      console.warn('Errore nel caricamento foto dalla collection globale:', error);
+    }
+    
+    // Poi ottieni foto dalla vecchia collection legacy
+    let legacyPhotosQuery = query(
       collection(db, 'galleries', galleryId, 'photos'),
       orderBy('createdAt', 'desc')
     );
     
     if (chapterId) {
-      photosQuery = query(
+      legacyPhotosQuery = query(
         collection(db, 'galleries', galleryId, 'photos'),
         where('chapterId', '==', chapterId),
         orderBy('chapterPosition', 'asc')
       );
     }
     
-    const photosSnapshot = await getDocs(photosQuery);
+    let legacyPhotos: PhotoData[] = [];
+    try {
+      const legacyPhotosSnapshot = await getDocs(legacyPhotosQuery);
+      legacyPhotos = legacyPhotosSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PhotoData[];
+    } catch (error) {
+      console.warn('Errore nel caricamento foto dalla collection legacy:', error);
+    }
     
-    return photosSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as PhotoData[];
+    // Combina foto da entrambe le collezioni
+    const allPhotos = [...newPhotos, ...legacyPhotos];
+    
+    // Deduplica basandosi sul nome del file
+    const uniquePhotos = allPhotos.filter((photo, index, self) => 
+      index === self.findIndex(p => p.name === photo.name)
+    );
+    
+    // Ordina per data di creazione se non è specificato un capitolo
+    if (!chapterId) {
+      uniquePhotos.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+    }
+    
+    return uniquePhotos;
   } catch (error) {
     logger.error('Errore nel caricamento foto', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     throw error;
@@ -155,21 +206,46 @@ export async function getGalleryPhotos(galleryId: string, chapterId?: string): P
 
 export async function getTopLikedPhotos(galleryId: string, limitCount: number = 10): Promise<PhotoData[]> {
   try {
-    // Prima ottieni tutte le foto della galleria
-    const photosSnapshot = await getDocs(
+    // DOPPIA LOGICA: Prima ottieni foto dalla nuova collection globale
+    const newPhotosQuery = query(
+      collection(db, 'photos'),
+      where('galleryId', '==', galleryId)
+    );
+    const newPhotosSnapshot = await getDocs(newPhotosQuery);
+    
+    // Poi ottieni foto dalla vecchia collection legacy
+    const legacyPhotosSnapshot = await getDocs(
       collection(db, 'galleries', galleryId, 'photos')
     );
     
-    // Mappa le foto con i loro dati
-    const photos = photosSnapshot.docs.map(doc => ({
+    // Combina foto da entrambe le collezioni
+    const newPhotos = newPhotosSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as PhotoData[];
     
-    logger.info('Foto totali nella galleria', { galleryId, metadata: { totalPhotos: photos.length } });
+    const legacyPhotos = legacyPhotosSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as PhotoData[];
+    
+    // Combina e deduplica foto (rimuovi duplicati basati su nome file)
+    const allPhotos = [...newPhotos, ...legacyPhotos];
+    const uniquePhotos = allPhotos.filter((photo, index, self) => 
+      index === self.findIndex(p => p.name === photo.name)
+    );
+    
+    logger.info('Foto totali nella galleria (new + legacy)', { 
+      galleryId, 
+      metadata: { 
+        newPhotos: newPhotos.length,
+        legacyPhotos: legacyPhotos.length,
+        totalPhotos: uniquePhotos.length
+      } 
+    });
     
     // Se non ci sono foto, restituisci array vuoto
-    if (photos.length === 0) {
+    if (uniquePhotos.length === 0) {
       logger.info('Nessuna foto trovata nella galleria', { galleryId });
       return [];
     }
@@ -178,11 +254,14 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
     const likesSnapshot = await getDocs(collection(db, 'likes'));
     const likesData = likesSnapshot.docs.map(doc => doc.data());
     
-    // Conta i like per ogni foto
+    // Conta i like per ogni foto (usa anche itemId per compatibilità)
     const photoLikesCount: Record<string, number> = {};
     likesData.forEach(like => {
       if (like.photoId) {
         photoLikesCount[like.photoId] = (photoLikesCount[like.photoId] || 0) + 1;
+      }
+      if (like.itemId) {
+        photoLikesCount[like.itemId] = (photoLikesCount[like.itemId] || 0) + 1;
       }
     });
     
@@ -190,16 +269,19 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
     const commentsSnapshot = await getDocs(collection(db, 'comments'));
     const commentsData = commentsSnapshot.docs.map(doc => doc.data());
     
-    // Conta i commenti per ogni foto
+    // Conta i commenti per ogni foto (usa anche itemId per compatibilità)
     const photoCommentsCount: Record<string, number> = {};
     commentsData.forEach(comment => {
       if (comment.photoId) {
         photoCommentsCount[comment.photoId] = (photoCommentsCount[comment.photoId] || 0) + 1;
       }
+      if (comment.itemId) {
+        photoCommentsCount[comment.itemId] = (photoCommentsCount[comment.itemId] || 0) + 1;
+      }
     });
     
-    // Aggiungi il conteggio dei like e commenti a ogni foto
-    const photosWithLikes = photos.map(photo => ({
+    // Aggiungi il conteggio dei like e commenti a ogni foto (usa uniquePhotos invece di photos)
+    const photosWithLikes = uniquePhotos.map(photo => ({
       ...photo,
       likes: photoLikesCount[photo.id] || 0,
       comments: photoCommentsCount[photo.id] || 0
@@ -351,18 +433,56 @@ export async function addPhotoComment(galleryId: string, photoId: string, text: 
 
 export async function getRecentComments(galleryId: string, limitCount: number = 10): Promise<CommentData[]> {
   try {
-    const commentsQuery = query(
-      collection(db, 'galleries', galleryId, 'comments'),
+    // DOPPIA LOGICA: Prima ottieni commenti dalla nuova collection globale
+    const newCommentsQuery = query(
+      collection(db, 'comments'),
+      where('galleryId', '==', galleryId),
       orderBy('createdAt', 'desc'),
       limit(limitCount)
     );
     
-    const commentsSnapshot = await getDocs(commentsQuery);
+    let newComments: CommentData[] = [];
+    try {
+      const newCommentsSnapshot = await getDocs(newCommentsQuery);
+      newComments = newCommentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as CommentData[];
+    } catch (error) {
+      console.warn('Errore nel caricamento commenti dalla collection globale:', error);
+    }
     
-    return commentsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as CommentData[];
+    // Poi ottieni commenti dalla vecchia collection legacy
+    let legacyComments: CommentData[] = [];
+    try {
+      const legacyCommentsQuery = query(
+        collection(db, 'galleries', galleryId, 'comments'),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
+      
+      const legacyCommentsSnapshot = await getDocs(legacyCommentsQuery);
+      legacyComments = legacyCommentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as CommentData[];
+    } catch (error) {
+      console.warn('Errore nel caricamento commenti dalla collection legacy:', error);
+    }
+    
+    // Combina commenti da entrambe le collezioni
+    const allComments = [...newComments, ...legacyComments];
+    
+    // Ordina per data di creazione e prendi solo i più recenti
+    const sortedComments = allComments
+      .sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      })
+      .slice(0, limitCount);
+    
+    return sortedComments;
   } catch (error) {
     logger.error('Errore nel caricamento commenti recenti', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     throw error;
@@ -373,18 +493,56 @@ export async function getRecentComments(galleryId: string, limitCount: number = 
 
 export async function getRecentVoiceMemos(galleryId: string, limitCount: number = 10): Promise<VoiceMemoData[]> {
   try {
-    const memosQuery = query(
-      collection(db, 'galleries', galleryId, 'voice-memos'),
+    // DOPPIA LOGICA: Prima ottieni voice memos dalla nuova collection globale
+    const newMemosQuery = query(
+      collection(db, 'voice-memos'),
+      where('galleryId', '==', galleryId),
       orderBy('createdAt', 'desc'),
       limit(limitCount)
     );
     
-    const memosSnapshot = await getDocs(memosQuery);
+    let newMemos: VoiceMemoData[] = [];
+    try {
+      const newMemosSnapshot = await getDocs(newMemosQuery);
+      newMemos = newMemosSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as VoiceMemoData[];
+    } catch (error) {
+      console.warn('Errore nel caricamento voice memos dalla collection globale:', error);
+    }
     
-    return memosSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as VoiceMemoData[];
+    // Poi ottieni voice memos dalla vecchia collection legacy
+    let legacyMemos: VoiceMemoData[] = [];
+    try {
+      const legacyMemosQuery = query(
+        collection(db, 'galleries', galleryId, 'voice-memos'),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
+      
+      const legacyMemosSnapshot = await getDocs(legacyMemosQuery);
+      legacyMemos = legacyMemosSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as VoiceMemoData[];
+    } catch (error) {
+      console.warn('Errore nel caricamento voice memos dalla collection legacy:', error);
+    }
+    
+    // Combina voice memos da entrambe le collezioni
+    const allMemos = [...newMemos, ...legacyMemos];
+    
+    // Ordina per data di creazione e prendi solo i più recenti
+    const sortedMemos = allMemos
+      .sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      })
+      .slice(0, limitCount);
+    
+    return sortedMemos;
   } catch (error) {
     logger.error('Errore nel caricamento voice memos', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     throw error;
