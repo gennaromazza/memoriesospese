@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import SecurityQuestionManager from '@/components/SecurityQuestionManager';
-import GalleryAccessFlow from '@/components/GalleryAccessFlow';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import SecurityQuestionManager from '../components/SecurityQuestionManager';
+import GalleryAccessFlow from '../components/GalleryAccessFlow';
 
 export default function SecurityTestPage() {
   const [testGalleryId, setTestGalleryId] = useState('');
