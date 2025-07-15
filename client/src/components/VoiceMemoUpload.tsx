@@ -276,11 +276,11 @@ export default function VoiceMemoUpload({
         guestName: currentUserName || currentUserEmail.split('@')[0], // Use authenticated user data
         guestEmail: currentUserEmail, // Add guestEmail for consistent naming
         audioUrl,
-        message: message.trim() || undefined,
-        unlockDate: unlockDate || undefined,
+        message: message.trim() || '',
+        unlockDate: unlockDate || null,
         fileName,
         fileSize,
-        duration,
+        duration: duration || 0,
         userEmail: currentUserEmail, // Required for auth
         userName: currentUserName || currentUserEmail.split('@')[0], // Use centralized auth data
         userProfileImageUrl: userProfile?.profileImageUrl || '', // Add profile image URL
@@ -315,6 +315,9 @@ export default function VoiceMemoUpload({
       if (onUploadComplete) {
         onUploadComplete();
       }
+
+      // Forza il refresh dei voice memos
+      window.dispatchEvent(new CustomEvent('voiceMemosUpdated'));
 
     } catch (error) {
       console.error('Error uploading voice memo:', error);
