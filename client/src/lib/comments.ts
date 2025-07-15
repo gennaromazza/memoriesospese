@@ -87,6 +87,11 @@ export class CommentService {
 
       console.log('📤 Invio dati a Firebase:', firebaseData);
 
+      // Test di connessione database
+      if (!db) {
+        throw new Error('Database Firebase non inizializzato');
+      }
+
       const docRef = await addDoc(collection(db, 'comments'), firebaseData);
       
       console.log('✅ Commento aggiunto con ID:', docRef.id);

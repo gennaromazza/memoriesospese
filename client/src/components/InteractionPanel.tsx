@@ -179,6 +179,17 @@ export default function InteractionPanel({
       const finalUserEmail = user.email || '';
       const finalUserName = userProfile?.displayName || user.displayName || finalUserEmail.split('@')[0];
 
+      console.log('🔍 Tentativo aggiunta commento:', {
+        galleryId, 
+        itemId: itemId,
+        itemType: itemType,
+        userId: user.uid, 
+        userEmail: finalUserEmail, 
+        userName: finalUserName,
+        userProfileImageUrl: userProfile?.profileImageUrl,
+        content: newComment.trim()
+      });
+
       const commentId = await CommentService.addComment({
         galleryId, 
         itemId: itemId,
