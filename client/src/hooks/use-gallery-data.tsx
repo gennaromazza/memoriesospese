@@ -295,10 +295,11 @@ export function useGalleryData(galleryCode: string) {
                 uploaderUid: photoData.uploaderUid
               };
               
-              // Separa anche qui le foto degli ospiti
+              // Separa le foto: ospiti vs fotografo (admin + legacy)
               if (photoData.uploadedBy === 'guest') {
                 guestPhotosList.push(photo);
               } else {
+                // Tutte le altre foto (admin, legacy, non specificato) vanno nel tab fotografo
                 photosList.push(photo);
               }
             }
@@ -480,16 +481,36 @@ export function useGalleryData(galleryCode: string) {
         setHasMorePhotos(false);
       }
 
-      // Filtra foto duplicate prima di aggiungerle
+      // Separa le foto per tipo e filtra duplicati
+      const newPhotosForPhotographer: PhotoData[] = [];
+      const newPhotosForGuests: PhotoData[] = [];
+      
+      newPhotos.forEach(photo => {
+        if (photo.uploadedBy === 'guest') {
+          newPhotosForGuests.push(photo);
+        } else {
+          // Tutte le altre foto (admin, legacy, non specificato) vanno nel tab fotografo
+          newPhotosForPhotographer.push(photo);
+        }
+      });
+      
+      // Aggiorna l'array delle foto del fotografo
       setPhotos(prevPhotos => {
         const existingIds = new Set(prevPhotos.map(photo => photo.id));
-        const uniqueNewPhotos = newPhotos.filter(photo => !existingIds.has(photo.id));
+        const uniqueNewPhotos = newPhotosForPhotographer.filter(photo => !existingIds.has(photo.id));
         return [...prevPhotos, ...uniqueNewPhotos];
+      });
+      
+      // Aggiorna l'array delle foto degli ospiti
+      setGuestPhotos(prevGuestPhotos => {
+        const existingIds = new Set(prevGuestPhotos.map(photo => photo.id));
+        const uniqueNewPhotos = newPhotosForGuests.filter(photo => !existingIds.has(photo.id));
+        return [...prevGuestPhotos, ...uniqueNewPhotos];
       });
       
       // Aggiorna la percentuale di caricamento
       if (gallery.photoCount) {
-        const newLoadedCount = photos.length + newPhotos.length;
+        const newLoadedCount = photos.length + guestPhotos.length + newPhotos.length;
         setLoadingProgress(Math.round((newLoadedCount / gallery.photoCount) * 100));
       }
 
