@@ -32,6 +32,17 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 15 Luglio 2025 - SISTEMA CONTROLLO DUPLICATI IMPLEMENTATO - SKIP AUTOMATICO FILE ESISTENTI ✅
+- ✅ **CONTROLLO DUPLICATI ADMIN**: EditGalleryModal controlla nomi file esistenti prima dell'upload
+- ✅ **CONTROLLO DUPLICATI OSPITI**: GuestUpload verifica duplicati sia da collezione photos che legacy
+- ✅ **SKIP AUTOMATICO**: File già esistenti vengono saltati automaticamente (es. 40 foto → 30 nuove + 10 saltate)
+- ✅ **ANTEPRIMA VISIVA**: Indicatori colorati mostrano file nuovi (verde) e duplicati (arancione)
+- ✅ **NOTIFICHE INFORMATIVE**: Toast mostrano quanti file sono stati saltati e perché
+- ✅ **CARICAMENTO ESISTENTI**: Sistema carica lista foto esistenti all'apertura dialog
+- ✅ **BACKWARD COMPATIBILITY**: Controllo funziona con foto da entrambe le collezioni (photos + legacy)
+- ✅ **UX MIGLIORATA**: Utente vede immediatamente se ci sono duplicati prima dell'upload
+- → **RISULTATO**: Sistema efficiente che evita duplicati e carica solo foto nuove
+
 ### 15 Luglio 2025 - COMPATIBILITÀ VERSIONE LEGACY IMPLEMENTATA - SISTEMA COMPLETO ✅
 - ✅ **COMPATIBILITÀ FOTO OSPITI LEGACY**: Implementato caricamento foto ospiti dalla vecchia collezione `galleries/{galleryId}/photos`
 - ✅ **DUAL SYSTEM SUPPORT**: Sistema ora supporta sia nuovo (`photos` globale) che vecchio (`galleries/{id}/photos`) sistema
