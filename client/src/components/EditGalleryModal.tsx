@@ -432,14 +432,61 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   };
   
+  // Controlla se un file è già stato caricato
+  const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
+    const existingPhotoNames = new Set(photos.map(p => p.name));
+    const uniqueFiles: File[] = [];
+    const duplicates: string[] = [];
+    
+    files.forEach(file => {
+      if (existingPhotoNames.has(file.name)) {
+        duplicates.push(file.name);
+      } else {
+        uniqueFiles.push(file);
+      }
+    });
+    
+    return { uniqueFiles, duplicates };
+  };
+
   // Carica nuove foto alla galleria
   const handleUploadPhotos = async () => {
     if (!gallery || selectedFiles.length === 0) return;
     
+    // Controlla duplicati
+    const { uniqueFiles, duplicates } = checkForDuplicates(selectedFiles);
+    
+    // Mostra avviso per i duplicati
+    if (duplicates.length > 0) {
+      toast({
+        title: "File duplicati trovati",
+        description: `${duplicates.length} file sono già stati caricati: ${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? '...' : ''}`,
+        variant: "destructive"
+      });
+    }
+    
+    // Se non ci sono file unici da caricare, ferma l'upload
+    if (uniqueFiles.length === 0) {
+      toast({
+        title: "Nessun file da caricare",
+        description: "Tutti i file selezionati sono già stati caricati in precedenza.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Mostra info sui file che verranno caricati
+    if (duplicates.length > 0) {
+      toast({
+        title: "Upload in corso",
+        description: `Caricamento di ${uniqueFiles.length} file nuovi (${duplicates.length} duplicati saltati)`,
+      });
+    }
+    
     setIsUploading(true);
     try {
-      // Prepara i file per l'upload
-      const filesToUpload = selectedFiles;
+      // Prepara i file per l'upload (solo quelli unici)
+      const filesToUpload = uniqueFiles;
       
       // Carica le foto su Firebase Storage
       const uploadedPhotos = await uploadPhotos(
@@ -663,9 +710,31 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 </Button>
               </div>
               {selectedFiles.length > 0 && (
-                <p className="text-sm text-gray-500 mt-1">
-                  {selectedFiles.length} file selezionati
-                </p>
+                <>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {selectedFiles.length} file selezionati
+                  </p>
+                  {/* Anteprima controllo duplicati */}
+                  {(() => {
+                    const { uniqueFiles, duplicates } = checkForDuplicates(selectedFiles);
+                    return (
+                      <div className="mt-2 space-y-1">
+                        {uniqueFiles.length > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="text-green-600">{uniqueFiles.length} nuovi file da caricare</span>
+                          </div>
+                        )}
+                        {duplicates.length > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                            <span className="text-orange-600">{duplicates.length} file duplicati (verranno saltati)</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </>
               )}
             </div>
 

@@ -13,6 +13,8 @@ import { PhotoService } from '@/lib/photos';
 import { StorageService } from '@/lib/storage';
 import { GalleryService } from '@/lib/galleries';
 import { notifySubscribers, createGalleryUrl } from '@/lib/notificationService';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 interface GuestUploadProps {
   galleryId: string;
@@ -26,6 +28,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
 
   // Dati per autenticazione
   const [guestName, setGuestName] = useState('');
@@ -94,6 +97,62 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     } finally {
       setIsResettingPassword(false);
     }
+  };
+
+  // Carica i nomi delle foto esistenti
+  const loadExistingPhotos = async () => {
+    try {
+      const existingPhotoNames: string[] = [];
+      
+      // 1. Carica foto dalla collezione globale photos
+      const photosQuery = query(
+        collection(db, "photos"),
+        where("galleryId", "==", galleryId)
+      );
+      const photosSnapshot = await getDocs(photosQuery);
+      photosSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.name) {
+          existingPhotoNames.push(data.name);
+        }
+      });
+      
+      // 2. Carica foto dalla collezione legacy galleries/{galleryId}/photos
+      try {
+        const legacyPhotosQuery = query(collection(db, `galleries/${galleryId}/photos`));
+        const legacyPhotosSnapshot = await getDocs(legacyPhotosQuery);
+        legacyPhotosSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.name) {
+            existingPhotoNames.push(data.name);
+          }
+        });
+      } catch (legacyError) {
+        // Collezione legacy potrebbe non esistere
+        console.log('Collezione legacy non trovata, probabilmente normale');
+      }
+      
+      setExistingPhotos(existingPhotoNames);
+    } catch (error) {
+      console.error('Errore nel caricare foto esistenti:', error);
+    }
+  };
+
+  // Controlla duplicati
+  const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
+    const existingPhotoNames = new Set(existingPhotos);
+    const uniqueFiles: File[] = [];
+    const duplicates: string[] = [];
+    
+    files.forEach(file => {
+      if (existingPhotoNames.has(file.name)) {
+        duplicates.push(file.name);
+      } else {
+        uniqueFiles.push(file);
+      }
+    });
+    
+    return { uniqueFiles, duplicates };
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,13 +251,42 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       return;
     }
 
+    // Carica foto esistenti e controlla duplicati
+    await loadExistingPhotos();
+    const { uniqueFiles, duplicates } = checkForDuplicates(selectedFiles);
+
+    // Mostra info sui duplicati
+    if (duplicates.length > 0) {
+      toast({
+        title: "File duplicati trovati",
+        description: `${duplicates.length} file saltati (già esistenti): ${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? '...' : ''}`,
+        variant: "default"
+      });
+    }
+
+    // Se non ci sono file unici da caricare, ferma l'upload
+    if (uniqueFiles.length === 0) {
+      toast({
+        title: "Nessun file da caricare",
+        description: "Tutti i file selezionati sono già stati caricati in precedenza.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Mostra info sui file che verranno caricati
+    toast({
+      title: "Upload in corso",
+      description: `Caricamento di ${uniqueFiles.length} file nuovi${duplicates.length > 0 ? ` (${duplicates.length} duplicati saltati)` : ''}`,
+    });
+
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
-      // Upload foto usando PhotoService marcate come 'guest'
+      // Upload foto usando PhotoService marcate come 'guest' (solo file unici)
       const uploadedPhotos = await PhotoService.uploadPhotosToGallery(
-        selectedFiles,
+        uniqueFiles, // Solo file non duplicati
         galleryId,
         currentUser?.uid || '',
         currentUserEmail,
@@ -267,6 +355,10 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
 
   const handleDialogOpen = () => {
     setIsDialogOpen(true);
+    // Carica foto esistenti quando si apre il dialog
+    if (existingPhotos.length === 0) {
+      loadExistingPhotos();
+    }
   };
 
   return (
@@ -607,6 +699,30 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
                       <p className="text-xs sm:text-sm text-sage-700">
                         Perfetto! Clicca "Carica foto" per condividerle
                       </p>
+                      {/* Anteprima controllo duplicati */}
+                      {selectedFiles.length > 0 && existingPhotos.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {(() => {
+                            const { uniqueFiles, duplicates } = checkForDuplicates(selectedFiles);
+                            return (
+                              <>
+                                {uniqueFiles.length > 0 && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span className="text-green-600">{uniqueFiles.length} nuovi file da caricare</span>
+                                  </div>
+                                )}
+                                {duplicates.length > 0 && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                    <span className="text-orange-600">{duplicates.length} file duplicati (verranno saltati)</span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
