@@ -196,7 +196,7 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
     setUploadProgress(0);
 
     try {
-      // Upload foto usando PhotoService
+      // Upload foto usando PhotoService marcate come 'guest'
       const uploadedPhotos = await PhotoService.uploadPhotosToGallery(
         selectedFiles,
         galleryId,
@@ -207,7 +207,8 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
           // Calcola progresso medio
           const avgProgress = progress.reduce((sum, p) => sum + p.progress, 0) / progress.length;
           setUploadProgress(avgProgress);
-        }
+        },
+        'guest' // Specifica che sono foto degli ospiti
       );
 
       // Aggiorna conteggio foto nella galleria
@@ -242,6 +243,9 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       if (onPhotosUploaded) {
         onPhotosUploaded(uploadedPhotos.length);
       }
+
+      // Forza il refresh della galleria
+      window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
 
     } catch (error) {
       console.error('Errore nell\'upload:', error);

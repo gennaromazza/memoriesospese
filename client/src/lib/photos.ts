@@ -66,11 +66,11 @@ export class PhotoService {
   /**
    * Aggiungi nuova foto alla galleria
    */
-  static async addPhoto(photoData: PhotoData): Promise<string> {
+  static async addPhoto(photoData: PhotoData, uploadedBy: 'admin' | 'guest' = 'guest'): Promise<string> {
     try {
       const docRef = await addDoc(collection(db, 'photos'), {
         ...photoData,
-        uploadedBy: 'guest', // Distingue foto degli ospiti
+        uploadedBy, // Distingue foto degli ospiti vs admin
         likeCount: 0,
         commentCount: 0,
         position: 0,
@@ -93,7 +93,8 @@ export class PhotoService {
     uploaderUid: string,
     uploaderEmail: string,
     uploaderName: string,
-    onProgress?: (progress: any[]) => void
+    onProgress?: (progress: any[]) => void,
+    uploadedBy: 'admin' | 'guest' = 'guest'
   ): Promise<Photo[]> {
     try {
       // Upload files to Storage
@@ -115,7 +116,7 @@ export class PhotoService {
           uploaderEmail,
           uploaderName
         };
-        return this.addPhoto(photoData);
+        return this.addPhoto(photoData, uploadedBy);
       });
 
       const photoIds = await Promise.all(photoPromises);

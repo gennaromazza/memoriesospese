@@ -527,6 +527,21 @@ export function useGalleryData(galleryCode: string) {
     await loadPhotos(gallery.id, gallery);
   }, [gallery, loadPhotos]);
 
+  // Listener per eventi di refresh automatico
+  useEffect(() => {
+    const handleGalleryPhotosUpdated = () => {
+      if (gallery) {
+        loadPhotos(gallery.id, gallery);
+      }
+    };
+
+    window.addEventListener('galleryPhotosUpdated', handleGalleryPhotosUpdated);
+    
+    return () => {
+      window.removeEventListener('galleryPhotosUpdated', handleGalleryPhotosUpdated);
+    };
+  }, [gallery]);
+
   return { 
     gallery, 
     photos, 
