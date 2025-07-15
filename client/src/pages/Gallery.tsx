@@ -32,6 +32,8 @@ import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
+import EditGalleryModal from "@/components/EditGalleryModal";
+import { Edit3 } from "lucide-react";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -79,6 +81,9 @@ export default function Gallery() {
 
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Stato per gestire l'apertura del modal EditGallery
+  const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
 
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -369,6 +374,25 @@ export default function Gallery() {
                         <p>Ascolta i messaggi vocali privati lasciati dagli ospiti</p>
                       </TooltipContent>
                     </Tooltip>
+
+                    {/* Pulsante Edit Gallery - Solo per Admin */}
+                    {isAdmin && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setIsEditGalleryOpen(true)}
+                            className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 border border-blue-200"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                            <span className="hidden sm:inline">Edit Gallery</span>
+                            <span className="sm:hidden">Edit</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>Modifica galleria e gestisci foto (solo admin)</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 </TooltipProvider>
               </div>
@@ -699,6 +723,25 @@ export default function Gallery() {
         }))}
         initialIndex={currentPhotoIndex}
       />
+
+      {/* Edit Gallery Modal - Solo per Admin */}
+      {gallery && isAdmin && (
+        <EditGalleryModal 
+          isOpen={isEditGalleryOpen}
+          onClose={() => setIsEditGalleryOpen(false)}
+          gallery={{
+            id: gallery.id,
+            name: gallery.name,
+            code: id || "",
+            date: gallery.date,
+            location: gallery.location,
+            description: gallery.description,
+            coverImageUrl: gallery.coverImageUrl,
+            youtubeUrl: gallery.youtubeUrl,
+            photoCount: photos.length
+          }}
+        />
+      )}
     </div>
   );
 }
