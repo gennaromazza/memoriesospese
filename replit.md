@@ -32,6 +32,19 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 15 Luglio 2025 - SISTEMA SOCIALE COMPLETAMENTE ADATTATO - DOPPIA LOGICA IMPLEMENTATA ✅
+- ✅ **DOPPIA LOGICA SOCIAL**: Aggiornato SocialActivityPanel per supportare entrambe le collection (nuova + legacy)
+- ✅ **GETTOPLICKEDPHOTOS**: Combina foto da 'photos' globale e 'galleries/{id}/photos' legacy
+- ✅ **GETRECENTCOMMENTS**: Unisce commenti da 'comments' globale e 'galleries/{id}/comments' legacy
+- ✅ **GETRECENTVOICEMEMOS**: Merge voice memos da 'voice-memos' globale e 'galleries/{id}/voice-memos' legacy
+- ✅ **GETGALLERYPHOTOS**: Carica foto da entrambe le collection con deduplicazione automatica
+- ✅ **DEDUPLICAZIONE SMART**: Rimuove duplicati basandosi su nome file per evitare conflitti
+- ✅ **COMPATIBILITÀ TOTALE**: Sistema supporta sia photoId che itemId per like/commenti
+- ✅ **ORDINAMENTO UNIFICATO**: Ordina per data di creazione elementi da entrambe le collection
+- ✅ **FALLBACK ROBUSTO**: Continua a funzionare anche se una collection non è disponibile
+- ✅ **LOGGING DETTAGLIATO**: Traccia separatamente caricamento da collection nuova vs legacy
+- → **RISULTATO**: Sistema sociale completamente compatibile con tutte le versioni precedenti
+
 ### 15 Luglio 2025 - BUG CRITICO UPLOAD RISOLTO - PROPRIETÀ FILE MANCANTI ✅
 - ✅ **PROBLEMA IDENTIFICATO**: Errore "Cannot read properties of undefined (reading 'replace')" causato da compressedFile.name undefined
 - ✅ **CAUSA ROOT**: Libreria browser-image-compression restituisce Blob senza proprietà name complete
