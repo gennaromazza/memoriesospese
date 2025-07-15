@@ -206,31 +206,28 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       await deleteDoc(photoRef);
       
       // 2. Elimina il file da Firebase Storage
-      const storagePaths = [
-        `gallery-photos/${gallery.id}/${photoToDelete.name}`,
-        `galleries/${gallery.id}/photos/${photoToDelete.name}`,
-        `galleries/${gallery.id}/${photoToDelete.name}`,
-        `galleries/${photoToDelete.name}`,
-        `gallery-photos/${photoToDelete.name}`
-      ];
-      
+      // Il path corretto è quello usato da uploadSinglePhoto: galleries/{galleryId}/{fileId}-{filename}
+      // Estrai il nome del file dall'URL Firebase Storage
       let photoDeleted = false;
       
-      // Prova a eliminare la foto da tutti i percorsi possibili
-      for (const path of storagePaths) {
-        try {
-          const storageRef = ref(storage, path);
+      try {
+        const url = new URL(photoToDelete.url);
+        const pathMatch = url.pathname.match(/\/o\/(.+?)(\?|$)/);
+        
+        if (pathMatch) {
+          const fullPath = decodeURIComponent(pathMatch[1]);
+          console.log(`🗑️ Eliminando foto da Storage: ${fullPath}`);
+          
+          const storageRef = ref(storage, fullPath);
           await deleteObject(storageRef);
-          console.log(`Foto eliminata da: ${path}`);
+          console.log(`✅ Foto eliminata da Storage: ${fullPath}`);
           photoDeleted = true;
-          break;
-        } catch (storageError) {
-          console.log(`Foto non trovata in: ${path}`);
+        } else {
+          console.warn(`⚠️ Impossibile estrarre path da URL: ${photoToDelete.url}`);
         }
-      }
-      
-      if (!photoDeleted) {
-        console.log('Foto non trovata in nessun percorso di storage');
+      } catch (storageError) {
+        console.warn(`⚠️ Errore eliminazione Storage:`, storageError);
+        // Continua comunque con l'eliminazione da Firestore
       }
       
       // 3. Aggiorna l'array locale delle foto
@@ -326,8 +323,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Salva i metadati delle foto in Firestore nella collezione globale photos
       const photoPromises = uploadedPhotos.map(async (photo, index) => {
         try {
+          console.log(`💾 Salvando metadati foto ${index + 1}/${uploadedPhotos.length}: ${photo.name}`);
           // Salva nella collezione globale photos come fanno gli ospiti
-          await addDoc(collection(db, "photos"), {
+          const docRef = await addDoc(collection(db, "photos"), {
             name: photo.name,
             url: photo.url,
             size: photo.size,
@@ -342,8 +340,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             commentCount: 0,
             position: 0
           });
+          console.log(`✅ Foto salvata in Firestore: ${docRef.id}`);
         } catch (err) {
-          console.error('Errore nel salvare foto:', err);
+          console.error('❌ Errore nel salvare foto:', photo.name, err);
+          throw err; // Re-throw per far fallire l'upload se c'è un errore Firestore
         }
       });
       
@@ -376,16 +376,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
 
       // Invia notifiche ai subscribers (non-blocking)
-      Promise.resolve().then(async () => {
-        try {
-          await notifyNewPhotos(gallery.id, gallery.name, 'Admin', uploadedPhotos.length);
-        } catch (notificationError) {
+      notifyNewPhotos(gallery.id, gallery.name, 'Admin', uploadedPhotos.length)
+        .catch(notificationError => {
           console.warn('⚠️ Errore invio notifiche:', notificationError);
           // Non bloccare l'upload per errori di notifica
-        }
-      }).catch(() => {
-        // Gestione silent per evitare unhandledrejection
-      });
+        });
       
     } catch (error) {
       console.error('Errore upload foto:', error);

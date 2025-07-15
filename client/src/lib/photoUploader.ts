@@ -64,6 +64,12 @@ export const uploadSinglePhoto = async (
         console.log(`⚠️ Usando file originale per: ${file.name}`);
         compressedFile = file; // Usa il file originale in caso di errore
       }
+      
+      // Log dettagliato della compressione
+      const originalSize = (file.size / 1024).toFixed(2);
+      const compressedSize = (compressedFile.size / 1024).toFixed(2);
+      console.log(`✅ Compressione completata: ${file.name}`);
+      console.log(`📊 Dimensioni: ${originalSize} KB → ${compressedSize} KB`);
 
       // Utilizza un identificatore univoco per evitare collisioni di nomi
       const safeFileName = compressedFile.name.replace(/[#$]/g, '_'); // Caratteri problematici in Firebase Storage
