@@ -385,22 +385,30 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
   // Salva le modifiche alla galleria
   const saveGallery = async () => {
-    if (!gallery) return;
+    if (!gallery) {
+      console.error('❌ Galleria non trovata per salvare');
+      return;
+    }
     
+    console.log('💾 Avvio salvataggio galleria:', gallery.id);
     setIsLoading(true);
+    
     try {
       // Se c'è una nuova immagine di copertina, la carichiamo prima
       let newCoverImageUrl = coverImageUrl;
       if (coverImage) {
         try {
+          console.log('📸 Caricamento nuova immagine di copertina...');
           const storageRef = ref(storage, `galleries/covers/${gallery.code}_cover`);
           await uploadBytesResumable(storageRef, coverImage);
           newCoverImageUrl = await getDownloadURL(storageRef);
+          console.log('✅ Immagine di copertina caricata:', newCoverImageUrl);
         } catch (error) {
-          console.error('Errore caricamento cover:', error);
+          console.error('❌ Errore caricamento cover:', error);
         }
       }
       
+      console.log('📝 Aggiornamento documento galleria...');
       const galleryRef = doc(db, "galleries", gallery.id);
       await updateDoc(galleryRef, {
         name,
@@ -414,6 +422,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         updatedAt: new Date()
       });
       
+      console.log('✅ Galleria salvata con successo');
       toast({
         title: "Galleria aggiornata",
         description: "Le modifiche alla galleria sono state salvate con successo"
@@ -421,13 +430,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       onClose();
     } catch (error) {
-      console.error('Errore salvataggio galleria:', error);
+      console.error('❌ Errore salvataggio galleria:', error);
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il salvataggio delle modifiche",
         variant: "destructive"
       });
     } finally {
+      console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
   };
