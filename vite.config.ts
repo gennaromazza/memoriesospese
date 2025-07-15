@@ -4,18 +4,16 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
+  // 1) public path in produzione
   base:
     process.env.NODE_ENV === "production"
-      ? process.env.VITE_BASE_PATH || "/"
+      ? (process.env.VITE_BASE_PATH || "/memoriesospese/")
       : "/",
 
   server: {
     host: "0.0.0.0",
     port: 5000,
-    allowedHosts: [
-      // accetta qualsiasi sottodominio di spock.replit.dev
-      ".spock.replit.dev",
-    ],
+    allowedHosts: [".spock.replit.dev"],
   },
 
   plugins: [
@@ -42,7 +40,8 @@ export default defineConfig({
   root: path.resolve(import.meta.dirname, "client"),
 
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist"),
+    // 2) output in dist/memoriesospese
+    outDir: path.resolve(import.meta.dirname, "dist", "memoriesospese"),
     emptyOutDir: true,
   },
 });

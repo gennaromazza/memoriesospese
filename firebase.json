@@ -1,4 +1,3 @@
-
 {
   "firestore": {
     "rules": "firestore.rules",
@@ -13,13 +12,13 @@
     ],
     "rewrites": [
       {
-        "source": "**",
-        "destination": "/index.html"
+        "source": "/memoriesospese/**",
+        "destination": "/memoriesospese/index.html"
       }
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css|png|jpg|jpeg|gif|ico|svg|woff2|woff|ttf|eot)",
+        "source": "/memoriesospese/**/*.@(js|css|png|jpg|jpeg|gif|ico|svg|woff2|woff|ttf|eot)",
         "headers": [
           {
             "key": "Cache-Control",
