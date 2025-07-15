@@ -731,14 +731,15 @@ export default function Gallery() {
           onClose={() => setIsEditGalleryOpen(false)}
           gallery={{
             id: gallery.id,
-            name: gallery.name,
+            name: gallery.name || "",
             code: id || "",
-            date: gallery.date,
-            location: gallery.location,
-            description: gallery.description,
-            coverImageUrl: gallery.coverImageUrl,
-            youtubeUrl: gallery.youtubeUrl,
-            photoCount: photos.length
+            date: gallery.date || "",
+            location: gallery.location || "",
+            description: gallery.description || "",
+            coverImageUrl: gallery.coverImageUrl || "",
+            youtubeUrl: gallery.youtubeUrl || "",
+            photoCount: photos.length,
+            password: "" // Aggiungi password field mancante
           }}
         />
       )}
