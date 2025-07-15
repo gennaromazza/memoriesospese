@@ -151,6 +151,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const loadPhotos = useCallback(async () => {
     if (!gallery) return;
     
+    console.log('🔄 Inizio caricamento foto per galleria:', gallery.id);
     setIsLoading(true);
     try {
       // 1. Carica foto dal nuovo sistema (collezione photos con uploadedBy)
@@ -160,6 +161,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       );
       
       const photosSnapshot = await getDocs(photosQuery);
+      console.log('📷 Foto nuove trovate:', photosSnapshot.docs.length);
       
       const loadedPhotos: PhotoData[] = [];
       
@@ -173,7 +175,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           url: data.url || "",
           contentType: data.contentType || "image/jpeg",
           size: data.size || 0,
-          createdAt: data.createdAt || Timestamp.now(),
+          createdAt: data.createdAt || new Date(),
           galleryId: data.galleryId || gallery.id,
           uploaderEmail: data.uploaderEmail,
           uploaderName: data.uploaderName,
@@ -211,7 +213,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               url: photoUrl,
               contentType: photoData.contentType || "image/jpeg",
               size: photoData.size || 0,
-              createdAt: photoData.createdAt || Timestamp.now(),
+              createdAt: photoData.createdAt || new Date(),
               galleryId: gallery.id,
               uploaderEmail: photoData.uploaderEmail || (isGuestPhoto ? 'guest@legacy' : 'admin@legacy'),
               uploaderName: photoData.uploaderName || (isGuestPhoto ? 'Ospite Legacy' : 'Admin Legacy'),
@@ -259,7 +261,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   url: url,
                   contentType: metadata.contentType || 'image/jpeg',
                   size: metadata.size || 0,
-                  createdAt: metadata.timeCreated ? Timestamp.fromDate(new Date(metadata.timeCreated)) : Timestamp.now(),
+                  createdAt: metadata.timeCreated ? new Date(metadata.timeCreated) : new Date(),
                   galleryId: gallery.id,
                   uploaderEmail: 'legacy@storage',
                   uploaderName: 'Sistema Legacy',
