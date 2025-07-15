@@ -32,6 +32,17 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 15 Luglio 2025 - UPLOAD MULTIPLO OTTIMIZZATO - MAGGIORE STABILITÀ E ROBUSTEZZA ✅
+- ✅ **CONCORRENZA RIDOTTA**: Ridotta concorrenza da 6 a 2-3 upload simultanei per maggiore stabilità
+- ✅ **CHUNK PROCESSING**: Ridotti chunk da 200 a 50 file per migliore gestione memoria
+- ✅ **ADAPTIVE CONCURRENCY**: Sistema adattivo che riduce concorrenza in caso di errori
+- ✅ **DELAY INTELLIGENTE**: Pause da 500ms tra upload per evitare sovraccarico sistema
+- ✅ **LOGGING DETTAGLIATO**: Monitoraggio progresso con statistiche complete (successi/errori/velocità)
+- ✅ **GESTIONE ERRORI ROBUSTA**: Delay di 1 secondo per file falliti prima di continuare
+- ✅ **RIEPILOGO FINALE**: Log completo risultati upload con statistiche performance
+- ✅ **RETRY MIGLIORATO**: Sistema retry con delay progressivo per upload falliti
+- → **RISULTATO**: Upload multiplo più stabile, gestisce meglio 11+ foto senza incepparsi
+
 ### 15 Luglio 2025 - SISTEMA CONTROLLO DUPLICATI IMPLEMENTATO - SKIP AUTOMATICO FILE ESISTENTI ✅
 - ✅ **CONTROLLO DUPLICATI ADMIN**: EditGalleryModal controlla nomi file esistenti prima dell'upload
 - ✅ **CONTROLLO DUPLICATI OSPITI**: GuestUpload verifica duplicati sia da collezione photos che legacy

@@ -36,8 +36,8 @@ export interface UploadSummary {
 // Costanti per la configurazione
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 2000;
-const DEFAULT_CONCURRENCY = 6; // Upload paralleli
-const CHUNK_SIZE = 200; // Numero di file da processare in un chunk (aumentato per gestire gallery di 800+ foto)
+const DEFAULT_CONCURRENCY = 3; // Upload paralleli ridotti per stabilità
+const CHUNK_SIZE = 50; // Chunk più piccoli per migliore gestione memoria
 
 /**
  * Carica un singolo file su Firebase Storage con supporto per i ritentativi automatici
@@ -250,12 +250,12 @@ export const uploadPhotos = async (
   progressCallback?: (info: { [filename: string]: UploadProgressInfo }) => void,
   summaryCallback?: (summary: UploadSummary) => void
 ): Promise<UploadedPhoto[]> => {
-  // Adatta la concorrenza in base al numero di file
-  const adaptiveConcurrency = files.length > 400 
-    ? Math.min(8, concurrency) // Aumenta per volumi elevati
-    : files.length > 200 
-      ? concurrency 
-      : Math.max(3, concurrency - 2); // Riduce per piccoli volumi
+  // Adatta la concorrenza in base al numero di file - più conservativo
+  const adaptiveConcurrency = files.length > 20 
+    ? Math.min(2, concurrency) // Massimo 2 per volumi elevati
+    : files.length > 10 
+      ? Math.min(2, concurrency) // Massimo 2 per volumi medi
+      : Math.max(1, concurrency - 1); // Minimo 1 per piccoli volumi
 
 
 
@@ -305,17 +305,25 @@ export const uploadPhotos = async (
   for (let chunkStart = 0; chunkStart < totalFiles; chunkStart += CHUNK_SIZE) {
     const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, totalFiles);
 
+    console.log(`📦 Elaborando chunk ${Math.floor(chunkStart/CHUNK_SIZE) + 1}/${Math.ceil(totalFiles/CHUNK_SIZE)} (${chunkEnd - chunkStart} file)`);
 
     const fileChunk = files.slice(chunkStart, chunkEnd);
     const queue = [...fileChunk];
     const activeUploads = new Map();
+    let currentConcurrency = Math.min(adaptiveConcurrency, 2); // Massimo 2 upload simultanei
 
     // Timestamp di inizio per questo chunk
     const chunkStartTime = Date.now();
 
     while (queue.length > 0 || activeUploads.size > 0) {
+      // Riduce la concorrenza se ci sono troppi errori
+      if (failedUploads > successfulUploads && currentConcurrency > 1) {
+        currentConcurrency = 1;
+        console.log(`⚠️ Ridotta concorrenza a ${currentConcurrency} per gestire errori`);
+      }
+
       // Avvia nuovi upload fino al limite di concorrenza
-      while (queue.length > 0 && activeUploads.size < adaptiveConcurrency) {
+      while (queue.length > 0 && activeUploads.size < currentConcurrency) {
         const file = queue.shift()!;
         const fileIndex = chunkStart + fileChunk.indexOf(file);
 
@@ -339,6 +347,11 @@ export const uploadPhotos = async (
           activeUploads.delete(file.name);
           // Incrementa il contatore dei successi
           successfulUploads++;
+          
+          // Log del progresso
+          const totalProcessed = successfulUploads + failedUploads;
+          console.log(`📊 Progresso: ${totalProcessed}/${totalFiles} (${successfulUploads} successi, ${failedUploads} errori)`);
+          
           return photoData;
         })
         .catch(error => {
@@ -353,8 +366,11 @@ export const uploadPhotos = async (
           activeUploads.delete(file.name);
           // Incrementa il contatore degli errori
           failedUploads++;
-          // Non blocchiamo il processo complessivo per errori su singoli file
-          return null;
+          
+          // Aggiungi un piccolo delay prima del prossimo upload per evitare sovraccarico
+          return new Promise(resolve => {
+            setTimeout(() => resolve(null), 1000);
+          });
         });
 
         activeUploads.set(file.name, uploadPromise);
@@ -363,6 +379,9 @@ export const uploadPhotos = async (
       // Attendi che almeno un upload finisca prima di continuare
       if (activeUploads.size > 0) {
         await Promise.race(activeUploads.values());
+        
+        // Piccolo delay per evitare sovraccarico del sistema
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -389,14 +408,14 @@ export const uploadPhotos = async (
   const totalDuration = (endTime - startTime) / 1000; // in secondi
   const averageSpeed = (successfulUploads / totalDuration).toFixed(2);
 
-
-
-
-
-
-
-
-
+  // Log del riepilogo finale
+  console.log(`📈 Upload completato in ${totalDuration.toFixed(1)}s`);
+  console.log(`📊 Risultati: ${successfulUploads} successi, ${failedUploads} errori su ${totalFiles} file`);
+  console.log(`⚡ Velocità media: ${averageSpeed} file/secondo`);
+  
+  if (failedUploads > 0) {
+    console.warn(`⚠️ ${failedUploads} file non sono stati caricati. Riprova per i file mancanti.`);
+  }
 
   // Filtra eventuali null (file che hanno fallito l'upload)
   return uploadedPhotos.filter(Boolean) as UploadedPhoto[];
