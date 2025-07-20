@@ -418,26 +418,44 @@ export default function InteractionPanel({
 
       
 
-      {/* Authentication prompt */}
+      {/* Subtle authentication prompt - Creative alternatives */}
       {!hasAuth && (
-        <Card className="border-sage/30 bg-sage/10 mt-3">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sage-700 text-sm">
-                <User className="h-4 w-4" />
-                <span>Accedi per mettere like e commentare</span>
-              </div>
-              <Button
-                onClick={handleAuthRequired}
-                size="sm"
-                className="bg-sage hover:bg-sage/80 text-white shadow-sm"
-              >
-                <LogIn className="h-4 w-4 mr-1" />
-                Accedi
-              </Button>
+        <div className="mt-2">
+          {/* Option 1: Floating pill with subtle animation */}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200/50 rounded-full text-xs text-rose-700 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer group"
+               onClick={handleAuthRequired}>
+            <Heart className="h-3 w-3 text-rose-400 group-hover:text-rose-500 transition-colors" />
+            <span className="font-medium">Entra per interagire</span>
+            <LogIn className="h-3 w-3 text-rose-400 group-hover:text-rose-500 transition-colors" />
+          </div>
+          
+          {/* Option 2: Minimalist tooltip-style (uncomment to try) */}
+          {/* 
+          <div className="text-center">
+            <button 
+              onClick={handleAuthRequired}
+              className="text-xs text-gray-500 hover:text-rose-600 underline decoration-dotted hover:decoration-solid transition-all"
+            >
+              💝 Accedi per lasciare un cuore
+            </button>
+          </div>
+          */}
+          
+          {/* Option 3: Inline with icons (uncomment to try) */}
+          {/* 
+          <div className="flex items-center justify-center gap-3 py-2 text-xs text-gray-500">
+            <div className="flex items-center gap-1 hover:text-rose-500 cursor-pointer transition-colors" onClick={handleAuthRequired}>
+              <Heart className="h-3 w-3" />
+              <span>Metti mi piace</span>
             </div>
-          </CardContent>
-        </Card>
+            <span>•</span>
+            <div className="flex items-center gap-1 hover:text-blue-500 cursor-pointer transition-colors" onClick={handleAuthRequired}>
+              <MessageCircle className="h-3 w-3" />
+              <span>Commenta</span>
+            </div>
+          </div>
+          */}
+        </div>
       )}
 
       {/* Comment Modal */}
