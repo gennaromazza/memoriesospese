@@ -173,6 +173,12 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
           </div>
           <div className="hidden md:block">
             <div className="ml-10 flex items-center space-x-6">
+              <Link 
+                to={createUrl("/pricing")} 
+                className="text-blue-gray hover:text-sage font-medium"
+              >
+                Prezzi
+              </Link>
               <Link to={createUrl("/")} className="font-medium text-blue-gray hover:text-dark-sage transition">
                 Home
               </Link>
@@ -253,6 +259,9 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
           <Link to={createUrl("/")} className="block px-3 py-2 text-base font-medium text-blue-gray">
             Home
+          </Link>
+          <Link to={createUrl("/pricing")} className="block px-3 py-2 text-base font-medium text-blue-gray">
+            Prezzi
           </Link>
           <a href="#about" className="block px-3 py-2 text-base font-medium text-blue-gray">Come Funziona</a>
           <a href="#contact" className="block px-3 py-2 text-base font-medium text-blue-gray">Contatti</a>

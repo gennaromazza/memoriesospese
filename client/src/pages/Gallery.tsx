@@ -22,6 +22,7 @@ import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress"
 import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
 import { SubscriptionManager } from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
+import { GalleryActions } from "@/components/gallery/GalleryActions";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionWrapper from "@/components/InteractionWrapper";
@@ -682,6 +683,17 @@ export default function Gallery() {
                       // Auth state will update automatically via context
                     }}
                     className="max-w-4xl mx-auto"
+                  />
+                </div>
+              )}
+
+              {/* Gallery Actions - Show download and export options for gallery owner */}
+              {userInfo.isAuthenticated && userInfo.email && gallery.userId === user?.uid && (
+                <div className="mt-8">
+                  <GalleryActions 
+                    galleryId={gallery.id}
+                    galleryName={gallery.name}
+                    isOwner={true}
                   />
                 </div>
               )}

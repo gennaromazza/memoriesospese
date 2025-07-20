@@ -9,6 +9,11 @@ import { logger } from 'firebase-functions';
 import * as nodemailer from 'nodemailer';
 import * as cors from 'cors';
 
+// Import subscription functions
+export { stripeWebhook, createCheckoutSession, createPortalSession } from './stripe';
+export { generateGalleryZip } from './gallery-zip';
+export { exportGalleryAccessCSV } from './csv-export';
+
 // Configurazione CORS per permettere richieste da gennaromazzacane.it
 const corsHandler = cors({
   origin: [
@@ -303,3 +308,14 @@ export const sendWelcomeEmail = onCall(async (request) => {
     throw new HttpsError('internal', 'Failed to send welcome email');
   }
 });
+
+// Import Stripe functions
+import { createCheckoutSession, createPortalSession, stripeWebhook } from './stripe';
+import { generateGalleryZip } from './gallery-zip';
+import { exportGalleryAccessCSV } from './csv-export';
+
+// Export Stripe functions
+export { createCheckoutSession, createPortalSession, stripeWebhook };
+
+// Export gallery functions
+export { generateGalleryZip, exportGalleryAccessCSV };

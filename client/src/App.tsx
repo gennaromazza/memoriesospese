@@ -24,6 +24,7 @@ import NotFound from "./pages/not-found";
 import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
+import PricingPage from "./pages/PricingPage";
 
 
 // Hook per tracciare le visualizzazioni delle pagine
@@ -59,6 +60,7 @@ function Router() {
       <Route path="/password-result/:id" component={PasswordResult} />
       <Route path="/security-test" component={SecurityTestPage} />
       <Route path="/profile" component={UserProfile} />
+      <Route path="/pricing" component={PricingPage} />
       <Route component={NotFound} />
     </Switch>
   );
