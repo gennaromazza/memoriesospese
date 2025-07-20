@@ -32,6 +32,15 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 20 Luglio 2025 - UX MIGLIORATA CALL TO ACTION INTERAZIONI - NAVIGAZIONE MOBILE OTTIMIZZATA ✅
+- ✅ **CALL TO ACTION RIMOSSA**: Eliminata pill confusionaria "Accedi per mettere like e commentare"
+- ✅ **CLICK DIRETTO**: Pulsanti like/commenti aprono direttamente modal autenticazione se necessario
+- ✅ **UX SEMPLIFICATA**: Azione diretta utente → autenticazione → esecuzione azione
+- ✅ **MOBILE FRIENDLY**: Interfaccia pulita senza elementi extra che occupano spazio
+- ✅ **NAVIGAZIONE FLUIDA**: Zero confusione visiva, esperienza utente ottimale
+- ✅ **COMPORTAMENTO INTUITIVO**: Click su cuore/commento = azione immediata con auth se richiesta
+- → **RISULTATO**: Interfaccia mobile ottimizzata con navigazione pulita e intuitiva
+
 ### 15 Luglio 2025 - OTTIMIZZAZIONI PERFORMANCE EDITGALLERYMODAL - PRODUZIONE READY ✅
 - ✅ **LOOP INFINITO RISOLTO**: Utilizzato useRef per tracciare ID galleria e prevenire re-rendering continui
 - ✅ **USECALLBACK IMPLEMENTATO**: Memoizzate funzioni loadPhotos, deletePhoto, saveGallery per performance
