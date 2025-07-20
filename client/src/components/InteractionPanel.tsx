@@ -122,7 +122,7 @@ export default function InteractionPanel({
   const handleLike = async () => {
     // Verifica autenticazione
     if (!isAuthenticated || !user) {
-      handleAuthRequired();
+      setShowAuthDialog(true);
       return;
     }
 
@@ -402,6 +402,10 @@ export default function InteractionPanel({
 
         <Button
           onClick={() => {
+            if (!isAuthenticated || !user) {
+              setShowAuthDialog(true);
+              return;
+            }
             setShowCommentModal(true);
             fetchComments();
           }}
@@ -418,45 +422,7 @@ export default function InteractionPanel({
 
       
 
-      {/* Subtle authentication prompt - Creative alternatives */}
-      {!hasAuth && (
-        <div className="mt-2">
-          {/* Option 1: Floating pill with subtle animation */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200/50 rounded-full text-xs text-rose-700 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer group"
-               onClick={handleAuthRequired}>
-            <Heart className="h-3 w-3 text-rose-400 group-hover:text-rose-500 transition-colors" />
-            <span className="font-medium">Entra per interagire</span>
-            <LogIn className="h-3 w-3 text-rose-400 group-hover:text-rose-500 transition-colors" />
-          </div>
-          
-          {/* Option 2: Minimalist tooltip-style (uncomment to try) */}
-          {/* 
-          <div className="text-center">
-            <button 
-              onClick={handleAuthRequired}
-              className="text-xs text-gray-500 hover:text-rose-600 underline decoration-dotted hover:decoration-solid transition-all"
-            >
-              💝 Accedi per lasciare un cuore
-            </button>
-          </div>
-          */}
-          
-          {/* Option 3: Inline with icons (uncomment to try) */}
-          {/* 
-          <div className="flex items-center justify-center gap-3 py-2 text-xs text-gray-500">
-            <div className="flex items-center gap-1 hover:text-rose-500 cursor-pointer transition-colors" onClick={handleAuthRequired}>
-              <Heart className="h-3 w-3" />
-              <span>Metti mi piace</span>
-            </div>
-            <span>•</span>
-            <div className="flex items-center gap-1 hover:text-blue-500 cursor-pointer transition-colors" onClick={handleAuthRequired}>
-              <MessageCircle className="h-3 w-3" />
-              <span>Commenta</span>
-            </div>
-          </div>
-          */}
-        </div>
-      )}
+
 
       {/* Comment Modal */}
       <CommentModal
