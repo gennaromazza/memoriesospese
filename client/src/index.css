@@ -19,31 +19,31 @@
   /* Theme colors using our October Mist palette */
   --background: var(--off-white);
   --foreground: var(--blue-gray);
-  
+
   --muted: var(--beige);
   --muted-foreground: var(--dark-sage);
-  
+
   --popover: var(--off-white);
   --popover-foreground: var(--blue-gray);
-  
+
   --card: var(--off-white);
   --card-foreground: var(--blue-gray);
-  
+
   --border: var(--beige);
   --input: var(--beige);
-  
+
   --primary: var(--blue-gray);
   --primary-foreground: var(--off-white);
-  
+
   --secondary: var(--mint);
   --secondary-foreground: var(--dark-sage);
-  
+
   --accent: var(--light-mint);
   --accent-foreground: var(--dark-sage);
-  
+
   --destructive: 0 84% 60%;
   --destructive-foreground: var(--off-white);
-  
+
   --ring: var(--sage);
   --radius: 0.5rem;
 }
@@ -88,7 +88,7 @@
   .gallery-image {
     @apply overflow-hidden rounded-lg shadow-md cursor-pointer transition-transform duration-300 bg-gray-100;
   }
-  
+
   .gallery-image:hover {
     @apply transform scale-[1.02];
   }
@@ -135,7 +135,7 @@
   .btn-primary {
     @apply bg-blue-gray hover:bg-dark-sage text-white font-medium rounded-md transition-all duration-300;
   }
-  
+
   .btn-lightbox {
     @apply py-2 px-4 rounded-md bg-white/15 text-white flex items-center justify-center 
       backdrop-blur-sm hover:bg-white/25 transition-all;
@@ -145,19 +145,19 @@
   .gallery-action-button {
     @apply transition-all duration-200 flex items-center justify-center;
   }
-  
+
   .gallery-menu-mobile {
     @apply flex flex-col gap-3 w-full;
   }
-  
+
   .gallery-menu-desktop {
     @apply sm:flex sm:flex-row sm:gap-2 sm:items-center;
   }
-  
+
   .gallery-button-container {
     @apply w-full sm:w-auto flex-1 sm:flex-initial;
   }
-  
+
   .gallery-user-controls {
     @apply flex gap-2 justify-end sm:justify-start w-full sm:w-auto;
   }
@@ -168,43 +168,43 @@
   .font-playfair {
     font-family: 'Playfair Display', serif;
   }
-  
+
   .font-sans {
     font-family: 'Raleway', sans-serif;
   }
-  
+
   .bg-mint {
     background-color: hsl(var(--mint));
   }
-  
+
   .bg-sage {
     background-color: hsl(var(--sage));
   }
-  
+
   .bg-blue-gray {
     background-color: hsl(var(--blue-gray));
   }
-  
+
   .bg-terracotta {
     background-color: hsl(var(--terracotta));
   }
-  
+
   .bg-cream {
     background-color: hsl(var(--cream));
   }
-  
+
   .bg-beige {
     background-color: hsl(var(--beige));
   }
-  
+
   .bg-off-white {
     background-color: hsl(var(--off-white));
   }
-  
+
   .bg-light-mint {
     background-color: hsl(var(--light-mint));
   }
-  
+
   .bg-dark-sage {
     background-color: hsl(var(--dark-sage));
   }
@@ -212,35 +212,35 @@
   .text-mint {
     color: hsl(var(--mint));
   }
-  
+
   .text-sage {
     color: hsl(var(--sage));
   }
-  
+
   .text-blue-gray {
     color: hsl(var(--blue-gray));
   }
-  
+
   .text-terracotta {
     color: hsl(var(--terracotta));
   }
-  
+
   .text-cream {
     color: hsl(var(--cream));
   }
-  
+
   .text-beige {
     color: hsl(var(--beige));
   }
-  
+
   .text-off-white {
     color: hsl(var(--off-white));
   }
-  
+
   .text-light-mint {
     color: hsl(var(--light-mint));
   }
-  
+
   .text-dark-sage {
     color: hsl(var(--dark-sage));
   }
@@ -248,23 +248,23 @@
   .border-mint {
     border-color: hsl(var(--mint));
   }
-  
+
   .border-sage {
     border-color: hsl(var(--sage));
   }
-  
+
   .border-blue-gray {
     border-color: hsl(var(--blue-gray));
   }
-  
+
   .border-terracotta {
     border-color: hsl(var(--terracotta));
   }
-  
+
   .border-cream {
     border-color: hsl(var(--cream));
   }
-  
+
   .border-beige {
     border-color: hsl(var(--beige));
   }
@@ -272,7 +272,7 @@
   .animate-fade-in {
     animation: fadeIn 0.7s ease-in-out;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.7s ease-out;
   }
@@ -345,4 +345,13 @@
   100% {
     box-shadow: 0 0 0 0 rgba(122, 203, 189, 0);
   }
+}
+
+/* Touch target improvements */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
