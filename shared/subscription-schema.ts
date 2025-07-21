@@ -61,12 +61,12 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
       galleryLimit: 5,
       maxPhotos: 5000,
       voiceMemo: true,
-      likes: false,
-      comments: false,
+      likes: true,
+      comments: true,
       downloadZip: false,
-      watermarkEnabled: false,
+      watermarkEnabled: true,
       domainCustom: false,
-      leadsExport: false,
+      leadsExport: true,
     }
   },
   pro: {
@@ -93,7 +93,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     priceId: 'price_1QQqLlEfHcSzngQqIhKT9Wvs', // Stripe Premium price ID
     features: {
       galleryLimit: 'unlimited',
-      maxPhotos: 'unlimited',
+      maxPhotos: 25000, // Same as Pro, but unlimited storage
       voiceMemo: true,
       likes: true,
       comments: true,

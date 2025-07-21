@@ -49,78 +49,82 @@ export default function Landing() {
       period: "sempre",
       description: "Perfetto per iniziare",
       features: [
-        "2 gallerie attive",
-        "10 foto per galleria",
-        "Upload ospiti",
-        "Interazioni base",
-        "Voice memos"
+        "1 galleria attiva",
+        "1.000 foto per galleria",
+        "Voice memos sblocco futuro",
+        "Upload ospiti"
       ],
       limitations: [
-        "Watermark Memorie Sospese",
-        "No download ZIP",
-        "No export CSV"
+        "No watermark personalizzato",
+        "No export CSV",
+        "No like e commenti",
+        "No download ZIP"
       ],
       cta: "Inizia Gratis",
       popular: false
     },
     {
       name: "Starter",
-      price: "9€",
+      price: "10€",
       period: "mese",
       description: "Per fotografi emergenti",
       features: [
         "5 gallerie attive",
         "5.000 foto per galleria",
+        "Voice memos sblocco futuro",
         "Upload ospiti illimitato",
-        "Tutte le interazioni sociali",
-        "Voice memos avanzati",
+        "Watermark personalizzato",
+        "Like e commenti",
+        "Export CSV",
         "Supporto email"
       ],
       limitations: [
-        "Watermark Memorie Sospese",
         "No download ZIP",
-        "No export CSV"
+        "No dominio personalizzato"
       ],
       cta: "Scegli Starter",
       popular: false
     },
     {
       name: "Pro",
-      price: "29€",
+      price: "20€",
       period: "mese",
       description: "Per professionisti attivi",
       features: [
         "Gallerie illimitate",
         "25.000 foto per galleria",
+        "Voice memos sblocco futuro",
         "Upload ospiti illimitato",
-        "Tutte le interazioni sociali",
-        "Voice memos premium",
         "Watermark personalizzato",
-        "Export CSV clienti",
+        "Like e commenti",
+        "Export CSV",
+        "Dominio personalizzato",
         "Supporto prioritario"
       ],
       limitations: [
-        "No download ZIP"
+        "No download ZIP",
+        "Storage limitato"
       ],
       cta: "Scegli Pro",
       popular: true
     },
     {
       name: "Premium",
-      price: "49€",
+      price: "40€",
       period: "mese",
       description: "Per studi fotografici",
       features: [
-        "Tutto illimitato",
-        "Foto illimitate per galleria",
+        "Gallerie illimitate",
+        "25.000 foto per galleria",
+        "Voice memos sblocco futuro",
         "Upload ospiti illimitato",
-        "Tutte le funzionalità sociali",
-        "Voice memos premium",
         "Watermark personalizzato",
-        "Download ZIP gallerie complete",
-        "Export CSV avanzato",
-        "Supporto prioritario 24/7",
-        "Gestione multi-utente"
+        "Like e commenti",
+        "Export CSV",
+        "Dominio personalizzato",
+        "Download ZIP intera galleria",
+        "Storage illimitato (fair use 1TB)",
+        "Supporto prioritario 24/7"
       ],
       limitations: [],
       cta: "Scegli Premium",
@@ -163,11 +167,9 @@ export default function Landing() {
               <span className="text-lg font-bold text-blue-gray-900 sm:hidden">MS</span>
             </div>
             <div className="hidden md:flex items-center space-x-4">
-              <Link href={createUrl('/pricing')}>
-                <Button variant="ghost" className="text-blue-gray-700 hover:text-sage-600">
-                  Prezzi
-                </Button>
-              </Link>
+              <a href="#pricing" className="text-blue-gray-700 hover:text-sage-600 font-medium transition-colors">
+                Prezzi
+              </a>
               <Link href={createUrl('/photographer-login')}>
                 <Button variant="outline" className="border-sage-300 text-sage-700 hover:bg-sage-50">
                   Accedi
@@ -255,7 +257,7 @@ export default function Landing() {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-12 sm:py-20 px-4 bg-gradient-to-br from-sage-50 to-blue-gray-50">
+      <section id="pricing" className="py-12 sm:py-20 px-4 bg-gradient-to-br from-sage-50 to-blue-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-2xl sm:text-4xl font-bold text-blue-gray-900 mb-4">
