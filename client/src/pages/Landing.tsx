@@ -159,22 +159,30 @@ export default function Landing() {
               <div className="w-10 h-10 bg-gradient-to-r from-sage-600 to-blue-gray-600 rounded-lg flex items-center justify-center">
                 <Camera className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-blue-gray-900">Memorie Sospese</span>
+              <span className="text-xl font-bold text-blue-gray-900 hidden sm:inline">Memorie Sospese</span>
+              <span className="text-lg font-bold text-blue-gray-900 sm:hidden">MS</span>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-4">
               <Link href={createUrl('/pricing')}>
                 <Button variant="ghost" className="text-blue-gray-700 hover:text-sage-600">
                   Prezzi
                 </Button>
               </Link>
-              <Link href={createUrl('/login')}>
+              <Link href={createUrl('/photographer-login')}>
                 <Button variant="outline" className="border-sage-300 text-sage-700 hover:bg-sage-50">
                   Accedi
                 </Button>
               </Link>
-              <Link href={createUrl('/register')}>
+              <Link href={createUrl('/photographer-register')}>
                 <Button className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700">
                   Inizia Gratis
+                </Button>
+              </Link>
+            </div>
+            <div className="md:hidden">
+              <Link href={createUrl('/photographer-register')}>
+                <Button size="sm" className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700">
+                  Registrati
                 </Button>
               </Link>
             </div>
@@ -183,34 +191,34 @@ export default function Landing() {
       </nav>
 
       {/* Hero Section */}
-      <section className="py-20 px-4">
+      <section className="py-12 sm:py-20 px-4">
         <div className="max-w-7xl mx-auto text-center">
-          <Badge variant="outline" className="mb-6 px-6 py-2 text-sage-700 border-sage-300">
-            🎉 Nuova piattaforma per fotografi di matrimonio
+          <Badge variant="outline" className="mb-6 px-4 sm:px-6 py-2 text-sage-700 border-sage-300 text-sm sm:text-base">
+            Nuova piattaforma per fotografi di matrimonio
           </Badge>
-          <h1 className="text-5xl md:text-7xl font-bold text-blue-gray-900 mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold text-blue-gray-900 mb-6 leading-tight">
             Le Tue Foto di Matrimonio
             <br />
             <span className="bg-gradient-to-r from-sage-600 to-blue-gray-600 bg-clip-text text-transparent">
               Mai Così Coinvolgenti
             </span>
           </h1>
-          <p className="text-xl text-blue-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-blue-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed px-4">
             Crea gallerie interattive che trasformano ogni matrimonio in un'esperienza sociale unica. 
             I tuoi clienti e i loro ospiti vivranno i ricordi come mai prima d'ora.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center px-4">
             <Button 
               size="lg" 
-              className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 px-8 py-3 text-lg"
-              onClick={() => navigate(createUrl('/register'))}
+              className="bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 px-6 sm:px-8 py-3 text-base sm:text-lg"
+              onClick={() => navigate(createUrl('/photographer-register'))}
             >
               Inizia Gratis per 30 Giorni
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
-              className="border-sage-300 text-sage-700 hover:bg-sage-50 px-8 py-3 text-lg"
+              className="border-sage-300 text-sage-700 hover:bg-sage-50 px-6 sm:px-8 py-3 text-base sm:text-lg"
               onClick={() => navigate(createUrl('/demo'))}
             >
               Vedi Demo Live
@@ -220,17 +228,17 @@ export default function Landing() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 px-4 bg-white">
+      <section className="py-12 sm:py-20 px-4 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-blue-gray-900 mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-4xl font-bold text-blue-gray-900 mb-4">
               Tutto Quello Che Serve al Tuo Business
             </h2>
-            <p className="text-xl text-blue-gray-600 max-w-3xl mx-auto">
+            <p className="text-lg sm:text-xl text-blue-gray-600 max-w-3xl mx-auto px-4">
               Funzionalità pensate specificamente per fotografi di matrimonio che vogliono offrire un'esperienza premium
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
             {features.map((feature, index) => (
               <Card key={index} className="border-sage-200 hover:shadow-lg transition-all duration-300 hover:border-sage-300">
                 <CardHeader>
@@ -247,17 +255,17 @@ export default function Landing() {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20 px-4 bg-gradient-to-br from-sage-50 to-blue-gray-50">
+      <section className="py-12 sm:py-20 px-4 bg-gradient-to-br from-sage-50 to-blue-gray-50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-blue-gray-900 mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-4xl font-bold text-blue-gray-900 mb-4">
               Prezzi Trasparenti per Ogni Esigenza
             </h2>
-            <p className="text-xl text-blue-gray-600 max-w-3xl mx-auto">
+            <p className="text-lg sm:text-xl text-blue-gray-600 max-w-3xl mx-auto px-4">
               Dal fotografo emergente allo studio affermato, c'è un piano perfetto per te
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
             {plans.map((plan, index) => (
               <Card 
                 key={index} 
@@ -308,7 +316,7 @@ export default function Landing() {
                         ? 'bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700' 
                         : 'bg-sage-600 hover:bg-sage-700'
                     }`}
-                    onClick={() => navigate(createUrl('/pricing'))}
+                    onClick={() => navigate(createUrl('/register'))}
                   >
                     {plan.cta}
                   </Button>
@@ -320,17 +328,17 @@ export default function Landing() {
       </section>
 
       {/* Testimonials */}
-      <section className="py-20 px-4 bg-white">
+      <section className="py-12 sm:py-20 px-4 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-blue-gray-900 mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-4xl font-bold text-blue-gray-900 mb-4">
               Cosa Dicono i Fotografi
             </h2>
-            <p className="text-xl text-blue-gray-600">
+            <p className="text-lg sm:text-xl text-blue-gray-600">
               Storie di successo dai nostri clienti
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
             {testimonials.map((testimonial, index) => (
               <Card key={index} className="border-sage-200 hover:shadow-lg transition-all duration-300">
                 <CardHeader>
@@ -352,26 +360,26 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-r from-sage-600 to-blue-gray-600">
+      <section className="py-12 sm:py-20 px-4 bg-gradient-to-r from-sage-600 to-blue-gray-600">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">
+          <h2 className="text-2xl sm:text-4xl font-bold text-white mb-4">
             Pronto a Trasformare il Tuo Business?
           </h2>
-          <p className="text-xl text-sage-100 mb-8">
+          <p className="text-lg sm:text-xl text-sage-100 mb-8 px-4">
             Unisciti a centinaia di fotografi che hanno già scelto Memorie Sospese
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center px-4">
             <Button 
               size="lg" 
-              className="bg-white text-sage-600 hover:bg-sage-50 px-8 py-3 text-lg font-semibold"
-              onClick={() => navigate(createUrl('/register'))}
+              className="bg-white text-sage-600 hover:bg-sage-50 px-6 sm:px-8 py-3 text-base sm:text-lg font-semibold"
+              onClick={() => navigate(createUrl('/photographer-register'))}
             >
               Inizia la Prova Gratuita
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
-              className="border-white text-white hover:bg-white hover:text-sage-600 px-8 py-3 text-lg"
+              className="border-white text-white hover:bg-white hover:text-sage-600 px-6 sm:px-8 py-3 text-base sm:text-lg"
               onClick={() => navigate(createUrl('/contact'))}
             >
               Contatta il Team
