@@ -24,6 +24,8 @@ import {
   BackgroundDecoration,
 } from "@/components/WeddingIllustrations";
 import { WeddingImage, DecorativeImage } from "@/components/WeddingImages";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -247,15 +249,23 @@ export default function Home() {
               {studioSettings.heroSubtitle}
             </p>
             <div
-              className="mt-10 animate-slide-up"
+              className="mt-10 animate-slide-up flex flex-col sm:flex-row gap-4"
               style={{ animationDelay: "200ms" }}
             >
               <a
                 href="#access-gallery"
-                className="px-8 py-3 bg-sage text-white font-medium rounded-md shadow-md hover:bg-dark-sage transition-all hover:shadow-lg inline-block"
+                className="px-8 py-3 bg-sage text-white font-medium rounded-md shadow-md hover:bg-dark-sage transition-all hover:shadow-lg inline-block text-center"
               >
                 {studioSettings.heroButtonText}
               </a>
+              <Link href={createUrl('/landing')}>
+                <Button 
+                  variant="outline" 
+                  className="px-8 py-3 bg-white/90 text-sage-700 border-white/50 hover:bg-white hover:text-sage-800 shadow-md font-medium"
+                >
+                  Sei un Fotografo?
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

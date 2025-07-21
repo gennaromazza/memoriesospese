@@ -25,6 +25,7 @@ import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
 import PricingPage from "./pages/PricingPage";
+import Landing from "./pages/Landing";
 
 
 // Hook per tracciare le visualizzazioni delle pagine
@@ -50,6 +51,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/landing" component={Landing} />
       <Route path="/gallery/:id" component={GalleryAccess} />
       <Route path="/view/:id" component={Gallery} />
       <Route path="/admin" component={AdminLogin} />
