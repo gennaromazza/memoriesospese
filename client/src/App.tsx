@@ -28,6 +28,8 @@ import PricingPage from "./pages/PricingPage";
 import Landing from "./pages/Landing";
 import PhotographerRegister from "./pages/PhotographerRegister";
 import PhotographerLogin from "./pages/PhotographerLogin";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 
 
 // Hook per tracciare le visualizzazioni delle pagine
@@ -56,6 +58,8 @@ function Router() {
       <Route path="/landing" component={Landing} />
       <Route path="/photographer-register" component={PhotographerRegister} />
       <Route path="/photographer-login" component={PhotographerLogin} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route path="/gallery/:id" component={GalleryAccess} />
       <Route path="/view/:id" component={Gallery} />
       <Route path="/admin" component={AdminLogin} />

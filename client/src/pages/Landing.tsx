@@ -221,9 +221,9 @@ export default function Landing() {
               size="lg" 
               variant="outline" 
               className="border-sage-300 text-sage-700 hover:bg-sage-50 px-6 sm:px-8 py-3 text-base sm:text-lg"
-              onClick={() => navigate(createUrl('/demo'))}
+              onClick={() => window.scrollTo({ top: document.getElementById('pricing')?.offsetTop || 0, behavior: 'smooth' })}
             >
-              Vedi Demo Live
+              Vedi Prezzi
             </Button>
           </div>
         </div>
@@ -382,7 +382,7 @@ export default function Landing() {
               size="lg" 
               variant="outline" 
               className="border-white text-white hover:bg-white hover:text-sage-600 px-6 sm:px-8 py-3 text-base sm:text-lg"
-              onClick={() => navigate(createUrl('/contact'))}
+              onClick={() => window.open('mailto:info@memoriesospese.it', '_blank')}
             >
               Contatta il Team
             </Button>
@@ -408,28 +408,28 @@ export default function Landing() {
             <div>
               <h3 className="font-semibold mb-4">Prodotto</h3>
               <ul className="space-y-2 text-sm text-blue-gray-300">
-                <li><Link href={createUrl('/features')}>Funzionalità</Link></li>
-                <li><Link href={createUrl('/pricing')}>Prezzi</Link></li>
-                <li><Link href={createUrl('/demo')}>Demo</Link></li>
-                <li><Link href={createUrl('/updates')}>Aggiornamenti</Link></li>
+                <li><a href="#pricing" className="hover:text-sage-300 transition-colors">Funzionalità</a></li>
+                <li><a href="#pricing" className="hover:text-sage-300 transition-colors">Prezzi</a></li>
+                <li><Link href={createUrl('/photographer-register')} className="hover:text-sage-300 transition-colors">Prova Gratis</Link></li>
+                <li><a href="mailto:info@memoriesospese.it" className="hover:text-sage-300 transition-colors">Novità</a></li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4">Supporto</h3>
               <ul className="space-y-2 text-sm text-blue-gray-300">
-                <li><Link href={createUrl('/help')}>Centro Assistenza</Link></li>
-                <li><Link href={createUrl('/contact')}>Contatti</Link></li>
-                <li><Link href={createUrl('/tutorials')}>Tutorial</Link></li>
-                <li><Link href={createUrl('/community')}>Community</Link></li>
+                <li><a href="mailto:supporto@memoriesospese.it" className="hover:text-sage-300 transition-colors">Centro Assistenza</a></li>
+                <li><a href="mailto:info@memoriesospese.it" className="hover:text-sage-300 transition-colors">Contatti</a></li>
+                <li><Link href={createUrl('/photographer-login')} className="hover:text-sage-300 transition-colors">Accedi</Link></li>
+                <li><a href="https://www.facebook.com/memoriesospese" target="_blank" rel="noopener noreferrer" className="hover:text-sage-300 transition-colors">Community</a></li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4">Azienda</h3>
               <ul className="space-y-2 text-sm text-blue-gray-300">
-                <li><Link href={createUrl('/about')}>Chi Siamo</Link></li>
-                <li><Link href={createUrl('/careers')}>Carriere</Link></li>
-                <li><Link href={createUrl('/privacy')}>Privacy</Link></li>
-                <li><Link href={createUrl('/terms')}>Termini</Link></li>
+                <li><a href="mailto:info@memoriesospese.it" className="hover:text-sage-300 transition-colors">Chi Siamo</a></li>
+                <li><a href="mailto:lavora@memoriesospese.it" className="hover:text-sage-300 transition-colors">Carriere</a></li>
+                <li><Link href={createUrl('/privacy')} className="hover:text-sage-300 transition-colors">Privacy</Link></li>
+                <li><Link href={createUrl('/terms')} className="hover:text-sage-300 transition-colors">Termini</Link></li>
               </ul>
             </div>
           </div>
