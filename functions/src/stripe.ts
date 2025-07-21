@@ -2,12 +2,10 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
 
-// Initialize Stripe
+// Initialize Stripe with your live secret key
 const stripe = new Stripe(
-  functions.config().stripe?.secret_key || 
-  process.env.STRIPE_SECRET_KEY || 
-  '6vdDjDvHMDOxFH2CYaDWJwWfVcaHJgqqx8CJk44rmq7VSPPInYXXQph6jhk21LEOb00LiJMkrpT',
-  { apiVersion: '2024-12-18.acacia' as any }
+  'sk_live_51QcOtGJwWfVcaHJgqqx8CJk44rmq7VSPPInYXXQph6jhk21LEOb00LiJMkrpT',
+  { apiVersion: '2025-06-30.basil' }
 );
 
 const db = admin.firestore();
@@ -195,8 +193,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     expiresAt: null,
     stripeCustomerId: session.customer as string,
     stripeSubscriptionId: subscription.id,
-    currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+    cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -215,8 +213,8 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
 
   await db.doc(`users/${userId}/subscription/current`).update({
     active: subscription.status === 'active',
-    currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+    cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -243,7 +241,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
 // Handle successful payment
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  const subscriptionId = invoice.subscription as string;
+  const subscriptionId = (invoice as any).subscription as string;
   if (!subscriptionId) return;
   
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
@@ -261,7 +259,7 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
 
 // Handle failed payment
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-  const subscriptionId = invoice.subscription as string;
+  const subscriptionId = (invoice as any).subscription as string;
   if (!subscriptionId) return;
   
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
