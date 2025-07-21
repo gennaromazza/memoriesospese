@@ -5,6 +5,7 @@ import type { PlanType } from '@shared/subscription-schema';
 
 // Initialize Stripe with publishable key
 const stripePromise = loadStripe(
+  import.meta.env.VITE_STRIPE_PUBLIC_KEY || 
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
   'pk_test_51OODKjEfHcSzngQqGiPqHsQGHSKWJTPxAJFp7PKB9Xt2hgCo1YQJiqjPXUHo9hGGLRzKzpG9pRoVWLi0VxDQSRTL009AzrNdBN'
 );

@@ -6,7 +6,7 @@ import Stripe from 'stripe';
 const stripe = new Stripe(
   functions.config().stripe?.secret_key || 
   process.env.STRIPE_SECRET_KEY || 
-  'sk_test_51OODKjEfHcSzngQqn4OGhMSHN8QTvUwMoX4E0yvxJTU0g5GQXVwOeqQT4p0EfP7KCRvS8sNwNVnBZAQvXJGQWHZO00VgOElkXQ',
+  '6vdDjDvHMDOxFH2CYaDWJwWfVcaHJgqqx8CJk44rmq7VSPPInYXXQph6jhk21LEOb00LiJMkrpT',
   { apiVersion: '2024-12-18.acacia' as any }
 );
 
