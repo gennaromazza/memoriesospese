@@ -10,9 +10,8 @@ import * as nodemailer from 'nodemailer';
 import * as cors from 'cors';
 
 // Import subscription functions
-export { stripeWebhook, createCheckoutSession, createPortalSession } from './stripe';
-export { generateGalleryZip } from './gallery-zip';
-export { exportGalleryAccessCSV } from './csv-export';
+// Stripe functions imported from './stripe'
+// Gallery ZIP and CSV export functions imported from their respective files
 
 // Configurazione CORS per permettere richieste da gennaromazzacane.it
 const corsHandler = cors({
@@ -309,13 +308,11 @@ export const sendWelcomeEmail = onCall(async (request) => {
   }
 });
 
-// Import Stripe functions
+// Import and re-export Stripe functions
 import { createCheckoutSession, createPortalSession, stripeWebhook } from './stripe';
 import { generateGalleryZip } from './gallery-zip';
 import { exportGalleryAccessCSV } from './csv-export';
 
-// Export Stripe functions
+// Export all functions
 export { createCheckoutSession, createPortalSession, stripeWebhook };
-
-// Export gallery functions
 export { generateGalleryZip, exportGalleryAccessCSV };

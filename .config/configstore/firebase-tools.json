@@ -7,8 +7,9 @@
 		"node8DeploysDisabledAfter": 1613390400000,
 		"node8RuntimeDisabledAfter": 1615809600000,
 		"node8WarnAfter": 1600128000000,
-		"fetched": 1753080580262
+		"fetched": 1753199438782
 	},
-	"lastError": 1753080649863,
-	"usage": true
+	"lastError": 1753199438975,
+	"usage": true,
+	"analytics-uuid": "eeec0afd-4852-4670-8abb-a0319c413162"
 }

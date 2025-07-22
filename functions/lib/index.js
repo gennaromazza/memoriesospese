@@ -1,85 +1,79 @@
+"use strict";
 /**
  * Firebase Cloud Functions per Wedding Gallery
- * Versione compilata manualmente per deployment
+ * Gestisce invio email tramite Brevo SMTP con supporto CORS
  */
-
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-const nodemailer = require('nodemailer');
-const cors = require('cors');
-
-// Inizializza Firebase Admin
-admin.initializeApp();
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.exportGalleryAccessCSV = exports.generateGalleryZip = exports.stripeWebhook = exports.createPortalSession = exports.createCheckoutSession = exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendGalleryPassword = exports.sendNewPhotosNotificationCall = exports.sendNewPhotosNotification = void 0;
+const https_1 = require("firebase-functions/v2/https");
+const firebase_functions_1 = require("firebase-functions");
+const nodemailer = require("nodemailer");
+const cors = require("cors");
+// Import subscription functions
+// Stripe functions imported from './stripe'
+// Gallery ZIP and CSV export functions imported from their respective files
 // Configurazione CORS per permettere richieste da gennaromazzacane.it
 const corsHandler = cors({
-  origin: [
-    'https://gennaromazzacane.it',
-    'https://www.gennaromazzacane.it',
-    'http://localhost:3000',
-    'http://localhost:5000',
-    'https://localhost:3000',
-    'https://localhost:5000'
-  ],
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+    origin: [
+        'https://gennaromazzacane.it',
+        'https://www.gennaromazzacane.it',
+        'http://localhost:3000',
+        'http://localhost:5000',
+        'https://localhost:3000',
+        'https://localhost:5000'
+    ],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 });
-
 // Configurazione SMTP Brevo
 const smtpConfig = {
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false, // STARTTLS
-  auth: {
-    user: '91c91c001@smtp-brevo.com',
-    pass: 'sIBRNp2r1y6Y0WTZ'
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false, // STARTTLS
+    auth: {
+        user: '91c91c001@smtp-brevo.com',
+        pass: 'sIBRNp2r1y6Y0WTZ'
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
 };
-
 const transporter = nodemailer.createTransport(smtpConfig);
-
 // Verifica configurazione SMTP al caricamento
 transporter.verify((error, success) => {
-  if (error) {
-    console.error('SMTP configuration error:', error);
-  } else {
-    console.log('SMTP server ready for email sending');
-  }
+    if (error) {
+        firebase_functions_1.logger.error('SMTP configuration error:', error);
+    }
+    else {
+        firebase_functions_1.logger.info('SMTP server ready for email sending');
+    }
 });
-
 /**
  * Function per invio notifiche nuove foto - Con supporto CORS
  */
-exports.sendNewPhotosNotification = functions.https.onRequest(async (req, res) => {
-  corsHandler(req, res, async () => {
-    try {
-      // Gestione preflight OPTIONS
-      if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-      }
-
-      if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-      }
-
-      const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = req.body;
-
-      if (!recipients || recipients.length === 0) {
-        res.status(400).json({ error: 'Recipients list is required' });
-        return;
-      }
-
-      const mailOptions = {
-        from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
-        to: recipients.join(','),
-        subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
-        html: `
+exports.sendNewPhotosNotification = (0, https_1.onRequest)(async (req, res) => {
+    corsHandler(req, res, async () => {
+        try {
+            // Gestione preflight OPTIONS
+            if (req.method === 'OPTIONS') {
+                res.status(200).end();
+                return;
+            }
+            if (req.method !== 'POST') {
+                res.status(405).json({ error: 'Method not allowed' });
+                return;
+            }
+            const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = req.body;
+            if (!recipients || recipients.length === 0) {
+                res.status(400).json({ error: 'Recipients list is required' });
+                return;
+            }
+            const mailOptions = {
+                from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
+                to: recipients.join(','),
+                subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
+                html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #8b5a3c; text-align: center;">🎉 Nuove foto disponibili!</h2>
             <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
@@ -101,41 +95,37 @@ exports.sendNewPhotosNotification = functions.https.onRequest(async (req, res) =
             </div>
           </div>
         `,
-        headers: {
-          'X-Mailer': 'Wedding Gallery System',
-          'X-Priority': '3',
-          'List-Unsubscribe': '<mailto:91c91c001@smtp-brevo.com?subject=Unsubscribe>',
-          'Reply-To': '91c91c001@smtp-brevo.com'
+                headers: {
+                    'X-Mailer': 'Wedding Gallery System',
+                    'X-Priority': '3',
+                    'List-Unsubscribe': '<mailto:91c91c001@smtp-brevo.com?subject=Unsubscribe>',
+                    'Reply-To': '91c91c001@smtp-brevo.com'
+                }
+            };
+            await transporter.sendMail(mailOptions);
+            firebase_functions_1.logger.info(`New photos notification sent to ${recipients.length} recipients`);
+            res.status(200).json({ success: true, message: 'Notification sent successfully' });
         }
-      };
-
-      await transporter.sendMail(mailOptions);
-      console.log(`New photos notification sent to ${recipients.length} recipients`);
-      
-      res.status(200).json({ success: true, message: 'Notification sent successfully' });
-    } catch (error) {
-      console.error('Error sending new photos notification:', error);
-      res.status(500).json({ error: 'Failed to send notification email' });
-    }
-  });
+        catch (error) {
+            firebase_functions_1.logger.error('Error sending new photos notification:', error);
+            res.status(500).json({ error: 'Failed to send notification email' });
+        }
+    });
 });
-
 /**
  * Function per invio notifiche nuove foto - Versione onCall per compatibilità
  */
-exports.sendNewPhotosNotificationCall = functions.https.onCall(async (data, context) => {
-  try {
-    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
-
-    if (!recipients || recipients.length === 0) {
-      throw new functions.https.HttpsError('invalid-argument', 'Recipients list is required');
-    }
-
-    const mailOptions = {
-      from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
-      to: recipients.join(','),
-      subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
-      html: `
+exports.sendNewPhotosNotificationCall = (0, https_1.onCall)(async (request) => {
+    try {
+        const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = request.data;
+        if (!recipients || recipients.length === 0) {
+            throw new https_1.HttpsError('invalid-argument', 'Recipients list is required');
+        }
+        const mailOptions = {
+            from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
+            to: recipients.join(','),
+            subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
+            html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #8b5a3c; text-align: center;">🎉 Nuove foto disponibili!</h2>
           <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
@@ -157,40 +147,36 @@ exports.sendNewPhotosNotificationCall = functions.https.onCall(async (data, cont
           </div>
         </div>
       `,
-      headers: {
-        'X-Mailer': 'Wedding Gallery System',
-        'X-Priority': '3',
-        'List-Unsubscribe': '<mailto:91c91c001@smtp-brevo.com?subject=Unsubscribe>',
-        'Reply-To': '91c91c001@smtp-brevo.com'
-      }
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`New photos notification sent to ${recipients.length} recipients`);
-    
-    return { success: true, message: 'Notification sent successfully' };
-  } catch (error) {
-    console.error('Error sending new photos notification:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to send notification email');
-  }
+            headers: {
+                'X-Mailer': 'Wedding Gallery System',
+                'X-Priority': '3',
+                'List-Unsubscribe': '<mailto:91c91c001@smtp-brevo.com?subject=Unsubscribe>',
+                'Reply-To': '91c91c001@smtp-brevo.com'
+            }
+        };
+        await transporter.sendMail(mailOptions);
+        firebase_functions_1.logger.info(`New photos notification sent to ${recipients.length} recipients`);
+        return { success: true, message: 'Notification sent successfully' };
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Error sending new photos notification:', error);
+        throw new https_1.HttpsError('internal', 'Failed to send notification email');
+    }
 });
-
 /**
  * Function per invio password galleria
  */
-exports.sendGalleryPassword = functions.https.onCall(async (data, context) => {
-  try {
-    const { recipientEmail, galleryName, galleryCode, galleryPassword } = data;
-
-    if (!recipientEmail || !galleryName || !galleryCode) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
-    }
-
-    const mailOptions = {
-      from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
-      to: recipientEmail,
-      subject: `🔑 Codice di accesso per "${galleryName}"`,
-      html: `
+exports.sendGalleryPassword = (0, https_1.onCall)(async (request) => {
+    try {
+        const { recipientEmail, galleryName, galleryCode, galleryPassword } = request.data;
+        if (!recipientEmail || !galleryName || !galleryCode) {
+            throw new https_1.HttpsError('invalid-argument', 'Missing required parameters');
+        }
+        const mailOptions = {
+            from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
+            to: recipientEmail,
+            subject: `🔑 Codice di accesso per "${galleryName}"`,
+            html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #8b5a3c; text-align: center;">🔑 Accesso alla Galleria</h2>
           <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
@@ -218,35 +204,32 @@ exports.sendGalleryPassword = functions.https.onCall(async (data, context) => {
           </div>
         </div>
       `,
-      headers: {
-        'X-Mailer': 'Wedding Gallery System',
-        'Reply-To': '91c91c001@smtp-brevo.com'
-      }
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`Gallery password sent to ${recipientEmail}`);
-    
-    return { success: true, message: 'Gallery password sent successfully' };
-  } catch (error) {
-    console.error('Error sending gallery password:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to send gallery password email');
-  }
+            headers: {
+                'X-Mailer': 'Wedding Gallery System',
+                'Reply-To': '91c91c001@smtp-brevo.com'
+            }
+        };
+        await transporter.sendMail(mailOptions);
+        firebase_functions_1.logger.info(`Gallery password sent to ${recipientEmail}`);
+        return { success: true, message: 'Gallery password sent successfully' };
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Error sending gallery password:', error);
+        throw new https_1.HttpsError('internal', 'Failed to send gallery password email');
+    }
 });
-
 /**
  * Function per test configurazione email
  */
-exports.testEmailConfiguration = functions.https.onCall(async (data, context) => {
-  try {
-    const { testRecipient } = data;
-    const recipient = testRecipient || 'gennaro.mazzacane@gmail.com';
-
-    const mailOptions = {
-      from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
-      to: recipient,
-      subject: '✅ Test Configurazione Email - Wedding Gallery',
-      html: `
+exports.testEmailConfiguration = (0, https_1.onCall)(async (request) => {
+    try {
+        const { testRecipient } = request.data;
+        const recipient = testRecipient || 'gennaro.mazzacane@gmail.com';
+        const mailOptions = {
+            from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
+            to: recipient,
+            subject: '✅ Test Configurazione Email - Wedding Gallery',
+            html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #8b5a3c; text-align: center;">✅ Test Email Configurazione</h2>
           <div style="background: #f9f7f4; padding: 20px; border-radius: 10px;">
@@ -257,34 +240,30 @@ exports.testEmailConfiguration = functions.https.onCall(async (data, context) =>
           </div>
         </div>
       `
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`Test email sent to ${recipient}`);
-    
-    return { success: true, message: 'Test email sent successfully' };
-  } catch (error) {
-    console.error('Error sending test email:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to send test email');
-  }
+        };
+        await transporter.sendMail(mailOptions);
+        firebase_functions_1.logger.info(`Test email sent to ${recipient}`);
+        return { success: true, message: 'Test email sent successfully' };
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Error sending test email:', error);
+        throw new https_1.HttpsError('internal', 'Failed to send test email');
+    }
 });
-
 /**
  * Function per email di benvenuto
  */
-exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
-  try {
-    const { recipientEmail, galleryName } = data;
-
-    if (!recipientEmail || !galleryName) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
-    }
-
-    const mailOptions = {
-      from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
-      to: recipientEmail,
-      subject: `✨ Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`,
-      html: `
+exports.sendWelcomeEmail = (0, https_1.onCall)(async (request) => {
+    try {
+        const { recipientEmail, galleryName } = request.data;
+        if (!recipientEmail || !galleryName) {
+            throw new https_1.HttpsError('invalid-argument', 'Missing required parameters');
+        }
+        const mailOptions = {
+            from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
+            to: recipientEmail,
+            subject: `✨ Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`,
+            html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #8b5a3c; text-align: center;">✨ Benvenuto nella Galleria!</h2>
           <div style="background: #f9f7f4; padding: 20px; border-radius: 10px;">
@@ -294,14 +273,23 @@ exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
           </div>
         </div>
       `
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`Welcome email sent to ${recipientEmail}`);
-    
-    return { success: true, message: 'Welcome email sent successfully' };
-  } catch (error) {
-    console.error('Error sending welcome email:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to send welcome email');
-  }
+        };
+        await transporter.sendMail(mailOptions);
+        firebase_functions_1.logger.info(`Welcome email sent to ${recipientEmail}`);
+        return { success: true, message: 'Welcome email sent successfully' };
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Error sending welcome email:', error);
+        throw new https_1.HttpsError('internal', 'Failed to send welcome email');
+    }
 });
+// Import and re-export Stripe functions
+const stripe_1 = require("./stripe");
+Object.defineProperty(exports, "createCheckoutSession", { enumerable: true, get: function () { return stripe_1.createCheckoutSession; } });
+Object.defineProperty(exports, "createPortalSession", { enumerable: true, get: function () { return stripe_1.createPortalSession; } });
+Object.defineProperty(exports, "stripeWebhook", { enumerable: true, get: function () { return stripe_1.stripeWebhook; } });
+const gallery_zip_1 = require("./gallery-zip");
+Object.defineProperty(exports, "generateGalleryZip", { enumerable: true, get: function () { return gallery_zip_1.generateGalleryZip; } });
+const csv_export_1 = require("./csv-export");
+Object.defineProperty(exports, "exportGalleryAccessCSV", { enumerable: true, get: function () { return csv_export_1.exportGalleryAccessCSV; } });
+//# sourceMappingURL=index.js.map

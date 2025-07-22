@@ -5,7 +5,7 @@ import * as Papa from 'papaparse';
 const db = admin.firestore();
 
 // Export gallery access data to CSV (Pro/Premium only)
-export const exportGalleryAccessCSV = functions.https.onCall(async (data, context) => {
+export const exportGalleryAccessCSV = functions.https.onCall(async (data: any, context: any) => {
   if (!context.auth) {
     throw new functions.https.HttpsError(
       'unauthenticated',

@@ -7,7 +7,7 @@ const storage = admin.storage();
 const bucket = storage.bucket();
 
 // Generate ZIP file for gallery download (Premium only)
-export const generateGalleryZip = functions.https.onCall(async (data, context) => {
+export const generateGalleryZip = functions.https.onCall(async (data: any, context: any) => {
   if (!context.auth) {
     throw new functions.https.HttpsError(
       'unauthenticated',
