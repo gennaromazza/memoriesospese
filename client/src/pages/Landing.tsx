@@ -318,7 +318,7 @@ export default function Landing() {
                         ? 'bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700' 
                         : 'bg-sage-600 hover:bg-sage-700'
                     }`}
-                    onClick={() => navigate(createUrl('/register'))}
+                    onClick={() => navigate(createUrl('/photographer-register'))}
                   >
                     {plan.cta}
                   </Button>
