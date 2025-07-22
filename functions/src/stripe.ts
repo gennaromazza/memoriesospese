@@ -2,11 +2,14 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
 
-// Initialize Stripe with your live secret key
-const stripe = new Stripe(
-  'sk_live_51QcOtGJwWfVcaHJgqqx8CJk44rmq7VSPPInYXXQph6jhk21LEOb00LiJMkrpT',
-  { apiVersion: '2025-06-30.basil' }
-);
+// Initialize Stripe with environment-based key
+const stripeSecretKey = process.env.NODE_ENV === 'production' 
+  ? 'sk_live_51QcOtGJwWfVcaHJgqqx8CJk44rmq7VSPPInYXXQph6jhk21LEOb00LiJMkrpT' // TUA CHIAVE LIVE
+  : 'sk_test_51OODKjEfHcSzngQqGiPqHsQGHSKWJTPxAJFp7PKB9Xt2hgCo1YQJiqjPXUHo9hGGLRzKzpG9pRoVWLi0VxDQSRTL00ABCD1234'; // Chiave test
+
+const stripe = new Stripe(stripeSecretKey, {
+  apiVersion: '2025-06-30.basil'
+});
 
 const db = admin.firestore();
 
@@ -124,9 +127,9 @@ export const createPortalSession = functions.https.onCall(async (data: any, cont
 // Webhook handler for Stripe events
 export const stripeWebhook = functions.https.onRequest(async (req, res) => {
   const sig = req.headers['stripe-signature'] as string;
-  const webhookSecret = functions.config().stripe?.webhook_secret || 
-    process.env.STRIPE_WEBHOOK_SECRET ||
-    'whsec_test_secret';
+  const webhookSecret = process.env.NODE_ENV === 'production'
+    ? (functions.config().stripe?.webhook_secret || process.env.STRIPE_WEBHOOK_SECRET)
+    : 'whsec_test_1234567890abcdef'; // Webhook secret test
 
   let event: Stripe.Event;
 

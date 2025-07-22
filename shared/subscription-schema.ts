@@ -56,7 +56,9 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     id: 'starter',
     name: 'Starter',
     price: 10,
-    priceId: 'price_1QQqKjEfHcSzngQqB4kFGXvH', // Stripe Starter price ID
+    priceId: process.env.NODE_ENV === 'production' 
+      ? 'price_1QQqKjEfHcSzngQqB4kFGXvH' // TUA CHIAVE LIVE 
+      : 'price_1OODKjEfHcSzngQqtest_starter', // Price ID test
     features: {
       galleryLimit: 5,
       maxPhotos: 5000,
@@ -73,7 +75,9 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     id: 'pro',
     name: 'Pro',
     price: 20,
-    priceId: 'price_1QQqLMEfHcSzngQqnzQHXN5w', // Stripe Pro price ID
+    priceId: process.env.NODE_ENV === 'production'
+      ? 'price_1QQqLMEfHcSzngQqnzQHXN5w' // TUA CHIAVE LIVE
+      : 'price_1OODKjEfHcSzngQqtest_pro', // Price ID test
     features: {
       galleryLimit: 'unlimited',
       maxPhotos: 25000,
@@ -90,7 +94,9 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     id: 'premium',
     name: 'Premium',
     price: 40,
-    priceId: 'price_1QQqLlEfHcSzngQqIhKT9Wvs', // Stripe Premium price ID
+    priceId: process.env.NODE_ENV === 'production'
+      ? 'price_1QQqLlEfHcSzngQqIhKT9Wvs' // TUA CHIAVE LIVE
+      : 'price_1OODKjEfHcSzngQqtest_premium', // Price ID test
     features: {
       galleryLimit: 'unlimited',
       maxPhotos: 25000, // Same as Pro, but unlimited storage
