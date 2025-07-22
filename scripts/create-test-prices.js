@@ -4,7 +4,11 @@
  * Da utilizzare SOLO per configurazione test environment
  */
 
-const stripe = require('stripe')('sk_test_51OODKjEfHcSzngQqGiPqHsQGHSKWJTPxAJFp7PKB9Xt2hgCo1YQJiqjPXUHo9hGGLRzKzpG9pRoVWLi0VxDQSRTL00ABCD1234');
+import Stripe from 'stripe';
+
+const stripe = new Stripe('sk_test_51OODKjEfHcSzngQqGiPqHsQGHSKWJTPxAJFp7PKB9Xt2hgCo1YQJiqjPXUHo9hGGLRzKzpG9pRoVWLi0VxDQSRTL00ABCD1234', {
+  apiVersion: '2025-06-30.basil'
+});
 
 async function createTestPrices() {
   try {

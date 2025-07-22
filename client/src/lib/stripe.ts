@@ -11,7 +11,6 @@ const stripePromise = loadStripe(
 );
 
 export interface CreateCheckoutSessionData {
-  priceId: string;
   successUrl: string;
   cancelUrl: string;
   userId: string;

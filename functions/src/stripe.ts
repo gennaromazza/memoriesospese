@@ -11,6 +11,26 @@ const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2025-06-30.basil'
 });
 
+// Price ID mapping for test/production environments
+const PRICE_ID_MAPPING = {
+  production: {
+    starter: 'price_1QQqKjEfHcSzngQqB4kFGXvH',
+    pro: 'price_1QQqLMEfHcSzngQqnzQHXN5w', 
+    premium: 'price_1QQqLlEfHcSzngQqIhKT9Wvs'
+  },
+  test: {
+    starter: 'price_1QQqKjEfHcSzngQqtest_starter',
+    pro: 'price_1QQqLMEfHcSzngQqtest_pro',
+    premium: 'price_1QQqLlEfHcSzngQqtest_premium'
+  }
+};
+
+// Helper function to get correct Price ID for environment
+function getPriceId(planType: string): string {
+  const environment = process.env.NODE_ENV === 'production' ? 'production' : 'test';
+  return PRICE_ID_MAPPING[environment][planType as keyof typeof PRICE_ID_MAPPING.production];
+}
+
 const db = admin.firestore();
 
 // Create checkout session
@@ -22,8 +42,11 @@ export const createCheckoutSession = functions.https.onCall(async (data: any, co
     );
   }
 
-  const { priceId, successUrl, cancelUrl, planType, userEmail } = data;
+  const { successUrl, cancelUrl, planType, userEmail } = data;
   const userId = context.auth.uid;
+  
+  // Get correct Price ID for current environment
+  const priceId = getPriceId(planType);
 
   try {
     // Check if customer exists

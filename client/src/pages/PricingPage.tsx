@@ -153,13 +153,9 @@ export default function PricingPage() {
     }
 
     if (selectedPlan === 'free') {
-      toast.info('Stai già usando il piano gratuito');
-      return;
-    }
-
-    const plan = SUBSCRIPTION_PLANS[selectedPlan];
-    if (!plan.priceId) {
-      toast.error('Piano non disponibile per l\'acquisto');
+      // Redirect to profile for free plan users
+      toast.success('Piano gratuito attivato! Vai al tuo profilo per iniziare.');
+      navigate('/profile');
       return;
     }
 
@@ -168,7 +164,6 @@ export default function PricingPage() {
     try {
       const baseUrl = window.location.origin + import.meta.env.BASE_URL;
       await createCheckoutSession({
-        priceId: plan.priceId,
         successUrl: `${baseUrl}pricing?success=true&plan=${selectedPlan}`,
         cancelUrl: `${baseUrl}pricing?cancelled=true`,
         userId: user.uid,
@@ -184,15 +179,23 @@ export default function PricingPage() {
   };
 
   React.useEffect(() => {
-    // Handle success/cancel from Stripe
     const params = new URLSearchParams(window.location.search);
+    
+    // Handle success/cancel from Stripe
     if (params.get('success') === 'true') {
       const plan = params.get('plan');
       toast.success(`Abbonamento ${plan} attivato con successo!`);
-      // Clean URL
       window.history.replaceState({}, '', '/pricing');
     } else if (params.get('cancelled') === 'true') {
       toast.info('Checkout annullato');
+      window.history.replaceState({}, '', '/pricing');
+    }
+    
+    // Handle welcome message for new users
+    if (params.get('welcome') === 'true') {
+      toast.success('Benvenuto! Inizia con il piano gratuito o scegli un upgrade.', {
+        duration: 5000
+      });
       window.history.replaceState({}, '', '/pricing');
     }
   }, []);

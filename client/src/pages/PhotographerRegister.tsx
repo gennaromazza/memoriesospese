@@ -110,11 +110,11 @@ export default function PhotographerRegister() {
 
       toast({
         title: "Account creato con successo!",
-        description: "Benvenuto in Memorie Sospese. Puoi iniziare a creare le tue gallerie."
+        description: "Benvenuto in Memorie Sospese. Scegli il tuo piano per iniziare."
       });
 
-      // Redirect to dashboard or profile
-      navigate(createUrl('/profile'));
+      // Redirect to pricing to choose plan
+      navigate(createUrl('/pricing?welcome=true'));
 
     } catch (error: any) {
       console.error('Registration error:', error);
