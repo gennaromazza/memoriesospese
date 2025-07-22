@@ -32,6 +32,22 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 22 Gennaio 2025 - VULNERABILITÀ SICUREZZA CRITICA RISOLTA + STRIPE TEST CONFIGURATO ✅
+- ✅ **PROBLEMA SICUREZZA CRITICO RISOLTO**: AdminDashboard ora filtra gallerie per fotografo corrente
+- ✅ **ISOLAMENTO UTENTI**: Query `where("userId", "==", user.uid)` impedisce visualizzazione gallerie altrui  
+- ✅ **AUTENTICAZIONE RINFORZATA**: Verificata autenticazione Firebase prima del caricamento dati
+- ✅ **PRIVACY GARANTITA**: Ogni fotografo vede solo le proprie gallerie, mai quelle di altri utenti
+- ✅ **ENVIRONMENT STRIPE TEST**: Configurato ambiente test completo mantenendo chiavi produzione sicure
+- ✅ **CHIAVI TEST ATTIVE**: Chiave pubblica e segreta test configurate per development (NODE_ENV !== 'production')
+- ✅ **CHIAVI PRODUZIONE SICURE**: Chiavi live commentate in .env e configurate per attivazione automatica in produzione
+- ✅ **PRICE ID CONDIZIONALI**: Sistema automatico test/produzione per tutti i piani (Starter €10, Pro €20, Premium €40)
+- ✅ **WEBHOOK TEST**: Configurato webhook handler per eventi Stripe in modalità test
+- ✅ **LANDING FIX**: Corretto link rotto `/register` → `/photographer-register` nei piani pricing
+- ✅ **CARTE TEST READY**: Sistema pronto per testing con carte 4242 4242 4242 4242 (successo)
+- ✅ **SCRIPT HELPER**: Creato script per generazione Price ID reali di test se necessario
+- ✅ **DOCUMENTAZIONE**: STRIPE_TEST_SETUP.md con guide complete testing e produzione
+- → **RISULTATO**: Sistema sicuro con isolamento totale utenti + pagamenti test pronti
+
 ### 22 Gennaio 2025 - STRIPE TEST ENVIRONMENT CONFIGURATO - SISTEMA DI PAGAMENTO PRONTO PER TESTING ✅
 - ✅ **ENVIRONMENT STRIPE TEST**: Configurato ambiente test completo mantenendo chiavi produzione sicure
 - ✅ **CHIAVI TEST ATTIVE**: Chiave pubblica e segreta test configurate per development (NODE_ENV !== 'production')

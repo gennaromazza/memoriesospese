@@ -430,9 +430,20 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Carica gallerie
-      const galleriesCollection = collection(db, "galleries");
-      const gallerySnapshot = await getDocs(galleriesCollection);
+      // Carica gallerie SOLO del fotografo corrente
+      const user = auth.currentUser;
+      if (!user) {
+        console.error('Utente non autenticato');
+        setIsLoading(false);
+        return;
+      }
+
+      // Query con filtro per userId del fotografo corrente
+      const galleriesQuery = query(
+        collection(db, "galleries"),
+        where("userId", "==", user.uid)
+      );
+      const gallerySnapshot = await getDocs(galleriesQuery);
 
       const galleryList = gallerySnapshot.docs.map(doc => {
         const data = doc.data();
