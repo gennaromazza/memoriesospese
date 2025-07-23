@@ -14,7 +14,7 @@ async function startServer() {
       server: {
         port: 5000,
         host: '0.0.0.0',
-        strictPort: true, // Don't try other ports
+        strictPort: false, // Try other ports if 5000 occupied
         open: false,
       },
     })
