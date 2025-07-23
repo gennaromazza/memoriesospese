@@ -172,7 +172,17 @@ export default function PricingPage() {
       });
     } catch (error) {
       console.error('Errore creazione checkout:', error);
-      toast.error('Errore durante la creazione del checkout');
+      
+      // In modalità sviluppo, simula successo
+      if (import.meta.env.DEV) {
+        toast.success(`Checkout simulato per piano ${selectedPlan}! (modalità sviluppo)`);
+        // Simula il redirect di successo
+        setTimeout(() => {
+          navigate(`/pricing?success=true&plan=${selectedPlan}`);
+        }, 1000);
+      } else {
+        toast.error('Errore durante la creazione del checkout');
+      }
     } finally {
       setLoadingPlan(null);
     }
@@ -183,7 +193,30 @@ export default function PricingPage() {
     
     // Handle success/cancel from Stripe
     if (params.get('success') === 'true') {
-      const plan = params.get('plan');
+      const plan = params.get('plan') as PlanType;
+      const sessionId = params.get('session_id');
+      
+      // In modalità sviluppo, simula il salvataggio dell'abbonamento
+      if (import.meta.env.DEV && user && plan && sessionId?.includes('sim_')) {
+        import('@/lib/firebase').then(({ db }) => {
+          import('firebase/firestore').then(({ doc, setDoc, serverTimestamp }) => {
+            const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
+            setDoc(subscriptionRef, {
+              plan,
+              active: true,
+              stripeSessionId: sessionId,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              expiresAt: plan === 'free' ? null : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 anno
+            }).then(() => {
+              console.log('Abbonamento simulato salvato in Firestore');
+            }).catch(error => {
+              console.error('Errore salvataggio abbonamento simulato:', error);
+            });
+          });
+        });
+      }
+      
       toast.success(`Abbonamento ${plan} attivato con successo!`);
       window.history.replaceState({}, '', '/pricing');
     } else if (params.get('cancelled') === 'true') {
@@ -198,7 +231,7 @@ export default function PricingPage() {
       });
       window.history.replaceState({}, '', '/pricing');
     }
-  }, []);
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -210,6 +243,14 @@ export default function PricingPage() {
           <p className="mt-4 text-lg text-gray-600">
             Conserva i ricordi del tuo matrimonio con le funzionalità che ti servono
           </p>
+          
+          {import.meta.env.DEV && (
+            <div className="mt-4">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                🧪 Modalità Sviluppo - Checkout Stripe Simulato
+              </Badge>
+            </div>
+          )}
           
           {user && isActive && (
             <div className="mt-6">

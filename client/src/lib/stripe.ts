@@ -25,6 +25,22 @@ export interface CreatePortalSessionData {
 // Create checkout session for subscription
 export async function createCheckoutSession(data: CreateCheckoutSessionData) {
   try {
+    // In development, if Firebase Functions are not available, simulate success
+    if (import.meta.env.DEV) {
+      console.log('Development mode: Simulating Stripe checkout for plan:', data.planType);
+      
+      // Simulate the checkout process
+      const params = new URLSearchParams({
+        success: 'true',
+        plan: data.planType,
+        session_id: `sim_${Date.now()}`
+      });
+      
+      // Redirect to success URL with simulated parameters
+      window.location.href = `${data.successUrl}&${params.toString()}`;
+      return;
+    }
+
     const createCheckoutSessionFunc = httpsCallable<CreateCheckoutSessionData, { sessionId: string }>(
       functions, 
       'createCheckoutSession'
@@ -47,6 +63,19 @@ export async function createCheckoutSession(data: CreateCheckoutSessionData) {
     }
   } catch (error) {
     console.error('Errore creazione checkout session:', error);
+    
+    // Fallback for development: simulate successful checkout
+    if (import.meta.env.DEV) {
+      console.log('Fallback: Simulating successful checkout for testing');
+      const params = new URLSearchParams({
+        success: 'true',
+        plan: data.planType,
+        session_id: `fallback_${Date.now()}`
+      });
+      window.location.href = `${data.successUrl}&${params.toString()}`;
+      return;
+    }
+    
     throw error;
   }
 }
@@ -54,6 +83,13 @@ export async function createCheckoutSession(data: CreateCheckoutSessionData) {
 // Create customer portal session for managing subscription
 export async function createPortalSession(data: CreatePortalSessionData) {
   try {
+    // In development, simulate portal redirect
+    if (import.meta.env.DEV) {
+      console.log('Development mode: Simulating Stripe Customer Portal');
+      alert('Modalità sviluppo: Portal Stripe simulato. In produzione questo aprirebbe il portale di gestione abbonamento.');
+      return;
+    }
+
     const createPortalSessionFunc = httpsCallable<CreatePortalSessionData, { url: string }>(
       functions,
       'createPortalSession'
@@ -65,6 +101,14 @@ export async function createPortalSession(data: CreatePortalSessionData) {
     window.location.href = result.data.url;
   } catch (error) {
     console.error('Errore creazione portal session:', error);
+    
+    // Fallback for development
+    if (import.meta.env.DEV) {
+      console.log('Fallback: Simulating customer portal for testing');
+      alert('Modalità sviluppo: Simulazione portal cliente. Funzionalità disponibile in produzione.');
+      return;
+    }
+    
     throw error;
   }
 }
