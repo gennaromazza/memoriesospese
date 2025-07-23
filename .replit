@@ -11,15 +11,17 @@ build = ["sh", "-c", "npm install && npm run build"]
 run = ["sh", "-c", "node dist/index.js"]
 
 [workflows]
-runButton = "Dev"
+runButton = "Start Server"
 
 [[workflows.workflow]]
 name = "Dev Workflow"
 mode = "sequential"
 author = "agent"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm install"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
@@ -29,15 +31,35 @@ waitForPort = 5000
 name = "Prod Build & Start"
 mode = "sequential"
 author = "agent"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm install"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run build"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm start"
+
+[[workflows.workflow]]
+name = "Start Server"
+author = 41213760
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --legacy-peer-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dist/index.js"
 
 [[ports]]
 localPort = 3000
