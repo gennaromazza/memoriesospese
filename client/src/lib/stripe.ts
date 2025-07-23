@@ -29,15 +29,17 @@ export async function createCheckoutSession(data: CreateCheckoutSessionData) {
     if (import.meta.env.DEV) {
       console.log('Development mode: Simulating Stripe checkout for plan:', data.planType);
       
-      // Simulate the checkout process
-      const params = new URLSearchParams({
-        success: 'true',
-        plan: data.planType,
-        session_id: `sim_${Date.now()}`
-      });
+      // Simulate a brief loading time for realistic UX
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Redirect to success URL with simulated parameters
-      window.location.href = `${data.successUrl}&${params.toString()}`;
+      // Create success URL with parameters
+      const successUrl = new URL(data.successUrl);
+      successUrl.searchParams.set('success', 'true');
+      successUrl.searchParams.set('plan', data.planType);
+      successUrl.searchParams.set('session_id', `sim_${Date.now()}`);
+      
+      // Redirect to success URL
+      window.location.href = successUrl.toString();
       return;
     }
 
@@ -67,12 +69,14 @@ export async function createCheckoutSession(data: CreateCheckoutSessionData) {
     // Fallback for development: simulate successful checkout
     if (import.meta.env.DEV) {
       console.log('Fallback: Simulating successful checkout for testing');
-      const params = new URLSearchParams({
-        success: 'true',
-        plan: data.planType,
-        session_id: `fallback_${Date.now()}`
-      });
-      window.location.href = `${data.successUrl}&${params.toString()}`;
+      
+      // Create success URL with parameters
+      const successUrl = new URL(data.successUrl);
+      successUrl.searchParams.set('success', 'true');
+      successUrl.searchParams.set('plan', data.planType);
+      successUrl.searchParams.set('session_id', `fallback_${Date.now()}`);
+      
+      window.location.href = successUrl.toString();
       return;
     }
     

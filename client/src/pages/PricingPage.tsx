@@ -160,6 +160,11 @@ export default function PricingPage() {
     }
 
     setLoadingPlan(selectedPlan);
+    
+    // Toast informativo per modalità sviluppo
+    if (import.meta.env.DEV) {
+      toast.info('Avvio checkout simulato...', { duration: 2000 });
+    }
 
     try {
       const baseUrl = window.location.origin + import.meta.env.BASE_URL;
@@ -175,11 +180,19 @@ export default function PricingPage() {
       
       // In modalità sviluppo, simula successo
       if (import.meta.env.DEV) {
+        console.log('PricingPage fallback: Simulating checkout success');
         toast.success(`Checkout simulato per piano ${selectedPlan}! (modalità sviluppo)`);
-        // Simula il redirect di successo
+        
+        // Simula il redirect di successo direttamente con navigate
+        const params = new URLSearchParams({
+          success: 'true',
+          plan: selectedPlan,
+          session_id: `page_fallback_${Date.now()}`
+        });
+        
         setTimeout(() => {
-          navigate(`/pricing?success=true&plan=${selectedPlan}`);
-        }, 1000);
+          navigate(`/pricing?${params.toString()}`);
+        }, 1500);
       } else {
         toast.error('Errore durante la creazione del checkout');
       }
@@ -197,7 +210,8 @@ export default function PricingPage() {
       const sessionId = params.get('session_id');
       
       // In modalità sviluppo, simula il salvataggio dell'abbonamento
-      if (import.meta.env.DEV && user && plan && sessionId?.includes('sim_')) {
+      if (import.meta.env.DEV && user && plan && (sessionId?.includes('sim_') || sessionId?.includes('fallback_') || sessionId?.includes('page_fallback_'))) {
+        console.log(`Salvando abbonamento simulato per utente ${user.uid}, piano: ${plan}`);
         import('@/lib/firebase').then(({ db }) => {
           import('firebase/firestore').then(({ doc, setDoc, serverTimestamp }) => {
             const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
@@ -209,9 +223,11 @@ export default function PricingPage() {
               updatedAt: serverTimestamp(),
               expiresAt: plan === 'free' ? null : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 anno
             }).then(() => {
-              console.log('Abbonamento simulato salvato in Firestore');
+              console.log('✅ Abbonamento simulato salvato in Firestore con successo');
+              toast.success('Abbonamento aggiornato nel database!', { duration: 3000 });
             }).catch(error => {
-              console.error('Errore salvataggio abbonamento simulato:', error);
+              console.error('❌ Errore salvataggio abbonamento simulato:', error);
+              toast.error('Errore salvataggio abbonamento');
             });
           });
         });
@@ -245,10 +261,13 @@ export default function PricingPage() {
           </p>
           
           {import.meta.env.DEV && (
-            <div className="mt-4">
+            <div className="mt-4 space-y-2">
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                 🧪 Modalità Sviluppo - Checkout Stripe Simulato
               </Badge>
+              <div className="text-sm text-gray-600">
+                I pagamenti sono simulati per il testing. In produzione userà Stripe reale.
+              </div>
             </div>
           )}
           

@@ -262,11 +262,9 @@ export default function UserProfile() {
 
     setLoadingPortal(true);
     try {
-      const { url } = await createPortalSession({
+      await createPortalSession({
         returnUrl: window.location.href
       });
-      
-      window.location.href = url;
     } catch (error) {
       console.error('Errore apertura portale Stripe:', error);
       toast({
@@ -342,7 +340,7 @@ export default function UserProfile() {
                 {features.downloadZip && <Badge variant="outline">Download ZIP</Badge>}
                 {features.watermarkEnabled && <Badge variant="outline">Watermark</Badge>}
                 {features.leadsExport && <Badge variant="outline">Export CSV</Badge>}
-                {features.prioritySupport && <Badge variant="outline">Supporto Prioritario</Badge>}
+
               </div>
 
               <div className="flex gap-3 mt-4">
