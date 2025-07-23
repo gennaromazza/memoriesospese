@@ -126,21 +126,49 @@ export function usePhotoLimit(galleryId?: string) {
       return;
     }
 
-    // Count all photos for this user
+    // Count all photos for this user (dual-collection support)
     const loadPhotoCount = async () => {
       const { collection, query, where, getDocs } = await import('firebase/firestore');
       
-      // Count photos uploaded by admin (user)
-      const q = query(collection(db, 'photos'), where('userId', '==', user.uid));
-      const snapshot = await getDocs(q);
-      const count = snapshot.size;
-      setPhotoCount(count);
+      try {
+        // Count photos from main 'photos' collection (new system)
+        const photosQuery = query(collection(db, 'photos'), where('userId', '==', user.uid));
+        const photosSnapshot = await getDocs(photosQuery);
+        let totalCount = photosSnapshot.size;
 
-      // Check if can upload more photos
-      if (features.maxPhotos === 'unlimited') {
-        setCanUploadPhotos(true);
-      } else {
-        setCanUploadPhotos(count < features.maxPhotos);
+        // Get all user galleries for legacy photo counting
+        const galleriesQuery = query(collection(db, 'galleries'), where('userId', '==', user.uid));
+        const galleriesSnapshot = await getDocs(galleriesQuery);
+        
+        // Count legacy photos in each gallery subcollection
+        for (const galleryDoc of galleriesSnapshot.docs) {
+          const legacyPhotosQuery = query(
+            collection(db, `galleries/${galleryDoc.id}/photos`),
+            where('uploadedBy', '==', 'admin') // Count only admin photos
+          );
+          const legacyPhotosSnapshot = await getDocs(legacyPhotosQuery);
+          totalCount += legacyPhotosSnapshot.size;
+        }
+
+        console.log(`📊 Photo count for user ${user.uid}: ${totalCount} (new: ${photosSnapshot.size}, legacy: ${totalCount - photosSnapshot.size})`);
+        
+        setPhotoCount(totalCount);
+
+        // Check if can upload more photos
+        if (features.maxPhotos === 'unlimited') {
+          setCanUploadPhotos(true);
+        } else {
+          setCanUploadPhotos(totalCount < features.maxPhotos);
+        }
+      } catch (error) {
+        console.error('Error loading photo count:', error);
+        // Fallback: use only new collection count
+        const photosQuery = query(collection(db, 'photos'), where('userId', '==', user.uid));
+        const photosSnapshot = await getDocs(photosQuery);
+        const fallbackCount = photosSnapshot.size;
+        
+        setPhotoCount(fallbackCount);
+        setCanUploadPhotos(features.maxPhotos === 'unlimited' || fallbackCount < features.maxPhotos);
       }
     };
 

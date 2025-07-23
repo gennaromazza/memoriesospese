@@ -41,8 +41,8 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     name: 'Free',
     price: 0,
     features: {
-      galleryLimit: 1,
-      maxPhotos: 1000,
+      galleryLimit: 2,
+      maxPhotos: 10,
       voiceMemo: true,
       likes: false,
       comments: false,
@@ -93,7 +93,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     priceId: 'price_1QQqLlEfHcSzngQqIhKT9Wvs', // Produzione, test gestiti in functions
     features: {
       galleryLimit: 'unlimited',
-      maxPhotos: 25000, // Same as Pro, but unlimited storage
+      maxPhotos: 'unlimited',
       voiceMemo: true,
       likes: true,
       comments: true,

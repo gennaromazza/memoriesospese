@@ -32,6 +32,16 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 23 Luglio 2025 - BUG CRITICI SISTEMA ABBONAMENTI RISOLTI - 6 PROBLEMI CORRETTI ✅
+- ✅ **INCONSISTENZA LIMITI FREE CORRETTA**: Piano Free ora ha limiti corretti (2 gallerie, 10 foto vs 1 galleria, 1000 foto)
+- ✅ **CONTEGGIO FOTO DUAL-COLLECTION**: usePhotoLimit ora conta foto da collection 'photos' + legacy 'galleries/{id}/photos'
+- ✅ **PREMIUM PLAN UNLIMITED**: Corretto Premium da 25K foto a unlimited per giustificare prezzo €40
+- ✅ **DEVELOPMENT POLLUTION ELIMINATA**: Rimossa simulazione Stripe che salvava dati fake nel database di produzione
+- ✅ **PHOTO COUNTING ACCURATO**: Implementato conteggio preciso per admin photos con fallback robusto  
+- ✅ **VALIDAZIONE ROBUSTA**: Controlli server-side e client-side allineati per limits checking
+- ✅ **REPORT BUG COMPLETO**: Creato SUBSCRIPTION_BUGS_REPORT.md con analisi dettagliata 6 bug critici
+- → **RISULTATO**: Sistema abbonamenti completamente accurato e conforme alle specifiche di business
+
 ### 23 Luglio 2025 - PROBLEMI DEPLOYMENT RISOLTI - SERVER PRODUZIONE FUNZIONANTE ✅
 - ✅ **PRODUCTION SERVER CREATO**: Implementato server Express.js dedicato per produzione (server/production.ts)
 - ✅ **VITE DEV/PROD SEPARATI**: Risolto conflitto tra server sviluppo (Vite) e produzione (Express)

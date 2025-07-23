@@ -209,31 +209,15 @@ export default function PricingPage() {
       const plan = params.get('plan') as PlanType;
       const sessionId = params.get('session_id');
       
-      // In modalità sviluppo, simula il salvataggio dell'abbonamento
+      // In modalità sviluppo, NON salvare dati fake nel database
       if (import.meta.env.DEV && user && plan && (sessionId?.includes('sim_') || sessionId?.includes('fallback_') || sessionId?.includes('page_fallback_'))) {
-        console.log(`Salvando abbonamento simulato per utente ${user.uid}, piano: ${plan}`);
-        import('@/lib/firebase').then(({ db }) => {
-          import('firebase/firestore').then(({ doc, setDoc, serverTimestamp }) => {
-            const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
-            setDoc(subscriptionRef, {
-              plan,
-              active: true,
-              stripeSessionId: sessionId,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-              expiresAt: plan === 'free' ? null : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 anno
-            }).then(() => {
-              console.log('✅ Abbonamento simulato salvato in Firestore con successo');
-              toast.success('Abbonamento aggiornato nel database!', { duration: 3000 });
-            }).catch(error => {
-              console.error('❌ Errore salvataggio abbonamento simulato:', error);
-              toast.error('Errore salvataggio abbonamento');
-            });
-          });
-        });
+        console.log(`🧪 Development mode: Simulated checkout for user ${user.uid}, plan: ${plan}`);
+        console.log('⚠️  Subscription NOT saved to prevent database pollution');
+        toast.success(`Piano ${plan} simulato con successo! (Non salvato in DB)`, { duration: 3000 });
+      } else {
+        // Solo in produzione mostra messaggio di attivazione reale
+        toast.success(`Abbonamento ${plan} attivato con successo!`);
       }
-      
-      toast.success(`Abbonamento ${plan} attivato con successo!`);
       window.history.replaceState({}, '', '/pricing');
     } else if (params.get('cancelled') === 'true') {
       toast.info('Checkout annullato');
