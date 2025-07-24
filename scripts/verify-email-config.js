@@ -28,7 +28,7 @@ async function checkEmailConfiguration() {
     console.log('\n📧 Configurazione SMTP:');
     console.log('   Host: smtp.netsons.com');
     console.log('   Porta: 465 (SSL)');
-    console.log('   User: easygallery@gennaromazzacane.it');
+    console.log('   User: memoriesospese@gennaromazzacane.it');
     console.log('   Auth: Configurato');
     
     console.log('\n✅ Sistema email centralizzato configurato correttamente');

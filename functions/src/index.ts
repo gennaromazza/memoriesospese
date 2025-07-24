@@ -34,13 +34,13 @@ const corsHandler = cors({
   credentials: true
 });
 
-// Configurazione SMTP Brevo
+// Configurazione SMTP Brevo - Email corretta
 const smtpConfig = {
   host: 'smtp-relay.brevo.com',
   port: 587,
   secure: false, // STARTTLS
   auth: {
-    user: '91c91c001@smtp-brevo.com',
+    user: 'memoriesospese@gennaromazzacane.it',
     pass: 'sIBRNp2r1y6Y0WTZ'
   },
   tls: {
@@ -106,7 +106,7 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
       }
 
       const mailOptions = {
-        from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
+        from: '"Memorie Sospese" <memoriesospese@gennaromazzacane.it>',
         to: recipients.join(','),
         subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
         html: `
@@ -132,10 +132,10 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
           </div>
         `,
         headers: {
-          'X-Mailer': 'Wedding Gallery System',
+          'X-Mailer': 'Memorie Sospese Gallery System',
           'X-Priority': '3',
-          'List-Unsubscribe': '<mailto:91c91c001@smtp-brevo.com?subject=Unsubscribe>',
-          'Reply-To': '91c91c001@smtp-brevo.com'
+          'List-Unsubscribe': '<mailto:memoriesospese@gennaromazzacane.it?subject=Unsubscribe>',
+          'Reply-To': 'memoriesospese@gennaromazzacane.it'
         }
       };
 
@@ -162,7 +162,7 @@ export const sendNewPhotosNotificationCall = onCall(async (request) => {
     }
 
     const mailOptions = {
-      from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
+      from: '"Memorie Sospese" <memoriesospese@gennaromazzacane.it>',
       to: recipients.join(','),
       subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
       html: `
@@ -188,10 +188,10 @@ export const sendNewPhotosNotificationCall = onCall(async (request) => {
         </div>
       `,
       headers: {
-        'X-Mailer': 'Wedding Gallery System',
+        'X-Mailer': 'Memorie Sospese Gallery System',
         'X-Priority': '3',
-        'List-Unsubscribe': '<mailto:91c91c001@smtp-brevo.com?subject=Unsubscribe>',
-        'Reply-To': '91c91c001@smtp-brevo.com'
+        'List-Unsubscribe': '<mailto:memoriesospese@gennaromazzacane.it?subject=Unsubscribe>',
+        'Reply-To': 'memoriesospese@gennaromazzacane.it'
       }
     };
 
@@ -217,7 +217,7 @@ export const sendGalleryPassword = onCall(async (request) => {
     }
 
     const mailOptions = {
-      from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
+      from: '"Memorie Sospese" <memoriesospese@gennaromazzacane.it>',
       to: recipientEmail,
       subject: `🔑 Codice di accesso per "${galleryName}"`,
       html: `
@@ -249,8 +249,8 @@ export const sendGalleryPassword = onCall(async (request) => {
         </div>
       `,
       headers: {
-        'X-Mailer': 'Wedding Gallery System',
-        'Reply-To': '91c91c001@smtp-brevo.com'
+        'X-Mailer': 'Memorie Sospese Gallery System',
+        'Reply-To': 'memoriesospese@gennaromazzacane.it'
       }
     };
 
