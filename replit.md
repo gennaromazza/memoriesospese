@@ -32,6 +32,18 @@ Piattaforma per la conservazione dei ricordi di matrimonio che rivoluziona la ca
 
 ## Modifiche Recenti
 
+### 24 Luglio 2025 - ANALISI INCONSISTENZE SISTEMICHE COMPLETATA - 8 PROBLEMI CRITICI IDENTIFICATI ⚠️
+- ⚠️ **SISTEMA AUTENTICAZIONE FRAMMENTATO**: Identificati doppi context (AuthContext + FirebaseAuthContext) che creano conflitti
+- ⚠️ **FIREBASE SECURITY RULES VULNERABILI**: Regole troppo permissive permettono accessi non autorizzati a dati utenti
+- ⚠️ **FIREBASE FUNCTIONS NON PROTETTE**: sendNewPhotosNotification e altre functions accettano richieste senza autenticazione
+- ⚠️ **STORAGE RULES MANCANTI**: Firebase Storage completamente aperto senza controlli upload/download
+- ⚠️ **CONFIGURAZIONE EMAIL DUPLICATA**: Conflitto tra configurazioni Brevo (Firebase) e Netsons (Express)
+- ⚠️ **WATERMARK SYSTEM INCOMPLETO**: WatermarkUpload.tsx esiste ma non integrato nel flusso gallerie
+- ⚠️ **ERROR HANDLING FRAMMENTATO**: ErrorBoundary disponibile ma non usato uniformemente
+- ⚠️ **BASE PATH OVER-ENGINEERED**: Auto-detection complesso per problema già risolto via ENV
+- → **REPORT DETTAGLIATO**: Creato SYSTEM_INCONSISTENCIES_REPORT.md con analisi completa e priorità
+- → **PROSSIMO STEP**: Correzione immediata vulnerabilità sicurezza più critiche
+
 ### 23 Luglio 2025 - BUG CRITICI SISTEMA ABBONAMENTI RISOLTI - 6 PROBLEMI CORRETTI ✅
 - ✅ **INCONSISTENZA LIMITI FREE CORRETTA**: Piano Free ora ha limiti corretti (2 gallerie, 10 foto vs 1 galleria, 1000 foto)
 - ✅ **CONTEGGIO FOTO DUAL-COLLECTION**: usePhotoLimit ora conta foto da collection 'photos' + legacy 'galleries/{id}/photos'

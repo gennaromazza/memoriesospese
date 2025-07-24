@@ -37,20 +37,27 @@ service cloud.firestore {
       allow delete: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());
         
-      // Gallery subcollections (legacy support)
+      // Gallery subcollections (legacy support)  
       match /photos/{photoId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && 
+          (resource.data.uploaderEmail == request.auth.token.email || 
+           resource.data.uploaderUid == request.auth.uid || isAdmin());
       }
       
       match /comments/{commentId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && 
+          (resource.data.userId == request.auth.uid || isAdmin());
       }
       
       match /voice-memos/{memoId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && 
+          (resource.data.userId == request.auth.uid || isAdmin());
       }
     }
     
@@ -92,7 +99,10 @@ service cloud.firestore {
     // Email notifications collection
     match /email-notifications/{notificationId} {
       allow read: if isAdmin();
-      allow create: if true; // Allow public to subscribe
+      allow create: if isSignedIn() && 
+        request.resource.data.keys().hasAll(['email', 'galleryId']) &&
+        request.resource.data.email is string &&
+        request.resource.data.galleryId is string;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

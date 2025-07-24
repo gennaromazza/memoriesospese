@@ -6,8 +6,14 @@
 
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
+import * as admin from 'firebase-admin';
 import * as nodemailer from 'nodemailer';
 import * as cors from 'cors';
+
+// Initialize Firebase Admin if not already done
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 // Import subscription functions
 // Stripe functions imported from './stripe'
@@ -54,7 +60,7 @@ transporter.verify((error, success) => {
 });
 
 /**
- * Function per invio notifiche nuove foto - Con supporto CORS
+ * Function per invio notifiche nuove foto - Con supporto CORS e validazione auth
  */
 export const sendNewPhotosNotification = onRequest(async (req, res) => {
   corsHandler(req, res, async () => {
@@ -67,6 +73,28 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
 
       if (req.method !== 'POST') {
         res.status(405).json({ error: 'Method not allowed' });
+        return;
+      }
+
+      // Validazione autenticazione Firebase
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      try {
+        const idToken = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        
+        // Solo admin o utenti autenticati possono inviare notifiche
+        if (!decodedToken.uid) {
+          res.status(403).json({ error: 'Invalid authentication token' });
+          return;
+        }
+      } catch (error) {
+        logger.error('Authentication verification failed:', error);
+        res.status(401).json({ error: 'Authentication verification failed' });
         return;
       }
 

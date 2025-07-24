@@ -1,0 +1,84 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'gennaro.mazzacane@gmail.com';
+    }
+    
+    function isValidImageFile() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size < 10 * 1024 * 1024; // 10MB limit
+    }
+    
+    function isValidAudioFile() {
+      return request.resource.contentType.matches('audio/.*') &&
+             request.resource.size < 50 * 1024 * 1024; // 50MB limit
+    }
+    
+    // Gallery photos - uploaded by admin or guests
+    match /galleries/{galleryId}/{allPaths=**} {
+      allow read: if true; // Public read for gallery access
+      allow write: if isSignedIn() && isValidImageFile();
+    }
+    
+    // Global photos collection
+    match /photos/{photoId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidImageFile();
+    }
+    
+    // Voice memos - audio files
+    match /voice-memos/{memoId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidAudioFile();
+    }
+    
+    // User profile pictures  
+    match /profile-pictures/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId) && isValidImageFile();
+    }
+    
+    // Watermarks - only for Pro/Premium users (validated in client)
+    match /watermarks/{userId}.{extension} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) && isValidImageFile();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+    
+    // Admin uploads and assets
+    match /admin/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Slideshow images
+    match /slideshow/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Temporary uploads cleanup
+    match /temp/{allPaths=**} {
+      allow read, write: if isSignedIn() && 
+        request.resource.size < 20 * 1024 * 1024; // 20MB temp limit
+    }
+    
+    // Default deny for all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
