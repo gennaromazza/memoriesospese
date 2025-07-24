@@ -25,24 +25,6 @@ export interface CreatePortalSessionData {
 // Create checkout session for subscription
 export async function createCheckoutSession(data: CreateCheckoutSessionData) {
   try {
-    // In development, if Firebase Functions are not available, simulate success
-    if (import.meta.env.DEV) {
-      console.log('Development mode: Simulating Stripe checkout for plan:', data.planType);
-      
-      // Simulate a brief loading time for realistic UX
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Create success URL with parameters
-      const successUrl = new URL(data.successUrl);
-      successUrl.searchParams.set('success', 'true');
-      successUrl.searchParams.set('plan', data.planType);
-      successUrl.searchParams.set('session_id', `sim_${Date.now()}`);
-      
-      // Redirect to success URL
-      window.location.href = successUrl.toString();
-      return;
-    }
-
     const createCheckoutSessionFunc = httpsCallable<CreateCheckoutSessionData, { sessionId: string }>(
       functions, 
       'createCheckoutSession'
@@ -55,7 +37,7 @@ export async function createCheckoutSession(data: CreateCheckoutSessionData) {
       throw new Error('Stripe non disponibile');
     }
     
-    // Redirect to Stripe Checkout
+    // Redirect to Stripe Checkout (real Stripe in test mode for development)
     const { error } = await stripe.redirectToCheckout({
       sessionId: result.data.sessionId,
     });
@@ -65,21 +47,6 @@ export async function createCheckoutSession(data: CreateCheckoutSessionData) {
     }
   } catch (error) {
     console.error('Errore creazione checkout session:', error);
-    
-    // Fallback for development: simulate successful checkout
-    if (import.meta.env.DEV) {
-      console.log('Fallback: Simulating successful checkout for testing');
-      
-      // Create success URL with parameters
-      const successUrl = new URL(data.successUrl);
-      successUrl.searchParams.set('success', 'true');
-      successUrl.searchParams.set('plan', data.planType);
-      successUrl.searchParams.set('session_id', `fallback_${Date.now()}`);
-      
-      window.location.href = successUrl.toString();
-      return;
-    }
-    
     throw error;
   }
 }
@@ -87,13 +54,6 @@ export async function createCheckoutSession(data: CreateCheckoutSessionData) {
 // Create customer portal session for managing subscription
 export async function createPortalSession(data: CreatePortalSessionData) {
   try {
-    // In development, simulate portal redirect
-    if (import.meta.env.DEV) {
-      console.log('Development mode: Simulating Stripe Customer Portal');
-      alert('Modalità sviluppo: Portal Stripe simulato. In produzione questo aprirebbe il portale di gestione abbonamento.');
-      return;
-    }
-
     const createPortalSessionFunc = httpsCallable<CreatePortalSessionData, { url: string }>(
       functions,
       'createPortalSession'
@@ -101,18 +61,10 @@ export async function createPortalSession(data: CreatePortalSessionData) {
     
     const result = await createPortalSessionFunc(data);
     
-    // Redirect to Stripe Customer Portal
+    // Redirect to Stripe Customer Portal (real Stripe in test mode for development)
     window.location.href = result.data.url;
   } catch (error) {
     console.error('Errore creazione portal session:', error);
-    
-    // Fallback for development
-    if (import.meta.env.DEV) {
-      console.log('Fallback: Simulating customer portal for testing');
-      alert('Modalità sviluppo: Simulazione portal cliente. Funzionalità disponibile in produzione.');
-      return;
-    }
-    
     throw error;
   }
 }

@@ -32,6 +32,7 @@ import ProfileImageUpload from '../components/ProfileImageUpload';
 import { usePlanFeatures } from '../hooks/use-plan-features';
 import { SUBSCRIPTION_PLANS } from '@shared/subscription-schema';
 import { createPortalSession } from '../lib/stripe';
+import { WatermarkUpload } from '@/components/watermark/WatermarkUpload';
 
 export default function UserProfile() {
   const { user, userProfile, isAuthenticated, logout, refreshUserProfile } = useFirebaseAuth();
@@ -375,6 +376,19 @@ export default function UserProfile() {
             onImageUpdated={handleProfileImageUpdate}
           />
         </div>
+
+        {/* Sezione Watermark - Solo per piani Pro/Premium */}
+        {(features.watermarkEnabled || planType === 'pro' || planType === 'premium') && (
+          <div className="mb-8">
+            <WatermarkUpload
+              currentWatermarkUrl={userProfile?.watermarkUrl || undefined}
+              onWatermarkChange={(url) => {
+                // Refresh user profile quando watermark cambia
+                refreshUserProfile();
+              }}
+            />
+          </div>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2">
           {/* Profile Information Card */}

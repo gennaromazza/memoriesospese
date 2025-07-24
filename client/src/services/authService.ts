@@ -15,6 +15,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  watermarkUrl?: string;
   role: 'admin' | 'guest';
   createdAt: any;
   lastLoginAt: any;

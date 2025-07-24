@@ -56,7 +56,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     id: 'starter',
     name: 'Starter',
     price: 10,
-    priceId: 'price_1QQqKjEfHcSzngQqB4kFGXvH', // Produzione, test gestiti in functions
+    priceId: 'price_1QQqKjEfHcSzngQqB4kFGXvH',
     features: {
       galleryLimit: 5,
       maxPhotos: 5000,
@@ -73,7 +73,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     id: 'pro',
     name: 'Pro',
     price: 20,
-    priceId: 'price_1QQqLMEfHcSzngQqnzQHXN5w', // Produzione, test gestiti in functions
+    priceId: 'price_1QQqLMEfHcSzngQqnzQHXN5w',
     features: {
       galleryLimit: 'unlimited',
       maxPhotos: 25000,
@@ -90,7 +90,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     id: 'premium',
     name: 'Premium',
     price: 40,
-    priceId: 'price_1QQqLlEfHcSzngQqIhKT9Wvs', // Produzione, test gestiti in functions
+    priceId: 'price_1QQqLlEfHcSzngQqIhKT9Wvs',
     features: {
       galleryLimit: 'unlimited',
       maxPhotos: 'unlimited',

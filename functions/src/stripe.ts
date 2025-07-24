@@ -4,23 +4,20 @@ import Stripe from 'stripe';
 
 // Initialize Stripe with environment-based key
 const stripeSecretKey = process.env.NODE_ENV === 'production' 
-  ? 'sk_live_51QcOtGJwWfVcaHJgqqx8CJk44rmq7VSPPInYXXQph6jhk21LEOb00LiJMkrpT' // TUA CHIAVE LIVE
-  : 'sk_test_51OODKjEfHcSzngQqGiPqHsQGHSKWJTPxAJFp7PKB9Xt2hgCo1YQJiqjPXUHo9hGGLRzKzpG9pRoVWLi0VxDQSRTL00ABCD1234'; // Chiave test
+  ? process.env.STRIPE_SECRET_KEY_LIVE || 'sk_live_51QcOtGJwWfVcaHJgqqx8CJk44rmq7VSPPInYXXQph6jhk21LEOb00LiJMkrpT' // Live key da env
+  : process.env.STRIPE_SECRET_KEY_TEST || 'sk_test_51OODKjEfHcSzngQqGiPqHsQGHSKWJTPxAJFp7PKB9Xt2hgCo1YQJiqjPXUHo9hGGLRzKzpG9pRoVWLi0VxDQSRTL00ABCD1234'; // Test key da env
 
 const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2025-06-30.basil'
 });
 
-// Price ID mapping - using production IDs but test Stripe keys for development
-const PRICE_ID_MAPPING = {
-  starter: 'price_1QQqKjEfHcSzngQqB4kFGXvH',
-  pro: 'price_1QQqLMEfHcSzngQqnzQHXN5w', 
-  premium: 'price_1QQqLlEfHcSzngQqIhKT9Wvs'
-};
+// Import centralized Price ID mapping
+import { SUBSCRIPTION_PLANS } from '../../shared/subscription-schema';
 
 // Helper function to get correct Price ID for environment
 function getPriceId(planType: string): string {
-  const priceId = PRICE_ID_MAPPING[planType as keyof typeof PRICE_ID_MAPPING];
+  const plan = SUBSCRIPTION_PLANS[planType as keyof typeof SUBSCRIPTION_PLANS];
+  const priceId = plan?.priceId;
   console.log(`Getting Price ID for plan ${planType}:`, priceId);
   
   if (!priceId) {

@@ -160,11 +160,6 @@ export default function PricingPage() {
     }
 
     setLoadingPlan(selectedPlan);
-    
-    // Toast informativo per modalità sviluppo
-    if (import.meta.env.DEV) {
-      toast.info('Avvio checkout simulato...', { duration: 2000 });
-    }
 
     try {
       const baseUrl = window.location.origin + import.meta.env.BASE_URL;

@@ -34,6 +34,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   profileImageUrl?: string;
+  watermarkUrl?: string;
   role: 'admin' | 'user';
   galleries: string[];
   createdAt: any;
