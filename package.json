@@ -58,7 +58,7 @@
     "firebase-functions": "^6.3.2",
     "framer-motion": "^10.18.0",
     "input-otp": "^1.4.2",
-    "lucide-react": "^0.302.0",
+    "lucide-react": "^0.525.0",
     "nanoid": "^5.1.5",
     "next-themes": "^0.4.6",
     "nodemailer": "^6.10.1",
