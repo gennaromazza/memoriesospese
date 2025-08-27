@@ -11,6 +11,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - Email notification system for new photos.
 - Admin panel for gallery management, user management, and subscription control.
 - Integration with Stripe for subscription management (Free, Starter, Pro, Premium plans).
+- **Questionario system for wedding couples with secure token-based access, multi-step forms, auto-save functionality, and ChatGPT export for personalized album content generation.**
 
 **Vision:** To be a leading platform for digital wedding memory preservation, offering a seamless and engaging experience for all users.
 
@@ -41,6 +42,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - **Error Handling & Logging:** Centralized error boundaries, structured logging with appropriate levels, and robust `try-catch` blocks for Firebase services.
 - **Code Quality:** Strict TypeScript typing enforced throughout the codebase, leading to zero compilation errors. Modular components and unified interfaces.
 - **Security:** Granular Firebase Security Rules for Firestore and Storage, Firebase Functions protected with token verification, and user isolation preventing access to other users' galleries. Rate limiting (50 requests/5 minutes) on sensitive operations.
+- **Questionario System:** Enterprise-grade questionnaire management for wedding couples with secure 32-byte crypto tokens, SHA-256 hashing, and role-based access (bride/groom). Features multi-step forms (1 question per step), auto-save with 7-second debounce, localStorage backup for offline resilience, progress tracking, privacy consent controls, and ChatGPT export templates for personalized wedding album content generation. Token validation includes temporary sessions (15 min), rate limiting (50 attempts/5 min), automatic cleanup, and masked error messages for security.
 
 ## External Dependencies
 - **Firebase:** Firestore (NoSQL database), Storage (file storage), Authentication (user management), Functions (serverless logic), Hosting (static site hosting).

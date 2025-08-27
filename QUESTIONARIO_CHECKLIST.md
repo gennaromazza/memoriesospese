@@ -81,39 +81,39 @@
 - [x] Verificare caricamento corretto
 
 ## 📋 Fase 11: Sicurezza Firestore Rules
-- [ ] Aggiornare rules per faqSets (solo admin)
-- [ ] Estendere rules per galleries con questionnaire/answers
-- [ ] Implementare validazione token nelle rules
-- [ ] Testare accessi per admin/pubblico/ospiti
-- [ ] Verificare isolamento dati tra bride/groom
+- [x] Aggiornare rules per faqSets (solo admin)
+- [x] Estendere rules per galleries con questionnaire/answers
+- [x] Implementare validazione token nelle rules
+- [x] Testare accessi per admin/pubblico/ospiti
+- [x] Verificare isolamento dati tra bride/groom
 
 ## 📋 Fase 12: UX e Styling
-- [ ] Applicare styling coerente con design system
-- [ ] Implementare progress bar e indicatori loading
-- [ ] Aggiungere animazioni e transizioni
-- [ ] Ottimizzare responsive design
-- [ ] Testare accessibilità (focus, aria-labels)
+- [x] Applicare styling coerente con design system
+- [x] Implementare progress bar e indicatori loading
+- [x] Aggiungere animazioni e transizioni
+- [x] Ottimizzare responsive design
+- [x] Testare accessibilità (focus, aria-labels)
 
 ## 📋 Fase 13: Error Handling e Edge Cases
-- [ ] Gestire token scaduti o invalidi
-- [ ] Aggiungere fallback per set domande mancanti
-- [ ] Implementare retry logic per save failures
-- [ ] Gestire concurrent editing
-- [ ] Testare scenari limite
+- [x] Gestire token scaduti o invalidi
+- [x] Aggiungere fallback per set domande mancanti
+- [x] Implementare retry logic per save failures
+- [x] Gestire concurrent editing
+- [x] Testare scenari limite
 
 ## 📋 Fase 14: Testing e Validazione
-- [ ] Test funzionalità admin complete
-- [ ] Test esperienza utente bride/groom
-- [ ] Test export prompt ChatGPT
-- [ ] Validare sicurezza e permessi
-- [ ] Test su dispositivi mobili
-- [ ] Performance testing con dati reali
+- [x] Test funzionalità admin complete
+- [x] Test esperienza utente bride/groom
+- [x] Test export prompt ChatGPT
+- [x] Validare sicurezza e permessi
+- [x] Test su dispositivi mobili
+- [x] Performance testing con dati reali
 
 ## 📋 Fase 15: Documentazione e Deploy
-- [ ] Aggiornare replit.md con nuove funzionalità
-- [ ] Documentare API e componenti principali
-- [ ] Preparare guide per utilizzo admin
-- [ ] Deploy e test produzione
+- [x] Aggiornare replit.md con nuove funzionalità
+- [x] Documentare API e componenti principali
+- [x] Preparare guide per utilizzo admin
+- [x] Deploy e test produzione
 - [ ] Validazione finale con stakeholder
 
 ---
