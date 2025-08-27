@@ -7,14 +7,16 @@ import { createServer } from 'vite'
 async function startServer() {
   try {
     console.log('🔥 Starting Firebase-Only SPA...')
+    console.log(`📁 Base Path: ${process.env.VITE_BASE_PATH || '/'}`)
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`)
     
-    // Use the existing vite.config.ts configuration with strict port for Replit
+    // Use the existing vite.config.ts configuration with environment variables
     const server = await createServer({
-      configFile: 'vite.config.ts', // Use the existing config
+      configFile: 'vite.config.ts', // Use the existing config which reads from .env
       server: {
         port: 5000,
         host: '0.0.0.0',
-        strictPort: true, // Replit workflows require port 5000
+        strictPort: false, // Allow flexibility for Replit environment
         open: false,
       },
     })

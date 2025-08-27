@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { getPathDebugInfo, createUrl, isInSubdirectory, refreshBasePath } from '@/lib/basePath';
-import { Info, Eye, EyeOff } from 'lucide-react';
+import React, { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { getPathDebugInfo, createUrl, isInSubdirectory } from "@/lib/basePath";
+
+import { Info, Eye, EyeOff } from "lucide-react";
 
 export default function PathDebugInfo() {
   const [isVisible, setIsVisible] = useState(false);
-  
+
   if (!isVisible) {
     return (
       <Button
@@ -28,11 +29,7 @@ export default function PathDebugInfo() {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center justify-between">
           Debug Path Configuration
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsVisible(false)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setIsVisible(false)}>
             <EyeOff className="h-4 w-4" />
           </Button>
         </CardTitle>
@@ -44,21 +41,21 @@ export default function PathDebugInfo() {
             {import.meta.env.MODE}
           </Badge>
         </div>
-        
+
         <div>
           <strong>Auto-detected Base Path:</strong>
           <code className="ml-2 text-xs bg-gray-100 px-1 rounded">
-            {pathInfo?.basePath || '/'}
+            {pathInfo?.basePath || "/"}
           </code>
         </div>
-        
+
         <div>
           <strong>Env Base Path:</strong>
           <code className="ml-2 text-xs bg-gray-100 px-1 rounded">
-            {pathInfo?.envBasePath || 'not set'}
+            {pathInfo?.envBasePath || "not set"}
           </code>
         </div>
-        
+
         <Button
           variant="outline"
           size="sm"
@@ -80,22 +77,28 @@ export default function PathDebugInfo() {
 
         <div>
           <strong>Base Path:</strong>
-          <Badge variant={pathInfo?.basePath ? "default" : "secondary"} className="ml-2">
-            {pathInfo?.basePath || '/'}
+          <Badge
+            variant={pathInfo?.basePath ? "default" : "secondary"}
+            className="ml-2"
+          >
+            {pathInfo?.basePath || "/"}
           </Badge>
         </div>
 
         <div>
           <strong>Is Subdirectory:</strong>
-          <Badge variant={isInSubdirectory() ? "destructive" : "default"} className="ml-2">
-            {isInSubdirectory() ? 'Yes' : 'No'}
+          <Badge
+            variant={isInSubdirectory() ? "destructive" : "default"}
+            className="ml-2"
+          >
+            {isInSubdirectory() ? "Yes" : "No"}
           </Badge>
         </div>
 
         <div>
           <strong>VITE_BASE_PATH:</strong>
           <p className="text-muted-foreground">
-            {import.meta.env.VITE_BASE_PATH || 'Not set'}
+            {import.meta.env.VITE_BASE_PATH || "Not set"}
           </p>
         </div>
 
@@ -112,13 +115,13 @@ export default function PathDebugInfo() {
             <div>
               <span className="text-muted-foreground">API:</span>
               <p className="break-all font-mono text-xs">
-                {createUrl('/api/test-email')}
+                {createUrl("/api/test-email")}
               </p>
             </div>
             <div>
               <span className="text-muted-foreground">Gallery:</span>
               <p className="break-all font-mono text-xs">
-                {createUrl('/gallery/123')}
+                {createUrl("/gallery/123")}
               </p>
             </div>
           </div>

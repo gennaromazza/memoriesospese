@@ -15,11 +15,14 @@ function getBasePath(): string {
 /** Crea un URL assoluto completo (dominio + base path + route) */
 export function createAbsoluteUrl(relativePath: string): string {
   const basePath = getBasePath();
-  const cleanPath = relativePath.startsWith("/") ? relativePath.slice(1) : relativePath;
+  const cleanPath = relativePath.startsWith("/")
+    ? relativePath.slice(1)
+    : relativePath;
 
   // Dominio di partenza
   const origin = import.meta.env.PROD
-    ? (import.meta.env.VITE_APP_URL?.replace(/\/+$/, "") || "https://gennaromazzacane.it")
+    ? import.meta.env.VITE_APP_URL?.replace(/\/+$/, "") ||
+      "https://gennaromazzacane.it"
     : window.location.origin;
 
   // Se l'origin contiene già il basePath, non lo riaggiungiamo
