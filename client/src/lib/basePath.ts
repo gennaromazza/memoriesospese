@@ -14,18 +14,21 @@ function getBasePath(): string {
 }
 
 /** Crea un URL assoluto completo di dominio e base path */
-export const createAbsoluteUrl = (path: string): string => {
+export function createAbsoluteUrl(relativePath: string): string {
   const basePath = getBasePath();
-  const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-  const fullPath = `${basePath}${cleanPath}`;
+  const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
 
-  // In produzione usa sempre il dominio configurato
-  const origin = import.meta.env.PROD 
+  // In sviluppo usa l'origin del browser, in produzione usa l'URL configurato
+  const origin = import.meta.env.PROD
     ? (import.meta.env.VITE_APP_URL?.replace(/\/+$/, "") || "https://gennaromazzacane.it")
     : window.location.origin;
-    
-  return `${origin}${fullPath}`;
-};
+
+  // Assicurati che il base path sia aggiunto solo una volta
+  const normalizedBasePath = basePath.startsWith("/") ? basePath : `/${basePath}`;
+  const cleanBasePath = normalizedBasePath.replace(/\/+$/, ""); // rimuove slash finali
+
+  return `${origin}${cleanBasePath}/${cleanPath}`;
+}
 
 /** Crea un URL relativo al base path, utile per routing o link interni */
 export const createUrl = (urlPath: string): string => {
@@ -58,16 +61,16 @@ export const refreshBasePath = (): void => {
 /** Rimuove il basepath da un URL per ottenere il path relativo */
 export const removeBasePath = (fullPath: string): string => {
   const basePath = getBasePath();
-  
+
   // Se siamo in root (/) non c'è nulla da rimuovere
   if (basePath === "/") return fullPath;
-  
+
   // Rimuovi il basepath se presente
   const basePathClean = basePath.replace(/\/+$/, ""); // rimuove slash finali
   if (fullPath.startsWith(basePathClean)) {
     return fullPath.substring(basePathClean.length) || "/";
   }
-  
+
   return fullPath;
 };
 
