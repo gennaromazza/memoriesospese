@@ -8,8 +8,6 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { storage, db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
-import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { FeatureBlocked } from '../UpgradePrompt';
 
 interface WatermarkUploadProps {
   currentWatermarkUrl?: string;
@@ -18,15 +16,10 @@ interface WatermarkUploadProps {
 
 export function WatermarkUpload({ currentWatermarkUrl, onWatermarkChange }: WatermarkUploadProps) {
   const { user } = useFirebaseAuth();
-  const { features } = usePlanFeatures();
   const [uploading, setUploading] = useState(false);
   const [watermarkUrl, setWatermarkUrl] = useState(currentWatermarkUrl);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!features.watermarkEnabled) {
-      toast.error('Il watermark personalizzato è disponibile solo per i piani Pro e Premium');
-      return;
-    }
 
     if (!user) {
       toast.error('Devi essere autenticato per caricare un watermark');
@@ -69,7 +62,7 @@ export function WatermarkUpload({ currentWatermarkUrl, onWatermarkChange }: Wate
     } finally {
       setUploading(false);
     }
-  }, [user, features.watermarkEnabled, onWatermarkChange]);
+  }, [user, onWatermarkChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -77,7 +70,7 @@ export function WatermarkUpload({ currentWatermarkUrl, onWatermarkChange }: Wate
       'image/*': ['.png', '.jpg', '.jpeg'],
     },
     maxFiles: 1,
-    disabled: !features.watermarkEnabled || uploading,
+    disabled: uploading,
   });
 
   const handleRemoveWatermark = async () => {
@@ -103,24 +96,6 @@ export function WatermarkUpload({ currentWatermarkUrl, onWatermarkChange }: Wate
     }
   };
 
-  if (!features.watermarkEnabled) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Watermark Personalizzato</CardTitle>
-          <CardDescription>
-            Aggiungi il tuo logo o watermark alle foto della galleria
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FeatureBlocked
-            feature="Watermark personalizzato"
-            requiredPlans={['pro', 'premium']}
-          />
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card>

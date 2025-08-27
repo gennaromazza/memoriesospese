@@ -9,8 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
-import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { UpgradePrompt } from './UpgradePrompt';
 
 interface NewGalleryModalProps {
   isOpen: boolean;
@@ -20,14 +18,12 @@ interface NewGalleryModalProps {
 
 export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: NewGalleryModalProps) {
   const { user } = useFirebaseAuth();
-  const { features, planType } = usePlanFeatures();
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,12 +48,6 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
       const galleriesSnapshot = await getDocs(galleriesQuery);
       const currentGalleryCount = galleriesSnapshot.size;
 
-      // Check if user has reached their gallery limit
-      if (features.galleryLimit !== 'unlimited' && currentGalleryCount >= features.galleryLimit) {
-        setShowUpgradePrompt(true);
-        setIsLoading(false);
-        return;
-      }
 
       // Generate unique code
       const code = nanoid(8);
@@ -95,23 +85,6 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
     }
   };
 
-  if (showUpgradePrompt) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent>
-          <UpgradePrompt
-            feature={`Hai raggiunto il limite di ${features.galleryLimit} gallerie`}
-            requiredPlans={planType === 'free' ? ['starter', 'pro', 'premium'] : ['pro', 'premium']}
-            currentPlan={planType}
-            onClose={() => {
-              setShowUpgradePrompt(false);
-              onClose();
-            }}
-          />
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { Download, FileText, Upload, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { usePlanFeatures } from '@/hooks/use-plan-features';
-import { UpgradePrompt, FeatureBlocked } from '../UpgradePrompt';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
@@ -18,9 +16,6 @@ interface GalleryActionsProps {
 
 export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActionsProps) {
   const { user } = useFirebaseAuth();
-  const { features, planType } = usePlanFeatures();
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-  const [upgradeFeature, setUpgradeFeature] = useState('');
   const [downloadingZip, setDownloadingZip] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
 
@@ -29,11 +24,6 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
   }
 
   const handleDownloadZip = async () => {
-    if (!features.downloadZip) {
-      setUpgradeFeature('Download ZIP galleria');
-      setShowUpgradeDialog(true);
-      return;
-    }
 
     setDownloadingZip(true);
     try {
@@ -62,11 +52,6 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
   };
 
   const handleExportCsv = async () => {
-    if (!features.leadsExport) {
-      setUpgradeFeature('Esportazione CSV contatti');
-      setShowUpgradeDialog(true);
-      return;
-    }
 
     setExportingCsv(true);
     try {
@@ -111,89 +96,34 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Download ZIP */}
             <div>
-              {features.downloadZip ? (
-                <Button
-                  onClick={handleDownloadZip}
-                  disabled={downloadingZip}
-                  variant="outline"
-                  className="w-full justify-start"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  {downloadingZip ? 'Generazione ZIP...' : 'Download ZIP Galleria'}
-                </Button>
-              ) : (
-                <div className="relative">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start opacity-50"
-                    disabled
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download ZIP Galleria
-                  </Button>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <FeatureBlocked
-                      feature="Download ZIP"
-                      requiredPlans={['premium']}
-                      inline
-                    />
-                  </div>
-                </div>
-              )}
+              <Button
+                onClick={handleDownloadZip}
+                disabled={downloadingZip}
+                variant="outline"
+                className="w-full justify-start"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {downloadingZip ? 'Generazione ZIP...' : 'Download ZIP Galleria'}
+              </Button>
             </div>
 
             {/* Export CSV */}
             <div>
-              {features.leadsExport ? (
-                <Button
-                  onClick={handleExportCsv}
-                  disabled={exportingCsv}
-                  variant="outline"
-                  className="w-full justify-start"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  {exportingCsv ? 'Esportazione CSV...' : 'Esporta Contatti CSV'}
-                </Button>
-              ) : (
-                <div className="relative">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start opacity-50"
-                    disabled
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Esporta Contatti CSV
-                  </Button>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <FeatureBlocked
-                      feature="Export CSV"
-                      requiredPlans={['pro', 'premium']}
-                      inline
-                    />
-                  </div>
-                </div>
-              )}
+              <Button
+                onClick={handleExportCsv}
+                disabled={exportingCsv}
+                variant="outline"
+                className="w-full justify-start"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                {exportingCsv ? 'Esportazione CSV...' : 'Esporta Contatti CSV'}
+              </Button>
             </div>
           </div>
 
-          {planType === 'free' && (
-            <p className="mt-4 text-sm text-muted-foreground text-center">
-              Passa a un piano superiore per sbloccare più funzionalità
-            </p>
-          )}
         </CardContent>
       </Card>
 
-      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <DialogContent>
-          <UpgradePrompt
-            feature={upgradeFeature}
-            requiredPlans={upgradeFeature.includes('ZIP') ? ['premium'] : ['pro', 'premium']}
-            currentPlan={planType}
-            onClose={() => setShowUpgradeDialog(false)}
-          />
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

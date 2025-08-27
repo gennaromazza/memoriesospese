@@ -12,7 +12,6 @@ import NewGalleryModal from "@/components/NewGalleryModal";
 import EditGalleryModal from "@/components/EditGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
 import UserManager from "@/components/UserManager";
-import SubscriptionsManager from "@/components/SubscriptionsManager";
 import EmailStatusPanel from "@/components/EmailStatusPanel";
 import SecurityQuestionManager from "@/components/SecurityQuestionManager";
 import { useToast } from "@/hooks/use-toast";
@@ -928,10 +927,6 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Utenti</span>
                 <span className="sm:hidden">👥</span>
               </TabsTrigger>
-              <TabsTrigger value="subscriptions" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
-                <span className="hidden sm:inline">Iscrizioni</span>
-                <span className="sm:hidden">📧</span>
-              </TabsTrigger>
               <TabsTrigger value="slideshow" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
                 <span className="hidden sm:inline">Slideshow</span>
                 <span className="sm:hidden">🎬</span>
@@ -1158,21 +1153,6 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* Contenuto Tab Iscrizioni */}
-            <TabsContent value="subscriptions">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Iscrizioni Email</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Visualizza e gestisci tutte le iscrizioni email per le notifiche delle gallerie.
-                    </p>
-                  </div>
-                </div>
-
-                <SubscriptionsManager />
-              </div>
-            </TabsContent>
 
             {/* Contenuto Tab Slideshow */}
             <TabsContent value="slideshow">
@@ -1548,7 +1528,7 @@ export default function AdminDashboard() {
       <NewGalleryModal 
         isOpen={isModalOpen} 
         onClose={closeModal} 
-        onSuccess={() => {
+        onGalleryCreated={() => {
           // Ricarichiamo le gallerie dopo la creazione
           fetchData();
         }} 

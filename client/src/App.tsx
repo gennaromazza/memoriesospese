@@ -24,7 +24,6 @@ import NotFound from "./pages/not-found";
 import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
-import PricingPage from "./pages/PricingPage";
 import Landing from "./pages/Landing";
 import PhotographerRegister from "./pages/PhotographerRegister";
 import PhotographerLogin from "./pages/PhotographerLogin";
@@ -70,7 +69,6 @@ function Router() {
       <Route path="/password-result/:id" component={PasswordResult} />
       <Route path="/security-test" component={SecurityTestPage} />
       <Route path="/profile" component={UserProfile} />
-      <Route path="/pricing" component={PricingPage} />
       <Route component={NotFound} />
     </Switch>
   );

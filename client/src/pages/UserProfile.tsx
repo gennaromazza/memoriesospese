@@ -29,22 +29,17 @@ import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCre
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import ProfileImageUpload from '../components/ProfileImageUpload';
-import { usePlanFeatures } from '../hooks/use-plan-features';
-import { SUBSCRIPTION_PLANS } from '@shared/subscription-schema';
-import { createPortalSession } from '../lib/stripe';
 import { WatermarkUpload } from '@/components/watermark/WatermarkUpload';
 
 export default function UserProfile() {
   const { user, userProfile, isAuthenticated, logout, refreshUserProfile } = useFirebaseAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const { planType, isActive, features } = usePlanFeatures();
 
   const [isLoading, setIsLoading] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loadingPortal, setLoadingPortal] = useState(false);
 
   // Form state for profile updates
   const [profileData, setProfileData] = useState({
@@ -251,32 +246,6 @@ export default function UserProfile() {
     }
   };
 
-  const handleManageSubscription = async () => {
-    if (!user || !user.email) {
-      toast({
-        title: "Errore",
-        description: "Devi essere autenticato per gestire l'abbonamento",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoadingPortal(true);
-    try {
-      await createPortalSession({
-        returnUrl: window.location.href
-      });
-    } catch (error) {
-      console.error('Errore apertura portale Stripe:', error);
-      toast({
-        title: "Errore",
-        description: "Impossibile aprire il portale di gestione",
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingPortal(false);
-    }
-  };
 
   if (!isAuthenticated || !user) {
     return (
@@ -289,7 +258,6 @@ export default function UserProfile() {
     );
   }
 
-  const currentPlan = SUBSCRIPTION_PLANS[planType];
 
   return (
     <div className="min-h-screen bg-off-white">
@@ -304,68 +272,6 @@ export default function UserProfile() {
           <p className="text-sage-700">Gestisci le tue informazioni personali e le impostazioni account</p>
         </div>
 
-        {/* Subscription Status Card */}
-        <Card className="mb-8">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Abbonamento
-              </CardTitle>
-              <Badge variant={planType === 'free' ? 'secondary' : 'default'}>
-                {currentPlan.name}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Gallerie</p>
-                  <p className="font-medium">
-                    {features.galleryLimit === 'unlimited' ? 'Illimitate' : `${features.galleryLimit} totali`}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Foto per galleria</p>
-                  <p className="font-medium">
-                    {features.maxPhotos === 'unlimited' ? 'Illimitate' : features.maxPhotos.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              
-              <Separator />
-              
-              <div className="flex flex-wrap gap-2">
-                {features.voiceMemo && <Badge variant="outline">Voice Memo</Badge>}
-                {features.downloadZip && <Badge variant="outline">Download ZIP</Badge>}
-                {features.watermarkEnabled && <Badge variant="outline">Watermark</Badge>}
-                {features.leadsExport && <Badge variant="outline">Export CSV</Badge>}
-
-              </div>
-
-              <div className="flex gap-3 mt-4">
-                {planType !== 'free' && isActive ? (
-                  <Button
-                    variant="outline"
-                    onClick={handleManageSubscription}
-                    disabled={loadingPortal}
-                  >
-                    {loadingPortal && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Gestisci Abbonamento
-                  </Button>
-                ) : (
-                  <Button
-                    variant="default"
-                    onClick={() => navigate(createUrl('/pricing'))}
-                  >
-                    Passa a Premium
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Sezione immagine profilo */}
         <div className="mb-8">
@@ -377,18 +283,16 @@ export default function UserProfile() {
           />
         </div>
 
-        {/* Sezione Watermark - Solo per piani Pro/Premium */}
-        {(features.watermarkEnabled || planType === 'pro' || planType === 'premium') && (
-          <div className="mb-8">
-            <WatermarkUpload
-              currentWatermarkUrl={userProfile?.watermarkUrl || undefined}
-              onWatermarkChange={(url) => {
-                // Refresh user profile quando watermark cambia
-                refreshUserProfile();
-              }}
-            />
-          </div>
-        )}
+        {/* Sezione Watermark */}
+        <div className="mb-8">
+          <WatermarkUpload
+            currentWatermarkUrl={userProfile?.watermarkUrl || undefined}
+            onWatermarkChange={(url) => {
+              // Refresh user profile quando watermark cambia
+              refreshUserProfile();
+            }}
+          />
+        </div>
 
         <div className="grid gap-6 md:grid-cols-2">
           {/* Profile Information Card */}

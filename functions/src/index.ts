@@ -336,11 +336,8 @@ export const sendWelcomeEmail = onCall(async (request) => {
   }
 });
 
-// Import and re-export Stripe functions
-import { createCheckoutSession, createPortalSession, stripeWebhook } from './stripe';
 import { generateGalleryZip } from './gallery-zip';
 import { exportGalleryAccessCSV } from './csv-export';
 
-// Export all functions
-export { createCheckoutSession, createPortalSession, stripeWebhook };
+// Export functions
 export { generateGalleryZip, exportGalleryAccessCSV };
