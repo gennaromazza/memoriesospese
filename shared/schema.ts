@@ -169,8 +169,8 @@ export interface InteractionStats {
 // Role type for bride/groom
 export type Role = "bride" | "groom";
 
-// Question key type (fixed q1-q10)
-export type QuestionKey = `q${1|2|3|4|5|6|7|8|9|10}`;
+// Question key type (flexible q1-q20)
+export type QuestionKey = `q${1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20}`;
 
 // FAQ Set interface
 export interface FaqSet {
@@ -193,10 +193,10 @@ export interface FaqSet {
 export const insertFaqSetSchema = z.object({
   title: z.string().min(3, "Il titolo deve contenere almeno 3 caratteri"),
   questions: z.array(z.object({
-    key: z.string().regex(/^q[1-9]|q10$/, "Chiave domanda non valida"),
+    key: z.string().regex(/^q([1-9]|1[0-9]|20)$/, "Chiave domanda non valida (q1-q20)"),
     text: z.string().min(1, "Il testo della domanda è obbligatorio").max(200, "Massimo 200 caratteri"),
     type: z.enum(["text", "textarea"]).default("textarea")
-  })).length(10, "Devono essere esattamente 10 domande")
+  })).min(1, "Almeno 1 domanda richiesta").max(20, "Massimo 20 domande consentite")
 });
 
 export type InsertFaqSet = z.infer<typeof insertFaqSetSchema>;

@@ -252,7 +252,7 @@ export class QuestionnaireService {
       await setDoc(tokenRef, tokenDoc);
 
       // Genera URL pubblico
-      const baseUrl = createAbsoluteUrl();
+      const baseUrl = window.location.origin;
       const url = `${baseUrl}/q/${galleryId}?token=${rawToken}&role=${role}`;
 
       // Aggiorna questionnaire con nuovo token
@@ -314,25 +314,6 @@ export class QuestionnaireService {
     }
   }
 
-  /**
-   * Ottieni tutte le risposte per un questionario
-   */
-  static async getAllAnswers(galleryId: string, questionnaireId: string): Promise<{
-    bride: AnswerSet | null;
-    groom: AnswerSet | null;
-  }> {
-    try {
-      const [brideAnswers, groomAnswers] = await Promise.all([
-        this.getAnswers(galleryId, questionnaireId, 'bride'),
-        this.getAnswers(galleryId, questionnaireId, 'groom')
-      ]);
-
-      return { bride: brideAnswers, groom: groomAnswers };
-    } catch (error) {
-      console.error('Errore recupero tutte le risposte:', error);
-      return { bride: null, groom: null };
-    }
-  }
 
   /**
    * Verifica completamento questionario per entrambi i ruoli
@@ -418,21 +399,6 @@ export class QuestionnaireService {
     }
   }
 
-  /**
-   * Revoca token
-   */
-  static async revokeToken(tokenId: string): Promise<void> {
-    try {
-      const tokenRef = doc(db, 'questionnaireTokens', tokenId);
-      await updateDoc(tokenRef, { 
-        revoked: true,
-        updatedAt: Date.now()
-      });
-    } catch (error) {
-      console.error('Errore revoca token:', error);
-      throw new Error('Errore durante la revoca del token');
-    }
-  }
 
   // ====== ANSWERS MANAGEMENT ======
 

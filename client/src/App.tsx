@@ -9,7 +9,6 @@ import { StudioProvider } from "./context/StudioContext";
 import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { initializeDefaultFaqSet } from "./lib/questionnaireDefaults";
 
 import Home from "./pages/Home";
 import GalleryAccess from "./pages/GalleryAccess";
@@ -73,18 +72,7 @@ function AppRoutes() {
 }
 
 function App() {
-  // Inizializza il set di domande predefinito all'avvio dell'app
-  useEffect(() => {
-    const initQuestions = async () => {
-      try {
-        await initializeDefaultFaqSet();
-      } catch (error) {
-        console.error('⚠️ Fallito caricamento set domande predefinito:', error);
-      }
-    };
-    
-    initQuestions();
-  }, []);
+  // Nota: Inizializzazione set domande spostata in Faq.tsx per admin autenticato
 
   return (
     <ErrorBoundary>

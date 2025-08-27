@@ -33,7 +33,7 @@ import {
   FileText
 } from 'lucide-react';
 import { QuestionnaireService } from '@/lib/questionnaire';
-import { generateChatGPTPrompt } from '@/lib/questionnaireDefaults';
+import { generateChatGPTPrompt, initializeDefaultFaqSet } from '@/lib/questionnaireDefaults';
 import { FaqSet, Questionnaire, AnswerSet, Role, CoupleInfo } from '@shared/schema';
 import { createAbsoluteUrl } from '@/lib/basePath';
 
@@ -90,7 +90,29 @@ export default function QuestionnaireManager() {
         setFaqSets(faqSetsData);
         setActiveFaqSet(activeFaqSetData);
         
-        if (activeFaqSetData) {
+        // Se non ci sono set, inizializza quello predefinito
+        if (faqSetsData.length === 0) {
+          console.log('📝 Nessun FAQ set trovato, inizializzazione in corso...');
+          try {
+            await initializeDefaultFaqSet();
+            // Ricarica dopo inizializzazione
+            const newSets = await QuestionnaireService.getAllFaqSets();
+            const newActiveFaqSet = await QuestionnaireService.getActiveFaqSet();
+            setFaqSets(newSets);
+            setActiveFaqSet(newActiveFaqSet);
+            if (newActiveFaqSet) {
+              setSelectedFaqSetId(newActiveFaqSet.id);
+            }
+            console.log('✅ Inizializzazione completata');
+          } catch (initError) {
+            console.error('❌ Errore inizializzazione:', initError);
+            toast({
+              title: "Errore inizializzazione",
+              description: "Impossibile creare il set di domande predefinito",
+              variant: "destructive"
+            });
+          }
+        } else if (activeFaqSetData) {
           setSelectedFaqSetId(activeFaqSetData.id);
         }
         return;

@@ -87,7 +87,9 @@ export default function Faq() {
   const handleCreateDefault = async () => {
     try {
       setIsLoading(true);
+      console.log('🔄 Creazione set predefinito...');
       await initializeDefaultFaqSet();
+      console.log('✅ Set predefinito creato con successo');
       toast({
         title: "Set predefinito creato",
         description: "Il set di domande standard è stato creato e attivato",
@@ -95,10 +97,10 @@ export default function Faq() {
       });
       await loadFaqSets();
     } catch (error) {
-      console.error('Errore creazione set predefinito:', error);
+      console.error('❌ Errore creazione set predefinito:', error);
       toast({
         title: "Errore",
-        description: "Impossibile creare il set predefinito",
+        description: `Impossibile creare il set predefinito: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`,
         variant: "destructive"
       });
     } finally {

@@ -129,7 +129,7 @@ service cloud.firestore {
       allow write: if isAdmin();
       allow create: if isAdmin() || 
         (request.resource.data.createdBy == 'system' && 
-         request.resource.data.title == 'Set Domande Standard v1'); // Solo per set di sistema
+         request.resource.data.version == 1); // Permetti creazione set sistema v1
     }
     
     // Questionnaire Tokens - Server-side only (no client access)
