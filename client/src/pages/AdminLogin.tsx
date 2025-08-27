@@ -18,6 +18,7 @@ import { WeddingImage, DecorativeImage } from "@/components/WeddingImages";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
+import { Eye, EyeOff } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email("Inserisci un'email valida"),
@@ -30,6 +31,7 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const [showPassword, setShowPassword] = useState(false);
 
   // Se c'è già un flag isAdmin nel localStorage, reindirizza alla dashboard
   useEffect(() => {
@@ -52,22 +54,22 @@ export default function AdminLogin() {
       // Utilizziamo direttamente le API di Firebase anziché l'AuthContext
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
-      
+
       // Controlla se l'utente è un admin (con controlli multipli)
-      const isAdminUser = data.email === 'gennaro.mazzacane@gmail.com' || 
+      const isAdminUser = data.email === 'gennaro.mazzacane@gmail.com' ||
                          ['gennaro.mazzacane@gmail.com'].includes(data.email);
-      
+
       if (isAdminUser) {
         // Salva informazione che l'utente è un amministratore
         localStorage.setItem("isAdmin", "true");
-        
+
         // Usa createUrl per garantire il corretto basepath
         navigate(createUrl("/admin/dashboard"));
       } else {
         throw new Error('Accesso negato: non sei un amministratore');
       }
     } catch (error: any) {
-      
+
       let errorMessage = "Si è verificato un errore durante l'accesso.";
 
       // Handle specific Firebase auth errors
@@ -170,14 +172,26 @@ export default function AdminLogin() {
                   >
                     Password
                   </label>
-                  <div className="mt-1">
+                  <div className="mt-1 relative">
                     <Input
                       id="password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
                       {...form.register("password")}
                       className="appearance-none block w-full px-3 py-2 border border-beige rounded-md shadow-sm focus:ring-sage focus:border-sage"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer"
+                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-500" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-500" />
+                      )}
+                    </button>
                     {form.formState.errors.password && (
                       <p className="mt-1 text-sm text-red-500">
                         {form.formState.errors.password.message}
