@@ -20,7 +20,6 @@ import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
 import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
-import { SubscriptionManager } from "@/components/SubscriptionManager";
 import GuestUpload from "@/components/GuestUpload";
 import { GalleryActions } from "@/components/gallery/GalleryActions";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
@@ -414,12 +413,9 @@ export default function Gallery() {
                   {/* Azioni galleria - layout pulito e organizzato */}
                   <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                     <div className="flex flex-col lg:flex-row gap-4">
-                      {/* Sezione principale - solo notifiche */}
+                      {/* Sezione principale */}
                       <div className="flex-1">
-                        <SubscriptionManager 
-                          galleryId={gallery.id}
-                          galleryName={gallery.name}
-                        />
+                        {/* Area riservata per future funzionalità */}
                       </div>
                     </div>
                   </div>
@@ -687,8 +683,8 @@ export default function Gallery() {
                 </div>
               )}
 
-              {/* Gallery Actions - Show download and export options for gallery owner */}
-              {userInfo.isAuthenticated && userInfo.email && gallery.userId === user?.uid && (
+              {/* Gallery Actions - Show download and export options for admin */}
+              {userInfo.isAuthenticated && userInfo.email && isAdmin && (
                 <div className="mt-8">
                   <GalleryActions 
                     galleryId={gallery.id}
