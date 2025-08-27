@@ -7,11 +7,9 @@
 
 /** Restituisce il base path normalizzato */
 function getBasePath(): string {
-  // In sviluppo usa sempre "/" per far funzionare la preview di Replit
-  // In produzione usa VITE_BASE_PATH (es. /memoriesospese/)
-  const rawBase = import.meta.env.DEV ? "/" : (import.meta.env.VITE_BASE_PATH || "/");
-  // Assicura sempre uno slash iniziale e UNO solo finale
-  return `/${rawBase.replace(/^\/+|\/+$/g, "")}/`.replace(/\/\/+/g, "/");
+  // Ora che Vite gestisce il <base href>, usiamo sempre "/" 
+  // per evitare duplicazioni con il tag <base> di Vite
+  return "/";
 }
 
 /** Crea un URL assoluto completo (dominio + base path + route) */
@@ -37,15 +35,9 @@ export function createAbsoluteUrl(relativePath: string): string {
 
 /** Crea un URL relativo corretto, utile per routing o link interni */
 export const createUrl = (urlPath: string): string => {
-  const basePath = getBasePath();
-  const cleanPath = urlPath.startsWith("/") ? urlPath.slice(1) : urlPath;
-
-  // Evita duplicazione se il path contiene già il basePath
-  if (basePath !== "/" && cleanPath.startsWith(basePath.slice(1))) {
-    return `/${cleanPath}`.replace(/\/+/g, "/");
-  }
-
-  return `${basePath}${cleanPath}`.replace(/\/+/g, "/");
+  // Con Vite <base href> attivo, tutti i link relativi funzionano automaticamente
+  const cleanPath = urlPath.startsWith("/") ? urlPath : `/${urlPath}`;
+  return cleanPath.replace(/\/+/g, "/");
 };
 
 /** Verifica se siamo in produzione */
