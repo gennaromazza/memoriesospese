@@ -19,8 +19,11 @@ export const createAbsoluteUrl = (path: string): string => {
   const cleanPath = path.startsWith("/") ? path.slice(1) : path;
   const fullPath = `${basePath}${cleanPath}`;
 
-  const origin =
-    import.meta.env.VITE_APP_URL?.replace(/\/+$/, "") || window.location.origin;
+  // In produzione usa sempre il dominio configurato
+  const origin = import.meta.env.PROD 
+    ? (import.meta.env.VITE_APP_URL?.replace(/\/+$/, "") || "https://gennaromazzacane.it")
+    : window.location.origin;
+    
   return `${origin}${fullPath}`;
 };
 

@@ -70,19 +70,8 @@ export default function GalleryHeader({
       relativePath = cleanPath.replace(/^\/view\//, '/gallery/');
     }
     
-    // Log per debug - rimuovere in produzione
-    console.log('🔗 Generazione link condivisione:', {
-      galleryCode,
-      galleryId,
-      currentPath: window.location.pathname,
-      cleanPath: galleryCode ? null : removeBasePath(window.location.pathname),
-      relativePath,
-    });
-    
     // Generiamo l'URL assoluto che includerà automaticamente il base path corretto
     const url = createAbsoluteUrl(relativePath);
-    
-    console.log('🔗 URL finale generato:', url);
 
     
     
