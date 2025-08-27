@@ -26,10 +26,10 @@
 
 ## 📋 Fase 4: Routing e Navigazione
 - [x] Aggiungere route `/admin/faq` in App.tsx
-- [ ] Aggiungere route `/admin/galleries/:galleryId/questionnaire`
-- [ ] Aggiungere route pubblica `/q/:galleryId?token=...&role=bride|groom`
-- [ ] Implementare noindex/nofollow su route pubbliche
-- [ ] Testare navigazione e protezioni
+- [x] Aggiungere route `/admin/galleries/:galleryId/questionnaire`
+- [x] Aggiungere route pubblica `/q/:galleryId?token=...&role=bride|groom`
+- [x] Implementare noindex/nofollow su route pubbliche
+- [x] Testare navigazione e protezioni
 
 ## 📋 Fase 5: QuestionnaireManager.tsx (Admin)
 - [ ] Creare layout base con sezioni principali

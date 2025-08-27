@@ -16,6 +16,8 @@ import Gallery from "./pages/Gallery";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import Faq from "./pages/admin/Faq";
+import QuestionnaireManager from "./pages/admin/QuestionnaireManager";
+import QuestionnaireForm from "./pages/QuestionnaireForm";
 import RequestPassword from "./pages/RequestPassword";
 import PasswordResult from "./pages/PasswordResult";
 import DeleteGalleryPage from "./pages/DeleteGalleryPage";
@@ -53,7 +55,11 @@ function AppRoutes() {
       <Route path="/admin" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/admin/faq" component={Faq} />
+      <Route path="/admin/galleries/:galleryId/questionnaire" component={QuestionnaireManager} />
       <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
+      
+      {/* Public questionnaire route with noindex/nofollow */}
+      <Route path="/q/:galleryId" component={QuestionnaireForm} />
       <Route path="/request-password/:id" component={RequestPassword} />
       <Route path="/request-password" component={RequestPassword} />
       <Route path="/password-result/:id" component={PasswordResult} />
