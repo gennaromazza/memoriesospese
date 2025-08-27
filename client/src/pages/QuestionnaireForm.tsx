@@ -26,13 +26,45 @@ export default function QuestionnaireForm() {
   const role = urlParams.get('role') as 'bride' | 'groom' | null;
 
   useEffect(() => {
-    // Simula validazione token
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      setTokenValid(!!token && !!role);
-    }, 1500);
-    return () => clearTimeout(timer);
+    validateTokenAndSetupSession();
   }, [token, role]);
+
+  const validateTokenAndSetupSession = async () => {
+    if (!token || !role || !params?.galleryId) {
+      setIsLoading(false);
+      setTokenValid(false);
+      return;
+    }
+
+    try {
+      const { TokenValidationService } = await import('@/lib/tokenValidation');
+      
+      // Simula validazione (in produzione userebbe Cloud Functions)
+      const validation = await TokenValidationService.validateTokenAndCreateSession(
+        token,
+        params.galleryId,
+        role,
+        TokenValidationService.generateBrowserFingerprint()
+      );
+
+      setTokenValid(validation.valid);
+      
+      if (validation.valid) {
+        // Cleanup URL params dopo validazione riuscita
+        TokenValidationService.cleanupUrlParams();
+        
+        // Salva sessionId in localStorage per persistenza
+        if (validation.sessionId) {
+          localStorage.setItem('questionnaire-session', validation.sessionId);
+        }
+      }
+    } catch (error) {
+      console.error('Errore validazione token:', error);
+      setTokenValid(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Meta tags per noindex/nofollow
   useEffect(() => {

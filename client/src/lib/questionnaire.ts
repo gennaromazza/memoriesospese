@@ -252,10 +252,10 @@ export class QuestionnaireService {
       await setDoc(tokenRef, tokenDoc);
 
       // Genera URL pubblico
-      const baseUrl = window.location.origin;
+      const baseUrl = createAbsoluteUrl();
       const url = `${baseUrl}/q/${galleryId}?token=${rawToken}&role=${role}`;
 
-      // Aggiorna questionnaire con riferimento token
+      // Aggiorna questionnaire con nuovo token
       const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
       await updateDoc(questionnaireRef, {
         [`tokens.${role}`]: {
@@ -270,7 +270,101 @@ export class QuestionnaireService {
       return { tokenId, url };
     } catch (error) {
       console.error('Errore generazione token:', error);
-      throw new Error('Errore durante la generazione del link');
+      throw new Error('Errore durante la generazione del token');
+    }
+  }
+
+  /**
+   * Revoca token specifico
+   */
+  static async revokeToken(galleryId: string, questionnaireId: string, role: Role): Promise<void> {
+    try {
+      // Trova e revoca token
+      const tokensQuery = query(
+        collection(db, 'questionnaireTokens'),
+        where('galleryId', '==', galleryId),
+        where('questionnaireId', '==', questionnaireId),
+        where('role', '==', role)
+      );
+      
+      const snapshot = await getDocs(tokensQuery);
+      const updatePromises = snapshot.docs.map(doc => 
+        updateDoc(doc.ref, { 
+          revoked: true,
+          revokedAt: Date.now()
+        })
+      );
+      
+      await Promise.all(updatePromises);
+
+      // Aggiorna questionnaire
+      const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
+      await updateDoc(questionnaireRef, {
+        [`tokens.${role}`]: {
+          tokenId: '',
+          url: '',
+          createdAt: Date.now(),
+          expiresAt: Date.now()
+        },
+        updatedAt: Date.now()
+      });
+    } catch (error) {
+      console.error('Errore revoca token:', error);
+      throw new Error('Errore durante la revoca del token');
+    }
+  }
+
+  /**
+   * Ottieni tutte le risposte per un questionario
+   */
+  static async getAllAnswers(galleryId: string, questionnaireId: string): Promise<{
+    bride: AnswerSet | null;
+    groom: AnswerSet | null;
+  }> {
+    try {
+      const [brideAnswers, groomAnswers] = await Promise.all([
+        this.getAnswers(galleryId, questionnaireId, 'bride'),
+        this.getAnswers(galleryId, questionnaireId, 'groom')
+      ]);
+
+      return { bride: brideAnswers, groom: groomAnswers };
+    } catch (error) {
+      console.error('Errore recupero tutte le risposte:', error);
+      return { bride: null, groom: null };
+    }
+  }
+
+  /**
+   * Verifica completamento questionario per entrambi i ruoli
+   */
+  static async checkQuestionnaireCompletion(galleryId: string, questionnaireId: string): Promise<{
+    bride: { completed: boolean; progress: number };
+    groom: { completed: boolean; progress: number };
+    overallCompleted: boolean;
+  }> {
+    try {
+      const answers = await this.getAllAnswers(galleryId, questionnaireId);
+      
+      const brideCompleted = answers.bride?.status === 'submitted';
+      const groomCompleted = answers.groom?.status === 'submitted';
+      
+      const brideProgress = answers.bride ? 
+        (Object.keys(answers.bride.answers).length / 10) * 100 : 0;
+      const groomProgress = answers.groom ? 
+        (Object.keys(answers.groom.answers).length / 10) * 100 : 0;
+
+      return {
+        bride: { completed: brideCompleted, progress: brideProgress },
+        groom: { completed: groomCompleted, progress: groomProgress },
+        overallCompleted: brideCompleted && groomCompleted
+      };
+    } catch (error) {
+      console.error('Errore verifica completamento:', error);
+      return {
+        bride: { completed: false, progress: 0 },
+        groom: { completed: false, progress: 0 },
+        overallCompleted: false
+      };
     }
   }
 

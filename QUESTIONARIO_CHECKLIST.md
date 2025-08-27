@@ -32,22 +32,22 @@
 - [x] Testare navigazione e protezioni
 
 ## 📋 Fase 5: QuestionnaireManager.tsx (Admin)
-- [ ] Creare layout base con sezioni principali
-- [ ] Implementare toggle enable/disable questionario
-- [ ] Aggiungere select per set domande attivo
-- [ ] Implementare generazione token sicuri (crypto-random)
-- [ ] Creare generazione link univoci per bride/groom
-- [ ] Aggiungere visualizzazione stato compilazione
-- [ ] Implementare pulsante esportazione risposte
-- [ ] Testare tutte le funzionalità admin
+- [x] Creare layout base con sezioni principali
+- [x] Implementare toggle enable/disable questionario
+- [x] Aggiungere select per set domande attivo
+- [x] Implementare generazione token sicuri (crypto-random)
+- [x] Creare generazione link univoci per bride/groom
+- [x] Aggiungere visualizzazione stato compilazione
+- [x] Implementare pulsante esportazione risposte
+- [x] Testare tutte le funzionalità admin
 
 ## 📋 Fase 6: Sistema Token e Validazione
-- [ ] Implementare generazione token 32-48 bytes + SHA-256 hash
-- [ ] Cloud Function callable per scambio token→sessione temporanea (15 min)
-- [ ] Gestione scadenza 90 giorni + revoca individuale
-- [ ] Rate limiting via Cloud Functions (non solo rules)
-- [ ] History cleanup dopo validazione (rimuovi query params)
-- [ ] Mascheramento errori per sicurezza
+- [x] Implementare generazione token 32-48 bytes + SHA-256 hash
+- [x] Cloud Function callable per scambio token→sessione temporanea (15 min)
+- [x] Gestione scadenza 90 giorni + revoca individuale
+- [x] Rate limiting via Cloud Functions (non solo rules)
+- [x] History cleanup dopo validazione (rimuovi query params)
+- [x] Mascheramento errori per sicurezza
 
 ## 📋 Fase 7: QuestionnaireForm.tsx (Pubblico)
 - [ ] Creare component base con validazione token

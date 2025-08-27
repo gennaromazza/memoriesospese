@@ -134,6 +134,16 @@ service cloud.firestore {
       allow read, write: if false; // Only via Cloud Functions
     }
     
+    // Validation Sessions - Server-side only
+    match /validationSessions/{sessionId} {
+      allow read, write: if false; // Only via Cloud Functions
+    }
+    
+    // Rate Limits - Server-side only  
+    match /rateLimits/{identifier} {
+      allow read, write: if false; // Only via Cloud Functions
+    }
+    
     // Helper function for role validation
     function isValidRole(role) {
       return role == 'bride' || role == 'groom';

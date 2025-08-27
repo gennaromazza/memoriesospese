@@ -273,6 +273,30 @@ export interface CoupleInfo {
   emailGroom?: string;
 }
 
+
+// Validation Session for temporary access (15 min)
+export interface ValidationSession {
+  id: string;
+  galleryId: string;
+  questionnaireId: string;
+  role: Role;
+  tokenId: string;
+  validatedAt: number;
+  expiresAt: number;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+// Rate Limiting per IP/identifier
+export interface RateLimitEntry {
+  id: string;
+  identifier: string; // IP address o user identifier
+  attempts: number;
+  windowStart: number;
+  blocked: boolean;
+  lastAttempt: number;
+}
+
 // Extended Gallery interface with questionnaire fields
 export interface GalleryWithQuestionnaire extends Gallery {
   couple?: CoupleInfo;
