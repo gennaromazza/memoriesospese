@@ -30,20 +30,6 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
-// Development emulators (commented out for production deployment)
-// Uncomment for local development with Firebase emulators
-/*
-if (import.meta.env.DEV && typeof window !== 'undefined') {
-  try {
-    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-    connectFirestoreEmulator(db, 'localhost', 8080);
-    connectStorageEmulator(storage, 'localhost', 9199);
-    connectFunctionsEmulator(functions, 'localhost', 5001);
-  } catch (error) {
-    console.log('Firebase emulators already connected or not available');
-  }
-}
-*/
 
 // Initialize Analytics in browser environment only
 let analytics: any = null;

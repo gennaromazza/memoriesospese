@@ -63,7 +63,7 @@ export default function GalleryAccess() {
     setAccessGranted(true);
 
     // Navigate to gallery view
-    navigate(`/view/${id}`);
+    navigate(createUrl(`/view/${id}`));
   };
 
   return (

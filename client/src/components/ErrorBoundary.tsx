@@ -2,7 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import { createUrl } from '@/lib/config';
+import { createUrl } from '@/lib/basePath';
 import { logger } from '@shared/logger';
 
 interface Props {
