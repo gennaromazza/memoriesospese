@@ -8,7 +8,7 @@ import { FirebaseAuthProvider } from "./context/FirebaseAuthContext";
 import { StudioProvider } from "./context/StudioContext";
 import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
-import { ErrorBoundary, GalleryErrorBoundary, AdminErrorBoundary } from "./components/ErrorBoundary";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 import Home from "./pages/Home";
 import GalleryAccess from "./pages/GalleryAccess";
@@ -27,34 +27,28 @@ import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvide
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 
-
-// Hook per tracciare le visualizzazioni delle pagine
+// Tracciamento pageview con Wouter
 function useAnalytics() {
   const [location] = useLocation();
-
   useEffect(() => {
-    // Traccia il cambio di pagina
     trackPageView(location);
-
   }, [location]);
-
   return null;
 }
 
-// Router personalizzato con basePath
-function Router() {
-  // Utilizza il hook per tracciare le navigazioni
+// Solo definizione di rotte (il <Router base=...> è in main.tsx)
+function AppRoutes() {
   useAnalytics();
-
-
-
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
+
+      {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
       <Route path="/gallery/:id" component={GalleryAccess} />
       <Route path="/view/:id" component={Gallery} />
+
       <Route path="/admin" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
@@ -63,24 +57,13 @@ function Router() {
       <Route path="/password-result/:id" component={PasswordResult} />
       <Route path="/security-test" component={SecurityTestPage} />
       <Route path="/profile" component={UserProfile} />
+
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function App() {
-  // URL validation and normalization
-  useEffect(() => {
-    const { origin, pathname, search } = window.location;
-
-    // Handle double slashes in pathname
-    if (/\/\/+/.test(pathname)) {
-      const correctedPath = pathname.replace(/\/\/+/g, '/');
-      const correctedUrl = `${origin}${correctedPath}${search}`;
-      window.history.replaceState(null, '', correctedUrl);
-    }
-  }, []);
-
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -89,13 +72,9 @@ function App() {
             <FirebaseAuthProvider>
               <StudioProvider>
                 <Toaster />
-                <Router />
-
-                {/* Profile Image Welcome Modal */}
+                <AppRoutes />
                 <ProfileImageWelcomeProvider />
-
-                {/* Debug components - solo in sviluppo */}
-                {import.meta.env.MODE === 'development' && (
+                {import.meta.env.MODE === "development" && (
                   <>
                     <PathDebugInfo />
                     <AuthDebugPanel />
