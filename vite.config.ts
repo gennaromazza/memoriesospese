@@ -5,6 +5,15 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig(async ({ mode }) => {
+  // Risoluzione dell'errore: aggiunta della configurazione per migliorare l'analisi dell'errore di runtime
+  if (mode !== 'production' && process.env.REPL_ID !== undefined) {
+    try {
+      const { cartographer } = await import('@replit/vite-plugin-cartographer');
+      plugins.push(cartographer());
+    } catch (error) {
+      console.error('Errore nel caricamento del plugin cartographer:', error);
+    }
+  }
   // Carica le variabili d'ambiente per la modalità corrente
   const env = loadEnv(mode, process.cwd(), '');
   
