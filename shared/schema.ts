@@ -163,3 +163,180 @@ export interface InteractionStats {
   commentsCount: number;
   hasUserLiked: boolean;
 }
+
+// ====== QUESTIONARIO SYSTEM TYPES ======
+
+// Role type for bride/groom
+export type Role = "bride" | "groom";
+
+// Question key type (fixed q1-q10)
+export type QuestionKey = `q${1|2|3|4|5|6|7|8|9|10}`;
+
+// FAQ Set interface
+export interface FaqSet {
+  id: string;
+  title: string;
+  active: boolean;
+  version: number;
+  questions: Array<{
+    key: QuestionKey;
+    text: string;
+    type: "text" | "textarea";
+  }>;
+  createdAt: number; // Unix timestamp
+  updatedAt: number;
+  createdBy?: string; // admin email
+  updatedBy?: string; // admin email
+}
+
+// FAQ Set validation schema
+export const insertFaqSetSchema = z.object({
+  title: z.string().min(3, "Il titolo deve contenere almeno 3 caratteri"),
+  questions: z.array(z.object({
+    key: z.string().regex(/^q[1-9]|q10$/, "Chiave domanda non valida"),
+    text: z.string().min(1, "Il testo della domanda è obbligatorio").max(200, "Massimo 200 caratteri"),
+    type: z.enum(["text", "textarea"]).default("textarea")
+  })).length(10, "Devono essere esattamente 10 domande")
+});
+
+export type InsertFaqSet = z.infer<typeof insertFaqSetSchema>;
+
+// Questionnaire Token (stored separately for security)
+export interface QuestionnaireToken {
+  id: string; // tokenId
+  tokenHash: string; // SHA-256 hash
+  galleryId: string;
+  questionnaireId: string;
+  role: Role;
+  expiresAt: number; // Unix timestamp
+  revoked?: boolean;
+  usedAt?: number; // Unix timestamp when first used
+  createdAt: number;
+}
+
+// Questionnaire main document
+export interface Questionnaire {
+  id: string;
+  galleryId: string;
+  faqSetId: string;
+  faqVersion: number; // version snapshot
+  enabled: boolean;
+  tokens: Record<Role, {
+    tokenId: string;
+    url: string;
+    createdAt: number;
+    expiresAt: number;
+    revoked?: boolean;
+  }>;
+  status: Record<Role, {
+    startedAt?: number;
+    completedAt?: number;
+    progress?: number; // 0-100
+    lastQuestionKey?: QuestionKey;
+  }>;
+  createdAt: number;
+  updatedAt: number;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+// Answer Draft (work in progress)
+export interface AnswerDraft {
+  id: string; // role (bride/groom)
+  galleryId: string;
+  questionnaireId: string;
+  role: Role;
+  answers: Partial<Record<QuestionKey, string>>;
+  version: number; // optimistic locking
+  updatedAt: number;
+  completed?: boolean;
+}
+
+// Final Answers (submitted)
+export interface AnswerSet {
+  id: string; // role (bride/groom)
+  galleryId: string;
+  questionnaireId: string;
+  role: Role;
+  answers: Record<QuestionKey, string>;
+  status: "submitted";
+  completedAt: number;
+  version: number;
+}
+
+// Couple information (extension to Gallery)
+export interface CoupleInfo {
+  brideName: string;
+  groomName: string;
+  weddingDate: string; // ISO date string
+  emailBride?: string;
+  emailGroom?: string;
+}
+
+// Extended Gallery interface with questionnaire fields
+export interface GalleryWithQuestionnaire extends Gallery {
+  couple?: CoupleInfo;
+  questionnaire?: {
+    enabled: boolean;
+    faqVersion: string;
+    questionnaireId?: string;
+  };
+}
+
+// Validation schemas for questionnaire operations
+export const insertQuestionnaireSchema = z.object({
+  galleryId: z.string().min(1, "Gallery ID obbligatorio"),
+  faqSetId: z.string().min(1, "FAQ Set ID obbligatorio"),
+  couple: z.object({
+    brideName: z.string().min(1, "Nome sposa obbligatorio"),
+    groomName: z.string().min(1, "Nome sposo obbligatorio"),
+    weddingDate: z.string().min(1, "Data matrimonio obbligatoria"),
+    emailBride: z.string().email().optional(),
+    emailGroom: z.string().email().optional()
+  })
+});
+
+export type InsertQuestionnaire = z.infer<typeof insertQuestionnaireSchema>;
+
+export const insertAnswerSchema = z.object({
+  questionKey: z.string().regex(/^q[1-9]|q10$/, "Chiave domanda non valida"),
+  answer: z.string().max(1500, "Risposta troppo lunga (max 1500 caratteri)")
+});
+
+export type InsertAnswer = z.infer<typeof insertAnswerSchema>;
+
+// Utility function for token hashing
+export const sha256Hash = async (rawToken: string): Promise<string> => {
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    throw new Error('Web Crypto API not available');
+  }
+  
+  const encoder = new TextEncoder();
+  const data = encoder.encode(rawToken);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+// Generate secure random token
+export const generateSecureToken = (): string => {
+  if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
+    throw new Error('Crypto API not available');
+  }
+  
+  const array = new Uint8Array(32); // 32 bytes = 256 bits
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+// Debounce utility for autosave
+export const debounce = <F extends (...args: any[]) => void>(
+  fn: F, 
+  ms: number
+): ((...args: Parameters<F>) => void) => {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<F>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), ms);
+  };
+};

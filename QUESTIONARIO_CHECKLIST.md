@@ -1,12 +1,12 @@
 # Checklist Implementazione Sistema Questionario Coppie
 
 ## 📋 Fase 1: Struttura Dati e Tipi TypeScript
-- [ ] Definire tipi TypeScript con Role = "bride" | "groom"
-- [ ] Implementare FaqSet con versioning e audit trail
-- [ ] Creare Questionnaire interface con token hash + scadenza
-- [ ] Definire AnswerDraft con versioning ottimistico
-- [ ] Aggiungere utility per hash SHA-256 token
-- [ ] Definire schema collezioni separate (questionnaires/answers/drafts/tokens)
+- [x] Definire tipi TypeScript con Role = "bride" | "groom"
+- [x] Implementare FaqSet con versioning e audit trail
+- [x] Creare Questionnaire interface con token hash + scadenza
+- [x] Definire AnswerDraft con versioning ottimistico
+- [x] Aggiungere utility per hash SHA-256 token
+- [x] Definire schema collezioni separate (questionnaires/answers/drafts/tokens)
 
 ## 📋 Fase 2: Firestore Schema Extensions  
 - [ ] Creare collection `/questionnaireTokens/{tokenId}` separata
