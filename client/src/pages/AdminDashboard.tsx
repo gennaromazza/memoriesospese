@@ -1146,6 +1146,15 @@ export default function AdminDashboard() {
                         ))}
                       </tbody>
                     </table>
+
+                    {/* Controlli di paginazione per le gallerie */}
+                    <PaginationControls
+                      currentPage={currentGalleryPage}
+                      totalPages={totalGalleryPages}
+                      onPageChange={paginateGalleries}
+                      onPrevious={goToPreviousGalleryPage}
+                      onNext={goToNextGalleryPage}
+                    />
                   </div>
                 )}
               </div>
