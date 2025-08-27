@@ -1,7 +1,7 @@
 import { useLocation } from 'wouter';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { createUrl } from '@/lib/basePath';
+import { createUrl, removeBasePath } from '@/lib/basePath';
 
 /**
  * Hook centralizzato per gestire il logout
@@ -32,7 +32,8 @@ export function useLogout() {
       keysToRemove.forEach(key => localStorage.removeItem(key));
       
       // Redirect appropriato basato sul percorso corrente
-      if (window.location.pathname.includes('/admin')) {
+      const currentPath = removeBasePath(window.location.pathname);
+      if (currentPath.includes('/admin')) {
         navigate(createUrl('/admin'));
       } else {
         // Torna alla home dopo logout

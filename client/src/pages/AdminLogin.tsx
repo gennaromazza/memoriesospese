@@ -61,10 +61,8 @@ export default function AdminLogin() {
         // Salva informazione che l'utente è un amministratore
         localStorage.setItem("isAdmin", "true");
         
-        // Usa l'URL assoluto per garantire un reindirizzamento corretto
-        const dashboardUrl = createAbsoluteUrl("/admin/dashboard");
-        
-        navigate(dashboardUrl);
+        // Usa createUrl per garantire il corretto basepath
+        navigate(createUrl("/admin/dashboard"));
       } else {
         throw new Error('Accesso negato: non sei un amministratore');
       }
