@@ -17,15 +17,15 @@
 - [x] Testare principle of least privilege e cross-gallery protection
 
 ## 📋 Fase 3: Componente Faq.tsx (Admin)
-- [ ] Creare component base con layout admin
-- [ ] Implementare CRUD per faqSets collection
-- [ ] Aggiungere form per gestione 10 domande fisse (q1-q10)
-- [ ] Implementare toggle attivazione set domande
-- [ ] Aggiungere validazione e error handling
-- [ ] Testare funzionalità complete
+- [x] Creare component base con layout admin
+- [x] Implementare CRUD per faqSets collection
+- [x] Aggiungere form per gestione 10 domande fisse (q1-q10)
+- [x] Implementare toggle attivazione set domande
+- [x] Aggiungere validazione e error handling
+- [x] Testare funzionalità complete
 
 ## 📋 Fase 4: Routing e Navigazione
-- [ ] Aggiungere route `/admin/faq` in App.tsx
+- [x] Aggiungere route `/admin/faq` in App.tsx
 - [ ] Aggiungere route `/admin/galleries/:galleryId/questionnaire`
 - [ ] Aggiungere route pubblica `/q/:galleryId?token=...&role=bride|groom`
 - [ ] Implementare noindex/nofollow su route pubbliche
