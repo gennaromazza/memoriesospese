@@ -16,8 +16,8 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-SD38R3LJE6"
 };
 
-// Log warning if using fallback values
-if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+// Log warning only in development when using fallback values
+if (!import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.DEV) {
   console.warn('Using fallback Firebase configuration. Set environment variables for production.');
 }
 
