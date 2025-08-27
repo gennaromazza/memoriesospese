@@ -53,9 +53,9 @@ service cloud.firestore {
           (resource.data.userId == request.auth.uid || isAdmin());
       }
       
-      match /voice-memos/{memoId} {
+      match /voiceMemos/{memoId} {
         allow read: if true;
-        allow create: if isSignedIn();
+        allow create: if true; // Allow anonymous voice memo creation
         allow update, delete: if isSignedIn() && 
           (resource.data.userId == request.auth.uid || isAdmin());
       }
@@ -80,10 +80,10 @@ service cloud.firestore {
         (resource.data.userId == request.auth.uid || isAdmin());
     }
     
-    // Voice memos collection
-    match /voice-memos/{memoId} {
+    // Voice memos collection (global)
+    match /voiceMemos/{memoId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if true; // Allow anonymous voice memo creation
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());
