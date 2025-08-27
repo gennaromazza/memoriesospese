@@ -12,18 +12,12 @@ export function useIsAdmin(): boolean {
   const { userProfile, user } = useFirebaseAuth();
   
   const isAdmin = useMemo(() => {
-    // Check multipli con priorità - controlli di fallback robusti
+    // Controllo rigoroso SOLO basato su email dell'utente Firebase autenticato
+    // Non uso localStorage per sicurezza (può essere manipolato)
     const result = (
-      // Check localStorage per compatibilità con vecchio sistema
-      localStorage.getItem('isAdmin') === 'true' ||
-      // Check ruolo nel profilo Firebase
-      userProfile?.role === 'admin' ||
-      // Check email nella lista admin (dal profilo)
-      (userProfile?.email && ADMIN_EMAILS.includes(userProfile.email)) ||
-      // Check email nella lista admin (dall'utente Firebase diretto)
-      (user?.email && ADMIN_EMAILS.includes(user.email)) ||
-      // Check hardcoded admin per sicurezza
+      // Check email dell'utente Firebase autenticato (primario)
       (user?.email === 'gennaro.mazzacane@gmail.com') ||
+      // Check email nel profilo Firebase (backup)
       (userProfile?.email === 'gennaro.mazzacane@gmail.com')
     );
     

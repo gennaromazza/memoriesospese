@@ -426,6 +426,13 @@ export default function AdminDashboard() {
     fetchData();
   };
 
+  // Verifica se l'utente corrente è admin
+  const getCurrentUser = () => auth.currentUser;
+  const isCurrentUserAdmin = () => {
+    const user = getCurrentUser();
+    return user?.email === 'gennaro.mazzacane@gmail.com';
+  };
+
   // Funzione di fetch data da usare anche dopo le modifiche
   const fetchData = async () => {
     setIsLoading(true);
@@ -1066,15 +1073,17 @@ export default function AdminDashboard() {
                                     <Eye className="h-4 w-4 text-green-600" />
                                   </Button>
                                 </Link>
-                                <Button 
-                                  variant="outline" 
-                                  size="icon"
-                                  className="h-8 w-8" 
-                                  onClick={() => openEditModal(gallery)}
-                                  title="Modifica galleria"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
+                                {isCurrentUserAdmin() && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon"
+                                    className="h-8 w-8" 
+                                    onClick={() => openEditModal(gallery)}
+                                    title="Modifica galleria"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
                                 <Button 
                                   variant={gallery.active ? "destructive" : "default"}
                                   size="icon"
