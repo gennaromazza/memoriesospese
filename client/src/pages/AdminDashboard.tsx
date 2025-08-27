@@ -429,7 +429,6 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Carica gallerie SOLO del fotografo corrente
       const user = auth.currentUser;
       if (!user) {
         console.error('Utente non autenticato');
@@ -437,11 +436,24 @@ export default function AdminDashboard() {
         return;
       }
 
-      // Query con filtro per userId del fotografo corrente
-      const galleriesQuery = query(
-        collection(db, "galleries"),
-        where("userId", "==", user.uid)
-      );
+      // Controlla se l'utente è un amministratore
+      const isAdmin = user.email === 'gennaro.mazzacane@gmail.com';
+      
+      let galleriesQuery;
+      if (isAdmin) {
+        // Gli amministratori vedono tutte le gallerie
+        galleriesQuery = query(
+          collection(db, "galleries"),
+          orderBy("createdAt", "desc")
+        );
+      } else {
+        // Query con filtro per userId del fotografo corrente
+        galleriesQuery = query(
+          collection(db, "galleries"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc")
+        );
+      }
       const gallerySnapshot = await getDocs(galleriesQuery);
 
       const galleryList = gallerySnapshot.docs.map(doc => {
