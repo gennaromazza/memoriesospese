@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   // Carica le variabili d'ambiente per la modalità corrente
   const env = loadEnv(mode, process.cwd(), '');
   
@@ -18,6 +18,14 @@ export default defineConfig(({ mode }) => {
     ? basePath.replace(/^\/|\/$/g, '') // Rimuove slash iniziali/finali
     : 'app'; // Fallback generico
   
+  const plugins = [react(), runtimeErrorOverlay()];
+  
+  // Aggiungi cartographer solo in development su Replit
+  if (mode !== "production" && process.env.REPL_ID !== undefined) {
+    const { cartographer } = await import("@replit/vite-plugin-cartographer");
+    plugins.push(cartographer());
+  }
+  
   return {
     // Base path dinamico
     base: basePath,
@@ -28,17 +36,7 @@ export default defineConfig(({ mode }) => {
       allowedHosts: [".spock.replit.dev"],
     },
 
-    plugins: [
-      react(),
-      runtimeErrorOverlay(),
-      ...(mode !== "production" && process.env.REPL_ID !== undefined
-        ? [
-            await import("@replit/vite-plugin-cartographer").then((m) =>
-              m.cartographer(),
-            ),
-          ]
-        : []),
-    ],
+    plugins,
 
     resolve: {
       alias: {
