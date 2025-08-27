@@ -22,7 +22,7 @@ export function createAbsoluteUrl(relativePath: string): string {
   // Dominio di partenza
   const origin = import.meta.env.PROD
     ? import.meta.env.VITE_APP_URL?.replace(/\/+$/, "") ||
-      "https://gennaromazzacane.it"
+      window.location.origin
     : window.location.origin;
 
   // Se l'origin contiene già il basePath, non lo riaggiungiamo
