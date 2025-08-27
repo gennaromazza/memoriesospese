@@ -4,7 +4,7 @@ import ProfileImageWelcome from './ProfileImageWelcome';
 
 export default function ProfileImageWelcomeProvider() {
   let showProfileWelcome = false;
-  let setShowProfileWelcome = () => {};
+  let setShowProfileWelcome = (_: boolean) => {};
 
   try {
     const authContext = useFirebaseAuth();
@@ -12,7 +12,6 @@ export default function ProfileImageWelcomeProvider() {
     setShowProfileWelcome = authContext.setShowProfileWelcome;
   } catch (error) {
     // Context non ancora disponibile, usa valori di default
-    console.log('FirebaseAuth context non ancora disponibile in ProfileImageWelcomeProvider');
     return null;
   }
 

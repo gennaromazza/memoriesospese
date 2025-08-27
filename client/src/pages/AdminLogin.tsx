@@ -49,13 +49,9 @@ export default function AdminLogin() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      console.log('🚀 Tentativo login admin per:', data.email);
-      
       // Utilizziamo direttamente le API di Firebase anziché l'AuthContext
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
-      
-      console.log('✅ Login Firebase riuscito:', user.email);
       
       // Controlla se l'utente è un admin (con controlli multipli)
       const isAdminUser = data.email === 'gennaro.mazzacane@gmail.com' || 
@@ -64,11 +60,9 @@ export default function AdminLogin() {
       if (isAdminUser) {
         // Salva informazione che l'utente è un amministratore
         localStorage.setItem("isAdmin", "true");
-        console.log('✅ Flag admin impostato nel localStorage');
         
         // Usa l'URL assoluto per garantire un reindirizzamento corretto
         const dashboardUrl = createAbsoluteUrl("/admin/dashboard");
-        console.log('🔄 Reindirizzamento a:', dashboardUrl);
         
         navigate(dashboardUrl);
       } else {

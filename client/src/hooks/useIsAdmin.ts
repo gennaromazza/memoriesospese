@@ -12,15 +12,7 @@ export function useIsAdmin(): boolean {
   const { userProfile, user } = useFirebaseAuth();
   
   const isAdmin = useMemo(() => {
-    // Debug logging per capire cosa sta succedendo
-    console.log('🔍 useIsAdmin Debug:', {
-      userProfile,
-      user: user?.email,
-      localStorage: localStorage.getItem('isAdmin'),
-      adminEmails: ADMIN_EMAILS
-    });
-
-    // Check multipli con priorità - aggiungiamo più controlli di fallback
+    // Check multipli con priorità - controlli di fallback robusti
     const result = (
       // Check localStorage per compatibilità con vecchio sistema
       localStorage.getItem('isAdmin') === 'true' ||
@@ -35,7 +27,6 @@ export function useIsAdmin(): boolean {
       (userProfile?.email === 'gennaro.mazzacane@gmail.com')
     );
     
-    console.log('🔑 Admin check result:', result);
     return Boolean(result);
   }, [userProfile, user]);
   

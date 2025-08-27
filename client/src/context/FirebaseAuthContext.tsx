@@ -125,17 +125,6 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     }
   };
 
-  // Debug logging per il context
-  useEffect(() => {
-    if (user) {
-      console.log('🔄 FirebaseAuthContext Update:', {
-        userEmail: user.email,
-        userProfileRole: userProfile?.role,
-        isAdmin: AuthService.isCurrentUserAdmin(),
-        localStorageAdmin: localStorage.getItem('isAdmin')
-      });
-    }
-  }, [user, userProfile]);
 
   const value: FirebaseAuthContextType = {
     user,

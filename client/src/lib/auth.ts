@@ -153,14 +153,6 @@ export class AuthService {
     const isAdminByLocalStorage = localStorage.getItem('isAdmin') === 'true';
     const isMainAdmin = user.email === 'gennaro.mazzacane@gmail.com';
     
-    console.log('🔐 AuthService.isCurrentUserAdmin:', {
-      email: user.email,
-      isAdminByEmail,
-      isAdminByLocalStorage,
-      isMainAdmin,
-      result: isAdminByEmail || isAdminByLocalStorage || isMainAdmin
-    });
-    
     return isAdminByEmail || isAdminByLocalStorage || isMainAdmin;
   }
 
