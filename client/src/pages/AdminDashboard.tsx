@@ -184,7 +184,7 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'subscriptions' | 'slideshow' | 'requests' | 'email' | 'settings'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'settings'>('galleries');
   const [securityGalleryId, setSecurityGalleryId] = useState<string | null>(null);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
   
@@ -241,7 +241,8 @@ export default function AdminDashboard() {
         const parsed = JSON.parse(referrerData);
         setReferrerGallery(parsed);
       } catch (e) {
-        console.error('Errore parsing referrer gallery data:', e);
+        // Rimuovi dati corrotti e continua silenziosamente
+        sessionStorage.removeItem('adminReferrerGallery');
       }
     }
   }, [navigate]);
@@ -431,7 +432,8 @@ export default function AdminDashboard() {
     try {
       const user = auth.currentUser;
       if (!user) {
-        console.error('Utente non autenticato');
+        // Reindirizza al login se non autenticato
+        navigate(createUrl("/admin"));
         setIsLoading(false);
         return;
       }

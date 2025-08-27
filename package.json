@@ -11,8 +11,8 @@
     "build:server:tsc": "tsc --project tsconfig.server.json",
     "preview": "vite preview --port 5000 --host 0.0.0.0",
     "start": "NODE_ENV=production node dist/index.js",
-    "build-deploy": "vite build --base=/wedgallery/",
-    "serve": "vite preview --port 5000 --host 0.0.0.0 --base=/wedgallery/"
+    "build-deploy": "vite build --base=/basepath/",
+    "serve": "vite preview --port 5000 --host 0.0.0.0 --base=/basepath/"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

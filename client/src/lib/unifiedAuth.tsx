@@ -3,9 +3,9 @@
  * tra Firebase Auth e middleware backend
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { logger } from '@shared/logger';
-import { errorHandler } from './errorHandler';
+import React, { useState, useEffect, useCallback } from "react";
+import { logger } from "@shared/logger";
+import { errorHandler } from "./errorHandler";
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -28,7 +28,7 @@ class UnifiedAuthService {
     isAuthenticated: false,
     userEmail: null,
     userName: null,
-    isAdmin: false
+    isAdmin: false,
   };
 
   private authListeners: ((state: AuthState) => void)[] = [];
@@ -39,16 +39,16 @@ class UnifiedAuthService {
 
   private initializeAuth() {
     // Recupera stato da localStorage se disponibile
-    const storedEmail = localStorage.getItem('userEmail');
-    const storedName = localStorage.getItem('userName');
-    const storedAdmin = localStorage.getItem('isAdmin') === 'true';
+    const storedEmail = localStorage.getItem("userEmail");
+    const storedName = localStorage.getItem("userName");
+    const storedAdmin = localStorage.getItem("isAdmin") === "true";
 
     if (storedEmail && storedName) {
       this.authState = {
         isAuthenticated: true,
         userEmail: storedEmail,
         userName: storedName,
-        isAdmin: storedAdmin
+        isAdmin: storedAdmin,
       };
       this.notifyListeners();
     }
@@ -59,10 +59,10 @@ class UnifiedAuthService {
    */
   subscribe(listener: (state: AuthState) => void): () => void {
     this.authListeners.push(listener);
-    
+
     // Notifica immediata dello stato attuale
     listener(this.authState);
-    
+
     // Ritorna funzione di cleanup
     return () => {
       const index = this.authListeners.indexOf(listener);
@@ -73,7 +73,7 @@ class UnifiedAuthService {
   }
 
   private notifyListeners() {
-    this.authListeners.forEach(listener => listener(this.authState));
+    this.authListeners.forEach((listener) => listener(this.authState));
   }
 
   /**
@@ -86,10 +86,10 @@ class UnifiedAuthService {
     error?: string;
   }> {
     try {
-      logger.info('Tentativo di autenticazione unificata', {
-        contextName: 'UnifiedAuth',
+      logger.info("Tentativo di autenticazione unificata", {
+        contextName: "UnifiedAuth",
         userId: credentials.userEmail,
-        galleryId: credentials.galleryId
+        galleryId: credentials.galleryId,
       });
 
       // Aggiorna stato locale
@@ -97,28 +97,27 @@ class UnifiedAuthService {
         isAuthenticated: true,
         userEmail: credentials.userEmail,
         userName: credentials.userName,
-        isAdmin: this.checkIsAdmin(credentials.userEmail)
+        isAdmin: this.checkIsAdmin(credentials.userEmail),
       });
 
       // Salva in localStorage
-      localStorage.setItem('userEmail', credentials.userEmail);
-      localStorage.setItem('userName', credentials.userName);
-      localStorage.setItem('isAdmin', this.authState.isAdmin.toString());
+      localStorage.setItem("userEmail", credentials.userEmail);
+      localStorage.setItem("userName", credentials.userName);
+      localStorage.setItem("isAdmin", this.authState.isAdmin.toString());
 
       if (credentials.galleryId) {
-        localStorage.setItem(`gallery_auth_${credentials.galleryId}`, 'true');
+        localStorage.setItem(`gallery_auth_${credentials.galleryId}`, "true");
       }
 
       return { success: true };
-
     } catch (error) {
       errorHandler.handle(error, {
-        component: 'UnifiedAuth',
-        action: 'authenticate'
+        component: "UnifiedAuth",
+        action: "authenticate",
       });
-      return { 
-        success: false, 
-        error: 'Errore durante l\'autenticazione' 
+      return {
+        success: false,
+        error: "Errore durante l'autenticazione",
       };
     }
   }
@@ -128,20 +127,22 @@ class UnifiedAuthService {
    */
   async logout(): Promise<void> {
     try {
-      logger.info('Effettuazione logout unificato riuscita', {
-        contextName: 'UnifiedAuth',
-        userId: this.authState.userEmail || 'Utente sconosciuto'
+      logger.info("Effettuazione logout unificato riuscita", {
+        contextName: "UnifiedAuth",
+        userId: this.authState.userEmail || "Utente sconosciuto",
       });
 
       // Pulisci localStorage
       const keys = Object.keys(localStorage);
-      keys.forEach(key => {
-        if (key.startsWith('gallery_auth_') || 
-            key.startsWith('user_email_') || 
-            key.startsWith('user_name_') ||
-            key === 'userEmail' ||
-            key === 'userName' ||
-            key === 'isAdmin') {
+      keys.forEach((key) => {
+        if (
+          key.startsWith("gallery_auth_") ||
+          key.startsWith("user_email_") ||
+          key.startsWith("user_name_") ||
+          key === "userEmail" ||
+          key === "userName" ||
+          key === "isAdmin"
+        ) {
           localStorage.removeItem(key);
         }
       });
@@ -151,13 +152,12 @@ class UnifiedAuthService {
         isAuthenticated: false,
         userEmail: null,
         userName: null,
-        isAdmin: false
+        isAdmin: false,
       });
-
     } catch (error) {
       errorHandler.handle(error, {
-        component: 'UnifiedAuth',
-        action: 'logout'
+        component: "UnifiedAuth",
+        action: "logout",
       });
     }
   }
@@ -166,8 +166,10 @@ class UnifiedAuthService {
    * Verifica se l'utente ha accesso alla galleria
    */
   hasGalleryAccess(galleryId: string): boolean {
-    return this.authState.isAuthenticated && 
-           localStorage.getItem(`gallery_auth_${galleryId}`) === 'true';
+    return (
+      this.authState.isAuthenticated &&
+      localStorage.getItem(`gallery_auth_${galleryId}`) === "true"
+    );
   }
 
   /**
@@ -183,7 +185,7 @@ class UnifiedAuthService {
 
     return {
       userEmail: this.authState.userEmail!,
-      userName: this.authState.userName!
+      userName: this.authState.userName!,
     };
   }
 
@@ -198,10 +200,7 @@ class UnifiedAuthService {
    * Verifica se l'utente è admin
    */
   private checkIsAdmin(email: string): boolean {
-    const adminEmails = [
-      'gennaro.mazzacane@gmail.com',
-      'admin@wedgallery.com'
-    ];
+    const adminEmails = ["gennaro.mazzacane@gmail.com"];
     return adminEmails.includes(email.toLowerCase());
   }
 
@@ -220,8 +219,8 @@ class UnifiedAuthService {
       }
 
       // Verifica che i dati siano ancora in localStorage
-      const storedEmail = localStorage.getItem('userEmail');
-      const storedName = localStorage.getItem('userName');
+      const storedEmail = localStorage.getItem("userEmail");
+      const storedName = localStorage.getItem("userName");
 
       if (!storedEmail || !storedName) {
         await this.logout();
@@ -230,9 +229,9 @@ class UnifiedAuthService {
 
       return true;
     } catch (error) {
-      logger.warn('Errore validazione autenticazione', {
-        contextName: 'UnifiedAuth',
-        metadata: { error: error as Error }
+      logger.warn("Errore validazione autenticazione", {
+        contextName: "UnifiedAuth",
+        metadata: { error: error as Error },
       });
       return false;
     }
@@ -252,8 +251,8 @@ class UnifiedAuthService {
       return `token_${Date.now()}`;
     } catch (error) {
       errorHandler.handle(error, {
-        component: 'UnifiedAuth',
-        action: 'refreshToken'
+        component: "UnifiedAuth",
+        action: "refreshToken",
       });
       return null;
     }
@@ -267,7 +266,9 @@ export const unifiedAuth = new UnifiedAuthService();
  * Hook React per utilizzare l'autenticazione unificata
  */
 export function useUnifiedAuth() {
-  const [authState, setAuthState] = useState<AuthState>(unifiedAuth.currentState);
+  const [authState, setAuthState] = useState<AuthState>(
+    unifiedAuth.currentState,
+  );
 
   useEffect(() => {
     const unsubscribe = unifiedAuth.subscribe(setAuthState);
@@ -276,22 +277,19 @@ export function useUnifiedAuth() {
 
   const authenticate = useCallback(
     (credentials: AuthCredentials) => unifiedAuth.authenticate(credentials),
-    []
+    [],
   );
 
-  const logout = useCallback(
-    () => unifiedAuth.logout(),
-    []
-  );
+  const logout = useCallback(() => unifiedAuth.logout(), []);
 
   const hasGalleryAccess = useCallback(
     (galleryId: string) => unifiedAuth.hasGalleryAccess(galleryId),
-    [authState]
+    [authState],
   );
 
   const getApiCredentials = useCallback(
     () => unifiedAuth.getApiCredentials(),
-    [authState]
+    [authState],
   );
 
   return {
@@ -301,7 +299,7 @@ export function useUnifiedAuth() {
     hasGalleryAccess,
     getApiCredentials,
     validateAuth: unifiedAuth.validateCurrentAuth,
-    refreshToken: unifiedAuth.refreshToken
+    refreshToken: unifiedAuth.refreshToken,
   };
 }
 
@@ -313,7 +311,7 @@ export function withAuth<P extends object>(
   options: {
     requireAdmin?: boolean;
     redirectTo?: string;
-  } = {}
+  } = {},
 ) {
   const AuthenticatedComponent = (props: P) => {
     const { isAuthenticated, isAdmin } = useUnifiedAuth();
