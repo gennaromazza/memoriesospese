@@ -10,9 +10,9 @@ async function startServer() {
     console.log(`📁 Base Path: ${process.env.VITE_BASE_PATH || '/'}`)
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`)
     
-    // Use the existing vite.config.ts configuration with environment variables
+    // Use the corrected vite configuration that handles async properly
     const server = await createServer({
-      configFile: 'vite.config.ts', // Use the existing config which reads from .env
+      configFile: 'vite.dev.config.ts', // Use the fixed config with proper async handling
       server: {
         port: 5000,
         host: '0.0.0.0',
