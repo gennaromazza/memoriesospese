@@ -7,8 +7,7 @@ export default defineConfig(
   async ({ mode }: { mode: string }): Promise<UserConfigExport> => {
     const env = loadEnv(mode, process.cwd(), "");
 
-    const basePath =
-      mode === "production" ? env.VITE_BASE_PATH || "/memoriesospese/" : "/";
+    const basePath = env.VITE_BASE_PATH || "/";
 
     const outputSubfolder =
       mode === "production" && basePath !== "/"
