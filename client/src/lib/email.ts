@@ -45,7 +45,10 @@ export const sendWelcomeEmail = httpsCallable(functions, "sendWelcomeEmail");
 export async function sendNewPhotosNotificationHTTP(
   data: EmailNotificationData,
 ) {
-  const functionUrl = `https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendNewPhotosNotification`;
+  // Costruisce URL dinamicamente basato sulla configurazione Firebase
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || "wedding-gallery-397b6";
+  const region = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
+  const functionUrl = `https://${region}-${projectId}.cloudfunctions.net/sendNewPhotosNotification`;
 
   const response = await fetch(functionUrl, {
     method: "POST",
