@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Trash2, Check, X, Eye, Settings, Save, Power, PowerOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Check, X, Eye, Settings, Save, Power, PowerOff, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import { QuestionnaireService } from '@/lib/questionnaire';
 import { initializeDefaultFaqSet } from '@/lib/questionnaireDefaults';
 import { FaqSet, QuestionKey, insertFaqSetSchema } from '@shared/schema';
@@ -255,6 +255,51 @@ export default function Faq() {
     const updated = [...formQuestions];
     updated[index] = { ...updated[index], [field]: value };
     setFormQuestions(updated);
+  };
+
+  const addQuestion = () => {
+    const newIndex = formQuestions.length + 1;
+    const newQuestion: QuestionFormData = {
+      key: `q${newIndex}` as QuestionKey,
+      text: '',
+      type: 'textarea'
+    };
+    setFormQuestions([...formQuestions, newQuestion]);
+  };
+
+  const removeQuestion = (index: number) => {
+    if (formQuestions.length <= 1) {
+      toast({
+        title: "Errore",
+        description: "Deve esserci almeno una domanda nel set",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const updated = formQuestions.filter((_, i) => i !== index);
+    // Rigenera le chiavi per mantenere la sequenza
+    const reindexed = updated.map((q, i) => ({
+      ...q,
+      key: `q${i + 1}` as QuestionKey
+    }));
+    setFormQuestions(reindexed);
+  };
+
+  const moveQuestion = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    if (newIndex < 0 || newIndex >= formQuestions.length) return;
+    
+    const updated = [...formQuestions];
+    [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+    
+    // Rigenera le chiavi per mantenere la sequenza
+    const reindexed = updated.map((q, i) => ({
+      ...q,
+      key: `q${i + 1}` as QuestionKey
+    }));
+    setFormQuestions(reindexed);
   };
 
   const isFormValid = () => {
@@ -504,15 +549,63 @@ export default function Faq() {
 
               {/* Domande */}
               <div>
-                <Label>Domande (10 obbligatorie)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Domande ({formQuestions.length} domande)</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addQuestion}
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Aggiungi Domanda
+                  </Button>
+                </div>
                 <div className="grid gap-4 mt-3">
                   {formQuestions.map((question, index) => (
-                    <Card key={question.key} className="p-4">
+                    <Card key={`${question.key}-${index}`} className="p-4">
                       <div className="flex items-start justify-between mb-3">
-                        <Badge variant="outline">{question.key.toUpperCase()}</Badge>
-                        <Badge variant={question.text.trim() ? "default" : "secondary"}>
-                          {question.text.trim() ? "Completa" : "Vuota"}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{question.key.toUpperCase()}</Badge>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => moveQuestion(index, 'up')}
+                              disabled={index === 0}
+                              className="h-6 w-6 p-0"
+                            >
+                              <ChevronUp className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => moveQuestion(index, 'down')}
+                              disabled={index === formQuestions.length - 1}
+                              className="h-6 w-6 p-0"
+                            >
+                              <ChevronDown className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={question.text.trim() ? "default" : "secondary"}>
+                            {question.text.trim() ? "Completa" : "Vuota"}
+                          </Badge>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeQuestion(index)}
+                            disabled={formQuestions.length <= 1}
+                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
                       <div>
                         <Label htmlFor={`question-${index}`}>Testo della domanda</Label>
@@ -535,7 +628,7 @@ export default function Faq() {
             </CardContent>
             <CardFooter className="flex justify-between">
               <p className="text-sm text-muted-foreground">
-                Tutte le domande devono essere compilate (1-200 caratteri)
+                Minimo 1 domanda richiesta. Ogni domanda: 1-200 caratteri
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleCancelForm}>

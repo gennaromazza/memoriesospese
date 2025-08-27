@@ -1421,7 +1421,11 @@ export default function AdminDashboard() {
                                 <img 
                                   src={studioSettings.logo} 
                                   alt="Logo dello studio" 
-                                  className="h-24 object-contain"
+                                  className="h-24 w-auto object-contain rounded-md"
+                                  onError={(e) => {
+                                    console.error('Logo loading error:', e);
+                                    e.currentTarget.style.display = 'none';
+                                  }}
                                 />
                               </div>
                             ) : null}

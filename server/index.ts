@@ -10,14 +10,24 @@ async function startServer() {
     console.log(`📁 Base Path: ${process.env.VITE_BASE_PATH || '/'}`)
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`)
     
-    // Use the corrected vite configuration that handles async properly
+    // Use standard vite configuration without external config file
     const server = await createServer({
-      configFile: 'vite.dev.config.ts', // Use the fixed config with proper async handling
       server: {
         port: 5000,
         host: '0.0.0.0',
-        strictPort: false, // Allow flexibility for Replit environment
+        strictPort: false,
         open: false,
+      },
+      root: 'client',
+      plugins: [
+        (await import('@vitejs/plugin-react')).default(),
+      ],
+      resolve: {
+        alias: {
+          '@': './src',
+          '@shared': '../shared',
+          '@assets': '../attached_assets',
+        },
       },
     })
 

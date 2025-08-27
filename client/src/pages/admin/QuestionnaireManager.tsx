@@ -362,8 +362,8 @@ export default function QuestionnaireManager() {
     return (
       <div className="container mx-auto p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-blue-gray mb-2">Gestione Questionari Globale</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold mb-2">Gestione Questionari Globale</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Gestisci i set di domande per i questionari. I questionari specifici per galleria possono essere configurati dalle impostazioni della galleria.
           </p>
         </div>
@@ -387,20 +387,24 @@ export default function QuestionnaireManager() {
             ) : (
               <div className="space-y-4">
                 {faqSets.map((set) => (
-                  <div key={set.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <h3 className="font-semibold">{set.name}</h3>
-                      <p className="text-sm text-muted-foreground">{set.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {set.questions.length} domande
+                  <div key={set.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg gap-4">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-sm md:text-base">{set.title}</h3>
+                      <p className="text-xs md:text-sm text-muted-foreground">Versione {set.version}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-xs text-muted-foreground">
+                          {set.questions.length} domande
+                        </p>
                         {set.active && (
-                          <Badge variant="default" className="ml-2">Attivo</Badge>
+                          <Badge variant="default" className="text-xs">Attivo</Badge>
                         )}
-                      </p>
+                      </div>
                     </div>
                     <Button 
                       variant="outline" 
+                      size="sm"
                       onClick={() => setLocation('/admin/faq')}
+                      className="w-full md:w-auto"
                     >
                       Gestisci
                     </Button>
@@ -408,7 +412,7 @@ export default function QuestionnaireManager() {
                 ))}
                 
                 <div className="pt-4 border-t">
-                  <Button onClick={() => setLocation('/admin/faq')}>
+                  <Button onClick={() => setLocation('/admin/faq')} className="w-full md:w-auto">
                     <Settings className="w-4 h-4 mr-2" />
                     Gestisci Tutti i Set
                   </Button>

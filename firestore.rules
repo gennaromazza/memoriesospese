@@ -123,10 +123,13 @@ service cloud.firestore {
     
     // ====== QUESTIONARIO SYSTEM RULES ======
     
-    // FAQ Sets - Admin only
+    // FAQ Sets - Con regole per inizializzazione automatica
     match /faqSets/{faqSetId} {
-      allow read: if isAdmin();
+      allow read: if true; // Lettura pubblica per disponibilità set
       allow write: if isAdmin();
+      allow create: if isAdmin() || 
+        (request.resource.data.createdBy == 'system' && 
+         request.resource.data.title == 'Set Domande Standard v1'); // Solo per set di sistema
     }
     
     // Questionnaire Tokens - Server-side only (no client access)
