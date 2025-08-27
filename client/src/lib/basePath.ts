@@ -7,7 +7,9 @@
 
 /** Restituisce il base path normalizzato */
 function getBasePath(): string {
-  const rawBase = import.meta.env.VITE_BASE_PATH || "/";
+  // In sviluppo usa sempre "/" per far funzionare la preview di Replit
+  // In produzione usa VITE_BASE_PATH (es. /memoriesospese/)
+  const rawBase = import.meta.env.DEV ? "/" : (import.meta.env.VITE_BASE_PATH || "/");
   // Assicura sempre uno slash iniziale e UNO solo finale
   return `/${rawBase.replace(/^\/+|\/+$/g, "")}/`.replace(/\/\/+/g, "/");
 }
