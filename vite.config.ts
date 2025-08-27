@@ -20,11 +20,11 @@ export default defineConfig(async ({ mode }) => {
   
   const plugins = [react(), runtimeErrorOverlay()];
   
-  // Aggiungi cartographer solo in development su Replit
-  if (mode !== "production" && process.env.REPL_ID !== undefined) {
-    const { cartographer } = await import("@replit/vite-plugin-cartographer");
-    plugins.push(cartographer());
-  }
+  // Temporaneamente disabilitato per bug traverse
+  // if (mode !== "production" && process.env.REPL_ID !== undefined) {
+  //   const { cartographer } = await import("@replit/vite-plugin-cartographer");
+  //   plugins.push(cartographer());
+  // }
   
   return {
     // Base path dinamico
