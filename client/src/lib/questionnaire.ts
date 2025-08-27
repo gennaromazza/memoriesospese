@@ -1,0 +1,489 @@
+/**
+ * Firebase Questionnaire Service
+ * Gestisce operazioni CRUD per il sistema questionario coppie
+ */
+
+import { 
+  collection, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  getDocs,
+  serverTimestamp,
+  runTransaction
+} from 'firebase/firestore';
+import { db } from './firebase';
+import { 
+  FaqSet, 
+  Questionnaire, 
+  QuestionnaireToken, 
+  AnswerDraft, 
+  AnswerSet,
+  Role, 
+  QuestionKey,
+  generateSecureToken,
+  sha256Hash
+} from '@shared/schema';
+
+export class QuestionnaireService {
+  
+  // ====== FAQ SETS MANAGEMENT ======
+  
+  /**
+   * Ottieni tutti i set di domande
+   */
+  static async getAllFaqSets(): Promise<FaqSet[]> {
+    try {
+      const faqSetsQuery = query(
+        collection(db, 'faqSets'),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(faqSetsQuery);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FaqSet));
+    } catch (error) {
+      console.error('Errore recupero FAQ sets:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Ottieni set domande attivo
+   */
+  static async getActiveFaqSet(): Promise<FaqSet | null> {
+    try {
+      const activeQuery = query(
+        collection(db, 'faqSets'),
+        where('active', '==', true),
+        limit(1)
+      );
+      const snapshot = await getDocs(activeQuery);
+      return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as FaqSet;
+    } catch (error) {
+      console.error('Errore recupero FAQ set attivo:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Crea nuovo set di domande
+   */
+  static async createFaqSet(faqSet: Omit<FaqSet, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    try {
+      const faqSetRef = doc(collection(db, 'faqSets'));
+      const now = Date.now();
+      
+      await setDoc(faqSetRef, {
+        ...faqSet,
+        createdAt: now,
+        updatedAt: now
+      });
+      
+      return faqSetRef.id;
+    } catch (error) {
+      console.error('Errore creazione FAQ set:', error);
+      throw new Error('Errore durante la creazione del set di domande');
+    }
+  }
+
+  /**
+   * Aggiorna set di domande
+   */
+  static async updateFaqSet(id: string, updates: Partial<FaqSet>): Promise<void> {
+    try {
+      const faqSetRef = doc(db, 'faqSets', id);
+      await updateDoc(faqSetRef, {
+        ...updates,
+        updatedAt: Date.now()
+      });
+    } catch (error) {
+      console.error('Errore aggiornamento FAQ set:', error);
+      throw new Error('Errore durante l\'aggiornamento del set di domande');
+    }
+  }
+
+  /**
+   * Attiva set di domande (disattiva gli altri)
+   */
+  static async activateFaqSet(id: string): Promise<void> {
+    try {
+      await runTransaction(db, async (transaction) => {
+        // Disattiva tutti i set
+        const allSetsQuery = query(collection(db, 'faqSets'));
+        const allSetsSnapshot = await getDocs(allSetsQuery);
+        
+        allSetsSnapshot.docs.forEach(doc => {
+          transaction.update(doc.ref, { active: false, updatedAt: Date.now() });
+        });
+
+        // Attiva il set selezionato
+        const targetSetRef = doc(db, 'faqSets', id);
+        transaction.update(targetSetRef, { active: true, updatedAt: Date.now() });
+      });
+    } catch (error) {
+      console.error('Errore attivazione FAQ set:', error);
+      throw new Error('Errore durante l\'attivazione del set di domande');
+    }
+  }
+
+  /**
+   * Elimina set di domande
+   */
+  static async deleteFaqSet(id: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'faqSets', id));
+    } catch (error) {
+      console.error('Errore eliminazione FAQ set:', error);
+      throw new Error('Errore durante l\'eliminazione del set di domande');
+    }
+  }
+
+  // ====== QUESTIONNAIRE MANAGEMENT ======
+
+  /**
+   * Crea questionario per una galleria
+   */
+  static async createQuestionnaire(
+    galleryId: string, 
+    faqSetId: string, 
+    faqVersion: number,
+    createdBy?: string
+  ): Promise<string> {
+    try {
+      const questionnaireRef = doc(collection(db, 'galleries', galleryId, 'questionnaires'));
+      const now = Date.now();
+      
+      const questionnaire: Omit<Questionnaire, 'id'> = {
+        galleryId,
+        faqSetId,
+        faqVersion,
+        enabled: false,
+        tokens: {
+          bride: { tokenId: '', url: '', createdAt: now, expiresAt: now },
+          groom: { tokenId: '', url: '', createdAt: now, expiresAt: now }
+        },
+        status: {
+          bride: {},
+          groom: {}
+        },
+        createdAt: now,
+        updatedAt: now,
+        createdBy
+      };
+
+      await setDoc(questionnaireRef, questionnaire);
+      return questionnaireRef.id;
+    } catch (error) {
+      console.error('Errore creazione questionario:', error);
+      throw new Error('Errore durante la creazione del questionario');
+    }
+  }
+
+  /**
+   * Ottieni questionario di una galleria
+   */
+  static async getGalleryQuestionnaire(galleryId: string): Promise<Questionnaire | null> {
+    try {
+      const questionnairesQuery = query(
+        collection(db, 'galleries', galleryId, 'questionnaires'),
+        orderBy('createdAt', 'desc'),
+        limit(1)
+      );
+      const snapshot = await getDocs(questionnairesQuery);
+      return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Questionnaire;
+    } catch (error) {
+      console.error('Errore recupero questionario galleria:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Abilita/disabilita questionario
+   */
+  static async toggleQuestionnaire(galleryId: string, questionnaireId: string, enabled: boolean): Promise<void> {
+    try {
+      const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
+      await updateDoc(questionnaireRef, {
+        enabled,
+        updatedAt: Date.now()
+      });
+    } catch (error) {
+      console.error('Errore toggle questionario:', error);
+      throw new Error('Errore durante l\'aggiornamento del questionario');
+    }
+  }
+
+  // ====== TOKEN MANAGEMENT ======
+
+  /**
+   * Genera token sicuro per role specifico
+   */
+  static async generateRoleToken(
+    galleryId: string, 
+    questionnaireId: string, 
+    role: Role
+  ): Promise<{ tokenId: string; url: string }> {
+    try {
+      // Genera token sicuro
+      const rawToken = generateSecureToken();
+      const tokenHash = await sha256Hash(rawToken);
+      const tokenId = generateSecureToken(); // ID separato dal token
+      
+      const now = Date.now();
+      const expiresAt = now + (90 * 24 * 60 * 60 * 1000); // 90 giorni
+
+      // Salva token in collection separata
+      const tokenRef = doc(db, 'questionnaireTokens', tokenId);
+      const tokenDoc: QuestionnaireToken = {
+        id: tokenId,
+        tokenHash,
+        galleryId,
+        questionnaireId,
+        role,
+        expiresAt,
+        createdAt: now
+      };
+      
+      await setDoc(tokenRef, tokenDoc);
+
+      // Genera URL pubblico
+      const baseUrl = window.location.origin;
+      const url = `${baseUrl}/q/${galleryId}?token=${rawToken}&role=${role}`;
+
+      // Aggiorna questionnaire con riferimento token
+      const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
+      await updateDoc(questionnaireRef, {
+        [`tokens.${role}`]: {
+          tokenId,
+          url,
+          createdAt: now,
+          expiresAt
+        },
+        updatedAt: now
+      });
+
+      return { tokenId, url };
+    } catch (error) {
+      console.error('Errore generazione token:', error);
+      throw new Error('Errore durante la generazione del link');
+    }
+  }
+
+  /**
+   * Valida token per accesso questionario
+   */
+  static async validateToken(rawToken: string, galleryId: string, role: Role): Promise<{
+    valid: boolean;
+    questionnaireId?: string;
+    tokenId?: string;
+  }> {
+    try {
+      const tokenHash = await sha256Hash(rawToken);
+      
+      // Cerca token in collection tokens
+      const tokensQuery = query(
+        collection(db, 'questionnaireTokens'),
+        where('tokenHash', '==', tokenHash),
+        where('galleryId', '==', galleryId),
+        where('role', '==', role),
+        limit(1)
+      );
+      
+      const snapshot = await getDocs(tokensQuery);
+      
+      if (snapshot.empty) {
+        return { valid: false };
+      }
+
+      const tokenDoc = snapshot.docs[0].data() as QuestionnaireToken;
+      
+      // Verifica scadenza e revoca
+      const now = Date.now();
+      if (tokenDoc.expiresAt < now || tokenDoc.revoked) {
+        return { valid: false };
+      }
+
+      // Aggiorna usedAt se è il primo utilizzo
+      if (!tokenDoc.usedAt) {
+        await updateDoc(snapshot.docs[0].ref, { usedAt: now });
+      }
+
+      return { 
+        valid: true, 
+        questionnaireId: tokenDoc.questionnaireId,
+        tokenId: tokenDoc.id
+      };
+    } catch (error) {
+      console.error('Errore validazione token:', error);
+      return { valid: false };
+    }
+  }
+
+  /**
+   * Revoca token
+   */
+  static async revokeToken(tokenId: string): Promise<void> {
+    try {
+      const tokenRef = doc(db, 'questionnaireTokens', tokenId);
+      await updateDoc(tokenRef, { 
+        revoked: true,
+        updatedAt: Date.now()
+      });
+    } catch (error) {
+      console.error('Errore revoca token:', error);
+      throw new Error('Errore durante la revoca del token');
+    }
+  }
+
+  // ====== ANSWERS MANAGEMENT ======
+
+  /**
+   * Salva bozza risposta
+   */
+  static async saveDraft(
+    galleryId: string,
+    questionnaireId: string,
+    role: Role,
+    questionKey: QuestionKey,
+    answer: string
+  ): Promise<void> {
+    try {
+      const draftRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'drafts', role);
+      
+      // Carica draft esistente per versioning ottimistico
+      const draftDoc = await getDoc(draftRef);
+      const currentVersion = draftDoc.exists() ? (draftDoc.data()?.version || 0) : 0;
+      
+      const draftData: Partial<AnswerDraft> = {
+        [`answers.${questionKey}`]: answer.trim(),
+        version: currentVersion + 1,
+        updatedAt: Date.now()
+      };
+
+      if (!draftDoc.exists()) {
+        // Crea nuovo draft
+        const newDraft: AnswerDraft = {
+          id: role,
+          galleryId,
+          questionnaireId,
+          role,
+          answers: { [questionKey]: answer.trim() },
+          version: 1,
+          updatedAt: Date.now()
+        };
+        await setDoc(draftRef, newDraft);
+      } else {
+        // Aggiorna draft esistente
+        await updateDoc(draftRef, draftData);
+      }
+    } catch (error) {
+      console.error('Errore salvataggio bozza:', error);
+      throw new Error('Errore durante il salvataggio della bozza');
+    }
+  }
+
+  /**
+   * Ottieni bozza risposte
+   */
+  static async getDraft(galleryId: string, questionnaireId: string, role: Role): Promise<AnswerDraft | null> {
+    try {
+      const draftRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'drafts', role);
+      const draftDoc = await getDoc(draftRef);
+      
+      return draftDoc.exists() ? { id: draftDoc.id, ...draftDoc.data() } as AnswerDraft : null;
+    } catch (error) {
+      console.error('Errore recupero bozza:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Sottometti risposte finali
+   */
+  static async submitAnswers(
+    galleryId: string,
+    questionnaireId: string,
+    role: Role,
+    answers: Record<QuestionKey, string>
+  ): Promise<void> {
+    try {
+      await runTransaction(db, async (transaction) => {
+        const answersRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'answers', role);
+        const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
+        const draftRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'drafts', role);
+        
+        const now = Date.now();
+        
+        // Salva risposte finali
+        const finalAnswers: AnswerSet = {
+          id: role,
+          galleryId,
+          questionnaireId,
+          role,
+          answers,
+          status: 'submitted',
+          completedAt: now,
+          version: 1
+        };
+        
+        transaction.set(answersRef, finalAnswers);
+        
+        // Aggiorna status nel questionario
+        transaction.update(questionnaireRef, {
+          [`status.${role}.completedAt`]: now,
+          [`status.${role}.progress`]: 100,
+          updatedAt: now
+        });
+        
+        // Marca draft come completato
+        transaction.update(draftRef, { 
+          completed: true,
+          updatedAt: now
+        });
+      });
+    } catch (error) {
+      console.error('Errore sottomissione risposte:', error);
+      throw new Error('Errore durante l\'invio delle risposte');
+    }
+  }
+
+  /**
+   * Ottieni risposte finali
+   */
+  static async getAnswers(galleryId: string, questionnaireId: string, role: Role): Promise<AnswerSet | null> {
+    try {
+      const answersRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'answers', role);
+      const answersDoc = await getDoc(answersRef);
+      
+      return answersDoc.exists() ? { id: answersDoc.id, ...answersDoc.data() } as AnswerSet : null;
+    } catch (error) {
+      console.error('Errore recupero risposte:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Ottieni tutte le risposte di un questionario (bride + groom)
+   */
+  static async getAllAnswers(galleryId: string, questionnaireId: string): Promise<{
+    bride: AnswerSet | null;
+    groom: AnswerSet | null;
+  }> {
+    try {
+      const [brideAnswers, groomAnswers] = await Promise.all([
+        this.getAnswers(galleryId, questionnaireId, 'bride'),
+        this.getAnswers(galleryId, questionnaireId, 'groom')
+      ]);
+
+      return { bride: brideAnswers, groom: groomAnswers };
+    } catch (error) {
+      console.error('Errore recupero tutte le risposte:', error);
+      return { bride: null, groom: null };
+    }
+  }
+}

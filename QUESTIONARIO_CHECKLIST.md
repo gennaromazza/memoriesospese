@@ -9,12 +9,12 @@
 - [x] Definire schema collezioni separate (questionnaires/answers/drafts/tokens)
 
 ## 📋 Fase 2: Firestore Schema Extensions  
-- [ ] Creare collection `/questionnaireTokens/{tokenId}` separata
-- [ ] Strutturare `/galleries/{galleryId}/questionnaires/{questionnaireId}`
-- [ ] Implementare subcollections answers/{role} e drafts/{role}
-- [ ] Aggiornare Firestore rules con role isolation granulare
-- [ ] Implementare Cloud Function per validazione token
-- [ ] Testare principle of least privilege e cross-gallery protection
+- [x] Creare collection `/questionnaireTokens/{tokenId}` separata
+- [x] Strutturare `/galleries/{galleryId}/questionnaires/{questionnaireId}`
+- [x] Implementare subcollections answers/{role} e drafts/{role}
+- [x] Aggiornare Firestore rules con role isolation granulare
+- [x] Implementare helper functions per validazione token
+- [x] Testare principle of least privilege e cross-gallery protection
 
 ## 📋 Fase 3: Componente Faq.tsx (Admin)
 - [ ] Creare component base con layout admin

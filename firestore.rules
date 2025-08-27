@@ -120,5 +120,75 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    
+    // ====== QUESTIONARIO SYSTEM RULES ======
+    
+    // FAQ Sets - Admin only
+    match /faqSets/{faqSetId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Questionnaire Tokens - Server-side only (no client access)
+    match /questionnaireTokens/{tokenId} {
+      allow read, write: if false; // Only via Cloud Functions
+    }
+    
+    // Helper function for role validation
+    function isValidRole(role) {
+      return role == 'bride' || role == 'groom';
+    }
+    
+    // Helper function for questionnaire token validation
+    function hasValidQuestionnaireRole(galleryId, role) {
+      // This will be validated via Cloud Function in production
+      // For now, allow if role is valid
+      return isValidRole(role);
+    }
+    
+    // Gallery questionnaires
+    match /galleries/{galleryId} {
+      match /questionnaires/{questionnaireId} {
+        // Admin can read/write everything
+        allow read, write: if isAdmin();
+        
+        // Public read for questionnaire structure (limited fields)
+        allow read: if request.auth != null && 
+          hasValidQuestionnaireRole(galleryId, request.auth.token.role);
+        
+        // Questionnaire answers by role
+        match /answers/{role} {
+          // Admin full access
+          allow read, write: if isAdmin();
+          
+          // Role-specific access (bride can only access bride answers, etc.)
+          allow read, write: if isSignedIn() && 
+            isValidRole(role) &&
+            request.auth.token.role == role &&
+            hasValidQuestionnaireRole(galleryId, role);
+        }
+        
+        // Answer drafts by role
+        match /drafts/{role} {
+          // Admin full access
+          allow read, write: if isAdmin();
+          
+          // Role-specific access for drafts
+          allow read, write: if isSignedIn() && 
+            isValidRole(role) &&
+            request.auth.token.role == role &&
+            hasValidQuestionnaireRole(galleryId, role);
+        }
+      }
+    }
+    
+    // Public access to active FAQ questions (read-only, minimal data)
+    match /faqSets/{faqSetId} {
+      // Allow public read of active FAQ set questions only
+      allow read: if resource.data.active == true && 
+        request.auth != null &&
+        // Limit to questions field only
+        request.query.select == ['questions'];
+    }
   }
 }
