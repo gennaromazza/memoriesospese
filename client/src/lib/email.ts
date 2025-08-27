@@ -6,6 +6,7 @@
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "./firebase";
 import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
+import { createAbsoluteUrl } from "./basePath";
 
 const functions = getFunctions();
 
@@ -101,8 +102,8 @@ export async function notifyNewPhotos(
       return { success: true, notified: 0 };
     }
 
-    // 2. Crea URL galleria
-    const galleryUrl = `${window.location.origin}/gallery/${galleryId}`;
+    // 2. Crea URL galleria (usando basepath dinamico)  
+    const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
 
     // 3. Invia notifiche tramite Firebase Functions (Brevo già configurato)
     try {

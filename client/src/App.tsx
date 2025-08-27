@@ -70,7 +70,7 @@ function Router() {
 
 function App() {
   // Configure base path dynamically based on environment
-const basePath = import.meta.env.BASE_URL;
+const basePath = import.meta.env.VITE_BASE_PATH || '/';
 
   // URL validation and normalization
   useEffect(() => {
