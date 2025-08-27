@@ -5,12 +5,8 @@
 
 /** Restituisce il base path dall'ambiente con configurazione produzione/sviluppo */
 function getBasePath(): string {
-  // In produzione usa /memoriesospese/, in sviluppo usa root /
-  if (import.meta.env.PROD) {
-    return import.meta.env.VITE_BASE_PATH || "/memoriesospese/";
-  } else {
-    return "/";
-  }
+  // Usa sempre la variabile d'ambiente se presente, altrimenti fallback a "/"
+  return import.meta.env.VITE_BASE_PATH || "/";
 }
 
 /** Crea un URL assoluto completo di dominio e base path */
