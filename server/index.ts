@@ -8,13 +8,13 @@ async function startServer() {
   try {
     console.log('🔥 Starting Firebase-Only SPA...')
     
-    // Use the existing vite.config.ts configuration with strict port
+    // Use the existing vite.config.ts configuration with strict port for Replit
     const server = await createServer({
       configFile: 'vite.config.ts', // Use the existing config
       server: {
         port: 5000,
         host: '0.0.0.0',
-        strictPort: true, // Ensure port 5000 is used
+        strictPort: true, // Replit workflows require port 5000
         open: false,
       },
     })
