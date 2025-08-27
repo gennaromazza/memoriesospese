@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight } from "lucide-react";
+import QuestionnaireManager from "./admin/QuestionnaireManager";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -184,7 +185,7 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'settings'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings'>('galleries');
   const [securityGalleryId, setSecurityGalleryId] = useState<string | null>(null);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
   
@@ -960,6 +961,11 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Sistema Email</span>
                 <span className="sm:hidden">✉️</span>
               </TabsTrigger>
+
+              <TabsTrigger value="questionnaire" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+                <span className="hidden sm:inline">Questionari</span>
+                <span className="sm:hidden">❓</span>
+              </TabsTrigger>
               
               <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
                 <span className="hidden sm:inline">Impostazioni</span>
@@ -1304,7 +1310,18 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            
+            {/* Contenuto Tab Questionari */}
+            <TabsContent value="questionnaire">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Questionari</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Crea e gestisci questionari per sposi con generazione link sicuri e export ChatGPT.
+                  </p>
+                </div>
+                <QuestionnaireManager />
+              </div>
+            </TabsContent>
 
             {/* Contenuto Tab Impostazioni */}
             <TabsContent value="settings">

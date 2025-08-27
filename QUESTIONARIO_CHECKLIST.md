@@ -62,23 +62,23 @@
 - [x] Testare UX completa per bride e groom
 
 ## 📋 Fase 8: ResponseExportButton.tsx (Admin)
-- [ ] Definire template export invariabile (formato standardizzato)
-- [ ] Implementare template: CONTEXT + QUESTIONS + ANSWERS + OUTPUT REQUEST
-- [ ] Formattare per copy/paste diretto in ChatGPT
-- [ ] Modal con textarea read-only + pulsante copia
-- [ ] Testare output con dati reali bride/groom
+- [x] Definire template export invariabile (formato standardizzato)
+- [x] Implementare template: CONTEXT + QUESTIONS + ANSWERS + OUTPUT REQUEST
+- [x] Formattare per copy/paste diretto in ChatGPT
+- [x] Modal con textarea read-only + pulsante copia
+- [x] Testare output con dati reali bride/groom
 
 ## 📋 Fase 9: Integrazione Admin Dashboard
-- [ ] Aggiungere link nel menu admin per `/admin/faq`
-- [ ] Integrare QuestionnaireManager nelle gallery details
-- [ ] Aggiornare GalleryHeader con nuovo pulsante
-- [ ] Testare navigazione completa
+- [x] Aggiungere link nel menu admin per `/admin/faq`
+- [x] Integrare QuestionnaireManager nelle gallery details
+- [x] Aggiornare GalleryHeader con nuovo pulsante
+- [x] Testare navigazione completa
 
 ## 📋 Fase 10: Set Domande Predefinito
-- [ ] Creare script/funzione per inserimento set iniziale
-- [ ] Caricare 10 domande predefinite in faqSets
-- [ ] Impostare primo set come attivo
-- [ ] Verificare caricamento corretto
+- [x] Creare script/funzione per inserimento set iniziale
+- [x] Caricare 10 domande predefinite in faqSets
+- [x] Impostare primo set come attivo
+- [x] Verificare caricamento corretto
 
 ## 📋 Fase 11: Sicurezza Firestore Rules
 - [ ] Aggiornare rules per faqSets (solo admin)
