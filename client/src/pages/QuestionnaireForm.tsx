@@ -1,35 +1,183 @@
 /**
- * Public Questionnaire Form Page
- * Form pubblico per bride/groom con validazione token (placeholder per Fase 7)
+ * Public Questionnaire Form Page - Fase 7 Completa
+ * Form multi-step per bride/groom con validazione token, autosave e navigazione
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useSearch } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Heart, Users } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  AlertCircle, 
+  Heart, 
+  Users, 
+  ChevronLeft, 
+  ChevronRight, 
+  Save, 
+  Send,
+  Clock,
+  CheckCircle,
+  ArrowLeft,
+  Shield,
+  FileText
+} from 'lucide-react';
+import { QuestionnaireService } from '@/lib/questionnaire';
+import { FaqSet, Role, QuestionKey, DraftAnswers } from '@shared/schema';
+import { debounce } from '@shared/schema';
 
 interface QuestionnaireFormParams {
   galleryId: string;
 }
 
+interface FormData {
+  [key: string]: string;
+}
+
+interface QuestionnaireState {
+  currentStep: number;
+  totalSteps: number;
+  answers: FormData;
+  isSubmitted: boolean;
+  hasChanges: boolean;
+  lastSaved: number | null;
+}
+
+const AUTOSAVE_DELAY = 7000; // 7 secondi
+const LOCAL_STORAGE_KEY = 'questionnaire-draft';
+
 export default function QuestionnaireForm() {
   const params = useParams<QuestionnaireFormParams>();
   const search = useSearch();
+  const { toast } = useToast();
+  
+  // Stato base
   const [isLoading, setIsLoading] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Dati questionario
+  const [faqSet, setFaqSet] = useState<FaqSet | null>(null);
+  const [questionnaireId, setQuestionnaireId] = useState<string>('');
+  
+  // Stato form
+  const [formState, setFormState] = useState<QuestionnaireState>({
+    currentStep: 0,
+    totalSteps: 10,
+    answers: {},
+    isSubmitted: false,
+    hasChanges: false,
+    lastSaved: null
+  });
+  
+  // Consensi e privacy
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
 
   // Estrai parametri URL
   const urlParams = new URLSearchParams(search);
   const token = urlParams.get('token');
-  const role = urlParams.get('role') as 'bride' | 'groom' | null;
+  const role = urlParams.get('role') as Role | null;
 
+  // Domanda corrente
+  const currentQuestion = useMemo(() => {
+    if (!faqSet || formState.currentStep >= faqSet.questions.length) return null;
+    return faqSet.questions[formState.currentStep];
+  }, [faqSet, formState.currentStep]);
+
+  // Progress percentage
+  const progressPercentage = useMemo(() => {
+    return Math.round((formState.currentStep / formState.totalSteps) * 100);
+  }, [formState.currentStep, formState.totalSteps]);
+
+  // Debounced autosave
+  const debouncedSave = useCallback(
+    debounce(async (answers: FormData) => {
+      if (!params?.galleryId || !questionnaireId || !role) return;
+      
+      try {
+        setIsSaving(true);
+        
+        // Salva ogni risposta individualmente
+        const savePromises = Object.entries(answers).map(([questionKey, answer]) => 
+          QuestionnaireService.saveDraft(
+            params.galleryId,
+            questionnaireId,
+            role,
+            questionKey as QuestionKey,
+            answer
+          )
+        );
+        
+        await Promise.all(savePromises);
+        
+        // Salva anche in localStorage come backup
+        const localData = {
+          galleryId: params.galleryId,
+          questionnaireId,
+          role,
+          answers,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
+        
+        setFormState(prev => ({ ...prev, lastSaved: Date.now(), hasChanges: false }));
+        
+        toast({
+          title: "Bozza salvata",
+          description: "Le tue risposte sono state salvate automaticamente",
+          variant: "default"
+        });
+      } catch (error) {
+        console.error('Errore autosave:', error);
+        toast({
+          title: "Errore salvataggio",
+          description: "Impossibile salvare le risposte. Riprova.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsSaving(false);
+      }
+    }, AUTOSAVE_DELAY),
+    [params?.galleryId, questionnaireId, role, toast]
+  );
+
+  // Validazione token e caricamento dati
   useEffect(() => {
-    validateTokenAndSetupSession();
+    validateTokenAndLoadData();
   }, [token, role]);
 
-  const validateTokenAndSetupSession = async () => {
+  // Meta tags noindex/nofollow
+  useEffect(() => {
+    const metaRobots = document.createElement('meta');
+    metaRobots.name = 'robots';
+    metaRobots.content = 'noindex, nofollow, noarchive, nosnippet';
+    document.head.appendChild(metaRobots);
+
+    return () => {
+      const existingMeta = document.querySelector('meta[name="robots"]');
+      if (existingMeta) {
+        document.head.removeChild(existingMeta);
+      }
+    };
+  }, []);
+
+  // Autosave quando cambiano le risposte
+  useEffect(() => {
+    if (formState.hasChanges && Object.keys(formState.answers).length > 0) {
+      debouncedSave(formState.answers);
+    }
+  }, [formState.answers, formState.hasChanges, debouncedSave]);
+
+  const validateTokenAndLoadData = async () => {
     if (!token || !role || !params?.galleryId) {
       setIsLoading(false);
       setTokenValid(false);
@@ -39,7 +187,7 @@ export default function QuestionnaireForm() {
     try {
       const { TokenValidationService } = await import('@/lib/tokenValidation');
       
-      // Simula validazione (in produzione userebbe Cloud Functions)
+      // Validazione token
       const validation = await TokenValidationService.validateTokenAndCreateSession(
         token,
         params.galleryId,
@@ -47,17 +195,26 @@ export default function QuestionnaireForm() {
         TokenValidationService.generateBrowserFingerprint()
       );
 
-      setTokenValid(validation.valid);
-      
-      if (validation.valid) {
-        // Cleanup URL params dopo validazione riuscita
-        TokenValidationService.cleanupUrlParams();
-        
-        // Salva sessionId in localStorage per persistenza
-        if (validation.sessionId) {
-          localStorage.setItem('questionnaire-session', validation.sessionId);
-        }
+      if (!validation.valid || !validation.questionnaireId) {
+        setTokenValid(false);
+        setIsLoading(false);
+        return;
       }
+
+      setTokenValid(true);
+      setQuestionnaireId(validation.questionnaireId);
+      
+      // Cleanup URL params
+      TokenValidationService.cleanupUrlParams();
+      
+      // Salva sessionId
+      if (validation.sessionId) {
+        localStorage.setItem('questionnaire-session', validation.sessionId);
+      }
+
+      // Carica set domande e dati esistenti
+      await loadQuestionnaireData(validation.questionnaireId);
+      
     } catch (error) {
       console.error('Errore validazione token:', error);
       setTokenValid(false);
@@ -66,39 +223,218 @@ export default function QuestionnaireForm() {
     }
   };
 
-  // Meta tags per noindex/nofollow
-  useEffect(() => {
-    // Aggiungi meta tag per non indicizzare
-    const metaRobots = document.createElement('meta');
-    metaRobots.name = 'robots';
-    metaRobots.content = 'noindex, nofollow, noarchive, nosnippet';
-    document.head.appendChild(metaRobots);
+  const loadQuestionnaireData = async (qId: string) => {
+    if (!params?.galleryId || !role) return;
 
-    // Cleanup
-    return () => {
-      const existingMeta = document.querySelector('meta[name="robots"]');
-      if (existingMeta) {
-        document.head.removeChild(existingMeta);
+    try {
+      // Carica set domande attivo
+      const activeFaqSet = await QuestionnaireService.getActiveFaqSet();
+      if (!activeFaqSet) {
+        throw new Error('Nessun set di domande attivo trovato');
       }
-    };
-  }, []);
+      
+      setFaqSet(activeFaqSet);
+      setFormState(prev => ({ ...prev, totalSteps: activeFaqSet.questions.length }));
 
+      // Carica bozze esistenti
+      const draft = await QuestionnaireService.getDraft(params.galleryId, qId, role);
+      
+      // Carica da localStorage se disponibile e più recente
+      const localStorageData = loadFromLocalStorage();
+      
+      let initialAnswers: FormData = {};
+      
+      if (localStorageData && localStorageData.timestamp > (draft?.updatedAt || 0)) {
+        initialAnswers = localStorageData.answers;
+        toast({
+          title: "Bozza recuperata",
+          description: "Abbiamo recuperato le tue risposte salvate localmente",
+          variant: "default"
+        });
+      } else if (draft) {
+        initialAnswers = draft.answers;
+        toast({
+          title: "Progressi recuperati",
+          description: "Abbiamo caricato le tue risposte precedenti",
+          variant: "default"
+        });
+      }
+
+      // Verifica se è già stato sottomesso
+      const finalAnswers = await QuestionnaireService.getAnswers(params.galleryId, qId, role);
+      if (finalAnswers) {
+        setFormState(prev => ({
+          ...prev,
+          answers: finalAnswers.answers,
+          isSubmitted: true,
+          currentStep: activeFaqSet.questions.length - 1
+        }));
+        return;
+      }
+
+      // Imposta stato iniziale
+      setFormState(prev => ({
+        ...prev,
+        answers: initialAnswers,
+        currentStep: findLastAnsweredStep(initialAnswers, activeFaqSet.questions),
+        hasChanges: false
+      }));
+
+    } catch (error) {
+      console.error('Errore caricamento dati questionario:', error);
+      toast({
+        title: "Errore caricamento",
+        description: "Impossibile caricare il questionario",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadFromLocalStorage = () => {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!stored) return null;
+      
+      const data = JSON.parse(stored);
+      if (data.galleryId === params?.galleryId && data.role === role) {
+        return data;
+      }
+    } catch (error) {
+      console.error('Errore caricamento localStorage:', error);
+    }
+    return null;
+  };
+
+  const findLastAnsweredStep = (answers: FormData, questions: any[]): number => {
+    for (let i = questions.length - 1; i >= 0; i--) {
+      if (answers[questions[i].key]) {
+        return Math.min(i + 1, questions.length - 1);
+      }
+    }
+    return 0;
+  };
+
+  const handleAnswerChange = (value: string) => {
+    if (!currentQuestion) return;
+
+    setFormState(prev => ({
+      ...prev,
+      answers: {
+        ...prev.answers,
+        [currentQuestion.key]: value
+      },
+      hasChanges: true
+    }));
+  };
+
+  const handlePrevStep = () => {
+    if (formState.currentStep > 0) {
+      setFormState(prev => ({
+        ...prev,
+        currentStep: prev.currentStep - 1
+      }));
+    }
+  };
+
+  const handleNextStep = () => {
+    if (formState.currentStep < formState.totalSteps - 1) {
+      setFormState(prev => ({
+        ...prev,
+        currentStep: prev.currentStep + 1
+      }));
+    }
+  };
+
+  const handleManualSave = async () => {
+    if (!params?.galleryId || !questionnaireId || !role) return;
+
+    try {
+      setIsSaving(true);
+      await debouncedSave(formState.answers);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!params?.galleryId || !questionnaireId || !role || !faqSet) return;
+
+    // Verifica che tutte le domande abbiano risposta
+    const unansweredQuestions = faqSet.questions.filter(q => 
+      !formState.answers[q.key] || formState.answers[q.key].trim() === ''
+    );
+
+    if (unansweredQuestions.length > 0) {
+      toast({
+        title: "Questionario incompleto",
+        description: `Mancano ${unansweredQuestions.length} risposte. Completa tutte le domande prima di inviare.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!privacyConsent) {
+      toast({
+        title: "Consenso richiesto",
+        description: "È necessario accettare l'informativa sulla privacy per procedere",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      
+      await QuestionnaireService.submitAnswers(
+        params.galleryId,
+        questionnaireId,
+        role,
+        formState.answers as Record<QuestionKey, string>
+      );
+
+      setFormState(prev => ({ ...prev, isSubmitted: true }));
+      
+      // Pulisci localStorage
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      
+      toast({
+        title: "Questionario inviato!",
+        description: "Grazie per aver condiviso i vostri ricordi speciali",
+        variant: "default"
+      });
+
+      setSubmitDialogOpen(false);
+      
+    } catch (error) {
+      console.error('Errore invio questionario:', error);
+      toast({
+        title: "Errore invio",
+        description: "Impossibile inviare il questionario. Riprova.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto mb-6"></div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Validazione accesso...
+            Caricamento questionario...
           </h2>
           <p className="text-gray-600">
-            Verifica del token in corso
+            Verifica token e caricamento domande
           </p>
         </div>
       </div>
     );
   }
 
+  // Token invalid state
   if (!tokenValid) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-rose-50">
@@ -133,6 +469,53 @@ export default function QuestionnaireForm() {
     );
   }
 
+  // Submitted state
+  if (formState.isSubmitted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
+        <div className="container mx-auto p-6 max-w-4xl">
+          <div className="text-center py-16">
+            <CheckCircle className="w-20 h-20 text-green-600 mx-auto mb-6" />
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Questionario Completato!
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Grazie per aver condiviso i vostri ricordi speciali
+            </p>
+            
+            <Card className="max-w-2xl mx-auto">
+              <CardContent className="p-8">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-2 text-lg">
+                    <Heart className="w-6 h-6 text-rose-500" />
+                    <span className="font-semibold">
+                      {role === 'bride' ? 'Sposa' : 'Sposo'}
+                    </span>
+                  </div>
+                  
+                  <p className="text-gray-600">
+                    Le tue risposte sono state salvate con successo. 
+                    I tuoi ricordi diventeranno parte di un album personalizzato 
+                    che celebra la vostra storia d'amore.
+                  </p>
+                  
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>Prossimi passi:</strong> Attendi che anche il tuo partner completi 
+                      il questionario. Una volta completate entrambe le parti, 
+                      riceverete l'album personalizzato.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main questionnaire form
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50">
       <div className="container mx-auto p-6 max-w-4xl">
@@ -149,72 +532,191 @@ export default function QuestionnaireForm() {
           </p>
           <div className="flex items-center justify-center gap-4 mt-4">
             <Badge variant="outline" className="text-rose-600 border-rose-200">
-              <Users className="w-3 h-3 mr-1" />
-              {role === 'bride' ? 'Sposa' : 'Sposo'}
+              {role === 'bride' ? '👰 Sposa' : '🤵 Sposo'}
             </Badge>
             <Badge variant="secondary">
-              Galleria: {params?.galleryId}
+              Domanda {formState.currentStep + 1} di {formState.totalSteps}
             </Badge>
           </div>
         </div>
 
-        {/* Contenuto placeholder */}
-        <Card className="border-2 border-rose-100">
-          <CardHeader className="text-center">
-            <CardTitle className="flex items-center justify-center gap-2">
-              <AlertCircle className="w-6 h-6 text-blue-500" />
-              Form in Sviluppo
-            </CardTitle>
-            <CardDescription>
-              Il questionario interattivo sarà disponibile nella Fase 7
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6 text-center">
-              <div className="bg-blue-50 p-6 rounded-lg">
-                <h3 className="text-lg font-semibold text-blue-900 mb-3">
-                  Funzionalità in Arrivo
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span>Form multi-step (10 domande)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span>Autosave automatico</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span>Navigazione Avanti/Indietro</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span>Ripresa da bozza</span>
-                  </div>
+        {/* Progress Bar */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">
+              Progresso questionario
+            </span>
+            <span className="text-sm text-gray-500">
+              {progressPercentage}%
+            </span>
+          </div>
+          <Progress value={progressPercentage} className="h-2" />
+        </div>
+
+        {/* Auto-save indicator */}
+        {(isSaving || formState.lastSaved) && (
+          <div className="flex items-center justify-center gap-2 mb-6 text-sm text-gray-500">
+            {isSaving ? (
+              <>
+                <Clock className="w-4 h-4 animate-spin" />
+                <span>Salvataggio in corso...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <span>
+                  Ultima modifica salvata: {new Date(formState.lastSaved!).toLocaleTimeString('it-IT')}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Question Form */}
+        {currentQuestion && (
+          <Card className="border-2 border-rose-100 mb-8">
+            <CardHeader>
+              <CardTitle className="text-2xl text-center">
+                {currentQuestion.text}
+              </CardTitle>
+              <CardDescription className="text-center">
+                Domanda {formState.currentStep + 1} di {formState.totalSteps}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <Label htmlFor="answer" className="text-base font-medium">
+                  La tua risposta
+                </Label>
+                {currentQuestion.type === 'textarea' ? (
+                  <Textarea
+                    id="answer"
+                    value={formState.answers[currentQuestion.key] || ''}
+                    onChange={(e) => handleAnswerChange(e.target.value)}
+                    placeholder="Condividi qui il tuo ricordo o pensiero..."
+                    className="mt-2 min-h-[120px] text-base"
+                    maxLength={1500}
+                  />
+                ) : (
+                  <Input
+                    id="answer"
+                    value={formState.answers[currentQuestion.key] || ''}
+                    onChange={(e) => handleAnswerChange(e.target.value)}
+                    placeholder="Inserisci la tua risposta..."
+                    className="mt-2 text-base"
+                    maxLength={200}
+                  />
+                )}
+                <div className="flex justify-between mt-2">
+                  <p className="text-sm text-gray-500">
+                    {currentQuestion.type === 'textarea' 
+                      ? 'Massimo 1500 caratteri' 
+                      : 'Massimo 200 caratteri'
+                    }
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {(formState.answers[currentQuestion.key] || '').length} caratteri
+                  </p>
                 </div>
               </div>
 
-              <div className="text-center">
-                <p className="text-gray-600 mb-4">
-                  Parametri attuali ricevuti correttamente:
-                </p>
-                <div className="bg-gray-50 p-4 rounded-lg text-left max-w-md mx-auto">
-                  <div className="space-y-2 text-sm font-mono">
-                    <div><strong>Galleria:</strong> {params?.galleryId}</div>
-                    <div><strong>Ruolo:</strong> {role}</div>
-                    <div><strong>Token:</strong> {token ? `${token.slice(0, 8)}...` : 'N/A'}</div>
-                  </div>
-                </div>
-              </div>
+              {/* Navigation */}
+              <div className="flex items-center justify-between pt-4">
+                <Button
+                  variant="outline"
+                  onClick={handlePrevStep}
+                  disabled={formState.currentStep === 0}
+                  className="flex items-center gap-2"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Precedente
+                </Button>
 
-              <div className="flex gap-2 justify-center">
-                <Badge variant="outline">Fase 7</Badge>
-                <Badge variant="secondary">Token Validato</Badge>
-                <Badge variant="default" className="bg-green-600">
-                  Route Funzionante
-                </Badge>
+                <Button
+                  variant="outline"
+                  onClick={handleManualSave}
+                  disabled={isSaving || !formState.hasChanges}
+                  className="flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'Salvando...' : 'Salva'}
+                </Button>
+
+                {formState.currentStep < formState.totalSteps - 1 ? (
+                  <Button
+                    onClick={handleNextStep}
+                    className="flex items-center gap-2"
+                  >
+                    Avanti
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                ) : (
+                  <AlertDialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
+                        <Send className="w-4 h-4" />
+                        Invia Questionario
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Conferma invio</AlertDialogTitle>
+                        <AlertDialogDescription className="space-y-4">
+                          <p>
+                            Stai per inviare il questionario completo. 
+                            Una volta inviato, non potrai più modificare le risposte.
+                          </p>
+                          
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <h4 className="font-medium text-blue-900 mb-2">
+                              Riepilogo completamento:
+                            </h4>
+                            <ul className="text-sm text-blue-800 space-y-1">
+                              <li>✓ Domande completate: {Object.keys(formState.answers).length}/{formState.totalSteps}</li>
+                              <li>✓ Tutte le risposte sono state verificate</li>
+                              <li>✓ I dati sono stati salvati automaticamente</li>
+                            </ul>
+                          </div>
+
+                          <div className="flex items-start space-x-2">
+                            <Checkbox
+                              id="privacy"
+                              checked={privacyConsent}
+                              onCheckedChange={(checked) => setPrivacyConsent(checked as boolean)}
+                            />
+                            <label htmlFor="privacy" className="text-sm text-gray-700 leading-5">
+                              Accetto che i miei dati vengano utilizzati per la creazione 
+                              dell'album personalizzato e confermo di aver letto l'informativa sulla privacy.
+                            </label>
+                          </div>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annulla</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleSubmit}
+                          disabled={isSubmitting || !privacyConsent}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {isSubmitting ? 'Invio in corso...' : 'Conferma e invia'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Security Notice */}
+        <Card className="border border-gray-200 bg-gray-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Shield className="w-4 h-4" />
+              <span>
+                I tuoi dati sono protetti e utilizzati esclusivamente per la creazione dell'album personalizzato.
+              </span>
             </div>
           </CardContent>
         </Card>

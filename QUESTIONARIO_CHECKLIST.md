@@ -50,16 +50,16 @@
 - [x] Mascheramento errori per sicurezza
 
 ## 📋 Fase 7: QuestionnaireForm.tsx (Pubblico)
-- [ ] Creare component base con validazione token
-- [ ] Implementare lettura parametri URL (galleryId, token, role)
-- [ ] Aggiungere caricamento set domande attivo
-- [ ] Creare form multi-step (1 domanda per step)
-- [ ] Implementare navigazione Avanti/Indietro
-- [ ] Aggiungere autosave con debounce 5-10s + localStorage mirror
-- [ ] Implementare ripresa progressi da draft
-- [ ] Aggiungere controlli privacy e consenso
-- [ ] Implementare submit finale con validazioni
-- [ ] Testare UX completa per bride e groom
+- [x] Creare component base con validazione token
+- [x] Implementare lettura parametri URL (galleryId, token, role)
+- [x] Aggiungere caricamento set domande attivo
+- [x] Creare form multi-step (1 domanda per step)
+- [x] Implementare navigazione Avanti/Indietro
+- [x] Aggiungere autosave con debounce 5-10s + localStorage mirror
+- [x] Implementare ripresa progressi da draft
+- [x] Aggiungere controlli privacy e consenso
+- [x] Implementare submit finale con validazioni
+- [x] Testare UX completa per bride e groom
 
 ## 📋 Fase 8: ResponseExportButton.tsx (Admin)
 - [ ] Definire template export invariabile (formato standardizzato)
