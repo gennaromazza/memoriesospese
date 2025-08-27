@@ -49,15 +49,31 @@ export default function AdminLogin() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
+      console.log('🚀 Tentativo login admin per:', data.email);
+      
       // Utilizziamo direttamente le API di Firebase anziché l'AuthContext
-      await signInWithEmailAndPassword(auth, data.email, data.password);
-      // Salva informazione che l'utente è un amministratore
-      localStorage.setItem("isAdmin", "true");
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
       
-      // Usa l'URL assoluto per garantire un reindirizzamento corretto
-      const dashboardUrl = createAbsoluteUrl("/admin/dashboard");
+      console.log('✅ Login Firebase riuscito:', user.email);
       
-      navigate(dashboardUrl);
+      // Controlla se l'utente è un admin (con controlli multipli)
+      const isAdminUser = data.email === 'gennaro.mazzacane@gmail.com' || 
+                         ['gennaro.mazzacane@gmail.com'].includes(data.email);
+      
+      if (isAdminUser) {
+        // Salva informazione che l'utente è un amministratore
+        localStorage.setItem("isAdmin", "true");
+        console.log('✅ Flag admin impostato nel localStorage');
+        
+        // Usa l'URL assoluto per garantire un reindirizzamento corretto
+        const dashboardUrl = createAbsoluteUrl("/admin/dashboard");
+        console.log('🔄 Reindirizzamento a:', dashboardUrl);
+        
+        navigate(dashboardUrl);
+      } else {
+        throw new Error('Accesso negato: non sei un amministratore');
+      }
     } catch (error: any) {
       
       let errorMessage = "Si è verificato un errore durante l'accesso.";

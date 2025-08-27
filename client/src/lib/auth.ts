@@ -146,7 +146,22 @@ export class AuthService {
    */
   static isCurrentUserAdmin(): boolean {
     const user = auth.currentUser;
-    return user ? this.isAdmin(user.email!) : false;
+    if (!user?.email) return false;
+    
+    // Controllo multiplo per garantire accesso admin
+    const isAdminByEmail = this.isAdmin(user.email);
+    const isAdminByLocalStorage = localStorage.getItem('isAdmin') === 'true';
+    const isMainAdmin = user.email === 'gennaro.mazzacane@gmail.com';
+    
+    console.log('🔐 AuthService.isCurrentUserAdmin:', {
+      email: user.email,
+      isAdminByEmail,
+      isAdminByLocalStorage,
+      isMainAdmin,
+      result: isAdminByEmail || isAdminByLocalStorage || isMainAdmin
+    });
+    
+    return isAdminByEmail || isAdminByLocalStorage || isMainAdmin;
   }
 
   /**
