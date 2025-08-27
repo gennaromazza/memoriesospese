@@ -3,10 +3,14 @@
  * Usa esclusivamente VITE_BASE_PATH per evitare duplicazioni URL
  */
 
-/** Restituisce il base path dall'ambiente (no auto-detection) */
+/** Restituisce il base path dall'ambiente con configurazione produzione/sviluppo */
 function getBasePath(): string {
-  // Usa solo VITE_BASE_PATH, default "/" se non definito
-  return import.meta.env.VITE_BASE_PATH || "/";
+  // In produzione usa /memoriesospese/, in sviluppo usa root /
+  if (import.meta.env.PROD) {
+    return import.meta.env.VITE_BASE_PATH || "/memoriesospese/";
+  } else {
+    return "/";
+  }
 }
 
 /** Crea un URL assoluto completo di dominio e base path */
@@ -45,6 +49,22 @@ export const isInSubdirectory = (): boolean => {
 /** Forza il reset della cache del basePath (per test/debug) */
 export const refreshBasePath = (): void => {
   // cachedBasePath = null; // Variabile non definita, rimossa per evitare errori
+};
+
+/** Rimuove il basepath da un URL per ottenere il path relativo */
+export const removeBasePath = (fullPath: string): string => {
+  const basePath = getBasePath();
+  
+  // Se siamo in root (/) non c'è nulla da rimuovere
+  if (basePath === "/") return fullPath;
+  
+  // Rimuovi il basepath se presente
+  const basePathClean = basePath.replace(/\/+$/, ""); // rimuove slash finali
+  if (fullPath.startsWith(basePathClean)) {
+    return fullPath.substring(basePathClean.length) || "/";
+  }
+  
+  return fullPath;
 };
 
 /** Info di debug utili */

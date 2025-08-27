@@ -7,7 +7,7 @@ import { Expand, Share2 } from 'lucide-react';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { createAbsoluteUrl } from '@/lib/basePath';
+import { createAbsoluteUrl, removeBasePath } from '@/lib/basePath';
 import { 
   Tooltip,
   TooltipContent,
@@ -61,15 +61,13 @@ export default function GalleryHeader({
       relativePath = `/gallery/${galleryId}`;
     } else {
       // Altrimenti condividiamo la pagina corrente, ma convertiamo /view/ in /gallery/
-      relativePath = window.location.pathname;
+      const currentPath = window.location.pathname;
       
-      // Se siamo in produzione, rimuoviamo il prefisso /wedgallery dall'URL
-      if (import.meta.env.PROD) {
-        relativePath = relativePath.replace(import.meta.env.BASE_URL, '');
-      }
+      // Rimuoviamo il basepath per ottenere il path relativo
+      const cleanPath = removeBasePath(currentPath);
       
       // Converti /view/ in /gallery/ per il link di condivisione
-      relativePath = relativePath.replace(/^\/view\//, '/gallery/');
+      relativePath = cleanPath.replace(/^\/view\//, '/gallery/');
     }
     
     // Generiamo l'URL assoluto che includerà automaticamente il base path corretto
