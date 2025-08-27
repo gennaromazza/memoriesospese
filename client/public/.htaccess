@@ -29,3 +29,15 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule . index.html [L]
 </IfModule>
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /memoriesospese/
+
+  # Se il file o la cartella esistono, servili normalmente
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Tutte le altre richieste vanno a index.html
+  RewriteRule . /memoriesospese/index.html [L]
+</IfModule>
