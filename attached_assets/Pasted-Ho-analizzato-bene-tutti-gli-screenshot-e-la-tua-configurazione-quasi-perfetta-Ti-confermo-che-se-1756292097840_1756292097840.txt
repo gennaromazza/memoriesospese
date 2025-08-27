@@ -1,0 +1,67 @@
+Ho analizzato bene tutti gli screenshot e la tua configurazione è quasi perfetta. Ti confermo che sei sulla strada giusta, ma ci sono 3 dettagli da sistemare per evitare problemi di URL e 404.
+
+**1. Configurazione .env.production ✅ (corretta)
+
+Nel tuo file .env.production hai:
+
+VITE_APP_URL=https://gennaromazzacane.it
+VITE_BASE_PATH=/memoriesospese/
+
+
+✔️ Corretto:
+
+VITE_APP_URL punta al dominio principale.
+
+VITE_BASE_PATH punta alla sottocartella, con slash iniziale e finale → ✅ perfetto.
+
+**2. basePath.ts 🔄 (piccola modifica necessaria)
+
+Dallo screenshot, hai già aggiornato bene la funzione createAbsoluteUrl, ma vedo che concateni sempre basePath a origin.
+Questo è ok solo se VITE_APP_URL non contiene già la sottocartella.
+
+Nel tuo caso giusto, perché VITE_APP_URL=https://gennaromazzacane.it e VITE_BASE_PATH=/memoriesospese/.
+Quindi il risultato sarà:
+
+https://gennaromazzacane.it/memoriesospese/gallery/xyz
+
+
+✔️ Corretto ✅
+
+Nota importante:
+Non devi mai mettere /memoriesospese/ anche dentro VITE_APP_URL, altrimenti avresti URL doppi tipo:
+https://gennaromazzacane.it/memoriesospese/memoriesospese/... ❌
+
+**3. package.json ✅ (corretto)
+
+Nello screenshot vedo:
+
+"homepage": "/memoriesospese/",
+
+
+✔️ Questo è giustissimo perché:
+
+Quando fai npm run build, Vite genererà asset relativi a /memoriesospese/.
+
+Evita errori di caricamento JS/CSS.
+
+4. .htaccess nella cartella /memoriesospese/ 🔹 (da aggiungere)
+
+Per far funzionare React Router, metti questo .htaccess dentro la cartella /memoriesospese/:
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /memoriesospese/
+
+  # Se il file o la cartella esistono, servili normalmente
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Tutte le altre richieste vanno a index.html
+  RewriteRule . /memoriesospese/index.html [L]
+</IfModule>
+
+
+Altrimenti, se apri direttamente un URL come:
+https://gennaromazzacane.it/memoriesospese/gallery/xyz
+Apache cercherà un file reale e restituirà 404.
