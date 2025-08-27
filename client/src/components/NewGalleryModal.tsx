@@ -27,7 +27,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast.error('Devi essere autenticato per creare una galleria');
       return;
@@ -67,14 +67,14 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
       });
 
       toast.success('Galleria creata con successo!');
-      
+
       // Reset form
       setName('');
       setDate('');
       setLocation('');
       setDescription('');
       setPassword('');
-      
+
       onGalleryCreated?.();
       onClose();
     } catch (error) {
@@ -96,7 +96,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
               Inserisci i dettagli per creare una nuova galleria di matrimonio
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nome Galleria *</Label>
@@ -108,7 +108,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="date">Data Matrimonio</Label>
               <Input
@@ -118,7 +118,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
                 onChange={(e) => setDate(e.target.value)}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="location">Luogo</Label>
               <Input
@@ -128,7 +128,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
                 placeholder="es. Villa Rossi, Roma"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="description">Descrizione</Label>
               <Textarea
@@ -139,7 +139,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
                 rows={3}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password Accesso</Label>
               <Input
@@ -154,7 +154,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
               </p>
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button
               type="button"

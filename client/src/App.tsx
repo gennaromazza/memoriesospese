@@ -24,9 +24,6 @@ import NotFound from "./pages/not-found";
 import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
-import Landing from "./pages/Landing";
-import PhotographerRegister from "./pages/PhotographerRegister";
-import PhotographerLogin from "./pages/PhotographerLogin";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 
@@ -54,9 +51,6 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/landing" component={Landing} />
-      <Route path="/photographer-register" component={PhotographerRegister} />
-      <Route path="/photographer-login" component={PhotographerLogin} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
       <Route path="/gallery/:id" component={GalleryAccess} />
@@ -101,10 +95,10 @@ const basePath = import.meta.env.BASE_URL;
                 <WouterRouter base={basePath}>
                   <Router />
                 </WouterRouter>
-                
+
                 {/* Profile Image Welcome Modal */}
                 <ProfileImageWelcomeProvider />
-                
+
                 {/* Debug components - solo in sviluppo */}
                 {import.meta.env.MODE === 'development' && (
                   <>

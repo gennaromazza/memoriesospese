@@ -102,7 +102,7 @@ export function WatermarkUpload({ currentWatermarkUrl, onWatermarkChange }: Wate
       <CardHeader>
         <CardTitle>Watermark Personalizzato</CardTitle>
         <CardDescription>
-          Carica un'immagine PNG con sfondo trasparente per migliori risultati
+          Carica un\'immagine PNG con sfondo trasparente per migliori risultati
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

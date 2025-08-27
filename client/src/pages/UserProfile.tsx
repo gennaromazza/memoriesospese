@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { createUrl } from '@/lib/basePath';
@@ -73,10 +72,10 @@ export default function UserProfile() {
         ...prev,
         profileImageUrl: newImageUrl
       }));
-      
+
       // Refresh user profile data in context
       await refreshUserProfile();
-      
+
       console.log('Profile image updated successfully in UI');
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -92,9 +91,9 @@ export default function UserProfile() {
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) return;
-    
+
     if (!profileData.displayName.trim()) {
       toast({
         title: "Nome richiesto",
@@ -105,7 +104,7 @@ export default function UserProfile() {
     }
 
     setIsLoading(true);
-    
+
     try {
       // Update Firebase Auth profile
       await updateProfile(user, {
@@ -140,9 +139,9 @@ export default function UserProfile() {
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user || !user.email) return;
-    
+
     if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
       toast({
         title: "Campi obbligatori",
@@ -171,7 +170,7 @@ export default function UserProfile() {
     }
 
     setIsLoading(true);
-    
+
     try {
       // Re-authenticate user with current password
       const credential = EmailAuthProvider.credential(user.email, passwordData.currentPassword);
@@ -195,7 +194,7 @@ export default function UserProfile() {
     } catch (error: any) {
       console.error('Error updating password:', error);
       let errorMessage = "Impossibile cambiare la password";
-      
+
       if (error.code === 'auth/wrong-password') {
         errorMessage = "Password attuale non corretta";
       } else if (error.code === 'auth/too-many-requests') {
@@ -215,7 +214,7 @@ export default function UserProfile() {
   const handleLogout = async () => {
     try {
       await logout();
-      
+
       // Clear local storage
       const keys = Object.keys(localStorage);
       keys.forEach(key => {
@@ -228,10 +227,10 @@ export default function UserProfile() {
           localStorage.removeItem(key);
         }
       });
-      
+
       // Navigate to home
       navigate(createUrl('/'));
-      
+
       toast({
         title: "Disconnesso",
         description: "Sei stato disconnesso con successo",
@@ -262,7 +261,7 @@ export default function UserProfile() {
   return (
     <div className="min-h-screen bg-off-white">
       <Navigation galleryOwner="Profilo Utente" />
-      
+
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <div className="mx-auto w-20 h-20 bg-gradient-to-r from-sage-600 to-blue-gray-600 rounded-full flex items-center justify-center mb-4">
@@ -482,7 +481,7 @@ export default function UserProfile() {
                   Ospite
                 </Badge>
               </div>
-              
+
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <p className="font-medium text-sm">Membro da</p>

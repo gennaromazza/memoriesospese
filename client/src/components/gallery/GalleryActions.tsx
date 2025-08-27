@@ -19,6 +19,10 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
   const [downloadingZip, setDownloadingZip] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
 
+  // All features now available without restrictions
+  const canDownloadZip = true;
+  const canExportData = true;
+
   if (!isOwner || !user) {
     return null;
   }
@@ -31,9 +35,9 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
         functions,
         'generateGalleryZip'
       );
-      
+
       const result = await generateZip({ galleryId });
-      
+
       // Download the file
       const a = document.createElement('a');
       a.href = result.data.downloadUrl;
@@ -41,7 +45,7 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
+
       toast.success(`ZIP generato con ${result.data.photoCount} foto. Il link scade tra ${Math.floor(result.data.expiresIn / 60)} minuti.`);
     } catch (error: any) {
       console.error('Errore download ZIP:', error);
@@ -59,14 +63,14 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
         functions,
         'exportGalleryAccessCSV'
       );
-      
+
       const result = await exportCsv({ galleryId });
-      
+
       // Decode base64 and download
       const csvContent = atob(result.data.csv);
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      
+
       const a = document.createElement('a');
       a.href = url;
       a.download = result.data.fileName;
@@ -74,7 +78,7 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
       toast.success(`CSV esportato con ${result.data.recordCount} contatti`);
     } catch (error: any) {
       console.error('Errore export CSV:', error);
@@ -92,7 +96,7 @@ export function GalleryActions({ galleryId, galleryName, isOwner }: GalleryActio
             <Info className="h-5 w-5" />
             Azioni Galleria
           </h3>
-          
+
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Download ZIP */}
             <div>

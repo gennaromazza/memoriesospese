@@ -84,7 +84,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               <span className="px-4 py-2 rounded-md text-blue-gray bg-light-mint font-medium">
                 Galleria di <span>{galleryOwner}</span>
               </span>
-              
+
               {/* Pulsante Pannello Admin per amministratori */}
               {isAdmin && (
                 <Button
@@ -109,7 +109,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                   <span className="hidden sm:inline">Pannello Admin</span>
                 </Button>
               )}
-              
+
               {/* Sezione utente con avatar, profilo e logout */}
               {userInfo.isAuthenticated && userInfo.email && (
                 <div className="flex items-center gap-3">
@@ -178,7 +178,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               </Link>
               <a href="#about" className="font-medium text-blue-gray hover:text-dark-sage transition">Come Funziona</a>
               <a href="#contact" className="font-medium text-blue-gray hover:text-dark-sage transition">Contatti</a>
-              
+
               {/* Sezione utente e admin */}
               <div className="hidden md:flex md:items-center md:ml-6 space-x-4">
                 {userInfo.isAuthenticated && userInfo.email ? (
@@ -256,7 +256,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
           </Link>
           <a href="#about" className="block px-3 py-2 text-base font-medium text-blue-gray">Come Funziona</a>
           <a href="#contact" className="block px-3 py-2 text-base font-medium text-blue-gray">Contatti</a>
-          
+
           {/* Sezione utente mobile */}
           {userInfo.isAuthenticated && userInfo.email ? (
             <div className="border-t border-gray-200 pt-4 pb-3">

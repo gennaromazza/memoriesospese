@@ -258,14 +258,7 @@ export default function Home() {
               >
                 {studioSettings.heroButtonText}
               </a>
-              <Link href={createUrl('/landing')}>
-                <Button 
-                  variant="outline" 
-                  className="px-8 py-3 bg-white/90 text-sage-700 border-white/50 hover:bg-white hover:text-sage-800 shadow-md font-medium"
-                >
-                  Sei un Fotografo?
-                </Button>
-              </Link>
+              
             </div>
           </div>
         </div>
