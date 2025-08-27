@@ -3,19 +3,19 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ mode }) => {
   const plugins = [react(), runtimeErrorOverlay()];
   
   // Aggiungi il plugin cartographer solo in development su Replit
-  if (process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined) {
+  if (mode !== "production" && process.env.REPL_ID !== undefined) {
     const { cartographer } = await import("@replit/vite-plugin-cartographer");
     plugins.push(cartographer());
   }
 
   return {
-    // Usa il percorso base dal file .env
-    base: process.env.NODE_ENV === "production" 
-      ? (process.env.VITE_BASE_PATH || "/memoriesospese/")
+    // Usa il percorso base corretto per produzione
+    base: mode === "production" 
+      ? "/memoriesospese/"
       : "/",
 
     server: {
