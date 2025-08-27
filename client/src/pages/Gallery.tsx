@@ -522,7 +522,7 @@ export default function Gallery() {
               {activeTab === 'photographer' && (
                 <div>
                   {/* Discrete registration link for non-authenticated users - only show when not logged in */}
-                  {!isAuthenticated && !userInfo.email && (
+                  {!isAuthenticated && (
                     <div className="mb-6 text-center">
                       <TooltipProvider>
                         <Tooltip>
@@ -671,7 +671,7 @@ export default function Gallery() {
               )}
 
               {/* Registration CTA section - only show when user is not logged in */}
-              {!isAuthenticated && !userInfo.email && (
+              {!isAuthenticated && (
                 <div id="registration-section" className="mt-12 mb-8">
                   <RegistrationCTA
                     galleryId={gallery.id}
