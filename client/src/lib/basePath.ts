@@ -15,8 +15,8 @@ function getBasePath(): string {
 
 /** Crea un URL assoluto completo di dominio e base path */
 export const createAbsoluteUrl = (path: string): string => {
-  const basePath = getBasePath().replace(/\/+$/, ""); // rimuove slash finali
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const basePath = getBasePath();
+  const cleanPath = path.startsWith("/") ? path.slice(1) : path;
   const fullPath = `${basePath}${cleanPath}`;
 
   const origin =
@@ -26,7 +26,7 @@ export const createAbsoluteUrl = (path: string): string => {
 
 /** Crea un URL relativo al base path, utile per routing o link interni */
 export const createUrl = (urlPath: string): string => {
-  const basePath = getBasePath().replace(/\/+$/, "");
+  const basePath = getBasePath();
   const cleanPath = urlPath.startsWith("/") ? urlPath.slice(1) : urlPath;
 
   // Evita duplicazione se il path contiene già il basePath
@@ -34,7 +34,8 @@ export const createUrl = (urlPath: string): string => {
     return `/${cleanPath}`;
   }
 
-  return `${basePath}/${cleanPath}`;
+  // Combina basePath (che già termina con /) e cleanPath (senza / iniziale)
+  return `${basePath}${cleanPath}`;
 };
 
 /** Verifica se siamo in produzione */
