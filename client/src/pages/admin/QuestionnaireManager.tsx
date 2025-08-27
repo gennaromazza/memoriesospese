@@ -77,12 +77,26 @@ export default function QuestionnaireManager() {
   }, [params?.galleryId]);
 
   const loadQuestionnaireData = async () => {
-    if (!params?.galleryId) return;
-
     try {
       setIsLoading(true);
       
-      // Carica dati in parallelo
+      // Modalità globale: carica solo FAQ sets se non c'è galleryId
+      if (!params?.galleryId) {
+        const [faqSetsData, activeFaqSetData] = await Promise.all([
+          QuestionnaireService.getAllFaqSets(),
+          QuestionnaireService.getActiveFaqSet()
+        ]);
+
+        setFaqSets(faqSetsData);
+        setActiveFaqSet(activeFaqSetData);
+        
+        if (activeFaqSetData) {
+          setSelectedFaqSetId(activeFaqSetData.id);
+        }
+        return;
+      }
+
+      // Modalità gallery: carica dati completi
       const [questionnaireData, faqSetsData, activeFaqSetData] = await Promise.all([
         QuestionnaireService.getGalleryQuestionnaire(params.galleryId),
         QuestionnaireService.getAllFaqSets(),
@@ -334,9 +348,75 @@ export default function QuestionnaireManager() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Caricamento questionario...</p>
+            <p className="text-muted-foreground">
+              {params?.galleryId ? 'Caricamento questionario...' : 'Caricamento dati questionari...'}
+            </p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Modalità globale: interfaccia gestione FAQ sets senza gallery specifica
+  if (!params?.galleryId) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-blue-gray mb-2">Gestione Questionari Globale</h1>
+          <p className="text-muted-foreground">
+            Gestisci i set di domande per i questionari. I questionari specifici per galleria possono essere configurati dalle impostazioni della galleria.
+          </p>
+        </div>
+
+        {/* FAQ Sets Management */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Set di Domande Attivi</CardTitle>
+            <CardDescription>
+              Set di domande disponibili per i questionari delle gallerie
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {faqSets.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">Nessun set di domande trovato</p>
+                <Button onClick={() => setLocation('/admin/faq')}>
+                  Gestisci Set di Domande
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {faqSets.map((set) => (
+                  <div key={set.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h3 className="font-semibold">{set.name}</h3>
+                      <p className="text-sm text-muted-foreground">{set.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {set.questions.length} domande
+                        {set.active && (
+                          <Badge variant="default" className="ml-2">Attivo</Badge>
+                        )}
+                      </p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setLocation('/admin/faq')}
+                    >
+                      Gestisci
+                    </Button>
+                  </div>
+                ))}
+                
+                <div className="pt-4 border-t">
+                  <Button onClick={() => setLocation('/admin/faq')}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    Gestisci Tutti i Set
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
