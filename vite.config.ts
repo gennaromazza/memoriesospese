@@ -6,8 +6,8 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
-  const basePath = env.VITE_BASE_PATH || "/";
-
+  // Solo in produzione usa il basePath, in sviluppo sempre "/"
+  const basePath = mode === "production" ? env.VITE_BASE_PATH || "/" : "/";
   const outputSubfolder =
     mode === "production" && basePath !== "/"
       ? basePath.replace(/^\/|\/$/g, "")

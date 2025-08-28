@@ -7,30 +7,32 @@
 
 /** Restituisce il base path normalizzato */
 function getBasePath(): string {
-  // Ora che Vite gestisce il <base href>, usiamo sempre "/" 
+  // Ora che Vite gestisce il <base href>, usiamo sempre "/"
   // per evitare duplicazioni con il tag <base> di Vite
   return "/";
 }
 
 /** Crea un URL assoluto completo (dominio + base path + route) */
 export function createAbsoluteUrl(relativePath: string): string {
-  const basePath = getBasePath();
   const cleanPath = relativePath.startsWith("/")
     ? relativePath.slice(1)
     : relativePath;
 
   // Dominio di partenza
-  const origin = import.meta.env.PROD
-    ? import.meta.env.VITE_APP_URL?.replace(/\/+$/, "") ||
-      window.location.origin
-    : window.location.origin;
+  const origin = window.location.origin;
 
-  // Se l'origin contiene già il basePath, non lo riaggiungiamo
-  if (origin.endsWith(basePath.slice(0, -1))) {
+  // In sviluppo non aggiungere mai base path
+  if (import.meta.env.DEV) {
     return `${origin}/${cleanPath}`.replace(/\/+/g, "/");
   }
 
-  return `${origin}${basePath}${cleanPath}`.replace(/\/+/g, "/");
+  // In produzione usa il base path se configurato
+  const viteBasePath = import.meta.env.VITE_BASE_PATH || "/";
+  const normalizedBasePath = viteBasePath.endsWith("/")
+    ? viteBasePath
+    : `${viteBasePath}/`;
+
+  return `${origin}${normalizedBasePath}${cleanPath}`.replace(/\/+/g, "/");
 }
 
 /** Crea un URL relativo corretto, utile per routing o link interni */
