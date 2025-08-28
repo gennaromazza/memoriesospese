@@ -3,7 +3,7 @@ import { z } from "zod";
 // Security Question Types
 export enum SecurityQuestionType {
   LOCATION = 'location',
-  MONTH = 'month', 
+  MONTH = 'month',
   CUSTOM = 'custom'
 }
 
@@ -335,7 +335,7 @@ export const sha256Hash = async (rawToken: string): Promise<string> => {
   if (typeof crypto === 'undefined' || !crypto.subtle) {
     throw new Error('Web Crypto API not available');
   }
-  
+
   const encoder = new TextEncoder();
   const data = encoder.encode(rawToken);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -348,7 +348,7 @@ export const generateSecureToken = (): string => {
   if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
     throw new Error('Crypto API not available');
   }
-  
+
   const array = new Uint8Array(32); // 32 bytes = 256 bits
   crypto.getRandomValues(array);
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
@@ -356,7 +356,7 @@ export const generateSecureToken = (): string => {
 
 // Debounce utility for autosave
 export const debounce = <F extends (...args: any[]) => void>(
-  fn: F, 
+  fn: F,
   ms: number
 ): ((...args: Parameters<F>) => void) => {
   let timeoutId: ReturnType<typeof setTimeout>;
@@ -364,4 +364,32 @@ export const debounce = <F extends (...args: any[]) => void>(
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn(...args), ms);
   };
+};
+
+// Utility to convert various date formats to JS Date object
+export const toJSDate = (dateInput: any): Date | null => {
+  if (!dateInput) {
+    return null;
+  }
+  if (dateInput instanceof Date) {
+    return dateInput;
+  }
+  if (typeof dateInput === 'number' || (typeof dateInput === 'string' && !isNaN(Number(dateInput)))) {
+    // Assume it's a timestamp (milliseconds or seconds)
+    const timestamp = Number(dateInput);
+    // If it looks like seconds, convert to milliseconds
+    if (timestamp < 10000000000) { // Heuristic: if timestamp is less than ~year 2286 in seconds
+      return new Date(timestamp * 1000);
+    }
+    return new Date(timestamp);
+  }
+  if (typeof dateInput === 'string') {
+    // Attempt to parse ISO 8601 or other common formats
+    const parsedDate = new Date(dateInput);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+  }
+  console.error("Could not parse date:", dateInput);
+  return null;
 };

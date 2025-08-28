@@ -34,6 +34,22 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
 import { Edit3 } from "lucide-react";
+import { PrettyCountdown } from "@/components/PrettyCountdown";
+import {
+  getGallery,
+  getPhotos,
+  getComments,
+  likePhoto,
+  unlikePhoto,
+  hasUserLikedPhoto,
+  addComment,
+  getPhotoInteractions,
+  type Photo,
+  type Comment,
+  type Gallery as GalleryType,
+  getCouple,
+  resolveEventDate,
+} from "@/lib/firebase";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -90,15 +106,27 @@ export default function Gallery() {
 
   // Carica dati galleria usando il custom hook
   const {
-    gallery,
+    gallery: galleryData, // Renamed to galleryData to avoid conflict
     photos,
     guestPhotos,
-    isLoading,
+    isLoading: isLoadingPhotos, // Renamed to isLoadingPhotos
     hasMorePhotos,
     loadingMorePhotos,
     loadMorePhotos,
     refreshPhotos: refreshGalleryPhotosHook
   } = useGalleryData(id || "");
+
+  // Carica dati della coppia se presente
+  const { data: couple } = useQuery({
+    queryKey: ["couple", galleryData?.coupleId],
+    queryFn: () => galleryData?.coupleId ? getCouple(galleryData.coupleId) : null,
+    enabled: !!galleryData?.coupleId,
+  });
+
+  // Calcola la data dell'evento
+  const eventDate = useMemo(() => {
+    return resolveEventDate(couple, galleryData);
+  }, [couple, galleryData]);
 
   // Aggiorna lo stato di caricamento
   useEffect(() => {
@@ -108,10 +136,10 @@ export default function Gallery() {
       ...prev,
       loadedPhotos: totalLoadedPhotos,
       // Se c'è una galleria, usa il suo photoCount, altrimenti usa la lunghezza totale delle foto
-      totalPhotos: gallery?.photoCount || totalLoadedPhotos,
-      progress: gallery?.photoCount ? Math.min(100, Math.round((totalLoadedPhotos / gallery.photoCount) * 100)) : 100
+      totalPhotos: galleryData?.photoCount || totalLoadedPhotos,
+      progress: galleryData?.photoCount ? Math.min(100, Math.round((totalLoadedPhotos / galleryData.photoCount) * 100)) : 100
     }));
-  }, [photos.length, guestPhotos.length, gallery]);
+  }, [photos.length, guestPhotos.length, galleryData]);
 
 
 
@@ -139,7 +167,7 @@ export default function Gallery() {
         window.innerHeight + window.scrollY >= document.body.offsetHeight - 300 &&
         hasMorePhotos &&
         !loadingMorePhotos &&
-        !isLoading
+        !isLoadingPhotos
       ) {
         loadMorePhotos();
       }
@@ -147,7 +175,7 @@ export default function Gallery() {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasMorePhotos, loadingMorePhotos, isLoading, loadMorePhotos]);
+  }, [hasMorePhotos, loadingMorePhotos, isLoadingPhotos, loadMorePhotos]);
 
   // Combina tutte le foto per il lightbox
   const allPhotos = useMemo(() => {
@@ -233,7 +261,7 @@ export default function Gallery() {
     navigate(createUrl("/"));
   };
 
-  if (isLoading) {
+  if (isLoadingPhotos) {
     return (
       <div className="min-h-screen bg-off-white">
         <Navigation galleryOwner="Caricamento..." />
@@ -253,7 +281,7 @@ export default function Gallery() {
     );
   }
 
-  if (!gallery) {
+  if (!galleryData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -274,10 +302,10 @@ export default function Gallery() {
   }
 
   // Mostra sempre l'indicatore di caricamento durante il caricamento iniziale
-  const showProgressIndicator = isLoading || loadingState.progress < 100;
+  const showProgressIndicator = isLoadingPhotos || loadingState.progress < 100;
 
   // Se siamo in stato di caricamento o se il progresso è inferiore a 100, mostra il componente di caricamento
-  if (isLoading || loadingState.progress < 100) {
+  if (isLoadingPhotos || loadingState.progress < 100) {
     return (
       <div className="min-h-screen bg-off-white">
         <GalleryLoadingProgress
@@ -292,22 +320,38 @@ export default function Gallery() {
   return (
     <div className="min-h-screen bg-off-white">
 
-      <Navigation galleryOwner={gallery.name} galleryCode={id} />
+      <Navigation galleryOwner={galleryData.name} galleryCode={id} />
 
       <div>
         {/* Intestazione galleria */}
         <GalleryHeader
-          name={gallery.name}
-          date={gallery.date}
-          location={gallery.location}
-          description={gallery.description}
-          coverImageUrl={gallery.coverImageUrl}
+          name={galleryData.name}
+          date={galleryData.date}
+          location={galleryData.location}
+          description={galleryData.description}
+          coverImageUrl={galleryData.coverImageUrl}
           galleryId={id}
-          galleryCode={gallery.code}
+          galleryCode={galleryData.code}
         />
 
+        {/* Countdown dell'evento */}
+        {eventDate && (
+          <div className="container mx-auto px-4 py-6">
+            <PrettyCountdown
+              targetDate={eventDate}
+              title={`Mancano al grande giorno ${couple?.names ? 'di ' + couple.names : 'dell\'evento'}`}
+              eventLabel={couple?.names ? `di ${couple.names}` : "dell'evento"}
+              variant="banner"
+              afterMode="showDate"
+              compactOnMobile
+              showLabels
+              className="mx-auto max-w-2xl"
+            />
+          </div>
+        )}
+
         {/* Video YouTube se presente */}
-        <YouTubeEmbed videoUrl={gallery.youtubeUrl || ""} />
+        <YouTubeEmbed videoUrl={galleryData.youtubeUrl || ""} />
 
         <main>
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
@@ -451,8 +495,8 @@ export default function Gallery() {
                             <TooltipTrigger asChild>
                               <div className="w-full sm:w-auto">
                                 <GuestUpload
-                                  galleryId={gallery.id}
-                                  galleryName={gallery.name}
+                                  galleryId={galleryData.id}
+                                  galleryName={galleryData.name}
                                   onPhotosUploaded={() => {
                                     handleRefreshPhotos();
                                   }}
@@ -499,8 +543,8 @@ export default function Gallery() {
                       <TooltipTrigger asChild>
                         <div className="w-full sm:w-auto">
                           <VoiceMemoUpload
-                            galleryId={gallery.id}
-                            galleryName={gallery.name}
+                            galleryId={galleryData.id}
+                            galleryName={galleryData.name}
                             userEmail={userInfo.email}
                             userName={userInfo.displayName}
                             onUploadComplete={() => {
@@ -590,7 +634,7 @@ export default function Gallery() {
                               <InteractionPanel
                                 itemId={photo.id}
                                 itemType="photo"
-                                galleryId={gallery.id}
+                                galleryId={galleryData.id}
                                 isAdmin={isAdmin}
                                 variant="default"
                               />
@@ -666,7 +710,7 @@ export default function Gallery() {
 
               {activeTab === 'voice-memos' && (
                 <VoiceMemosList
-                  galleryId={gallery.id}
+                  galleryId={galleryData.id}
                   isAdmin={isAdmin}
                   refreshTrigger={refreshTrigger}
                 />
@@ -676,7 +720,7 @@ export default function Gallery() {
               {!isAuthenticated && (
                 <div id="registration-section" className="mt-12 mb-8">
                   <RegistrationCTA
-                    galleryId={gallery.id}
+                    galleryId={galleryData.id}
                     onAuthComplete={() => {
                       // Auth state will update automatically via context
                     }}
@@ -689,8 +733,8 @@ export default function Gallery() {
               {userInfo.isAuthenticated && userInfo.email && isAdmin && (
                 <div className="mt-8">
                   <GalleryActions
-                    galleryId={gallery.id}
-                    galleryName={gallery.name}
+                    galleryId={galleryData.id}
+                    galleryName={galleryData.name}
                     isOwner={true}
                   />
                 </div>
@@ -699,7 +743,7 @@ export default function Gallery() {
               {/* Social Activity Panel */}
               <div className="mt-12 mb-8">
                 <SocialActivityPanel
-                  galleryId={gallery.id}
+                  galleryId={galleryData.id}
                   className="w-full"
                   onPhotoClick={(photoId) => {
                     // Find photo index in allPhotos array
@@ -735,19 +779,19 @@ export default function Gallery() {
       />
 
       {/* Edit Gallery Modal - Solo per Admin */}
-      {gallery && isAdmin && (
+      {galleryData && isAdmin && (
         <EditGalleryModal
           isOpen={isEditGalleryOpen}
           onClose={() => setIsEditGalleryOpen(false)}
           gallery={{
-            id: gallery.id,
-            name: gallery.name || "",
+            id: galleryData.id,
+            name: galleryData.name || "",
             code: id || "",
-            date: gallery.date || "",
-            location: gallery.location || "",
-            description: gallery.description || "",
-            coverImageUrl: gallery.coverImageUrl || "",
-            youtubeUrl: gallery.youtubeUrl || "",
+            date: galleryData.date || "",
+            location: galleryData.location || "",
+            description: galleryData.description || "",
+            coverImageUrl: galleryData.coverImageUrl || "",
+            youtubeUrl: galleryData.youtubeUrl || "",
             photoCount: photos.length,
             password: "" // Aggiungi password field mancante
           }}

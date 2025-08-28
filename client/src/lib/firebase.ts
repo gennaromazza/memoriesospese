@@ -42,3 +42,38 @@ export { analytics };
 export type FirebaseTimestamp = any;
 
 export default app;
+
+/**
+ * Risolve la data dell'evento con priorità: couple.eventDate > gallery.eventDate
+ */
+export function resolveEventDate(couple?: any, gallery?: any): Date | null {
+  // Priorità a couple.eventDate
+  if (couple?.eventDate) {
+    if (couple.eventDate.toDate && typeof couple.eventDate.toDate === 'function') {
+      return couple.eventDate.toDate();
+    }
+    if (couple.eventDate instanceof Date) {
+      return couple.eventDate;
+    }
+    if (typeof couple.eventDate === 'string') {
+      const parsed = new Date(couple.eventDate);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+  }
+
+  // Fallback a gallery.eventDate
+  if (gallery?.eventDate) {
+    if (gallery.eventDate.toDate && typeof gallery.eventDate.toDate === 'function') {
+      return gallery.eventDate.toDate();
+    }
+    if (gallery.eventDate instanceof Date) {
+      return gallery.eventDate;
+    }
+    if (typeof gallery.eventDate === 'string') {
+      const parsed = new Date(gallery.eventDate);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+  }
+
+  return null;
+}
