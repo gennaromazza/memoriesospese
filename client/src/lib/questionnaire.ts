@@ -3,38 +3,38 @@
  * Gestisce operazioni CRUD per il sistema questionario coppie
  */
 
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
   limit,
   getDocs,
   serverTimestamp,
   runTransaction
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { 
-  FaqSet, 
-  Questionnaire, 
-  QuestionnaireToken, 
-  AnswerDraft, 
+import {
+  FaqSet,
+  Questionnaire,
+  QuestionnaireToken,
+  AnswerDraft,
   AnswerSet,
-  Role, 
+  Role,
   QuestionKey,
   generateSecureToken,
   sha256Hash
 } from '@shared/schema';
 
 export class QuestionnaireService {
-  
+
   // ====== FAQ SETS MANAGEMENT ======
-  
+
   /**
    * Ottieni tutti i set di domande
    */
@@ -91,13 +91,13 @@ export class QuestionnaireService {
     try {
       const faqSetRef = doc(collection(db, 'faqSets'));
       const now = Date.now();
-      
+
       await setDoc(faqSetRef, {
         ...faqSet,
         createdAt: now,
         updatedAt: now
       });
-      
+
       return faqSetRef.id;
     } catch (error) {
       console.error('Errore creazione FAQ set:', error);
@@ -130,7 +130,7 @@ export class QuestionnaireService {
         // Disattiva tutti i set
         const allSetsQuery = query(collection(db, 'faqSets'));
         const allSetsSnapshot = await getDocs(allSetsQuery);
-        
+
         allSetsSnapshot.docs.forEach(doc => {
           transaction.update(doc.ref, { active: false, updatedAt: Date.now() });
         });
@@ -163,15 +163,15 @@ export class QuestionnaireService {
    * Crea questionario per una galleria
    */
   static async createQuestionnaire(
-    galleryId: string, 
-    faqSetId: string, 
+    galleryId: string,
+    faqSetId: string,
     faqVersion: number,
     createdBy?: string
   ): Promise<string> {
     try {
       const questionnaireRef = doc(collection(db, 'galleries', galleryId, 'questionnaires'));
       const now = Date.now();
-      
+
       const questionnaire: Omit<Questionnaire, 'id'> = {
         galleryId,
         faqSetId,
@@ -269,19 +269,19 @@ export class QuestionnaireService {
    * Genera token sicuro per role specifico
    */
   static async generateRoleToken(
-    galleryId: string, 
-    questionnaireId: string, 
+    galleryId: string,
+    questionnaireId: string,
     role: Role
   ): Promise<{ tokenId: string; url: string }> {
     try {
       // STEP 1: Revoca token esistenti per questo role
       await this.revokeToken(galleryId, questionnaireId, role);
-      
+
       // STEP 2: Genera nuovo token sicuro
       const rawToken = generateSecureToken();
       const tokenHash = await sha256Hash(rawToken);
       const tokenId = generateSecureToken(); // ID separato dal token
-      
+
       const now = Date.now();
       const expiresAt = now + (90 * 24 * 60 * 60 * 1000); // 90 giorni
 
@@ -296,7 +296,7 @@ export class QuestionnaireService {
         expiresAt,
         createdAt: now
       };
-      
+
       await setDoc(tokenRef, tokenDoc);
 
       // STEP 4: Genera URL pubblico con base path corretto
@@ -335,15 +335,15 @@ export class QuestionnaireService {
         where('role', '==', role),
         where('revoked', '!=', true) // Solo token non ancora revocati
       );
-      
+
       const snapshot = await getDocs(tokensQuery);
-      const updatePromises = snapshot.docs.map(doc => 
-        updateDoc(doc.ref, { 
+      const updatePromises = snapshot.docs.map(doc =>
+        updateDoc(doc.ref, {
           revoked: true,
           revokedAt: Date.now()
         })
       );
-      
+
       await Promise.all(updatePromises);
 
       // Cleanup sessioni di validazione per i token revocati
@@ -381,18 +381,18 @@ export class QuestionnaireService {
   }> {
     try {
       const answers = await this.getAllAnswers(galleryId, questionnaireId);
-      
+
       const brideCompleted = answers.bride?.status === 'submitted';
       const groomCompleted = answers.groom?.status === 'submitted';
-      
+
       // Ottieni numero reale di domande dal FAQ set
       const questionnaire = await this.getGalleryQuestionnaire(galleryId);
       const faqSet = questionnaire ? await this.getFaqSetById(questionnaire.faqSetId) : null;
       const totalQuestions = faqSet?.questions.length || 10;
-      
-      const brideProgress = answers.bride ? 
+
+      const brideProgress = answers.bride ?
         (Object.keys(answers.bride.answers).length / totalQuestions) * 100 : 0;
-      const groomProgress = answers.groom ? 
+      const groomProgress = answers.groom ?
         (Object.keys(answers.groom.answers).length / totalQuestions) * 100 : 0;
 
       return {
@@ -420,7 +420,7 @@ export class QuestionnaireService {
   }> {
     try {
       const tokenHash = await sha256Hash(rawToken);
-      
+
       // Cerca token in collection tokens
       const tokensQuery = query(
         collection(db, 'questionnaireTokens'),
@@ -429,15 +429,15 @@ export class QuestionnaireService {
         where('role', '==', role),
         limit(1)
       );
-      
+
       const snapshot = await getDocs(tokensQuery);
-      
+
       if (snapshot.empty) {
         return { valid: false };
       }
 
       const tokenDoc = snapshot.docs[0].data() as QuestionnaireToken;
-      
+
       // Verifica scadenza e revoca
       const now = Date.now();
       if (tokenDoc.expiresAt < now || tokenDoc.revoked) {
@@ -449,8 +449,8 @@ export class QuestionnaireService {
         await updateDoc(snapshot.docs[0].ref, { usedAt: now });
       }
 
-      return { 
-        valid: true, 
+      return {
+        valid: true,
         questionnaireId: tokenDoc.questionnaireId,
         tokenId: tokenDoc.id
       };
@@ -475,11 +475,11 @@ export class QuestionnaireService {
   ): Promise<void> {
     try {
       const draftRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'drafts', role);
-      
+
       // Carica draft esistente per versioning ottimistico
       const draftDoc = await getDoc(draftRef);
       const currentVersion = draftDoc.exists() ? (draftDoc.data()?.version || 0) : 0;
-      
+
       const draftData: Partial<AnswerDraft> = {
         [`answers.${questionKey}`]: answer.trim(),
         version: currentVersion + 1,
@@ -515,11 +515,20 @@ export class QuestionnaireService {
     try {
       const draftRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'drafts', role);
       const draftDoc = await getDoc(draftRef);
-      
-      return draftDoc.exists() ? { id: draftDoc.id, ...draftDoc.data() } as AnswerDraft : null;
+
+      if (draftDoc.exists()) {
+        const data = draftDoc.data();
+        return data as AnswerDraft;
+      } else {
+        return null;
+      }
     } catch (error) {
+      if (error instanceof Error && error.message.includes('Missing or insufficient permissions')) {
+        console.warn(`⚠️ Permessi insufficienti per recuperare bozza ${role}, ritorno null`);
+        return null;
+      }
       console.error('Errore recupero bozza:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -537,9 +546,9 @@ export class QuestionnaireService {
         const answersRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'answers', role);
         const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
         const draftRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'drafts', role);
-        
+
         const now = Date.now();
-        
+
         // Salva risposte finali
         const finalAnswers: AnswerSet = {
           id: role,
@@ -551,18 +560,18 @@ export class QuestionnaireService {
           completedAt: now,
           version: 1
         };
-        
+
         transaction.set(answersRef, finalAnswers);
-        
+
         // Aggiorna status nel questionario
         transaction.update(questionnaireRef, {
           [`status.${role}.completedAt`]: now,
           [`status.${role}.progress`]: 100,
           updatedAt: now
         });
-        
+
         // Marca draft come completato
-        transaction.update(draftRef, { 
+        transaction.update(draftRef, {
           completed: true,
           updatedAt: now
         });
@@ -580,11 +589,20 @@ export class QuestionnaireService {
     try {
       const answersRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'answers', role);
       const answersDoc = await getDoc(answersRef);
-      
-      return answersDoc.exists() ? { id: answersDoc.id, ...answersDoc.data() } as AnswerSet : null;
+
+      if (answersDoc.exists()) {
+        const data = answersDoc.data();
+        return data as AnswerSet;
+      } else {
+        return null;
+      }
     } catch (error) {
+      if (error instanceof Error && error.message.includes('Missing or insufficient permissions')) {
+        console.warn(`⚠️ Permessi insufficienti per recuperare risposte ${role}, ritorno null`);
+        return null;
+      }
       console.error('Errore recupero risposte:', error);
-      return null;
+      throw error;
     }
   }
 

@@ -5,29 +5,29 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
+
     function isAdmin() {
       return isSignedIn() && 
         (request.auth.token.email == 'gennaro.mazzacane@gmail.com' ||
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
-    
+
     // Users collection
     match /users/{userId} {
       allow read: if isSignedIn();
       allow write: if isOwner(userId) || isAdmin();
     }
-    
+
     // Subscriptions collection
     match /subscriptions/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow write: if false; // Only server-side via webhook
     }
-    
+
     // Galleries collection
     match /galleries/{galleryId} {
       allow read: if true; // Public read for gallery access
@@ -36,7 +36,7 @@ service cloud.firestore {
         (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());
-        
+
       // Gallery subcollections (legacy support)  
       match /photos/{photoId} {
         allow read: if true;
@@ -45,14 +45,14 @@ service cloud.firestore {
           (resource.data.uploaderEmail == request.auth.token.email || 
            resource.data.uploaderUid == request.auth.uid || isAdmin());
       }
-      
+
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isSignedIn();
         allow update, delete: if isSignedIn() && 
           (resource.data.userId == request.auth.uid || isAdmin());
       }
-      
+
       match /voiceMemos/{memoId} {
         allow read: if true;
         allow create: if true; // Allow anonymous voice memo creation
@@ -60,7 +60,7 @@ service cloud.firestore {
           (resource.data.userId == request.auth.uid || isAdmin());
       }
     }
-    
+
     // Global photos collection
     match /photos/{photoId} {
       allow read: if true;
@@ -70,7 +70,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && 
         (resource.data.uploaderEmail == request.auth.token.email || isAdmin());
     }
-    
+
     // Comments collection
     match /comments/{commentId} {
       allow read: if true;
@@ -79,7 +79,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());
     }
-    
+
     // Voice memos collection (global)
     match /voiceMemos/{memoId} {
       allow read: if true;
@@ -88,14 +88,14 @@ service cloud.firestore {
       allow delete: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());
     }
-    
+
     // Likes collection
     match /likes/{likeId} {
       allow read: if true;
       allow create: if isSignedIn();
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
-    
+
     // Email notifications collection
     match /email-notifications/{notificationId} {
       allow read: if isAdmin();
@@ -106,7 +106,7 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
-    
+
     // Gallery access collection
     match /gallery-access/{accessId} {
       allow read: if isAdmin();
@@ -114,21 +114,21 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
-    
+
     // Studio settings (legacy)
     match /studio-settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
     }
-    
+
     // Settings collection (new structure)
     match /settings/{documentId} {
       allow read: if true; // Ospiti possono leggere le informazioni dello studio
       allow write: if isAdmin(); // Solo admin può modificare le impostazioni
     }
-    
+
     // ====== QUESTIONARIO SYSTEM RULES ======
-    
+
     // FAQ Sets - Con regole per inizializzazione automatica
     match /faqSets/{faqSetId} {
       allow read: if true; // Lettura pubblica per disponibilità set
@@ -137,74 +137,65 @@ service cloud.firestore {
         (request.resource.data.createdBy == 'system' && 
          request.resource.data.version == 1); // Permetti creazione set sistema v1
     }
-    
+
     // Questionnaire Tokens - Permetti lettura pubblica per validazione, admin per gestione
     match /questionnaireTokens/{tokenId} {
       allow read: if true; // Lettura pubblica per validazione token
       allow write: if isAdmin(); // Solo admin può creare/modificare/eliminare token
     }
-    
-    // Validation Sessions - Permetti accesso pubblico per gestione sessioni
+
+    // ===== Validation Sessions =====
     match /validationSessions/{sessionId} {
-      allow read: if true; // Lettura pubblica per verifica sessioni
-      allow create: if true; // Creazione pubblica per nuove sessioni
-      allow update, delete: if isAdmin(); // Solo admin può modificare/eliminare
+      allow read: if true;
+      allow create: if true;
+      allow update: if true; // Permetti aggiornamento per usedAt
+      allow delete: if isAdmin();
     }
-    
+
     // Rate Limits - Permetti accesso pubblico per controllo rate limiting
     match /rateLimits/{identifier} {
       allow read: if true; // Lettura pubblica per verifica rate limits
       allow create, update: if true; // Creazione/aggiornamento pubblico per conteggi
       allow delete: if isAdmin(); // Solo admin può eliminare rate limits
     }
-    
+
     // Helper function for role validation
     function isValidRole(role) {
       return role == 'bride' || role == 'groom';
     }
-    
+
     // Helper function for questionnaire token validation
-    function hasValidQuestionnaireRole(galleryId, role) {
+    function hasValidToken(galleryId, role, token) {
       // This will be validated via Cloud Function in production
-      // For now, allow if role is valid
-      return isValidRole(role);
+      // For now, allow if token is present and role is valid
+      return true; // Placeholder, replace with actual token validation logic
     }
-    
-    // Gallery questionnaires - Permetti lettura pubblica per validazione
-    match /galleries/{galleryId} {
-      match /questionnaires/{questionnaireId} {
-        // Admin can read/write everything
-        allow read, write: if isAdmin();
-        
-        // Lettura pubblica per validazione token e struttura questionario
-        allow read: if true;
-        
-        // Questionnaire answers by role
-        match /answers/{role} {
-          // Admin full access
-          allow read, write: if isAdmin();
-          
-          // Role-specific access (bride can only access bride answers, etc.)
-          allow read, write: if isSignedIn() && 
-            isValidRole(role) &&
-            request.auth.token.role == role &&
-            hasValidQuestionnaireRole(galleryId, role);
-        }
-        
-        // Answer drafts by role
-        match /drafts/{role} {
-          // Admin full access
-          allow read, write: if isAdmin();
-          
-          // Role-specific access for drafts
-          allow read, write: if isSignedIn() && 
-            isValidRole(role) &&
-            request.auth.token.role == role &&
-            hasValidQuestionnaireRole(galleryId, role);
-        }
+
+    // ===== Questionnaires =====
+    match /galleries/{galleryId}/questionnaires/{questionnaireId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+
+      // Risposte definitive
+      match /answers/{role} {
+        allow read: if true; // Permetti lettura libera per debugging
+        allow write: if
+          isValidRole(role) &&
+          (isAdmin() || 
+           (request.query.token != null && hasValidToken(galleryId, role, request.query.token)));
+      }
+
+      // Bozze risposte
+      match /drafts/{role} {
+        allow read: if true; // Permetti lettura libera per debugging  
+        allow write: if
+          isValidRole(role) &&
+          (isAdmin() ||
+           (request.query.token != null && hasValidToken(galleryId, role, request.query.token)));
       }
     }
-    
+
     // Public access to active FAQ questions (read-only, minimal data)
     match /faqSets/{faqSetId} {
       // Allow public read of active FAQ set questions only

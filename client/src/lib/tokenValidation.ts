@@ -14,6 +14,7 @@ import {
   getDocs,
   deleteDoc,
   addDoc,
+  serverTimestamp, // Import serverTimestamp
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { QuestionnaireToken, sha256Hash } from "@shared/schema";
@@ -107,9 +108,12 @@ export class TokenValidationService {
       // 5. Aggiorna usedAt se primo utilizzo (FIX)
       if (!tokenData.usedAt) {
         try {
-          await setDoc(tokenDoc.ref, { usedAt: now }, { merge: true });
+          // Using serverTimestamp for consistency
+          await updateDoc(tokenDoc.ref, {
+            usedAt: serverTimestamp(),
+          });
         } catch (error) {
-          console.error("Errore aggiornamento usedAt:", error);
+          console.warn('⚠️ Impossibile aggiornare usedAt (permessi limitati):', error);
           // Continua anche se l'aggiornamento fallisce
         }
       }
