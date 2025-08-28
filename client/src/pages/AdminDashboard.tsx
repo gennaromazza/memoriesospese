@@ -284,11 +284,18 @@ export default function AdminDashboard() {
         const settingsSnapshot = await getDoc(settingsDoc);
 
         if (settingsSnapshot.exists()) {
-          const settingsData = settingsSnapshot.data() as StudioSettings;
-          setStudioSettings(settingsData);
+          const settingsData = settingsSnapshot.data() as Partial<StudioSettings>;
+          // Merge con i valori di default per garantire che tutti i campi siano presenti
+          setStudioSettings(prev => ({
+            ...prev,
+            ...Object.entries(settingsData).reduce((acc, [key, value]) => ({
+              ...acc,
+              [key]: value ?? prev[key as keyof StudioSettings]
+            }), {})
+          }));
         }
       } catch (error) {
-
+        console.error('Errore nel caricamento delle impostazioni studio:', error);
       } finally {
         setIsSettingsLoading(false);
       }

@@ -115,10 +115,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Studio settings
+    // Studio settings (legacy)
     match /studio-settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+    
+    // Settings collection (new structure)
+    match /settings/{documentId} {
+      allow read: if true; // Ospiti possono leggere le informazioni dello studio
+      allow write: if isAdmin(); // Solo admin può modificare le impostazioni
     }
     
     // ====== QUESTIONARIO SYSTEM RULES ======

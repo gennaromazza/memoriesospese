@@ -84,14 +84,11 @@ export function StudioProvider({ children }: StudioProviderProps) {
         
         if (settingsSnapshot.exists()) {
           const settingsData = settingsSnapshot.data() as Partial<StudioSettings>;
-          setStudioSettings(prev => ({
+          // Merge diretto dei dati di Firebase con i default
+          setStudioSettings({
             ...defaultSettings,
-            ...prev,
-            ...Object.entries(settingsData).reduce((acc, [key, value]) => ({
-              ...acc,
-              [key]: value ?? defaultSettings[key as keyof StudioSettings]
-            }), {})
-          }));
+            ...settingsData
+          });
         }
       } catch (err) {
         
