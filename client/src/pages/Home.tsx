@@ -258,7 +258,7 @@ export default function Home() {
               >
                 {studioSettings.heroButtonText}
               </a>
-              
+
             </div>
           </div>
         </div>
@@ -297,11 +297,11 @@ export default function Home() {
 
             <div className="px-8 pt-12 pb-8">
               <h2 className="text-center text-2xl font-bold text-blue-gray font-playfair mb-3">
-                Accedi alle Foto del Matrimonio
-              </h2>
-              <p className="text-center text-gray-600 mb-8 italic">
-                Inserisci il nome degli sposi che hai celebrato
-              </p>
+              Accedi alle Foto dell'Evento
+            </h2>
+            <p className="text-center text-gray-600 mb-8 italic">
+              Inserisci i nomi dei protagonisti dell'evento
+            </p>
 
               <div className="space-y-6">
                 <div className="mt-1 bg-off-white p-4 rounded-lg shadow-inner">
@@ -318,7 +318,7 @@ export default function Home() {
 
                 <div className="text-center">
                   <p className="text-sm text-gray-600 mb-4 font-medium">
-                    Gli sposi non ti hanno ancora inviato la password?
+                    I protagonisti non ti hanno ancora inviato la password?
                   </p>
                   <a
                     href="#request-password"
@@ -358,7 +358,7 @@ export default function Home() {
               Richiedi il Tuo Invito Digitale
             </h2>
             <p className="text-center text-gray-600 mb-8">
-              Gli sposi ti invieranno la password per accedere ai ricordi del
+              I protagonisti ti invieranno la password per accedere ai ricordi del
               loro giorno speciale
             </p>
 
@@ -392,7 +392,7 @@ export default function Home() {
                     htmlFor="gallerySearch"
                     className="block text-sm font-medium text-blue-gray"
                   >
-                    Nome Galleria/Sposi
+                    Nome Galleria/Protagonisti
                   </label>
                   <div className="mt-1">
                     <input
@@ -406,7 +406,7 @@ export default function Home() {
                       autoComplete="off"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Inserisci il nome degli sposi o della galleria
+                      Inserisci i nomi dei protagonisti o della galleria
                     </p>
                   </div>
 
@@ -493,7 +493,7 @@ export default function Home() {
                     htmlFor="relation"
                     className="block text-sm font-medium text-blue-gray"
                   >
-                    Relazione con gli sposi
+                    Relazione con i protagonisti
                   </label>
                   <div className="mt-1">
                     <select
@@ -768,7 +768,7 @@ export default function Home() {
                         viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
-                        <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+                        <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
                       </svg>
                     </a>
                   )}
@@ -843,7 +843,7 @@ export default function Home() {
                     Accesso riservato agli invitati
                   </h3>
                   <p className="mt-2 text-base text-gray-500">
-                    Solo gli ospiti del matrimonio hanno accesso alle gallerie,
+                    Solo gli ospiti dell'evento hanno accesso alle gallerie,
                     mantenendo i ricordi privati e speciali.
                   </p>
                 </div>
@@ -863,7 +863,7 @@ export default function Home() {
                     Ricordi in alta qualità
                   </h3>
                   <p className="mt-2 text-base text-gray-500">
-                    Rivivi ogni emozione del matrimonio con immagini
+                    Rivivi ogni emozione dell'evento con immagini
                     professionali che catturano l'essenza di ogni momento.
                   </p>
                 </div>
@@ -884,7 +884,7 @@ export default function Home() {
                   </h3>
                   <p className="mt-2 text-base text-gray-500">
                     Condividi facilmente l'indirizzo della galleria con altri
-                    ospiti del matrimonio o richiedi la password agli sposi.
+                    invitati dell'evento o richiedi la password ai protagonisti.
                   </p>
                 </div>
               </div>
@@ -907,7 +907,7 @@ export default function Home() {
             </h2>
             <p className="mt-3 text-lg text-gray-600 max-w-2xl mx-auto">
               Hai domande o desideri maggiori informazioni sui nostri servizi
-              fotografici per matrimoni? Contattaci su WhatsApp!
+              fotografici per eventi? Contattaci su WhatsApp!
             </p>
           </div>
 

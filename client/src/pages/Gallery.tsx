@@ -4,7 +4,7 @@ import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
 import { User } from "lucide-react";
 import Navigation from "@/components/Navigation";
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -74,14 +74,14 @@ export default function Gallery() {
   const handleRefreshPhotos = useCallback(async () => {
     // Usa il refresh diretto del hook
     await refreshPhotos();
-    
+
     // Fallback con evento personalizzato
     refreshPhotos();
   }, [refreshPhotos]);
 
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  
+
   // Stato per gestire l'apertura del modal EditGallery
   const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
 
@@ -89,15 +89,15 @@ export default function Gallery() {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Carica dati galleria usando il custom hook
-  const { 
-    gallery, 
-    photos, 
+  const {
+    gallery,
+    photos,
     guestPhotos,
-    isLoading, 
-    hasMorePhotos, 
+    isLoading,
+    hasMorePhotos,
     loadingMorePhotos,
     loadMorePhotos,
-    refreshPhotos: refreshGalleryPhotosHook 
+    refreshPhotos: refreshGalleryPhotosHook
   } = useGalleryData(id || "");
 
   // Aggiorna lo stato di caricamento
@@ -137,7 +137,7 @@ export default function Gallery() {
     const handleScroll = () => {
       if (
         window.innerHeight + window.scrollY >= document.body.offsetHeight - 300 &&
-        hasMorePhotos && 
+        hasMorePhotos &&
         !loadingMorePhotos &&
         !isLoading
       ) {
@@ -168,11 +168,11 @@ export default function Gallery() {
     setFilters(newFilters);
 
     // Verifica se c'è almeno un filtro attivo
-    const hasActiveFilter = 
-      newFilters.startDate !== undefined || 
-      newFilters.endDate !== undefined || 
-      newFilters.startTime !== undefined || 
-      newFilters.endTime !== undefined || 
+    const hasActiveFilter =
+      newFilters.startDate !== undefined ||
+      newFilters.endDate !== undefined ||
+      newFilters.startTime !== undefined ||
+      newFilters.endTime !== undefined ||
       newFilters.sortOrder !== 'newest';
 
     setAreFiltersActive(hasActiveFilter);
@@ -222,8 +222,8 @@ export default function Gallery() {
       const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
       const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
 
-      return filters.sortOrder === 'newest' 
-        ? dateB.getTime() - dateA.getTime() 
+      return filters.sortOrder === 'newest'
+        ? dateB.getTime() - dateA.getTime()
         : dateA.getTime() - dateB.getTime();
     });
   }, [photos, filters, areFiltersActive]);
@@ -258,8 +258,11 @@ export default function Gallery() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Galleria non trovata</h1>
-          <p className="mb-4">La galleria che stai cercando non esiste o è stata rimossa.</p>
-          <button 
+          <p className="text-gray-600 mb-6">
+            La galleria che stai cercando potrebbe non esistere o essere stata rimossa.
+            Verifica il link ricevuto dagli organizzatori dell'evento o contatta il servizio clienti.
+          </p>
+          <button
             className="px-4 py-2 bg-sage-600 text-white rounded-md hover:bg-sage-700"
             onClick={() => navigate(createUrl("/"))}
           >
@@ -277,7 +280,7 @@ export default function Gallery() {
   if (isLoading || loadingState.progress < 100) {
     return (
       <div className="min-h-screen bg-off-white">
-        <GalleryLoadingProgress 
+        <GalleryLoadingProgress
           totalPhotos={loadingState.totalPhotos || 100}
           loadedPhotos={loadingState.loadedPhotos || 0}
           progress={loadingState.progress || 0}
@@ -293,7 +296,7 @@ export default function Gallery() {
 
       <div>
         {/* Intestazione galleria */}
-        <GalleryHeader 
+        <GalleryHeader
           name={gallery.name}
           date={gallery.date}
           location={gallery.location}
@@ -402,7 +405,7 @@ export default function Gallery() {
                 <div className="space-y-4 mb-6">
                   {/* Filtri - sempre sopra su mobile */}
                   <div className="w-full">
-                    <GalleryFilter 
+                    <GalleryFilter
                       onFilterChange={handleFilterChange}
                       totalPhotos={photos.length}
                       activeFilters={areFiltersActive}
@@ -413,9 +416,8 @@ export default function Gallery() {
                   {/* Azioni galleria - layout pulito e organizzato */}
                   <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                     <div className="flex flex-col lg:flex-row gap-4">
-                      {/* Sezione principale */}
+                      {/* Sezione riservata per future funzionalità */}
                       <div className="flex-1">
-                        {/* Area riservata per future funzionalità */}
                       </div>
                     </div>
                   </div>
@@ -442,13 +444,13 @@ export default function Gallery() {
                       <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
                         Hai catturato momenti magici? Carica le tue foto e aiuta a completare la storia di questo giorno indimenticabile!
                       </p>
-                      
+
                       <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div className="w-full sm:w-auto">
-                                <GuestUpload 
+                                <GuestUpload
                                   galleryId={gallery.id}
                                   galleryName={gallery.name}
                                   onPhotosUploaded={() => {
@@ -467,7 +469,7 @@ export default function Gallery() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Statistiche rapide */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
                     <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-gray-100">
@@ -496,7 +498,7 @@ export default function Gallery() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="w-full sm:w-auto">
-                          <VoiceMemoUpload 
+                          <VoiceMemoUpload
                             galleryId={gallery.id}
                             galleryName={gallery.name}
                             userEmail={userInfo.email}
@@ -576,7 +578,7 @@ export default function Gallery() {
                                 onLoad={(e) => {
                                   (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
                                 }}
-                                style={{ 
+                                style={{
                                   backgroundColor: '#f3f4f6',
                                 }}
                                 title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
@@ -599,7 +601,7 @@ export default function Gallery() {
 
                       {/* Pulsante "Carica altre foto" */}
                       {!areFiltersActive && (
-                        <LoadMoreButton 
+                        <LoadMoreButton
                           onClick={loadMorePhotos}
                           isLoading={loadingMorePhotos}
                           hasMore={hasMorePhotos}
@@ -639,7 +641,7 @@ export default function Gallery() {
                               onLoad={(e) => {
                                 (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
                               }}
-                              style={{ 
+                              style={{
                                 backgroundColor: '#f3f4f6',
                               }}
                               title={`Caricata da: ${photo.uploaderName || 'Ospite'} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}`}
@@ -663,7 +665,7 @@ export default function Gallery() {
               )}
 
               {activeTab === 'voice-memos' && (
-                <VoiceMemosList 
+                <VoiceMemosList
                   galleryId={gallery.id}
                   isAdmin={isAdmin}
                   refreshTrigger={refreshTrigger}
@@ -686,7 +688,7 @@ export default function Gallery() {
               {/* Gallery Actions - Show download and export options for admin */}
               {userInfo.isAuthenticated && userInfo.email && isAdmin && (
                 <div className="mt-8">
-                  <GalleryActions 
+                  <GalleryActions
                     galleryId={gallery.id}
                     galleryName={gallery.name}
                     isOwner={true}
@@ -696,7 +698,7 @@ export default function Gallery() {
 
               {/* Social Activity Panel */}
               <div className="mt-12 mb-8">
-                <SocialActivityPanel 
+                <SocialActivityPanel
                   galleryId={gallery.id}
                   className="w-full"
                   onPhotoClick={(photoId) => {
@@ -734,7 +736,7 @@ export default function Gallery() {
 
       {/* Edit Gallery Modal - Solo per Admin */}
       {gallery && isAdmin && (
-        <EditGalleryModal 
+        <EditGalleryModal
           isOpen={isEditGalleryOpen}
           onClose={() => setIsEditGalleryOpen(false)}
           gallery={{

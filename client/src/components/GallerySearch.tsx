@@ -28,7 +28,7 @@ export default function GallerySearch() {
     try {
       const galleriesCollection = collection(db, "galleries");
       const snapshot = await getDocs(galleriesCollection);
-      
+
       // Trasformiamo i dati in un formato più semplice da utilizzare
       const galleries: GallerySearchResult[] = [];
       snapshot.forEach((doc) => {
@@ -44,13 +44,13 @@ export default function GallerySearch() {
           });
         }
       });
-      
+
       // Salviamo tutte le gallerie nello state
       setAllGalleries(galleries);
-      
-      
+
+
     } catch (error) {
-      
+
     } finally {
       setIsLoading(false);
     }
@@ -71,29 +71,29 @@ export default function GallerySearch() {
 
     // Dividiamo la ricerca in parole
     const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    
+
     // Filtriamo le gallerie che contengono tutte le parole nel nome
     const filteredGalleries = allGalleries.filter(gallery => {
       const galleryName = gallery.name.toLowerCase();
-      
+
       // Verifichiamo che ogni parola sia contenuta nel nome della galleria
       return searchWords.every(word => galleryName.includes(word));
     });
-    
+
     setSearchResults(filteredGalleries.slice(0, 10));
   }, [searchTerm, allGalleries]);
 
   const handleGallerySelect = (code: string) => {
-    
-    
+
+
     // Utilizziamo il router di wouter per la navigazione
     const galleryPath = `/gallery/${code}`;
-    
-    
+
+
     // Utilizziamo createUrl per costruire il URL corretto con il basePath
     const correctPath = createUrl(galleryPath);
-    
-    
+
+
     // Utilizziamo navigate di wouter con il path corretto
     navigate(correctPath);
   };
@@ -107,7 +107,7 @@ export default function GallerySearch() {
           </div>
           <Input
             type="text"
-            placeholder="Cerca per nome degli sposi (es. Maria & Luca)"
+            placeholder="Inserisci nome evento o codice galleria..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full ps-10 px-4 py-2 border border-beige rounded-md focus:ring-sage focus:border-sage"

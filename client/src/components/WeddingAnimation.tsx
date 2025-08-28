@@ -68,7 +68,7 @@ export default function WeddingAnimation({ onAnimationComplete, skip = false }: 
                 onClick={handleAnimationComplete}
                 className="px-6 py-2 bg-sage text-white rounded-md hover:bg-sage-600 transition-colors"
               >
-                Visualizza le foto
+                Visualizza i ricordi
               </button>
             </motion.div>
           </div>
