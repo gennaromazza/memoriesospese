@@ -138,19 +138,24 @@ service cloud.firestore {
          request.resource.data.version == 1); // Permetti creazione set sistema v1
     }
     
-    // Questionnaire Tokens - Admin access for management
+    // Questionnaire Tokens - Permetti lettura pubblica per validazione, admin per gestione
     match /questionnaireTokens/{tokenId} {
-      allow read, write: if isAdmin(); // Admin can manage tokens
+      allow read: if true; // Lettura pubblica per validazione token
+      allow write: if isAdmin(); // Solo admin può creare/modificare/eliminare token
     }
     
-    // Validation Sessions - Admin access for management
+    // Validation Sessions - Permetti accesso pubblico per gestione sessioni
     match /validationSessions/{sessionId} {
-      allow read, write: if isAdmin(); // Admin can manage sessions
+      allow read: if true; // Lettura pubblica per verifica sessioni
+      allow create: if true; // Creazione pubblica per nuove sessioni
+      allow update, delete: if isAdmin(); // Solo admin può modificare/eliminare
     }
     
-    // Rate Limits - Admin access for management
+    // Rate Limits - Permetti accesso pubblico per controllo rate limiting
     match /rateLimits/{identifier} {
-      allow read, write: if isAdmin(); // Admin can manage rate limits
+      allow read: if true; // Lettura pubblica per verifica rate limits
+      allow create, update: if true; // Creazione/aggiornamento pubblico per conteggi
+      allow delete: if isAdmin(); // Solo admin può eliminare rate limits
     }
     
     // Helper function for role validation

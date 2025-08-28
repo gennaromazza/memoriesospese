@@ -107,7 +107,12 @@ export class TokenValidationService {
 
       // 5. Aggiorna usedAt se primo utilizzo
       if (!tokenData.usedAt) {
-        await updateDoc(tokenDoc.ref, { usedAt: now });
+        try {
+          await updateDoc(tokenDoc.ref, { usedAt: now });
+        } catch (error) {
+          console.error('Errore aggiornamento usedAt:', error);
+          // Continua anche se l'aggiornamento fallisce
+        }
       }
 
       // 6. VERIFICA AGGIUNTIVA: Controlla se il questionario è ancora attivo
@@ -162,7 +167,12 @@ export class TokenValidationService {
       
       if (session.expiresAt < now) {
         // Sessione scaduta, rimuovila
-        await deleteDoc(sessionRef);
+        try {
+          await deleteDoc(sessionRef);
+        } catch (error) {
+          console.error('Errore rimozione sessione scaduta:', error);
+          // Continua anche se la rimozione fallisce
+        }
         return { valid: false };
       }
 
@@ -181,9 +191,14 @@ export class TokenValidationService {
       const sessionRef = doc(db, 'validationSessions', sessionId);
       const now = Date.now();
       
-      await updateDoc(sessionRef, {
-        expiresAt: now + SESSION_DURATION
-      });
+      try {
+        await updateDoc(sessionRef, {
+          expiresAt: now + SESSION_DURATION
+        });
+      } catch (error) {
+        console.error('Errore aggiornamento scadenza sessione:', error);
+        return false;
+      }
       
       return true;
     } catch (error) {
@@ -272,12 +287,17 @@ export class TokenValidationService {
       // Verifica se la finestra è scaduta
       if (rateLimitData.windowStart < windowStart) {
         // Nuova finestra, reset contatori
-        await updateDoc(rateLimitRef, {
-          attempts: 1,
-          windowStart: now,
-          blocked: false,
-          lastAttempt: now
-        });
+        try {
+          await updateDoc(rateLimitRef, {
+            attempts: 1,
+            windowStart: now,
+            blocked: false,
+            lastAttempt: now
+          });
+        } catch (error) {
+          console.error('Errore aggiornamento rate limit (reset):', error);
+          // In caso di errore, assumiamo che la richiesta sia permessa
+        }
         
         return {
           allowed: true,
@@ -299,11 +319,16 @@ export class TokenValidationService {
       const newAttempts = rateLimitData.attempts + 1;
       const shouldBlock = newAttempts >= MAX_ATTEMPTS;
       
-      await updateDoc(rateLimitRef, {
-        attempts: newAttempts,
-        blocked: shouldBlock,
-        lastAttempt: now
-      });
+      try {
+        await updateDoc(rateLimitRef, {
+          attempts: newAttempts,
+          blocked: shouldBlock,
+          lastAttempt: now
+        });
+      } catch (error) {
+        console.error('Errore aggiornamento rate limit (incremento):', error);
+        // In caso di errore, procedi comunque
+      }
 
       return {
         allowed: !shouldBlock,
@@ -346,8 +371,13 @@ export class TokenValidationService {
       expiresAt: now + SESSION_DURATION
     };
 
-    const sessionRef = await addDoc(collection(db, 'validationSessions'), sessionData);
-    return sessionRef.id;
+    try {
+      const sessionRef = await addDoc(collection(db, 'validationSessions'), sessionData);
+      return sessionRef.id;
+    } catch (error) {
+      console.error('Errore creazione sessione validazione:', error);
+      throw new Error('Impossibile creare sessione di validazione');
+    }
   }
 
   /**
