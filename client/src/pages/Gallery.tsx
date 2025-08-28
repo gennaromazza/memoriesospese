@@ -328,7 +328,29 @@ export default function Gallery() {
               targetDate={eventDate}
               title="Riviviamo insieme i momenti più belli"
               eventLabel="della celebrazione"
-              pastMessageTemplate={(date) => `Un giorno indimenticabile - ${date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })} ✨`}
+              pastMessageTemplate={(date) => {
+                const now = new Date();
+                const eventDate = new Date(date);
+                const diffTime = now.getTime() - eventDate.getTime();
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays < 30) {
+                  return `Sono passati ${diffDays} giorni da questo giorno speciale ✨`;
+                } else if (diffDays < 365) {
+                  const months = Math.floor(diffDays / 30);
+                  return `${months === 1 ? 'È passato 1 mese' : `Sono passati ${months} mesi`} da questo giorno speciale ✨`;
+                } else {
+                  const years = Math.floor(diffDays / 365);
+                  const remainingDays = diffDays % 365;
+                  const months = Math.floor(remainingDays / 30);
+                  
+                  if (months === 0) {
+                    return `${years === 1 ? 'È passato 1 anno' : `Sono passati ${years} anni`} da questo giorno speciale ✨`;
+                  } else {
+                    return `${years === 1 ? 'È passato 1 anno' : `Sono passati ${years} anni`} e ${months} ${months === 1 ? 'mese' : 'mesi'} da questo giorno speciale ✨`;
+                  }
+                }
+              }}
               variant="banner"
               afterMode="showDate"
               compactOnMobile
