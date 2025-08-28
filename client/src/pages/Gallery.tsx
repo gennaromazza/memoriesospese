@@ -47,7 +47,6 @@ import {
   type Photo,
   type Comment,
   type Gallery as GalleryType,
-  getCouple,
   resolveEventDate,
 } from "@/lib/firebase";
 
@@ -116,11 +115,21 @@ export default function Gallery() {
     refreshPhotos: refreshGalleryPhotosHook
   } = useGalleryData(id || "");
 
-  // Carica dati della coppia se presente
+  // Carica dati della coppia dal questionario se presente
   const { data: couple } = useQuery({
-    queryKey: ["couple", galleryData?.coupleId],
-    queryFn: () => galleryData?.coupleId ? getCouple(galleryData.coupleId) : null,
-    enabled: !!galleryData?.coupleId,
+    queryKey: ["couple", galleryData?.id],
+    queryFn: async () => {
+      if (!galleryData?.id) return null;
+      try {
+        const { QuestionnaireService } = await import('@/lib/questionnaire');
+        const questionnaire = await QuestionnaireService.getGalleryQuestionnaire(galleryData.id);
+        return questionnaire?.couple || null;
+      } catch (error) {
+        console.error('Errore caricamento dati coppia:', error);
+        return null;
+      }
+    },
+    enabled: !!galleryData?.id,
   });
 
   // Calcola la data dell'evento
