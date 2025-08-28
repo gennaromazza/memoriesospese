@@ -41,10 +41,10 @@ function PaginationControls({ currentPage, totalPages, onPageChange, onPrevious,
 
   return (
     <div className="flex justify-center items-center mt-6 space-x-1">
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         size="sm"
-        onClick={onPrevious} 
+        onClick={onPrevious}
         disabled={currentPage === 1}
       >
         <ChevronLeft className="h-4 w-4 mr-1" /> Prec
@@ -129,10 +129,10 @@ function PaginationControls({ currentPage, totalPages, onPageChange, onPrevious,
         </>
       )}
 
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         size="sm"
-        onClick={onNext} 
+        onClick={onNext}
         disabled={currentPage === totalPages}
       >
         Succ <ChevronRight className="h-4 w-4 ml-1" />
@@ -188,7 +188,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings'>('galleries');
   const [securityGalleryId, setSecurityGalleryId] = useState<string | null>(null);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
-  
+
   // Detect if admin came from a specific gallery
   const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
 
@@ -234,7 +234,7 @@ export default function AdminDashboard() {
     if (!isAdmin) {
       navigate(createUrl("/admin"));
     }
-    
+
     // Controlla se l'admin proviene da una galleria specifica
     const referrerData = sessionStorage.getItem('adminReferrerGallery');
     if (referrerData) {
@@ -301,7 +301,7 @@ export default function AdminDashboard() {
 
   // Funzione per gestire il cambio di valore nei campi delle impostazioni
   const handleSettingsChange = (
-    field: string, 
+    field: string,
     value: string,
     nestedField?: string
   ) => {
@@ -448,7 +448,7 @@ export default function AdminDashboard() {
 
       // Controlla se l'utente è un amministratore
       const isAdmin = user.email === 'gennaro.mazzacane@gmail.com';
-      
+
       let galleriesQuery;
       if (isAdmin) {
         // Gli amministratori vedono tutte le gallerie
@@ -511,7 +511,7 @@ export default function AdminDashboard() {
       await deleteDoc(requestRef);
 
       // Aggiorna lo stato rimuovendo la richiesta eliminata
-      setPasswordRequests(prevRequests => 
+      setPasswordRequests(prevRequests =>
         prevRequests.filter(request => request.id !== requestId)
       );
 
@@ -581,7 +581,7 @@ export default function AdminDashboard() {
 
 
       // Update local state
-      setGalleries(prev => 
+      setGalleries(prev =>
         prev.map(g => g.id === gallery.id ? { ...g, active: newActiveStatus } : g)
       );
 
@@ -805,7 +805,7 @@ export default function AdminDashboard() {
 
     const query = searchQuery.toLowerCase();
     return (
-      gallery.name.toLowerCase().includes(query) || 
+      gallery.name.toLowerCase().includes(query) ||
       gallery.code.toLowerCase().includes(query) ||
       gallery.date.toLowerCase().includes(query)
     );
@@ -891,7 +891,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </header>
-      
+
       {/* Banner informativo se l'admin proviene da una galleria */}
       {referrerGallery && (
         <div className="bg-sage text-white">
@@ -907,9 +907,9 @@ export default function AdminDashboard() {
                 </span>
                 {referrerGallery.code && (
                   <Link to={createUrl(`/gallery/${referrerGallery.code}`)}>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="text-white hover:text-gray-200 ml-2"
                     >
                       <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -966,7 +966,7 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Questionari</span>
                 <span className="sm:hidden">❓</span>
               </TabsTrigger>
-              
+
               <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
                 <span className="hidden sm:inline">Impostazioni</span>
                 <span className="sm:hidden">⚙️</span>
@@ -978,7 +978,7 @@ export default function AdminDashboard() {
               <div className="bg-white shadow sm:rounded-lg p-5">
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                   <div className="w-full sm:w-auto">
-                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione gallerie</h2>
+                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Gallerie Eventi</h2>
                     <p className="text-sm text-muted-foreground">
                       Crea, modifica e gestisci le gallerie fotografiche.
                     </p>
@@ -994,7 +994,7 @@ export default function AdminDashboard() {
                       />
                     </div>
                     <Button onClick={openModal} className="whitespace-nowrap">
-                      <Plus className="mr-2 h-4 w-4" /> Nuova galleria
+                      <Plus className="mr-2 h-4 w-4" /> Nuova Galleria Evento
                     </Button>
                   </div>
                 </div>
@@ -1011,13 +1011,13 @@ export default function AdminDashboard() {
                   </div>
                 ) : galleries.length === 0 ? (
                   <div className="p-8 text-center">
-                    <p className="text-gray-500">Non hai ancora creato gallerie.</p>
-                    <Button 
+                    <p className="text-gray-500">Nessuna galleria eventi trovata.</p>
+                    <Button
                       onClick={openModal}
                       variant="outline"
                       className="mt-4"
                     >
-                      <Plus className="mr-2 h-4 w-4" /> Crea la tua prima galleria
+                      <Plus className="mr-2 h-4 w-4" /> Crea la tua prima galleria evento
                     </Button>
                   </div>
                 ) : (
@@ -1070,27 +1070,27 @@ export default function AdminDashboard() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-1">
                               <div className="flex space-x-1 flex-wrap">
                                 <Link to={createUrl(`/gallery/${gallery.code}`)} target="_blank">
-                                  <Button 
-                                    variant="outline" 
+                                  <Button
+                                    variant="outline"
                                     size="icon"
-                                    className="h-8 w-8 bg-green-50 hover:bg-green-100 border-green-200" 
+                                    className="h-8 w-8 bg-green-50 hover:bg-green-100 border-green-200"
                                     title="Visualizza galleria"
                                   >
                                     <Eye className="h-4 w-4 text-green-600" />
                                   </Button>
                                 </Link>
                                 {isCurrentUserAdmin() && (
-                                  <Button 
-                                    variant="outline" 
+                                  <Button
+                                    variant="outline"
                                     size="icon"
-                                    className="h-8 w-8" 
+                                    className="h-8 w-8"
                                     onClick={() => openEditModal(gallery)}
                                     title="Modifica galleria"
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
                                 )}
-                                <Button 
+                                <Button
                                   variant={gallery.active ? "destructive" : "default"}
                                   size="icon"
                                   className="h-8 w-8"
@@ -1101,10 +1101,10 @@ export default function AdminDashboard() {
                                 </Button>
                                 <Popover>
                                   <PopoverTrigger asChild>
-                                    <Button 
-                                      variant="outline" 
+                                    <Button
+                                      variant="outline"
                                       size="icon"
-                                      className="h-8 w-8" 
+                                      className="h-8 w-8"
                                       title="Cambia password"
                                     >
                                       <Key className="h-4 w-4" />
@@ -1114,13 +1114,13 @@ export default function AdminDashboard() {
                                     <div className="space-y-4">
                                       <h4 className="font-medium">Cambia password per {gallery.name}</h4>
                                       <div className="flex space-x-2">
-                                        <Input 
+                                        <Input
                                           id={`new-password-${gallery.id}`}
                                           type="text"
                                           placeholder="Nuova password"
                                           defaultValue={generateRandomPassword()}
                                         />
-                                        <Button 
+                                        <Button
                                           onClick={() => {
                                             const input = document.getElementById(`new-password-${gallery.id}`) as HTMLInputElement;
                                             if (input && input.value) {
@@ -1134,10 +1134,10 @@ export default function AdminDashboard() {
                                     </div>
                                   </PopoverContent>
                                 </Popover>
-                                <Button 
-                                  variant="outline" 
+                                <Button
+                                  variant="outline"
                                   size="icon"
-                                  className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200" 
+                                  className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
                                   onClick={() => {
                                     setSecurityGalleryId(gallery.id);
                                     setShowSecurityModal(true);
@@ -1146,10 +1146,10 @@ export default function AdminDashboard() {
                                 >
                                   <Shield className="h-4 w-4 text-blue-600" />
                                 </Button>
-                                <Button 
-                                  variant="destructive" 
+                                <Button
+                                  variant="destructive"
                                   size="icon"
-                                  className="h-8 w-8" 
+                                  className="h-8 w-8"
                                   onClick={() => deleteGallery(gallery)}
                                   title="Elimina galleria"
                                 >
@@ -1215,7 +1215,7 @@ export default function AdminDashboard() {
                     </p>
                   </div>
 
-                  <Button 
+                  <Button
                     onClick={exportPasswordRequests}
                     disabled={passwordRequests.length === 0}
                   >
@@ -1271,8 +1271,8 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <Button 
-                                variant="ghost" 
+                              <Button
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => deletePasswordRequest(request.id)}
                                 className="text-red-600 hover:text-red-900"
@@ -1418,9 +1418,9 @@ export default function AdminDashboard() {
                           <div className="mt-2">
                             {studioSettings.logo ? (
                               <div className="mb-2">
-                                <img 
-                                  src={studioSettings.logo} 
-                                  alt="Logo dello studio" 
+                                <img
+                                  src={studioSettings.logo}
+                                  alt="Logo dello studio"
                                   className="h-24 w-auto object-contain rounded-md"
                                   onError={(e) => {
                                     console.error('Logo loading error:', e);
@@ -1578,19 +1578,19 @@ export default function AdminDashboard() {
       </main>
 
       {/* Finestra modale per creare una nuova galleria */}
-      <NewGalleryModal 
-        isOpen={isModalOpen} 
-        onClose={closeModal} 
+      <NewGalleryModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
         onGalleryCreated={() => {
           // Ricarichiamo le gallerie dopo la creazione
           fetchData();
-        }} 
+        }}
       />
 
       {/* Finestra modale per modificare una galleria esistente */}
       {selectedGallery && (
-        <EditGalleryModal 
-          isOpen={isEditModalOpen} 
+        <EditGalleryModal
+          isOpen={isEditModalOpen}
           onClose={closeEditModal}
           gallery={selectedGallery}
         />
@@ -1613,7 +1613,7 @@ export default function AdminDashboard() {
                 Chiudi
               </Button>
             </div>
-            <SecurityQuestionManager 
+            <SecurityQuestionManager
               galleryId={securityGalleryId}
               initialData={{}}
             />

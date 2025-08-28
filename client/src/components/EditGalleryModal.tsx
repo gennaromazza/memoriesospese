@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
 import { doc, updateDoc, collection, getDocs, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject, getMetadata, listAll } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -83,7 +83,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('❌ loadPhotos: Gallery non definita');
       return;
     }
-    
+
     console.log('🔄 Inizio caricamento foto per galleria:', gallery.id);
     console.log('🔄 Stato photos prima del caricamento:', photos.length);
     setIsLoading(true);
@@ -93,12 +93,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         collection(db, "photos"),
         where("galleryId", "==", gallery.id)
       );
-      
+
       const photosSnapshot = await getDocs(photosQuery);
       console.log('📷 Foto nuove trovate:', photosSnapshot.docs.length);
-      
+
       const loadedPhotos: PhotoData[] = [];
-      
+
       // Aggiungi foto dal nuovo sistema
       photosSnapshot.docs.forEach(doc => {
         const data = doc.data();
@@ -117,20 +117,20 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           uploadedBy: data.uploadedBy || 'legacy'
         } as PhotoData);
       });
-      
+
       // 2. COMPATIBILITÀ: Carica foto ospiti dalla vecchia collezione galleries/{galleryId}/photos
       try {
         const oldGuestPhotosRef = collection(db, "galleries", gallery.id, "photos");
         const oldGuestPhotosSnapshot = await getDocs(oldGuestPhotosRef);
-        
+
         // Ottieni nomi foto già caricate per evitare duplicati
         const existingPhotoNames = new Set(loadedPhotos.map(p => p.name));
-        
+
         oldGuestPhotosSnapshot.docs.forEach(doc => {
           const photoData = doc.data();
           const photoName = photoData.name || "";
           const photoUrl = photoData.url || "";
-          
+
           // Evita duplicati basandoci sul nome della foto
           if (!existingPhotoNames.has(photoName)) {
             // Determina se è una foto ospite basandoci sull'URL del Storage
@@ -138,7 +138,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                                photoUrl.includes('guest-') ||
                                photoData.uploadedBy === 'guest' ||
                                photoData.uploaderRole === 'guest';
-            
+
             const oldPhoto: PhotoData = {
               id: `old-guest-${doc.id}`, // ID speciale per foto vecchie
               name: photoName,
@@ -152,33 +152,33 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               uploaderRole: isGuestPhoto ? 'guest' : 'admin',
               uploadedBy: 'legacy'
             } as PhotoData;
-            
+
             loadedPhotos.push(oldPhoto);
             existingPhotoNames.add(photoName);
           }
         });
-        
+
         console.log('📸 Foto ospiti legacy caricate:', oldGuestPhotosSnapshot.docs.length);
       } catch (error) {
         console.log('⚠️ Errore caricamento foto ospiti legacy (normale se non esistono):', error);
       }
-      
+
       // 3. COMPATIBILITÀ: Carica foto da Firebase Storage se non in Firestore
       try {
         const storageRef = ref(storage, `galleries/${gallery.id}/photos/`);
         const storageList = await listAll(storageRef);
-        
+
         const existingPhotoNames = new Set(loadedPhotos.map(p => p.name));
-        
+
         for (const item of storageList.items) {
           const fileName = item.name;
-          
+
           // Evita duplicati basandoci sul nome del file
           if (!existingPhotoNames.has(fileName)) {
             try {
               const url = await getDownloadURL(item);
               const metadata = await getMetadata(item);
-              
+
               const storagePhoto: PhotoData = {
                 id: `storage-${fileName}`,
                 name: item.name,
@@ -192,7 +192,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 uploaderRole: 'admin',
                 uploadedBy: 'legacy'
               } as PhotoData;
-              
+
               loadedPhotos.push(storagePhoto);
               existingPhotoNames.add(fileName);
             } catch (error) {
@@ -200,32 +200,32 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             }
           }
         }
-        
+
         console.log('📸 Foto da Firebase Storage caricate:', storageList.items.length);
       } catch (error) {
         console.log('⚠️ Errore caricamento foto da Storage (normale se non esistono):', error);
       }
-      
+
       // Ordina le foto per data (più recenti prima)
       loadedPhotos.sort((a, b) => {
         let aTime: number;
         let bTime: number;
-        
+
         if (a.createdAt && typeof a.createdAt === 'object' && 'seconds' in a.createdAt) {
           aTime = (a.createdAt as Timestamp).seconds * 1000;
         } else {
           aTime = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
         }
-        
+
         if (b.createdAt && typeof b.createdAt === 'object' && 'seconds' in b.createdAt) {
           bTime = (b.createdAt as Timestamp).seconds * 1000;
         } else {
           bTime = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
         }
-        
+
         return bTime - aTime;
       });
-      
+
       // Foto caricate con successo, incluse quelle legacy compatibili
       console.log('📸 Totale foto caricate:', loadedPhotos.length);
       console.log('📊 Breakdown foto:', {
@@ -233,15 +233,15 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         legacy: loadedPhotos.filter(p => p.id.startsWith('old-guest-')).length,
         storage: loadedPhotos.filter(p => p.id.startsWith('storage-')).length
       });
-      
+
       setPhotos(loadedPhotos);
       console.log('✅ Foto settate nello stato, lunghezza:', loadedPhotos.length);
-      
+
       // Verifica immediata che le foto siano state settate
       setTimeout(() => {
         console.log('🔍 Verifica stato photos dopo setPhotos:', photos.length);
       }, 100);
-      
+
     } catch (error) {
       console.error('❌ Errore nel caricamento foto:', error);
       toast({
@@ -259,7 +259,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     if (gallery && gallery.id && currentGalleryId.current !== gallery.id) {
       console.log('🔄 Caricamento dati galleria nel modal:', gallery.id);
       currentGalleryId.current = gallery.id;
-      
+
       setName(gallery.name || "");
       setDate(gallery.date || "");
       setLocation(gallery.location || "");
@@ -267,17 +267,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setPassword(gallery.password || "");
       setYoutubeUrl(gallery.youtubeUrl || "");
       setCoverImageUrl(gallery.coverImageUrl || "");
-      
+
       // Se c'è un'immagine di copertina esistente, impostiamo l'anteprima
       if (gallery.coverImageUrl) {
         setCoverPreview(gallery.coverImageUrl);
       } else {
         setCoverPreview(null);
       }
-      
+
       // Reset loading state quando cambia la galleria
       setIsLoading(false);
-      
+
       // Carica le foto solo se il modal è aperto
       if (isOpen) {
         console.log('🔄 Chiamando loadPhotos perché modal è aperto');
@@ -309,13 +309,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       }
     };
   }, [coverPreview]);
-  
+
   // Gestisce il caricamento dell'immagine di copertina
   const handleCoverImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) {
       return;
     }
-    
+
     const file = e.target.files[0];
     if (!file.type.startsWith('image/')) {
       toast({
@@ -325,21 +325,21 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       });
       return;
     }
-    
+
     setCoverImage(file);
-    
+
     // Crea un'anteprima dell'immagine
     const objectUrl = URL.createObjectURL(file);
     setCoverPreview(objectUrl);
   };
-  
+
   // Funzione per eliminare una foto sia da Firestore che da Storage (memoizzata)
   const deletePhoto = useCallback(async (photoToDelete: PhotoData) => {
     if (!gallery) return;
-    
+
     try {
       setIsDeletingPhoto(true);
-      
+
       // 1. Elimina il documento da Firestore (nuovo sistema o vecchia collezione ospiti)
       if (photoToDelete.id.startsWith('old-guest-')) {
         // Foto ospite dalla vecchia collezione galleries/{galleryId}/photos
@@ -357,18 +357,18 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       } else {
         console.log(`📦 Foto legacy solo Storage, skip Firestore`);
       }
-      
+
       // 2. Elimina il file da Firebase Storage
       let photoDeleted = false;
-      
+
       try {
         const url = new URL(photoToDelete.url);
         const pathMatch = url.pathname.match(/\/o\/(.+?)(\?|$)/);
-        
+
         if (pathMatch) {
           const fullPath = decodeURIComponent(pathMatch[1]);
           console.log(`🗑️ Eliminando foto da Storage: ${fullPath}`);
-          
+
           const storageRef = ref(storage, fullPath);
           await deleteObject(storageRef);
           console.log(`✅ Foto eliminata da Storage: ${fullPath}`);
@@ -380,7 +380,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         console.warn(`⚠️ Errore eliminazione Storage:`, storageError);
         // Continua comunque - l'eliminazione da Firestore è più importante
       }
-      
+
       // 3. Aggiorna conteggio foto nella galleria
       try {
         const newPhotoCount = Math.max(0, (gallery.photoCount || 0) - 1);
@@ -392,21 +392,21 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       } catch (countError) {
         console.warn('⚠️ Errore aggiornamento conteggio foto:', countError);
       }
-      
+
       // 4. Aggiorna l'array locale delle foto
       setPhotos(photos.filter(photo => photo.id !== photoToDelete.id));
-      
+
       const photoType = photoToDelete.uploadedBy === 'admin' ? 'admin' : 
                        photoToDelete.uploadedBy === 'guest' ? 'ospite' : 'legacy';
-      
+
       toast({
         title: "Foto eliminata",
         description: `La foto ${photoType} è stata eliminata con successo dalla galleria.`
       });
-      
+
       // 5. Forza il refresh della galleria principale
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
-      
+
     } catch (error) {
       console.error('❌ Errore durante l\'eliminazione:', error);
       toast({
@@ -426,10 +426,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.error('❌ Galleria non trovata per salvare');
       return;
     }
-    
+
     console.log('💾 Avvio salvataggio galleria:', gallery.id);
     setIsLoading(true);
-    
+
     try {
       // Se c'è una nuova immagine di copertina, la carichiamo prima
       let newCoverImageUrl = coverImageUrl;
@@ -444,7 +444,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           console.error('❌ Errore caricamento cover:', error);
         }
       }
-      
+
       console.log('📝 Aggiornamento documento galleria...');
       const galleryRef = doc(db, "galleries", gallery.id);
       await updateDoc(galleryRef, {
@@ -458,13 +458,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         hasChapters: false,
         updatedAt: serverTimestamp()
       });
-      
+
       console.log('✅ Galleria salvata con successo');
       toast({
         title: "Galleria aggiornata",
         description: "Le modifiche alla galleria sono state salvate con successo"
       });
-      
+
       onClose();
     } catch (error) {
       console.error('❌ Errore salvataggio galleria:', error);
@@ -478,13 +478,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setIsLoading(false);
     }
   }, [gallery, coverImage, coverImageUrl, name, date, location, description, password, youtubeUrl, onClose, toast]);
-  
+
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
     const existingPhotoNames = new Set(photos.map(p => p.name));
     const uniqueFiles: File[] = [];
     const duplicates: string[] = [];
-    
+
     files.forEach(file => {
       if (existingPhotoNames.has(file.name)) {
         duplicates.push(file.name);
@@ -492,17 +492,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         uniqueFiles.push(file);
       }
     });
-    
+
     return { uniqueFiles, duplicates };
   };
 
   // Carica nuove foto alla galleria
   const handleUploadPhotos = async () => {
     if (!gallery || selectedFiles.length === 0) return;
-    
+
     // Controlla duplicati
     const { uniqueFiles, duplicates } = checkForDuplicates(selectedFiles);
-    
+
     // Mostra avviso per i duplicati
     if (duplicates.length > 0) {
       toast({
@@ -511,7 +511,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         variant: "destructive"
       });
     }
-    
+
     // Se non ci sono file unici da caricare, ferma l'upload
     if (uniqueFiles.length === 0) {
       toast({
@@ -521,7 +521,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       });
       return;
     }
-    
+
     // Mostra info sui file che verranno caricati
     if (duplicates.length > 0) {
       toast({
@@ -529,12 +529,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         description: `Caricamento di ${uniqueFiles.length} file nuovi (${duplicates.length} duplicati saltati)`,
       });
     }
-    
+
     setIsUploading(true);
     try {
       // Prepara i file per l'upload (solo quelli unici)
       const filesToUpload = uniqueFiles;
-      
+
       // Carica le foto su Firebase Storage
       const uploadedPhotos = await uploadPhotos(
         gallery.id,
@@ -543,9 +543,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         (progress) => setUploadProgress(progress),
         (summary) => setUploadSummary(summary)
       );
-      
+
       console.log(`${uploadedPhotos.length} foto caricate su Storage`);
-      
+
       // Salva i metadati delle foto in Firestore nella collezione globale photos
       const photoPromises = uploadedPhotos.map(async (photo, index) => {
         try {
@@ -572,21 +572,21 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           throw err; // Re-throw per far fallire l'upload se c'è un errore Firestore
         }
       });
-      
+
       await Promise.all(photoPromises);
-      
+
       // Aggiorna il numero di foto nella galleria
       const galleryRef = doc(db, "galleries", gallery.id);
       await updateDoc(galleryRef, {
         photoCount: photos.length + uploadedPhotos.length,
         updatedAt: serverTimestamp()
       });
-      
+
       toast({
         title: "Upload completato!",
         description: `${uploadedPhotos.length} foto caricate con successo nella galleria.`
       });
-      
+
       // Reset form
       setSelectedFiles([]);
       setUploadProgress({});
@@ -594,10 +594,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       if (filesInputRef.current) {
         filesInputRef.current.value = '';
       }
-      
+
       // Ricarica le foto
       loadPhotos();
-      
+
       // Forza il refresh della galleria principale
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
 
@@ -607,7 +607,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           console.warn('⚠️ Errore invio notifiche:', notificationError);
           // Non bloccare l'upload per errori di notifica
         });
-      
+
     } catch (error) {
       console.error('Errore upload foto:', error);
       toast({
@@ -647,21 +647,22 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           <TabsContent value="details" className="space-y-4 overflow-y-auto flex-1 pr-2">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="name">Nome Galleria</Label>
+                <Label htmlFor="name">Nome Evento</Label>
                 <Input
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Nome della galleria"
+                  placeholder="Nome dell'Evento"
                 />
               </div>
               <div>
-                <Label htmlFor="date">Data</Label>
+                <Label htmlFor="date">Data dell'Evento</Label>
                 <Input
                   id="date"
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
+                  placeholder="Data dell'Evento"
                 />
               </div>
             </div>
@@ -808,7 +809,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   {isLoading ? "Caricamento..." : "Ricarica"}
                 </Button>
               </div>
-              
+
               {/* Tab filtri foto */}
               <div className="flex gap-2 mb-4">
                 <Button
@@ -846,7 +847,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   Legacy ({photos.filter(p => p.uploadedBy === 'legacy').length})
                 </Button>
               </div>
-              
+
               {photos.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Image className="mx-auto h-12 w-12 text-gray-400" />
@@ -866,7 +867,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     alt={photo.name}
                     className="w-full h-24 object-cover rounded border"
                   />
-                  
+
                   {/* Indicatore tipo foto */}
                   <div className={`absolute top-1 left-1 w-3 h-3 rounded-full ${
                     photo.uploadedBy === 'admin' ? 'bg-blue-500' :
@@ -877,14 +878,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     photo.uploadedBy === 'guest' ? 'Foto Ospite' :
                     'Foto Legacy'
                   }></div>
-                  
+
                   {/* Nome uploader */}
                   <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b">
                     {photo.uploadedBy === 'admin' ? 'Admin' :
                      photo.uploadedBy === 'guest' ? (photo.uploaderName || 'Ospite') :
                      'Legacy'}
                   </div>
-                  
+
                   <AlertDialog open={isDeleteDialogOpen && photoToDelete?.id === photo.id}>
                     <AlertDialogTrigger asChild>
                       <Button

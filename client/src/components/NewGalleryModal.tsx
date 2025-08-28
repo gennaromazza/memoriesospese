@@ -91,31 +91,32 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Crea Nuova Galleria</DialogTitle>
+            <DialogTitle>Crea Nuova Galleria Evento</DialogTitle>
             <DialogDescription>
-              Inserisci i dettagli per creare una nuova galleria di matrimonio
+              Inserisci i dettagli per creare una nuova galleria di evento
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome Galleria *</Label>
+              <Label htmlFor="name">Nome dell'Evento *</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="es. Marco e Giulia"
+                placeholder="Nome dell'Evento"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="date">Data Matrimonio</Label>
+              <Label htmlFor="date">Data dell'Evento</Label>
               <Input
                 id="date"
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
+                placeholder="Data dell'Evento"
               />
             </div>
 
@@ -135,7 +136,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Una breve descrizione del matrimonio..."
+                placeholder="Una breve descrizione dell'evento..."
                 rows={3}
               />
             </div>
