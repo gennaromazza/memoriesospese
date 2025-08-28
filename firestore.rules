@@ -138,19 +138,19 @@ service cloud.firestore {
          request.resource.data.version == 1); // Permetti creazione set sistema v1
     }
     
-    // Questionnaire Tokens - Server-side only (no client access)
+    // Questionnaire Tokens - Admin access for management
     match /questionnaireTokens/{tokenId} {
-      allow read, write: if false; // Only via Cloud Functions
+      allow read, write: if isAdmin(); // Admin can manage tokens
     }
     
-    // Validation Sessions - Server-side only
+    // Validation Sessions - Admin access for management
     match /validationSessions/{sessionId} {
-      allow read, write: if false; // Only via Cloud Functions
+      allow read, write: if isAdmin(); // Admin can manage sessions
     }
     
-    // Rate Limits - Server-side only  
+    // Rate Limits - Admin access for management
     match /rateLimits/{identifier} {
-      allow read, write: if false; // Only via Cloud Functions
+      allow read, write: if isAdmin(); // Admin can manage rate limits
     }
     
     // Helper function for role validation
