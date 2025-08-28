@@ -420,6 +420,90 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [gallery, photos, toast]);
 
+  // Funzione per eliminare tutte le foto da Firestore e Storage
+  const deleteAllPhotos = useCallback(async () => {
+    if (!gallery) return;
+
+    try {
+      setIsDeletingPhoto(true);
+      console.log(`🗑️ Inizio eliminazione di tutte le ${photos.length} foto per la galleria: ${gallery.id}`);
+
+      const deletePromises = photos.map(async (photo) => {
+        try {
+          // 1. Elimina il documento da Firestore (nuovo sistema o vecchia collezione ospiti)
+          if (photo.id.startsWith('old-guest-')) {
+            const oldGuestPhotoId = photo.id.replace('old-guest-', '');
+            console.log(`🗑️ Eliminando foto ospite legacy: ${oldGuestPhotoId}`);
+            const oldGuestPhotoRef = doc(db, "galleries", gallery.id, "photos", oldGuestPhotoId);
+            await deleteDoc(oldGuestPhotoRef);
+          } else if (!photo.id.startsWith('storage-')) {
+            console.log(`🗑️ Eliminando documento Firestore: ${photo.id}`);
+            const photoRef = doc(db, "photos", photo.id);
+            await deleteDoc(photoRef);
+          }
+
+          // 2. Elimina il file da Firebase Storage
+          try {
+            const url = new URL(photo.url);
+            const pathMatch = url.pathname.match(/\/o\/(.+?)(\?|$)/);
+
+            if (pathMatch) {
+              const fullPath = decodeURIComponent(pathMatch[1]);
+              console.log(`🗑️ Eliminando foto da Storage: ${fullPath}`);
+              const storageRef = ref(storage, fullPath);
+              await deleteObject(storageRef);
+            } else {
+              console.warn(`⚠️ Impossibile estrarre path da URL per eliminazione storage: ${photo.url}`);
+            }
+          } catch (storageError) {
+            console.warn(`⚠️ Errore eliminazione Storage per foto ${photo.id}:`, storageError);
+          }
+        } catch (error) {
+          console.error(`❌ Errore durante l'eliminazione della foto ${photo.id}:`, error);
+          // Continua con le altre foto anche se una fallisce
+        }
+      });
+
+      await Promise.all(deletePromises);
+
+      console.log(`✅ Tutte le ${photos.length} foto sono state processate per l'eliminazione.`);
+
+      // 3. Aggiorna conteggio foto nella galleria a 0
+      try {
+        const galleryRef = doc(db, "galleries", gallery.id);
+        await updateDoc(galleryRef, { 
+          photoCount: 0,
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ Conteggio foto galleria aggiornato a 0');
+      } catch (countError) {
+        console.warn('⚠️ Errore aggiornamento conteggio foto a 0:', countError);
+      }
+
+      // 4. Aggiorna l'array locale delle foto a vuoto
+      setPhotos([]);
+      toast({
+        title: "Tutte le foto eliminate",
+        description: `Tutte le ${photos.length} foto sono state rimosse dalla galleria con successo.`
+      });
+
+      // 5. Forza il refresh della galleria principale
+      window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
+
+    } catch (error) {
+      console.error('❌ Errore durante l\'eliminazione di tutte le foto:', error);
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore durante l'eliminazione di tutte le foto.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeletingPhoto(false);
+      setIsDeleteDialogOpen(false); // Assicurati che venga chiuso anche questo
+    }
+  }, [gallery, photos, toast]);
+
+
   // Salva le modifiche alla galleria (memoizzata per performance)
   const saveGallery = useCallback(async () => {
     if (!gallery) {
@@ -800,14 +884,49 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="font-medium">Tutte le Foto della Galleria ({photos.length})</h4>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={loadPhotos}
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Caricamento..." : "Ricarica"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={loadPhotos}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Caricamento..." : "Ricarica"}
+                  </Button>
+                  {photos.length > 0 && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          disabled={isLoading}
+                        >
+                          <Trash className="h-4 w-4 mr-1" />
+                          Elimina Tutte
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Elimina Tutte le Foto</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Sei sicuro di voler eliminare tutte le {photos.length} foto dalla galleria? 
+                            Questa azione eliminerà definitivamente tutte le foto sia da Firestore che da Storage e non può essere annullata.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={deleteAllPhotos}
+                            disabled={isDeletingPhoto}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            {isDeletingPhoto ? "Eliminando..." : "Elimina Tutte"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
               </div>
 
               {/* Tab filtri foto */}
