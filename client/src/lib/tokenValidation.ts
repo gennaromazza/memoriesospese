@@ -8,6 +8,7 @@ import {
   doc, 
   getDoc, 
   updateDoc, 
+  setDoc,
   query, 
   where, 
   getDocs, 
@@ -243,7 +244,7 @@ export class TokenValidationService {
       
       if (!rateLimitDoc.exists()) {
         // Prima richiesta per questo identifier
-        await updateDoc(rateLimitRef, {
+        await setDoc(rateLimitRef, {
           identifier,
           attempts: 1,
           windowStart: now,
