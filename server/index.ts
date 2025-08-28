@@ -27,7 +27,7 @@ async function startServer() {
     console.log('⚡ Ottimizzazione: CONFIG ESISTENTE + ALIAS CORRETTI')
     
   } catch (error) {
-    console.error('❌ Startup error:', error.message)
+    console.error('❌ Startup error:', error instanceof Error ? error.message : String(error))
     process.exit(1)
   }
 }
