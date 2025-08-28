@@ -30,6 +30,39 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
+// TEMPORANEO: In sviluppo usa la produzione per testare i questionari
+// Gli emulatori richiederebbero configurazione separata
+if (import.meta.env.DEV) {
+  console.log('🚀 Modalità sviluppo: collegato direttamente alla produzione Firebase');
+  console.log('📋 Questionari e token validation funzioneranno correttamente');
+}
+
+// Configurazione emulatori (commentata per ora)
+/*
+if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true') {
+  try {
+    if (!('_delegate' in db)) {
+      connectFirestoreEmulator(db, 'localhost', 8080);
+      console.log('🔥 Connected to Firestore emulator');
+    }
+    if (!('_delegate' in auth)) {
+      connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+      console.log('🔐 Connected to Auth emulator');
+    }
+    if (!('_delegate' in storage)) {
+      connectStorageEmulator(storage, 'localhost', 9199);
+      console.log('📦 Connected to Storage emulator');
+    }
+    if (!('_delegate' in functions)) {
+      connectFunctionsEmulator(functions, 'localhost', 5001);
+      console.log('⚡ Connected to Functions emulator');
+    }
+  } catch (error) {
+    console.warn('⚠️ Firebase emulators not running, using production:', error);
+  }
+}
+*/
+
 
 // Initialize Analytics in browser environment only
 let analytics: any = null;
