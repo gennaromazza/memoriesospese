@@ -1,0 +1,126 @@
+📌 Ruolo
+Sei l’assistente di sviluppo per l’app Memorie Sospese (React + TypeScript + Firebase + Tailwind).
+Struttura presente: shared/schema.ts, src/hooks/, src/components/, src/pages/Gallery.tsx, src/lib/firebase/.
+
+📌 Obiettivo
+Aggiungi un countdown scenografico nella galleria dell’evento, senza influenzare permessi o scadenze.
+Deve essere responsive, coerente con il brand (palette: #7fb0b2, #b47d7d, #f7f7f7, #6f4747, #ffc187, #f16c21, #ffffff) e integrarsi con Tailwind già in uso.
+
+🔹 Funzionalità
+
+Legge la data evento da Firestore: priorità couple.eventDate, fallback gallery.eventDate.
+
+Se non c’è data → non mostra nulla.
+
+“Dopo evento” gestibile con 3 varianti configurabili:
+
+celebrate → mostra messaggio festoso “È arrivato il giorno! ✨”.
+
+showDate → mostra “Il grande giorno è stato il {DATA in it-IT} 💍”.
+
+hide → non mostra più nulla.
+
+Varianti UI del countdown: "banner" | "chips" | "rings". Default: banner.
+
+🔹 Implementazione
+
+Schema (shared/schema.ts)
+
+Assicurati che Couple e Gallery abbiano eventDate?: any.
+
+Esporta utility toJSDate(input) che converte Timestamp | Date | string in Date | null.
+
+Hook (src/hooks/useCountdown.ts)
+
+useCountdown(targetDate: Date) → { total, days, hours, minutes, seconds, isOver } (tick 1s).
+
+Componente UI (src/components/PrettyCountdown.tsx)
+
+Props:
+
+type Variant = "banner" | "chips" | "rings";
+type AfterMode = "celebrate" | "showDate" | "hide";
+interface PrettyCountdownProps {
+  targetDate: Date;
+  title?: string;                  // es. "Mancano al grande giorno"
+  variant?: Variant;               // default "banner"
+  afterMode?: AfterMode;           // default "celebrate"
+  className?: string;
+  showLabels?: boolean;            // default true
+  compactOnMobile?: boolean;       // default true
+  eventLabel?: string;             // es. "dell’evento" o "di Sefora & Raimondo"
+  pastMessageTemplate?: (d: Date) => string; // override opzionale per showDate
+}
+
+
+Comportamento:
+
+Prima dell’evento: mostra countdown (giorni / ore / min / sec).
+
+Dopo l’evento:
+
+celebrate: box visivo con testo “È arrivato il giorno! ✨”.
+
+showDate: box visivo con “Il grande giorno {eventLabel ? eventLabel+' ' : ''}è stato il {DATA it-IT} 💍”.
+
+hide: ritorna null.
+
+Stile/Brand:
+
+Usa Tailwind, tipografia con tabular-nums e pesi coerenti.
+
+Accenti e bordi soft usando la palette:
+
+accento principale: #7fb0b2 (bordi/indicatori),
+
+secondario: #b47d7d per highlight o messaggi,
+
+background chiaro: #f7f7f7, dark: neutral-900.
+
+Evita colori “sparati”; mantieni ombre leggere (shadow-sm) e rounded-2xl.
+
+Mantieni contrasto adeguato in dark mode (usa dark:).
+
+Helper (src/lib/firebase/firestore.ts)
+
+Esporta resolveEventDate(couple?, gallery?): Date | null che applica la priorità.
+
+Pagina galleria (src/pages/Gallery.tsx)
+
+Importa PrettyCountdown + resolveEventDate.
+
+Calcola eventDate.
+
+Inserisci il countdown in alto, es:
+
+{eventDate && (
+  <PrettyCountdown
+    targetDate={eventDate}
+    title={`Mancano al grande giorno ${couple?.names ? 'di ' + couple.names : 'dell’evento'}`}
+    eventLabel={couple?.names ? `di ${couple.names}` : "dell’evento"}
+    variant="banner"          // testabili anche "chips" | "rings"
+    afterMode="showDate"      // "celebrate" | "showDate" | "hide"
+    compactOnMobile
+    showLabels
+    className="mx-auto max-w-2xl"
+  />
+)}
+
+
+🔹 Criteri di accettazione
+
+Nessun blocco/scadenza delle gallerie.
+
+Prima dell’evento compare il countdown, dopo l’evento si applica la variante afterMode scelta.
+
+UI coerente con il brand (palette sopra), responsive, dark-mode friendly, nessun errore TS/ESLint.
+
+🔹 Nota accessibilità & qualità
+
+Imposta role="timer" e aria-live="polite" sulle varianti attive.
+
+Usa cifre a larghezza fissa (tabular-nums) per evitare “saltellamenti”.
+
+Mantieni spaziature consistenti (gap, px/py) e gerarchia tipografica chiara.
+
+✅ Non modificare permessi/regole Firestore. Non introdurre logiche di scadenza. Mantieni import path con alias @/ già in uso.
