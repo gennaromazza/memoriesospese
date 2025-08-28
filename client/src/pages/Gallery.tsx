@@ -35,20 +35,8 @@ import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
 import { Edit3 } from "lucide-react";
 import { PrettyCountdown } from "@/components/PrettyCountdown";
-import {
-  getGallery,
-  getPhotos,
-  getComments,
-  likePhoto,
-  unlikePhoto,
-  hasUserLikedPhoto,
-  addComment,
-  getPhotoInteractions,
-  type Photo,
-  type Comment,
-  type Gallery as GalleryType,
-  resolveEventDate,
-} from "@/lib/firebase";
+import { useQuery } from "@tanstack/react-query";
+import { resolveEventDate } from "@/lib/firebase";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -348,8 +336,8 @@ export default function Gallery() {
           <div className="container mx-auto px-4 py-6">
             <PrettyCountdown
               targetDate={eventDate}
-              title={`Mancano al grande giorno ${couple?.names ? 'di ' + couple.names : 'dell\'evento'}`}
-              eventLabel={couple?.names ? `di ${couple.names}` : "dell'evento"}
+              title={couple?.brideName && couple?.groomName ? `Mancano al grande giorno di ${couple.brideName} & ${couple.groomName}` : "Mancano al grande giorno"}
+              eventLabel={couple?.brideName && couple?.groomName ? `di ${couple.brideName} & ${couple.groomName}` : "dell'evento"}
               variant="banner"
               afterMode="showDate"
               compactOnMobile
