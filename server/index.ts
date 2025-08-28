@@ -1,33 +1,33 @@
 /**
- * Optimized Firebase-Only SPA Server
+ * ⚡ Lightning Fast Dev Server
+ * Ottimizzazione: Server Vite nativo + Config corretta
  */
 
 import { createServer } from 'vite'
 
-// Pre-import plugins per evitare import dinamici costosi
-import react from '@vitejs/plugin-react'
-
 async function startServer() {
+  const start = Date.now()
+  
   try {
-    console.log('🚀 Starting optimized dev server...')
+    console.log('⚡ Lightning fast startup...')
     
-    // Config minima per massima velocità
+    // Usa configurazione Vite esistente (root del progetto)
     const server = await createServer({
-      configFile: 'vite.config.ts', // Usa config esistente invece di ricreare
       server: {
         port: 5000,
         host: '0.0.0.0',
-        strictPort: false,
-        open: false,
+        strictPort: false, // Trova porta automaticamente se 5000 occupata
       },
     })
 
     await server.listen()
-    console.log('✅ Dev server ready!')
-    console.log('🌐 http://0.0.0.0:5000')
+    
+    console.log(`🚀 Ready in ${Date.now() - start}ms`)
+    console.log('🌐 Server: http://0.0.0.0:5000')
+    console.log('⚡ Ottimizzazione: CONFIG ESISTENTE + ALIAS CORRETTI')
     
   } catch (error) {
-    console.error('❌ Server error:', error)
+    console.error('❌ Startup error:', error.message)
     process.exit(1)
   }
 }
