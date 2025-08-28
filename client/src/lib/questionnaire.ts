@@ -218,6 +218,28 @@ export class QuestionnaireService {
     }
   }
 
+  /**
+   * Aggiorna informazioni coppia
+   */
+  static async updateCoupleInfo(galleryId: string, questionnaireId: string, coupleInfo: any): Promise<void> {
+    try {
+      const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
+      await updateDoc(questionnaireRef, {
+        couple: {
+          brideName: coupleInfo.brideName || '',
+          groomName: coupleInfo.groomName || '',
+          weddingDate: coupleInfo.weddingDate || '',
+          emailBride: coupleInfo.emailBride || '',
+          emailGroom: coupleInfo.emailGroom || ''
+        },
+        updatedAt: Date.now()
+      });
+    } catch (error) {
+      console.error('Errore aggiornamento informazioni coppia:', error);
+      throw new Error('Errore durante l\'aggiornamento delle informazioni della coppia');
+    }
+  }
+
   // ====== TOKEN MANAGEMENT ======
 
   /**

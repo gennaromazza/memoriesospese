@@ -220,6 +220,35 @@ export default function QuestionnaireManager() {
     }
   };
 
+  const handleSaveCoupleInfo = async () => {
+    if (!questionnaire || !params?.galleryId) return;
+
+    try {
+      setIsSaving(true);
+      
+      await QuestionnaireService.updateCoupleInfo(
+        params.galleryId,
+        questionnaire.id,
+        coupleInfo
+      );
+      
+      toast({
+        title: "Informazioni salvate",
+        description: "Le informazioni della coppia sono state aggiornate con successo",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Errore salvataggio informazioni coppia:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile salvare le informazioni della coppia",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleGenerateToken = async (role: Role) => {
     if (!questionnaire || !params?.galleryId) return;
 
@@ -591,6 +620,23 @@ export default function QuestionnaireManager() {
                         className="mt-1"
                       />
                     </div>
+                  </div>
+                  
+                  {/* Pulsante Salva Informazioni Coppia */}
+                  <div className="flex gap-3 pt-4 border-t">
+                    <Button 
+                      onClick={handleSaveCoupleInfo}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Salvataggio...' : 'Salva Informazioni Coppia'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setActiveTab("tokens")}
+                      disabled={!enabled}
+                    >
+                      Gestisci Link Accesso
+                    </Button>
                   </div>
                 </div>
               )}
