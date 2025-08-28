@@ -104,22 +104,12 @@ export default function Gallery() {
 
   // Calcola la data dell'evento direttamente dalla galleria
   const eventDate = useMemo(() => {
-    if (!galleryData) return null;
+    if (!galleryData?.date) return null;
     
-    // Usa la data della galleria se presente
-    if (galleryData.eventDate) {
-      const date = new Date(galleryData.eventDate);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-    
-    // Fallback alla data generica della galleria
-    if (galleryData.date) {
-      const date = new Date(galleryData.date);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
+    // Usa la data della galleria
+    const date = new Date(galleryData.date);
+    if (!isNaN(date.getTime())) {
+      return date;
     }
     
     return null;
@@ -336,8 +326,9 @@ export default function Gallery() {
           <div className="container mx-auto px-4 py-6">
             <PrettyCountdown
               targetDate={eventDate}
-              title={galleryData?.name ? `Mancano al grande giorno di ${galleryData.name}` : "Mancano al grande giorno"}
-              eventLabel={galleryData?.name ? `di ${galleryData.name}` : "dell'evento"}
+              title="Riviviamo insieme i momenti più belli"
+              eventLabel="della celebrazione"
+              pastMessageTemplate={(date) => `Un giorno indimenticabile - ${date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })} ✨`}
               variant="banner"
               afterMode="showDate"
               compactOnMobile
@@ -350,9 +341,9 @@ export default function Gallery() {
         {/* Debug: mostra se non ci sono dati per il countdown */}
         {!eventDate && galleryData && (
           <div className="container mx-auto px-4 py-2">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-              <p className="text-yellow-800 text-sm">
-                💡 Il countdown apparirà quando verrà impostata una data per l'evento della galleria.
+            <div className="bg-gradient-to-r from-[#7fb0b2]/10 to-[#b47d7d]/10 border border-[#7fb0b2]/30 rounded-2xl p-6 text-center">
+              <p className="text-[#6f4747] font-medium">
+                💝 Qui apparirà un messaggio speciale quando sarà configurata la data della celebrazione
               </p>
             </div>
           </div>
