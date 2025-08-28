@@ -30,38 +30,74 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
-// TEMPORANEO: In sviluppo usa la produzione per testare i questionari
-// Gli emulatori richiederebbero configurazione separata
+// Auto-rilevamento emulatori in sviluppo
 if (import.meta.env.DEV) {
-  console.log('🚀 Modalità sviluppo: collegato direttamente alla produzione Firebase');
-  console.log('📋 Questionari e token validation funzioneranno correttamente');
-}
-
-// Configurazione emulatori (commentata per ora)
-/*
-if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true') {
+  let usingEmulators = false;
+  
   try {
-    if (!('_delegate' in db)) {
-      connectFirestoreEmulator(db, 'localhost', 8080);
-      console.log('🔥 Connected to Firestore emulator');
-    }
-    if (!('_delegate' in auth)) {
-      connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-      console.log('🔐 Connected to Auth emulator');
-    }
-    if (!('_delegate' in storage)) {
-      connectStorageEmulator(storage, 'localhost', 9199);
-      console.log('📦 Connected to Storage emulator');
-    }
-    if (!('_delegate' in functions)) {
-      connectFunctionsEmulator(functions, 'localhost', 5001);
-      console.log('⚡ Connected to Functions emulator');
-    }
+    // Verifica se gli emulatori sono disponibili
+    const checkEmulator = async (host: string, port: number): Promise<boolean> => {
+      try {
+        const response = await fetch(`http://${host}:${port}`, { method: 'HEAD', mode: 'no-cors' });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    
+    // Tenta connessione agli emulatori solo se disponibili
+    Promise.all([
+      checkEmulator('localhost', 8080), // Firestore
+      checkEmulator('localhost', 9099), // Auth  
+      checkEmulator('localhost', 9199), // Storage
+      checkEmulator('localhost', 5001)  // Functions
+    ]).then(([firestoreOk, authOk, storageOk, functionsOk]) => {
+      
+      if (firestoreOk || authOk || storageOk || functionsOk) {
+        console.log('🔍 Emulatori Firebase rilevati, connessione in corso...');
+        
+        try {
+          // Connetti solo agli emulatori disponibili
+          if (firestoreOk && !('_delegate' in db)) {
+            connectFirestoreEmulator(db, 'localhost', 8080);
+            console.log('🔥 Firestore: connesso all\'emulatore');
+            usingEmulators = true;
+          }
+          
+          if (authOk && !('_delegate' in auth)) {
+            connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+            console.log('🔐 Auth: connesso all\'emulatore');
+            usingEmulators = true;
+          }
+          
+          if (storageOk && !('_delegate' in storage)) {
+            connectStorageEmulator(storage, 'localhost', 9199);
+            console.log('📦 Storage: connesso all\'emulatore');
+            usingEmulators = true;
+          }
+          
+          if (functionsOk && !('_delegate' in functions)) {
+            connectFunctionsEmulator(functions, 'localhost', 5001);
+            console.log('⚡ Functions: connesso all\'emulatore');
+            usingEmulators = true;
+          }
+          
+        } catch (error) {
+          console.warn('⚠️ Errore connessione emulatori, fallback a produzione:', error);
+        }
+      }
+      
+      if (!usingEmulators) {
+        console.log('🚀 Modalità sviluppo: nessun emulatore rilevato, uso produzione');
+        console.log('📋 Questionari e token validation: produzione Firebase');
+      }
+    });
+    
   } catch (error) {
-    console.warn('⚠️ Firebase emulators not running, using production:', error);
+    console.log('🚀 Modalità sviluppo: connesso alla produzione Firebase');
+    console.log('📋 Questionari e token validation funzioneranno correttamente');
   }
 }
-*/
 
 
 // Initialize Analytics in browser environment only
