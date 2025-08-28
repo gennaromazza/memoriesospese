@@ -35,7 +35,6 @@ import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
 import { Edit3 } from "lucide-react";
 import { PrettyCountdown } from "@/components/PrettyCountdown";
-import { useQuery } from "@tanstack/react-query";
 import { resolveEventDate } from "@/lib/firebase";
 
 export default function Gallery() {
@@ -103,36 +102,28 @@ export default function Gallery() {
     refreshPhotos: refreshGalleryPhotosHook
   } = useGalleryData(id || "");
 
-  // Carica dati della coppia dal questionario se presente
-  const { data: couple } = useQuery({
-    queryKey: ["couple", galleryData?.id],
-    queryFn: async () => {
-      if (!galleryData?.id) return null;
-      try {
-        const { QuestionnaireService } = await import('@/lib/questionnaire');
-        const questionnaire = await QuestionnaireService.getGalleryQuestionnaire(galleryData.id);
-        return questionnaire?.couple || null;
-      } catch (error) {
-        console.error('Errore caricamento dati coppia:', error);
-        return null;
-      }
-    },
-    enabled: !!galleryData?.id,
-  });
-
-  // Calcola la data dell'evento
+  // Calcola la data dell'evento direttamente dalla galleria
   const eventDate = useMemo(() => {
-    // Prima prova con i dati del questionario
-    if (couple?.weddingDate) {
-      const date = new Date(couple.weddingDate);
+    if (!galleryData) return null;
+    
+    // Usa la data della galleria se presente
+    if (galleryData.eventDate) {
+      const date = new Date(galleryData.eventDate);
       if (!isNaN(date.getTime())) {
         return date;
       }
     }
     
-    // Fallback alla data della galleria
-    return resolveEventDate(couple, galleryData);
-  }, [couple, galleryData]);
+    // Fallback alla data generica della galleria
+    if (galleryData.date) {
+      const date = new Date(galleryData.date);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    
+    return null;
+  }, [galleryData]);
 
   // Aggiorna lo stato di caricamento
   useEffect(() => {
@@ -345,8 +336,8 @@ export default function Gallery() {
           <div className="container mx-auto px-4 py-6">
             <PrettyCountdown
               targetDate={eventDate}
-              title={couple?.brideName && couple?.groomName ? `Mancano al grande giorno di ${couple.brideName} & ${couple.groomName}` : "Mancano al grande giorno"}
-              eventLabel={couple?.brideName && couple?.groomName ? `di ${couple.brideName} & ${couple.groomName}` : "dell'evento"}
+              title={galleryData?.name ? `Mancano al grande giorno di ${galleryData.name}` : "Mancano al grande giorno"}
+              eventLabel={galleryData?.name ? `di ${galleryData.name}` : "dell'evento"}
               variant="banner"
               afterMode="showDate"
               compactOnMobile
@@ -361,7 +352,7 @@ export default function Gallery() {
           <div className="container mx-auto px-4 py-2">
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
               <p className="text-yellow-800 text-sm">
-                💡 Il countdown apparirà quando verrà configurato il questionario con la data del matrimonio.
+                💡 Il countdown apparirà quando verrà impostata una data per l'evento della galleria.
               </p>
             </div>
           </div>
