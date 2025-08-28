@@ -122,6 +122,15 @@ export default function Gallery() {
 
   // Calcola la data dell'evento
   const eventDate = useMemo(() => {
+    // Prima prova con i dati del questionario
+    if (couple?.weddingDate) {
+      const date = new Date(couple.weddingDate);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    
+    // Fallback alla data della galleria
     return resolveEventDate(couple, galleryData);
   }, [couple, galleryData]);
 
@@ -344,6 +353,17 @@ export default function Gallery() {
               showLabels
               className="mx-auto max-w-2xl"
             />
+          </div>
+        )}
+        
+        {/* Debug: mostra se non ci sono dati per il countdown */}
+        {!eventDate && galleryData && (
+          <div className="container mx-auto px-4 py-2">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+              <p className="text-yellow-800 text-sm">
+                💡 Il countdown apparirà quando verrà configurato il questionario con la data del matrimonio.
+              </p>
+            </div>
           </div>
         )}
 
