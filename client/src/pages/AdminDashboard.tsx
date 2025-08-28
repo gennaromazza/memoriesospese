@@ -1113,6 +1113,16 @@ export default function AdminDashboard() {
                                 >
                                   {gallery.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </Button>
+                                <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 bg-purple-50 hover:bg-purple-100 border-purple-200"
+                                    title="Gestisci questionario"
+                                  >
+                                    <HelpCircle className="h-4 w-4 text-purple-600" />
+                                  </Button>
+                                </Link>
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button
