@@ -84,11 +84,13 @@ export default function QuestionnaireForm() {
 
   // Estrai parametri URL
   const urlParams = new URLSearchParams(search);
-  // ✅ Usa token da localStorage se manca nell'URL
   const tokenFromUrl = urlParams.get('token');
   const [token, setToken] = useState<string | null>(() => {
     return tokenFromUrl || localStorage.getItem('questionnaire-token');
   });
+  const [hasValidated, setHasValidated] = useState(
+    localStorage.getItem('questionnaire-token-valid') === 'true'
+  );
 
   const role = urlParams.get('role') as Role | null;
 
@@ -190,9 +192,27 @@ export default function QuestionnaireForm() {
     }
 
     try {
+      // 🎯 Step 2: Salta validazione remota se già validato
+      if (hasValidated && localStorage.getItem('questionnaire-session')) {
+        const savedQuestionnaireId = localStorage.getItem('questionnaire-id');
+        if (savedQuestionnaireId) {
+          setTokenValid(true);
+          setQuestionnaireId(savedQuestionnaireId);
+          
+          // Cleanup URL params se necessario
+          const { TokenValidationService } = await import('@/lib/tokenValidation');
+          TokenValidationService.cleanupUrlParams();
+          
+          // Carica direttamente i dati senza validazione remota
+          await loadQuestionnaireData(savedQuestionnaireId);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Validazione remota necessaria
       const { TokenValidationService } = await import('@/lib/tokenValidation');
       
-      // Validazione token
       const validation = await TokenValidationService.validateTokenAndCreateSession(
         token,
         params.galleryId,
@@ -208,17 +228,16 @@ export default function QuestionnaireForm() {
 
       setTokenValid(true);
       setQuestionnaireId(validation.questionnaireId);
+      setHasValidated(true);
       
-      // ✅ Salva token in localStorage per i refresh
+      // 🎯 Salva tutto in localStorage dopo validazione riuscita
       localStorage.setItem('questionnaire-token', token);
+      localStorage.setItem('questionnaire-token-valid', 'true');
+      localStorage.setItem('questionnaire-session', validation.sessionId);
+      localStorage.setItem('questionnaire-id', validation.questionnaireId);
 
       // Mantieni URL pulito
       TokenValidationService.cleanupUrlParams();
-      
-      // Salva sessionId
-      if (validation.sessionId) {
-        localStorage.setItem('questionnaire-session', validation.sessionId);
-      }
 
       // Carica set domande e dati esistenti
       await loadQuestionnaireData(validation.questionnaireId);
@@ -226,6 +245,11 @@ export default function QuestionnaireForm() {
     } catch (error) {
       console.error('Errore validazione token:', error);
       setTokenValid(false);
+      // Reset validation state on error
+      setHasValidated(false);
+      localStorage.removeItem('questionnaire-token-valid');
+      localStorage.removeItem('questionnaire-session');
+      localStorage.removeItem('questionnaire-id');
     } finally {
       setIsLoading(false);
     }
