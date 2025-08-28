@@ -170,15 +170,14 @@ service cloud.firestore {
       return isValidRole(role);
     }
     
-    // Gallery questionnaires
+    // Gallery questionnaires - Permetti lettura pubblica per validazione
     match /galleries/{galleryId} {
       match /questionnaires/{questionnaireId} {
         // Admin can read/write everything
         allow read, write: if isAdmin();
         
-        // Public read for questionnaire structure (limited fields)
-        allow read: if request.auth != null && 
-          hasValidQuestionnaireRole(galleryId, request.auth.token.role);
+        // Lettura pubblica per validazione token e struttura questionario
+        allow read: if true;
         
         // Questionnaire answers by role
         match /answers/{role} {

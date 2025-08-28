@@ -219,6 +219,8 @@ export class QuestionnaireService {
       return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Questionnaire;
     } catch (error) {
       console.error('Errore recupero questionario galleria:', error);
+      // Se il questionario non esiste o non è accessibile, ritorna null
+      // Questo è normale per gallerie senza questionari configurati
       return null;
     }
   }
