@@ -360,16 +360,6 @@ export default function Gallery() {
           </div>
         )}
         
-        {/* Debug: mostra se non ci sono dati per il countdown */}
-        {!eventDate && galleryData && (
-          <div className="container mx-auto px-4 py-2">
-            <div className="bg-gradient-to-r from-[#7fb0b2]/10 to-[#b47d7d]/10 border border-[#7fb0b2]/30 rounded-2xl p-6 text-center">
-              <p className="text-[#6f4747] font-medium">
-                💝 Qui apparirà un messaggio speciale quando sarà configurata la data della celebrazione
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Video YouTube se presente */}
         <YouTubeEmbed videoUrl={galleryData.youtubeUrl || ""} />
