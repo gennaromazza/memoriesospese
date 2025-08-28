@@ -84,7 +84,12 @@ export default function QuestionnaireForm() {
 
   // Estrai parametri URL
   const urlParams = new URLSearchParams(search);
-  const token = urlParams.get('token');
+  // ✅ Usa token da localStorage se manca nell'URL
+  const tokenFromUrl = urlParams.get('token');
+  const [token, setToken] = useState<string | null>(() => {
+    return tokenFromUrl || localStorage.getItem('questionnaire-token');
+  });
+
   const role = urlParams.get('role') as Role | null;
 
   // Domanda corrente
@@ -204,7 +209,10 @@ export default function QuestionnaireForm() {
       setTokenValid(true);
       setQuestionnaireId(validation.questionnaireId);
       
-      // Cleanup URL params
+      // ✅ Salva token in localStorage per i refresh
+      localStorage.setItem('questionnaire-token', token);
+
+      // Mantieni URL pulito
       TokenValidationService.cleanupUrlParams();
       
       // Salva sessionId
