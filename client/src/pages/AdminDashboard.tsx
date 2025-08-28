@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 
 // Componente di paginazione riutilizzabile
@@ -948,35 +948,42 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <Tabs defaultValue="galleries" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
             <TabsList className="mb-6 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto">
-              <TabsTrigger value="galleries" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+              <TabsTrigger value="galleries" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Eye className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Gallerie</span>
-                <span className="sm:hidden">📸</span>
+                <span className="sm:hidden">Eventi</span>
               </TabsTrigger>
-              <TabsTrigger value="users" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+              <TabsTrigger value="users" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Utenti</span>
-                <span className="sm:hidden">👥</span>
+                <span className="sm:hidden">User</span>
               </TabsTrigger>
-              <TabsTrigger value="slideshow" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+              <TabsTrigger value="slideshow" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Play className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Slideshow</span>
-                <span className="sm:hidden">🎬</span>
+                <span className="sm:hidden">Slide</span>
               </TabsTrigger>
-              <TabsTrigger value="requests" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+              <TabsTrigger value="requests" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Key className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Richieste Password</span>
-                <span className="sm:hidden">🔑</span>
+                <span className="sm:hidden">Pass</span>
               </TabsTrigger>
-              <TabsTrigger value="email" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+              <TabsTrigger value="email" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Mail className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Sistema Email</span>
-                <span className="sm:hidden">✉️</span>
+                <span className="sm:hidden">Mail</span>
               </TabsTrigger>
 
-              <TabsTrigger value="questionnaire" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+              <TabsTrigger value="questionnaire" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <HelpCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Questionari</span>
-                <span className="sm:hidden">❓</span>
+                <span className="sm:hidden">Q&A</span>
               </TabsTrigger>
 
-              <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap">
+              <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Impostazioni</span>
-                <span className="sm:hidden">⚙️</span>
+                <span className="sm:hidden">Setup</span>
               </TabsTrigger>
             </TabsList>
 
