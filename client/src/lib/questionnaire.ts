@@ -71,6 +71,20 @@ export class QuestionnaireService {
   }
 
   /**
+   * Ottieni FAQ set per ID
+   */
+  static async getFaqSetById(id: string): Promise<FaqSet | null> {
+    try {
+      const faqSetRef = doc(db, 'faqSets', id);
+      const faqSetDoc = await getDoc(faqSetRef);
+      return faqSetDoc.exists() ? { id: faqSetDoc.id, ...faqSetDoc.data() } as FaqSet : null;
+    } catch (error) {
+      console.error('Errore recupero FAQ set:', error);
+      return null;
+    }
+  }
+
+  /**
    * Crea nuovo set di domande
    */
   static async createFaqSet(faqSet: Omit<FaqSet, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
@@ -163,6 +177,13 @@ export class QuestionnaireService {
         faqSetId,
         faqVersion,
         enabled: false,
+        couple: {
+          brideName: '',
+          groomName: '',
+          weddingDate: '',
+          emailBride: '',
+          emailGroom: ''
+        },
         tokens: {
           bride: { tokenId: '', url: '', createdAt: now, expiresAt: now },
           groom: { tokenId: '', url: '', createdAt: now, expiresAt: now }
@@ -251,7 +272,10 @@ export class QuestionnaireService {
     role: Role
   ): Promise<{ tokenId: string; url: string }> {
     try {
-      // Genera token sicuro
+      // STEP 1: Revoca token esistenti per questo role
+      await this.revokeToken(galleryId, questionnaireId, role);
+      
+      // STEP 2: Genera nuovo token sicuro
       const rawToken = generateSecureToken();
       const tokenHash = await sha256Hash(rawToken);
       const tokenId = generateSecureToken(); // ID separato dal token
@@ -259,7 +283,7 @@ export class QuestionnaireService {
       const now = Date.now();
       const expiresAt = now + (90 * 24 * 60 * 60 * 1000); // 90 giorni
 
-      // Salva token in collection separata
+      // STEP 3: Salva token in collection separata
       const tokenRef = doc(db, 'questionnaireTokens', tokenId);
       const tokenDoc: QuestionnaireToken = {
         id: tokenId,
@@ -273,11 +297,11 @@ export class QuestionnaireService {
       
       await setDoc(tokenRef, tokenDoc);
 
-      // Genera URL pubblico
-      const baseUrl = window.location.origin;
-      const url = `${baseUrl}/q/${galleryId}?token=${rawToken}&role=${role}`;
+      // STEP 4: Genera URL pubblico con base path corretto
+      const { createAbsoluteUrl } = await import('./basePath');
+      const url = createAbsoluteUrl(`/q/${galleryId}?token=${rawToken}&role=${role}`);
 
-      // Aggiorna questionnaire con nuovo token
+      // STEP 5: Aggiorna questionnaire con nuovo token
       const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
       await updateDoc(questionnaireRef, {
         [`tokens.${role}`]: {
@@ -306,7 +330,8 @@ export class QuestionnaireService {
         collection(db, 'questionnaireTokens'),
         where('galleryId', '==', galleryId),
         where('questionnaireId', '==', questionnaireId),
-        where('role', '==', role)
+        where('role', '==', role),
+        where('revoked', '!=', true) // Solo token non ancora revocati
       );
       
       const snapshot = await getDocs(tokensQuery);
@@ -319,6 +344,12 @@ export class QuestionnaireService {
       
       await Promise.all(updatePromises);
 
+      // Cleanup sessioni di validazione per i token revocati
+      const { TokenValidationService } = await import('./tokenValidation');
+      for (const doc of snapshot.docs) {
+        await TokenValidationService.cleanupSessionsByTokenId(doc.id);
+      }
+
       // Aggiorna questionnaire
       const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
       await updateDoc(questionnaireRef, {
@@ -326,7 +357,8 @@ export class QuestionnaireService {
           tokenId: '',
           url: '',
           createdAt: Date.now(),
-          expiresAt: Date.now()
+          expiresAt: Date.now(),
+          revoked: true
         },
         updatedAt: Date.now()
       });
@@ -351,10 +383,15 @@ export class QuestionnaireService {
       const brideCompleted = answers.bride?.status === 'submitted';
       const groomCompleted = answers.groom?.status === 'submitted';
       
+      // Ottieni numero reale di domande dal FAQ set
+      const questionnaire = await this.getGalleryQuestionnaire(galleryId);
+      const faqSet = questionnaire ? await this.getFaqSetById(questionnaire.faqSetId) : null;
+      const totalQuestions = faqSet?.questions.length || 10;
+      
       const brideProgress = answers.bride ? 
-        (Object.keys(answers.bride.answers).length / 10) * 100 : 0;
+        (Object.keys(answers.bride.answers).length / totalQuestions) * 100 : 0;
       const groomProgress = answers.groom ? 
-        (Object.keys(answers.groom.answers).length / 10) * 100 : 0;
+        (Object.keys(answers.groom.answers).length / totalQuestions) * 100 : 0;
 
       return {
         bride: { completed: brideCompleted, progress: brideProgress },

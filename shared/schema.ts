@@ -221,6 +221,7 @@ export interface Questionnaire {
   faqSetId: string;
   faqVersion: number; // version snapshot
   enabled: boolean;
+  couple?: CoupleInfo; // Informazioni coppia
   tokens: Record<Role, {
     tokenId: string;
     url: string;

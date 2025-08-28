@@ -110,7 +110,15 @@ export class TokenValidationService {
         await updateDoc(tokenDoc.ref, { usedAt: now });
       }
 
-      // 6. Crea sessione temporanea
+      // 6. VERIFICA AGGIUNTIVA: Controlla se il questionario è ancora attivo
+      const { QuestionnaireService } = await import('./questionnaire');
+      const questionnaire = await QuestionnaireService.getGalleryQuestionnaire(galleryId);
+      if (!questionnaire || !questionnaire.enabled) {
+        await this.recordFailedAttempt(ipAddress || 'unknown');
+        return { valid: false, error: 'Questionario non più attivo' };
+      }
+
+      // 7. Crea sessione temporanea
       const sessionId = await this.createValidationSession({
         galleryId,
         questionnaireId: tokenData.questionnaireId,
@@ -423,4 +431,28 @@ export class TokenValidationService {
            request.connection?.remoteAddress || 
            'unknown';
   }
+
+  /**
+   * Cleanup sessioni per token specifico
+   */
+  static async cleanupSessionsByTokenId(tokenId: string): Promise<void> {
+    try {
+      const sessionsQuery = query(
+        collection(db, 'validationSessions'),
+        where('tokenId', '==', tokenId)
+      );
+      
+      const snapshot = await getDocs(sessionsQuery);
+      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      
+      await Promise.all(deletePromises);
+      
+      if (snapshot.size > 0) {
+        console.log(`Cleanup: ${snapshot.size} sessioni eliminate per token ${tokenId}`);
+      }
+    } catch (error) {
+      console.error('Errore cleanup sessioni per token:', error);
+    }
+  }
+
 }

@@ -30,7 +30,7 @@ import {
   FileText
 } from 'lucide-react';
 import { QuestionnaireService } from '@/lib/questionnaire';
-import { FaqSet, Role, QuestionKey, DraftAnswers } from '@shared/schema';
+import { FaqSet, Role, QuestionKey } from '@shared/schema';
 import { debounce } from '@shared/schema';
 
 interface QuestionnaireFormParams {
@@ -71,7 +71,7 @@ export default function QuestionnaireForm() {
   // Stato form
   const [formState, setFormState] = useState<QuestionnaireState>({
     currentStep: 0,
-    totalSteps: 10,
+    totalSteps: 0, // Inizializzato a 0, verrà aggiornato dinamicamente
     answers: {},
     isSubmitted: false,
     hasChanges: false,
