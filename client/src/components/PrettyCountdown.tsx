@@ -37,18 +37,18 @@ export function PrettyCountdown({
     
     if (afterMode === "celebrate") {
       return (
-        <div className={`bg-gradient-to-r from-[#7fb0b2]/10 via-[#b47d7d]/10 to-[#7fb0b2]/10 
-                        border border-[#7fb0b2]/30 rounded-2xl p-6 text-center shadow-sm ${className}`}
+        <div className={`bg-gradient-to-r from-sage/10 via-terracotta/10 to-sage/10 
+                        border border-sage/30 rounded-2xl p-6 text-center shadow-sm ${className}`}
              role="status" aria-live="polite">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Sparkles className="h-6 w-6 text-[#7fb0b2] animate-pulse" />
-            <Heart className="h-6 w-6 text-[#b47d7d] animate-pulse" />
-            <Sparkles className="h-6 w-6 text-[#7fb0b2] animate-pulse" />
+            <Sparkles className="h-6 w-6 text-sage animate-pulse" />
+            <Heart className="h-6 w-6 text-terracotta animate-pulse" />
+            <Sparkles className="h-6 w-6 text-sage animate-pulse" />
           </div>
-          <h3 className="text-2xl font-bold text-[#6f4747] dark:text-neutral-100 mb-1">
+          <h3 className="text-2xl font-bold text-foreground mb-1">
             È arrivato il giorno! ✨
           </h3>
-          <p className="text-[#6f4747]/70 dark:text-neutral-300">
+          <p className="text-muted-foreground">
             Auguri per questo momento speciale
           </p>
         </div>
@@ -67,14 +67,14 @@ export function PrettyCountdown({
         : `Il grande giorno ${eventLabel ? eventLabel + ' ' : ''}è stato il ${dateStr} 💍`;
       
       return (
-        <div className={`bg-gradient-to-r from-[#b47d7d]/10 via-[#7fb0b2]/10 to-[#b47d7d]/10 
-                        border border-[#b47d7d]/30 rounded-2xl p-6 text-center shadow-sm ${className}`}
+        <div className={`bg-gradient-to-r from-terracotta/10 via-sage/10 to-terracotta/10 
+                        border border-terracotta/30 rounded-2xl p-6 text-center shadow-sm ${className}`}
              role="status" aria-live="polite">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Calendar className="h-6 w-6 text-[#b47d7d]" />
-            <Heart className="h-6 w-6 text-[#7fb0b2]" />
+            <Calendar className="h-6 w-6 text-terracotta" />
+            <Heart className="h-6 w-6 text-sage" />
           </div>
-          <h3 className="text-xl font-semibold text-[#6f4747] dark:text-neutral-100">
+          <h3 className="text-xl font-semibold text-foreground">
             {message}
           </h3>
         </div>
@@ -85,14 +85,14 @@ export function PrettyCountdown({
   // Prima dell'evento - Countdown attivo
   const CountdownNumber = ({ value, label }: { value: number; label: string }) => (
     <div className="flex flex-col items-center">
-      <div className="bg-white dark:bg-neutral-800 border border-[#7fb0b2]/20 
+      <div className="bg-card border border-border 
                       rounded-xl px-3 py-2 min-w-[60px] shadow-sm">
-        <span className="text-2xl font-bold text-[#6f4747] dark:text-neutral-100 tabular-nums">
+        <span className="text-2xl font-bold text-primary tabular-nums">
           {value.toString().padStart(2, '0')}
         </span>
       </div>
       {showLabels && (
-        <span className="text-xs text-[#6f4747]/70 dark:text-neutral-400 mt-1 font-medium">
+        <span className="text-xs text-muted-foreground mt-1 font-medium">
           {label}
         </span>
       )}
@@ -100,12 +100,12 @@ export function PrettyCountdown({
   );
 
   const CountdownChip = ({ value, label }: { value: number; label: string }) => (
-    <div className="bg-[#7fb0b2]/10 border border-[#7fb0b2]/30 rounded-full px-4 py-2 flex items-center gap-2">
-      <span className="text-xl font-bold text-[#6f4747] dark:text-neutral-100 tabular-nums">
+    <div className="bg-sage/10 border border-sage/30 rounded-full px-4 py-2 flex items-center gap-2">
+      <span className="text-xl font-bold text-primary tabular-nums">
         {value}
       </span>
       {showLabels && (
-        <span className="text-sm text-[#6f4747]/70 dark:text-neutral-400">
+        <span className="text-sm text-muted-foreground">
           {label}
         </span>
       )}
@@ -115,16 +115,16 @@ export function PrettyCountdown({
   const CountdownRing = ({ value, label }: { value: number; label: string }) => (
     <div className="flex flex-col items-center">
       <div className="relative w-16 h-16">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#7fb0b2] to-[#b47d7d] rounded-full p-[2px]">
-          <div className="bg-white dark:bg-neutral-800 rounded-full w-full h-full flex items-center justify-center">
-            <span className="text-lg font-bold text-[#6f4747] dark:text-neutral-100 tabular-nums">
+        <div className="absolute inset-0 bg-gradient-to-br from-sage to-terracotta rounded-full p-[2px]">
+          <div className="bg-card rounded-full w-full h-full flex items-center justify-center">
+            <span className="text-lg font-bold text-primary tabular-nums">
               {value.toString().padStart(2, '0')}
             </span>
           </div>
         </div>
       </div>
       {showLabels && (
-        <span className="text-xs text-[#6f4747]/70 dark:text-neutral-400 mt-1 font-medium">
+        <span className="text-xs text-muted-foreground mt-1 font-medium">
           {label}
         </span>
       )}
@@ -170,20 +170,19 @@ export function PrettyCountdown({
   };
 
   return (
-    <div className={`bg-gradient-to-r from-[#f7f7f7] to-white dark:from-neutral-900 dark:to-neutral-800 
-                    border border-[#7fb0b2]/20 rounded-2xl p-6 text-center shadow-sm ${className}`}
+    <div className={`bg-card border border-border rounded-2xl p-6 text-center shadow-sm ${className}`}
          role="timer" aria-live="polite">
       <div className="flex items-center justify-center gap-2 mb-4">
-        <Heart className="h-5 w-5 text-[#b47d7d]" />
-        <h3 className="text-lg font-semibold text-[#6f4747] dark:text-neutral-100">
+        <Heart className="h-5 w-5 text-terracotta" />
+        <h3 className="text-lg font-semibold text-foreground">
           {title}
         </h3>
-        <Heart className="h-5 w-5 text-[#b47d7d]" />
+        <Heart className="h-5 w-5 text-terracotta" />
       </div>
       
       {renderCountdown()}
       
-      <div className="mt-4 h-1 bg-gradient-to-r from-[#7fb0b2] via-[#b47d7d] to-[#7fb0b2] rounded-full opacity-30" />
+      <div className="mt-4 h-1 bg-gradient-to-r from-sage via-terracotta to-sage rounded-full opacity-40" />
     </div>
   );
 }
