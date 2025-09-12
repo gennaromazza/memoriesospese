@@ -186,6 +186,11 @@ export default function QuestionnaireForm() {
 
   const validateTokenAndLoadData = async () => {
     if (!token || !role || !params?.galleryId) {
+      console.error('🔴 LINK INCOMPLETO - Parametri mancanti:');
+      console.error('🔴 token presente:', !!token);
+      console.error('🔴 role presente:', !!role);
+      console.error('🔴 galleryId presente:', !!params?.galleryId);
+      console.error('🔴 URL completo:', window.location.href);
       setIsLoading(false);
       setTokenValid(false);
       return;
@@ -233,7 +238,9 @@ export default function QuestionnaireForm() {
       // 🎯 Salva tutto in localStorage dopo validazione riuscita
       localStorage.setItem('questionnaire-token', token);
       localStorage.setItem('questionnaire-token-valid', 'true');
-      localStorage.setItem('questionnaire-session', validation.sessionId);
+      if (validation.sessionId) {
+        localStorage.setItem('questionnaire-session', validation.sessionId);
+      }
       localStorage.setItem('questionnaire-id', validation.questionnaireId);
 
       // Mantieni URL pulito

@@ -147,7 +147,21 @@ export class TokenValidationService {
         questionnaireId: tokenData.questionnaireId,
       };
     } catch (error) {
-      console.error("Errore validazione token:", error);
+      console.error("🔴 Errore validazione token dettagliato:", error);
+      console.error("🔴 galleryId:", galleryId);
+      console.error("🔴 role:", role);
+      
+      // Se l'errore è di permessi Firebase, mostra messaggio specifico
+      if (error && typeof error === 'object' && 'code' in error) {
+        if (error.code === 'permission-denied') {
+          console.error("🔴 PERMESSI FIREBASE: Accesso negato alla collection questionnaireTokens");
+          return {
+            valid: false,
+            error: "Permessi Firebase non configurati correttamente",
+          };
+        }
+      }
+      
       return {
         valid: false,
         error: "Errore interno del server",
