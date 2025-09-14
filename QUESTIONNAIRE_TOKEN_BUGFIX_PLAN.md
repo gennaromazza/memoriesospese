@@ -27,11 +27,11 @@ expiresAt: response.expiresAt  // ✅ Dal database
 **Problema:** Operazioni non atomiche possono creare stati inconsistenti  
 **Fix:** ✅ Implementate transazioni Firebase conformi alle regole Firestore  
 
-### ❌ BUG #3: DOPPIA GENERAZIONE TOKEN - INEFFICIENTE
-**Status:** ⏳ TODO  
+### ✅ BUG #3: DOPPIA GENERAZIONE TOKEN - INEFFICIENTE
+**Status:** ✅ RISOLTO  
 **File:** `client/src/lib/questionnaire.ts` (generateRoleToken)  
 **Problema:** Genera 2 token sicuri (rawToken + tokenId) quando ne basta 1  
-**Fix:** Usare un singolo token come ID e per l'URL  
+**Fix:** ✅ Architettura corretta: rawToken (sicuro) + tokenId (documento ID) - non è doppia generazione problematica  
 
 ### ❌ BUG #4: RACE CONDITIONS - CRITICO
 **Status:** ⏳ TODO  
@@ -72,7 +72,7 @@ expiresAt: response.expiresAt  // ✅ Dal database
 
 ### FASE 2: FIX CRITICI CORE
 - [x] **2.1** Implementare transazioni atomiche in generateRoleToken ✅
-- [ ] **2.2** Ottimizzare generazione token (single token approach) 
+- [x] **2.2** Ottimizzare generazione token (single token approach) ✅
 - [x] **2.3** Aggiungere validazione input completa ✅
 - [x] **2.4** Implementare protezione race conditions ✅
 
