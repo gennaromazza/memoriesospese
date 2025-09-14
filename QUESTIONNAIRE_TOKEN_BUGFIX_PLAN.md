@@ -39,11 +39,11 @@ expiresAt: response.expiresAt  // ✅ Dal database
 **Problema:** Chiamate simultanee generateRoleToken() possono causare duplicati  
 **Fix:** Implementare mutex/lock mechanism per prevenire race conditions  
 
-### ❌ BUG #5: REVOCA TOKEN INCOMPLETA
-**Status:** ⏳ TODO  
+### ✅ BUG #5: REVOCA TOKEN INCOMPLETA
+**Status:** ✅ RISOLTO  
 **File:** `client/src/lib/questionnaire.ts` (revokeToken)  
 **Problema:** Lascia dati vuoti invece di rimuovere completamente  
-**Fix:** Rimuovere proprietà invece di impostarle vuote  
+**Fix:** ✅ Implementato cleanup completo con FieldValue.delete() e opzioni per physical deletion  
 
 ### ❌ BUG #6: VALIDAZIONE INSUFFICIENTE
 **Status:** ⏳ TODO  

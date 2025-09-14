@@ -16,7 +16,8 @@ import {
   limit,
   getDocs,
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  deleteField
 } from 'firebase/firestore';
 import { db } from './firebase';
 import {
@@ -495,76 +496,308 @@ export class QuestionnaireService {
   }
 
   /**
-   * Revoca token specifico usando activeTokens per evitare query
+   * Revoca token con cleanup completo - FIXED per Bug #5
+   * Rimuove completamente le proprietà invece di impostare valori vuoti
+   * Offre opzione per eliminazione fisica dei documenti token
    */
-  static async revokeToken(galleryId: string, questionnaireId: string, role: Role): Promise<void> {
-    try {
-      const now = Date.now();
-      
-      // Use transaction to atomically revoke active token
-      await runTransaction(db, async (transaction) => {
-        // READ PHASE: Get questionnaire to find active token
-        const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
-        const questionnaireSnap = await transaction.get(questionnaireRef);
-        
-        if (!questionnaireSnap.exists()) {
-          throw new Error(`Questionnaire not found: ${questionnaireId}`);
-        }
-        
-        const questionnaireData = questionnaireSnap.data() as Questionnaire;
-        const activeTokenId = questionnaireData.activeTokens?.[role];
-        
-        // WRITE PHASE: Revoke active token and update questionnaire
-        if (activeTokenId && activeTokenId.trim()) {
-          const tokenRef = doc(db, 'questionnaireTokens', activeTokenId);
-          transaction.update(tokenRef, {
-            revoked: true,
-            revokedAt: now
-          });
-          
-          tokenLogger.info('revokeToken', 'Revoked active token', { 
-            galleryId, 
-            questionnaireId, 
-            role,
-            revokedTokenId: activeTokenId
-          });
-        }
-        
-        // Update questionnaire to clear active token
-        transaction.update(questionnaireRef, {
-          [`tokens.${role}`]: {
-            tokenId: '',
-            url: '',
-            createdAt: now,
-            expiresAt: now,
-            revoked: true
-          },
-          [`activeTokens.${role}`]: '', // Clear active token
-          updatedAt: now
+  static async revokeToken(
+    galleryId: string, 
+    questionnaireId: string, 
+    role: Role,
+    options: {
+      physicalDeletion?: boolean; // Eliminazione fisica del token doc
+      cleanupSessions?: boolean;  // Cleanup sessioni di validazione
+      cleanupAnswers?: boolean;   // Cleanup bozze risposte
+    } = {}
+  ): Promise<void> {
+    const {
+      physicalDeletion = false,
+      cleanupSessions = true,
+      cleanupAnswers = false
+    } = options;
+
+    return await measurePerformance(tokenLogger, 'revokeToken', async () => {
+      // Input validation
+      if (!galleryId?.trim() || !questionnaireId?.trim() || !role?.trim()) {
+        const error = new Error('Invalid input parameters: galleryId, questionnaireId, and role are required');
+        tokenLogger.error('revokeToken', 'Token revocation failed - invalid input', error, { 
+          galleryId, 
+          questionnaireId, 
+          role
         });
+        throw error;
+      }
+
+      const lockResourceId = `${galleryId}_${role}`;
+      const operation = 'revokeToken';
+      
+      tokenLogger.info('revokeToken', 'Starting comprehensive token revocation', { 
+        galleryId, 
+        questionnaireId, 
+        role,
+        physicalDeletion,
+        cleanupSessions,
+        cleanupAnswers,
+        lockResourceId 
       });
 
-      // Cleanup validation sessions outside transaction (non-blocking)
-      const questionnaire = await this.getGalleryQuestionnaire(galleryId);
-      const activeTokenId = questionnaire?.activeTokens?.[role];
-      
-      if (activeTokenId) {
-        try {
-          const { TokenValidationService } = await import('./tokenValidation');
-          await TokenValidationService.cleanupSessionsByTokenId(activeTokenId);
-        } catch (cleanupError) {
-          tokenLogger.warn('revokeToken', 'Failed to cleanup validation sessions', { 
+      return await withDistributedLock(lockResourceId, operation, async () => {
+        const now = Date.now();
+        let revokedTokenId: string | null = null;
+        
+        // STEP 1: Atomic transaction for token revocation and questionnaire cleanup
+        await runTransaction(db, async (transaction) => {
+          // READ PHASE: Get questionnaire to find active token (ALL READS FIRST)
+          const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
+          const questionnaireSnap = await transaction.get(questionnaireRef);
+          
+          if (!questionnaireSnap.exists()) {
+            throw new Error(`Questionnaire not found: ${questionnaireId} for gallery ${galleryId}`);
+          }
+          
+          const questionnaireData = questionnaireSnap.data() as Questionnaire;
+          const activeTokenId = questionnaireData.activeTokens?.[role];
+          revokedTokenId = activeTokenId || null;
+          
+          tokenLogger.info('revokeToken', 'Found active token for revocation', { 
             galleryId, 
             questionnaireId, 
             role,
-            activeTokenId,
-            error: cleanupError
+            activeTokenId: activeTokenId || 'none',
+            physicalDeletion
+          });
+
+          // WRITE PHASE: Handle token and questionnaire updates atomically
+          if (activeTokenId && activeTokenId.trim()) {
+            const tokenRef = doc(db, 'questionnaireTokens', activeTokenId);
+            
+            if (physicalDeletion) {
+              // Option 1: Physical deletion of token document
+              transaction.delete(tokenRef);
+              
+              tokenLogger.info('revokeToken', 'Physically deleted token document', { 
+                galleryId, 
+                questionnaireId, 
+                role,
+                deletedTokenId: activeTokenId
+              });
+            } else {
+              // Option 2: Mark as revoked (default)
+              transaction.update(tokenRef, {
+                revoked: true,
+                revokedAt: now
+              });
+              
+              tokenLogger.info('revokeToken', 'Marked token as revoked', { 
+                galleryId, 
+                questionnaireId, 
+                role,
+                revokedTokenId: activeTokenId
+              });
+            }
+          }
+          
+          // CRITICAL FIX: Use deleteField() to completely remove properties
+          // Instead of setting empty values, remove properties entirely from document
+          const questionnaireUpdates: any = {
+            [`tokens.${role}`]: deleteField(),      // Remove entire token property
+            [`activeTokens.${role}`]: deleteField(), // Remove activeToken reference
+            updatedAt: now
+          };
+
+          transaction.update(questionnaireRef, questionnaireUpdates);
+          
+          tokenLogger.info('revokeToken', 'Completely removed token properties from questionnaire', { 
+            galleryId, 
+            questionnaireId, 
+            role,
+            removedProperties: [`tokens.${role}`, `activeTokens.${role}`]
+          });
+        });
+
+        // STEP 2: Post-transaction cleanup operations (non-blocking)
+        const cleanupPromises: Promise<void>[] = [];
+
+        // Cleanup validation sessions
+        if (cleanupSessions && revokedTokenId) {
+          const sessionCleanup = this.cleanupValidationSessions(revokedTokenId, galleryId, questionnaireId, role);
+          cleanupPromises.push(sessionCleanup);
+        }
+
+        // Cleanup answer drafts if requested
+        if (cleanupAnswers) {
+          const draftCleanup = this.cleanupAnswerDrafts(galleryId, questionnaireId, role);
+          cleanupPromises.push(draftCleanup);
+        }
+
+        // Additional cleanup: Remove orphaned tokens for this role/gallery
+        const orphanCleanup = this.cleanupOrphanedTokensForRevocation(galleryId, questionnaireId, role);
+        cleanupPromises.push(orphanCleanup);
+
+        // Execute all cleanup operations in parallel (non-blocking)
+        if (cleanupPromises.length > 0) {
+          Promise.all(cleanupPromises).catch(error => {
+            tokenLogger.warn('revokeToken', 'Some cleanup operations failed (non-critical)', { 
+              galleryId, 
+              questionnaireId, 
+              role,
+              error: error.message
+            });
           });
         }
-      }
+
+        tokenLogger.info('revokeToken', 'Token revocation completed successfully', { 
+          galleryId, 
+          questionnaireId, 
+          role,
+          revokedTokenId,
+          physicalDeletion,
+          cleanupOperations: cleanupPromises.length
+        });
+      });
+    });
+  }
+
+  /**
+   * Cleanup validation sessions for revoked token
+   */
+  static async cleanupValidationSessions(
+    tokenId: string,
+    galleryId: string,
+    questionnaireId: string,
+    role: Role
+  ): Promise<void> {
+    try {
+      tokenLogger.info('cleanupValidationSessions', 'Starting validation session cleanup', { 
+        galleryId, 
+        questionnaireId, 
+        role,
+        tokenId
+      });
+
+      const { TokenValidationService } = await import('./tokenValidation');
+      await TokenValidationService.cleanupSessionsByTokenId(tokenId);
+      
+      tokenLogger.info('cleanupValidationSessions', 'Successfully cleaned up validation sessions', { 
+        galleryId, 
+        questionnaireId, 
+        role,
+        tokenId
+      });
     } catch (error) {
-      console.error('Errore revoca token:', error);
-      throw new Error('Errore durante la revoca del token');
+      tokenLogger.error('cleanupValidationSessions', 'Failed to cleanup validation sessions', error, { 
+        galleryId, 
+        questionnaireId, 
+        role,
+        tokenId
+      });
+      // Don't throw - this is non-critical cleanup
+    }
+  }
+
+  /**
+   * Cleanup answer drafts for revoked role
+   */
+  static async cleanupAnswerDrafts(
+    galleryId: string,
+    questionnaireId: string,
+    role: Role
+  ): Promise<void> {
+    try {
+      tokenLogger.info('cleanupAnswerDrafts', 'Starting answer drafts cleanup', { 
+        galleryId, 
+        questionnaireId, 
+        role
+      });
+
+      const draftRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId, 'drafts', role);
+      await deleteDoc(draftRef);
+      
+      tokenLogger.info('cleanupAnswerDrafts', 'Successfully cleaned up answer drafts', { 
+        galleryId, 
+        questionnaireId, 
+        role
+      });
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'not-found') {
+        tokenLogger.info('cleanupAnswerDrafts', 'No draft document to cleanup (expected)', { 
+          galleryId, 
+          questionnaireId, 
+          role
+        });
+      } else {
+        tokenLogger.error('cleanupAnswerDrafts', 'Failed to cleanup answer drafts', error, { 
+          galleryId, 
+          questionnaireId, 
+          role
+        });
+      }
+      // Don't throw - this is non-critical cleanup
+    }
+  }
+
+  /**
+   * Cleanup orphaned tokens for specific role after revocation
+   */
+  static async cleanupOrphanedTokensForRevocation(
+    galleryId: string,
+    questionnaireId: string,
+    role: Role
+  ): Promise<void> {
+    try {
+      tokenLogger.info('cleanupOrphanedTokensForRevocation', 'Starting orphaned tokens cleanup', { 
+        galleryId, 
+        questionnaireId, 
+        role
+      });
+
+      // Find all non-revoked tokens for this role/gallery/questionnaire
+      const tokensQuery = query(
+        collection(db, 'questionnaireTokens'),
+        where('galleryId', '==', galleryId),
+        where('questionnaireId', '==', questionnaireId),
+        where('role', '==', role),
+        where('revoked', '!=', true)
+      );
+
+      const snapshot = await getDocs(tokensQuery);
+      
+      if (snapshot.docs.length === 0) {
+        tokenLogger.info('cleanupOrphanedTokensForRevocation', 'No orphaned tokens found', { 
+          galleryId, 
+          questionnaireId, 
+          role
+        });
+        return;
+      }
+
+      // Mark all remaining tokens as orphaned/revoked
+      const now = Date.now();
+      const revokePromises = snapshot.docs.map(doc =>
+        updateDoc(doc.ref, {
+          revoked: true,
+          revokedAt: now,
+          orphaned: true,
+          orphanedReason: 'Cleanup after token revocation'
+        })
+      );
+
+      await Promise.all(revokePromises);
+
+      tokenLogger.info('cleanupOrphanedTokensForRevocation', 'Successfully cleaned up orphaned tokens', { 
+        galleryId, 
+        questionnaireId, 
+        role,
+        cleanedCount: snapshot.docs.length,
+        cleanedTokenIds: snapshot.docs.map(doc => doc.id)
+      });
+    } catch (error) {
+      tokenLogger.error('cleanupOrphanedTokensForRevocation', 'Failed to cleanup orphaned tokens', error, { 
+        galleryId, 
+        questionnaireId, 
+        role
+      });
+      // Don't throw - this is non-critical cleanup
     }
   }
 
