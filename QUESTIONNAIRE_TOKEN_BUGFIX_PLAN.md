@@ -21,11 +21,11 @@ createdAt: response.createdAt, // ✅ Dal database
 expiresAt: response.expiresAt  // ✅ Dal database
 ```
 
-### ❌ BUG #2: TRANSAZIONI MANCANTI - CRITICO
-**Status:** ⏳ TODO  
+### ✅ BUG #2: TRANSAZIONI MANCANTI - CRITICO
+**Status:** ✅ RISOLTO  
 **File:** `client/src/lib/questionnaire.ts` (generateRoleToken)  
 **Problema:** Operazioni non atomiche possono creare stati inconsistenti  
-**Fix:** Implementare transazioni Firebase per garantire atomicità  
+**Fix:** ✅ Implementate transazioni Firebase conformi alle regole Firestore  
 
 ### ❌ BUG #3: DOPPIA GENERAZIONE TOKEN - INEFFICIENTE
 **Status:** ⏳ TODO  
@@ -66,15 +66,15 @@ expiresAt: response.expiresAt  // ✅ Dal database
 ## 🔍 Piano di Implementazione
 
 ### FASE 1: PREPARAZIONE E INFRASTRUTTURA
-- [ ] **1.1** Creare utilities per transazioni atomiche
-- [ ] **1.2** Implementare sistema di logging strutturato  
-- [ ] **1.3** Creare utilities per mutex/locking
+- [x] **1.1** Creare utilities per transazioni atomiche ✅
+- [x] **1.2** Implementare sistema di logging strutturato ✅ 
+- [x] **1.3** Creare utilities per mutex/locking ✅
 
 ### FASE 2: FIX CRITICI CORE
-- [ ] **2.1** Implementare transazioni atomiche in generateRoleToken
-- [ ] **2.2** Ottimizzare generazione token (single token approach)
-- [ ] **2.3** Aggiungere validazione input completa
-- [ ] **2.4** Implementare protezione race conditions
+- [x] **2.1** Implementare transazioni atomiche in generateRoleToken ✅
+- [ ] **2.2** Ottimizzare generazione token (single token approach) 
+- [x] **2.3** Aggiungere validazione input completa ✅
+- [x] **2.4** Implementare protezione race conditions ✅
 
 ### FASE 3: MIGLIORAMENTI GESTIONE ERRORI
 - [ ] **3.1** Migliorare revoca token con cleanup completo

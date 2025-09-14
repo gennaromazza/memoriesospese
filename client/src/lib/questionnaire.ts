@@ -30,6 +30,9 @@ import {
   generateSecureToken,
   sha256Hash
 } from '@shared/schema';
+import { executeAtomicTransaction, createSetOperation, createUpdateOperation, retryTransaction } from './transactionUtils';
+import { withDistributedLock } from './lockingUtils';
+import { questionnaireLogger, tokenLogger, measurePerformance } from './loggingUtils';
 
 export class QuestionnaireService {
 
@@ -123,21 +126,25 @@ export class QuestionnaireService {
 
   /**
    * Attiva set di domande (disattiva gli altri)
+   * FIXED: Firestore-compliant - all reads before writes
    */
   static async activateFaqSet(id: string): Promise<void> {
     try {
+      // First get all faq sets, then do transaction with writes only
+      const allSetsQuery = query(collection(db, 'faqSets'));
+      const allSetsSnapshot = await getDocs(allSetsQuery);
+      
       await runTransaction(db, async (transaction) => {
-        // Disattiva tutti i set
-        const allSetsQuery = query(collection(db, 'faqSets'));
-        const allSetsSnapshot = await getDocs(allSetsQuery);
-
+        const now = Date.now();
+        
+        // All writes in transaction - no reads here
         allSetsSnapshot.docs.forEach(doc => {
-          transaction.update(doc.ref, { active: false, updatedAt: Date.now() });
+          const isTarget = doc.id === id;
+          transaction.update(doc.ref, { 
+            active: isTarget, 
+            updatedAt: now 
+          });
         });
-
-        // Attiva il set selezionato
-        const targetSetRef = doc(db, 'faqSets', id);
-        transaction.update(targetSetRef, { active: true, updatedAt: Date.now() });
       });
     } catch (error) {
       console.error('Errore attivazione FAQ set:', error);
@@ -187,6 +194,10 @@ export class QuestionnaireService {
         tokens: {
           bride: { tokenId: '', url: '', createdAt: now, expiresAt: now },
           groom: { tokenId: '', url: '', createdAt: now, expiresAt: now }
+        },
+        activeTokens: {
+          bride: '',
+          groom: ''
         },
         status: {
           bride: {},
@@ -266,104 +277,291 @@ export class QuestionnaireService {
   // ====== TOKEN MANAGEMENT ======
 
   /**
-   * Genera token sicuro per role specifico
+   * Genera token sicuro per role specifico con transazioni atomiche
+   * Previene race conditions e garantisce consistenza dati
+   * FIRESTORE COMPLIANT: All READs before WRITEs, no queries in transaction
    */
   static async generateRoleToken(
     galleryId: string,
     questionnaireId: string,
     role: Role
-  ): Promise<{ tokenId: string; url: string }> {
-    try {
-      // STEP 1: Revoca token esistenti per questo role
-      await this.revokeToken(galleryId, questionnaireId, role);
+  ): Promise<{ tokenId: string; url: string; createdAt: number; expiresAt: number }> {
+    return await measurePerformance(tokenLogger, 'generateRoleToken', async () => {
+      // STEP 1: Validation input
+      if (!galleryId?.trim() || !questionnaireId?.trim() || !role?.trim()) {
+        const error = new Error('Invalid input parameters: galleryId, questionnaireId, and role are required');
+        tokenLogger.error('generateRoleToken', 'Token generation failed - invalid input', error, { 
+          galleryId, 
+          questionnaireId, 
+          role
+        });
+        throw error;
+      }
 
-      // STEP 2: Genera nuovo token sicuro
-      const rawToken = generateSecureToken();
-      const tokenHash = await sha256Hash(rawToken);
-      const tokenId = generateSecureToken(); // ID separato dal token
-
-      const now = Date.now();
-      const expiresAt = now + (90 * 24 * 60 * 60 * 1000); // 90 giorni
-
-      // STEP 3: Salva token in collection separata
-      const tokenRef = doc(db, 'questionnaireTokens', tokenId);
-      const tokenDoc: QuestionnaireToken = {
-        id: tokenId,
-        tokenHash,
-        galleryId,
-        questionnaireId,
+      const lockResourceId = `${galleryId}_${role}`;
+      const operation = 'generateRoleToken';
+      
+      tokenLogger.info('generateRoleToken', 'Starting Firestore-compliant token generation', { 
+        galleryId, 
+        questionnaireId, 
         role,
-        expiresAt,
-        createdAt: now
-      };
-
-      await setDoc(tokenRef, tokenDoc);
-
-      // STEP 4: Genera URL pubblico con base path corretto
-      const { createAbsoluteUrl } = await import('./basePath');
-      const url = createAbsoluteUrl(`/q/${galleryId}?token=${rawToken}&role=${role}`);
-
-      // STEP 5: Aggiorna questionnaire con nuovo token
-      const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
-      await updateDoc(questionnaireRef, {
-        [`tokens.${role}`]: {
-          tokenId,
-          url,
-          createdAt: now,
-          expiresAt
-        },
-        updatedAt: now
+        lockResourceId 
       });
 
-      return { tokenId, url };
-    } catch (error) {
-      console.error('Errore generazione token:', error);
-      throw new Error('Errore durante la generazione del token');
-    }
+      return await withDistributedLock(lockResourceId, operation, async () => {
+        // STEP 2: Pre-generate all values for atomic transaction
+        const rawToken = generateSecureToken();
+        const tokenHash = await sha256Hash(rawToken);
+        const tokenId = `${role}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const now = Date.now();
+        const expiresAt = now + (90 * 24 * 60 * 60 * 1000); // 90 giorni
+
+        // STEP 3: Prepare URL
+        const { createAbsoluteUrl } = await import('./basePath');
+        const url = createAbsoluteUrl(`/q/${galleryId}?token=${rawToken}&role=${role}`);
+
+        tokenLogger.info('generateRoleToken', 'Generated token credentials', { 
+          galleryId, 
+          questionnaireId, 
+          role,
+          tokenId,
+          expiresAt: new Date(expiresAt).toISOString()
+        });
+
+        // STEP 4: Execute Firestore-compliant atomic transaction
+        // ALL READS BEFORE WRITES - NO QUERIES IN TRANSACTION
+        const result = await runTransaction(db, async (transaction) => {
+          // READ PHASE - get questionnaire document (ALL READS FIRST)
+          const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
+          const questionnaireSnap = await transaction.get(questionnaireRef);
+          
+          if (!questionnaireSnap.exists()) {
+            throw new Error(`Questionnaire not found: ${questionnaireId} for gallery ${galleryId}`);
+          }
+          
+          const questionnaireData = questionnaireSnap.data() as Questionnaire;
+          const currentActiveTokenId = questionnaireData.activeTokens?.[role];
+          
+          tokenLogger.info('generateRoleToken', 'Current active token found', { 
+            galleryId, 
+            questionnaireId, 
+            role,
+            currentActiveTokenId: currentActiveTokenId || 'none'
+          });
+
+          // WRITE PHASE - all writes happen here atomically
+          const tokenRef = doc(db, 'questionnaireTokens', tokenId);
+          
+          // 1. Create new token document
+          const tokenDoc: QuestionnaireToken = {
+            id: tokenId,
+            tokenHash,
+            galleryId,
+            questionnaireId,
+            role,
+            expiresAt,
+            createdAt: now
+          };
+          transaction.set(tokenRef, tokenDoc);
+          
+          // 2. Revoke current active token if exists (using activeTokenId, not query)
+          if (currentActiveTokenId && currentActiveTokenId.trim()) {
+            const currentTokenRef = doc(db, 'questionnaireTokens', currentActiveTokenId);
+            transaction.update(currentTokenRef, {
+              revoked: true,
+              revokedAt: now
+            });
+            
+            tokenLogger.info('generateRoleToken', 'Revoking current active token', { 
+              galleryId, 
+              questionnaireId, 
+              role,
+              revokedTokenId: currentActiveTokenId
+            });
+          }
+          
+          // 3. Update questionnaire with new token and activeTokenId
+          transaction.update(questionnaireRef, {
+            [`tokens.${role}`]: {
+              tokenId,
+              url,
+              createdAt: now,
+              expiresAt
+            },
+            [`activeTokens.${role}`]: tokenId, // Track new active token
+            updatedAt: now
+          });
+          
+          return { tokenId, url, createdAt: now, expiresAt };
+        });
+
+        // STEP 5: Cleanup orphaned tokens outside transaction (non-blocking)
+        this.cleanupOrphanedTokens(galleryId, questionnaireId, role, tokenId).catch(error => {
+          tokenLogger.warn('generateRoleToken', 'Orphaned token cleanup failed (non-critical)', { 
+            galleryId, 
+            questionnaireId, 
+            role,
+            error: error.message
+          });
+        });
+
+        tokenLogger.info('generateRoleToken', 'Token generation completed successfully', { 
+          galleryId, 
+          questionnaireId, 
+          role,
+          tokenId,
+          url: url.split('token=')[0] + 'token=***', // Log URL without exposing token
+          createdAt: now,
+          expiresAt
+        });
+
+        return result;
+      });
+    });
   }
 
   /**
-   * Revoca token specifico
+   * Cleanup orphaned tokens outside main transaction (non-blocking)
+   * Removes old tokens that are not tracked as active anymore
    */
-  static async revokeToken(galleryId: string, questionnaireId: string, role: Role): Promise<void> {
+  static async cleanupOrphanedTokens(
+    galleryId: string,
+    questionnaireId: string,
+    role: Role,
+    excludeTokenId: string
+  ): Promise<void> {
     try {
-      // Trova e revoca token
+      tokenLogger.info('cleanupOrphanedTokens', 'Starting orphaned token cleanup', { 
+        galleryId, 
+        questionnaireId, 
+        role,
+        excludeTokenId
+      });
+
+      // Find old tokens for this role (exclude the newly created one)
       const tokensQuery = query(
         collection(db, 'questionnaireTokens'),
         where('galleryId', '==', galleryId),
         where('questionnaireId', '==', questionnaireId),
         where('role', '==', role),
-        where('revoked', '!=', true) // Solo token non ancora revocati
+        where('revoked', '!=', true)
       );
 
       const snapshot = await getDocs(tokensQuery);
-      const updatePromises = snapshot.docs.map(doc =>
+      const orphanedTokens = snapshot.docs.filter(doc => doc.id !== excludeTokenId);
+
+      if (orphanedTokens.length === 0) {
+        tokenLogger.info('cleanupOrphanedTokens', 'No orphaned tokens found', { 
+          galleryId, 
+          questionnaireId, 
+          role
+        });
+        return;
+      }
+
+      // Revoke orphaned tokens
+      const now = Date.now();
+      const revokePromises = orphanedTokens.map(doc =>
         updateDoc(doc.ref, {
           revoked: true,
-          revokedAt: Date.now()
+          revokedAt: now
         })
       );
 
-      await Promise.all(updatePromises);
+      await Promise.all(revokePromises);
 
-      // Cleanup sessioni di validazione per i token revocati
+      // Cleanup validation sessions for revoked tokens
       const { TokenValidationService } = await import('./tokenValidation');
-      for (const doc of snapshot.docs) {
+      for (const doc of orphanedTokens) {
         await TokenValidationService.cleanupSessionsByTokenId(doc.id);
       }
 
-      // Aggiorna questionnaire
-      const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
-      await updateDoc(questionnaireRef, {
-        [`tokens.${role}`]: {
-          tokenId: '',
-          url: '',
-          createdAt: Date.now(),
-          expiresAt: Date.now(),
-          revoked: true
-        },
-        updatedAt: Date.now()
+      tokenLogger.info('cleanupOrphanedTokens', 'Successfully cleaned up orphaned tokens', { 
+        galleryId, 
+        questionnaireId, 
+        role,
+        cleanedCount: orphanedTokens.length,
+        cleanedTokenIds: orphanedTokens.map(doc => doc.id)
       });
+    } catch (error) {
+      tokenLogger.error('cleanupOrphanedTokens', 'Failed to cleanup orphaned tokens', error, { 
+        galleryId, 
+        questionnaireId, 
+        role,
+        excludeTokenId
+      });
+      // Don't throw - this is non-critical cleanup
+    }
+  }
+
+  /**
+   * Revoca token specifico usando activeTokens per evitare query
+   */
+  static async revokeToken(galleryId: string, questionnaireId: string, role: Role): Promise<void> {
+    try {
+      const now = Date.now();
+      
+      // Use transaction to atomically revoke active token
+      await runTransaction(db, async (transaction) => {
+        // READ PHASE: Get questionnaire to find active token
+        const questionnaireRef = doc(db, 'galleries', galleryId, 'questionnaires', questionnaireId);
+        const questionnaireSnap = await transaction.get(questionnaireRef);
+        
+        if (!questionnaireSnap.exists()) {
+          throw new Error(`Questionnaire not found: ${questionnaireId}`);
+        }
+        
+        const questionnaireData = questionnaireSnap.data() as Questionnaire;
+        const activeTokenId = questionnaireData.activeTokens?.[role];
+        
+        // WRITE PHASE: Revoke active token and update questionnaire
+        if (activeTokenId && activeTokenId.trim()) {
+          const tokenRef = doc(db, 'questionnaireTokens', activeTokenId);
+          transaction.update(tokenRef, {
+            revoked: true,
+            revokedAt: now
+          });
+          
+          tokenLogger.info('revokeToken', 'Revoked active token', { 
+            galleryId, 
+            questionnaireId, 
+            role,
+            revokedTokenId: activeTokenId
+          });
+        }
+        
+        // Update questionnaire to clear active token
+        transaction.update(questionnaireRef, {
+          [`tokens.${role}`]: {
+            tokenId: '',
+            url: '',
+            createdAt: now,
+            expiresAt: now,
+            revoked: true
+          },
+          [`activeTokens.${role}`]: '', // Clear active token
+          updatedAt: now
+        });
+      });
+
+      // Cleanup validation sessions outside transaction (non-blocking)
+      const questionnaire = await this.getGalleryQuestionnaire(galleryId);
+      const activeTokenId = questionnaire?.activeTokens?.[role];
+      
+      if (activeTokenId) {
+        try {
+          const { TokenValidationService } = await import('./tokenValidation');
+          await TokenValidationService.cleanupSessionsByTokenId(activeTokenId);
+        } catch (cleanupError) {
+          tokenLogger.warn('revokeToken', 'Failed to cleanup validation sessions', { 
+            galleryId, 
+            questionnaireId, 
+            role,
+            activeTokenId,
+            error: cleanupError
+          });
+        }
+      }
     } catch (error) {
       console.error('Errore revoca token:', error);
       throw new Error('Errore durante la revoca del token');

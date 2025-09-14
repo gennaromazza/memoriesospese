@@ -229,6 +229,7 @@ export interface Questionnaire {
     expiresAt: number;
     revoked?: boolean;
   }>;
+  activeTokens: Record<Role, string>; // Track active tokenId per role for atomic management
   status: Record<Role, {
     startedAt?: number;
     completedAt?: number;
