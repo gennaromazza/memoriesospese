@@ -255,7 +255,7 @@ export default function QuestionnaireManager() {
     try {
       setRegeneratingToken(role);
       
-      const { tokenId, url } = await QuestionnaireService.generateRoleToken(
+      const { tokenId, url, createdAt, expiresAt } = await QuestionnaireService.generateRoleToken(
         params.galleryId,
         questionnaire.id,
         role
@@ -271,8 +271,8 @@ export default function QuestionnaireManager() {
             [role]: {
               tokenId,
               url,
-              createdAt: Date.now(),
-              expiresAt: Date.now() + (90 * 24 * 60 * 60 * 1000)
+              createdAt,
+              expiresAt
             }
           }
         };

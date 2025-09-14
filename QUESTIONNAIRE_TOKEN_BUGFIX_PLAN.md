@@ -5,11 +5,11 @@ Sistemazione completa di 8 bug critici nel sistema di generazione/validazione to
 
 ## 🎯 Bug Identificati e Status
 
-### ❌ BUG #1: SINCRONIZZAZIONE ADMIN UI - CRITICO
-**Status:** ⏳ TODO  
+### ✅ BUG #1: SINCRONIZZAZIONE ADMIN UI - CRITICO
+**Status:** ✅ RISOLTO  
 **File:** `client/src/pages/admin/QuestionnaireManager.tsx`  
 **Problema:** Admin UI usa valori hardcoded invece dei valori reali dal database  
-**Fix:** Usare valori da response instead of calculated values  
+**Fix:** ✅ Aggiornato handleGenerateToken per usare valori reali da response  
 
 ```typescript
 // PRIMA (BUG):
