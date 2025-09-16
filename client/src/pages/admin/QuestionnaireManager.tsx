@@ -250,15 +250,33 @@ export default function QuestionnaireManager() {
   };
 
   const handleGenerateToken = async (role: Role) => {
-    if (!questionnaire || !params?.galleryId) return;
+    // Validate inputs before proceeding
+    if (!questionnaire || !questionnaire.id || !params?.galleryId) {
+      console.warn('❌ Cannot generate token: missing questionnaire or gallery data', {
+        hasQuestionnaire: !!questionnaire,
+        questionnaireId: questionnaire?.id,
+        galleryId: params?.galleryId
+      });
+      toast({
+        title: "Errore configurazione",
+        description: "Dati del questionario mancanti. Ricarica la pagina e riprova.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Normalize role to ensure it's a valid Role type
+    const normalizedRole: Role = role === 'bride' ? 'bride' : 'groom';
 
     try {
-      setRegeneratingToken(role);
+      setRegeneratingToken(normalizedRole);
+      
+      console.log('🔄 Generating token for role:', normalizedRole, 'questionnaireId:', questionnaire.id);
       
       const { tokenId, url, createdAt, expiresAt } = await QuestionnaireService.generateRoleToken(
         params.galleryId,
         questionnaire.id,
-        role
+        normalizedRole
       );
 
       // Aggiorna il questionario locale
@@ -268,7 +286,7 @@ export default function QuestionnaireManager() {
           ...prev,
           tokens: {
             ...prev.tokens,
-            [role]: {
+            [normalizedRole]: {
               tokenId,
               url,
               createdAt,
@@ -280,14 +298,27 @@ export default function QuestionnaireManager() {
 
       toast({
         title: "Token generato",
-        description: `Nuovo link creato per ${role === 'bride' ? 'la sposa' : 'lo sposo'}`,
+        description: `Nuovo link creato per ${normalizedRole === 'bride' ? 'la sposa' : 'lo sposo'}`,
         variant: "default"
       });
-    } catch (error) {
-      console.error('Errore generazione token:', error);
+      
+      console.log('✅ Token generated successfully for role:', normalizedRole);
+    } catch (error: any) {
+      console.error('❌ Errore generazione token:', error);
+      
+      // Better error handling with specific error types
+      let errorMessage = "Impossibile generare il token";
+      if (error?.code === 'permission-denied') {
+        errorMessage = "Accesso negato. Verifica i permessi di amministratore.";
+      } else if (error?.code === 'not-found') {
+        errorMessage = "Questionario non trovato. Ricarica la pagina.";
+      } else if (error?.message?.includes('questionnaire')) {
+        errorMessage = "Dati del questionario non validi. Ricarica la pagina.";
+      }
+      
       toast({
-        title: "Errore",
-        description: "Impossibile generare il token",
+        title: "Errore generazione token",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -648,6 +679,25 @@ export default function QuestionnaireManager() {
         <TabsContent value="tokens" className="space-y-6">
           {questionnaire && (
             <>
+              {/* Status Header for Token Generation */}
+              {(!questionnaire.id || isLoading || isSaving) && (
+                <Card className="border-amber-200 bg-amber-50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      <p className="text-sm font-medium text-amber-800">
+                        {isLoading ? 'Caricamento questionario in corso...' : 
+                         isSaving ? 'Salvataggio in corso...' : 
+                         'Questionario non completamente caricato'}
+                      </p>
+                    </div>
+                    <p className="text-xs text-amber-700 mt-1">
+                      I link di accesso saranno disponibili al termine del caricamento
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+              
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -670,7 +720,8 @@ export default function QuestionnaireManager() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleGenerateToken('bride')}
-                        disabled={regeneratingToken === 'bride'}
+                        disabled={!questionnaire || !questionnaire.id || regeneratingToken === 'bride' || isSaving}
+                        data-testid="button-generate-bride-token"
                       >
                         {regeneratingToken === 'bride' ? (
                           <>
@@ -680,7 +731,7 @@ export default function QuestionnaireManager() {
                         ) : (
                           <>
                             <RefreshCw className="w-3 h-3 mr-1" />
-                            Genera Nuovo
+                            {(!questionnaire || !questionnaire.id) ? 'Caricamento...' : 'Genera Nuovo'}
                           </>
                         )}
                       </Button>
@@ -692,12 +743,14 @@ export default function QuestionnaireManager() {
                           value={questionnaire.tokens.bride.url}
                           readOnly
                           className="font-mono text-sm"
+                          data-testid="input-bride-token-url"
                         />
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleCopyLink('bride')}
                           disabled={copiedToken === 'bride'}
+                          data-testid="button-copy-bride-token"
                         >
                           {copiedToken === 'bride' ? (
                             <CheckCircle className="w-4 h-4 text-green-600" />
@@ -707,9 +760,16 @@ export default function QuestionnaireManager() {
                         </Button>
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Nessun link generato per la sposa
-                      </p>
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Nessun link generato per la sposa
+                        </p>
+                        {(!questionnaire || !questionnaire.id) && (
+                          <p className="text-xs text-amber-600">
+                            ⏳ Attendere il caricamento del questionario per generare i link
+                          </p>
+                        )}
+                      </div>
                     )}
                     
                     {questionnaire.tokens.bride?.expiresAt && (
@@ -730,7 +790,8 @@ export default function QuestionnaireManager() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleGenerateToken('groom')}
-                        disabled={regeneratingToken === 'groom'}
+                        disabled={!questionnaire || !questionnaire.id || regeneratingToken === 'groom' || isSaving}
+                        data-testid="button-generate-groom-token"
                       >
                         {regeneratingToken === 'groom' ? (
                           <>
@@ -740,7 +801,7 @@ export default function QuestionnaireManager() {
                         ) : (
                           <>
                             <RefreshCw className="w-3 h-3 mr-1" />
-                            Genera Nuovo
+                            {(!questionnaire || !questionnaire.id) ? 'Caricamento...' : 'Genera Nuovo'}
                           </>
                         )}
                       </Button>
@@ -752,12 +813,14 @@ export default function QuestionnaireManager() {
                           value={questionnaire.tokens.groom.url}
                           readOnly
                           className="font-mono text-sm"
+                          data-testid="input-groom-token-url"
                         />
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleCopyLink('groom')}
                           disabled={copiedToken === 'groom'}
+                          data-testid="button-copy-groom-token"
                         >
                           {copiedToken === 'groom' ? (
                             <CheckCircle className="w-4 h-4 text-green-600" />
@@ -767,9 +830,16 @@ export default function QuestionnaireManager() {
                         </Button>
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Nessun link generato per lo sposo
-                      </p>
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Nessun link generato per lo sposo
+                        </p>
+                        {(!questionnaire || !questionnaire.id) && (
+                          <p className="text-xs text-amber-600">
+                            ⏳ Attendere il caricamento del questionario per generare i link
+                          </p>
+                        )}
+                      </div>
                     )}
                     
                     {questionnaire.tokens.groom?.expiresAt && (

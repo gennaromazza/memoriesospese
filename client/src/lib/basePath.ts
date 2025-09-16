@@ -14,25 +14,36 @@ function getBasePath(): string {
 
 /** Crea un URL assoluto completo (dominio + base path + route) */
 export function createAbsoluteUrl(relativePath: string): string {
-  const cleanPath = relativePath.startsWith("/")
-    ? relativePath.slice(1)
-    : relativePath;
+  // Separa path, query parameters e fragment per gestirli correttamente
+  const urlParts = relativePath.split('?');
+  const pathPart = urlParts[0];
+  const queryAndFragment = urlParts.length > 1 ? '?' + urlParts.slice(1).join('?') : '';
+
+  // Pulisce solo la parte del path
+  const cleanPath = pathPart.startsWith("/")
+    ? pathPart.slice(1)
+    : pathPart;
 
   // Dominio di partenza
   const origin = window.location.origin;
 
+  let finalUrl: string;
+
   // In sviluppo non aggiungere mai base path
   if (import.meta.env.DEV) {
-    return `${origin}/${cleanPath}`.replace(/\/+/g, "/");
+    finalUrl = `${origin}/${cleanPath}`.replace(/\/+/g, "/");
+  } else {
+    // In produzione usa il base path se configurato
+    const viteBasePath = import.meta.env.VITE_BASE_PATH || "/";
+    const normalizedBasePath = viteBasePath.endsWith("/")
+      ? viteBasePath
+      : `${viteBasePath}/`;
+
+    finalUrl = `${origin}${normalizedBasePath}${cleanPath}`.replace(/\/+/g, "/");
   }
 
-  // In produzione usa il base path se configurato
-  const viteBasePath = import.meta.env.VITE_BASE_PATH || "/";
-  const normalizedBasePath = viteBasePath.endsWith("/")
-    ? viteBasePath
-    : `${viteBasePath}/`;
-
-  return `${origin}${normalizedBasePath}${cleanPath}`.replace(/\/+/g, "/");
+  // Riattacca query parameters e fragment preservandoli intatti
+  return finalUrl + queryAndFragment;
 }
 
 /** Crea un URL relativo corretto, utile per routing o link interni */

@@ -52,13 +52,14 @@ export class TokenValidationService {
   static async validateTokenAndCreateSession(
     rawToken: string,
     galleryId: string,
-    role: "bride" | "groom",
+    role?: "bride" | "groom",
     ipAddress?: string,
     userAgent?: string,
   ): Promise<{
     valid: boolean;
     sessionId?: string;
     questionnaireId?: string;
+    role?: "bride" | "groom";
     error?: string;
   }> {
     try {
@@ -75,12 +76,23 @@ export class TokenValidationService {
       const tokenHash = await sha256Hash(rawToken);
 
       // 3. Cerca token in collection separata
-      const tokensQuery = query(
-        collection(db, "questionnaireTokens"),
-        where("tokenHash", "==", tokenHash),
-        where("galleryId", "==", galleryId),
-        where("role", "==", role),
-      );
+      let tokensQuery;
+      if (role) {
+        // Se il role è specificato, cerca per quel role
+        tokensQuery = query(
+          collection(db, "questionnaireTokens"),
+          where("tokenHash", "==", tokenHash),
+          where("galleryId", "==", galleryId),
+          where("role", "==", role),
+        );
+      } else {
+        // Se il role non è specificato, cerca per galleryId e hash
+        tokensQuery = query(
+          collection(db, "questionnaireTokens"),
+          where("tokenHash", "==", tokenHash),
+          where("galleryId", "==", galleryId),
+        );
+      }
 
       const snapshot = await getDocs(tokensQuery);
 
@@ -94,6 +106,9 @@ export class TokenValidationService {
 
       const tokenDoc = snapshot.docs[0];
       const tokenData = tokenDoc.data() as QuestionnaireToken;
+      
+      // Se il role non era specificato, lo inferisci dal token trovato
+      const inferredRole = role || tokenData.role;
 
       // 4. Verifica scadenza e revoca
       const now = Date.now();
@@ -135,7 +150,7 @@ export class TokenValidationService {
       const sessionId = await this.createValidationSession({
         galleryId,
         questionnaireId: tokenData.questionnaireId,
-        role,
+        role: inferredRole,
         tokenId: tokenData.id,
         ipAddress,
         userAgent: safeUserAgent,
@@ -145,6 +160,7 @@ export class TokenValidationService {
         valid: true,
         sessionId,
         questionnaireId: tokenData.questionnaireId,
+        role: inferredRole,
       };
     } catch (error) {
       console.error("🔴 Errore validazione token dettagliato:", error);

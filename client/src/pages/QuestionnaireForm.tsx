@@ -67,6 +67,7 @@ export default function QuestionnaireForm() {
   // Dati questionario
   const [faqSet, setFaqSet] = useState<FaqSet | null>(null);
   const [questionnaireId, setQuestionnaireId] = useState<string>('');
+  const [currentRole, setCurrentRole] = useState<Role | null>(null);
   
   // Stato form
   const [formState, setFormState] = useState<QuestionnaireState>({
@@ -92,7 +93,10 @@ export default function QuestionnaireForm() {
     localStorage.getItem('questionnaire-token-valid') === 'true'
   );
 
-  const role = urlParams.get('role') as Role | null;
+  const roleFromUrl = urlParams.get('role') as Role | null;
+  
+  // Use currentRole from state or fall back to URL role
+  const role = currentRole || roleFromUrl;
 
   // Domanda corrente
   const currentQuestion = useMemo(() => {
@@ -108,7 +112,8 @@ export default function QuestionnaireForm() {
   // Debounced autosave
   const debouncedSave = useCallback(
     debounce(async (answers: FormData) => {
-      if (!params?.galleryId || !questionnaireId || !role) return;
+      const activeRole = currentRole || roleFromUrl;
+      if (!params?.galleryId || !questionnaireId || !activeRole) return;
       
       try {
         setIsSaving(true);
@@ -118,7 +123,7 @@ export default function QuestionnaireForm() {
           QuestionnaireService.saveDraft(
             params.galleryId,
             questionnaireId,
-            role,
+            activeRole,
             questionKey as QuestionKey,
             answer
           )
@@ -130,7 +135,7 @@ export default function QuestionnaireForm() {
         const localData = {
           galleryId: params.galleryId,
           questionnaireId,
-          role,
+          role: activeRole,
           answers,
           timestamp: Date.now()
         };
@@ -154,13 +159,13 @@ export default function QuestionnaireForm() {
         setIsSaving(false);
       }
     }, AUTOSAVE_DELAY),
-    [params?.galleryId, questionnaireId, role, toast]
+    [params?.galleryId, questionnaireId, currentRole, roleFromUrl, toast]
   );
 
   // Validazione token e caricamento dati
   useEffect(() => {
     validateTokenAndLoadData();
-  }, [token, role]);
+  }, [token, currentRole, roleFromUrl]);
 
   // Meta tags noindex/nofollow
   useEffect(() => {
@@ -185,10 +190,10 @@ export default function QuestionnaireForm() {
   }, [formState.answers, formState.hasChanges, debouncedSave]);
 
   const validateTokenAndLoadData = async () => {
-    if (!token || !role || !params?.galleryId) {
+    if (!token || !params?.galleryId) {
       console.error('🔴 LINK INCOMPLETO - Parametri mancanti:');
       console.error('🔴 token presente:', !!token);
-      console.error('🔴 role presente:', !!role);
+      console.error('🔴 role presente:', !!roleFromUrl, '(opzionale)');
       console.error('🔴 galleryId presente:', !!params?.galleryId);
       console.error('🔴 URL completo:', window.location.href);
       setIsLoading(false);
@@ -200,9 +205,11 @@ export default function QuestionnaireForm() {
       // 🎯 Step 2: Salta validazione remota se già validato
       if (hasValidated && localStorage.getItem('questionnaire-session')) {
         const savedQuestionnaireId = localStorage.getItem('questionnaire-id');
-        if (savedQuestionnaireId) {
+        const savedRole = localStorage.getItem('questionnaire-role') as Role | null;
+        if (savedQuestionnaireId && savedRole) {
           setTokenValid(true);
           setQuestionnaireId(savedQuestionnaireId);
+          setCurrentRole(savedRole);
           
           // Cleanup URL params se necessario
           const { TokenValidationService } = await import('@/lib/tokenValidation');
@@ -221,11 +228,11 @@ export default function QuestionnaireForm() {
       const validation = await TokenValidationService.validateTokenAndCreateSession(
         token,
         params.galleryId,
-        role,
+        roleFromUrl || undefined, // Convert null to undefined
         TokenValidationService.generateBrowserFingerprint()
       );
 
-      if (!validation.valid || !validation.questionnaireId) {
+      if (!validation.valid || !validation.questionnaireId || !validation.role) {
         setTokenValid(false);
         setIsLoading(false);
         return;
@@ -233,11 +240,13 @@ export default function QuestionnaireForm() {
 
       setTokenValid(true);
       setQuestionnaireId(validation.questionnaireId);
+      setCurrentRole(validation.role); // Set the inferred role
       setHasValidated(true);
       
       // 🎯 Salva tutto in localStorage dopo validazione riuscita
       localStorage.setItem('questionnaire-token', token);
       localStorage.setItem('questionnaire-token-valid', 'true');
+      localStorage.setItem('questionnaire-role', validation.role);
       if (validation.sessionId) {
         localStorage.setItem('questionnaire-session', validation.sessionId);
       }
@@ -263,7 +272,8 @@ export default function QuestionnaireForm() {
   };
 
   const loadQuestionnaireData = async (qId: string) => {
-    if (!params?.galleryId || !role) return;
+    const activeRole = currentRole || roleFromUrl;
+    if (!params?.galleryId || !activeRole) return;
 
     try {
       // Carica set domande attivo
@@ -276,7 +286,7 @@ export default function QuestionnaireForm() {
       setFormState(prev => ({ ...prev, totalSteps: activeFaqSet.questions.length }));
 
       // Carica bozze esistenti
-      const draft = await QuestionnaireService.getDraft(params.galleryId, qId, role);
+      const draft = await QuestionnaireService.getDraft(params.galleryId, qId, activeRole);
       
       // Carica da localStorage se disponibile e più recente
       const localStorageData = loadFromLocalStorage();
@@ -300,7 +310,7 @@ export default function QuestionnaireForm() {
       }
 
       // Verifica se è già stato sottomesso
-      const finalAnswers = await QuestionnaireService.getAnswers(params.galleryId, qId, role);
+      const finalAnswers = await QuestionnaireService.getAnswers(params.galleryId, qId, activeRole);
       if (finalAnswers) {
         setFormState(prev => ({
           ...prev,
@@ -335,7 +345,8 @@ export default function QuestionnaireForm() {
       if (!stored) return null;
       
       const data = JSON.parse(stored);
-      if (data.galleryId === params?.galleryId && data.role === role) {
+      const activeRole = currentRole || roleFromUrl;
+      if (data.galleryId === params?.galleryId && data.role === activeRole) {
         return data;
       }
     } catch (error) {
@@ -385,7 +396,8 @@ export default function QuestionnaireForm() {
   };
 
   const handleManualSave = async () => {
-    if (!params?.galleryId || !questionnaireId || !role) return;
+    const activeRole = currentRole || roleFromUrl;
+    if (!params?.galleryId || !questionnaireId || !activeRole) return;
 
     try {
       setIsSaving(true);
@@ -396,7 +408,8 @@ export default function QuestionnaireForm() {
   };
 
   const handleSubmit = async () => {
-    if (!params?.galleryId || !questionnaireId || !role || !faqSet) return;
+    const activeRole = currentRole || roleFromUrl;
+    if (!params?.galleryId || !questionnaireId || !activeRole || !faqSet) return;
 
     // Verifica che tutte le domande abbiano risposta
     const unansweredQuestions = faqSet.questions.filter(q => 
@@ -427,7 +440,7 @@ export default function QuestionnaireForm() {
       await QuestionnaireService.submitAnswers(
         params.galleryId,
         questionnaireId,
-        role,
+        activeRole,
         formState.answers as Record<QuestionKey, string>
       );
 
