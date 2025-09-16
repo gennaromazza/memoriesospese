@@ -43,84 +43,10 @@ export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
 // ======================
-// Auto-rilevamento emulatori solo in sviluppo (FIX ERR_CONNECTION_REFUSED)
+// Firebase Services - Usa sempre produzione (nessun rilevamento emulatori)
 // ======================
-if (import.meta.env.DEV) {
-  const connectIfAvailable = async (
-    service: string,
-    port: number,
-    connectFn: () => void,
-  ) => {
-    try {
-      // Timeout rapido per evitare warning e blocchi
-      const controller = new AbortController();
-      const timeout = setTimeout(() => {
-        if (!controller.signal.aborted) {
-          controller.abort();
-        }
-      }, 200);
-
-      const response = await fetch(`http://localhost:${port}`, {
-        method: "HEAD",
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-      
-      // Verifica che la risposta sia valida
-      if (response.ok || response.status === 404) {
-        connectFn();
-        console.log(`✅ ${service}: connesso all'emulatore (${port})`);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      // Ignora specificamente gli AbortError da timeout
-      if (error instanceof Error && error.name === 'AbortError') {
-        return false;
-      }
-      // Ignora altri errori di connessione (ECONNREFUSED, etc.)
-      return false;
-    }
-  };
-
-  Promise.all([
-    connectIfAvailable("Firestore", 8080, () =>
-      connectFirestoreEmulator(db, "localhost", 8080),
-    ),
-    connectIfAvailable("Auth", 9099, () =>
-      connectAuthEmulator(auth, "http://localhost:9099", {
-        disableWarnings: true,
-      }),
-    ),
-    connectIfAvailable("Storage", 9199, () =>
-      connectStorageEmulator(storage, "localhost", 9199),
-    ),
-    connectIfAvailable("Functions", 5001, () =>
-      connectFunctionsEmulator(functions, "localhost", 5001),
-    ),
-  ]).then((results) => {
-    const usingEmulators = results.some(Boolean);
-    if (!usingEmulators) {
-      console.log(
-        "🚀 Modalità sviluppo: nessun emulatore rilevato, uso produzione",
-      );
-      console.log("📋 Questionari e token validation: produzione Firebase");
-    }
-  }).catch((error) => {
-    // Gestisce eventuali errori non gestiti nel Promise.all
-    if (error?.name !== 'AbortError') {
-      console.warn('Errore durante rilevamento emulatori:', error.message);
-    }
-    // Continua con produzione se ci sono problemi
-    console.log(
-      "🚀 Modalità sviluppo: errore rilevamento emulatori, uso produzione",
-    );
-  });
-} else {
-  console.log("🚀 Produzione: connessione diretta ai servizi Firebase");
-}
+console.log("🚀 Firebase: connessione diretta ai servizi produzione");
+console.log("📋 Questionari e token validation: produzione Firebase");
 
 // Initialize Analytics in browser environment only
 let analytics: any = null;
