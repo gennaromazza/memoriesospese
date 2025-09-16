@@ -725,10 +725,10 @@ export default function QuestionnaireForm() {
                         Invia Questionario
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Conferma invio</AlertDialogTitle>
-                        <AlertDialogDescription className="space-y-4">
+                        <AlertDialogDescription className="space-y-4 text-left">
                           <p>
                             Stai per inviare il questionario completo. 
                             Una volta inviato, non potrai più modificare le risposte.
