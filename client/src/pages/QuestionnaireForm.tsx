@@ -83,6 +83,21 @@ export default function QuestionnaireForm() {
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
 
+  // Debug function for privacy consent
+  const handlePrivacyConsentChange = (checked: boolean | string) => {
+    console.log('🔥 Privacy consent change:', checked, typeof checked);
+    const booleanValue = checked === true || checked === 'true';
+    setPrivacyConsent(booleanValue);
+    console.log('🔥 Privacy consent set to:', booleanValue);
+  };
+
+  // Alternative handler for direct toggle
+  const togglePrivacyConsent = () => {
+    const newValue = !privacyConsent;
+    console.log('🔥 Privacy consent toggle - old:', privacyConsent, 'new:', newValue);
+    setPrivacyConsent(newValue);
+  };
+
   // Estrai parametri URL
   const urlParams = new URLSearchParams(search);
   const tokenFromUrl = urlParams.get('token');
@@ -730,16 +745,77 @@ export default function QuestionnaireForm() {
                             </ul>
                           </div>
 
-                          <div className="flex items-start space-x-2">
-                            <Checkbox
-                              id="privacy"
-                              checked={privacyConsent}
-                              onCheckedChange={(checked) => setPrivacyConsent(checked as boolean)}
-                            />
-                            <label htmlFor="privacy" className="text-sm text-gray-700 leading-5">
-                              Accetto che i miei dati vengano utilizzati per la creazione 
-                              dell'album personalizzato e confermo di aver letto l'informativa sulla privacy.
-                            </label>
+                          {/* Privacy Consent Section */}
+                          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <div 
+                              className={`flex items-start space-x-3 cursor-pointer p-2 rounded transition-colors ${
+                                privacyConsent ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+                              } border`}
+                              onClick={togglePrivacyConsent}
+                              data-testid="privacy-consent-area"
+                            >
+                              <div className="relative">
+                                <Checkbox
+                                  id="privacy"
+                                  checked={privacyConsent}
+                                  onCheckedChange={handlePrivacyConsentChange}
+                                  data-testid="checkbox-privacy-consent"
+                                  className="pointer-events-none"
+                                />
+                                {/* Fallback visual indicator */}
+                                <div className={`absolute inset-0 flex items-center justify-center ${
+                                  privacyConsent ? 'text-green-600' : 'text-gray-400'
+                                }`}>
+                                  {privacyConsent ? '✓' : '○'}
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <label 
+                                  htmlFor="privacy" 
+                                  className="text-sm text-gray-700 leading-5 cursor-pointer"
+                                >
+                                  <strong>Consenso privacy richiesto:</strong> Accetto che i miei dati vengano utilizzati per la creazione 
+                                  dell'album personalizzato e confermo di aver letto l'informativa sulla privacy.
+                                </label>
+                                <div className="mt-1 text-xs text-gray-500">
+                                  Clicca qui o sul checkbox per dare il consenso
+                                </div>
+                              </div>
+                              <div className={`text-lg ${privacyConsent ? 'text-green-600' : 'text-gray-400'}`}>
+                                {privacyConsent ? '✅' : '❌'}
+                              </div>
+                            </div>
+                            
+                            {/* Alternative buttons */}
+                            <div className="flex gap-2 mt-3">
+                              <Button
+                                type="button"
+                                variant={privacyConsent ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setPrivacyConsent(true)}
+                                className="flex-1"
+                                data-testid="button-accept-privacy"
+                              >
+                                ✓ Accetto
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={!privacyConsent ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setPrivacyConsent(false)}
+                                className="flex-1"
+                                data-testid="button-decline-privacy"
+                              >
+                                ✗ Non accetto
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* Debug info */}
+                          <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mt-2">
+                            <strong>Debug Info:</strong> Privacy consent: {privacyConsent ? 'TRUE ✅' : 'FALSE ❌'} | 
+                            Submit button: {(!privacyConsent || isSubmitting) ? 'DISABLED 🔒' : 'ENABLED ✅'} |
+                            Submitting: {isSubmitting ? 'YES' : 'NO'}
                           </div>
                         </AlertDialogDescription>
                       </AlertDialogHeader>
