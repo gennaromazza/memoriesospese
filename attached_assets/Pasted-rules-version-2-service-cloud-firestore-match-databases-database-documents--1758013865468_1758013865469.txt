@@ -1,0 +1,207 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== Helper Functions =====
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'gennaro.mazzacane@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isValidRole(role) {
+      return role == 'bride' || role == 'groom';
+    }
+
+    // ✅ NUOVA: Validazione token per ospiti tramite sessionId
+    function hasValidGuestSession(galleryId, role) {
+      // Controlla se esiste una sessione valida per questa combinazione
+      let sessionQuery = /databases/$(database)/documents/validationSessions;
+      // Non possiamo fare query nelle regole, quindi permettiamo la scrittura
+      // e la validazione avviene lato client prima della scrittura
+      return true;
+    }
+
+    // ===== Users =====
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // ===== Subscriptions =====
+    match /subscriptions/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false; // Solo via webhook
+    }
+
+    // ===== Galleries =====
+    match /galleries/{galleryId} {
+      allow read: if true;
+      allow create: if isSignedIn() || isAdmin();
+      allow update: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+
+      // ----- Subcollections -----
+      match /photos/{photoId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() &&
+          (resource.data.uploaderEmail == request.auth.token.email ||
+           resource.data.uploaderUid == request.auth.uid || isAdmin());
+      }
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() &&
+          (resource.data.userId == request.auth.uid || isAdmin());
+      }
+
+      match /voiceMemos/{memoId} {
+        allow read: if true;
+        allow create: if true;
+        allow update, delete: if isSignedIn() &&
+          (resource.data.userId == request.auth.uid || isAdmin());
+      }
+
+      // ===== 🎯 QUESTIONNAIRES - ACCESSO COMPLETO OSPITI =====
+      match /questionnaires/{questionnaireId} {
+        // ✅ Lettura pubblica sempre permessa
+        allow read: if true;
+        // ✅ Creazione solo da admin autenticati  
+        allow create: if isAdmin();
+        // ✅ Aggiornamento solo da admin
+        allow update, delete: if isAdmin();
+
+        // ===== RISPOSTE DEFINITIVE - ACCESSO OSPITI =====
+        match /answers/{role} {
+          // ✅ Lettura sempre permessa
+          allow read: if true;
+          // ✅ Scrittura permessa per ospiti (validazione lato client)
+          allow write: if isValidRole(role) && (
+            isAdmin() || // Admin sempre permesso
+            resource == null || // Creazione sempre permessa
+            resource.data.role == role // Aggiornamento solo del proprio ruolo
+          );
+        }
+
+        // ===== BOZZE RISPOSTE - ACCESSO OSPITI =====
+        match /drafts/{role} {
+          // ✅ Lettura sempre permessa
+          allow read: if true;
+          // ✅ Scrittura permessa per ospiti (validazione lato client)
+          allow write: if isValidRole(role) && (
+            isAdmin() || // Admin sempre permesso
+            resource == null || // Creazione sempre permessa
+            resource.data.role == role // Aggiornamento solo del proprio ruolo
+          );
+        }
+      }
+    }
+
+    // ===== Global Photos =====
+    match /photos/{photoId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() &&
+        (resource.data.uploaderEmail == request.auth.token.email || isAdmin());
+      allow delete: if isSignedIn() &&
+        (resource.data.uploaderEmail == request.auth.token.email || isAdmin());
+    }
+
+    // ===== Comments =====
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ===== Voice Memos =====
+    match /voiceMemos/{memoId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ===== Likes =====
+    match /likes/{likeId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // ===== Email Notifications =====
+    match /email-notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() &&
+        request.resource.data.keys().hasAll(['email', 'galleryId']) &&
+        request.resource.data.email is string &&
+        request.resource.data.galleryId is string;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ===== Gallery Access =====
+    match /gallery-access/{accessId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ===== Studio Settings =====
+    match /studio-settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{documentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ===== FAQ =====
+    match /faqSets/{faqSetId} {
+      allow read: if true;
+      allow write: if isAdmin();
+      allow create: if isAdmin() ||
+        (request.resource.data.createdBy == 'system' &&
+         request.resource.data.version == 1);
+    }
+
+    // ===== Questionnaire Tokens =====
+    match /questionnaireTokens/{tokenId} {
+      allow read: if true; // ✅ Lettura pubblica per validazione token
+      allow write: if isAdmin();
+    }
+
+    // ===== Validation Sessions =====
+    match /validationSessions/{sessionId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // ===== Rate Limits =====
+    match /rateLimits/{identifier} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+  }
+}

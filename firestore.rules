@@ -159,6 +159,13 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Solo admin può eliminare rate limits
     }
 
+    // Distributed Locks - Per prevenire race conditions nelle operazioni atomiche
+    match /distributedLocks/{lockId} {
+      allow read: if true; // Lettura pubblica per verifica lock esistenti
+      allow create, update: if true; // Creazione/aggiornamento pubblico per acquisizione lock
+      allow delete: if true; // Eliminazione pubblica per rilascio lock e cleanup
+    }
+
     // Helper function for role validation
     function isValidRole(role) {
       return role == 'bride' || role == 'groom';
