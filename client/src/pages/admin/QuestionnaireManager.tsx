@@ -133,6 +133,17 @@ export default function QuestionnaireManager() {
         setEnabled(questionnaireData.enabled);
         setSelectedFaqSetId(questionnaireData.faqSetId);
         
+        // Inizializza informazioni coppia con dati esistenti
+        if (questionnaireData.couple) {
+          setCoupleInfo({
+            brideName: questionnaireData.couple.brideName || '',
+            groomName: questionnaireData.couple.groomName || '',
+            weddingDate: questionnaireData.couple.weddingDate || '',
+            emailBride: questionnaireData.couple.emailBride || '',
+            emailGroom: questionnaireData.couple.emailGroom || ''
+          });
+        }
+        
         // Carica risposte se disponibili
         const answersData = await QuestionnaireService.getAllAnswers(params.galleryId, questionnaireData.id);
         setAnswers(answersData);
@@ -231,6 +242,12 @@ export default function QuestionnaireManager() {
         questionnaire.id,
         coupleInfo
       );
+      
+      // Aggiorna il questionario locale con i nuovi dati della coppia
+      setQuestionnaire(prev => prev ? {
+        ...prev,
+        couple: coupleInfo
+      } : prev);
       
       toast({
         title: "Informazioni salvate",
