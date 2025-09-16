@@ -108,6 +108,15 @@ if (import.meta.env.DEV) {
       );
       console.log("📋 Questionari e token validation: produzione Firebase");
     }
+  }).catch((error) => {
+    // Gestisce eventuali errori non gestiti nel Promise.all
+    if (error?.name !== 'AbortError') {
+      console.warn('Errore durante rilevamento emulatori:', error.message);
+    }
+    // Continua con produzione se ci sono problemi
+    console.log(
+      "🚀 Modalità sviluppo: errore rilevamento emulatori, uso produzione",
+    );
   });
 } else {
   console.log("🚀 Produzione: connessione diretta ai servizi Firebase");
