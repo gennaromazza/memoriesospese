@@ -54,19 +54,34 @@ if (import.meta.env.DEV) {
     try {
       // Timeout rapido per evitare warning e blocchi
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 200);
+      const timeout = setTimeout(() => {
+        if (!controller.signal.aborted) {
+          controller.abort();
+        }
+      }, 200);
 
-      await fetch(`http://localhost:${port}`, {
+      const response = await fetch(`http://localhost:${port}`, {
         method: "HEAD",
         signal: controller.signal,
       });
 
       clearTimeout(timeout);
-      connectFn();
-      console.log(`✅ ${service}: connesso all'emulatore (${port})`);
-      return true;
-    } catch {
-      return false; // Emulatore non disponibile, silenzio
+      
+      // Verifica che la risposta sia valida
+      if (response.ok || response.status === 404) {
+        connectFn();
+        console.log(`✅ ${service}: connesso all'emulatore (${port})`);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      // Ignora specificamente gli AbortError da timeout
+      if (error instanceof Error && error.name === 'AbortError') {
+        return false;
+      }
+      // Ignora altri errori di connessione (ECONNREFUSED, etc.)
+      return false;
     }
   };
 
