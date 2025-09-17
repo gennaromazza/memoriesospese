@@ -994,17 +994,23 @@ export class QuestionnaireService {
 
         transaction.set(answersRef, finalAnswers);
 
-        // Aggiorna status nel questionario
-        transaction.update(questionnaireRef, {
+        // Aggiorna status nel questionario (usa set per creare se non esiste)
+        transaction.set(questionnaireRef, {
           [`status.${role}.completedAt`]: now,
           [`status.${role}.progress`]: 100,
           updatedAt: now
-        });
+        }, { merge: true });
 
-        // Marca draft come completato
-        transaction.update(draftRef, {
+        // Marca draft come completato (usa set per creare se non esiste)
+        transaction.set(draftRef, {
+          id: role,
+          galleryId,
+          questionnaireId,
+          role,
+          answers,
           completed: true,
-          updatedAt: now
+          updatedAt: now,
+          version: 1
         });
       });
     } catch (error) {
