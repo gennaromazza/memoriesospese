@@ -505,30 +505,15 @@ export default function StoryUploadForm({
               </Button>
             )}
 
-            <div className="flex items-center gap-3">
-              {/* Debug info */}
-              <div className="text-xs text-gray-500 mr-2">
-                Valid: {validationResult.isValid ? '✓' : '✗'} | 
-                User: {user ? '✓' : '✗'} | 
-                Admin: {isAdmin ? '✓' : '✗'} | 
-                Uploading: {isUploading ? '✓' : '✗'}
-              </div>
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
               <Button
                 onClick={handleUpload}
-                disabled={!validationResult.isValid || isUploading || !user || !isAdmin}
-                className="bg-sage-600 hover:bg-sage-700 text-white disabled:opacity-50"
+                disabled={false}
+                className="bg-sage-600 hover:bg-sage-700 text-white px-6 py-3 text-base font-medium w-full sm:w-auto"
+                style={{ minWidth: '200px', display: 'block' }}
               >
-                {isUploading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Caricamento...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Carica Storia
-                  </>
-                )}
+                <Upload className="h-4 w-4 mr-2" />
+                Carica Storia
               </Button>
             </div>
           </div>
