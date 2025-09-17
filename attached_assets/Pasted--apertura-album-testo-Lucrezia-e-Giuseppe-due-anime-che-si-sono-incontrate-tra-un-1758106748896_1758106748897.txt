@@ -1,0 +1,138 @@
+{
+  "apertura_album": {
+    "testo": "Lucrezia e Giuseppe, due anime che si sono incontrate tra un motorino e un muretto con una birra in mano, hanno trasformato la scintilla di un attimo in una promessa di eternità. Il 12 settembre 2025 diventa il capitolo più luminoso della loro storia: un giorno vestito di rosa pesco, colmo di emozioni, di famiglia, di sogni già intrecciati e di promesse destinate a durare per sempre.",
+    "posizione": "Prima pagina dell'album"
+  },
+  "capitolo_preparativi": [
+    {
+      "testo": "Nelle stanze dedicate ai preparativi, l’aria si riempie di attesa. Ogni istante è un respiro trattenuto, ogni sguardo uno specchio di emozioni che faticano a contenersi. L’abito appeso, le sorelle che si muovono tra sorrisi e lacrime, i genitori che osservano silenziosi: tutto annuncia che il giorno tanto sognato è arrivato.",
+      "tema": "L'attesa e l'emozione"
+    },
+    {
+      "testo": "Il rosa pesco veste ogni dettaglio: fiori, tessuti, nastri. L’abito scivola leggero, custode di sogni e di passi pronti a trasformarsi in ricordi. I profumi si intrecciano, quello dei fiori freschi e quello della pelle emozionata, mentre le mani cercano di fermare la perfezione in un nodo, un bottone, un velo.",
+      "tema": "Gli abiti e i dettagli"
+    },
+    {
+      "testo": "Mamma e papà osservano con occhi che brillano, sei sorelle diventano damigelle e custodi di segreti. Nelle loro mani ci sono carezze, negli sguardi la complicità di chi ha camminato insieme fino a qui. Ogni gesto di famiglia diventa radice che sostiene, carezza che consola, sorriso che incoraggia.",
+      "tema": "Le emozioni di famiglia"
+    },
+    {
+      "testo": "Nell’intimità di una stanza, lontano dal brusio, Lucrezia raccoglie pensieri e respiri. Giuseppe, dall’altra parte, stringe tra le mani la forza dei suoi ricordi. Sono momenti sospesi, fatti di silenzi pieni di significato, come piccole promesse che precedono quelle ufficiali.",
+      "tema": "I momenti privati"
+    },
+    {
+      "testo": "Un ultimo sguardo allo specchio, un sorriso che riflette il futuro. È l’attimo in cui ci si lascia alle spalle i giorni da fidanzati, per entrare nel ruolo di sposi. Ogni dettaglio è pronto, ogni cuore batte forte: l’attesa si trasforma in cammino verso un nuovo inizio.",
+      "tema": "L'ultimo momento da fidanzati"
+    },
+    {
+      "testo": "I passi si muovono decisi verso la cerimonia, ma ogni gesto sembra un rito sacro. La porta si apre, il cielo accompagna il cammino e l’amore prende la forma di un corteo silenzioso. È il momento in cui i sogni smettono di appartenere al futuro e diventano presenti.",
+      "tema": "Verso la cerimonia"
+    }
+  ],
+  "capitolo_cerimonia": [
+    {
+      "testo": "Gli invitati si raccolgono, le voci si abbassano. Giuseppe attende, il cuore accelera. L’arrivo di Lucrezia è un’apparizione di luce, i colori del rosa pesco accompagnano il suo passo deciso. Tutto intorno, un silenzio vibrante che precede l’incontro.",
+      "tema": "L'arrivo e l'attesa"
+    },
+    {
+      "testo": "Lo sguardo che si incrocia racconta più di mille parole. È lo stesso di quando, tempo fa, un motorino e un muretto hanno intrecciato due destini. In quell’istante, il mondo scompare, restano solo due anime che si riconoscono.",
+      "tema": "Lo sguardo che si incrocia"
+    },
+    {
+      "testo": "Le promesse nascono tra le mani intrecciate. Lui promette un ‘per sempre insieme, nonostante tutto’. Lei risponde con la stessa certezza, lo stesso desiderio. Ogni parola diventa pietra preziosa che costruisce il futuro, custodita da occhi lucidi e sorrisi commossi.",
+      "tema": "Le promesse e i voti"
+    },
+    {
+      "testo": "Il momento del sì è un’esplosione di emozioni. Un monosillabo che racchiude anni di attese, gioie e battaglie vinte insieme. In quella risposta si sigilla il loro amore, forte e fragile allo stesso tempo, eterno nella sua semplicità.",
+      "tema": "Il momento del sì"
+    },
+    {
+      "testo": "Gli ospiti si commuovono, c’è chi trattiene le lacrime e chi non ci riesce. Ogni volto riflette l’amore che circonda gli sposi, in un abbraccio collettivo che trasforma la cerimonia in una festa di cuori uniti.",
+      "tema": "L'emozione degli ospiti"
+    },
+    {
+      "testo": "Il primo bacio da marito e moglie è un gesto semplice e infinito. Non c’è rumore, non c’è tempo: solo la certezza che quell’istante resterà inciso nella memoria di tutti, come un sigillo d’amore.",
+      "tema": "Il primo bacio da sposi"
+    },
+    {
+      "testo": "L’uscita dalla chiesa è un’esplosione di applausi, riso e luce. Gli sposi avanzano mano nella mano, circondati dall’affetto che li accompagna. È l’inizio del viaggio, reso ancora più vero dai sorrisi che illuminano ogni volto.",
+      "tema": "L'uscita dalla chiesa/location"
+    },
+    {
+      "testo": "Gli abbracci si moltiplicano, le congratulazioni si mescolano a risate e fotografie. Ognuno vuole stringere un pezzo di quel momento perfetto, partecipare alla gioia che riempie l’aria.",
+      "tema": "Le congratulazioni"
+    }
+  ],
+  "capitolo_festa": [
+    {
+      "testo": "L’aperitivo è un mosaico di sorrisi, abbracci e brindisi improvvisati. Ogni gesto è un augurio, ogni parola un pezzo di gioia condivisa.",
+      "tema": "L'aperitivo e gli abbracci"
+    },
+    {
+      "testo": "Le foto di gruppo diventano teatro di complicità: amici, sorelle, genitori. In ogni scatto, l’amore si moltiplica e diventa memoria.",
+      "tema": "Le foto di gruppo"
+    },
+    {
+      "testo": "Il ricevimento inizia con un’atmosfera vivace. I piatti profumano di festa, le luci avvolgono gli sposi e gli invitati in un abbraccio caldo.",
+      "tema": "Il ricevimento inizia"
+    },
+    {
+      "testo": "I brindisi e i discorsi raccontano aneddoti, sorrisi, lacrime. Ogni parola è un dono che arricchisce il cuore della coppia.",
+      "tema": "I brindisi e i discorsi"
+    },
+    {
+      "testo": "Il primo ballo è poesia in movimento. Le note della loro canzone preferita avvolgono i corpi, trasformando la musica in promessa.",
+      "tema": "Il primo ballo"
+    },
+    {
+      "testo": "La festa esplode: risate, musica e danze si intrecciano. Ogni attimo è libertà, ogni sorriso è luce che rimane impressa.",
+      "tema": "La festa in pieno"
+    },
+    {
+      "testo": "I momenti divertenti fioriscono spontanei: battute, balli improvvisati, ricordi che resteranno raccontati a lungo. La leggerezza domina.",
+      "tema": "I momenti divertenti"
+    },
+    {
+      "testo": "La serata continua, avvolta da stelle e luci soffuse. L’energia non cala, la gioia resta sospesa, promessa di un ricordo eterno.",
+      "tema": "La serata che continua"
+    }
+  ],
+  "promesse_sigillate": [
+    {
+      "testo": "Nella loro intimità, lontani dagli sguardi, Lucrezia e Giuseppe si stringono in promesse che vanno oltre le parole pronunciate davanti a tutti. Lui le ricorda come l’ha sostenuta nella malattia, lei come lo ha rialzato nelle cadute. I loro segreti sono fatti di forza reciproca, di piccoli rituali che appartengono solo a loro: un bacio ogni giorno, un amore che non conosce misura.",
+      "tema": "Le promesse private della coppia"
+    },
+    {
+      "testo": "Il futuro ha il colore del rosa pesco e la luce dei loro occhi. ‘Per sempre insieme, nonostante tutto’ diventa la rotta da seguire. I sogni non sono castelli lontani, ma mani intrecciate che sanno costruire. Nel loro cuore la certezza che, qualunque tempesta arriverà, ci sarà sempre un approdo sicuro: l’abbraccio reciproco.",
+      "tema": "I sogni e il futuro insieme"
+    }
+  ],
+  "chiusura_album": {
+    "testo": "Il 12 settembre 2025 non è solo un giorno perfetto, è l’inizio di un cammino che non conosce fine. Le pagine di questo album custodiscono emozioni che vivranno per sempre, specchio di una storia nata semplice e diventata eterna. Davanti a loro c’è il futuro, da scrivere insieme, mano nella mano.",
+    "posizione": "Ultima pagina dell'album"
+  },
+  "didascalie_emozionali": [
+    {"testo": "Un ritratto che racchiude l’essenza di due anime unite.", "uso": "Per foto ritratto sposi"},
+    {"testo": "La forza di una famiglia che sostiene e abbraccia.", "uso": "Per foto famiglia"},
+    {"testo": "Il momento in cui i cuori parlano più forte delle parole.", "uso": "Per foto cerimonia"},
+    {"testo": "Un bacio che segna l’inizio di tutto.", "uso": "Per foto primo bacio"},
+    {"testo": "Risate e applausi che profumano di festa.", "uso": "Per foto festa"},
+    {"testo": "Il primo ballo: poesia che si muove a tempo di musica.", "uso": "Per foto primo ballo"},
+    {"testo": "Un gesto spontaneo che diventa eterno ricordo.", "uso": "Per foto spontanea"},
+    {"testo": "Il sole che tramonta, la luce che resta nei loro occhi.", "uso": "Per foto tramonto"},
+    {"testo": "Dettagli preziosi che raccontano un giorno perfetto.", "uso": "Per foto dettagli"},
+    {"testo": "Amici che diventano parte della storia d’amore.", "uso": "Per foto gruppo amici"},
+    {"testo": "Un momento intimo, sussurrato solo a due cuori.", "uso": "Per foto momento intimo"},
+    {"testo": "Una chiusura che apre all’infinito del domani.", "uso": "Per foto finale"}
+  ],
+  "guida_impaginazione": [
+    "Pagine 1-3: Apertura + primi 2 preparativi",
+    "Pagine 4-9: Completare preparativi (4 testi rimanenti)",
+    "Pagine 10-19: Cerimonia completa (8 testi + didascalie)",
+    "Pagine 20-29: Festa e celebrazione (8 testi + didascalie)",
+    "Pagine 30-32: Promesse sigillate (sezione speciale)",
+    "Pagine 33-35: Chiusura + didascalie finali",
+    "Distribuzione didascalie: 1-2 per ogni sezione dell'album",
+    "Totale: 35+ pagine con testi coinvolgenti e poetici"
+  ]
+}

@@ -105,53 +105,52 @@ export const generateChatGPTPrompt = (data: {
   const { galleryId, brideName, groomName, weddingDate, questions, brideAnswers, groomAnswers } = data;
   
   let prompt = `RUOLO
-Sei un master wedding storyteller specializzato nella creazione di storie complete per album di matrimonio. Devi trasformare le risposte del questionario in una narrazione coinvolgente e poetica che accompagni 35+ pagine dell'album fotografico "Memorie Sospese".
+Sei un romanziere specializzato in storie d'amore. Devi scrivere un VERO RACCONTO NARRATIVO che racconti la storia di questo matrimonio come se fosse un romanzo breve. La storia deve scorrere fluida da inizio a fine, con personaggi, dialoghi interiori, e una narrazione continua che accompagni 35+ pagine dell'album fotografico "Memorie Sospese".
 
-OBIETTIVO - STORIA COMPLETA DA 35+ PAGINE
-Crea una storia strutturata in capitoli che accompagni tutto l'album:
+OBIETTIVO - RACCONTO NARRATIVO COMPLETO DA 35+ PAGINE
+Scrivi una STORIA VERA che scorre come un romanzo, divisa in capitoli narrativi:
 
-1) APERTURA DELL'ALBUM (400-500 caratteri)
-   - Introduce la coppia e la loro storia d'amore
-   - Tono: elegante, emozionale, accogliente
+1) PROLOGO - L'INIZIO DELLA STORIA (500-600 caratteri)
+   - Racconta COME si sono conosciuti i protagonisti
+   - Narrativa: "C'era una volta..." / "La loro storia iniziò quando..."
+   
+2) CAPITOLO 1: L'ATTESA (6 paragrafi da 400-500 caratteri)
+   - Racconta la mattina del matrimonio come un capitolo di romanzo
+   - Dialoghi interiori: "Lucrezia pensava che..." / "Giuseppe sentiva che..."
+   - Descrizioni narrative: azioni, emozioni, scenari
+   
+3) CAPITOLO 2: L'INCONTRO (8 paragrafi da 350-450 caratteri)  
+   - La cerimonia raccontata come scena cinematografica
+   - Narrativa continua: "Quando lei apparve..." / "I loro occhi si incontrarono..."
+   - Descrizioni dettagliate di gesti, parole, emozioni
+   
+4) CAPITOLO 3: LA CELEBRAZIONE (8 paragrafi da 300-400 caratteri)
+   - La festa narrata come sequenza di scene collegate
+   - Continua la storia: "Poi arrivò il momento..." / "La serata proseguì con..."
+   - Collegamenti fluidi tra i vari momenti
 
-2) STORIA DEI PREPARATIVI (6 testi da 300-400 caratteri ciascuno)
-   - L'attesa, l'emozione, gli ultimi momenti prima del "sì"
-   - Gli abiti, i profumi, i dettagli preziosi
-   - Le emozioni dei genitori e degli amici più cari
+5) CAPITOLO 4: I SEGRETI DEL CUORE (2 paragrafi da 500-600 caratteri)
+   - Momento intimo e privato narrato in terza persona
+   - Pensieri profondi dei protagonisti
+   - "Nel silenzio dei loro cuori..." / "Quello che solo loro sapevano..."
 
-3) LA CERIMONIA - CAPITOLO CENTRALE (8 testi da 250-350 caratteri)
-   - L'arrivo, lo sguardo che si incrocia
-   - Le promesse, i voti, il momento del "sì"
-   - L'emozione degli ospiti, le lacrime di gioia
-   - Il primo bacio da marito e moglie
+6) EPILOGO - IL FUTURO CHE LI ASPETTA (400-500 caratteri)
+   - Chiusura narrativa che apre al futuro
+   - "E così la loro storia continuò..." / "Da quel giorno in poi..."
+   
+7) CITAZIONI POETICHE (12 frasi da 100-200 caratteri)
+   - Estratti più belli dalla storia principale
+   - Da inserire come citazioni sparse nell'album
 
-4) FESTA E CELEBRAZIONE (8 testi da 200-300 caratteri)
-   - L'aperitivo, gli abbracci, le congratulazioni
-   - Il ricevimento, i brindisi, i discorsi
-   - Il primo ballo, la musica, le risate
-   - I momenti spontanei e divertenti
-
-5) PROMESSE SIGILLATE (2 testi da 400-500 caratteri)
-   - Sezione intima e personale per la coppia
-   - I loro segreti, le promesse private
-   - I sogni per il futuro insieme
-
-6) CHIUSURA DELL'ALBUM (300-400 caratteri)
-   - Riflessione sul giorno perfetto
-   - Apertura verso il futuro insieme
-   - Tono: speranzoso, poetico, eterno
-
-7) DIDASCALIE EMOZIONALI (12 testi da 80-150 caratteri)
-   - Per le foto più significative
-   - Catturano l'essenza di ogni momento
-
-TONO & STILE NARRATIVO
-- Narrativa fluida e cinematografica, come un romanzo d'amore
-- Italiano elegante ma naturale, evita artifici e cliché vuoti
-- Usa dettagli sensoriali: colori, profumi, suoni, emozioni
-- Incorpora le loro parole autentiche dalle risposte
-- Crea collegamenti tra i vari momenti per una storia coerente
-- Personalizza ogni testo con elementi unici della loro storia
+STILE NARRATIVO - COME SCRIVERE UN ROMANZO
+- Scrivi in TERZA PERSONA: "Lucrezia sentiva..." / "Giuseppe pensava..."
+- USA VERBI AL PASSATO: "arrivò", "disse", "pensò", "guardò"
+- CREA SUSPENSE: "Non sapeva ancora che..." / "Stava per accadere..."
+- DIALOGHI INTERIORI: "Si chiese se..." / "Pensò che forse..."
+- DETTAGLI SENSORIALI: profumi, colori, suoni, texture
+- COLLEGAMENTI FLUIDI: "Mentre questo accadeva..." / "Poco dopo..."
+- INCORPORA LE LORO PAROLE: trasforma le risposte in narrazione
+- RACCONTA, NON DESCRIVERE: azioni, sequenze, momenti che si susseguono
 
 CONTESTO COPPIA
 - Sposi: ${brideName} & ${groomName}
@@ -179,73 +178,73 @@ VINCOLI CREATIVI
 - Mantieni coerenza narrativa tra tutti i testi
 - Ogni testo deve essere autonomo ma parte della storia completa
 
-OUTPUT RICHIESTO - STORIA COMPLETA (JSON)
-Restituisci ESCLUSIVAMENTE questo JSON valido con la storia strutturata:
+OUTPUT RICHIESTO - VERO RACCONTO NARRATIVO (JSON)
+Restituisci ESCLUSIVAMENTE questo JSON con una STORIA CHE SCORRE come un romanzo:
 
 {
-  "apertura_album": {
-    "testo": "string 400-500 caratteri",
+  "prologo": {
+    "testo": "RACCONTA come si sono conosciuti (500-600 caratteri). ESEMPIO: 'La storia di Lucrezia e Giuseppe iniziò su un motorino, con una birra e un muretto. Lei non sapeva ancora che quel ragazzo...'",
     "posizione": "Prima pagina dell'album"
   },
-  "capitolo_preparativi": [
-    {"testo": "string 300-400 char", "tema": "L'attesa e l'emozione"},
-    {"testo": "string 300-400 char", "tema": "Gli abiti e i dettagli"},
-    {"testo": "string 300-400 char", "tema": "Le emozioni di famiglia"},
-    {"testo": "string 300-400 char", "tema": "I momenti privati"},
-    {"testo": "string 300-400 char", "tema": "L'ultimo momento da fidanzati"},
-    {"testo": "string 300-400 char", "tema": "Verso la cerimonia"}
+  "capitolo_1_lattesa": [
+    {"testo": "PARAGRAFO 1 del racconto (400-500 char). ESEMPIO: 'La mattina del 12 settembre, Lucrezia si svegliò con una sensazione diversa. Il rosa pesco che aveva scelto...'"},
+    {"testo": "PARAGRAFO 2 che CONTINUA la storia (400-500 char). ESEMPIO: 'Mentre lei si preparava, Giuseppe dall'altra parte della città...'"},
+    {"testo": "PARAGRAFO 3 che PROSEGUE (400-500 char). ESEMPIO: 'Le sei sorelle la circondavano come fate protettive. Ognuna...'"},
+    {"testo": "PARAGRAFO 4 della narrazione (400-500 char). ESEMPIO: 'In quel momento, Giuseppe stringeva tra le mani...'"},
+    {"testo": "PARAGRAFO 5 che continua (400-500 char). ESEMPIO: 'L'ultimo sguardo allo specchio rivelò a Lucrezia...'"},
+    {"testo": "PARAGRAFO 6 - transizione al capitolo successivo (400-500 char). ESEMPIO: 'Era arrivato il momento di dirigersi verso...'"}
   ],
-  "capitolo_cerimonia": [
-    {"testo": "string 250-350 char", "tema": "L'arrivo e l'attesa"},
-    {"testo": "string 250-350 char", "tema": "Lo sguardo che si incrocia"},
-    {"testo": "string 250-350 char", "tema": "Le promesse e i voti"},
-    {"testo": "string 250-350 char", "tema": "Il momento del sì"},
-    {"testo": "string 250-350 char", "tema": "L'emozione degli ospiti"},
-    {"testo": "string 250-350 char", "tema": "Il primo bacio da sposi"},
-    {"testo": "string 250-350 char", "tema": "L'uscita dalla chiesa/location"},
-    {"testo": "string 250-350 char", "tema": "Le congratulazioni"}
+  "capitolo_2_incontro": [
+    {"testo": "PARAGRAFO 7 - inizio cerimonia (350-450 char). ESEMPIO: 'Quando Lucrezia apparve, Giuseppe sentì il mondo fermarsi. Era la stessa sensazione di quella sera al muretto...'"},
+    {"testo": "PARAGRAFO 8 - continua la scena (350-450 char). ESEMPIO: 'I loro occhi si incontrarono e in quell'istante...'"},
+    {"testo": "PARAGRAFO 9 - promesse (350-450 char). ESEMPIO: 'Giuseppe prese le sue mani e pronunciò le parole che aveva pensato...'"},
+    {"testo": "PARAGRAFO 10 - il sì (350-450 char). ESEMPIO: 'Quando arrivò il momento del sì, entrambi...'"},
+    {"testo": "PARAGRAFO 11 - emozioni ospiti (350-450 char). ESEMPIO: 'Intorno a loro, gli invitati...'"},
+    {"testo": "PARAGRAFO 12 - primo bacio (350-450 char). ESEMPIO: 'Il primo bacio da sposi fu...'"},
+    {"testo": "PARAGRAFO 13 - uscita (350-450 char). ESEMPIO: 'Uscirono mano nella mano mentre...'"},
+    {"testo": "PARAGRAFO 14 - transizione festa (350-450 char). ESEMPIO: 'Le congratulazioni si trasformarono in...'"}
   ],
-  "capitolo_festa": [
-    {"testo": "string 200-300 char", "tema": "L'aperitivo e gli abbracci"},
-    {"testo": "string 200-300 char", "tema": "Le foto di gruppo"},
-    {"testo": "string 200-300 char", "tema": "Il ricevimento inizia"},
-    {"testo": "string 200-300 char", "tema": "I brindisi e i discorsi"},
-    {"testo": "string 200-300 char", "tema": "Il primo ballo"},
-    {"testo": "string 200-300 char", "tema": "La festa in pieno"},
-    {"testo": "string 200-300 char", "tema": "I momenti divertenti"},
-    {"testo": "string 200-300 char", "tema": "La serata che continua"}
+  "capitolo_3_festa": [
+    {"testo": "PARAGRAFO 15 - inizio festa (300-400 char). ESEMPIO: 'L'aperitivo iniziò con...'"},
+    {"testo": "PARAGRAFO 16 - foto (300-400 char). ESEMPIO: 'Durante le foto di gruppo...'"},
+    {"testo": "PARAGRAFO 17 - ricevimento (300-400 char). ESEMPIO: 'Il ricevimento prese vita quando...'"},
+    {"testo": "PARAGRAFO 18 - brindisi (300-400 char). ESEMPIO: 'I brindisi si susseguirono...'"},
+    {"testo": "PARAGRAFO 19 - primo ballo (300-400 char). ESEMPIO: 'Quando iniziò la loro canzone...'"},
+    {"testo": "PARAGRAFO 20 - festa piena (300-400 char). ESEMPIO: 'La festa esplose con...'"},
+    {"testo": "PARAGRAFO 21 - momenti divertenti (300-400 char). ESEMPIO: 'Tra una risata e l'altra...'"},
+    {"testo": "PARAGRAFO 22 - serata continua (300-400 char). ESEMPIO: 'Anche quando le stelle...'"}
   ],
-  "promesse_sigillate": [
-    {"testo": "string 400-500 char", "tema": "Le promesse private della coppia"},
-    {"testo": "string 400-500 char", "tema": "I sogni e il futuro insieme"}
+  "capitolo_4_segreti": [
+    {"testo": "PARAGRAFO 23 - momento intimo (500-600 char). ESEMPIO: 'In un momento di silenzio, lontani da tutti, Lucrezia e Giuseppe si ritrovarono soli. Lei pensò a tutte le volte che lui...'"},
+    {"testo": "PARAGRAFO 24 - futuro insieme (500-600 char). ESEMPIO: 'Giuseppe la guardò e vide il loro futuro. Sapeva che qualunque strada avessero percorso...'"}
   ],
-  "chiusura_album": {
-    "testo": "string 300-400 caratteri",
+  "epilogo": {
+    "testo": "FINALE della storia (400-500 caratteri). ESEMPIO: 'E così, quella che era iniziata come una storia su un motorino, si trasformò in un romanzo eterno. Il 12 settembre non era la fine, ma l'inizio di...'",
     "posizione": "Ultima pagina dell'album"
   },
-  "didascalie_emozionali": [
-    {"testo": "string 80-150 char", "uso": "Per foto ritratto sposi"},
-    {"testo": "string 80-150 char", "uso": "Per foto famiglia"},
-    {"testo": "string 80-150 char", "uso": "Per foto cerimonia"},
-    {"testo": "string 80-150 char", "uso": "Per foto primo bacio"},
-    {"testo": "string 80-150 char", "uso": "Per foto festa"},
-    {"testo": "string 80-150 char", "uso": "Per foto primo ballo"},
-    {"testo": "string 80-150 char", "uso": "Per foto spontanea"},
-    {"testo": "string 80-150 char", "uso": "Per foto tramonto"},
-    {"testo": "string 80-150 char", "uso": "Per foto dettagli"},
-    {"testo": "string 80-150 char", "uso": "Per foto gruppo amici"},
-    {"testo": "string 80-150 char", "uso": "Per foto momento intimo"},
-    {"testo": "string 80-150 char", "uso": "Per foto finale"}
+  "citazioni_poetiche": [
+    {"testo": "Frase poetica estratta dal racconto (100-200 char)", "uso": "Per foto ritratto sposi"},
+    {"testo": "Altra citazione dal racconto (100-200 char)", "uso": "Per foto famiglia"},
+    {"testo": "Citazione emozionale (100-200 char)", "uso": "Per foto cerimonia"},
+    {"testo": "Frase sul primo bacio (100-200 char)", "uso": "Per foto primo bacio"},
+    {"testo": "Citazione sulla festa (100-200 char)", "uso": "Per foto festa"},
+    {"testo": "Frase sul primo ballo (100-200 char)", "uso": "Per foto primo ballo"},
+    {"testo": "Citazione spontanea (100-200 char)", "uso": "Per foto spontanea"},
+    {"testo": "Frase sul tramonto (100-200 char)", "uso": "Per foto tramonto"},
+    {"testo": "Citazione sui dettagli (100-200 char)", "uso": "Per foto dettagli"},
+    {"testo": "Frase sugli amici (100-200 char)", "uso": "Per foto gruppo amici"},
+    {"testo": "Citazione intima (100-200 char)", "uso": "Per foto momento intimo"},
+    {"testo": "Frase finale (100-200 char)", "uso": "Per foto finale"}
   ],
   "guida_impaginazione": [
-    "Pagine 1-3: Apertura + primi 2 preparativi",
-    "Pagine 4-9: Completare preparativi (4 testi rimanenti)",
-    "Pagine 10-19: Cerimonia completa (8 testi + didascalie)",
-    "Pagine 20-29: Festa e celebrazione (8 testi + didascalie)",
-    "Pagine 30-32: Promesse sigillate (sezione speciale)",
-    "Pagine 33-35: Chiusura + didascalie finali",
-    "Distribuzione didascalie: 1-2 per ogni sezione dell'album",
-    "Totale: 35+ pagine con testi coinvolgenti e poetici"
+    "Pagine 1-3: Prologo + inizio Capitolo 1 (paragrafi 1-2)",
+    "Pagine 4-9: Completare Capitolo 1 - L'attesa (paragrafi 3-6)",
+    "Pagine 10-19: Capitolo 2 - L'incontro (paragrafi 7-14 + citazioni)",
+    "Pagine 20-29: Capitolo 3 - La festa (paragrafi 15-22 + citazioni)",
+    "Pagine 30-32: Capitolo 4 - I segreti (paragrafi 23-24)",
+    "Pagine 33-35: Epilogo + citazioni finali",
+    "IMPORTANTE: Ogni paragrafo deve CONTINUARE la storia del precedente",
+    "Totale: 35+ pagine con un VERO RACCONTO che scorre dall'inizio alla fine"
   ]
 }`;
 
