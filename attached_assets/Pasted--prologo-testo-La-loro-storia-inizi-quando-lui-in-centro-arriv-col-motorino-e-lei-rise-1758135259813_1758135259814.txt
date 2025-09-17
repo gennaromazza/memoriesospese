@@ -1,0 +1,114 @@
+{
+"prologo": {
+"testo": "La loro storia iniziò quando lui, in centro, arrivò col motorino e lei rise per il fruscio del vento tra i capelli. Più tardi, seduti su un muretto con due birre fredde, il mondo si fece semplice: Lucrezia ascoltò, Giuseppe osservò, e ognuno pensò di aver trovato un ritmo nuovo. Non sapevano ancora che quella leggerezza avrebbe retto tempeste più grandi. Poi vennero i giorni in cui lei temette e lui rimase vicino, e quelli in cui lui cadde e lei lo rimise in piedi. La scintilla si fece promessa, il muretto diventò memoria, il motorino una direzione.",
+"posizione": "Prima pagina dell'album"
+},
+"capitolo_1_lattesa": [
+{
+"testo": "La mattina del 12 settembre, Lucrezia si svegliò con il cuore che batteva due volte: una per la paura buona, una per la gioia. Il rosa pesco dei nastri sul letto sembrò accendere la stanza di una luce gentile. Si chiese se avrebbe retto l’onda dei ricordi che quella data portava con sé. «Respira» pensò, mentre il profumo lieve del talco e dei fiori entrava dalla finestra. Le mani cercarono il telefono, poi lo posarono: oggi non servivano parole, serviva solo farsi trovare pronta."
+},
+{
+"testo": "Mentre lei si preparava, Giuseppe dall’altra parte della città allacciò il colletto con un gesto lento, come a misurare il tempo. Sentiva che le foto lo mettevano a disagio, e si disse che avrebbe guardato lei, non l’obiettivo. «Non scappare», si ripeté con un sorriso appena accennato. Nella cucina, il cane posò il muso sulla sua scarpa, come a benedirne il passo. Pensò alla prima volta in centro: il motorino, la luce serale, l’idea improvvisa che tutto fosse già un inizio."
+},
+{
+"testo": "Le sei sorelle di Lucrezia la circondarono come fate operose: spilli, risate, piccoli segreti sussurrati all’orecchio. Ognuna ebbe un compito, ognuna un ricordo. La madre aggiustò un lembo di stoffa, il padre controllò la porta e si fece serio per non commuoversi. Lucrezia pensò che quel giorno era perfetto perché portava dentro tutte le loro imperfezioni. Non sapeva ancora che il silenzio del corridoio, poco dopo, le avrebbe regalato il coraggio più discreto."
+},
+{
+"testo": "Giuseppe prese tra le mani i gemelli che suo padre gli aveva lasciato sul tavolo. Li fece scorrere come due piccoli medaglioni di tempo. «Stai dritto» pensò, ricordando la caduta e la mano di lei che lo aveva tirato su. La casa odorava di caffè e stiratura; la madre gli sistemò il fiore all’occhiello, e lui sentì un brivido di lucidità. Si disse che non c’era fotografia più vera di un respiro condiviso, e che quel respiro lo avrebbe guidato all’altare."
+},
+{
+"testo": "L’ultimo sguardo allo specchio rivelò a Lucrezia una calma nuova. Il rosa pesco sulle labbra, il velo che sfiorava le spalle, la promessa scritta nel cuore. «Per sempre» pensò, ricordando i giorni della cura e la voce di lui: ci sono. Dal cortile arrivò il rumore delle auto che si accendevano. Le sorelle disposero i fiori e lei avvertì la musica della giornata salire, ancora senza note, come l’aria prima del temporale. Aprì la porta e il tempo, per un istante, smise di parlare."
+},
+{
+"testo": "Fuori, la luce di settembre stava già cambiando. Il padre porse il braccio, la madre raccolse un sorriso da custodire. Lucrezia fece un passo e sentì che ogni passo era una frase: muretto, birra, strada in centro, motorino. Giuseppe, intanto, uscì di casa con il cane che lo seguiva fino al cancello, come un piccolo rituale segreto. Poco dopo, i due percorsi cominciarono a correre paralleli, finché il destino, con calma, li portò allo stesso portone."
+}
+],
+"capitolo_2_incontro": [
+{
+"testo": "Quando Lucrezia apparve, Giuseppe sentì il mondo fermarsi sulla soglia. Il rosa pesco attraversò la navata come un’alba. Pensò che non avrebbe ricordato nessuna posa, solo il modo in cui il velo respirava con lei. Il padre le strinse la mano un istante in più; la madre abbassò gli occhi per nascondere una lacrima che sapeva di casa."
+},
+{
+"testo": "I loro occhi si incontrarono e, in quell’istante, tornarono il motorino, il centro, il muretto con le birre fredde. Lucrezia pensò che il coraggio non ha voce ma passo; Giuseppe sentì che la timidezza per l’obiettivo si scioglieva nell’attenzione di lei. Il silenzio della chiesa, punteggiato di respiri, compì il resto."
+},
+{
+"testo": "Giuseppe prese le sue mani e, senza proclami, lasciò parlare la memoria: i giorni della cura affrontati insieme, la caduta e il rialzarsi, la promessa detta piano: per sempre, nonostante tutto. Lucrezia ascoltò e si ritrovò forte nel modo più semplice, come una porta che si apre allo stesso tocco di sempre."
+},
+{
+"testo": "Quando arrivò il momento del sì, entrambi sentirono la misura esatta di quella parola. Non era un ponte gettato nel vuoto, ma una strada già percorsa, ora asfaltata di luce. Le sei sorelle sorrisero come un coro; il sacerdote attese il tempo giusto, e il sì si depositò dove deve: al centro del petto."
+},
+{
+"testo": "Intorno a loro, gli invitati trattennero il fiato, come davanti a una scena che si sa importante. Il cane di Giuseppe, in un pensiero lontano, sembrò abbaiare felice. Il padre di lei guardò le vetrate colorate come mappe di una terra promessa. La madre ebbe il gesto antico di segnarsi, mentre il rosa pesco diventava benedizione."
+},
+{
+"testo": "Il primo bacio da sposi fu breve e deciso, come un brindisi sussurrato. Lucrezia pensò che la loro canzone aveva due titoli: “Per dimenticare” e “Big City Life”, e che entrambi, in modi diversi, parlavano di loro. Giuseppe si disse che ogni città è grande finché non trovi la tua casa in uno sguardo."
+},
+{
+"testo": "Uscirono mano nella mano mentre una pioggia di riso tracciava il cielo a piccole traiettorie bianche. Lucrezia rise, Giuseppe chiuse gli occhi un momento per trattenere tutto. Il profumo dei fiori si mescolò al sole, e la strada davanti parve allungarsi senza smettere di appartenere al presente."
+},
+{
+"testo": "Le congratulazioni si trasformarono in abbracci, le parole in promesse lievi. Mentre questo accadeva, qualcuno chiamò i fotografi; Giuseppe guardò lei per farsi coraggio e scoprì che bastava. Poco dopo, le porte delle auto si aprirono: la cerimonia lasciò spazio alla festa, come il giorno alla sera."
+}
+],
+"capitolo_3_festa": [
+{
+"testo": "L’aperitivo iniziò con vassoi lucenti e bicchieri che suonavano contro la luce. Il rosa pesco tornò nei dettagli: nastri, fiori, piccoli segnaposto. Lucrezia camminò tra i tavoli come chi riconosce una musica attesa; Giuseppe, più sciolto, seguì il ritmo di chi ha smesso di temere lo sguardo altrui."
+},
+{
+"testo": "Durante le foto di gruppo, le sei sorelle crearono un ventaglio di sorrisi; la madre della sposa aggiustò un ciuffo ribelle. Lo sposo pensò che, dopotutto, le immagini erano solo finestre: bastava affacciarsi insieme. Nel brusio, il loro cane venne nominato spesso, come un amico che mancava di poco."
+},
+{
+"testo": "Il ricevimento prese vita quando il primo piatto arrivò come una promessa mantenuta. I discorsi si alternarono a risate, e ogni nome chiamato a brindare aggiunse una sfumatura alla loro storia. Lucrezia sentì la stanchezza trasformarsi in presenza, Giuseppe ritrovò la leggerezza del primo incontro."
+},
+{
+"testo": "I brindisi si susseguirono come piccole onde. Il padre di lei ricordò il muretto e le birre, la madre dello sposo parlò di rispetto e pazienza. Tra un tintinnio e l’altro, la parola “perfetto” passò di mano in mano, senza pretendere di esserlo davvero, ma scegliendo di somigliare all’oggi."
+},
+{
+"testo": "Quando iniziò la loro canzone, si guardarono e sorrisero: non una sola, ma due melodie a intrecciare passi. Lucrezia posò la testa sulla spalla di Giuseppe; lui contò piano, per non perdere il tempo. Il parquet sembrò più morbido, come se sapesse cosa custodire senza far rumore."
+},
+{
+"testo": "La festa esplose con un coro di amici che tirò tutti in pista. Il rosa pesco, ora, diventò una scia nelle luci. Le mani battevano, le voci sopra la musica componevano storie brevi. Ogni tanto, si cercavano con un cenno, come chi conferma un patto antico nel cuore del rumore."
+},
+{
+"testo": "Tra una risata e l’altra, riemersero i loro aneddoti: la caduta di lui, il rialzarsi insieme; i giorni di cura di lei, la presenza ostinata. Qualcuno scherzò sul volo lontano e sull’aereo che aveva ospitato un azzardo d’amore; loro si scambiarono uno sguardo complice, senza aggiungere altro."
+},
+{
+"testo": "Anche quando le stelle presero il posto del giorno, la sala continuò a vibrare. Mentre questo accadeva, il tempo rallentò quanto basta per far entrare tutto: abbracci, fotografie, promesse dette a bassa voce. Poco dopo, la musica si fece più dolce, e la notte li accompagnò verso un margine più quieto."
+}
+],
+"capitolo_4_segreti": [
+{
+"testo": "Nel silenzio dei loro cuori, si ritrovarono per qualche minuto lontani da tutti. Lucrezia sentì il peso lieve del velo trasformarsi in carezza e pensò ai giorni in cui avevano imparato a non lasciarsi. Ricordò la stanza d’ospedale, la mano di Giuseppe vicino alla sua, la parola “domani” pronunciata piano ma con fermezza. Lui, guardandola, rivisse l’istante in cui era caduto e la sua voce aveva rimesso il mondo in asse. Quello che solo loro sapevano era che la forza non sta nella perfezione, ma nel farsi spazio mentre si trema."
+},
+{
+"testo": "Giuseppe la guardò e vide il loro futuro come una strada cittadina che sa dove portare. Si disse che avrebbero tenuto un rituale semplice: un bacio al giorno e a letto senza litigare, la bussola nelle sere stanche. Lei sorrise, pensando alla promessa di restare sempre, e al coraggio lieve delle cose ripetute: aprire la finestra, far entrare luce, scegliere di camminare affiancati. Non sapevano quali curve li aspettassero, ma sapevano il passo: lo stesso di quel motorino in centro, solo più sicuro, solo più loro."
+}
+],
+"epilogo": {
+"testo": "E così la loro storia continuò, con una direzione chiara e una leggerezza conquistata. Da quel giorno in poi, ogni mattino avrebbe avuto la misura di un bacio e la pazienza di un sorriso. Il 12 settembre non chiuse nulla: aprì semmai un libro nuovo, scritto a due mani, dove perfetto significa vero e vero significa insieme. Il muretto restò un faro discreto: ricordava loro che l’amore nasce spesso in luoghi semplici e diventa grande quando non smette di scegliere.",
+"posizione": "Ultima pagina dell'album"
+},
+"citazioni_poetiche": [
+{"testo": "Su un muretto con due birre fredde, impararono che il tempo sa sedersi accanto.", "uso": "Per foto ritratto sposi"},
+{"testo": "Sei sorelle come un coro: mani leggere che cucirono l’alba sul suo velo.", "uso": "Per foto famiglia"},
+{"testo": "Il sì non gridò: posò la propria luce al centro del petto e tacque.", "uso": "Per foto cerimonia"},
+{"testo": "Un bacio breve e deciso, come un brindisi segreto lanciato al futuro.", "uso": "Per foto primo bacio"},
+{"testo": "La festa è un respiro condiviso: entra, esce, e intanto avvicina i cuori.", "uso": "Per foto festa"},
+{"testo": "Due canzoni, un passo: la spalla che accoglie e il ritmo che non si perde.", "uso": "Per foto primo ballo"},
+{"testo": "Tra risate e luce, la complicità scelse di parlare con gli occhi.", "uso": "Per foto spontanea"},
+{"testo": "Settembre stese un tramonto rosa pesco, e la sera imparò i loro nomi.", "uso": "Per foto tramonto"},
+{"testo": "Nei dettagli vive la promessa: un fiore all’occhiello, un lembo di velo.", "uso": "Per foto dettagli"},
+{"testo": "Gli amici sono il ronzio buono della vita: ti tengono in pista quando tremi.", "uso": "Per foto gruppo amici"},
+{"testo": "Nel silenzio a due voci, scoprirono che la forza è una carezza ostinata.", "uso": "Per foto momento intimo"},
+{"testo": "La strada è la stessa: solo più nostra, solo più vera, solo più insieme.", "uso": "Per foto finale"}
+],
+"guida_impaginazione": [
+"Pagine 1-3: Prologo + inizio Capitolo 1 (paragrafi 1-2)",
+"Pagine 4-9: Completare Capitolo 1 - L'attesa (paragrafi 3-6)",
+"Pagine 10-19: Capitolo 2 - L'incontro (paragrafi 7-14 + citazioni)",
+"Pagine 20-29: Capitolo 3 - La festa (paragrafi 15-22 + citazioni)",
+"Pagine 30-32: Capitolo 4 - I segreti (paragrafi 23-24)",
+"Pagine 33-35: Epilogo + citazioni finali",
+"IMPORTANTE: Ogni paragrafo deve CONTINUARE la storia del precedente",
+"Totale: 35+ pagine con un VERO RACCONTO che scorre dall'inizio alla fine"
+]
+}

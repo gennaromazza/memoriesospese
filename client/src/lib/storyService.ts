@@ -31,11 +31,25 @@ export class StoryService {
    * Ottieni storia della coppia per ID galleria
    */
   static async getStoryByGalleryId(galleryId: string): Promise<CoupleStory | null> {
+    console.log('🔍 [GET] Caricamento storia per galleryId:', galleryId);
+    
     try {
       const storyDoc = await getDoc(doc(db, 'coupleStories', galleryId));
-      return storyDoc.exists() ? { id: storyDoc.id, ...storyDoc.data() } as CoupleStory : null;
+      
+      if (storyDoc.exists()) {
+        console.log('✅ [GET] Storia trovata in Firebase!');
+        const storyData = { id: storyDoc.id, ...storyDoc.data() } as CoupleStory;
+        console.log('📖 [GET] Dati storia:', { 
+          titolo: storyData.metadata?.titolo,
+          pagine: storyData.contenuto?.length || 0 
+        });
+        return storyData;
+      } else {
+        console.log('❌ [GET] Nessuna storia trovata per questo galleryId');
+        return null;
+      }
     } catch (error) {
-      console.error('Errore recupero storia coppia:', error);
+      console.error('💥 [GET] Errore recupero storia coppia:', error);
       return null;
     }
   }
@@ -48,12 +62,16 @@ export class StoryService {
     storyData: Omit<InsertCoupleStory, 'galleryId'>,
     userEmail?: string
   ): Promise<void> {
+    console.log('🚀 [SAVE] Inizio salvataggio storia:', { galleryId, userEmail });
+    
     try {
       // Valida i dati usando lo schema Zod
+      console.log('📝 [SAVE] Validazione dati...');
       const validatedData = insertCoupleStorySchema.parse({
         ...storyData,
         galleryId
       });
+      console.log('✅ [SAVE] Dati validati con successo');
 
       // Prepara il documento con timestamp
       const storyDocument: any = {
@@ -63,15 +81,20 @@ export class StoryService {
       };
 
       // Verifica se esiste già una storia
+      console.log('🔍 [SAVE] Controllo storia esistente...');
       const existingStory = await StoryService.getStoryByGalleryId(galleryId);
       
       if (!existingStory) {
-        // Crea nuova storia
+        console.log('🆕 [SAVE] Creazione nuova storia');
         storyDocument.createdAt = serverTimestamp();
         storyDocument.createdBy = userEmail || undefined;
+      } else {
+        console.log('🔄 [SAVE] Aggiornamento storia esistente');
       }
 
+      console.log('💾 [SAVE] Salvataggio su Firebase Firestore...');
       await setDoc(doc(db, 'coupleStories', galleryId), storyDocument, { merge: true });
+      console.log('✅ [SAVE] Storia salvata con successo!');
     } catch (error) {
       console.error('Errore salvataggio storia coppia:', error);
       throw error;
