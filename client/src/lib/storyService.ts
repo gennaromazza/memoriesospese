@@ -32,6 +32,7 @@ export class StoryService {
    */
   static async getStoryByGalleryId(galleryId: string): Promise<CoupleStory | null> {
     console.log('🔍 [GET] Caricamento storia per galleryId:', galleryId);
+    console.log('🔍 [GET] Ricerca in collection: coupleStories, document ID:', galleryId);
     
     try {
       const storyDoc = await getDoc(doc(db, 'coupleStories', galleryId));
@@ -41,11 +42,55 @@ export class StoryService {
         const storyData = { id: storyDoc.id, ...storyDoc.data() } as CoupleStory;
         console.log('📖 [GET] Dati storia:', { 
           titolo: storyData.metadata?.titolo,
-          pagine: (storyData as any).contenuto?.length || 0 
+          pagine: (storyData as any).contenuto?.length || 0,
+          galleryId: storyData.galleryId,
+          documentId: storyDoc.id
         });
         return storyData;
       } else {
         console.log('❌ [GET] Nessuna storia trovata per questo galleryId');
+        
+        // DEBUG: Controlliamo se esistono storie con galleryId diverso dal document ID
+        console.log('🔎 [DEBUG] Controllo alternativo: cerco storie dove galleryId field = document ID...');
+        const alternativeQuery = query(
+          collection(db, 'coupleStories'),
+          where('galleryId', '==', galleryId),
+          limit(1)
+        );
+        
+        try {
+          const alternativeSnapshot = await getDocs(alternativeQuery);
+          if (!alternativeSnapshot.empty) {
+            const alternativeDoc = alternativeSnapshot.docs[0];
+            console.log('🎯 [DEBUG] TROVATA STORIA ALTERNATIVA!', {
+              documentId: alternativeDoc.id,
+              galleryIdField: alternativeDoc.data().galleryId,
+              searchedGalleryId: galleryId
+            });
+            const storyData = { id: alternativeDoc.id, ...alternativeDoc.data() } as CoupleStory;
+            return storyData;
+          } else {
+            console.log('🚫 [DEBUG] Nessuna storia trovata anche con query alternativa');
+          }
+        } catch (alternativeError) {
+          console.log('⚠️ [DEBUG] Errore nella query alternativa:', alternativeError);
+        }
+        
+        // DEBUG: Mostriamo tutte le storie esistenti per debug
+        console.log('🔎 [DEBUG] Lista di TUTTE le storie esistenti nella collection:');
+        try {
+          const allStoriesSnapshot = await getDocs(collection(db, 'coupleStories'));
+          allStoriesSnapshot.docs.forEach((doc, index) => {
+            console.log(`📚 [DEBUG] Storia ${index + 1}:`, {
+              documentId: doc.id,
+              galleryIdField: doc.data().galleryId,
+              metadata: doc.data().metadata
+            });
+          });
+        } catch (allStoriesError) {
+          console.log('⚠️ [DEBUG] Errore nel caricamento di tutte le storie:', allStoriesError);
+        }
+        
         return null;
       }
     } catch (error) {
@@ -93,8 +138,17 @@ export class StoryService {
       }
 
       console.log('💾 [SAVE] Salvataggio su Firebase Firestore...');
+      console.log('💾 [SAVE] Collection: coupleStories, Document ID:', galleryId);
+      console.log('💾 [SAVE] Story document preview:', {
+        galleryId: storyDocument.galleryId,
+        metadataTitolo: storyDocument.metadata?.titolo,
+        hasPrologo: !!storyDocument.prologo,
+        hasCapitoli: Object.keys(storyDocument).filter(key => key.startsWith('capitolo_')).length
+      });
+      
       await setDoc(doc(db, 'coupleStories', galleryId), storyDocument, { merge: true });
       console.log('✅ [SAVE] Storia salvata con successo!');
+      console.log('✅ [SAVE] Document ID utilizzato:', galleryId);
     } catch (error) {
       console.error('Errore salvataggio storia coppia:', error);
       throw error;
@@ -187,6 +241,34 @@ export class StoryService {
       console.error('Errore subscription storia coppia:', error);
       callback(null);
     });
+  }
+
+  /**
+   * Debug: Ispeziona collection coupleStories
+   */
+  static async debugCoupleStoriesCollection(): Promise<void> {
+    console.log('🔍 [DEBUG] === ISPEZIONE COLLECTION COUPLE STORIES ===');
+    try {
+      const storiesQuery = query(collection(db, 'coupleStories'));
+      const snapshot = await getDocs(storiesQuery);
+      
+      console.log(`📊 [DEBUG] Trovate ${snapshot.docs.length} storie nella collection`);
+      
+      snapshot.docs.forEach((doc, index) => {
+        const data = doc.data();
+        console.log(`📖 [DEBUG] Storia ${index + 1}:`, {
+          documentId: doc.id,
+          galleryId: data.galleryId,
+          titolo: data.metadata?.titolo,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt
+        });
+      });
+      
+    } catch (error) {
+      console.error('❌ [DEBUG] Errore nell\'ispezione della collection:', error);
+    }
+    console.log('🔍 [DEBUG] === FINE ISPEZIONE ===');
   }
 
   /**
