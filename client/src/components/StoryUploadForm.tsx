@@ -373,13 +373,13 @@ export default function StoryUploadForm({
     <div className="w-full max-w-4xl mx-auto p-6">
       <Card className="shadow-lg border-sage-200">
         <CardHeader className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-sage-600 to-blue-gray-600 rounded-full flex items-center justify-center mb-4">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-terracotta-600 to-cream-600 rounded-full flex items-center justify-center mb-4">
             <BookOpen className="h-8 w-8 text-white" />
           </div>
           <CardTitle className="text-2xl font-playfair font-bold text-blue-gray-900">
             Carica Storia della Coppia
           </CardTitle>
-          <p className="text-sage-700 mt-2">
+          <p className="text-terracotta-700 mt-2">
             Incolla il JSON generato da ChatGPT per creare il libro digitale
           </p>
         </CardHeader>
@@ -388,7 +388,7 @@ export default function StoryUploadForm({
           {/* Metadata opzionali */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="title" className="text-sm font-medium text-sage-700">
+              <Label htmlFor="title" className="text-sm font-medium text-terracotta-700">
                 Titolo del Libro (opzionale)
               </Label>
               <Input
@@ -396,11 +396,11 @@ export default function StoryUploadForm({
                 placeholder="La Nostra Storia"
                 value={metadata.titolo}
                 onChange={(e) => setMetadata(prev => ({ ...prev, titolo: e.target.value }))}
-                className="border-sage-300 focus:border-sage-500"
+                className="border-terracotta-300 focus:border-terracotta-500"
               />
             </div>
             <div>
-              <Label htmlFor="subtitle" className="text-sm font-medium text-sage-700">
+              <Label htmlFor="subtitle" className="text-sm font-medium text-terracotta-700">
                 Sottotitolo (opzionale)
               </Label>
               <Input
@@ -408,11 +408,11 @@ export default function StoryUploadForm({
                 placeholder="Un amore senza tempo"
                 value={metadata.sottotitolo}
                 onChange={(e) => setMetadata(prev => ({ ...prev, sottotitolo: e.target.value }))}
-                className="border-sage-300 focus:border-sage-500"
+                className="border-terracotta-300 focus:border-terracotta-500"
               />
             </div>
             <div>
-              <Label htmlFor="style" className="text-sm font-medium text-sage-700">
+              <Label htmlFor="style" className="text-sm font-medium text-terracotta-700">
                 Stile (opzionale)
               </Label>
               <Input
@@ -420,11 +420,11 @@ export default function StoryUploadForm({
                 placeholder="Romantico, Elegante, Moderno..."
                 value={metadata.stile}
                 onChange={(e) => setMetadata(prev => ({ ...prev, stile: e.target.value }))}
-                className="border-sage-300 focus:border-sage-500"
+                className="border-terracotta-300 focus:border-terracotta-500"
               />
             </div>
             <div>
-              <Label htmlFor="theme" className="text-sm font-medium text-sage-700">
+              <Label htmlFor="theme" className="text-sm font-medium text-terracotta-700">
                 Tema (opzionale)
               </Label>
               <Input
@@ -432,14 +432,14 @@ export default function StoryUploadForm({
                 placeholder="Autunno, Mare, Montagna..."
                 value={metadata.tema}
                 onChange={(e) => setMetadata(prev => ({ ...prev, tema: e.target.value }))}
-                className="border-sage-300 focus:border-sage-500"
+                className="border-terracotta-300 focus:border-terracotta-500"
               />
             </div>
           </div>
 
           {/* JSON Input */}
           <div className="space-y-2">
-            <Label htmlFor="json-input" className="text-sm font-medium text-sage-700">
+            <Label htmlFor="json-input" className="text-sm font-medium text-terracotta-700">
               JSON della Storia
             </Label>
             <Textarea
@@ -447,9 +447,9 @@ export default function StoryUploadForm({
               placeholder='{"prologo": {"testo": "..."}, "capitolo_1_lattesa": [{"testo": "..."}], ...}'
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
-              className="min-h-[200px] border-sage-300 focus:border-sage-500 font-mono text-sm"
+              className="min-h-[200px] border-terracotta-300 focus:border-terracotta-500 font-mono text-sm"
             />
-            <p className="text-xs text-sage-600">
+            <p className="text-xs text-terracotta-600">
               Incolla qui il JSON completo generato da ChatGPT con la storia della coppia
             </p>
           </div>
@@ -464,7 +464,7 @@ export default function StoryUploadForm({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowPreview(!showPreview)}
-                className="border-sage-300 text-sage-700 hover:bg-sage-50"
+                className="border-terracotta-300 text-terracotta-700 hover:bg-terracotta-50"
               >
                 <Eye className="h-4 w-4 mr-2" />
                 {showPreview ? 'Nascondi' : 'Mostra'} Anteprima
@@ -477,15 +477,15 @@ export default function StoryUploadForm({
 
           {/* Upload Progress */}
           {isUploading && (
-            <Card className="bg-sage-50 border-sage-200">
+            <Card className="bg-terracotta-50 border-terracotta-200">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-5 h-5 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-5 h-5 border-2 border-terracotta-600 border-t-transparent rounded-full animate-spin"></div>
                   <span className="font-medium text-blue-gray-900">Caricamento storia...</span>
-                  <span className="ml-auto text-sage-700 font-bold">{uploadProgress}%</span>
+                  <span className="ml-auto text-terracotta-700 font-bold">{uploadProgress}%</span>
                 </div>
                 <Progress value={uploadProgress} className="w-full h-2" />
-                <p className="text-xs text-sage-700 mt-2">
+                <p className="text-xs text-terracotta-700 mt-2">
                   La storia sta per essere salvata nella galleria...
                 </p>
               </CardContent>
@@ -509,7 +509,7 @@ export default function StoryUploadForm({
               <Button
                 onClick={handleUpload}
                 disabled={!validationResult.isValid || isUploading || !user || !isAdmin}
-                className="bg-sage-600 hover:bg-sage-700 text-white disabled:opacity-50"
+                className="bg-terracotta-600 hover:bg-terracotta-700 text-white disabled:opacity-50"
               >
                 {isUploading ? (
                   <>

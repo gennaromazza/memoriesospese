@@ -299,31 +299,31 @@ export default function CoupleStoryBook({
         <h2 className="text-3xl font-playfair font-bold text-blue-gray-900 mb-2">
           Citazioni & Ispirazioni
         </h2>
-        <div className="w-24 h-0.5 bg-sage-400 mx-auto"></div>
+        <div className="w-24 h-0.5 bg-terracotta-400 mx-auto"></div>
       </div>
 
       <div className="space-y-8 max-w-4xl mx-auto">
         {quotes.poetiche.length > 0 && (
           <div>
-            <h3 className="text-xl font-playfair font-semibold text-sage-800 mb-4 flex items-center gap-2">
+            <h3 className="text-xl font-playfair font-semibold text-terracotta-800 mb-4 flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
               Citazioni Poetiche
             </h3>
             <div className="grid gap-4 md:grid-cols-2">
               {quotes.poetiche.map((quote, index) => (
-                <Card key={index} className="bg-gradient-to-br from-sage-50 to-transparent border-sage-200">
+                <Card key={index} className="bg-gradient-to-br from-terracotta-50 to-transparent border-terracotta-200">
                   <CardContent className="p-4">
                     <blockquote className="text-sm italic text-blue-gray-700 mb-2">
                       "{quote.testo}"
                     </blockquote>
                     {(quote.autore || quote.fonte) && (
-                      <footer className="text-xs text-sage-600">
+                      <footer className="text-xs text-terracotta-600">
                         {quote.autore && <cite>— {quote.autore}</cite>}
                         {quote.fonte && <span className="ml-2">({quote.fonte})</span>}
                       </footer>
                     )}
                     {quote.uso && (
-                      <Badge size="sm" variant="outline" className="mt-2 border-sage-300 text-sage-700">
+                      <Badge variant="outline" className="mt-2 border-terracotta-300 text-terracotta-700">
                         {quote.uso}
                       </Badge>
                     )}
@@ -353,7 +353,7 @@ export default function CoupleStoryBook({
                       </footer>
                     )}
                     {quote.uso && (
-                      <Badge size="sm" variant="outline" className="mt-2 border-blue-gray-300 text-blue-gray-700">
+                      <Badge variant="outline" className="mt-2 border-blue-gray-300 text-blue-gray-700">
                         {quote.uso}
                       </Badge>
                     )}
@@ -383,7 +383,7 @@ export default function CoupleStoryBook({
                       </footer>
                     )}
                     {quote.uso && (
-                      <Badge size="sm" variant="outline" className="mt-2 border-terracotta-300 text-terracotta-700">
+                      <Badge variant="outline" className="mt-2 border-terracotta-300 text-terracotta-700">
                         {quote.uso}
                       </Badge>
                     )}
@@ -404,7 +404,7 @@ export default function CoupleStoryBook({
         <h2 className="text-3xl font-playfair font-bold text-blue-gray-900 mb-2">
           Note del Fotografo
         </h2>
-        <div className="w-24 h-0.5 bg-sage-400 mx-auto"></div>
+        <div className="w-24 h-0.5 bg-terracotta-400 mx-auto"></div>
       </div>
 
       <div className="max-w-3xl mx-auto space-y-4">
