@@ -56,7 +56,7 @@ export class StoryService {
       });
 
       // Prepara il documento con timestamp
-      const storyDocument = {
+      const storyDocument: any = {
         ...validatedData,
         updatedAt: serverTimestamp(),
         updatedBy: userEmail || undefined

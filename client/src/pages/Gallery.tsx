@@ -170,16 +170,22 @@ export default function Gallery() {
   }, [photos.length, guestPhotos.length, galleryData]);
 
   // Carica la storia della coppia quando viene selezionato il tab
-  // Effect per caricare la storia quando necessario
+  // Effect per caricare la storia quando necessario - FIX: Non cancellare storia esistente
   useEffect(() => {
     if (id && !coupleStory && !storyLoading && !storyChecked) {
       setStoryLoading(true);
       StoryService.getStoryByGalleryId(id)
         .then(story => {
-          setCoupleStory(story);
+          console.log('📖 Storia caricata da Firebase:', story ? 'TROVATA' : 'NON TROVATA', { galleryId: id });
+          // ✅ FIX: Solo imposta la storia se viene trovata
+          if (story) {
+            setCoupleStory(story);
+          }
+          // Se story è null, non tocchiamo coupleStory (mantiene lo stato esistente)
         })
         .catch(error => {
-          console.error('Errore caricamento storia:', error);
+          console.error('❌ Errore caricamento storia:', error);
+          // ✅ Non cancellare la storia esistente anche in caso di errore
         })
         .finally(() => {
           setStoryLoading(false);
