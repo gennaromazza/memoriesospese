@@ -111,7 +111,10 @@ export default function StoryUploadForm({
 
           // Conta capitoli
           const chapters = ['capitolo_1_lattesa', 'capitolo_2_incontro', 'capitolo_3_festa', 'capitolo_4_promesse', 'capitolo_5_celebrazione', 'capitolo_6_eternita'];
-          stats.chaptersCount = chapters.filter(ch => result.normalizedData[ch] && result.normalizedData[ch].length > 0).length;
+          stats.chaptersCount = chapters.filter(ch => {
+            const chapterData = (result.normalizedData as any)?.[ch];
+            return chapterData && Array.isArray(chapterData) && chapterData.length > 0;
+          }).length;
 
           // Conta citazioni
           stats.quotesCount = (result.normalizedData.citazioni_poetiche?.length || 0) + 
