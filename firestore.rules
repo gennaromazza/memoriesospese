@@ -211,5 +211,15 @@ service cloud.firestore {
         // Limit to questions field only
         request.query.select == ['questions'];
     }
+
+    // ====== COUPLE STORIES SYSTEM RULES ======
+    
+    // Couple Stories collection - Admin only creation/modification, public read access for gallery viewing
+    match /coupleStories/{galleryId} {
+      allow read: if true; // Public read access for story viewing in galleries
+      allow create: if isAdmin(); // Only admin can create new stories
+      allow update: if isAdmin(); // Only admin can update existing stories
+      allow delete: if isAdmin(); // Only admin can delete stories
+    }
   }
 }

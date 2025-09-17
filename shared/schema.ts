@@ -394,3 +394,325 @@ export const toJSDate = (dateInput: any): Date | null => {
   console.error("Could not parse date:", dateInput);
   return null;
 };
+
+// ====== COUPLE STORY SYSTEM TYPES ======
+
+// Story Chapter interface - represents a chapter with text content
+export interface StoryChapter {
+  testo: string;
+  tema?: string;
+  posizione?: string;
+  uso?: string;
+}
+
+// Story Prologue interface - special type for prologue
+export interface StoryPrologue {
+  testo: string;
+  posizione?: string;
+  tema?: string;
+}
+
+// Poetic Quote interface
+export interface PoeticQuote {
+  testo: string;
+  uso?: string;
+  autore?: string;
+  fonte?: string;
+}
+
+// Main CoupleStory interface - represents the complete story structure
+export interface CoupleStory {
+  id: string;
+  galleryId: string;
+  prologo?: StoryPrologue;
+  capitolo_1_lattesa?: StoryChapter[];
+  capitolo_2_incontro?: StoryChapter[];
+  capitolo_3_festa?: StoryChapter[];
+  capitolo_4_promesse?: StoryChapter[];
+  capitolo_5_celebrazione?: StoryChapter[];
+  capitolo_6_eternita?: StoryChapter[];
+  citazioni_poetiche?: PoeticQuote[];
+  citazioni_religiose?: PoeticQuote[];
+  citazioni_moderne?: PoeticQuote[];
+  note_fotografo?: string[];
+  metadata?: {
+    titolo?: string;
+    sottotitolo?: string;
+    stile?: string;
+    tema?: string;
+    colore_principale?: string;
+  };
+  createdAt: any; // Firebase Timestamp
+  updatedAt: any; // Firebase Timestamp
+  createdBy?: string; // admin email
+  updatedBy?: string; // admin email
+}
+
+// Validation schema for story content from ChatGPT JSON
+export const insertCoupleStorySchema = z.object({
+  galleryId: z.string().min(1, "Gallery ID è obbligatorio"),
+  prologo: z.object({
+    testo: z.string().min(1, "Testo del prologo è obbligatorio"),
+    posizione: z.string().optional(),
+    tema: z.string().optional()
+  }).optional(),
+  capitolo_1_lattesa: z.array(z.object({
+    testo: z.string().min(1),
+    tema: z.string().optional(),
+    posizione: z.string().optional(),
+    uso: z.string().optional()
+  })).optional(),
+  capitolo_2_incontro: z.array(z.object({
+    testo: z.string().min(1),
+    tema: z.string().optional(),
+    posizione: z.string().optional(),
+    uso: z.string().optional()
+  })).optional(),
+  capitolo_3_festa: z.array(z.object({
+    testo: z.string().min(1),
+    tema: z.string().optional(),
+    posizione: z.string().optional(),
+    uso: z.string().optional()
+  })).optional(),
+  capitolo_4_promesse: z.array(z.object({
+    testo: z.string().min(1),
+    tema: z.string().optional(),
+    posizione: z.string().optional(),
+    uso: z.string().optional()
+  })).optional(),
+  capitolo_5_celebrazione: z.array(z.object({
+    testo: z.string().min(1),
+    tema: z.string().optional(),
+    posizione: z.string().optional(),
+    uso: z.string().optional()
+  })).optional(),
+  capitolo_6_eternita: z.array(z.object({
+    testo: z.string().min(1),
+    tema: z.string().optional(),
+    posizione: z.string().optional(),
+    uso: z.string().optional()
+  })).optional(),
+  citazioni_poetiche: z.array(z.object({
+    testo: z.string().min(1),
+    uso: z.string().optional(),
+    autore: z.string().optional(),
+    fonte: z.string().optional()
+  })).optional(),
+  citazioni_religiose: z.array(z.object({
+    testo: z.string().min(1),
+    uso: z.string().optional(),
+    autore: z.string().optional(),
+    fonte: z.string().optional()
+  })).optional(),
+  citazioni_moderne: z.array(z.object({
+    testo: z.string().min(1),
+    uso: z.string().optional(),
+    autore: z.string().optional(),
+    fonte: z.string().optional()
+  })).optional(),
+  note_fotografo: z.array(z.string()).optional(),
+  metadata: z.object({
+    titolo: z.string().optional(),
+    sottotitolo: z.string().optional(),
+    stile: z.string().optional(),
+    tema: z.string().optional(),
+    colore_principale: z.string().optional()
+  }).optional()
+});
+
+export type InsertCoupleStory = z.infer<typeof insertCoupleStorySchema>;
+
+// Raw JSON validation schema for ChatGPT import
+export const importStoryJsonSchema = z.object({
+  prologo: z.union([
+    z.object({
+      testo: z.string(),
+      posizione: z.string().optional(),
+      tema: z.string().optional()
+    }),
+    z.string()
+  ]).optional(),
+  capitolo_1_lattesa: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        tema: z.string().optional(),
+        posizione: z.string().optional(),
+        uso: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  capitolo_2_incontro: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        tema: z.string().optional(),
+        posizione: z.string().optional(),
+        uso: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  capitolo_3_festa: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        tema: z.string().optional(),
+        posizione: z.string().optional(),
+        uso: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  capitolo_4_promesse: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        tema: z.string().optional(),
+        posizione: z.string().optional(),
+        uso: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  capitolo_5_celebrazione: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        tema: z.string().optional(),
+        posizione: z.string().optional(),
+        uso: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  capitolo_6_eternita: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        tema: z.string().optional(),
+        posizione: z.string().optional(),
+        uso: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  citazioni_poetiche: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        uso: z.string().optional(),
+        autore: z.string().optional(),
+        fonte: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  citazioni_religiose: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        uso: z.string().optional(),
+        autore: z.string().optional(),
+        fonte: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  citazioni_moderne: z.union([
+    z.array(z.union([
+      z.object({
+        testo: z.string(),
+        uso: z.string().optional(),
+        autore: z.string().optional(),
+        fonte: z.string().optional()
+      }),
+      z.string()
+    ])),
+    z.string()
+  ]).optional(),
+  note_fotografo: z.union([
+    z.array(z.string()),
+    z.string()
+  ]).optional(),
+  metadata: z.object({
+    titolo: z.string().optional(),
+    sottotitolo: z.string().optional(),
+    stile: z.string().optional(),
+    tema: z.string().optional(),
+    colore_principale: z.string().optional()
+  }).optional()
+});
+
+export type ImportStoryJson = z.infer<typeof importStoryJsonSchema>;
+
+// Helper function to normalize imported JSON to proper structure
+export const normalizeImportedStory = (rawData: ImportStoryJson): Partial<InsertCoupleStory> => {
+  const normalized: Partial<InsertCoupleStory> = {};
+
+  // Normalize prologue
+  if (rawData.prologo) {
+    if (typeof rawData.prologo === 'string') {
+      normalized.prologo = { testo: rawData.prologo };
+    } else {
+      normalized.prologo = rawData.prologo;
+    }
+  }
+
+  // Normalize chapters
+  const chapters = ['capitolo_1_lattesa', 'capitolo_2_incontro', 'capitolo_3_festa', 'capitolo_4_promesse', 'capitolo_5_celebrazione', 'capitolo_6_eternita'] as const;
+  
+  chapters.forEach(chapter => {
+    const chapterData = rawData[chapter];
+    if (chapterData) {
+      if (typeof chapterData === 'string') {
+        normalized[chapter] = [{ testo: chapterData }];
+      } else if (Array.isArray(chapterData)) {
+        normalized[chapter] = chapterData.map(item => 
+          typeof item === 'string' ? { testo: item } : item
+        );
+      }
+    }
+  });
+
+  // Normalize quotes
+  const quotes = ['citazioni_poetiche', 'citazioni_religiose', 'citazioni_moderne'] as const;
+  
+  quotes.forEach(quoteType => {
+    const quoteData = rawData[quoteType];
+    if (quoteData) {
+      if (typeof quoteData === 'string') {
+        normalized[quoteType] = [{ testo: quoteData }];
+      } else if (Array.isArray(quoteData)) {
+        normalized[quoteType] = quoteData.map(item => 
+          typeof item === 'string' ? { testo: item } : item
+        );
+      }
+    }
+  });
+
+  // Normalize notes
+  if (rawData.note_fotografo) {
+    if (typeof rawData.note_fotografo === 'string') {
+      normalized.note_fotografo = [rawData.note_fotografo];
+    } else {
+      normalized.note_fotografo = rawData.note_fotografo;
+    }
+  }
+
+  // Copy metadata as-is
+  if (rawData.metadata) {
+    normalized.metadata = rawData.metadata;
+  }
+
+  return normalized;
+};

@@ -33,9 +33,13 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
-import { Edit3 } from "lucide-react";
+import { Edit3, BookOpen } from "lucide-react";
 import { PrettyCountdown } from "@/components/PrettyCountdown";
 import { resolveEventDate } from "@/lib/firebase";
+import CoupleStoryBook from "@/components/CoupleStoryBook";
+import StoryUploadForm from "@/components/StoryUploadForm";
+import StoryService from "@/lib/storyService";
+import { CoupleStory } from "@shared/schema";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -66,8 +70,8 @@ export default function Gallery() {
   // Stato per tracciare se i filtri sono attivi
   const [areFiltersActive, setAreFiltersActive] = useState(false);
 
-  // Stato per il tab attivo (foto del fotografo, ospiti o vocali segreti)
-  const [activeTab, setActiveTab] = useState<'photographer' | 'guests' | 'voice-memos'>('photographer');
+  // Stato per il tab attivo (foto del fotografo, ospiti, vocali segreti o storia)
+  const [activeTab, setActiveTab] = useState<'photographer' | 'guests' | 'voice-memos' | 'story'>('photographer');
 
   // Hook per il refresh intelligente dei dati
   const { refreshPhotos, refreshGallery, refreshVoiceMemos, refreshInteractions } = useGalleryRefresh(id);
@@ -86,6 +90,11 @@ export default function Gallery() {
 
   // Stato per gestire l'apertura del modal EditGallery
   const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
+
+  // Stati per gestire la storia della coppia
+  const [coupleStory, setCoupleStory] = useState<CoupleStory | null>(null);
+  const [storyLoading, setStoryLoading] = useState(false);
+  const [showStoryUpload, setShowStoryUpload] = useState(false);
 
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -127,6 +136,23 @@ export default function Gallery() {
       progress: galleryData?.photoCount ? Math.min(100, Math.round((totalLoadedPhotos / galleryData.photoCount) * 100)) : 100
     }));
   }, [photos.length, guestPhotos.length, galleryData]);
+
+  // Carica la storia della coppia quando viene selezionato il tab
+  useEffect(() => {
+    if (activeTab === 'story' && id && !coupleStory && !storyLoading) {
+      setStoryLoading(true);
+      StoryService.getStoryByGalleryId(id)
+        .then(story => {
+          setCoupleStory(story);
+        })
+        .catch(error => {
+          console.error('Errore caricamento storia:', error);
+        })
+        .finally(() => {
+          setStoryLoading(false);
+        });
+    }
+  }, [activeTab, id, coupleStory, storyLoading]);
 
 
 
@@ -433,6 +459,26 @@ export default function Gallery() {
                       </TooltipContent>
                     </Tooltip>
 
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setActiveTab('story')}
+                          className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
+                            activeTab === 'story'
+                              ? 'bg-gradient-to-r from-terracotta-100 to-cream-100 shadow-lg text-terracotta-800 border border-terracotta-200'
+                              : 'text-gray-600 hover:text-terracotta-700 hover:bg-terracotta-50'
+                          }`}
+                        >
+                          <BookOpen className="h-4 w-4" />
+                          <span className="hidden sm:inline">Storia della Coppia</span>
+                          <span className="sm:hidden">Storia</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-sm">
+                        <p>Leggi la storia d'amore della coppia in un libro digitale</p>
+                      </TooltipContent>
+                    </Tooltip>
+
                     {/* Pulsante Edit Gallery - Solo per Admin */}
                     {isAdmin && (
                       <Tooltip>
@@ -571,6 +617,28 @@ export default function Gallery() {
                     </Tooltip>
 
 
+                  </TooltipProvider>
+                </div>
+              )}
+
+              {/* Azioni per tab storia - Solo Admin */}
+              {activeTab === 'story' && isAdmin && coupleStory && !showStoryUpload && (
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          onClick={() => setShowStoryUpload(true)}
+                          className="bg-terracotta-600 hover:bg-terracotta-700 text-white"
+                        >
+                          <BookOpen className="h-4 w-4 mr-2" />
+                          Aggiorna Storia
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-sm">
+                        <p>Carica una nuova versione della storia della coppia</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </TooltipProvider>
                 </div>
               )}
@@ -725,6 +793,62 @@ export default function Gallery() {
                   isAdmin={isAdmin}
                   refreshTrigger={refreshTrigger}
                 />
+              )}
+
+              {activeTab === 'story' && (
+                <div className="space-y-6">
+                  {storyLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="text-center">
+                        <div className="w-8 h-8 border-2 border-sage-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                        <p className="text-sage-600">Caricamento storia...</p>
+                      </div>
+                    </div>
+                  ) : showStoryUpload || (!coupleStory && isAdmin) ? (
+                    <StoryUploadForm
+                      galleryId={galleryData.id}
+                      galleryName={galleryData.name}
+                      onStoryUploaded={(story) => {
+                        setCoupleStory(story);
+                        setShowStoryUpload(false);
+                      }}
+                      onCancel={() => setShowStoryUpload(false)}
+                    />
+                  ) : coupleStory ? (
+                    <CoupleStoryBook
+                      story={coupleStory}
+                      galleryName={galleryData.name}
+                      galleryDate={galleryData.date}
+                      galleryLocation={galleryData.location}
+                      onEdit={isAdmin ? () => setShowStoryUpload(true) : undefined}
+                    />
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="mx-auto w-16 h-16 bg-sage-100 rounded-full flex items-center justify-center mb-4">
+                        <BookOpen className="h-8 w-8 text-sage-600" />
+                      </div>
+                      <h3 className="text-xl font-playfair font-semibold text-blue-gray-900 mb-2">
+                        Nessuna Storia Disponibile
+                      </h3>
+                      <p className="text-sage-600 mb-6 max-w-md mx-auto">
+                        La storia d'amore di questa coppia non è ancora stata caricata. 
+                        {isAdmin 
+                          ? ' Carica il JSON generato da ChatGPT per creare il libro digitale.'
+                          : ' Chiedi agli organizzatori di caricare la storia.'
+                        }
+                      </p>
+                      {isAdmin && (
+                        <Button
+                          onClick={() => setShowStoryUpload(true)}
+                          className="bg-sage-600 hover:bg-sage-700 text-white"
+                        >
+                          <BookOpen className="h-4 w-4 mr-2" />
+                          Carica Storia
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Registration CTA section - only show when user is not logged in */}
