@@ -118,9 +118,10 @@ export class StoryService {
       });
       console.log('✅ [SAVE] Dati validati con successo');
 
-      // Prepara il documento con timestamp
+      // 🔧 FIX: Prepara il documento forzando sempre galleryId come campo interno
       const storyDocument: any = {
         ...validatedData,
+        galleryId, // 👈 forza sempre il campo galleryId
         updatedAt: serverTimestamp(),
         updatedBy: userEmail || undefined
       };
@@ -137,7 +138,8 @@ export class StoryService {
         console.log('🔄 [SAVE] Aggiornamento storia esistente');
       }
 
-      console.log('💾 [SAVE] Salvataggio su Firebase Firestore...');
+      // 🎯 FORZA: Salvataggio con galleryId come document ID e campo interno
+      console.log('💾 [SAVE] Salvataggio forzato: document ID =', galleryId, 'campo galleryId =', galleryId);
       console.log('💾 [SAVE] Collection: coupleStories, Document ID:', galleryId);
       console.log('💾 [SAVE] Story document preview:', {
         galleryId: storyDocument.galleryId,
@@ -147,7 +149,7 @@ export class StoryService {
       });
       
       await setDoc(doc(db, 'coupleStories', galleryId), storyDocument, { merge: true });
-      console.log('✅ [SAVE] Storia salvata con successo!');
+      console.log('✅ [SAVE] Storia salvata con SUCCESSO! Document ID e campo galleryId corrispondenti:', galleryId);
       console.log('✅ [SAVE] Document ID utilizzato:', galleryId);
     } catch (error) {
       console.error('Errore salvataggio storia coppia:', error);
