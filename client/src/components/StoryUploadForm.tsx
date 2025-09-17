@@ -506,6 +506,13 @@ export default function StoryUploadForm({
             )}
 
             <div className="flex items-center gap-3">
+              {/* Debug info */}
+              <div className="text-xs text-gray-500 mr-2">
+                Valid: {validationResult.isValid ? '✓' : '✗'} | 
+                User: {user ? '✓' : '✗'} | 
+                Admin: {isAdmin ? '✓' : '✗'} | 
+                Uploading: {isUploading ? '✓' : '✗'}
+              </div>
               <Button
                 onClick={handleUpload}
                 disabled={!validationResult.isValid || isUploading || !user || !isAdmin}
