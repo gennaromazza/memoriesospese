@@ -728,16 +728,17 @@ export default function QuestionnaireForm() {
                     <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Conferma invio</AlertDialogTitle>
-                        <AlertDialogDescription className="space-y-4 text-left">
-                          <p>
-                            Stai per inviare il questionario completo. 
-                            Una volta inviato, non potrai più modificare le risposte.
-                          </p>
-                          
-                          <div className="bg-blue-50 p-4 rounded-lg">
-                            <h4 className="font-medium text-blue-900 mb-2">
-                              Riepilogo completamento:
-                            </h4>
+                        <AlertDialogDescription asChild>
+                          <div className="space-y-4 text-left">
+                            <p>
+                              Stai per inviare il questionario completo. 
+                              Una volta inviato, non potrai più modificare le risposte.
+                            </p>
+                            
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                              <h4 className="font-medium text-blue-900 mb-2">
+                                Riepilogo completamento:
+                              </h4>
                             <ul className="text-sm text-blue-800 space-y-1">
                               <li>✓ Domande completate: {Object.keys(formState.answers).length}/{formState.totalSteps}</li>
                               <li>✓ Tutte le risposte sono state verificate</li>
@@ -812,10 +813,11 @@ export default function QuestionnaireForm() {
                           </div>
                           
                           {/* Debug info */}
-                          <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mt-2">
-                            <strong>Debug Info:</strong> Privacy consent: {privacyConsent ? 'TRUE ✅' : 'FALSE ❌'} | 
-                            Submit button: {(!privacyConsent || isSubmitting) ? 'DISABLED 🔒' : 'ENABLED ✅'} |
-                            Submitting: {isSubmitting ? 'YES' : 'NO'}
+                            <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mt-2">
+                              <strong>Debug Info:</strong> Privacy consent: {privacyConsent ? 'TRUE ✅' : 'FALSE ❌'} | 
+                              Submit button: {(!privacyConsent || isSubmitting) ? 'DISABLED 🔒' : 'ENABLED ✅'} |
+                              Submitting: {isSubmitting ? 'YES' : 'NO'}
+                            </div>
                           </div>
                         </AlertDialogDescription>
                       </AlertDialogHeader>
