@@ -170,14 +170,22 @@ export default function Gallery() {
   }, [photos.length, guestPhotos.length, galleryData]);
 
   // Carica la storia della coppia quando viene selezionato il tab
-  // Effect per caricare la storia quando necessario - FIX: Ricarica sempre se manca
   useEffect(() => {
     // Carica la storia se:
     // 1. Abbiamo un galleryId
-    // 2. Non c'è una storia caricata
+    // 2. Non c'è una storia caricata OR stiamo nel tab storia
     // 3. Non stiamo già caricando
-    if (id && !coupleStory && !storyLoading) {
-      console.log('🔄 Caricamento storia per galleryId:', id);
+    const shouldLoadStory = id && !storyLoading && (
+      !coupleStory || 
+      (activeTab === 'story' && !storyChecked)
+    );
+
+    if (shouldLoadStory) {
+      console.log('🔄 Caricamento storia per galleryId:', id, { 
+        activeTab, 
+        hasCoupleStory: !!coupleStory, 
+        storyChecked 
+      });
       setStoryLoading(true);
       StoryService.getStoryByGalleryId(id)
         .then(story => {
@@ -198,7 +206,7 @@ export default function Gallery() {
           setStoryLoading(false);
         });
     }
-  }, [id, coupleStory, storyLoading]);
+  }, [id, coupleStory, storyLoading, activeTab, storyChecked]);
 
 
 
@@ -511,11 +519,17 @@ export default function Gallery() {
                     </Tooltip>
 
                     {/* Tab Storia - Mostra solo se esiste una storia o se l'admin sta caricando */}
-                    {(coupleStory || showStoryUpload) && (
+                    {(coupleStory || showStoryUpload || (isAdmin && activeTab === 'story')) && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => setActiveTab('story')}
+                            onClick={() => {
+                              setActiveTab('story');
+                              // Se non abbiamo una storia caricata, forza il reload
+                              if (!coupleStory && !storyLoading) {
+                                setStoryChecked(false);
+                              }
+                            }}
                             className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
                               activeTab === 'story'
                                 ? 'bg-gradient-to-r from-terracotta-100 to-cream-100 shadow-lg text-terracotta-800 border border-terracotta-200'
@@ -534,7 +548,7 @@ export default function Gallery() {
                     )}
 
                     {/* Pulsante Aggiungi Storia - Solo per Admin quando non c'è storia */}
-                    {isAdmin && !coupleStory && !showStoryUpload && storyChecked && (
+                    {isAdmin && !coupleStory && !showStoryUpload && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
@@ -885,8 +899,10 @@ export default function Gallery() {
                       galleryId={galleryData.id}
                       galleryName={galleryData.name}
                       onStoryUploaded={(story) => {
+                        console.log('✅ Storia caricata tramite upload:', story);
                         setCoupleStory(story);
                         setShowStoryUpload(false);
+                        setStoryChecked(true);
                       }}
                       onCancel={() => setShowStoryUpload(false)}
                     />
