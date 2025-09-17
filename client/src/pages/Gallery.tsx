@@ -170,33 +170,39 @@ export default function Gallery() {
   }, [photos.length, guestPhotos.length, galleryData]);
 
   // Carica la storia della coppia quando viene selezionato il tab
-  // Effect per caricare la storia quando necessario - FIX: Non cancellare storia esistente
+  // Effect per caricare la storia quando necessario - FIX: Ricarica sempre se manca
   useEffect(() => {
-    if (id && !coupleStory && !storyLoading && !storyChecked) {
+    // Carica la storia se:
+    // 1. Abbiamo un galleryId
+    // 2. Non c'è una storia caricata
+    // 3. Non stiamo già caricando
+    if (id && !coupleStory && !storyLoading) {
+      console.log('🔄 Caricamento storia per galleryId:', id);
       setStoryLoading(true);
       StoryService.getStoryByGalleryId(id)
         .then(story => {
           console.log('📖 Storia caricata da Firebase:', story ? 'TROVATA' : 'NON TROVATA', { galleryId: id });
-          // ✅ FIX: Solo imposta la storia se viene trovata
           if (story) {
             setCoupleStory(story);
+            setStoryChecked(true);
+          } else {
+            // Se non c'è storia, segna come verificato ma non impostare coupleStory
+            setStoryChecked(true);
           }
-          // Se story è null, non tocchiamo coupleStory (mantiene lo stato esistente)
         })
         .catch(error => {
           console.error('❌ Errore caricamento storia:', error);
-          // ✅ Non cancellare la storia esistente anche in caso di errore
+          setStoryChecked(true);
         })
         .finally(() => {
           setStoryLoading(false);
-          setStoryChecked(true);
         });
     }
-  }, [id, coupleStory, storyLoading, storyChecked]);
+  }, [id, coupleStory, storyLoading]);
 
 
 
-  // Verifica autenticazione
+  // Verifica autenticazione e reset stato storia quando cambia galleria
   useEffect(() => {
     const checkAuth = () => {
       const isAuth = localStorage.getItem(`gallery_auth_${id}`);
@@ -208,6 +214,11 @@ export default function Gallery() {
 
     if (id) {
       checkAuth();
+      // Reset stato storia quando cambia galleria
+      setCoupleStory(null);
+      setStoryChecked(false);
+      setStoryLoading(false);
+      setShowStoryUpload(false);
     }
   }, [id, isAdmin, navigate]);
 
