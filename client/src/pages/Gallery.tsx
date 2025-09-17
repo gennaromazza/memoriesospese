@@ -95,6 +95,7 @@ export default function Gallery() {
   const [coupleStory, setCoupleStory] = useState<CoupleStory | null>(null);
   const [storyLoading, setStoryLoading] = useState(false);
   const [showStoryUpload, setShowStoryUpload] = useState(false);
+  const [storyChecked, setStoryChecked] = useState(false);
 
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -138,8 +139,9 @@ export default function Gallery() {
   }, [photos.length, guestPhotos.length, galleryData]);
 
   // Carica la storia della coppia quando viene selezionato il tab
+  // Effect per caricare la storia quando necessario
   useEffect(() => {
-    if (activeTab === 'story' && id && !coupleStory && !storyLoading) {
+    if (id && !coupleStory && !storyLoading && !storyChecked) {
       setStoryLoading(true);
       StoryService.getStoryByGalleryId(id)
         .then(story => {
@@ -150,9 +152,10 @@ export default function Gallery() {
         })
         .finally(() => {
           setStoryLoading(false);
+          setStoryChecked(true);
         });
     }
-  }, [activeTab, id, coupleStory, storyLoading]);
+  }, [id, coupleStory, storyLoading, storyChecked]);
 
 
 
@@ -459,25 +462,50 @@ export default function Gallery() {
                       </TooltipContent>
                     </Tooltip>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => setActiveTab('story')}
-                          className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
-                            activeTab === 'story'
-                              ? 'bg-gradient-to-r from-terracotta-100 to-cream-100 shadow-lg text-terracotta-800 border border-terracotta-200'
-                              : 'text-gray-600 hover:text-terracotta-700 hover:bg-terracotta-50'
-                          }`}
-                        >
-                          <BookOpen className="h-4 w-4" />
-                          <span className="hidden sm:inline">Storia della Coppia</span>
-                          <span className="sm:hidden">Storia</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-sm">
-                        <p>Leggi la storia d'amore della coppia in un libro digitale</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    {/* Tab Storia - Mostra solo se esiste una storia o se l'admin sta caricando */}
+                    {(coupleStory || showStoryUpload) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setActiveTab('story')}
+                            className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
+                              activeTab === 'story'
+                                ? 'bg-gradient-to-r from-terracotta-100 to-cream-100 shadow-lg text-terracotta-800 border border-terracotta-200'
+                                : 'text-gray-600 hover:text-terracotta-700 hover:bg-terracotta-50'
+                            }`}
+                          >
+                            <BookOpen className="h-4 w-4" />
+                            <span className="hidden sm:inline">Storia della Coppia</span>
+                            <span className="sm:hidden">Storia</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>Leggi la storia d'amore della coppia in un libro digitale</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+
+                    {/* Pulsante Aggiungi Storia - Solo per Admin quando non c'è storia */}
+                    {isAdmin && !coupleStory && !showStoryUpload && storyChecked && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => {
+                              setShowStoryUpload(true);
+                              setActiveTab('story');
+                            }}
+                            className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 bg-terracotta-50 text-terracotta-700 hover:bg-terracotta-100 hover:text-terracotta-800 border border-terracotta-200 shadow-sm"
+                          >
+                            <BookOpen className="h-4 w-4" />
+                            <span className="hidden sm:inline">Aggiungi Storia</span>
+                            <span className="sm:hidden">+ Storia</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>Carica la storia d'amore della coppia da ChatGPT</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
 
                     {/* Pulsante Edit Gallery - Solo per Admin */}
                     {isAdmin && (
