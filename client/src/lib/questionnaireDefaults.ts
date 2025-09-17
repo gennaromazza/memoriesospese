@@ -91,7 +91,7 @@ export const initializeDefaultFaqSet = async (): Promise<void> => {
 };
 
 /**
- * Template per export ChatGPT
+ * Template per export ChatGPT - STORIA COMPLETA ALBUM
  */
 export const generateChatGPTPrompt = (data: {
   galleryId: string;
@@ -105,26 +105,59 @@ export const generateChatGPTPrompt = (data: {
   const { galleryId, brideName, groomName, weddingDate, questions, brideAnswers, groomAnswers } = data;
   
   let prompt = `RUOLO
-Sei un senior wedding storyteller. Devi trasformare risposte di questionario in testi brevi e poetici da impaginare in un album di matrimonio fisico + digitale (Memorie Sospese).
+Sei un master wedding storyteller specializzato nella creazione di storie complete per album di matrimonio. Devi trasformare le risposte del questionario in una narrazione coinvolgente e poetica che accompagni 35+ pagine dell'album fotografico "Memorie Sospese".
 
-OBIETTIVO
-Genera:
-1) 6–9 micro-testi (max 180–220 caratteri ciascuno) da inserire tra le pagine (preparativi, cerimonia, amici, primo ballo, promessa, futuro).
-2) 1 testo di apertura (max 300 caratteri) e 1 di chiusura (max 300 caratteri).
-3) 3 didascalie "emozionali" (max 120 caratteri) per pagine foto full-bleed.
-4) 1 sezione "Promessa sigillata" (solo per gli sposi, tono intimo, max 250 caratteri).
+OBIETTIVO - STORIA COMPLETA DA 35+ PAGINE
+Crea una storia strutturata in capitoli che accompagni tutto l'album:
 
-TONO & STILE
-- Intimo, elegante, concreto; niente cliché vuoti.
-- Scrivi in italiano naturale, frasi brevi, immagini evocative.
-- Usa le loro parole quando possibile (parafrasa se serve).
-- Evita nomi di terzi non citati nelle risposte.
+1) APERTURA DELL'ALBUM (400-500 caratteri)
+   - Introduce la coppia e la loro storia d'amore
+   - Tono: elegante, emozionale, accogliente
+
+2) STORIA DEI PREPARATIVI (6 testi da 300-400 caratteri ciascuno)
+   - L'attesa, l'emozione, gli ultimi momenti prima del "sì"
+   - Gli abiti, i profumi, i dettagli preziosi
+   - Le emozioni dei genitori e degli amici più cari
+
+3) LA CERIMONIA - CAPITOLO CENTRALE (8 testi da 250-350 caratteri)
+   - L'arrivo, lo sguardo che si incrocia
+   - Le promesse, i voti, il momento del "sì"
+   - L'emozione degli ospiti, le lacrime di gioia
+   - Il primo bacio da marito e moglie
+
+4) FESTA E CELEBRAZIONE (8 testi da 200-300 caratteri)
+   - L'aperitivo, gli abbracci, le congratulazioni
+   - Il ricevimento, i brindisi, i discorsi
+   - Il primo ballo, la musica, le risate
+   - I momenti spontanei e divertenti
+
+5) PROMESSE SIGILLATE (2 testi da 400-500 caratteri)
+   - Sezione intima e personale per la coppia
+   - I loro segreti, le promesse private
+   - I sogni per il futuro insieme
+
+6) CHIUSURA DELL'ALBUM (300-400 caratteri)
+   - Riflessione sul giorno perfetto
+   - Apertura verso il futuro insieme
+   - Tono: speranzoso, poetico, eterno
+
+7) DIDASCALIE EMOZIONALI (12 testi da 80-150 caratteri)
+   - Per le foto più significative
+   - Catturano l'essenza di ogni momento
+
+TONO & STILE NARRATIVO
+- Narrativa fluida e cinematografica, come un romanzo d'amore
+- Italiano elegante ma naturale, evita artifici e cliché vuoti
+- Usa dettagli sensoriali: colori, profumi, suoni, emozioni
+- Incorpora le loro parole autentiche dalle risposte
+- Crea collegamenti tra i vari momenti per una storia coerente
+- Personalizza ogni testo con elementi unici della loro storia
 
 CONTESTO COPPIA
 - Sposi: ${brideName} & ${groomName}
 - Data matrimonio: ${weddingDate}
 
-DOMANDE & RISPOSTE\n`;
+DOMANDE & RISPOSTE DA UTILIZZARE\n`;
 
   // Aggiungi domande e risposte
   questions.forEach(question => {
@@ -138,21 +171,81 @@ DOMANDE & RISPOSTE\n`;
   });
 
   prompt += `
-VINCOLI
-- Non superare i limiti di caratteri indicati.
-- Non inventare fatti non presenti.
-- Se una risposta manca, ignora la domanda e non forzare contenuti.
 
-OUTPUT RICHIESTO (JSON)
-Restituisci ESCLUSIVAMENTE questo JSON valido:
+VINCOLI CREATIVI
+- Rispetta rigorosamente i limiti di caratteri per ogni sezione
+- Usa SOLO informazioni presenti nelle risposte dei questionari
+- Se una risposta manca, sostituisci con elementi generici ma poetici
+- Mantieni coerenza narrativa tra tutti i testi
+- Ogni testo deve essere autonomo ma parte della storia completa
+
+OUTPUT RICHIESTO - STORIA COMPLETA (JSON)
+Restituisci ESCLUSIVAMENTE questo JSON valido con la storia strutturata:
+
 {
-  "apertura": "string, <=300 char",
-  "microtesti": ["string<=220", "string<=220", "string<=220", "string<=220", "string<=220", "string<=220"],
-  "didascalie": ["string<=120", "string<=120", "string<=120"],
-  "promessa_sigillata": "string<=250",
-  "chiusura": "string<=300",
-  "note_impaginazione": [
-    "Suggerisci in 3-5 righe come distribuire i microtesti tra le sezioni dell'album, es. Pag. preparativi: microtesto #1; cerimonia: #2; amici: #3; primo ballo: #4; promessa: #5; futuro: #6."
+  "apertura_album": {
+    "testo": "string 400-500 caratteri",
+    "posizione": "Prima pagina dell'album"
+  },
+  "capitolo_preparativi": [
+    {"testo": "string 300-400 char", "tema": "L'attesa e l'emozione"},
+    {"testo": "string 300-400 char", "tema": "Gli abiti e i dettagli"},
+    {"testo": "string 300-400 char", "tema": "Le emozioni di famiglia"},
+    {"testo": "string 300-400 char", "tema": "I momenti privati"},
+    {"testo": "string 300-400 char", "tema": "L'ultimo momento da fidanzati"},
+    {"testo": "string 300-400 char", "tema": "Verso la cerimonia"}
+  ],
+  "capitolo_cerimonia": [
+    {"testo": "string 250-350 char", "tema": "L'arrivo e l'attesa"},
+    {"testo": "string 250-350 char", "tema": "Lo sguardo che si incrocia"},
+    {"testo": "string 250-350 char", "tema": "Le promesse e i voti"},
+    {"testo": "string 250-350 char", "tema": "Il momento del sì"},
+    {"testo": "string 250-350 char", "tema": "L'emozione degli ospiti"},
+    {"testo": "string 250-350 char", "tema": "Il primo bacio da sposi"},
+    {"testo": "string 250-350 char", "tema": "L'uscita dalla chiesa/location"},
+    {"testo": "string 250-350 char", "tema": "Le congratulazioni"}
+  ],
+  "capitolo_festa": [
+    {"testo": "string 200-300 char", "tema": "L'aperitivo e gli abbracci"},
+    {"testo": "string 200-300 char", "tema": "Le foto di gruppo"},
+    {"testo": "string 200-300 char", "tema": "Il ricevimento inizia"},
+    {"testo": "string 200-300 char", "tema": "I brindisi e i discorsi"},
+    {"testo": "string 200-300 char", "tema": "Il primo ballo"},
+    {"testo": "string 200-300 char", "tema": "La festa in pieno"},
+    {"testo": "string 200-300 char", "tema": "I momenti divertenti"},
+    {"testo": "string 200-300 char", "tema": "La serata che continua"}
+  ],
+  "promesse_sigillate": [
+    {"testo": "string 400-500 char", "tema": "Le promesse private della coppia"},
+    {"testo": "string 400-500 char", "tema": "I sogni e il futuro insieme"}
+  ],
+  "chiusura_album": {
+    "testo": "string 300-400 caratteri",
+    "posizione": "Ultima pagina dell'album"
+  },
+  "didascalie_emozionali": [
+    {"testo": "string 80-150 char", "uso": "Per foto ritratto sposi"},
+    {"testo": "string 80-150 char", "uso": "Per foto famiglia"},
+    {"testo": "string 80-150 char", "uso": "Per foto cerimonia"},
+    {"testo": "string 80-150 char", "uso": "Per foto primo bacio"},
+    {"testo": "string 80-150 char", "uso": "Per foto festa"},
+    {"testo": "string 80-150 char", "uso": "Per foto primo ballo"},
+    {"testo": "string 80-150 char", "uso": "Per foto spontanea"},
+    {"testo": "string 80-150 char", "uso": "Per foto tramonto"},
+    {"testo": "string 80-150 char", "uso": "Per foto dettagli"},
+    {"testo": "string 80-150 char", "uso": "Per foto gruppo amici"},
+    {"testo": "string 80-150 char", "uso": "Per foto momento intimo"},
+    {"testo": "string 80-150 char", "uso": "Per foto finale"}
+  ],
+  "guida_impaginazione": [
+    "Pagine 1-3: Apertura + primi 2 preparativi",
+    "Pagine 4-9: Completare preparativi (4 testi rimanenti)",
+    "Pagine 10-19: Cerimonia completa (8 testi + didascalie)",
+    "Pagine 20-29: Festa e celebrazione (8 testi + didascalie)",
+    "Pagine 30-32: Promesse sigillate (sezione speciale)",
+    "Pagine 33-35: Chiusura + didascalie finali",
+    "Distribuzione didascalie: 1-2 per ogni sezione dell'album",
+    "Totale: 35+ pagine con testi coinvolgenti e poetici"
   ]
 }`;
 
