@@ -41,7 +41,7 @@ export class StoryService {
         const storyData = { id: storyDoc.id, ...storyDoc.data() } as CoupleStory;
         console.log('📖 [GET] Dati storia:', { 
           titolo: storyData.metadata?.titolo,
-          pagine: storyData.contenuto?.length || 0 
+          pagine: (storyData as any).contenuto?.length || 0 
         });
         return storyData;
       } else {
