@@ -33,7 +33,8 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
-import { Edit3, BookOpen } from "lucide-react";
+import { Edit3, BookOpen, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { PrettyCountdown } from "@/components/PrettyCountdown";
 import { resolveEventDate } from "@/lib/firebase";
 import CoupleStoryBook from "@/components/CoupleStoryBook";
@@ -50,6 +51,7 @@ export default function Gallery() {
   const { user, userProfile, isAuthenticated } = useFirebaseAuth();
   const isAdmin = useIsAdmin();
   const userInfo = useUserInfo();
+  const { toast } = useToast();
 
   // Stato locale per il tracciamento del caricamento
   const [loadingState, setLoadingState] = useState({
@@ -96,6 +98,35 @@ export default function Gallery() {
   const [storyLoading, setStoryLoading] = useState(false);
   const [showStoryUpload, setShowStoryUpload] = useState(false);
   const [storyChecked, setStoryChecked] = useState(false);
+
+  // Funzione per eliminare la storia (solo admin)
+  const handleDeleteStory = useCallback(async () => {
+    if (!isAdmin || !id || !coupleStory) return;
+
+    const confirmed = window.confirm(
+      "Sei sicuro di voler eliminare la storia della coppia? Questa azione non può essere annullata."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await StoryService.deleteStory(id);
+      setCoupleStory(null);
+      setStoryChecked(false);
+      
+      toast({
+        title: "Storia eliminata",
+        description: "La storia della coppia è stata eliminata con successo.",
+      });
+    } catch (error) {
+      console.error('Errore eliminazione storia:', error);
+      toast({
+        title: "Errore",
+        description: "Errore durante l'eliminazione della storia. Riprova.",
+        variant: "destructive",
+      });
+    }
+  }, [isAdmin, id, coupleStory, toast]);
 
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -849,6 +880,7 @@ export default function Gallery() {
                       galleryDate={galleryData.date}
                       galleryLocation={galleryData.location}
                       onEdit={isAdmin ? () => setShowStoryUpload(true) : undefined}
+                      onDelete={isAdmin ? handleDeleteStory : undefined}
                     />
                   ) : (
                     <div className="text-center py-12">

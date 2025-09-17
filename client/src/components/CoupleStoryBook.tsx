@@ -24,6 +24,7 @@ interface CoupleStoryBookProps {
   galleryDate?: string;
   galleryLocation?: string;
   onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 interface BookPage {
@@ -39,7 +40,8 @@ export default function CoupleStoryBook({
   galleryName,
   galleryDate,
   galleryLocation,
-  onEdit 
+  onEdit,
+  onDelete 
 }: CoupleStoryBookProps) {
   const [currentPage, setCurrentPage] = useState(0);
   const [pages, setPages] = useState<BookPage[]>([]);
@@ -459,9 +461,19 @@ export default function CoupleStoryBook({
               variant="outline"
               size="sm"
               onClick={onEdit}
-              className="border-sage-300 text-sage-700 hover:bg-sage-50"
+              className="border-terracotta-300 text-terracotta-700 hover:bg-terracotta-50"
             >
               Modifica Storia
+            </Button>
+          )}
+          {isAdmin && onDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              className="border-red-300 text-red-700 hover:bg-red-50"
+            >
+              Elimina Storia
             </Button>
           )}
         </div>
