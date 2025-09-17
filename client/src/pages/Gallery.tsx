@@ -210,7 +210,9 @@ export default function Gallery() {
 
 
 
-  // Verifica autenticazione e reset stato storia quando cambia galleria
+  // Verifica autenticazione - SOLO reset se cambia galleria (non al reload)
+  const [lastGalleryId, setLastGalleryId] = useState<string | null>(null);
+  
   useEffect(() => {
     const checkAuth = () => {
       const isAuth = localStorage.getItem(`gallery_auth_${id}`);
@@ -222,13 +224,19 @@ export default function Gallery() {
 
     if (id) {
       checkAuth();
-      // Reset stato storia quando cambia galleria
-      setCoupleStory(null);
-      setStoryChecked(false);
-      setStoryLoading(false);
-      setShowStoryUpload(false);
+      
+      // 🔧 FIX: Reset storia SOLO se cambia galleria (non al reload della stessa)
+      if (lastGalleryId && lastGalleryId !== id) {
+        console.log('📋 Cambio galleria, reset stato storia');
+        setCoupleStory(null);
+        setStoryChecked(false);
+        setStoryLoading(false);
+        setShowStoryUpload(false);
+      }
+      
+      setLastGalleryId(id);
     }
-  }, [id, isAdmin, navigate]);
+  }, [id, isAdmin, navigate, lastGalleryId]);
 
 
 
