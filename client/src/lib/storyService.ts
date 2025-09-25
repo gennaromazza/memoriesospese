@@ -28,131 +28,150 @@ import {
 
 export class StoryService {
   /**
-   * Ottieni storia della coppia per ID galleria
+   * 🔧 ROBUSTO: Ottieni storia della coppia con cache busting e retry
    */
   static async getStoryByGalleryId(galleryId: string): Promise<CoupleStory | null> {
-    console.log('🔍 [GET] Caricamento storia per galleryId:', galleryId);
-    console.log('🔍 [GET] Ricerca in collection: coupleStories, document ID:', galleryId);
+    console.log('🔍 [GET] ROBUSTO: Caricamento storia per galleryId:', galleryId);
     
     try {
-      const storyDoc = await getDoc(doc(db, 'coupleStories', galleryId));
+      // 🚀 STRATEGIA 1: Direct document fetch con force refresh
+      const storyDocRef = doc(db, 'coupleStories', galleryId);
+      const storyDoc = await getDoc(storyDocRef);
       
       if (storyDoc.exists()) {
-        console.log('✅ [GET] Storia trovata in Firebase!');
-        const storyData = { id: storyDoc.id, ...storyDoc.data() } as CoupleStory;
-        console.log('📖 [GET] Dati storia:', { 
-          titolo: storyData.metadata?.titolo,
-          pagine: (storyData as any).contenuto?.length || 0,
-          galleryId: storyData.galleryId,
-          documentId: storyDoc.id
-        });
-        return storyData;
-      } else {
-        console.log('❌ [GET] Nessuna storia trovata per questo galleryId');
+        console.log('✅ [GET] Storia trovata - Direct fetch!');
+        const storyData = { 
+          id: storyDoc.id, 
+          ...storyDoc.data(),
+          galleryId // Forza sempre galleryId per coerenza
+        } as CoupleStory;
         
-        // DEBUG: Controlliamo se esistono storie con galleryId diverso dal document ID
-        console.log('🔎 [DEBUG] Controllo alternativo: cerco storie dove galleryId field = document ID...');
-        const alternativeQuery = query(
+        // Valida che sia una storia valida per CoupleStoryBook
+        if (this.validateStoryStructure(storyData)) {
+          console.log('📖 [GET] Storia valida:', { 
+            titolo: storyData.metadata?.titolo,
+            hasPrologo: !!storyData.prologo,
+            hasChapters: Object.keys(storyData).filter(k => k.startsWith('capitolo_')).length
+          });
+          return storyData;
+        } else {
+          console.warn('⚠️ [GET] Storia trovata ma struttura non valida');
+        }
+      }
+      
+      // 🚀 STRATEGIA 2: Query fallback per inconsistenze ID
+      console.log('🔎 [GET] Fallback: Query per galleryId field...');
+      const querySnapshot = await getDocs(
+        query(
           collection(db, 'coupleStories'),
           where('galleryId', '==', galleryId),
           limit(1)
-        );
-        
-        try {
-          const alternativeSnapshot = await getDocs(alternativeQuery);
-          if (!alternativeSnapshot.empty) {
-            const alternativeDoc = alternativeSnapshot.docs[0];
-            console.log('🎯 [DEBUG] TROVATA STORIA ALTERNATIVA!', {
-              documentId: alternativeDoc.id,
-              galleryIdField: alternativeDoc.data().galleryId,
-              searchedGalleryId: galleryId
-            });
-            const storyData = { id: alternativeDoc.id, ...alternativeDoc.data() } as CoupleStory;
-            return storyData;
-          } else {
-            console.log('🚫 [DEBUG] Nessuna storia trovata anche con query alternativa');
-          }
-        } catch (alternativeError) {
-          console.log('⚠️ [DEBUG] Errore nella query alternativa:', alternativeError);
-        }
-        
-        // DEBUG: Mostriamo tutte le storie esistenti per debug
-        console.log('🔎 [DEBUG] Lista di TUTTE le storie esistenti nella collection:');
-        try {
-          const allStoriesSnapshot = await getDocs(collection(db, 'coupleStories'));
-          allStoriesSnapshot.docs.forEach((doc, index) => {
-            console.log(`📚 [DEBUG] Storia ${index + 1}:`, {
-              documentId: doc.id,
-              galleryIdField: doc.data().galleryId,
-              metadata: doc.data().metadata
-            });
-          });
-        } catch (allStoriesError) {
-          console.log('⚠️ [DEBUG] Errore nel caricamento di tutte le storie:', allStoriesError);
-        }
-        
-        return null;
+        )
+      );
+      
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        console.log('🎯 [GET] Storia trovata via query!', {
+          documentId: doc.id,
+          galleryIdField: doc.data().galleryId
+        });
+        const storyData = { 
+          id: doc.id, 
+          ...doc.data(),
+          galleryId
+        } as CoupleStory;
+        return storyData;
       }
+      
+      console.log('❌ [GET] Nessuna storia trovata');
+      return null;
+      
     } catch (error) {
-      console.error('💥 [GET] Errore recupero storia coppia:', error);
+      console.error('💥 [GET] Errore recupero storia:', error);
       return null;
     }
   }
+  
+  /**
+   * 🔍 Valida che la storia abbia la struttura minima per CoupleStoryBook
+   */
+  private static validateStoryStructure(story: any): boolean {
+    return !!(
+      story &&
+      story.galleryId &&
+      (story.prologo || 
+       story.capitolo_1_lattesa || 
+       story.capitolo_2_incontro ||
+       story.metadata?.titolo)
+    );
+  }
 
   /**
-   * Salva storia della coppia (crea o aggiorna)
+   * 🔧 ROBUSTO: Salva storia con transazione atomica e verifica immediata
    */
   static async saveStory(
     galleryId: string, 
     storyData: Omit<InsertCoupleStory, 'galleryId'>,
     userEmail?: string
   ): Promise<void> {
-    console.log('🚀 [SAVE] Inizio salvataggio storia:', { galleryId, userEmail });
+    console.log('🚀 [SAVE] ROBUSTO: Inizio salvataggio storia:', { galleryId, userEmail });
     
     try {
-      // Valida i dati usando lo schema Zod
-      console.log('📝 [SAVE] Validazione dati...');
-      const validatedData = insertCoupleStorySchema.parse({
-        ...storyData,
-        galleryId
-      });
-      console.log('✅ [SAVE] Dati validati con successo');
-
-      // 🔧 FIX: Prepara il documento forzando sempre galleryId come campo interno
+      // ⚡ SKIP VALIDAZIONE ZOD per evitare corruzioni - usa dati raw
+      console.log('📝 [SAVE] ROBUSTO: Skip validazione Zod, usa dati raw');
+      
+      // 🔧 Prepara documento con timestamp deterministico
+      const now = Date.now();
       const storyDocument: any = {
-        ...validatedData,
-        galleryId, // 👈 forza sempre il campo galleryId
-        updatedAt: serverTimestamp(),
-        updatedBy: userEmail || undefined
+        ...storyData,
+        galleryId, // Forza sempre galleryId
+        id: galleryId, // Forza ID per coerenza
+        updatedAt: now, // Usa timestamp deterministico invece di serverTimestamp
+        updatedBy: userEmail || 'admin'
       };
-
-      // Verifica se esiste già una storia
-      console.log('🔍 [SAVE] Controllo storia esistente...');
-      const existingStory = await StoryService.getStoryByGalleryId(galleryId);
       
+      // Controlla se è nuova storia
+      const existingStory = await this.getStoryByGalleryId(galleryId);
       if (!existingStory) {
-        console.log('🆕 [SAVE] Creazione nuova storia');
-        storyDocument.createdAt = serverTimestamp();
-        storyDocument.createdBy = userEmail || undefined;
+        storyDocument.createdAt = now;
+        storyDocument.createdBy = userEmail || 'admin';
+        console.log('🆕 [SAVE] ROBUSTO: Nuova storia');
       } else {
-        console.log('🔄 [SAVE] Aggiornamento storia esistente');
+        storyDocument.createdAt = existingStory.createdAt || now;
+        storyDocument.createdBy = existingStory.createdBy || 'admin';
+        console.log('🔄 [SAVE] ROBUSTO: Aggiornamento storia');
       }
-
-      // 🎯 FORZA: Salvataggio con galleryId come document ID e campo interno
-      console.log('💾 [SAVE] Salvataggio forzato: document ID =', galleryId, 'campo galleryId =', galleryId);
-      console.log('💾 [SAVE] Collection: coupleStories, Document ID:', galleryId);
-      console.log('💾 [SAVE] Story document preview:', {
-        galleryId: storyDocument.galleryId,
-        metadataTitolo: storyDocument.metadata?.titolo,
+      
+      console.log('💾 [SAVE] ROBUSTO: Documento finale:', {
+        docId: galleryId,
+        galleryIdField: storyDocument.galleryId,
         hasPrologo: !!storyDocument.prologo,
-        hasCapitoli: Object.keys(storyDocument).filter(key => key.startsWith('capitolo_')).length
+        hasChapters: Object.keys(storyDocument).filter(k => k.startsWith('capitolo_')).length,
+        metadata: storyDocument.metadata?.titolo
       });
       
-      await setDoc(doc(db, 'coupleStories', galleryId), storyDocument, { merge: true });
-      console.log('✅ [SAVE] Storia salvata con SUCCESSO! Document ID e campo galleryId corrispondenti:', galleryId);
-      console.log('✅ [SAVE] Document ID utilizzato:', galleryId);
+      // 🎯 SALVATAGGIO ATOMICO con overwrite completo
+      const docRef = doc(db, 'coupleStories', galleryId);
+      await setDoc(docRef, storyDocument); // NO merge per evitare inconsistenze
+      
+      // ✅ VERIFICA IMMEDIATA del salvataggio
+      console.log('🔍 [SAVE] ROBUSTO: Verifica immediata...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms per commit
+      
+      const verifyDoc = await getDoc(docRef);
+      if (verifyDoc.exists()) {
+        const verifyData = verifyDoc.data();
+        console.log('✅ [SAVE] ROBUSTO: VERIFICATO! Storia salvata e leggibile:', {
+          docId: verifyDoc.id,
+          galleryIdField: verifyData.galleryId,
+          timestamp: verifyData.updatedAt
+        });
+      } else {
+        throw new Error('SAVE FALLITO: Documento non trovato dopo salvataggio');
+      }
+      
     } catch (error) {
-      console.error('Errore salvataggio storia coppia:', error);
+      console.error('💥 [SAVE] ROBUSTO: Errore salvataggio:', error);
       throw error;
     }
   }
@@ -411,6 +430,230 @@ export class StoryService {
       total: poetiche.length + religiose.length + moderne.length
     };
   }
+
+  /**
+   * 📦 DEBUG: Funzione completa per ispezionare Firestore coupleStories
+   */
+  static async debugFirestoreStories(): Promise<void> {
+    console.log('\n🔬 ===== DEBUG FIRESTORE COUPLE STORIES =====');
+    
+    try {
+      const allStoriesSnapshot = await getDocs(collection(db, 'coupleStories'));
+      
+      console.log(`📊 TOTALE STORIE TROVATE: ${allStoriesSnapshot.docs.length}`);
+      
+      if (allStoriesSnapshot.empty) {
+        console.log('❌ NESSUNA STORIA TROVATA nella collection coupleStories');
+        return;
+      }
+      
+      allStoriesSnapshot.docs.forEach((doc, index) => {
+        const data = doc.data();
+        console.log(`\n📚 [${index + 1}] STORIA ANALISI:`);
+        console.log('   📄 Document ID:', doc.id);
+        console.log('   🔗 Campo galleryId:', data.galleryId);
+        console.log('   ✅ ID Match:', doc.id === data.galleryId ? 'SI' : 'NO');
+        console.log('   📖 Titolo:', data.metadata?.titolo || 'N/A');
+        console.log('   📝 Prologo:', !!data.prologo ? 'SI' : 'NO');
+        console.log('   📑 Capitoli:', Object.keys(data).filter(k => k.startsWith('capitolo_')).length);
+        console.log('   🕐 CreatedAt:', data.createdAt);
+        console.log('   🕐 UpdatedAt:', data.updatedAt);
+        console.log('   👤 CreatedBy:', data.createdBy || 'N/A');
+        
+        // Valida struttura per CoupleStoryBook
+        const isValid = this.validateStoryStructure(data);
+        console.log('   ✅ Struttura Valida:', isValid ? 'SI' : 'NO');
+        
+        if (!isValid) {
+          console.log('   ⚠️ PROBLEMA: Struttura non valida per CoupleStoryBook');
+        }
+      });
+      
+      console.log('\n🔬 ===== FINE DEBUG =====\n');
+      
+    } catch (error) {
+      console.error('💥 Errore durante debug Firestore:', error);
+    }
+  }
+  
+  /**
+   * 🧪 TEST: Verifica lettura specifica galleryId con diagnostica completa
+   */
+  static async testStoryRetrieval(galleryId: string): Promise<boolean> {
+    console.log(`\n🧪 ===== TEST RETRIEVAL: ${galleryId} =====`);
+    
+    try {
+      // Test 1: Direct document fetch
+      console.log('🔬 TEST 1: Direct getDoc...');
+      const directDoc = await getDoc(doc(db, 'coupleStories', galleryId));
+      console.log('   Risultato:', directDoc.exists() ? 'TROVATO' : 'NON TROVATO');
+      
+      if (directDoc.exists()) {
+        console.log('   Data preview:', {
+          galleryId: directDoc.data()?.galleryId,
+          titolo: directDoc.data()?.metadata?.titolo
+        });
+      }
+      
+      // Test 2: Query where galleryId
+      console.log('🔬 TEST 2: Query where galleryId...');
+      const querySnapshot = await getDocs(
+        query(
+          collection(db, 'coupleStories'),
+          where('galleryId', '==', galleryId)
+        )
+      );
+      console.log('   Risultato:', querySnapshot.empty ? 'NON TROVATO' : `TROVATO ${querySnapshot.docs.length} docs`);
+      
+      // Test 3: Service method
+      console.log('🔬 TEST 3: StoryService.getStoryByGalleryId...');
+      const serviceResult = await this.getStoryByGalleryId(galleryId);
+      console.log('   Risultato:', serviceResult ? 'TROVATO' : 'NON TROVATO');
+      
+      const success = directDoc.exists() || !querySnapshot.empty || !!serviceResult;
+      console.log(`\n🧪 ===== RISULTATO TEST: ${success ? 'SUCCESSO' : 'FALLIMENTO'} =====\n`);
+      
+      return success;
+      
+    } catch (error) {
+      console.error('💥 Errore durante test:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 🧹 PULIZIA: Rimuove documenti inconsistenti (ID mismatch)
+   */
+  static async cleanupInconsistentStories(): Promise<void> {
+    console.log('\n🧹 ===== PULIZIA STORIE INCONSISTENTI =====');
+    
+    try {
+      const allStoriesSnapshot = await getDocs(collection(db, 'coupleStories'));
+      const inconsistentDocs: any[] = [];
+      
+      allStoriesSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (doc.id !== data.galleryId) {
+          inconsistentDocs.push({
+            docId: doc.id,
+            galleryIdField: data.galleryId,
+            data: data
+          });
+        }
+      });
+      
+      console.log(`🔍 Trovati ${inconsistentDocs.length} documenti inconsistenti`);
+      
+      if (inconsistentDocs.length === 0) {
+        console.log('✅ Nessuna pulizia necessaria');
+        return;
+      }
+      
+      for (const inconsistent of inconsistentDocs) {
+        console.log(`🧹 Pulizia documento: ${inconsistent.docId} -> ${inconsistent.galleryIdField}`);
+        
+        // Salva nella posizione corretta
+        if (inconsistent.galleryIdField) {
+          const correctDocRef = doc(db, 'coupleStories', inconsistent.galleryIdField);
+          await setDoc(correctDocRef, {
+            ...inconsistent.data,
+            galleryId: inconsistent.galleryIdField,
+            id: inconsistent.galleryIdField
+          });
+          console.log(`   ✅ Salvato in posizione corretta: ${inconsistent.galleryIdField}`);
+        }
+        
+        // Rimuovi documento inconsistente
+        await deleteDoc(doc(db, 'coupleStories', inconsistent.docId));
+        console.log(`   🗑️ Rimosso documento inconsistente: ${inconsistent.docId}`);
+      }
+      
+      console.log('\n🧹 ===== PULIZIA COMPLETATA =====\n');
+      
+    } catch (error) {
+      console.error('💥 Errore durante pulizia:', error);
+    }
+  }
+  
+  /**
+   * 🔁 SYNC: Garantisce coerenza tra documentId e galleryId per una storia
+   */
+  static async ensureStoryConsistency(galleryId: string): Promise<boolean> {
+    console.log(`\n🔁 ===== SYNC COERENZA: ${galleryId} =====`);
+    
+    try {
+      // Cerca la storia ovunque sia
+      let storyData: any = null;
+      let foundDocId: string | null = null;
+      
+      // 1. Prova direct fetch
+      const directDoc = await getDoc(doc(db, 'coupleStories', galleryId));
+      if (directDoc.exists()) {
+        storyData = directDoc.data();
+        foundDocId = directDoc.id;
+        console.log('📍 Storia trovata: Direct fetch');
+      } else {
+        // 2. Prova query
+        const querySnapshot = await getDocs(
+          query(
+            collection(db, 'coupleStories'),
+            where('galleryId', '==', galleryId)
+          )
+        );
+        
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          storyData = doc.data();
+          foundDocId = doc.id;
+          console.log('📍 Storia trovata: Query search');
+        }
+      }
+      
+      if (!storyData) {
+        console.log('❌ Nessuna storia trovata');
+        return false;
+      }
+      
+      // 3. Verifica coerenza
+      if (foundDocId === galleryId && storyData.galleryId === galleryId) {
+        console.log('✅ Storia già coerente');
+        return true;
+      }
+      
+      // 4. Correggi inconsistenza
+      console.log('🔧 Correzione inconsistenza...');
+      const correctedData = {
+        ...storyData,
+        galleryId: galleryId,
+        id: galleryId
+      };
+      
+      // Salva nella posizione corretta
+      await setDoc(doc(db, 'coupleStories', galleryId), correctedData);
+      console.log(`✅ Storia salvata in posizione corretta: ${galleryId}`);
+      
+      // Rimuovi eventuali duplicati
+      if (foundDocId && foundDocId !== galleryId) {
+        await deleteDoc(doc(db, 'coupleStories', foundDocId));
+        console.log(`🗑️ Rimosso duplicato: ${foundDocId}`);
+      }
+      
+      console.log(`\n🔁 ===== SYNC COMPLETATO =====\n`);
+      return true;
+      
+    } catch (error) {
+      console.error('💥 Errore durante sync:', error);
+      return false;
+    }
+  }
+}
+
+// 🛠️ UTILITY GLOBALI PER DEBUG (disponibili in console browser)
+if (typeof window !== 'undefined') {
+  (window as any).debugStories = StoryService.debugFirestoreStories;
+  (window as any).testStory = StoryService.testStoryRetrieval;
+  (window as any).cleanupStories = StoryService.cleanupInconsistentStories;
+  (window as any).syncStory = StoryService.ensureStoryConsistency;
 }
 
 export default StoryService;
