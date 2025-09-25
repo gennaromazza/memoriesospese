@@ -169,44 +169,35 @@ export default function Gallery() {
     }));
   }, [photos.length, guestPhotos.length, galleryData]);
 
-  // Carica la storia della coppia quando viene selezionato il tab
+  // 🔧 FIX: Carica la storia della coppia - ELIMINA LOOP INFINITO
   useEffect(() => {
-    // Carica la storia se:
-    // 1. Abbiamo un galleryId
-    // 2. Non c'è una storia caricata OR stiamo nel tab storia
-    // 3. Non stiamo già caricando
-    const shouldLoadStory = id && !storyLoading && (
-      !coupleStory || 
-      (activeTab === 'story' && !storyChecked)
-    );
+    // ✅ LOGICA CORRETTA: Carica SOLO al primo accesso o cambio galleria
+    const shouldLoadStory = id && !storyLoading && !storyChecked;
 
     if (shouldLoadStory) {
-      console.log('🔄 Caricamento storia per galleryId:', id, { 
-        activeTab, 
-        hasCoupleStory: !!coupleStory, 
-        storyChecked 
-      });
+      console.log('🔄 [ONCE] Caricamento iniziale storia per galleryId:', id);
       setStoryLoading(true);
       StoryService.getStoryByGalleryId(id)
         .then(story => {
-          console.log('📖 Storia caricata da Firebase:', story ? 'TROVATA' : 'NON TROVATA', { galleryId: id });
+          console.log('📖 [ONCE] Storia caricata da Firebase:', story ? 'TROVATA' : 'NON TROVATA', { galleryId: id });
           if (story) {
+            console.log('✅ [ONCE] Storia impostata:', { titolo: story.metadata?.titolo });
             setCoupleStory(story);
-            setStoryChecked(true);
           } else {
-            // Se non c'è storia, segna come verificato ma non impostare coupleStory
-            setStoryChecked(true);
+            console.log('❌ [ONCE] Nessuna storia trovata per galleryId:', id);
+            setCoupleStory(null);
           }
         })
         .catch(error => {
-          console.error('❌ Errore caricamento storia:', error);
-          setStoryChecked(true);
+          console.error('💥 [ONCE] Errore caricamento storia:', error);
+          setCoupleStory(null);
         })
         .finally(() => {
           setStoryLoading(false);
+          setStoryChecked(true); // ✅ Segna sempre come verificato
         });
     }
-  }, [id, coupleStory, storyLoading, activeTab, storyChecked]);
+  }, [id, storyLoading, storyChecked]); // 🔧 RIMOSSE dipendenze problematiche
 
 
 
@@ -533,10 +524,8 @@ export default function Gallery() {
                           <button
                             onClick={() => {
                               setActiveTab('story');
-                              // Se non abbiamo una storia caricata, forza il reload
-                              if (!coupleStory && !storyLoading) {
-                                setStoryChecked(false);
-                              }
+                              // 🔧 FIX: Non forzare reload - evita loop infinito
+                              console.log('📘 Click tab Storia - no reload forzato');
                             }}
                             className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
                               activeTab === 'story'
