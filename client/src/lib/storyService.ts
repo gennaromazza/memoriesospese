@@ -107,7 +107,33 @@ export class StoryService {
   }
 
   /**
-   * 🔧 ROBUSTO: Salva storia con transazione atomica e verifica immediata
+   * 🧹 PULIZIA: Rimuove ricorsivamente tutti i valori undefined (Firebase non li accetta)
+   */
+  private static cleanFirebaseData(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return null; // Firebase accetta null ma non undefined
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.cleanFirebaseData(item)).filter(item => item !== null);
+    }
+    
+    if (typeof obj === 'object') {
+      const cleaned: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const cleanedValue = this.cleanFirebaseData(value);
+        if (cleanedValue !== null && cleanedValue !== undefined) {
+          cleaned[key] = cleanedValue;
+        }
+      }
+      return cleaned;
+    }
+    
+    return obj;
+  }
+  
+  /**
+   * 🔧 ROBUSTO: Salva storia con pulizia undefined e verifica immediata
    */
   static async saveStory(
     galleryId: string, 
@@ -117,16 +143,18 @@ export class StoryService {
     console.log('🚀 [SAVE] ROBUSTO: Inizio salvataggio storia:', { galleryId, userEmail });
     
     try {
-      // ⚡ SKIP VALIDAZIONE ZOD per evitare corruzioni - usa dati raw
-      console.log('📝 [SAVE] ROBUSTO: Skip validazione Zod, usa dati raw');
+      // 🧹 PULIZIA CRITICA: Rimuovi tutti i valori undefined
+      console.log('🧹 [SAVE] PULIZIA: Rimozione valori undefined...');
+      const cleanedStoryData = this.cleanFirebaseData(storyData);
+      console.log('✅ [SAVE] PULIZIA: Dati puliti da undefined');
       
       // 🔧 Prepara documento con timestamp deterministico
       const now = Date.now();
       const storyDocument: any = {
-        ...storyData,
+        ...cleanedStoryData,
         galleryId, // Forza sempre galleryId
         id: galleryId, // Forza ID per coerenza
-        updatedAt: now, // Usa timestamp deterministico invece di serverTimestamp
+        updatedAt: now, // Usa timestamp deterministico
         updatedBy: userEmail || 'admin'
       };
       
@@ -142,17 +170,29 @@ export class StoryService {
         console.log('🔄 [SAVE] ROBUSTO: Aggiornamento storia');
       }
       
-      console.log('💾 [SAVE] ROBUSTO: Documento finale:', {
+      // 🧹 PULIZIA FINALE: Assicurati che non ci siano undefined nel documento finale
+      const finalDocument = this.cleanFirebaseData(storyDocument);
+      
+      console.log('💾 [SAVE] ROBUSTO: Documento finale pulito:', {
         docId: galleryId,
-        galleryIdField: storyDocument.galleryId,
-        hasPrologo: !!storyDocument.prologo,
-        hasChapters: Object.keys(storyDocument).filter(k => k.startsWith('capitolo_')).length,
-        metadata: storyDocument.metadata?.titolo
+        galleryIdField: finalDocument.galleryId,
+        hasPrologo: !!finalDocument.prologo,
+        hasChapters: Object.keys(finalDocument).filter(k => k.startsWith('capitolo_')).length,
+        metadata: finalDocument.metadata?.titolo,
+        hasUndefined: JSON.stringify(finalDocument).includes('undefined') // Debug check
       });
       
-      // 🎯 SALVATAGGIO ATOMICO con overwrite completo
+      // ⚠️ VERIFICA PRE-SAVE: Controlla che non ci siano undefined
+      const jsonString = JSON.stringify(finalDocument);
+      if (jsonString.includes('undefined')) {
+        console.error('❌ [SAVE] ERRORE: Trovato undefined nel documento finale!');
+        console.error('🔍 [SAVE] Documento problematico:', finalDocument);
+        throw new Error('Documento contiene valori undefined non compatibili con Firebase');
+      }
+      
+      // 🎯 SALVATAGGIO ATOMICO
       const docRef = doc(db, 'coupleStories', galleryId);
-      await setDoc(docRef, storyDocument); // NO merge per evitare inconsistenze
+      await setDoc(docRef, finalDocument); // NO merge per evitare inconsistenze
       
       // ✅ VERIFICA IMMEDIATA del salvataggio
       console.log('🔍 [SAVE] ROBUSTO: Verifica immediata...');
