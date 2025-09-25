@@ -175,27 +175,38 @@ export default function Gallery() {
     const shouldLoadStory = id && !storyLoading && !storyChecked;
 
     if (shouldLoadStory) {
-      console.log('🔄 [ONCE] Caricamento iniziale storia per galleryId:', id);
+      console.log('%c🔄 [ONCE] Caricamento iniziale storia per galleryId:', 'background: blue; color: white; font-weight: bold', id);
       setStoryLoading(true);
       StoryService.getStoryByGalleryId(id)
         .then(story => {
-          console.log('📖 [ONCE] Storia caricata da Firebase:', story ? 'TROVATA' : 'NON TROVATA', { galleryId: id });
+          console.log('%c📖 [ONCE] Storia caricata da Firebase:', 'background: green; color: white; font-weight: bold', story ? 'TROVATA' : 'NON TROVATA', { galleryId: id });
           if (story) {
-            console.log('✅ [ONCE] Storia impostata:', { titolo: story.metadata?.titolo });
+            console.log('%c✅ [ONCE] Storia impostata nel state React:', 'background: green; color: white; font-weight: bold', { 
+              titolo: story.metadata?.titolo,
+              galleryId: story.galleryId,
+              storyId: story.id
+            });
             setCoupleStory(story);
           } else {
-            console.log('❌ [ONCE] Nessuna storia trovata per galleryId:', id);
+            console.log('%c❌ [ONCE] Nessuna storia trovata - set null:', 'background: red; color: white; font-weight: bold', id);
             setCoupleStory(null);
           }
         })
         .catch(error => {
-          console.error('💥 [ONCE] Errore caricamento storia:', error);
+          console.error('%c💥 [ONCE] Errore caricamento storia:', 'background: red; color: white; font-weight: bold', error);
           setCoupleStory(null);
         })
         .finally(() => {
           setStoryLoading(false);
           setStoryChecked(true); // ✅ Segna sempre come verificato
         });
+    } else {
+      console.log('%c🚫 [SKIP] Load story skipped:', 'background: orange; color: white', {
+        hasId: !!id,
+        storyLoading,
+        storyChecked,
+        shouldLoad: shouldLoadStory
+      });
     }
   }, [id, storyLoading, storyChecked]); // 🔧 RIMOSSE dipendenze problematiche
 
@@ -218,11 +229,20 @@ export default function Gallery() {
       
       // 🔧 FIX: Reset storia SOLO se cambia galleria (non al reload della stessa)
       if (lastGalleryId && lastGalleryId !== id) {
-        console.log('📋 Cambio galleria, reset stato storia');
+        console.log('%c📋 [RESET] Cambio galleria - reset stato storia:', 'background: red; color: white; font-weight: bold', {
+          lastGalleryId, 
+          newId: id
+        });
         setCoupleStory(null);
         setStoryChecked(false);
         setStoryLoading(false);
         setShowStoryUpload(false);
+      } else {
+        console.log('%c🔄 [NO-RESET] Stessa galleria - mantieni stato storia:', 'background: green; color: white', {
+          lastGalleryId, 
+          currentId: id,
+          storyLoaded: !!coupleStory
+        });
       }
       
       setLastGalleryId(id);

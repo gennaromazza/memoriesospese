@@ -195,17 +195,27 @@ export class StoryService {
       await setDoc(docRef, finalDocument); // NO merge per evitare inconsistenze
       
       // ✅ VERIFICA IMMEDIATA del salvataggio
-      console.log('🔍 [SAVE] ROBUSTO: Verifica immediata...');
-      await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms per commit
+      console.log('%c🔍 [SAVE] VERIFICA IMMEDIATA...', 'background: blue; color: white; font-weight: bold');
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1000ms per commit
       
       const verifyDoc = await getDoc(docRef);
       if (verifyDoc.exists()) {
         const verifyData = verifyDoc.data();
-        console.log('✅ [SAVE] ROBUSTO: VERIFICATO! Storia salvata e leggibile:', {
+        console.log('%c✅ [SAVE] VERIFICATO! Storia salvata e leggibile:', 'background: green; color: white; font-weight: bold', {
           docId: verifyDoc.id,
           galleryIdField: verifyData.galleryId,
-          timestamp: verifyData.updatedAt
+          timestamp: verifyData.updatedAt,
+          titolo: verifyData.metadata?.titolo
         });
+        
+        // 🧪 TEST AGGIUNTIVO: Prova a rileggerla immediatamente con il service
+        console.log('%c🧪 [SAVE] TEST IMMEDIATO: Rilettura con service...', 'background: purple; color: white; font-weight: bold');
+        const serviceTest = await this.getStoryByGalleryId(galleryId);
+        console.log('%c🧪 [SAVE] TEST IMMEDIATO RISULTATO:', 'background: purple; color: white; font-weight: bold', {
+          found: !!serviceTest,
+          titolo: serviceTest?.metadata?.titolo
+        });
+        
       } else {
         throw new Error('SAVE FALLITO: Documento non trovato dopo salvataggio');
       }
