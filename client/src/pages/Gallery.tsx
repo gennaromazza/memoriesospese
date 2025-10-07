@@ -939,6 +939,7 @@ export default function Gallery() {
                     <StoryUploadForm
                       galleryId={id!}
                       galleryName={galleryData?.name || ''}
+                      existingStory={coupleStory}
                       onStoryUploaded={(story) => {
                         console.log('✅ Storia caricata tramite upload:', story);
                         setCoupleStory(story);

@@ -29,6 +29,7 @@ import { useIsAdmin } from '@/hooks/useIsAdmin';
 interface StoryUploadFormProps {
   galleryId: string;
   galleryName?: string;
+  existingStory?: CoupleStory | null;
   onStoryUploaded?: (story: CoupleStory) => void;
   onCancel?: () => void;
 }
@@ -48,6 +49,7 @@ interface ValidationResult {
 export default function StoryUploadForm({ 
   galleryId, 
   galleryName,
+  existingStory,
   onStoryUploaded,
   onCancel 
 }: StoryUploadFormProps) {
@@ -59,6 +61,26 @@ export default function StoryUploadForm({
     tema: '',
     colore_principale: '#6d7e6d'
   });
+  
+  // 🔧 Pre-compila il form se c'è una storia esistente
+  useEffect(() => {
+    if (existingStory) {
+      // Crea il JSON dalla storia esistente (escludi campi sistema)
+      const { id, galleryId: gId, createdAt, updatedAt, createdBy, updatedBy, ...storyData } = existingStory;
+      setJsonInput(JSON.stringify(storyData, null, 2));
+      
+      // Pre-compila metadata se presenti
+      if (existingStory.metadata) {
+        setMetadata({
+          titolo: existingStory.metadata.titolo || '',
+          sottotitolo: existingStory.metadata.sottotitolo || '',
+          stile: existingStory.metadata.stile || '',
+          tema: existingStory.metadata.tema || '',
+          colore_principale: existingStory.metadata.colore_principale || '#6d7e6d'
+        });
+      }
+    }
+  }, [existingStory]);
   const [validationResult, setValidationResult] = useState<ValidationResult>({ isValid: false });
   const [isValidating, setIsValidating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -378,10 +400,13 @@ export default function StoryUploadForm({
             <BookOpen className="h-8 w-8 text-white" />
           </div>
           <CardTitle className="text-2xl font-playfair font-bold text-blue-gray-900">
-            Carica Storia della Coppia
+            {existingStory ? 'Modifica Storia della Coppia' : 'Carica Storia della Coppia'}
           </CardTitle>
           <p className="text-terracotta-700 mt-2">
-            Incolla il JSON generato da ChatGPT per creare il libro digitale
+            {existingStory 
+              ? 'Modifica il contenuto della storia esistente o aggiungi nuovi dettagli' 
+              : 'Incolla il JSON generato da ChatGPT per creare il libro digitale'
+            }
           </p>
         </CardHeader>
 
@@ -520,7 +545,7 @@ export default function StoryUploadForm({
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Carica Storia
+                    {existingStory ? 'Aggiorna Storia' : 'Carica Storia'}
                   </>
                 )}
               </Button>
