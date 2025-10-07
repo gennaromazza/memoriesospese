@@ -750,30 +750,6 @@ export default function Gallery() {
                 </div>
               )}
 
-              {/* Debug Actions - Solo Admin quando non c'è storia */}
-              {activeTab === 'story' && isAdmin && !coupleStory && !showStoryUpload && (
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={async () => {
-                            await StoryService.debugCoupleStoriesCollection();
-                          }}
-                          variant="outline"
-                          className="border-blue-300 text-blue-600 hover:bg-blue-50"
-                        >
-                          🔍 Debug Collection
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-sm">
-                        <p>Ispeziona la collection coupleStories per debug</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              )}
-
               {/* Contenuto del tab selezionato */}
               {activeTab === 'photographer' && (
                 <div>
