@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { Card } from '@/components/ui/card';
-import { Smartphone, Monitor, Upload, RotateCw } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Card } from "@/components/ui/card";
+import { Smartphone, Monitor, RotateCw } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ImageCropperProps {
   image: string;
@@ -12,312 +12,403 @@ interface ImageCropperProps {
 }
 
 interface CropArea {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  x: number; // percent
+  y: number; // percent
+  width: number; // percent
+  height: number; // percent
 }
 
-export function ImageCropper({ image, onCropComplete, onCancel }: ImageCropperProps) {
-  const [activeTab, setActiveTab] = useState<'mobile' | 'desktop'>('mobile');
-  const [mobileCrop, setMobileCrop] = useState<CropArea>({ x: 0, y: 0, width: 100, height: 100 });
-  const [desktopCrop, setDesktopCrop] = useState<CropArea>({ x: 0, y: 0, width: 100, height: 100 });
+const DPR =
+  typeof window !== "undefined" ? Math.max(1, window.devicePixelRatio || 1) : 1;
+
+function rotatedBBox(w: number, h: number, rad: number) {
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  return {
+    width: w * cos + h * sin,
+    height: w * sin + h * cos,
+  };
+}
+
+export function ImageCropper({
+  image,
+  onCropComplete,
+  onCancel,
+}: ImageCropperProps) {
+  const [activeTab, setActiveTab] = useState<"mobile" | "desktop">("mobile");
+  const [mobileCrop, setMobileCrop] = useState<CropArea>({
+    x: 0,
+    y: 0,
+    width: 56.25,
+    height: 100,
+  }); // 9:16
+  const [desktopCrop, setDesktopCrop] = useState<CropArea>({
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 56.25,
+  }); // 16:9
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  
+
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mobilePreviewRef = useRef<HTMLCanvasElement>(null);
   const desktopPreviewRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
-  // Carica immagine e calcola crop ottimali
+  // Lock body scroll while modal open
+  useEffect(() => {
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+    };
+  }, []);
+
+  // Keyboard: Esc to close, arrows to nudge crop
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onCancel();
+        return;
+      }
+      const stepBase = e.shiftKey ? 2 : 0.5; // percent
+      let dx = 0,
+        dy = 0;
+      if (e.key === "ArrowLeft") dx = -stepBase;
+      if (e.key === "ArrowRight") dx = stepBase;
+      if (e.key === "ArrowUp") dy = -stepBase;
+      if (e.key === "ArrowDown") dy = stepBase;
+      if (dx !== 0 || dy !== 0) {
+        e.preventDefault();
+        const crop = activeTab === "mobile" ? mobileCrop : desktopCrop;
+        const setCrop = activeTab === "mobile" ? setMobileCrop : setDesktopCrop;
+        setCrop({
+          ...crop,
+          x: Math.max(0, Math.min(100 - crop.width, crop.x + dx)),
+          y: Math.max(0, Math.min(100 - crop.height, crop.y + dy)),
+        });
+      }
+    };
+    document.addEventListener("keydown", handler, { capture: true });
+    return () =>
+      document.removeEventListener("keydown", handler, { capture: true });
+  }, [activeTab, mobileCrop, desktopCrop, onCancel]);
+
+  // Load image + initial crops centrati
   useEffect(() => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.src = image;
     img.onload = () => {
       imgRef.current = img;
-      
-      // Calcola crop areas basate sull'immagine reale per ottenere ratio corretti
-      const imgWidth = img.width;
-      const imgHeight = img.height;
-      const imgRatio = imgWidth / imgHeight;
-      
-      // Mobile 9:16 (ratio 0.5625)
-      const mobileRatio = 9 / 16;
-      let mobileWidth, mobileHeight, mobileX, mobileY;
-      
-      if (imgRatio > mobileRatio) {
-        // Immagine più larga: limita per altezza
-        mobileHeight = 100;
-        mobileWidth = (mobileRatio * imgHeight / imgWidth) * 100;
-        mobileX = (100 - mobileWidth) / 2;
-        mobileY = 0;
+
+      const iw = img.width;
+      const ih = img.height;
+      const imgRatio = iw / ih;
+
+      // mobile 9:16
+      const mobileR = 9 / 16;
+      let mW, mH, mX, mY;
+      if (imgRatio > mobileR) {
+        mH = 100;
+        mW = ((mobileR * ih) / iw) * 100;
+        mX = (100 - mW) / 2;
+        mY = 0;
       } else {
-        // Immagine più alta: limita per larghezza
-        mobileWidth = 100;
-        mobileHeight = (imgWidth / mobileRatio / imgHeight) * 100;
-        mobileX = 0;
-        mobileY = (100 - mobileHeight) / 2;
+        mW = 100;
+        mH = (iw / mobileR / ih) * 100;
+        mX = 0;
+        mY = (100 - mH) / 2;
       }
-      
-      // Desktop 16:9 (ratio 1.778)
-      const desktopRatio = 16 / 9;
-      let desktopWidth, desktopHeight, desktopX, desktopY;
-      
-      if (imgRatio > desktopRatio) {
-        // Immagine più larga: limita per altezza
-        desktopHeight = 100;
-        desktopWidth = (desktopRatio * imgHeight / imgWidth) * 100;
-        desktopX = (100 - desktopWidth) / 2;
-        desktopY = 0;
+
+      // desktop 16:9
+      const desktopR = 16 / 9;
+      let dW, dH, dX, dY;
+      if (imgRatio > desktopR) {
+        dH = 100;
+        dW = ((desktopR * ih) / iw) * 100;
+        dX = (100 - dW) / 2;
+        dY = 0;
       } else {
-        // Immagine più alta: limita per larghezza
-        desktopWidth = 100;
-        desktopHeight = (imgWidth / desktopRatio / imgHeight) * 100;
-        desktopX = 0;
-        desktopY = (100 - desktopHeight) / 2;
+        dW = 100;
+        dH = (iw / desktopR / ih) * 100;
+        dX = 0;
+        dY = (100 - dH) / 2;
       }
-      
-      setMobileCrop({ x: mobileX, y: mobileY, width: mobileWidth, height: mobileHeight });
-      setDesktopCrop({ x: desktopX, y: desktopY, width: desktopWidth, height: desktopHeight });
-      
+
+      setMobileCrop({ x: mX, y: mY, width: mW, height: mH });
+      setDesktopCrop({ x: dX, y: dY, width: dW, height: dH });
+
       drawCanvas();
+      // focus the panel for keyboard
+      setTimeout(() => panelRef.current?.focus(), 0);
     };
   }, [image]);
 
-  // Ridisegna quando cambiano crop, zoom o rotazione
+  // redraw on changes
   useEffect(() => {
     drawCanvas();
   }, [mobileCrop, desktopCrop, zoom, rotation, activeTab]);
 
+  // wheel zoom sulla canvas (blocca scroll pagina)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoom((z) => Math.min(3, Math.max(0.5, +(z + delta).toFixed(2))));
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const handlePointerDownOverlay: React.PointerEventHandler<HTMLDivElement> = (
+    e,
+  ) => {
+    // chiudi solo se il target è il backdrop (non un figlio)
+    if (e.target === e.currentTarget) onCancel();
+  };
+
+  const handlePointerDownPanel: React.PointerEventHandler<HTMLDivElement> = (
+    e,
+  ) => {
+    // blocca bubbling, così il click non arriva all’overlay
+    e.stopPropagation();
+  };
+
+  // drag on canvas (mouse/touch/pen via pointer events)
+  const onCanvasPointerDown: React.PointerEventHandler<HTMLCanvasElement> = (
+    e,
+  ) => {
+    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+  };
+  const onCanvasPointerMove: React.PointerEventHandler<HTMLCanvasElement> = (
+    e,
+  ) => {
+    if (!isDragging) return;
+    handleDragDelta(e.clientX, e.clientY);
+  };
+  const onCanvasPointerUp: React.PointerEventHandler<HTMLCanvasElement> = (
+    e,
+  ) => {
+    (e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId);
+    setIsDragging(false);
+  };
+
+  const handleDragDelta = (cx: number, cy: number) => {
+    const baseW = 800;
+    const baseH = 600;
+    const deltaX = ((cx - dragStart.x) / baseW) * 100;
+    const deltaY = ((cy - dragStart.y) / baseH) * 100;
+
+    const crop = activeTab === "mobile" ? mobileCrop : desktopCrop;
+    const setCrop = activeTab === "mobile" ? setMobileCrop : setDesktopCrop;
+
+    setCrop({
+      ...crop,
+      x: Math.max(0, Math.min(100 - crop.width, crop.x + deltaX)),
+      y: Math.max(0, Math.min(100 - crop.height, crop.y + deltaY)),
+    });
+    setDragStart({ x: cx, y: cy });
+  };
+
   const drawCanvas = () => {
     if (!canvasRef.current || !imgRef.current) return;
-    
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // canvas di lavoro 800x600 (nitido con DPR)
+    canvas.width = 800 * DPR;
+    canvas.height = 600 * DPR;
+    canvas.style.width = "800px";
+    canvas.style.height = "600px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // clear
+    ctx.clearRect(0, 0, 800, 600);
+
+    // disegna immagine centrata con zoom/rotazione
     const img = imgRef.current;
-    const crop = activeTab === 'mobile' ? mobileCrop : desktopCrop;
-
-    // Imposta dimensioni canvas
-    canvas.width = 800;
-    canvas.height = 600;
-
-    // Pulisci canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Applica trasformazioni
     ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.translate(400, 300);
     ctx.rotate((rotation * Math.PI) / 180);
     ctx.scale(zoom, zoom);
     ctx.drawImage(img, -img.width / 2, -img.height / 2);
     ctx.restore();
 
-    // Disegna area di crop
-    const cropX = (crop.x / 100) * canvas.width;
-    const cropY = (crop.y / 100) * canvas.height;
-    const cropWidth = (crop.width / 100) * canvas.width;
-    const cropHeight = (crop.height / 100) * canvas.height;
+    // crop overlay
+    const crop = activeTab === "mobile" ? mobileCrop : desktopCrop;
+    const cropX = (crop.x / 100) * 800;
+    const cropY = (crop.y / 100) * 600;
+    const cropW = (crop.width / 100) * 800;
+    const cropH = (crop.height / 100) * 600;
 
-    // Overlay scuro
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Area di crop trasparente
-    ctx.clearRect(cropX, cropY, cropWidth, cropHeight);
-
-    // Bordo area di crop
-    ctx.strokeStyle = '#f97316';
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(0, 0, 800, 600);
+    ctx.clearRect(cropX, cropY, cropW, cropH);
+    ctx.strokeStyle = "#f97316";
     ctx.lineWidth = 2;
-    ctx.strokeRect(cropX, cropY, cropWidth, cropHeight);
+    ctx.strokeRect(cropX, cropY, cropW, cropH);
 
-    // Aggiorna preview
     updatePreview();
   };
 
   const updatePreview = () => {
     if (!imgRef.current) return;
-
     const img = imgRef.current;
 
-    // Crea canvas temporaneo con trasformazioni
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return;
+    const rad = (rotation * Math.PI) / 180;
+    const transformedW = img.width * zoom;
+    const transformedH = img.height * zoom;
+    const bbox = rotatedBBox(transformedW, transformedH, rad);
 
-    const scaledWidth = img.width * zoom;
-    const scaledHeight = img.height * zoom;
-    tempCanvas.width = scaledWidth;
-    tempCanvas.height = scaledHeight;
+    const temp = document.createElement("canvas");
+    temp.width = Math.max(1, Math.round(bbox.width));
+    temp.height = Math.max(1, Math.round(bbox.height));
+    const tctx = temp.getContext("2d");
+    if (!tctx) return;
 
-    tempCtx.save();
-    tempCtx.translate(scaledWidth / 2, scaledHeight / 2);
-    tempCtx.rotate((rotation * Math.PI) / 180);
-    tempCtx.scale(zoom, zoom);
-    tempCtx.drawImage(img, -img.width / 2, -img.height / 2);
-    tempCtx.restore();
+    tctx.save();
+    tctx.translate(temp.width / 2, temp.height / 2);
+    tctx.rotate(rad);
+    tctx.scale(zoom, zoom);
+    tctx.drawImage(img, -img.width / 2, -img.height / 2);
+    tctx.restore();
 
-    // Preview Mobile (9:16)
-    if (mobilePreviewRef.current) {
-      const canvas = mobilePreviewRef.current;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        canvas.width = 180;
-        canvas.height = 320;
-        
-        const cropX = (mobileCrop.x / 100) * scaledWidth;
-        const cropY = (mobileCrop.y / 100) * scaledHeight;
-        const cropWidth = (mobileCrop.width / 100) * scaledWidth;
-        const cropHeight = (mobileCrop.height / 100) * scaledHeight;
+    const copyToPreview = (
+      previewCanvas: HTMLCanvasElement | null,
+      cropArea: CropArea,
+      targetW: number,
+      targetH: number,
+    ) => {
+      if (!previewCanvas) return;
+      const pctx = previewCanvas.getContext("2d");
+      if (!pctx) return;
 
-        ctx.drawImage(
-          tempCanvas,
-          cropX, cropY, cropWidth, cropHeight,
-          0, 0, canvas.width, canvas.height
-        );
-      }
-    }
+      previewCanvas.width = targetW * DPR;
+      previewCanvas.height = targetH * DPR;
+      previewCanvas.style.width = `${targetW}px`;
+      previewCanvas.style.height = `${targetH}px`;
+      pctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      pctx.clearRect(0, 0, targetW, targetH);
 
-    // Preview Desktop (16:9)
-    if (desktopPreviewRef.current) {
-      const canvas = desktopPreviewRef.current;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        canvas.width = 320;
-        canvas.height = 180;
-        
-        const cropX = (desktopCrop.x / 100) * scaledWidth;
-        const cropY = (desktopCrop.y / 100) * scaledHeight;
-        const cropWidth = (desktopCrop.width / 100) * scaledWidth;
-        const cropHeight = (desktopCrop.height / 100) * scaledHeight;
+      const viewportW = 800;
+      const viewportH = 600;
+      const offsetX = (bbox.width - viewportW) / 2;
+      const offsetY = (bbox.height - viewportH) / 2;
 
-        ctx.drawImage(
-          tempCanvas,
-          cropX, cropY, cropWidth, cropHeight,
-          0, 0, canvas.width, canvas.height
-        );
-      }
-    }
+      const sx = (cropArea.x / 100) * viewportW + offsetX;
+      const sy = (cropArea.y / 100) * viewportH + offsetY;
+      const sw = (cropArea.width / 100) * viewportW;
+      const sh = (cropArea.height / 100) * viewportH;
+
+      pctx.drawImage(temp, sx, sy, sw, sh, 0, 0, targetW, targetH);
+    };
+
+    copyToPreview(mobilePreviewRef.current, mobileCrop, 180, 320);
+    copyToPreview(desktopPreviewRef.current, desktopCrop, 320, 180);
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-
-    const deltaX = ((e.clientX - dragStart.x) / 800) * 100;
-    const deltaY = ((e.clientY - dragStart.y) / 600) * 100;
-
-    const crop = activeTab === 'mobile' ? mobileCrop : desktopCrop;
-    const setCrop = activeTab === 'mobile' ? setMobileCrop : setDesktopCrop;
-
-    setCrop({
-      ...crop,
-      x: Math.max(0, Math.min(100 - crop.width, crop.x + deltaX)),
-      y: Math.max(0, Math.min(100 - crop.height, crop.y + deltaY))
-    });
-
-    setDragStart({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const getCroppedBlob = (cropArea: CropArea): Promise<Blob | null> => {
+  const getCroppedBlob = (
+    cropArea: CropArea,
+    outW: number,
+    outH: number,
+  ): Promise<Blob | null> => {
     return new Promise((resolve) => {
-      if (!imgRef.current) {
-        resolve(null);
-        return;
-      }
-
+      if (!imgRef.current) return resolve(null);
       const img = imgRef.current;
-      
-      // Crea canvas temporaneo per applicare trasformazioni
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      if (!tempCtx) {
-        resolve(null);
-        return;
-      }
 
-      // Dimensioni canvas temporaneo basate su zoom
-      const scaledWidth = img.width * zoom;
-      const scaledHeight = img.height * zoom;
-      tempCanvas.width = scaledWidth;
-      tempCanvas.height = scaledHeight;
+      const rad = (rotation * Math.PI) / 180;
+      const transformedW = img.width * zoom;
+      const transformedH = img.height * zoom;
+      const bbox = rotatedBBox(transformedW, transformedH, rad);
 
-      // Applica rotazione e zoom
-      tempCtx.save();
-      tempCtx.translate(scaledWidth / 2, scaledHeight / 2);
-      tempCtx.rotate((rotation * Math.PI) / 180);
-      tempCtx.scale(zoom, zoom);
-      tempCtx.drawImage(img, -img.width / 2, -img.height / 2);
-      tempCtx.restore();
+      const temp = document.createElement("canvas");
+      temp.width = Math.max(1, Math.round(bbox.width));
+      temp.height = Math.max(1, Math.round(bbox.height));
+      const tctx = temp.getContext("2d");
+      if (!tctx) return resolve(null);
 
-      // Calcola area di crop sul canvas trasformato
-      const cropX = (cropArea.x / 100) * scaledWidth;
-      const cropY = (cropArea.y / 100) * scaledHeight;
-      const cropWidth = (cropArea.width / 100) * scaledWidth;
-      const cropHeight = (cropArea.height / 100) * scaledHeight;
+      tctx.save();
+      tctx.translate(temp.width / 2, temp.height / 2);
+      tctx.rotate(rad);
+      tctx.scale(zoom, zoom);
+      tctx.drawImage(img, -img.width / 2, -img.height / 2);
+      tctx.restore();
 
-      // Canvas finale per il crop
-      const finalCanvas = document.createElement('canvas');
-      const finalCtx = finalCanvas.getContext('2d');
-      if (!finalCtx) {
-        resolve(null);
-        return;
-      }
+      const viewportW = 800;
+      const viewportH = 600;
+      const offsetX = (bbox.width - viewportW) / 2;
+      const offsetY = (bbox.height - viewportH) / 2;
 
-      finalCanvas.width = cropWidth;
-      finalCanvas.height = cropHeight;
+      const sx = (cropArea.x / 100) * viewportW + offsetX;
+      const sy = (cropArea.y / 100) * viewportH + offsetY;
+      const sw = (cropArea.width / 100) * viewportW;
+      const sh = (cropArea.height / 100) * viewportH;
 
-      // Copia l'area croppata
-      finalCtx.drawImage(
-        tempCanvas,
-        cropX, cropY, cropWidth, cropHeight,
-        0, 0, finalCanvas.width, finalCanvas.height
-      );
+      const finalCanvas = document.createElement("canvas");
+      finalCanvas.width = outW;
+      finalCanvas.height = outH;
+      const fctx = finalCanvas.getContext("2d");
+      if (!fctx) return resolve(null);
 
-      finalCanvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.92);
+      fctx.drawImage(temp, sx, sy, sw, sh, 0, 0, outW, outH);
+      finalCanvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
     });
   };
 
   const handleSave = async () => {
-    const mobileBlob = await getCroppedBlob(mobileCrop);
-    const desktopBlob = await getCroppedBlob(desktopCrop);
+    const mobileBlob = await getCroppedBlob(mobileCrop, 1080, 1920);
+    const desktopBlob = await getCroppedBlob(desktopCrop, 1920, 1080);
     onCropComplete(mobileBlob, desktopBlob);
   };
 
   return (
-    <div 
+    <div
+      ref={overlayRef}
       className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
-      onClick={onCancel}
+      onPointerDown={handlePointerDownOverlay}
     >
-      <div 
-        className="bg-white dark:bg-gray-900 rounded-lg max-w-7xl w-full max-h-[95vh] overflow-auto"
-        onClick={(e) => e.stopPropagation()}
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="bg-white dark:bg-gray-900 rounded-lg max-w-7xl w-full max-h-[95vh] overflow-auto outline-none"
+        onPointerDown={handlePointerDownPanel}
       >
         <div className="p-6">
-          <h2 className="text-2xl font-bold mb-4">Ritaglia Immagine di Copertina</h2>
-          
+          <h2 className="text-2xl font-bold mb-4">
+            Ritaglia Immagine di Copertina
+          </h2>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Area di crop principale */}
+            {/* Area di crop */}
             <div className="lg:col-span-2">
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'mobile' | 'desktop')}>
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => setActiveTab(v as "mobile" | "desktop")}
+              >
                 <TabsList className="mb-4">
-                  <TabsTrigger value="mobile" className="flex items-center gap-2">
+                  <TabsTrigger
+                    value="mobile"
+                    className="flex items-center gap-2"
+                  >
                     <Smartphone className="w-4 h-4" />
                     Mobile (9:16)
                   </TabsTrigger>
-                  <TabsTrigger value="desktop" className="flex items-center gap-2">
+                  <TabsTrigger
+                    value="desktop"
+                    className="flex items-center gap-2"
+                  >
                     <Monitor className="w-4 h-4" />
                     Desktop (16:9)
                   </TabsTrigger>
@@ -326,11 +417,11 @@ export function ImageCropper({ image, onCropComplete, onCancel }: ImageCropperPr
                 <div className="relative bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
                   <canvas
                     ref={canvasRef}
-                    className="w-full h-auto cursor-move"
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
+                    className="w-full h-auto cursor-move touch-none"
+                    onPointerDown={onCanvasPointerDown}
+                    onPointerMove={onCanvasPointerMove}
+                    onPointerUp={onCanvasPointerUp}
+                    onPointerCancel={onCanvasPointerUp}
                   />
                 </div>
               </Tabs>
@@ -350,14 +441,16 @@ export function ImageCropper({ image, onCropComplete, onCancel }: ImageCropperPr
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Rotazione</label>
+                  <label className="text-sm font-medium mb-2 block">
+                    Rotazione
+                  </label>
                   <div className="flex items-center gap-2">
                     <Slider
                       value={[rotation]}
                       onValueChange={(v) => setRotation(v[0])}
                       min={-180}
                       max={180}
-                      step={5}
+                      step={1}
                       className="flex-1"
                     />
                     <Button
@@ -365,6 +458,7 @@ export function ImageCropper({ image, onCropComplete, onCancel }: ImageCropperPr
                       size="icon"
                       onClick={() => setRotation(0)}
                       data-testid="button-reset-rotation"
+                      title="Reset rotazione"
                     >
                       <RotateCw className="w-4 h-4" />
                     </Button>
