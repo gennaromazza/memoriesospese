@@ -297,7 +297,7 @@ export function ImageCropper({ image, onCropComplete, onCancel }: ImageCropperPr
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-900 rounded-lg max-w-7xl w-full max-h-[95vh] overflow-auto">
         <div className="p-6">
           <h2 className="text-2xl font-bold mb-4">Ritaglia Immagine di Copertina</h2>
