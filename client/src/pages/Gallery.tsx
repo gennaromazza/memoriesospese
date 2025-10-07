@@ -421,6 +421,8 @@ export default function Gallery() {
           location={galleryData.location}
           description={galleryData.description}
           coverImageUrl={galleryData.coverImageUrl}
+          coverImageMobile={galleryData.coverImageMobile}
+          coverImageDesktop={galleryData.coverImageDesktop}
           galleryId={id}
           galleryCode={galleryData.code}
         />

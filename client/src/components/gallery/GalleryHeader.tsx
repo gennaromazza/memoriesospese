@@ -18,6 +18,8 @@ interface GalleryHeaderProps {
   location: string;
   description?: string;
   coverImageUrl?: string;
+  coverImageMobile?: string;
+  coverImageDesktop?: string;
   galleryId?: string;
   galleryCode?: string;
 }
@@ -35,19 +37,36 @@ export default function GalleryHeader({
   location, 
   description, 
   coverImageUrl,
+  coverImageMobile,
+  coverImageDesktop,
   galleryId,
   galleryCode
 }: GalleryHeaderProps) {
   const [imageDimensions, setImageDimensions] = useState<ImageDimensions | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
-  
+  const [isMobile, setIsMobile] = useState(false);
 
-  
+  // Rileva se è mobile o desktop
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.matchMedia('(max-width: 768px)').matches);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Determina quale immagine mostrare in base al dispositivo
+  const displayImage = isMobile 
+    ? (coverImageMobile || coverImageDesktop || coverImageUrl)
+    : (coverImageDesktop || coverImageUrl);
   
   // Carica e analizza le dimensioni dell'immagine di copertina
   useEffect(() => {
-    if (coverImageUrl && coverImageUrl.trim() !== "") {
+    if (displayImage && displayImage.trim() !== "") {
       const img = new Image();
       img.onload = () => {
         const width = img.width;
@@ -65,9 +84,9 @@ export default function GalleryHeader({
         
         setImageLoaded(true); // Imposta a true anche in caso di errore per evitare il caricamento infinito
       };
-      img.src = coverImageUrl;
+      img.src = displayImage;
     }
-  }, [coverImageUrl]);
+  }, [displayImage]);
   
   // Formatta la data in italiano
   const formatDate = (dateString: string) => {
@@ -89,7 +108,7 @@ export default function GalleryHeader({
         <BackgroundDecoration />
       </div>
       
-      {coverImageUrl && coverImageUrl.trim() !== "" ? (
+      {displayImage && displayImage.trim() !== "" ? (
         <div className="relative w-full mb-10">
           <div className={`relative w-full max-w-6xl mx-auto ${
             imageDimensions?.isLandscape 
@@ -120,7 +139,7 @@ export default function GalleryHeader({
               </div>
               
               <img 
-                src={coverImageUrl} 
+                src={displayImage} 
                 alt={`Copertina: ${name}`} 
                 className={`w-full ${
                   imageDimensions?.isLandscape 
@@ -207,9 +226,9 @@ export default function GalleryHeader({
               </svg>
             </button>
             
-            {coverImageUrl && (
+            {displayImage && (
               <img 
-                src={coverImageUrl} 
+                src={displayImage} 
                 alt={`Copertina: ${name}`} 
                 className="max-h-[85vh] max-w-[85vw] object-contain" 
               />
