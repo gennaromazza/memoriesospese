@@ -796,7 +796,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby="edit-gallery-dialog-description">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col" aria-describedby="edit-gallery-dialog-description">
         <DialogHeader>
           <DialogTitle>Modifica Galleria: {gallery.name}</DialogTitle>
           <DialogDescription id="edit-gallery-dialog-description">
