@@ -499,7 +499,7 @@ export default function StoryUploadForm({
                 variant="outline"
                 onClick={onCancel}
                 disabled={isUploading}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                className="border-sage-400 text-sage-700 hover:bg-sage-100 font-medium"
               >
                 Annulla
               </Button>
