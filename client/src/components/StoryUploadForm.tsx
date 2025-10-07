@@ -18,7 +18,8 @@ import {
   Sparkles,
   Quote,
   AlertCircle,
-  Info
+  Info,
+  Loader2 // Import Loader2 for the uploading state
 } from 'lucide-react';
 import StoryService from '@/lib/storyService';
 import { CoupleStory, normalizeImportedStory } from '@shared/schema';
@@ -99,7 +100,7 @@ export default function StoryUploadForm({
       try {
         const parsedJson = JSON.parse(jsonInput);
         const result = StoryService.validateImportJson(parsedJson);
-        
+
         if (result.isValid && result.normalizedData) {
           // Calcola statistiche
           const stats = {
@@ -509,11 +510,11 @@ export default function StoryUploadForm({
               <Button
                 onClick={handleUpload}
                 disabled={!validationResult.isValid || isUploading || !user || !isAdmin}
-                className="bg-terracotta-600 hover:bg-terracotta-700 text-white disabled:opacity-50"
+                className="bg-sage-600 hover:bg-sage-700 text-white disabled:opacity-50"
               >
                 {isUploading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Caricamento...
                   </>
                 ) : (
