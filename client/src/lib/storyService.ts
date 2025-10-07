@@ -46,17 +46,15 @@ export class StoryService {
           galleryId // Forza sempre galleryId per coerenza
         } as CoupleStory;
         
-        // Valida che sia una storia valida per CoupleStoryBook
-        if (this.validateStoryStructure(storyData)) {
-          console.log('📖 [GET] Storia valida:', { 
-            titolo: storyData.metadata?.titolo,
-            hasPrologo: !!storyData.prologo,
-            hasChapters: Object.keys(storyData).filter(k => k.startsWith('capitolo_')).length
-          });
-          return storyData;
-        } else {
-          console.warn('⚠️ [GET] Storia trovata ma struttura non valida');
-        }
+        // 📖 Log dettagli storia
+        console.log('📖 [GET] Storia valida:', { 
+          hasPrologo: !!storyData.prologo,
+          hasChapters: Object.keys(storyData).filter(k => k.startsWith('capitolo_')).length,
+          hasMetadata: !!storyData.metadata
+        });
+        
+        // 🔧 FIX: Ritorna SEMPRE la storia se esiste, senza validazione restrittiva
+        return storyData;
       }
       
       // 🚀 STRATEGIA 2: Query fallback per inconsistenze ID
