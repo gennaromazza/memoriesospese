@@ -937,8 +937,8 @@ export default function Gallery() {
                     </div>
                   ) : showStoryUpload || (!coupleStory && isAdmin) ? (
                     <StoryUploadForm
-                      galleryId={galleryData.id}
-                      galleryName={galleryData.name}
+                      galleryId={id!}
+                      galleryName={galleryData?.name || ''}
                       onStoryUploaded={(story) => {
                         console.log('✅ Storia caricata tramite upload:', story);
                         setCoupleStory(story);
