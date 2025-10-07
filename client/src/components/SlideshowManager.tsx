@@ -88,7 +88,13 @@ export default function SlideshowManager() {
   
   const handleFilesSelected = (files: File[] | PhotoWithChapter[]) => {
     if (files.length > 0) {
-      setFile(files[0] as File);
+      const selectedFile = files[0];
+      // Se è un PhotoWithChapter, estrai il file; altrimenti usa direttamente il File
+      if ('file' in selectedFile) {
+        setFile(selectedFile.file);
+      } else {
+        setFile(selectedFile);
+      }
     }
   };
 
