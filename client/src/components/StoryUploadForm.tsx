@@ -490,7 +490,7 @@ export default function StoryUploadForm({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowPreview(!showPreview)}
-                className="border-terracotta-300 text-terracotta-700 hover:bg-terracotta-50"
+                className="border-terracotta-500 text-terracotta-800 hover:bg-terracotta-100 font-medium shadow-sm"
               >
                 <Eye className="h-4 w-4 mr-2" />
                 {showPreview ? 'Nascondi' : 'Mostra'} Anteprima
