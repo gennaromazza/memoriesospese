@@ -15,6 +15,7 @@ import { UploadCloud, Image, Trash } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
 import { Progress } from "./ui/progress";
+import { ImageCropper } from "./ImageCropper";
 
 interface PhotoData {
   id: string;
@@ -39,6 +40,8 @@ interface GalleryType {
   description?: string;
   password?: string;
   coverImageUrl?: string;
+  coverImageMobile?: string;
+  coverImageDesktop?: string;
   youtubeUrl?: string;
   youtubeUrls?: string[];
   photoCount?: number;
@@ -59,8 +62,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
+  const [coverImageMobileUrl, setCoverImageMobileUrl] = useState("");
+  const [coverImageDesktopUrl, setCoverImageDesktopUrl] = useState("");
   const [coverImage, setCoverImage] = useState<File | null>(null);
+  const [coverImageMobile, setCoverImageMobile] = useState<Blob | null>(null);
+  const [coverImageDesktop, setCoverImageDesktop] = useState<Blob | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("details");
   const [photos, setPhotos] = useState<PhotoData[]>([]);
@@ -279,9 +288,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setNewYoutubeUrl("");
       
       setCoverImageUrl(gallery.coverImageUrl || "");
+      setCoverImageMobileUrl(gallery.coverImageMobile || "");
+      setCoverImageDesktopUrl(gallery.coverImageDesktop || "");
 
       // Se c'è un'immagine di copertina esistente, impostiamo l'anteprima
-      if (gallery.coverImageUrl) {
+      // Priorità: mobile/desktop se esistono, altrimenti vecchia coverImageUrl
+      if (gallery.coverImageMobile || gallery.coverImageDesktop) {
+        setCoverPreview(gallery.coverImageDesktop || gallery.coverImageMobile || null);
+      } else if (gallery.coverImageUrl) {
         setCoverPreview(gallery.coverImageUrl);
       } else {
         setCoverPreview(null);
@@ -340,9 +354,45 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
     setCoverImage(file);
 
-    // Crea un'anteprima dell'immagine
+    // Crea un'anteprima dell'immagine e apri il cropper
     const objectUrl = URL.createObjectURL(file);
-    setCoverPreview(objectUrl);
+    setImageToCrop(objectUrl);
+    setShowCropper(true);
+  };
+
+  // Gestisce il salvataggio dei crop
+  const handleCropComplete = (mobileBlob: Blob | null, desktopBlob: Blob | null) => {
+    setCoverImageMobile(mobileBlob);
+    setCoverImageDesktop(desktopBlob);
+    
+    // Mostra preview desktop (o mobile se desktop non c'è)
+    if (desktopBlob) {
+      const url = URL.createObjectURL(desktopBlob);
+      setCoverPreview(url);
+    } else if (mobileBlob) {
+      const url = URL.createObjectURL(mobileBlob);
+      setCoverPreview(url);
+    }
+    
+    setShowCropper(false);
+    setImageToCrop(null);
+    
+    toast({
+      title: "Immagini ritagliate",
+      description: "Le copertine per mobile e desktop sono state create con successo"
+    });
+  };
+
+  // Gestisce l'annullamento del crop
+  const handleCropCancel = () => {
+    setShowCropper(false);
+    setImageToCrop(null);
+    setCoverImage(null);
+    
+    // Reset input file
+    if (coverInputRef.current) {
+      coverInputRef.current.value = '';
+    }
   };
 
   // Funzione per eliminare una foto sia da Firestore che da Storage (memoizzata)
@@ -527,17 +577,34 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     setIsLoading(true);
 
     try {
-      // Se c'è una nuova immagine di copertina, la carichiamo prima
-      let newCoverImageUrl = coverImageUrl;
-      if (coverImage) {
+      // Carica le nuove immagini di copertina (mobile e desktop)
+      let newCoverImageMobileUrl = coverImageMobileUrl;
+      let newCoverImageDesktopUrl = coverImageDesktopUrl;
+      let newCoverImageUrl = coverImageUrl; // Mantieni per retrocompatibilità
+      
+      if (coverImageMobile) {
         try {
-          console.log('📸 Caricamento nuova immagine di copertina...');
-          const storageRef = ref(storage, `galleries/covers/${gallery.code}_cover`);
-          await uploadBytesResumable(storageRef, coverImage);
-          newCoverImageUrl = await getDownloadURL(storageRef);
-          console.log('✅ Immagine di copertina caricata:', newCoverImageUrl);
+          console.log('📸 Caricamento copertina mobile...');
+          const mobileRef = ref(storage, `galleries/covers/${gallery.code}_mobile`);
+          await uploadBytesResumable(mobileRef, coverImageMobile);
+          newCoverImageMobileUrl = await getDownloadURL(mobileRef);
+          console.log('✅ Copertina mobile caricata:', newCoverImageMobileUrl);
         } catch (error) {
-          console.error('❌ Errore caricamento cover:', error);
+          console.error('❌ Errore caricamento cover mobile:', error);
+        }
+      }
+
+      if (coverImageDesktop) {
+        try {
+          console.log('📸 Caricamento copertina desktop...');
+          const desktopRef = ref(storage, `galleries/covers/${gallery.code}_desktop`);
+          await uploadBytesResumable(desktopRef, coverImageDesktop);
+          newCoverImageDesktopUrl = await getDownloadURL(desktopRef);
+          // Usa desktop come fallback per vecchia coverImageUrl
+          newCoverImageUrl = newCoverImageDesktopUrl;
+          console.log('✅ Copertina desktop caricata:', newCoverImageDesktopUrl);
+        } catch (error) {
+          console.error('❌ Errore caricamento cover desktop:', error);
         }
       }
 
@@ -549,7 +616,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         location,
         description,
         password,
-        coverImageUrl: newCoverImageUrl,
+        coverImageUrl: newCoverImageUrl, // Retrocompatibilità
+        coverImageMobile: newCoverImageMobileUrl || null,
+        coverImageDesktop: newCoverImageDesktopUrl || null,
         youtubeUrls: youtubeUrls.length > 0 ? youtubeUrls : null,
         hasChapters: false,
         updatedAt: serverTimestamp()
@@ -725,6 +794,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   if (!gallery) return null;
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby="edit-gallery-dialog-description">
         <DialogHeader>
@@ -1099,5 +1169,15 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    {/* Image Cropper Modal */}
+    {showCropper && imageToCrop && (
+      <ImageCropper
+        image={imageToCrop}
+        onCropComplete={handleCropComplete}
+        onCancel={handleCropCancel}
+      />
+    )}
+  </>
   );
 }

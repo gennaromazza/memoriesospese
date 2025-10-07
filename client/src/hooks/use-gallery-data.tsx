@@ -14,6 +14,8 @@ export interface GalleryData {
   location: string;
   description?: string;
   coverImageUrl?: string;
+  coverImageMobile?: string;
+  coverImageDesktop?: string;
   youtubeUrl?: string;
   youtubeUrls?: string[];
   photoCount?: number;
