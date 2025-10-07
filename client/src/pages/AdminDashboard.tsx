@@ -149,6 +149,14 @@ interface GalleryItem {
   active: boolean;
   photoCount: number;
   createdAt: any;
+  location?: string;
+  description?: string;
+  coverImageUrl?: string;
+  coverImageMobile?: string;
+  coverImageDesktop?: string;
+  youtubeUrl?: string;
+  youtubeUrls?: string[];
+  password?: string;
 }
 
 interface StudioSettings {

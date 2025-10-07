@@ -612,15 +612,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       console.log('✅ Galleria salvata con successo');
       
-      // Forza il refresh della galleria
-      window.dispatchEvent(new CustomEvent('galleryRefresh', { detail: { galleryId: gallery.id } }));
-      
       toast({
         title: "Galleria aggiornata",
         description: "Le modifiche alla galleria sono state salvate con successo"
       });
 
       onClose();
+      
+      // Forza il reload completo della pagina per aggiornare tutti i dati
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (error) {
       console.error('❌ Errore salvataggio galleria:', error);
       toast({

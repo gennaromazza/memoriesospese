@@ -1042,6 +1042,8 @@ export default function Gallery() {
             location: galleryData.location || "",
             description: galleryData.description || "",
             coverImageUrl: galleryData.coverImageUrl || "",
+            coverImageMobile: galleryData.coverImageMobile || "",
+            coverImageDesktop: galleryData.coverImageDesktop || "",
             youtubeUrl: galleryData.youtubeUrl || "",
             photoCount: photos.length,
             password: "" // Aggiungi password field mancante
