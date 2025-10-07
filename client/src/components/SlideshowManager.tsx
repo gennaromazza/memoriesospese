@@ -4,14 +4,13 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { db, storage } from '../lib/firebase';
 import { useToast } from "../hooks/use-toast";
 import { 
-  Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle 
+  Card, CardContent, CardDescription, CardHeader, CardTitle 
 } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { Switch } from "./ui/switch";
-import FileUpload, { PhotoWithChapter } from "./ui/file-upload";
 
 interface SlideshowImage {
   id: string;
@@ -83,18 +82,6 @@ export default function SlideshowManager() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
-    }
-  };
-  
-  const handleFilesSelected = (files: File[] | PhotoWithChapter[]) => {
-    if (files.length > 0) {
-      const selectedFile = files[0];
-      // Se è un PhotoWithChapter, estrai il file; altrimenti usa direttamente il File
-      if ('file' in selectedFile) {
-        setFile(selectedFile.file);
-      } else {
-        setFile(selectedFile);
-      }
     }
   };
 
@@ -262,16 +249,18 @@ export default function SlideshowManager() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <Label htmlFor="image">Seleziona immagine</Label>
-                <div className="mt-1">
-                  <FileUpload
-                    onFilesSelected={handleFilesSelected}
-                    multiple={false}
-                    maxFiles={1}
-                    accept="image/*"
-                    currentFiles={file ? [file] : []}
-                    onRemoveFile={() => setFile(null)}
-                  />
-                </div>
+                <Input
+                  id="image"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="mt-1"
+                />
+                {file && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    File selezionato: {file.name}
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="alt-text">Testo alternativo</Label>
