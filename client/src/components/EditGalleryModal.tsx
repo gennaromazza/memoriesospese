@@ -596,12 +596,6 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Usa coverImageDesktop come fallback per vecchia coverImageUrl per retrocompatibilità
       const legacyCoverUrl = coverImageDesktopUrl || coverImageUrl;
       
-      console.log('💾 Dati da salvare:', {
-        coverImageUrl: legacyCoverUrl,
-        coverImageMobile: coverImageMobileUrl || null,
-        coverImageDesktop: coverImageDesktopUrl || null
-      });
-      
       await updateDoc(galleryRef, {
         name,
         date,

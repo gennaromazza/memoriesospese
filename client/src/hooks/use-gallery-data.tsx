@@ -451,7 +451,10 @@ export function useGalleryData(galleryCode: string) {
           location: galleryData.location,
           description: galleryData.description || "",
           coverImageUrl: galleryData.coverImageUrl || "",
+          coverImageMobile: galleryData.coverImageMobile || "",
+          coverImageDesktop: galleryData.coverImageDesktop || "",
           youtubeUrl: galleryData.youtubeUrl || "",
+          youtubeUrls: galleryData.youtubeUrls || [],
           code: galleryData.code || galleryCode,
           active: isActive
         });

@@ -64,14 +64,6 @@ export default function GalleryHeader({
     ? (coverImageMobile || coverImageDesktop || coverImageUrl)
     : (coverImageDesktop || coverImageUrl);
   
-  // Debug log
-  console.log('🖼️ GalleryHeader Display:', {
-    isMobile,
-    coverImageMobile: coverImageMobile?.substring(0, 100) + '...',
-    coverImageDesktop: coverImageDesktop?.substring(0, 100) + '...',
-    displayImage: displayImage?.substring(0, 100) + '...'
-  });
-  
   // Carica e analizza le dimensioni dell'immagine di copertina
   useEffect(() => {
     if (displayImage && displayImage.trim() !== "") {
