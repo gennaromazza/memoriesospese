@@ -1,0 +1,115 @@
+# 🧠 AGENT TASK: Fix completo per la sparizione delle storie (Memorie Sospese)
+# Obiettivo: allineare il sistema CoupleStory in modo che le storie restino visibili anche dopo logout/login.
+
+# 🪄 CONTEXT:
+# - File coinvolti: src/lib/StoryService.ts, src/shared/schema.ts, src/hooks/useCoupleStory.ts (nuovo hook)
+# - Attuale comportamento: dopo il salvataggio la storia è visibile, ma sparisce al rientro nella galleria.
+# - Causa: documenti con ID casuale o campo galleryId mancante (vecchi dati o import precedenti).
+
+# ✅ STEP 1: Fix in StoryService.saveStory()
+# Modifica setDoc per usare sempre serverTimestamp() e garantire coerenza tra docId e galleryId.
+
+--- PATCH START ---
+
+// 🔧 Usa sempre serverTimestamp() per coerenza
+const storyDocument: any = {
+  ...cleanedStoryData,
+  galleryId,
+  id: galleryId,
+  updatedAt: serverTimestamp(),
+  updatedBy: userEmail || 'admin'
+};
+
+const existingStory = await this.getStoryByGalleryId(galleryId);
+if (!existingStory) {
+  storyDocument.createdAt = serverTimestamp();
+  storyDocument.createdBy = userEmail || 'admin';
+  console.log('🆕 [SAVE] Nuova storia');
+} else {
+  storyDocument.createdAt = existingStory.createdAt ?? serverTimestamp();
+  storyDocument.createdBy = existingStory.createdBy ?? 'admin';
+  console.log('🔄 [SAVE] Aggiornamento storia');
+}
+
+// Salvataggio atomico con merge per evitare perdita di dati
+const docRef = doc(db, 'coupleStories', galleryId);
+await setDoc(docRef, storyDocument, { merge: true });
+console.log('✅ [SAVE] Storia salvata con merge + serverTimestamp()');
+
+--- PATCH END ---
+
+# ✅ STEP 2: Fix in StoryService.getStoryByGalleryId()
+# Usa getDocFromServer se disponibile per evitare cache offline e forza sempre il campo galleryId nel risultato.
+
+--- PATCH START ---
+import { 
+  collection, doc, getDoc, getDocFromServer, setDoc, deleteDoc, query, where,
+  onSnapshot, serverTimestamp, getDocs, limit
+} from 'firebase/firestore';
+
+...
+
+const storyDocRef = doc(db, 'coupleStories', galleryId);
+let storyDoc;
+
+try {
+  storyDoc = await getDocFromServer(storyDocRef);
+} catch {
+  storyDoc = await getDoc(storyDocRef); // fallback se offline
+}
+
+if (storyDoc.exists()) {
+  const storyData = { id: storyDoc.id, ...storyDoc.data(), galleryId } as CoupleStory;
+  return storyData;
+}
+--- PATCH END ---
+
+# ✅ STEP 3: Aggiungi Hook Realtime per garantire lettura sincronizzata
+# Crea un nuovo file: src/hooks/useCoupleStory.ts
+
+--- NEW FILE: src/hooks/useCoupleStory.ts ---
+import { useState, useEffect } from "react";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import type { CoupleStory } from "@shared/schema";
+
+export function useCoupleStory(galleryId: string) {
+  const [story, setStory] = useState<CoupleStory | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!galleryId) return;
+    const ref = doc(db, "coupleStories", galleryId);
+    const unsub = onSnapshot(ref, (snap) => {
+      setStory(snap.exists() ? ({ id: snap.id, ...(snap.data() as any) }) : null);
+      setLoading(false);
+    }, () => setLoading(false));
+    return () => unsub();
+  }, [galleryId]);
+
+  return { story, loading };
+}
+--- END FILE ---
+
+# ✅ STEP 4: Aggiungi comando di migrazione (cleanup)
+# Usa le funzioni già presenti nel service per allineare tutti i documenti esistenti.
+
+--- PATCH START ---
+console.log('🧹 Esecuzione cleanup storie incoerenti...');
+await StoryService.cleanupInconsistentStories();
+console.log('✅ Cleanup completato');
+--- PATCH END ---
+
+# ✅ STEP 5: Esegui test diagnostico
+await StoryService.debugFirestoreStories();
+await StoryService.testStoryRetrieval('<GALLERY_ID_TEST>');
+# Verifica che per ogni storia:
+#  - doc.id === data.galleryId
+#  - createdAt e updatedAt siano Timestamp
+#  - il caricamento dopo login ritorni correttamente la storia
+
+# ✅ DONE:
+# Dopo questi fix, ogni salvataggio e ricaricamento utilizzerà sempre lo stesso docId (galleryId) con timestamps coerenti,
+# evitando il bug di “sparizione” dopo logout/login.
+
+# Prompt autore: ChatGPT (GPT-5) — ottimizzato per Replit Agent (TypeScript + Firebase)
