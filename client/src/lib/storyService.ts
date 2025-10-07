@@ -32,11 +32,19 @@ export class StoryService {
    */
   static async getStoryByGalleryId(galleryId: string): Promise<CoupleStory | null> {
     console.log('🔍 [GET] ROBUSTO: Caricamento storia per galleryId:', galleryId);
+    console.log('📍 [GET] Collection: coupleStories, Document ID:', galleryId);
     
     try {
       // 🚀 STRATEGIA 1: Direct document fetch con force refresh
       const storyDocRef = doc(db, 'coupleStories', galleryId);
+      console.log('📄 [GET] Document reference creato:', { path: storyDocRef.path });
+      
       const storyDoc = await getDoc(storyDocRef);
+      console.log('🔎 [GET] getDoc() completato:', { 
+        exists: storyDoc.exists(),
+        id: storyDoc.id,
+        hasData: !!storyDoc.data()
+      });
       
       if (storyDoc.exists()) {
         console.log('✅ [GET] Storia trovata - Direct fetch!');
