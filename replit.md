@@ -13,6 +13,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - Integration with Stripe for subscription management (Free, Starter, Pro, Premium plans).
 - **Questionario system for wedding couples with secure token-based access, multi-step forms, auto-save functionality, and ChatGPT export for personalized album content generation.**
 - **Multiple YouTube video support with interactive carousel slider** - galleries can now display multiple wedding videos with smooth navigation.
+- **Dual-device cover images** - separate optimized cover images for mobile (9:16 portrait) and desktop (16:9 landscape) with advanced crop tool featuring zoom, rotation, and real-time preview.
 
 **Vision:** To be a leading platform for digital wedding memory preservation, offering a seamless and engaging experience for all users.
 
@@ -34,7 +35,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 **Architectural Decisions & Patterns:**
 - **Authentication:** Migrating towards a unified Firebase Auth system (`useAuth` hook, `FirebaseAuthContext`). Backend middleware for credential validation is used where Express.js is present. Admin authentication uses a hardcoded list validated centrally.
 - **Data Management:** Dual collection support for photos, comments, and voice memos (legacy `galleries/{id}/photos` and new global `photos` collections) ensures backward compatibility.
-- **Image Handling:** Automatic image compression on upload. Watermarking system integrated for Pro/Premium plans. Duplicate photo detection and automatic skipping.
+- **Image Handling:** Automatic image compression on upload. Watermarking system integrated for Pro/Premium plans. Duplicate photo detection and automatic skipping. **Dual-device cover system:** galleries support separate mobile (9:16) and desktop (16:9) cover images with advanced crop tool (ImageCropper component) that calculates optimal crop areas based on source image dimensions, applies zoom/rotation transforms, and provides real-time preview for both formats. Automatic device detection via window.matchMedia displays the appropriate cover. Full backward compatibility with legacy single coverImageUrl.
 - **Social Features:** Interactive social panel with likes, comments, and voice memos. Real-time updates for social activities.
 - **User Interface:** Clean, responsive layout optimized for desktop and mobile. Consistent UI elements, centralized authentication dialogs, and improved navigation. User profile image uploads with automatic compression.
 - **Subscription System:** Integrated with Stripe Checkout and Customer Portal, supporting Free, Starter, Pro, and Premium plans. Access controls based on subscription tier for features like watermarking, ZIP downloads, and CSV exports.
