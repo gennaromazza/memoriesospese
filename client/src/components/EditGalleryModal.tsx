@@ -795,8 +795,24 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
   return (
     <>
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col" aria-describedby="edit-gallery-dialog-description">
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={(open) => {
+        // Previeni la chiusura se il cropper è aperto
+        if (!open && showCropper) return;
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent 
+        className="sm:max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col" 
+        aria-describedby="edit-gallery-dialog-description"
+        onEscapeKeyDown={(e) => { 
+          if (showCropper) e.preventDefault(); 
+        }}
+        onInteractOutside={(e) => { 
+          if (showCropper) e.preventDefault(); 
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Modifica Galleria: {gallery.name}</DialogTitle>
           <DialogDescription id="edit-gallery-dialog-description">
