@@ -33,7 +33,9 @@ export interface Gallery {
   date: string;
   location: string;
   description?: string;
-  coverImageUrl?: string;
+  coverImageUrl?: string; // Mantieni per retrocompatibilità
+  coverImageMobile?: string; // Nuovo: copertina per mobile (9:16)
+  coverImageDesktop?: string; // Nuovo: copertina per desktop (16:9)
   youtubeUrl?: string; // Mantieni per retrocompatibilità
   youtubeUrls?: string[]; // Nuovo: array di URL YouTube
   photoCount: number;
