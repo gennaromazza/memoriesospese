@@ -302,14 +302,6 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [isOpen]);
 
-  // Forza il caricamento foto quando il modal si apre ma non ci sono foto
-  useEffect(() => {
-    if (isOpen && gallery && photos.length === 0 && !isLoading) {
-      console.log('🔄 Forzando loadPhotos perché modal aperto ma nessuna foto');
-      loadPhotos();
-    }
-  }, [isOpen, gallery, photos.length, isLoading]);
-
   // Funzione helper per comprimere immagini
   const compressImage = async (file: File): Promise<File> => {
     const options = {
