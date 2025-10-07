@@ -535,7 +535,7 @@ export default function StoryUploadForm({
               <Button
                 onClick={handleUpload}
                 disabled={!validationResult.isValid || isUploading || !user || !isAdmin}
-                className="bg-terracotta-600 hover:bg-terracotta-700 text-white font-semibold shadow-md disabled:opacity-50 disabled:shadow-none"
+                className="bg-terracotta-600 hover:bg-terracotta-700 text-white font-semibold shadow-md disabled:bg-terracotta-400 disabled:text-white disabled:cursor-not-allowed"
               >
                 {isUploading ? (
                   <>
