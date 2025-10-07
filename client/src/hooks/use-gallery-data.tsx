@@ -15,6 +15,7 @@ export interface GalleryData {
   description?: string;
   coverImageUrl?: string;
   youtubeUrl?: string;
+  youtubeUrls?: string[];
   photoCount?: number;
   code?: string; // Aggiunto il codice galleria necessario per la condivisione
   active?: boolean; // Status attivazione galleria

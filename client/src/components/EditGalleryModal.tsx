@@ -40,6 +40,7 @@ interface GalleryType {
   password?: string;
   coverImageUrl?: string;
   youtubeUrl?: string;
+  youtubeUrls?: string[];
   photoCount?: number;
 }
 
@@ -55,7 +56,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [password, setPassword] = useState("");
-  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
+  const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
@@ -265,7 +267,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setLocation(gallery.location || "");
       setDescription(gallery.description || "");
       setPassword(gallery.password || "");
-      setYoutubeUrl(gallery.youtubeUrl || "");
+      
+      // Gestione retrocompatibilità: se c'è youtubeUrl singolo, convertilo in array
+      const urls: string[] = [];
+      if (gallery.youtubeUrls && gallery.youtubeUrls.length > 0) {
+        urls.push(...gallery.youtubeUrls);
+      } else if (gallery.youtubeUrl) {
+        urls.push(gallery.youtubeUrl);
+      }
+      setYoutubeUrls(urls);
+      setNewYoutubeUrl("");
+      
       setCoverImageUrl(gallery.coverImageUrl || "");
 
       // Se c'è un'immagine di copertina esistente, impostiamo l'anteprima
@@ -538,7 +550,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         description,
         password,
         coverImageUrl: newCoverImageUrl,
-        youtubeUrl,
+        youtubeUrls: youtubeUrls.length > 0 ? youtubeUrls : null,
         hasChapters: false,
         updatedAt: serverTimestamp()
       });
@@ -561,7 +573,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, coverImage, coverImageUrl, name, date, location, description, password, youtubeUrl, onClose, toast]);
+  }, [gallery, coverImage, coverImageUrl, name, date, location, description, password, youtubeUrls, onClose, toast]);
 
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
@@ -783,14 +795,52 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               />
             </div>
 
-            <div>
-              <Label htmlFor="youtubeUrl">URL YouTube (opzionale)</Label>
-              <Input
-                id="youtubeUrl"
-                value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-              />
+            <div className="space-y-3">
+              <Label>Video YouTube (opzionale)</Label>
+              
+              {/* Lista URL esistenti */}
+              {youtubeUrls.length > 0 && (
+                <div className="space-y-2">
+                  {youtubeUrls.map((url, index) => (
+                    <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+                      <span className="text-sm flex-1 truncate">{url}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setYoutubeUrls(urls => urls.filter((_, i) => i !== index))}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Input per nuovo URL */}
+              <div className="flex gap-2">
+                <Input
+                  value={newYoutubeUrl}
+                  onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (newYoutubeUrl.trim()) {
+                      setYoutubeUrls([...youtubeUrls, newYoutubeUrl.trim()]);
+                      setNewYoutubeUrl("");
+                    }
+                  }}
+                  disabled={!newYoutubeUrl.trim()}
+                >
+                  Aggiungi
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">Aggiungi più video YouTube che saranno mostrati in uno slider nella galleria</p>
             </div>
 
             <div>

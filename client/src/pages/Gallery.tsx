@@ -466,7 +466,10 @@ export default function Gallery() {
         
 
         {/* Video YouTube se presente */}
-        <YouTubeEmbed videoUrl={galleryData.youtubeUrl || ""} />
+        <YouTubeEmbed 
+          videoUrl={galleryData.youtubeUrl} 
+          videoUrls={galleryData.youtubeUrls} 
+        />
 
         <main>
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">

@@ -34,7 +34,8 @@ export interface Gallery {
   location: string;
   description?: string;
   coverImageUrl?: string;
-  youtubeUrl?: string;
+  youtubeUrl?: string; // Mantieni per retrocompatibilità
+  youtubeUrls?: string[]; // Nuovo: array di URL YouTube
   photoCount: number;
   active: boolean;
   // Security Question fields

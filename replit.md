@@ -12,6 +12,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - Admin panel for gallery management, user management, and subscription control.
 - Integration with Stripe for subscription management (Free, Starter, Pro, Premium plans).
 - **Questionario system for wedding couples with secure token-based access, multi-step forms, auto-save functionality, and ChatGPT export for personalized album content generation.**
+- **Multiple YouTube video support with interactive carousel slider** - galleries can now display multiple wedding videos with smooth navigation.
 
 **Vision:** To be a leading platform for digital wedding memory preservation, offering a seamless and engaging experience for all users.
 
