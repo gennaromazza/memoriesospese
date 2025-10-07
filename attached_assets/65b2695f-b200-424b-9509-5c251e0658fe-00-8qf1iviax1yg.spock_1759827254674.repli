@@ -1,0 +1,111 @@
+chunk-SP6A6TOT.js?v=b53a18f8:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+firebase.ts:31 Using fallback Firebase configuration. Set environment variables for production.
+(anonymous) @ firebase.ts:31
+firebase.ts:48 🚀 Firebase: connessione diretta ai servizi produzione
+firebase.ts:49 📋 Questionari e token validation: produzione Firebase
+Gallery.tsx:178 🔄 [ONCE] Caricamento iniziale storia per galleryId: XQhyDzLp
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: XQhyDzLp
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: XQhyDzLp
+storyService.ts:40 📄 [GET] Document reference creato: Object
+Gallery.tsx:241 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+Gallery.tsx:178 🔄 [ONCE] Caricamento iniziale storia per galleryId: XQhyDzLp
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: XQhyDzLp
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: XQhyDzLp
+storyService.ts:40 📄 [GET] Document reference creato: Object
+Gallery.tsx:241 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:69 🔎 [GET] Fallback: Query per galleryId field...
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:69 🔎 [GET] Fallback: Query per galleryId field...
+storyService.ts:92 ❌ [GET] Nessuna storia trovata
+Gallery.tsx:182 📖 [ONCE] Storia caricata da Firebase: NON TROVATA Object
+Gallery.tsx:191 ❌ [ONCE] Nessuna storia trovata - set null: XQhyDzLp
+storyService.ts:92 ❌ [GET] Nessuna storia trovata
+Gallery.tsx:182 📖 [ONCE] Storia caricata da Firebase: NON TROVATA Object
+Gallery.tsx:191 ❌ [ONCE] Nessuna storia trovata - set null: XQhyDzLp
+Gallery.tsx:178 🔄 [ONCE] Caricamento iniziale storia per galleryId: XQhyDzLp
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: XQhyDzLp
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: XQhyDzLp
+storyService.ts:40 📄 [GET] Document reference creato: Object
+Gallery.tsx:241 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+Gallery.tsx:178 🔄 [ONCE] Caricamento iniziale storia per galleryId: XQhyDzLp
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: XQhyDzLp
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: XQhyDzLp
+storyService.ts:40 📄 [GET] Document reference creato: Object
+Gallery.tsx:241 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+Gallery.tsx:204 🚫 [SKIP] Load story skipped: Object
+Gallery.tsx:241 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:69 🔎 [GET] Fallback: Query per galleryId field...
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:69 🔎 [GET] Fallback: Query per galleryId field...
+storyService.ts:92 ❌ [GET] Nessuna storia trovata
+Gallery.tsx:182 📖 [ONCE] Storia caricata da Firebase: NON TROVATA Object
+Gallery.tsx:191 ❌ [ONCE] Nessuna storia trovata - set null: XQhyDzLp
+storyService.ts:92 ❌ [GET] Nessuna storia trovata
+Gallery.tsx:182 📖 [ONCE] Storia caricata da Firebase: NON TROVATA Object
+Gallery.tsx:191 ❌ [ONCE] Nessuna storia trovata - set null: XQhyDzLp
+Gallery.tsx:204 🚫 [SKIP] Load story skipped: Object
+logger.ts:94 [2025-10-07T08:49:46.190Z] [INFO] [Gallery:nmlPNhtYmXe9RuXOyzHt] Foto totali nella galleria (new + legacy)
+logger.ts:94 [2025-10-07T08:49:46.191Z] [INFO] [Gallery:nmlPNhtYmXe9RuXOyzHt] Foto totali nella galleria (new + legacy)
+logger.ts:94 [2025-10-07T08:49:46.411Z] [INFO] [Gallery:nmlPNhtYmXe9RuXOyzHt] Top foto per like
+logger.ts:94 [2025-10-07T08:49:46.412Z] [INFO] [Gallery:nmlPNhtYmXe9RuXOyzHt] Top foto per like
+Gallery.tsx:178 🔄 [ONCE] Caricamento iniziale storia per galleryId: XQhyDzLp
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: XQhyDzLp
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: XQhyDzLp
+storyService.ts:40 📄 [GET] Document reference creato: Object
+Gallery.tsx:241 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+Gallery.tsx:178 🔄 [ONCE] Caricamento iniziale storia per galleryId: XQhyDzLp
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: XQhyDzLp
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: XQhyDzLp
+storyService.ts:40 📄 [GET] Document reference creato: Object
+Gallery.tsx:241 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+Gallery.tsx:204 🚫 [SKIP] Load story skipped: Object
+Gallery.tsx:241 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:69 🔎 [GET] Fallback: Query per galleryId field...
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:69 🔎 [GET] Fallback: Query per galleryId field...
+storyService.ts:92 ❌ [GET] Nessuna storia trovata
+Gallery.tsx:182 📖 [ONCE] Storia caricata da Firebase: NON TROVATA Object
+Gallery.tsx:191 ❌ [ONCE] Nessuna storia trovata - set null: XQhyDzLp
+storyService.ts:92 ❌ [GET] Nessuna storia trovata
+Gallery.tsx:182 📖 [ONCE] Storia caricata da Firebase: NON TROVATA Object
+Gallery.tsx:191 ❌ [ONCE] Nessuna storia trovata - set null: XQhyDzLp
+Gallery.tsx:204 🚫 [SKIP] Load story skipped: Object
+EditGalleryModal.tsx:260 🔄 Caricamento dati galleria nel modal: nmlPNhtYmXe9RuXOyzHt
+EditGalleryModal.tsx:260 🔄 Caricamento dati galleria nel modal: nmlPNhtYmXe9RuXOyzHt
+EditGalleryModal.tsx:260 🔄 Caricamento dati galleria nel modal: nmlPNhtYmXe9RuXOyzHt
+logger.ts:94 [2025-10-07T08:50:19.104Z] [INFO] [Gallery:nmlPNhtYmXe9RuXOyzHt] Foto totali nella galleria (new + legacy)
+logger.ts:94 [2025-10-07T08:50:19.105Z] [INFO] [Gallery:nmlPNhtYmXe9RuXOyzHt] Foto totali nella galleria (new + legacy)
+logger.ts:94 [2025-10-07T08:50:19.579Z] [INFO] [Gallery:nmlPNhtYmXe9RuXOyzHt] Top foto per like
+logger.ts:94 [2025-10-07T08:50:19.579Z] [INFO] [Gallery:nmlPNhtYmXe9RuXOyzHt] Top foto per like
+storyService.ts:149 🚀 [SAVE] ROBUSTO: Inizio salvataggio storia: Object
+storyService.ts:153 🧹 [SAVE] PULIZIA: Rimozione valori undefined...
+storyService.ts:155 ✅ [SAVE] PULIZIA: Dati puliti da undefined
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: nmlPNhtYmXe9RuXOyzHt
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: nmlPNhtYmXe9RuXOyzHt
+storyService.ts:40 📄 [GET] Document reference creato: Object
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:50 ✅ [GET] Storia trovata - Direct fetch!
+storyService.ts:58 📖 [GET] Storia valida: Object
+storyService.ts:176 🔄 [SAVE] ROBUSTO: Aggiornamento storia
+storyService.ts:182 💾 [SAVE] ROBUSTO: Documento finale pulito: Object
+storyService.ts:204 🔍 [SAVE] VERIFICA IMMEDIATA...
+storyService.ts:210 ✅ [SAVE] VERIFICATO! Storia salvata e leggibile: Object
+storyService.ts:218 🧪 [SAVE] TEST IMMEDIATO: Rilettura con service...
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: nmlPNhtYmXe9RuXOyzHt
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: nmlPNhtYmXe9RuXOyzHt
+storyService.ts:40 📄 [GET] Document reference creato: Object
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:50 ✅ [GET] Storia trovata - Direct fetch!
+storyService.ts:58 📖 [GET] Storia valida: Object
+storyService.ts:220 🧪 [SAVE] TEST IMMEDIATO RISULTATO: Objectfound: truetitolo: undefined[[Prototype]]: Object
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: nmlPNhtYmXe9RuXOyzHt
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: nmlPNhtYmXe9RuXOyzHt
+storyService.ts:40 📄 [GET] Document reference creato: Object
+storyService.ts:43 🔎 [GET] getDoc() completato: Objectexists: truehasData: trueid: "nmlPNhtYmXe9RuXOyzHt"[[Prototype]]: Object
+storyService.ts:50 ✅ [GET] Storia trovata - Direct fetch!
+storyService.ts:58 📖 [GET] Storia valida: Object
+Gallery.tsx:943 ✅ Storia caricata tramite upload: Objectcapitolo_1_lattesa: (6) [{…}, {…}, {…}, {…}, {…}, {…}]capitolo_2_incontro: (8) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]capitolo_3_festa: (8) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]citazioni_poetiche: (12) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]createdAt: {seconds: 1758109663, nanoseconds: 927000000}createdBy: "gennaro.mazzacane@gmail.com"galleryId: "nmlPNhtYmXe9RuXOyzHt"id: "nmlPNhtYmXe9RuXOyzHt"prologo: {testo: 'La storia di Lucrezia e Giuseppe iniziò in due tem…, la scintilla prese forma, e la strada cominciò.', posizione: "Prima pagina dell'album"}updatedAt: 1759827027934updatedBy: "gennaro.mazzacane@gmail.com"[[Prototype]]: Object
+Warning: Don’t paste code into the DevTools Console that you don’t understand or haven’t reviewed yourself. This could allow attackers to steal your identity or take control of your computer. Please type ‘allow pasting’ below and press Enter to allow pasting.
