@@ -100,23 +100,23 @@ export default function GalleryHeader({
   };
 
   return (
-    <div className="relative bg-white py-6 sm:py-10 overflow-hidden">
-      {/* Decorazioni */}
-      <FloralCorner position="top-left" className="absolute top-0 left-0 w-32 h-32 opacity-10 pointer-events-none" />
-      <FloralCorner position="top-right" className="absolute top-0 right-0 w-32 h-32 opacity-10 pointer-events-none" />
-      <div className="absolute inset-0 opacity-5 pointer-events-none">
+    <div className="relative bg-white sm:py-6 md:py-10 overflow-hidden">
+      {/* Decorazioni - nascoste su mobile per full-screen */}
+      <FloralCorner position="top-left" className="hidden sm:block absolute top-0 left-0 w-32 h-32 opacity-10 pointer-events-none" />
+      <FloralCorner position="top-right" className="hidden sm:block absolute top-0 right-0 w-32 h-32 opacity-10 pointer-events-none" />
+      <div className="hidden sm:block absolute inset-0 opacity-5 pointer-events-none">
         <BackgroundDecoration />
       </div>
       
       {displayImage && displayImage.trim() !== "" ? (
-        <div className="relative w-full mb-10">
-          <div className={`relative w-full max-w-6xl mx-auto ${
+        <div className="relative w-full mb-0 sm:mb-10">
+          <div className={`relative w-full sm:max-w-6xl sm:mx-auto ${
             imageDimensions?.isLandscape 
-              ? 'h-64 sm:h-80 md:h-96 lg:h-[450px]' 
+              ? 'h-screen sm:h-80 md:h-96 lg:h-[450px]' 
               : imageDimensions?.aspectRatio && imageDimensions.aspectRatio < 0.7
-                ? 'h-[500px] sm:h-[550px] md:h-[600px] lg:h-[650px]' // Immagini molto verticali
-                : 'h-[400px] sm:h-[450px] md:h-[500px] lg:h-[550px]' // Immagini verticali ma non estreme
-          } overflow-hidden rounded-lg shadow-lg`}>
+                ? 'h-screen sm:h-[550px] md:h-[600px] lg:h-[650px]' // Immagini molto verticali - full screen mobile
+                : 'h-screen sm:h-[450px] md:h-[500px] lg:h-[550px]' // Immagini verticali - full screen mobile
+          } overflow-hidden sm:rounded-lg sm:shadow-lg`}>
             <div className="relative w-full h-full">
               {/* Pulsante per ingrandire l'immagine */}
               <div className="absolute top-3 right-3 z-10">
