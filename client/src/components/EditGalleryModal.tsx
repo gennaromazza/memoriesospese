@@ -619,6 +619,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       });
 
       console.log('✅ Galleria salvata con successo');
+      
+      // Forza il refresh della galleria
+      window.dispatchEvent(new CustomEvent('galleryRefresh', { detail: { galleryId: gallery.id } }));
+      
       toast({
         title: "Galleria aggiornata",
         description: "Le modifiche alla galleria sono state salvate con successo"
