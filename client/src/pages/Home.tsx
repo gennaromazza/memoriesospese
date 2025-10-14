@@ -336,6 +336,60 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Special Gallery Section */}
+      <section className="py-16 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 dark:from-gray-900 dark:via-purple-950 dark:to-gray-900 relative overflow-hidden">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white font-playfair mb-3">
+              Gallerie Speciali
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+              Accedi alle nostre gallerie tematiche esclusive con il PIN che ti è stato fornito
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 shadow-xl rounded-lg p-8 border border-purple-200 dark:border-purple-800">
+            <div className="flex flex-col items-center">
+              <div className="w-full max-w-sm">
+                <p className="text-center text-gray-600 dark:text-gray-300 mb-6">
+                  Hai ricevuto un PIN per una galleria speciale? Inseriscilo qui per accedere
+                </p>
+                
+                <Link href="/special-gallery">
+                  <a className="block w-full">
+                    <Button 
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-6 text-lg font-medium shadow-lg hover:shadow-xl transition-all"
+                      data-testid="button-access-special-gallery"
+                    >
+                      <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Accedi con PIN
+                    </Button>
+                  </a>
+                </Link>
+
+                <div className="mt-6 grid grid-cols-2 gap-3 text-center">
+                  <div className="bg-gradient-to-br from-red-50 to-green-50 dark:from-red-950 dark:to-green-950 p-3 rounded-lg">
+                    <span className="text-2xl">🎄</span>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Natale</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-50 to-purple-50 dark:from-orange-950 dark:to-purple-950 p-3 rounded-lg">
+                    <span className="text-2xl">🎭</span>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Carnevale</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Request Password Section */}
       <section
         id="request-password"

@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { getAllThemes } from '@shared/special-themes';
 
 interface NewGalleryModalProps {
   isOpen: boolean;
@@ -23,7 +25,11 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [password, setPassword] = useState('');
+  const [specialTheme, setSpecialTheme] = useState<string>('none');
+  const [specialPin, setSpecialPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  const availableThemes = getAllThemes();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +59,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
       const code = nanoid(8);
 
       // Create gallery
-      await addDoc(collection(db, 'galleries'), {
+      const galleryData: any = {
         name: name.trim(),
         code,
         date,
@@ -64,7 +70,15 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
         photoCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      // Add special theme fields if theme is selected
+      if (specialTheme !== 'none') {
+        galleryData.specialTheme = specialTheme;
+        galleryData.specialPin = specialPin.trim();
+      }
+
+      await addDoc(collection(db, 'galleries'), galleryData);
 
       toast.success('Galleria creata con successo!');
 
@@ -74,6 +88,8 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
       setLocation('');
       setDescription('');
       setPassword('');
+      setSpecialTheme('none');
+      setSpecialPin('');
 
       onGalleryCreated?.();
       onClose();
@@ -153,6 +169,47 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
               <p className="text-sm text-muted-foreground">
                 Lascia vuoto per accesso libero
               </p>
+            </div>
+
+            {/* Special Theme Section */}
+            <div className="border-t pt-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="specialTheme">Tema Stagionale</Label>
+                <Select value={specialTheme} onValueChange={setSpecialTheme}>
+                  <SelectTrigger data-testid="select-special-theme">
+                    <SelectValue placeholder="Seleziona tema (opzionale)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessun tema (galleria normale)</SelectItem>
+                    {availableThemes.map((theme) => (
+                      <SelectItem key={theme.id} value={theme.id}>
+                        {theme.icon} {theme.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Applica un tema stagionale speciale alla galleria
+                </p>
+              </div>
+
+              {specialTheme !== 'none' && (
+                <div className="space-y-2">
+                  <Label htmlFor="specialPin">PIN Galleria Speciale *</Label>
+                  <Input
+                    id="specialPin"
+                    type="text"
+                    value={specialPin}
+                    onChange={(e) => setSpecialPin(e.target.value)}
+                    placeholder="Es. 2024"
+                    required={specialTheme !== 'none'}
+                    data-testid="input-special-pin"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    PIN univoco per accedere a questa galleria speciale
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

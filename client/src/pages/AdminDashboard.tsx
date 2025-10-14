@@ -24,8 +24,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
+import { getAllThemes } from "@shared/special-themes";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -158,6 +159,8 @@ interface GalleryItem {
   youtubeUrl?: string;
   youtubeUrls?: string[];
   password?: string;
+  specialTheme?: string;
+  specialPin?: string;
 }
 
 interface StudioSettings {
@@ -1017,6 +1020,12 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Q&A</span>
               </TabsTrigger>
 
+              <TabsTrigger value="themes" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Temi Stagionali</span>
+                <span className="sm:hidden">Temi</span>
+              </TabsTrigger>
+
               <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Impostazioni</span>
@@ -1381,6 +1390,84 @@ export default function AdminDashboard() {
                   </p>
                 </div>
                 <QuestionnaireManager />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Temi Stagionali */}
+            <TabsContent value="themes">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-blue-gray mb-2">Temi Stagionali</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Visualizza i temi disponibili e le gallerie associate. I temi possono essere assegnati durante la creazione di una galleria.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {getAllThemes().map((theme) => {
+                    const galleriesWithTheme = galleries.filter(g => g.specialTheme === theme.id);
+                    
+                    return (
+                      <Card key={theme.id} className="border-2" style={{ borderColor: theme.colors.primary + '30' }}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-3xl">{theme.icon}</span>
+                            <div>
+                              <CardTitle className="text-lg">{theme.name}</CardTitle>
+                              {theme.description && (
+                                <CardDescription className="text-xs mt-1">{theme.description}</CardDescription>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <div 
+                              className="w-4 h-4 rounded-full border" 
+                              style={{ backgroundColor: theme.colors.primary }}
+                            />
+                            <span className="text-xs text-muted-foreground">Colore principale</span>
+                          </div>
+                          
+                          <div className="pt-2 border-t">
+                            <p className="text-xs font-medium text-muted-foreground mb-2">
+                              Gallerie con questo tema: {galleriesWithTheme.length}
+                            </p>
+                            {galleriesWithTheme.length > 0 && (
+                              <div className="space-y-1">
+                                {galleriesWithTheme.slice(0, 3).map(gallery => (
+                                  <div key={gallery.id} className="text-xs bg-muted p-2 rounded flex items-center justify-between">
+                                    <span className="font-medium truncate">{gallery.name}</span>
+                                    {gallery.specialPin && (
+                                      <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono">
+                                        PIN: {gallery.specialPin}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                                {galleriesWithTheme.length > 3 && (
+                                  <p className="text-xs text-muted-foreground pt-1">
+                                    +{galleriesWithTheme.length - 3} altre...
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                  <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Come usare i temi stagionali</h3>
+                  <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
+                    <li>Crea una nuova galleria dal tab "Gallerie"</li>
+                    <li>Seleziona un tema stagionale dal dropdown</li>
+                    <li>Assegna un PIN univoco per l'accesso</li>
+                    <li>La galleria sarà accessibile tramite la sezione "Gallerie Speciali" in homepage</li>
+                  </ul>
+                </div>
               </div>
             </TabsContent>
 

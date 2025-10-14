@@ -13,6 +13,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import Home from "./pages/Home";
 import GalleryAccess from "./pages/GalleryAccess";
 import Gallery from "./pages/Gallery";
+import SpecialGalleryAccess from "./pages/SpecialGalleryAccess";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import Faq from "./pages/admin/Faq";
@@ -49,6 +50,7 @@ function AppRoutes() {
       <Route path="/terms" component={Terms} />
 
       {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
+      <Route path="/special-gallery" component={SpecialGalleryAccess} />
       <Route path="/gallery/:id" component={GalleryAccess} />
       <Route path="/view/:id" component={Gallery} />
 

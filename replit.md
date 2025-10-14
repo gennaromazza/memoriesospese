@@ -14,6 +14,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - **Questionario system for wedding couples with secure token-based access, multi-step forms, auto-save functionality, and ChatGPT export for personalized album content generation.**
 - **Multiple YouTube video support with interactive carousel slider** - galleries can now display multiple wedding videos with smooth navigation.
 - **Dual-device cover images** - separate optimized cover images for mobile (9:16 portrait) and desktop (16:9 landscape) with advanced crop tool featuring zoom, rotation, and real-time preview.
+- **Special Theme System (Seasonal Galleries)** - modular themed gallery system with hardcoded Tailwind styles (Natale, Carnevale, San Valentino, Pasqua, Halloween). Galleries can be assigned seasonal themes with PIN-based access, displayed in dedicated homepage section.
 
 **Vision:** To be a leading platform for digital wedding memory preservation, offering a seamless and engaging experience for all users.
 
@@ -46,6 +47,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - **Code Quality:** Strict TypeScript typing enforced throughout the codebase, leading to zero compilation errors. Modular components and unified interfaces.
 - **Security:** Granular Firebase Security Rules for Firestore and Storage, Firebase Functions protected with token verification, and user isolation preventing access to other users' galleries. Rate limiting (50 requests/5 minutes) on sensitive operations.
 - **Questionario System:** Enterprise-grade questionnaire management for wedding couples with secure 32-byte crypto tokens, SHA-256 hashing, and role-based access (bride/groom). Features multi-step forms (1 question per step), auto-save with 7-second debounce, localStorage backup for offline resilience, progress tracking, privacy consent controls, and ChatGPT export templates for personalized wedding album content generation. Token validation includes temporary sessions (15 min), rate limiting (50 attempts/5 min), automatic cleanup, and masked error messages for security.
+- **Special Theme System:** Modular seasonal gallery system with predefined themes (Natale, Carnevale, San Valentino, Pasqua, Halloween) using hardcoded Tailwind CSS classes for styling. Galleries can be assigned a theme during creation via dropdown in NewGalleryModal with unique PIN-based access (stored in `specialTheme` and `specialPin` fields). Homepage features dedicated "Gallerie Speciali" section with gradient design, accessible via `/special-gallery` route. Admin dashboard includes "Temi Stagionali" tab showing theme overview, associated galleries, and PIN management. Session-based PIN verification using sessionStorage for seamless gallery access. Hybrid approach: hardcoded theme definitions in `shared/special-themes.ts` with optional Firestore collection for future extensibility.
 
 ## External Dependencies
 - **Firebase:** Firestore (NoSQL database), Storage (file storage), Authentication (user management), Functions (serverless logic), Hosting (static site hosting).
