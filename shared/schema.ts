@@ -45,6 +45,9 @@ export interface Gallery {
   securityQuestionType?: SecurityQuestionType;
   securityQuestionCustom?: string;
   securityAnswer?: string;
+  // Special Theme fields (seasonal galleries)
+  specialTheme?: string; // ID del tema stagionale (es. 'natale2024')
+  specialPin?: string; // PIN specifico per galleria speciale
   createdAt: any; // Firebase Timestamp
   updatedAt?: any; // Firebase Timestamp
 }
@@ -719,3 +722,48 @@ export const normalizeImportedStory = (rawData: ImportStoryJson): Partial<Insert
 
   return normalized;
 };
+
+// ====== SPECIAL THEME SYSTEM TYPES ======
+
+// Special Theme interface - represents a seasonal or special theme
+export interface SpecialTheme {
+  id: string;
+  name: string; // Nome visualizzato (es. "Natale 2024")
+  icon: string; // Emoji o icona (es. "🎄")
+  description?: string; // Descrizione breve
+  active: boolean; // Se il tema è attivo
+  colors: {
+    primary: string; // Colore principale (hex)
+    secondary?: string; // Colore secondario (hex)
+    accent?: string; // Colore accent (hex)
+  };
+  styles: {
+    bannerBg: string; // Classe Tailwind per background banner (es. "bg-red-800")
+    galleryBg: string; // Classe Tailwind per background galleria (es. "bg-green-50")
+    buttonStyle?: string; // Classe Tailwind per pulsanti
+    textColor?: string; // Classe Tailwind per testo
+  };
+  createdAt: any; // Firebase Timestamp
+  updatedAt?: any; // Firebase Timestamp
+  createdBy?: string; // Admin email
+}
+
+// Validation schema for Special Theme
+export const insertSpecialThemeSchema = z.object({
+  name: z.string().min(3, "Il nome deve contenere almeno 3 caratteri"),
+  icon: z.string().min(1, "L'icona è obbligatoria"),
+  description: z.string().optional(),
+  colors: z.object({
+    primary: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Colore primario non valido"),
+    secondary: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Colore secondario non valido").optional(),
+    accent: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Colore accent non valido").optional()
+  }),
+  styles: z.object({
+    bannerBg: z.string().min(1, "Background banner obbligatorio"),
+    galleryBg: z.string().min(1, "Background galleria obbligatorio"),
+    buttonStyle: z.string().optional(),
+    textColor: z.string().optional()
+  })
+});
+
+export type InsertSpecialTheme = z.infer<typeof insertSpecialThemeSchema>;
