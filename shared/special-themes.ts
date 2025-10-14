@@ -91,12 +91,17 @@ export const PREDEFINED_THEMES: Omit<SpecialTheme, 'id' | 'createdAt' | 'updated
 
 // Helper per ottenere un tema per ID
 export const getThemeById = (id: string): (Omit<SpecialTheme, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'> & { id: string }) | undefined => {
-  const theme = PREDEFINED_THEMES.find(t => t.name.toLowerCase() === id.toLowerCase());
+  const normalizedId = id.toLowerCase().replace(/\s+/g, '-');
+  const theme = PREDEFINED_THEMES.find(t => {
+    const themeId = t.name.toLowerCase().replace(/\s+/g, '-');
+    return themeId === normalizedId;
+  });
+  
   if (!theme) return undefined;
   
   return {
     ...theme,
-    id,
+    id: normalizedId,
   };
 };
 

@@ -44,6 +44,12 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
       return;
     }
 
+    // Validate PIN for special themes
+    if (specialTheme !== 'none' && !specialPin.trim()) {
+      toast.error('Il PIN è obbligatorio per le gallerie con tema stagionale');
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Check gallery limit
