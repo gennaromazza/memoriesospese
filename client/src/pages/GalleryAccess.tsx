@@ -28,11 +28,27 @@ export default function GalleryAccess() {
       setIsLoading(true);
       try {
         const galleriesRef = collection(db, "galleries");
-        const q = query(galleriesRef, where("code", "==", id));
-        const querySnapshot = await getDocs(q);
+        
+        // Cerca prima per "code" (gallerie nuove)
+        let q = query(galleriesRef, where("code", "==", id));
+        let querySnapshot = await getDocs(q);
 
+        // Se non trova per code, cerca per ID Firestore (gallerie vecchie)
         if (querySnapshot.empty) {
-          setGalleryNotFound(true);
+          const { doc, getDoc } = await import("firebase/firestore");
+          const docRef = doc(db, "galleries", id);
+          const docSnapshot = await getDoc(docRef);
+          
+          if (docSnapshot.exists()) {
+            const galleryData = docSnapshot.data();
+            setGalleryDetails({ 
+              name: galleryData.name,
+              date: galleryData.date,
+              location: galleryData.location
+            });
+          } else {
+            setGalleryNotFound(true);
+          }
         } else {
           const galleryData = querySnapshot.docs[0].data();
           setGalleryDetails({ 

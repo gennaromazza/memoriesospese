@@ -412,21 +412,35 @@ export function useGalleryData(galleryCode: string) {
       try {
         
         const galleriesRef = collection(db, "galleries");
-        const q = query(galleriesRef, where("code", "==", galleryCode));
-        const querySnapshot = await getDocs(q);
-
+        
+        // Cerca prima per "code" (gallerie nuove)
+        let q = query(galleriesRef, where("code", "==", galleryCode));
+        let querySnapshot = await getDocs(q);
+        
+        let galleryDoc;
+        let galleryData;
+        
+        // Se non trova per code, cerca per ID Firestore (gallerie vecchie)
         if (querySnapshot.empty) {
-          toast({
-            title: "Galleria non trovata",
-            description: "La galleria richiesta non esiste o è stata rimossa.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return;
+          const docRef = doc(db, "galleries", galleryCode);
+          const docSnapshot = await getDoc(docRef);
+          
+          if (!docSnapshot.exists()) {
+            toast({
+              title: "Galleria non trovata",
+              description: "La galleria richiesta non esiste o è stata rimossa.",
+              variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+          }
+          
+          galleryDoc = docSnapshot;
+          galleryData = docSnapshot.data();
+        } else {
+          galleryDoc = querySnapshot.docs[0];
+          galleryData = galleryDoc.data();
         }
-
-        const galleryDoc = querySnapshot.docs[0];
-        const galleryData = galleryDoc.data();
         
         // Check if gallery is active (default to true for backward compatibility)
         const isActive = galleryData.active !== undefined ? galleryData.active : true;

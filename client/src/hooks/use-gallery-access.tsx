@@ -25,18 +25,30 @@ export function useGalleryAccess() {
 
     try {
       // Prima controlla se la galleria esiste su Firebase
-      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const { collection, query, where, getDocs, doc, getDoc } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
       
       const galleriesRef = collection(db, "galleries");
-      const q = query(galleriesRef, where("code", "==", galleryId));
-      const querySnapshot = await getDocs(q);
-
+      
+      // Cerca prima per "code" (gallerie nuove)
+      let q = query(galleriesRef, where("code", "==", galleryId));
+      let querySnapshot = await getDocs(q);
+      
+      let galleryData;
+      
+      // Se non trova per code, cerca per ID Firestore (gallerie vecchie)
       if (querySnapshot.empty) {
-        throw new Error('Galleria non trovata');
+        const docRef = doc(db, "galleries", galleryId);
+        const docSnapshot = await getDoc(docRef);
+        
+        if (!docSnapshot.exists()) {
+          throw new Error('Galleria non trovata');
+        }
+        
+        galleryData = docSnapshot.data();
+      } else {
+        galleryData = querySnapshot.docs[0].data();
       }
-
-      const galleryData = querySnapshot.docs[0].data();
       
       // Per l'accesso diretto alla galleria, richiediamo solo la password
       // La domanda di sicurezza viene usata solo nel flusso di richiesta password
@@ -80,18 +92,30 @@ export function useGalleryAccess() {
 
     try {
       // Verifica tramite Firebase
-      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const { collection, query, where, getDocs, doc, getDoc } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
       
       const galleriesRef = collection(db, "galleries");
-      const q = query(galleriesRef, where("code", "==", params.galleryId));
-      const querySnapshot = await getDocs(q);
-
+      
+      // Cerca prima per "code" (gallerie nuove)
+      let q = query(galleriesRef, where("code", "==", params.galleryId));
+      let querySnapshot = await getDocs(q);
+      
+      let galleryData;
+      
+      // Se non trova per code, cerca per ID Firestore (gallerie vecchie)
       if (querySnapshot.empty) {
-        throw new Error('Galleria non trovata');
+        const docRef = doc(db, "galleries", params.galleryId);
+        const docSnapshot = await getDoc(docRef);
+        
+        if (!docSnapshot.exists()) {
+          throw new Error('Galleria non trovata');
+        }
+        
+        galleryData = docSnapshot.data();
+      } else {
+        galleryData = querySnapshot.docs[0].data();
       }
-
-      const galleryData = querySnapshot.docs[0].data();
       
       // Per l'accesso diretto alla galleria, verifica solo la password
       // La domanda di sicurezza è utilizzata solo nel flusso di richiesta password
