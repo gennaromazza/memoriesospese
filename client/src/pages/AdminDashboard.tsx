@@ -241,7 +241,27 @@ export default function AdminDashboard() {
     const isAdmin = localStorage.getItem('isAdmin');
     if (!isAdmin) {
       navigate(createUrl("/admin"));
+      return;
     }
+
+    // CRITICAL: Verifica autenticazione Firebase (richiesta dalle Security Rules)
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.email !== 'gennaro.mazzacane@gmail.com') {
+      console.error('❌ Firebase Auth: utente non autenticato o non admin');
+      toast({
+        variant: "destructive",
+        title: "Errore di autenticazione",
+        description: "Devi essere autenticato come admin per accedere a questa sezione. Effettua il logout e riprova.",
+      });
+      // Redirect al login admin dopo 2 secondi
+      setTimeout(() => {
+        localStorage.removeItem('isAdmin');
+        navigate(createUrl("/admin"));
+      }, 2000);
+      return;
+    }
+
+    console.log('✅ Firebase Auth verificato:', currentUser.email);
 
     // Controlla se l'admin proviene da una galleria specifica
     const referrerData = sessionStorage.getItem('adminReferrerGallery');
@@ -254,7 +274,7 @@ export default function AdminDashboard() {
         sessionStorage.removeItem('adminReferrerGallery');
       }
     }
-  }, [navigate]);
+  }, [navigate, toast]);
 
   // Fetch data (galleries, password requests and studio settings)
   useEffect(() => {

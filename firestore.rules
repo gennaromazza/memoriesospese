@@ -221,5 +221,15 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update existing stories
       allow delete: if isAdmin(); // Only admin can delete stories
     }
+
+    // ====== SLIDESHOW IMAGES RULES ======
+    
+    // Slideshow images collection - Admin only management, public read access
+    match /slideshow/{imageId} {
+      allow read: if true; // Public read access for homepage slideshow
+      allow create: if isAdmin(); // Only admin can add slideshow images
+      allow update: if isAdmin(); // Only admin can update slideshow images
+      allow delete: if isAdmin(); // Only admin can delete slideshow images
+    }
   }
 }
