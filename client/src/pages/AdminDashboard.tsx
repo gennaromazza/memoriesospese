@@ -3,6 +3,7 @@ import { useLocation, Link } from "wouter";
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, collectionGroup, setDoc, getDoc, where } from "firebase/firestore";
 import { getAuth, signOut } from "firebase/auth";
 import { db, storage, auth } from "@/lib/firebase";
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatPasswordRequestsForExcel, exportToExcel } from "@/lib/excelExport";
@@ -234,19 +235,27 @@ export default function AdminDashboard() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Hook Firebase Auth per verifica autenticazione asincrona
+  const { user, isLoading: authLoading, isAdmin: isFirebaseAdmin } = useFirebaseAuth();
 
   // Check authentication and referrer gallery
   useEffect(() => {
-    // Verifica se esiste un flag isAdmin nel localStorage
-    const isAdmin = localStorage.getItem('isAdmin');
-    if (!isAdmin) {
+    // Aspetta che Firebase Auth completi il caricamento
+    if (authLoading) {
+      return;
+    }
+
+    // Verifica localStorage (controllo primario per redirect rapido)
+    const localAdminFlag = localStorage.getItem('isAdmin');
+    if (!localAdminFlag) {
       navigate(createUrl("/admin"));
       return;
     }
 
     // CRITICAL: Verifica autenticazione Firebase (richiesta dalle Security Rules)
-    const currentUser = auth.currentUser;
-    if (!currentUser || currentUser.email !== 'gennaro.mazzacane@gmail.com') {
+    // Usa hook asincrono invece di auth.currentUser sincrono
+    if (!user || !isFirebaseAdmin || user.email !== 'gennaro.mazzacane@gmail.com') {
       console.error('❌ Firebase Auth: utente non autenticato o non admin');
       toast({
         variant: "destructive",
@@ -261,7 +270,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    console.log('✅ Firebase Auth verificato:', currentUser.email);
+    console.log('✅ Firebase Auth verificato:', user.email);
 
     // Controlla se l'admin proviene da una galleria specifica
     const referrerData = sessionStorage.getItem('adminReferrerGallery');
@@ -274,7 +283,7 @@ export default function AdminDashboard() {
         sessionStorage.removeItem('adminReferrerGallery');
       }
     }
-  }, [navigate, toast]);
+  }, [authLoading, user, isFirebaseAdmin, navigate, toast]);
 
   // Fetch data (galleries, password requests and studio settings)
   useEffect(() => {
