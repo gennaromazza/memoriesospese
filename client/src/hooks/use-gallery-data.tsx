@@ -472,7 +472,9 @@ export function useGalleryData(galleryCode: string) {
           youtubeUrl: galleryData.youtubeUrl || "",
           youtubeUrls: galleryData.youtubeUrls || [],
           code: galleryData.code || galleryCode,
-          active: isActive
+          active: isActive,
+          specialTheme: galleryData.specialTheme || undefined,
+          specialPin: galleryData.specialPin || undefined
         });
         
         
