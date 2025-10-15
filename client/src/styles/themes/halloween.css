@@ -1,24 +1,20 @@
-/* 🎃 Tema Halloween - Stile spettrale e misterioso */
+/* 🎃 Tema Halloween - Tocco spettrale su stile elegante */
 
-/* === SFONDO OSCURO === */
+/* === SFONDO BASE ELEGANTE === */
 .theme-halloween {
-  background: linear-gradient(135deg, #1a0033 0%, #2d1b00 25%, #1a0033 50%, #2d1b00 75%, #1a0033 100%);
-  background-size: 400% 400%;
-  animation: spooky-night 25s ease infinite;
+  background: linear-gradient(135deg, #f5f5f0 0%, #faf8f5 50%, #f5f5f0 100%);
   background-attachment: fixed;
   position: relative;
   overflow-x: hidden;
+  min-height: 100vh;
 }
 
-@keyframes spooky-night {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+/* Dark mode con tocco spettrale */
+.theme-halloween.dark {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d1d2a 50%, #1a1a1a 100%);
 }
 
+/* === DECORAZIONI SOTTILI === */
 .theme-halloween::before {
   content: '';
   position: fixed;
@@ -27,356 +23,124 @@
   right: 0;
   bottom: 0;
   background-image: 
-    radial-gradient(circle at 15% 25%, rgba(255, 111, 0, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 85% 75%, rgba(138, 43, 226, 0.15) 0%, transparent 40%);
+    radial-gradient(circle at 20% 30%, rgba(255, 111, 0, 0.04) 0%, transparent 35%),
+    radial-gradient(circle at 80% 70%, rgba(138, 43, 226, 0.04) 0%, transparent 35%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* === FANTASMI E ZUCCHE VOLANTI === */
+/* === DECORAZIONI VOLANTI DELICATE === */
 .theme-halloween::after {
-  content: '👻 🎃 🦇 🕷️ 👻 🎃 🦇 🕷️ 👻 🎃';
+  content: '👻 🎃 🦇 🕷️ 👻 🎃 🦇 🕷️';
   position: fixed;
   top: -50px;
   left: 0;
   right: 0;
-  font-size: 32px;
-  letter-spacing: 60px;
-  animation: spooky-float 20s linear infinite;
+  font-size: 20px;
+  letter-spacing: 70px;
+  animation: spooky-float 25s linear infinite;
   pointer-events: none;
   z-index: 1;
-  opacity: 0.6;
-  filter: drop-shadow(0 0 10px rgba(255, 111, 0, 0.5));
+  opacity: 0.12;
 }
 
 @keyframes spooky-float {
   0% {
-    transform: translateY(-50px) translateX(0) rotate(0deg);
+    transform: translateY(-50px) rotate(0deg);
     opacity: 0;
   }
   10% {
-    opacity: 0.8;
-  }
-  45% {
-    transform: translateY(50vh) translateX(-30px) rotate(10deg);
+    opacity: 0.15;
   }
   90% {
-    opacity: 0.8;
+    opacity: 0.15;
   }
   100% {
-    transform: translateY(100vh) translateX(0) rotate(20deg);
+    transform: translateY(100vh) rotate(15deg);
     opacity: 0;
   }
 }
 
-/* === HEADER SPETTRALE === */
-.theme-halloween .gallery-header {
-  background: linear-gradient(to right, #ff6f00, #4a148c, #ff6f00);
-  color: #fff;
-  border-bottom: 3px solid #ff6f00;
-  box-shadow: 0 4px 30px rgba(255, 111, 0, 0.5);
-  animation: eerie-glow 3s ease-in-out infinite;
-}
-
-@keyframes eerie-glow {
-  0%, 100% {
-    box-shadow: 0 4px 30px rgba(255, 111, 0, 0.5);
-  }
-  50% {
-    box-shadow: 0 6px 40px rgba(138, 43, 226, 0.7);
-  }
-}
-
-.theme-halloween .gallery-title {
-  text-shadow: 
-    0 0 10px rgba(255, 111, 0, 0.8),
-    0 0 20px rgba(255, 111, 0, 0.5),
-    2px 2px 4px rgba(0, 0, 0, 0.8);
-  position: relative;
-  font-family: 'Courier New', monospace;
-  font-weight: 900;
-}
-
+/* === ACCENTI HALLOWEEN SU TITOLI === */
 .theme-halloween .gallery-title::before {
-  content: '🎃';
-  margin-right: 12px;
-  animation: pumpkin-flicker 2s ease-in-out infinite;
+  content: '🎃 ';
+  margin-right: 8px;
 }
 
 .theme-halloween .gallery-title::after {
-  content: '👻';
-  margin-left: 12px;
-  animation: ghost-wobble 3s ease-in-out infinite;
+  content: ' 👻';
+  margin-left: 8px;
 }
 
-@keyframes pumpkin-flicker {
-  0%, 100% {
-    opacity: 1;
-    text-shadow: 0 0 20px #ff6f00;
-  }
-  50% {
-    opacity: 0.7;
-    text-shadow: 0 0 5px #ff6f00;
-  }
-}
-
-@keyframes ghost-wobble {
-  0%, 100% {
-    transform: translateX(0) scale(1);
-  }
-  33% {
-    transform: translateX(-3px) scale(1.1);
-  }
-  66% {
-    transform: translateX(3px) scale(0.95);
-  }
-}
-
-/* === CARD MISTERIOSE === */
-.theme-halloween .photo-card,
-.theme-halloween .card {
-  background: rgba(20, 0, 40, 0.95);
-  border: 2px solid #ff6f00;
-  border-radius: 16px;
-  box-shadow: 
-    0 8px 32px rgba(255, 111, 0, 0.3),
-    inset 0 0 20px rgba(138, 43, 226, 0.1);
-  position: relative;
-  overflow: hidden;
-  color: #fff;
-}
-
-.theme-halloween .photo-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(to right, #ff6f00, #4a148c, #ff6f00);
-  background-size: 200% 100%;
-  animation: sinister-pulse 4s linear infinite;
-}
-
-@keyframes sinister-pulse {
-  0% {
-    background-position: 0% 50%;
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-  100% {
-    background-position: 200% 50%;
-    opacity: 1;
-  }
-}
-
-.theme-halloween .photo-card:hover,
-.theme-halloween .card:hover {
-  transform: scale(1.02) rotate(-1deg);
-  box-shadow: 
-    0 12px 48px rgba(255, 111, 0, 0.5),
-    inset 0 0 30px rgba(138, 43, 226, 0.2);
-}
-
-/* === PULSANTI OSCURI === */
-.theme-halloween .btn-primary,
-.theme-halloween button[type="submit"],
-.theme-halloween .button-primary {
-  background: linear-gradient(135deg, #ff6f00 0%, #4a148c 100%);
-  color: white;
-  border: 2px solid #ff6f00;
-  border-radius: 8px;
-  box-shadow: 
-    0 4px 16px rgba(255, 111, 0, 0.4),
-    inset 0 0 10px rgba(138, 43, 226, 0.2);
-  transition: all 0.3s ease;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.theme-halloween .btn-primary:hover,
-.theme-halloween button[type="submit"]:hover,
-.theme-halloween .button-primary:hover {
-  background: linear-gradient(135deg, #4a148c 0%, #ff6f00 100%);
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 
-    0 6px 24px rgba(255, 111, 0, 0.6),
-    inset 0 0 20px rgba(138, 43, 226, 0.3);
-  border-color: #4a148c;
-}
-
-/* === NEBBIA MISTERIOSA === */
-.theme-halloween .fog-layer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px;
-  background: linear-gradient(to top, rgba(138, 43, 226, 0.3), transparent);
-  pointer-events: none;
-  animation: fog-drift 15s ease-in-out infinite;
-  z-index: 1;
-}
-
-@keyframes fog-drift {
-  0%, 100% {
-    opacity: 0.3;
-    transform: translateX(0);
-  }
-  50% {
-    opacity: 0.5;
-    transform: translateX(-20px);
-  }
-}
-
-/* === RAGNATELE === */
-.theme-halloween .web-decoration {
-  position: fixed;
-  font-size: 80px;
-  opacity: 0.2;
-  pointer-events: none;
-  color: #fff;
-  z-index: 0;
-}
-
-.theme-halloween .web-decoration:nth-child(1) {
-  top: 5%;
-  right: 10%;
-  content: '🕸️';
-}
-
-.theme-halloween .web-decoration:nth-child(2) {
-  bottom: 15%;
-  left: 8%;
-  content: '🕸️';
-}
-
-/* === TESTO SPETTRALE === */
 .theme-halloween h1,
 .theme-halloween h2,
 .theme-halloween h3 {
   color: #ff6f00;
-  text-shadow: 
-    0 0 10px rgba(255, 111, 0, 0.8),
-    2px 2px 4px rgba(0, 0, 0, 0.9);
-  font-family: 'Courier New', monospace;
-  font-weight: 900;
 }
 
-.theme-halloween .text-muted {
-  color: #ce93d8 !important;
+.theme-halloween.dark h1,
+.theme-halloween.dark h2,
+.theme-halloween.dark h3 {
+  color: #ffa040;
 }
 
-.theme-halloween p,
-.theme-halloween span,
-.theme-halloween div {
-  color: #e0e0e0;
-}
-
-/* === IMMAGINI === */
-.theme-halloween img {
+/* === CARD CON ACCENTI SPETTRALI === */
+.theme-halloween .photo-card,
+.theme-halloween .card,
+.theme-halloween [class*="card"] {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #ff6f0020;
+  border-top: 3px solid #ff6f00;
   border-radius: 12px;
-  border: 3px solid #ff6f00;
-  box-shadow: 
-    0 8px 32px rgba(255, 111, 0, 0.3),
-    0 0 20px rgba(138, 43, 226, 0.2);
-  transition: all 0.4s ease;
-  filter: brightness(0.9) contrast(1.1);
+  box-shadow: 0 2px 12px rgba(255, 111, 0, 0.08);
 }
 
-.theme-halloween img:hover {
-  transform: scale(1.05);
-  border-color: #4a148c;
-  box-shadow: 
-    0 12px 48px rgba(255, 111, 0, 0.5),
-    0 0 30px rgba(138, 43, 226, 0.4);
-  filter: brightness(1) contrast(1.2);
+.theme-halloween.dark .photo-card,
+.theme-halloween.dark .card,
+.theme-halloween.dark [class*="card"] {
+  background: rgba(45, 35, 45, 0.95);
+  border: 1px solid #ff6f0040;
+  border-top: 3px solid #ff6f00;
 }
 
-/* === BADGE === */
-.theme-halloween .badge {
-  background: linear-gradient(135deg, #ff6f00, #4a148c);
+/* === BOTTONI CON TOCCO SPETTRALE === */
+.theme-halloween button,
+.theme-halloween .button,
+.theme-halloween [class*="button"] {
+  background: linear-gradient(135deg, #8b9a90 0%, #ff6f00 100%);
   color: white;
-  padding: 6px 16px;
-  border-radius: 6px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  box-shadow: 0 4px 12px rgba(255, 111, 0, 0.4);
-}
-
-/* === DIVIDER === */
-.theme-halloween .divider {
-  background: linear-gradient(to right, transparent, #ff6f00, #4a148c, #ff6f00, transparent);
-  height: 2px;
-  margin: 24px 0;
-  position: relative;
-  box-shadow: 0 0 10px rgba(255, 111, 0, 0.5);
-}
-
-.theme-halloween .divider::after {
-  content: '🕷️';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #1a0033;
-  padding: 0 12px;
-  font-size: 20px;
-}
-
-/* === INPUT === */
-.theme-halloween input[type="text"],
-.theme-halloween input[type="email"],
-.theme-halloween textarea {
-  background: rgba(20, 0, 40, 0.8);
-  border: 2px solid #ff6f00;
-  border-radius: 8px;
-  color: #fff;
+  border: none;
   transition: all 0.3s ease;
 }
 
-.theme-halloween input::placeholder,
-.theme-halloween textarea::placeholder {
-  color: rgba(255, 255, 255, 0.5);
+.theme-halloween button:hover,
+.theme-halloween .button:hover {
+  background: linear-gradient(135deg, #ff6f00 0%, #4a148c 100%);
+  transform: translateY(-1px);
 }
 
-.theme-halloween input:focus,
-.theme-halloween textarea:focus {
-  border-color: #4a148c;
-  box-shadow: 0 0 20px rgba(138, 43, 226, 0.4);
-  background: rgba(20, 0, 40, 0.95);
+/* === BADGE HALLOWEEN === */
+.theme-halloween .badge {
+  background: linear-gradient(135deg, #ff6f00, #4a148c);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
 }
 
-/* === SCROLLBAR === */
-.theme-halloween::-webkit-scrollbar {
-  width: 14px;
+/* === DIVIDER === */
+.theme-halloween .divider,
+.theme-halloween hr {
+  background: linear-gradient(to right, transparent, #ff6f0040, transparent);
+  height: 1px;
+  border: none;
+  margin: 20px 0;
 }
 
-.theme-halloween::-webkit-scrollbar-track {
-  background: rgba(26, 0, 51, 0.8);
-  border-radius: 10px;
+/* === TESTO === */
+.theme-halloween .text-muted {
+  color: #4a148c !important;
 }
 
-.theme-halloween::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #ff6f00, #4a148c);
-  border-radius: 10px;
-  border: 2px solid #1a0033;
-}
-
-.theme-halloween::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #4a148c, #ff6f00);
-}
-
-/* === CURSORE PERSONALIZZATO === */
-.theme-halloween * {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><text y="20" font-size="20">🎃</text></svg>'), auto;
-}
-
-.theme-halloween a,
-.theme-halloween button {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><text y="20" font-size="20">👻</text></svg>'), pointer;
+.theme-halloween.dark .text-muted {
+  color: #ce93d8 !important;
 }

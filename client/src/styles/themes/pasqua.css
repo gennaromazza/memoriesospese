@@ -1,24 +1,20 @@
-/* 🐰 Tema Pasqua - Stile primaverile e pastello */
+/* 🐰 Tema Pasqua - Tocco primaverile su stile elegante */
 
-/* === SFONDO PRIMAVERILE === */
+/* === SFONDO BASE ELEGANTE === */
 .theme-pasqua {
-  background: linear-gradient(135deg, #e1bee7 0%, #f3e5f5 25%, #fff9c4 50%, #c5e1a5 75%, #e1bee7 100%);
-  background-size: 300% 300%;
-  animation: spring-breeze 20s ease infinite;
+  background: linear-gradient(135deg, #f5f5f0 0%, #faf8f5 50%, #f5f5f0 100%);
   background-attachment: fixed;
   position: relative;
   overflow-x: hidden;
+  min-height: 100vh;
 }
 
-@keyframes spring-breeze {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+/* Dark mode */
+.theme-pasqua.dark {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
 }
 
+/* === DECORAZIONI SOTTILI === */
 .theme-pasqua::before {
   content: '';
   position: fixed;
@@ -27,300 +23,121 @@
   right: 0;
   bottom: 0;
   background-image: 
-    radial-gradient(circle at 20% 30%, rgba(156, 39, 176, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(129, 199, 132, 0.08) 0%, transparent 40%);
+    radial-gradient(circle at 20% 20%, rgba(156, 39, 176, 0.03) 0%, transparent 30%),
+    radial-gradient(circle at 80% 80%, rgba(129, 199, 132, 0.03) 0%, transparent 30%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* === UOVA E FIORI GALLEGGIANTI === */
+/* === ELEMENTI PRIMAVERILI DELICATI === */
 .theme-pasqua::after {
-  content: '🥚 🌸 🐰 🌺 🥚 🌸 🐰 🌺 🥚 🌸';
+  content: '🥚 🌸 🐰 🌺 🥚 🌸 🐰 🌺';
   position: fixed;
   top: -50px;
   left: 0;
   right: 0;
-  font-size: 28px;
-  letter-spacing: 50px;
-  animation: easter-float 18s ease-in-out infinite;
+  font-size: 18px;
+  letter-spacing: 60px;
+  animation: easter-float 20s ease-in-out infinite;
   pointer-events: none;
   z-index: 1;
-  opacity: 0.7;
+  opacity: 0.12;
 }
 
 @keyframes easter-float {
   0% {
-    transform: translateY(-50px) translateX(0);
+    transform: translateY(-50px);
     opacity: 0;
   }
   10% {
-    opacity: 1;
-  }
-  45% {
-    transform: translateY(50vh) translateX(20px);
+    opacity: 0.15;
   }
   90% {
-    opacity: 1;
+    opacity: 0.15;
   }
   100% {
-    transform: translateY(100vh) translateX(0);
+    transform: translateY(100vh);
     opacity: 0;
   }
 }
 
-/* === HEADER PRIMAVERILE === */
-.theme-pasqua .gallery-header {
-  background: linear-gradient(to right, #9c27b0, #81c784, #ffd54f);
-  color: white;
-  border-bottom: 3px solid #ffd54f;
-  box-shadow: 0 4px 20px rgba(156, 39, 176, 0.3);
-}
-
-.theme-pasqua .gallery-title {
-  text-shadow: 2px 2px 6px rgba(129, 199, 132, 0.4);
-  position: relative;
-  font-family: 'Comic Sans MS', cursive;
-}
-
+/* === ACCENTI PASQUALI SU TITOLI === */
 .theme-pasqua .gallery-title::before {
-  content: '🐰';
-  margin-right: 10px;
-  animation: bunny-hop 1.2s ease-in-out infinite;
+  content: '🐰 ';
+  margin-right: 8px;
 }
 
 .theme-pasqua .gallery-title::after {
-  content: '🌸';
-  margin-left: 10px;
-  animation: flower-bloom 2s ease-in-out infinite;
+  content: ' 🌸';
+  margin-left: 8px;
 }
 
-@keyframes bunny-hop {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-@keyframes flower-bloom {
-  0%, 100% {
-    transform: scale(1) rotate(0deg);
-  }
-  50% {
-    transform: scale(1.15) rotate(10deg);
-  }
-}
-
-/* === CARD PASTELLO === */
-.theme-pasqua .photo-card,
-.theme-pasqua .card {
-  background: rgba(255, 255, 255, 0.95);
-  border: 2px solid #ce93d8;
-  border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(156, 39, 176, 0.15);
-  position: relative;
-  overflow: hidden;
-}
-
-.theme-pasqua .photo-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(to right, #9c27b0, #81c784, #ffd54f, #81c784, #9c27b0);
-  background-size: 200% 100%;
-  animation: pastel-slide 5s linear infinite;
-}
-
-@keyframes pastel-slide {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 200% 50%;
-  }
-}
-
-.theme-pasqua .photo-card:hover,
-.theme-pasqua .card:hover {
-  transform: translateY(-3px) rotate(1deg);
-  box-shadow: 0 12px 48px rgba(129, 199, 132, 0.25);
-}
-
-/* === PULSANTI PASTELLO === */
-.theme-pasqua .btn-primary,
-.theme-pasqua button[type="submit"],
-.theme-pasqua .button-primary {
-  background: linear-gradient(135deg, #9c27b0 0%, #81c784 100%);
-  color: white;
-  border: none;
-  border-radius: 25px;
-  box-shadow: 0 4px 16px rgba(156, 39, 176, 0.3);
-  transition: all 0.3s ease;
-  font-weight: 600;
-}
-
-.theme-pasqua .btn-primary:hover,
-.theme-pasqua button[type="submit"]:hover,
-.theme-pasqua .button-primary:hover {
-  background: linear-gradient(135deg, #81c784 0%, #9c27b0 100%);
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 6px 20px rgba(129, 199, 132, 0.4);
-}
-
-.theme-pasqua .btn-secondary {
-  background: linear-gradient(135deg, #ffd54f 0%, #ffee58 100%);
-  color: #6d4c41;
-  border-radius: 25px;
-}
-
-/* === PATTERN PRIMAVERILE === */
-.theme-pasqua .spring-pattern {
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    repeating-linear-gradient(60deg, transparent, transparent 80px, rgba(129, 199, 132, 0.05) 80px, rgba(129, 199, 132, 0.05) 160px);
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* === TESTO PASTELLO === */
 .theme-pasqua h1,
 .theme-pasqua h2,
 .theme-pasqua h3 {
-  background: linear-gradient(45deg, #9c27b0, #81c784);
+  background: linear-gradient(90deg, #9c27b0, #81c784);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-family: 'Comic Sans MS', cursive;
-  font-weight: 700;
 }
 
+/* === CARD CON ACCENTI PRIMAVERILI === */
+.theme-pasqua .photo-card,
+.theme-pasqua .card,
+.theme-pasqua [class*="card"] {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #ce93d820;
+  border-top: 3px solid #9c27b0;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(156, 39, 176, 0.08);
+}
+
+.theme-pasqua.dark .photo-card,
+.theme-pasqua.dark .card,
+.theme-pasqua.dark [class*="card"] {
+  background: rgba(45, 45, 45, 0.95);
+  border: 1px solid #ce93d840;
+  border-top: 3px solid #9c27b0;
+}
+
+/* === BOTTONI CON TOCCO PRIMAVERILE === */
+.theme-pasqua button,
+.theme-pasqua .button,
+.theme-pasqua [class*="button"] {
+  background: linear-gradient(135deg, #8b9a90 0%, #9c27b0 100%);
+  color: white;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.theme-pasqua button:hover,
+.theme-pasqua .button:hover {
+  background: linear-gradient(135deg, #9c27b0 0%, #81c784 100%);
+  transform: translateY(-1px);
+}
+
+/* === BADGE PASQUA === */
+.theme-pasqua .badge {
+  background: linear-gradient(135deg, #9c27b0, #81c784);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
+}
+
+/* === DIVIDER === */
+.theme-pasqua .divider,
+.theme-pasqua hr {
+  background: linear-gradient(to right, transparent, #ce93d840, transparent);
+  height: 1px;
+  border: none;
+  margin: 20px 0;
+}
+
+/* === TESTO === */
 .theme-pasqua .text-muted {
   color: #81c784 !important;
 }
 
-/* === IMMAGINI === */
-.theme-pasqua img {
-  border-radius: 20px;
-  border: 3px solid #ce93d8;
-  box-shadow: 0 8px 24px rgba(156, 39, 176, 0.2);
-  transition: all 0.3s ease;
-}
-
-.theme-pasqua img:hover {
-  transform: scale(1.04) rotate(-1deg);
-  border-color: #81c784;
-  box-shadow: 0 12px 36px rgba(129, 199, 132, 0.3);
-}
-
-/* === BADGE === */
-.theme-pasqua .badge {
-  background: linear-gradient(135deg, #9c27b0, #81c784);
-  color: white;
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-weight: 600;
-  box-shadow: 0 3px 10px rgba(156, 39, 176, 0.25);
-}
-
-/* === UOVA DECORATIVE === */
-.theme-pasqua .decoration-eggs {
-  position: fixed;
-  font-size: 70px;
-  opacity: 0.15;
-  pointer-events: none;
-  animation: gentle-wiggle 5s ease-in-out infinite;
-}
-
-@keyframes gentle-wiggle {
-  0%, 100% {
-    transform: rotate(-5deg);
-  }
-  50% {
-    transform: rotate(5deg);
-  }
-}
-
-.theme-pasqua .decoration-eggs:nth-child(1) {
-  top: 12%;
-  left: 8%;
-  content: '🥚';
-}
-
-.theme-pasqua .decoration-eggs:nth-child(2) {
-  bottom: 18%;
-  right: 12%;
-  content: '🐣';
-  animation-delay: 1.2s;
-}
-
-/* === DIVIDER === */
-.theme-pasqua .divider {
-  background: linear-gradient(to right, transparent, #ce93d8, #81c784, #ce93d8, transparent);
-  height: 2px;
-  margin: 20px 0;
-  position: relative;
-}
-
-.theme-pasqua .divider::after {
-  content: '🌺';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: white;
-  padding: 0 12px;
-  font-size: 20px;
-}
-
-/* === INPUT === */
-.theme-pasqua input[type="text"],
-.theme-pasqua input[type="email"],
-.theme-pasqua textarea {
-  border: 2px solid #ce93d8;
-  border-radius: 15px;
-  transition: all 0.3s ease;
-}
-
-.theme-pasqua input:focus,
-.theme-pasqua textarea:focus {
-  border-color: #9c27b0;
-  box-shadow: 0 0 16px rgba(156, 39, 176, 0.2);
-}
-
-/* === SCROLLBAR === */
-.theme-pasqua::-webkit-scrollbar {
-  width: 14px;
-}
-
-.theme-pasqua::-webkit-scrollbar-track {
-  background: rgba(206, 147, 216, 0.2);
-  border-radius: 10px;
-}
-
-.theme-pasqua::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #9c27b0, #81c784);
-  border-radius: 10px;
-}
-
-.theme-pasqua::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #81c784, #ffd54f);
-}
-
-/* === ERBA PRIMAVERILE === */
-.theme-pasqua .grass-decoration {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background: linear-gradient(to top, #81c784, transparent);
-  pointer-events: none;
-  opacity: 0.3;
-  z-index: 1;
+.theme-pasqua.dark .text-muted {
+  color: #a5d6a7 !important;
 }
