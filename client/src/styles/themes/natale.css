@@ -62,25 +62,65 @@
   }
 }
 
-/* === NEVE MAGICA MULTIPLA === */
+/* === NEVE REALISTICA CHE CADE === */
 .theme-natale::after {
   content: '❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️';
   position: fixed;
   top: -80px;
   left: -5%;
   right: 0;
-  font-size: 28px;
-  letter-spacing: 50px;
-  color: rgba(255, 255, 255, 0.8);
-  animation: magical-snowfall 12s linear infinite;
+  font-size: 24px;
+  letter-spacing: 55px;
+  color: rgba(255, 255, 255, 0.9);
+  animation: realistic-snowfall 10s linear infinite;
   pointer-events: none;
   z-index: 10;
-  text-shadow: 0 0 10px rgba(196, 30, 58, 0.3);
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
 }
 
-@keyframes magical-snowfall {
+@keyframes realistic-snowfall {
   0% {
     transform: translateY(-80px) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  5% {
+    opacity: 1;
+  }
+  95% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(100vh + 50px)) translateX(25px) rotate(360deg);
+    opacity: 0.3;
+  }
+}
+
+/* === SECONDO STRATO DI NEVE (più lento) === */
+.theme-natale .snow-layer-slow {
+  position: fixed;
+  top: -100px;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 9;
+}
+
+.theme-natale .snow-layer-slow::before {
+  content: '❄️ ❄ ❄️ ❄ ❄️ ❄ ❄️ ❄ ❄️ ❄ ❄️ ❄';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  font-size: 18px;
+  letter-spacing: 70px;
+  color: rgba(255, 255, 255, 0.7);
+  animation: slow-snowfall 15s linear infinite;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.6));
+}
+
+@keyframes slow-snowfall {
+  0% {
+    transform: translateY(-100px) translateX(0) rotate(0deg);
     opacity: 0;
   }
   10% {
@@ -90,8 +130,35 @@
     opacity: 1;
   }
   100% {
-    transform: translateY(100vh) translateX(30px) rotate(360deg);
-    opacity: 0;
+    transform: translateY(calc(100vh + 50px)) translateX(-20px) rotate(-360deg);
+    opacity: 0.2;
+  }
+}
+
+/* === ACCUMULO DI NEVE ALLA BASE === */
+.theme-natale .snow-ground {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(to top, 
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.25) 40%,
+    rgba(255, 255, 255, 0.1) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 5;
+  animation: snow-settle 3s ease-in-out infinite;
+}
+
+@keyframes snow-settle {
+  0%, 100% {
+    height: 80px;
+  }
+  50% {
+    height: 85px;
   }
 }
 

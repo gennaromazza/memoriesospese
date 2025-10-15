@@ -421,6 +421,16 @@ export default function Gallery() {
 
   return (
     <div className={`min-h-screen ${themeClass || 'bg-off-white'}`}>
+      
+      {/* Decorazioni tema Natale */}
+      {galleryData?.specialTheme === 'natale' && (
+        <>
+          <div className="snow-layer-slow" />
+          <div className="snow-ground" />
+          <div className="christmas-lights" />
+          <div className="sparkle-stars" />
+        </>
+      )}
 
       <Navigation galleryOwner={galleryData.name} galleryCode={id} />
 
