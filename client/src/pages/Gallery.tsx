@@ -681,7 +681,7 @@ export default function Gallery() {
                         Hai catturato momenti magici? Carica le tue foto e aiuta a completare la storia di questo giorno indimenticabile!
                       </p>
 
-                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -729,7 +729,7 @@ export default function Gallery() {
 
               {/* Azioni per tab vocali segreti */}
               {activeTab === 'voice-memos' && (
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -758,7 +758,7 @@ export default function Gallery() {
 
               {/* Azioni per tab storia - Solo Admin */}
               {activeTab === 'story' && isAdmin && coupleStory && !showStoryUpload && (
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
