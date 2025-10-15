@@ -118,7 +118,7 @@ export default function Gallery() {
       await StoryService.deleteStory(id);
       setCoupleStory(null);
       setStoryChecked(false);
-      
+
       toast({
         title: "Storia eliminata",
         description: "La storia della coppia è stata eliminata con successo.",
@@ -151,13 +151,13 @@ export default function Gallery() {
   // Calcola la data dell'evento direttamente dalla galleria
   const eventDate = useMemo(() => {
     if (!galleryData?.date) return null;
-    
+
     // Usa la data della galleria
     const date = new Date(galleryData.date);
     if (!isNaN(date.getTime())) {
       return date;
     }
-    
+
     return null;
   }, [galleryData]);
 
@@ -186,7 +186,7 @@ export default function Gallery() {
         .then(story => {
           console.log('%c📖 [ONCE] Storia caricata da Firebase:', 'background: green; color: white; font-weight: bold', story ? 'TROVATA' : 'NON TROVATA', { galleryId: id });
           if (story) {
-            console.log('%c✅ [ONCE] Storia impostata nel state React:', 'background: green; color: white; font-weight: bold', { 
+            console.log('%c✅ [ONCE] Storia impostata nel state React:', 'background: green; color: white; font-weight: bold', {
               titolo: story.metadata?.titolo,
               galleryId: story.galleryId,
               storyId: story.id
@@ -219,7 +219,7 @@ export default function Gallery() {
 
   // Verifica autenticazione - SOLO reset se cambia galleria (non al reload)
   const [lastGalleryId, setLastGalleryId] = useState<string | null>(null);
-  
+
   useEffect(() => {
     const checkAuth = () => {
       const isAuth = localStorage.getItem(`gallery_auth_${id}`);
@@ -232,11 +232,11 @@ export default function Gallery() {
 
     if (id) {
       checkAuth();
-      
+
       // 🔧 FIX: Reset storia SOLO se cambia galleria (non al reload della stessa)
       if (lastGalleryId && lastGalleryId !== id) {
         console.log('%c📋 [RESET] Cambio galleria - reset stato storia:', 'background: red; color: white; font-weight: bold', {
-          lastGalleryId, 
+          lastGalleryId,
           newId: id
         });
         setCoupleStory(null);
@@ -245,12 +245,12 @@ export default function Gallery() {
         setShowStoryUpload(false);
       } else {
         console.log('%c🔄 [NO-RESET] Stessa galleria - mantieni stato storia:', 'background: green; color: white', {
-          lastGalleryId, 
+          lastGalleryId,
           currentId: id,
           storyLoaded: !!coupleStory
         });
       }
-      
+
       setLastGalleryId(id);
     }
   }, [id, isAdmin, navigate, lastGalleryId]);
@@ -415,18 +415,20 @@ export default function Gallery() {
   }
 
   // Determina la classe del tema basata su galleryData.specialTheme
-  const themeClass = galleryData?.specialTheme && galleryData.specialTheme !== 'none' 
-    ? `theme-${galleryData.specialTheme}` 
+  const currentTheme = galleryData?.specialTheme;
+  const themeClass = currentTheme && currentTheme !== 'none'
+    ? `theme-${currentTheme}`
     : '';
 
   return (
-    <div className={`min-h-screen ${themeClass || 'bg-off-white'}`}>
-      
-      {/* Decorazioni tema Natale */}
-      {galleryData?.specialTheme === 'natale' && (
+    <div className={`min-h-screen ${themeClass || 'bg-off-white'} custom-cursor`}>
+      {/* Layer neve natalizia - solo per tema natale */}
+      {currentTheme === 'natale' && (
         <>
           <div className="snow-layer-slow" />
-          <div className="snow-ground" />
+          <div className="snow-layer-2">❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅</div>
+          <div className="snow-layer-3">❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅</div>
+          <div className="snow-accumulation"></div>
           <div className="christmas-lights" />
           <div className="sparkle-stars" />
         </>
@@ -460,7 +462,7 @@ export default function Gallery() {
                 const eventDate = new Date(date);
                 const diffTime = now.getTime() - eventDate.getTime();
                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                
+
                 if (diffDays < 30) {
                   return `Sono passati ${diffDays} giorni da questo giorno speciale ✨`;
                 } else if (diffDays < 365) {
@@ -470,7 +472,7 @@ export default function Gallery() {
                   const years = Math.floor(diffDays / 365);
                   const remainingDays = diffDays % 365;
                   const months = Math.floor(remainingDays / 30);
-                  
+
                   if (months === 0) {
                     return `${years === 1 ? 'È passato 1 anno' : `Sono passati ${years} anni`} da questo giorno speciale ✨`;
                   } else {
@@ -486,12 +488,12 @@ export default function Gallery() {
             />
           </div>
         )}
-        
+
 
         {/* Video YouTube se presente */}
-        <YouTubeEmbed 
-          videoUrl={galleryData.youtubeUrl} 
-          videoUrls={galleryData.youtubeUrls} 
+        <YouTubeEmbed
+          videoUrl={galleryData.youtubeUrl}
+          videoUrls={galleryData.youtubeUrls}
         />
 
         <main>
@@ -968,8 +970,8 @@ export default function Gallery() {
                         Nessuna Storia Disponibile
                       </h3>
                       <p className="text-sage-600 mb-6 max-w-md mx-auto">
-                        La storia d'amore di questa coppia non è ancora stata caricata. 
-                        {isAdmin 
+                        La storia d'amore di questa coppia non è ancora stata caricata.
+                        {isAdmin
                           ? ' Carica il JSON generato da ChatGPT per creare il libro digitale.'
                           : ' Chiedi agli organizzatori di caricare la storia.'
                         }
