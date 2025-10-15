@@ -8,10 +8,12 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
 import { UploadCloud, Image, Trash } from "lucide-react";
+import { getAllThemes } from "@shared/special-themes";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
 import { Progress } from "./ui/progress";
@@ -45,6 +47,8 @@ interface GalleryType {
   youtubeUrl?: string;
   youtubeUrls?: string[];
   photoCount?: number;
+  specialTheme?: string;
+  specialPin?: string;
 }
 
 interface EditGalleryModalProps {
@@ -59,12 +63,16 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [password, setPassword] = useState("");
+  const [specialTheme, setSpecialTheme] = useState<string>("none");
+  const [specialPin, setSpecialPin] = useState("");
   const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [coverImageMobileUrl, setCoverImageMobileUrl] = useState("");
   const [coverImageDesktopUrl, setCoverImageDesktopUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
+  const availableThemes = getAllThemes();
   const [activeTab, setActiveTab] = useState<string>("details");
   const [photos, setPhotos] = useState<PhotoData[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -269,6 +277,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setLocation(gallery.location || "");
       setDescription(gallery.description || "");
       setPassword(gallery.password || "");
+      setSpecialTheme(gallery.specialTheme || "none");
+      setSpecialPin(gallery.specialPin || "");
       
       // Gestione retrocompatibilità: se c'è youtubeUrl singolo, convertilo in array
       const urls: string[] = [];
@@ -596,7 +606,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Usa coverImageDesktop come fallback per vecchia coverImageUrl per retrocompatibilità
       const legacyCoverUrl = coverImageDesktopUrl || coverImageUrl;
       
-      await updateDoc(galleryRef, {
+      // Prepara i dati del tema
+      const updateData: any = {
         name,
         date,
         location,
@@ -608,7 +619,19 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         youtubeUrls: youtubeUrls.length > 0 ? youtubeUrls : null,
         hasChapters: false,
         updatedAt: serverTimestamp()
-      });
+      };
+
+      // Gestisci tema e PIN
+      if (specialTheme !== 'none') {
+        updateData.specialTheme = specialTheme;
+        updateData.specialPin = specialPin.trim();
+      } else {
+        // Rimuovi tema se impostato su "none"
+        updateData.specialTheme = null;
+        updateData.specialPin = null;
+      }
+
+      await updateDoc(galleryRef, updateData);
 
       console.log('✅ Galleria salvata con successo');
       
@@ -634,7 +657,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, youtubeUrls, onClose, toast]);
+  }, [gallery, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, youtubeUrls, onClose, toast]);
 
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
@@ -857,6 +880,45 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 placeholder="Descrizione della galleria"
                 rows={3}
               />
+            </div>
+
+            {/* Special Theme Section */}
+            <div className="border-t pt-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="specialTheme">Tema Stagionale</Label>
+                <Select value={specialTheme} onValueChange={setSpecialTheme}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona tema (opzionale)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessun tema (galleria normale)</SelectItem>
+                    {availableThemes.map((theme) => (
+                      <SelectItem key={theme.id} value={theme.id}>
+                        {theme.icon} {theme.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Tema corrente: {specialTheme !== 'none' ? availableThemes.find(t => t.id === specialTheme)?.name : 'Nessuno'}
+                </p>
+              </div>
+
+              {specialTheme !== 'none' && (
+                <div className="space-y-2">
+                  <Label htmlFor="specialPin">PIN Galleria Speciale</Label>
+                  <Input
+                    id="specialPin"
+                    type="text"
+                    value={specialPin}
+                    onChange={(e) => setSpecialPin(e.target.value)}
+                    placeholder="Es. 2024"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    PIN univoco per accedere a questa galleria speciale
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
