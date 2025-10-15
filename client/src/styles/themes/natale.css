@@ -1,20 +1,42 @@
-/* 🎄 Tema Natale - Tocco natalizio su stile elegante */
+/* 🎄 Tema Natale - La Magia del Natale ✨ */
 
-/* === SFONDO BASE ELEGANTE === */
+/* === SFONDO BASE ELEGANTE CON TOCCO MAGICO === */
 .theme-natale {
-  background: linear-gradient(135deg, #f5f5f0 0%, #faf8f5 50%, #f5f5f0 100%);
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 25%, #fff5f5 50%, #ffe8e8 75%, #fff5f5 100%);
+  background-size: 200% 200%;
+  animation: subtle-christmas-glow 15s ease infinite;
   background-attachment: fixed;
   position: relative;
   overflow-x: hidden;
   min-height: 100vh;
 }
 
-/* Dark mode */
-.theme-natale.dark {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
+@keyframes subtle-christmas-glow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
-/* === DECORAZIONI SOTTILI === */
+/* Dark mode con atmosfera natalizia */
+.theme-natale.dark {
+  background: linear-gradient(135deg, #1a0e0e 0%, #0f1a0f 50%, #1a0e0e 100%);
+  background-size: 200% 200%;
+  animation: dark-christmas-glow 15s ease infinite;
+}
+
+@keyframes dark-christmas-glow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* === AURORE NATALIZIE === */
 .theme-natale::before {
   content: '';
   position: fixed;
@@ -23,124 +45,404 @@
   right: 0;
   bottom: 0;
   background-image: 
-    radial-gradient(circle at 15% 20%, rgba(196, 30, 58, 0.03) 0%, transparent 30%),
-    radial-gradient(circle at 85% 80%, rgba(22, 91, 51, 0.03) 0%, transparent 30%);
+    radial-gradient(ellipse at 20% 20%, rgba(196, 30, 58, 0.12) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 80%, rgba(22, 91, 51, 0.12) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 215, 0, 0.08) 0%, transparent 50%);
+  animation: aurora-dance 20s ease-in-out infinite;
   pointer-events: none;
   z-index: 0;
 }
 
-/* === FIOCCHI DI NEVE DELICATI === */
-.theme-natale::after {
-  content: '❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️';
-  position: fixed;
-  top: -50px;
-  left: 0;
-  right: 0;
-  font-size: 16px;
-  letter-spacing: 45px;
-  color: rgba(196, 30, 58, 0.15);
-  animation: snowfall 18s linear infinite;
-  pointer-events: none;
-  z-index: 1;
+@keyframes aurora-dance {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
-@keyframes snowfall {
+/* === NEVE MAGICA MULTIPLA === */
+.theme-natale::after {
+  content: '❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️ ❄️';
+  position: fixed;
+  top: -80px;
+  left: -5%;
+  right: 0;
+  font-size: 28px;
+  letter-spacing: 50px;
+  color: rgba(255, 255, 255, 0.8);
+  animation: magical-snowfall 12s linear infinite;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 0 0 10px rgba(196, 30, 58, 0.3);
+}
+
+@keyframes magical-snowfall {
   0% {
-    transform: translateY(-50px);
+    transform: translateY(-80px) translateX(0) rotate(0deg);
     opacity: 0;
   }
   10% {
-    opacity: 0.5;
+    opacity: 1;
   }
   90% {
-    opacity: 0.5;
+    opacity: 1;
   }
   100% {
-    transform: translateY(100vh);
+    transform: translateY(100vh) translateX(30px) rotate(360deg);
     opacity: 0;
   }
 }
 
-/* === ACCENTI NATALIZI SU TITOLI === */
+/* === LUCI NATALIZIE SCINTILLANTI === */
+.theme-natale .christmas-lights {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background-image: 
+    radial-gradient(circle at 5% 50%, #c41e3a 5px, transparent 5px),
+    radial-gradient(circle at 15% 50%, #165b33 5px, transparent 5px),
+    radial-gradient(circle at 25% 50%, #ffd700 5px, transparent 5px),
+    radial-gradient(circle at 35% 50%, #c41e3a 5px, transparent 5px),
+    radial-gradient(circle at 45% 50%, #165b33 5px, transparent 5px),
+    radial-gradient(circle at 55% 50%, #ffd700 5px, transparent 5px),
+    radial-gradient(circle at 65% 50%, #c41e3a 5px, transparent 5px),
+    radial-gradient(circle at 75% 50%, #165b33 5px, transparent 5px),
+    radial-gradient(circle at 85% 50%, #ffd700 5px, transparent 5px),
+    radial-gradient(circle at 95% 50%, #c41e3a 5px, transparent 5px);
+  animation: lights-twinkle 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.7;
+}
+
+@keyframes lights-twinkle {
+  0%, 100% {
+    opacity: 0.7;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.5);
+  }
+}
+
+/* === STELLE SCINTILLANTI === */
+.theme-natale .sparkle-stars {
+  position: fixed;
+  top: 10%;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(255, 215, 0, 0.6) 2px, transparent 2px),
+    radial-gradient(circle at 30% 40%, rgba(255, 215, 0, 0.4) 3px, transparent 3px),
+    radial-gradient(circle at 50% 60%, rgba(255, 215, 0, 0.5) 2px, transparent 2px),
+    radial-gradient(circle at 70% 30%, rgba(255, 215, 0, 0.6) 3px, transparent 3px),
+    radial-gradient(circle at 90% 50%, rgba(255, 215, 0, 0.4) 2px, transparent 2px);
+  animation: stars-sparkle 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+
+@keyframes stars-sparkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* === TITOLI NATALIZI MAGICI === */
+.theme-natale .gallery-title {
+  position: relative;
+  animation: title-glow 2s ease-in-out infinite;
+}
+
+@keyframes title-glow {
+  0%, 100% {
+    text-shadow: 
+      0 0 10px rgba(196, 30, 58, 0.3),
+      0 0 20px rgba(22, 91, 51, 0.2);
+  }
+  50% {
+    text-shadow: 
+      0 0 20px rgba(196, 30, 58, 0.5),
+      0 0 30px rgba(22, 91, 51, 0.3),
+      0 0 40px rgba(255, 215, 0, 0.2);
+  }
+}
+
 .theme-natale .gallery-title::before {
-  content: '🎄 ';
-  margin-right: 8px;
+  content: '🎄';
+  margin-right: 12px;
+  animation: tree-wiggle 3s ease-in-out infinite;
+  display: inline-block;
 }
 
 .theme-natale .gallery-title::after {
-  content: ' 🎄';
-  margin-left: 8px;
+  content: '⭐';
+  margin-left: 12px;
+  animation: star-twinkle 1.5s ease-in-out infinite;
+  display: inline-block;
+}
+
+@keyframes tree-wiggle {
+  0%, 100% {
+    transform: rotate(-5deg) scale(1);
+  }
+  50% {
+    transform: rotate(5deg) scale(1.1);
+  }
+}
+
+@keyframes star-twinkle {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.3);
+    filter: brightness(1.5) drop-shadow(0 0 10px #ffd700);
+  }
 }
 
 .theme-natale h1,
 .theme-natale h2,
 .theme-natale h3 {
-  color: #c41e3a;
+  background: linear-gradient(90deg, #c41e3a, #165b33, #ffd700);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
 }
 
 .theme-natale.dark h1,
 .theme-natale.dark h2,
 .theme-natale.dark h3 {
-  color: #ff6b7a;
+  background: linear-gradient(90deg, #ff6b7a, #81c784, #ffd700);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-/* === CARD CON ACCENTI NATALIZI === */
+/* === CARD NATALIZIE MAGICHE === */
 .theme-natale .photo-card,
 .theme-natale .card,
 .theme-natale [class*="card"] {
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid #c41e3a20;
-  border-top: 3px solid #c41e3a;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(196, 30, 58, 0.08);
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid transparent;
+  border-image: linear-gradient(135deg, #c41e3a, #ffd700, #165b33, #c41e3a) 1;
+  border-radius: 16px;
+  box-shadow: 
+    0 4px 20px rgba(196, 30, 58, 0.15),
+    0 0 30px rgba(255, 215, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s ease;
+}
+
+.theme-natale .photo-card::before,
+.theme-natale .card::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 4px;
+  background: linear-gradient(90deg, #c41e3a, #ffd700, #165b33, #c41e3a);
+  background-size: 200% 100%;
+  animation: border-glow 3s linear infinite;
+}
+
+@keyframes border-glow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.theme-natale .photo-card:hover,
+.theme-natale .card:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 
+    0 8px 35px rgba(196, 30, 58, 0.25),
+    0 0 50px rgba(255, 215, 0, 0.2);
 }
 
 .theme-natale.dark .photo-card,
 .theme-natale.dark .card,
 .theme-natale.dark [class*="card"] {
-  background: rgba(45, 45, 45, 0.95);
-  border: 1px solid #c41e3a40;
-  border-top: 3px solid #c41e3a;
+  background: rgba(30, 20, 20, 0.9);
+  box-shadow: 
+    0 4px 20px rgba(196, 30, 58, 0.3),
+    0 0 30px rgba(255, 215, 0, 0.15);
 }
 
-/* === BOTTONI CON TOCCO NATALIZIO === */
+/* === BOTTONI NATALIZI BRILLANTI === */
 .theme-natale button,
 .theme-natale .button,
 .theme-natale [class*="button"] {
-  background: linear-gradient(135deg, #8b9a90 0%, #c41e3a 100%);
+  background: linear-gradient(135deg, #c41e3a 0%, #8b1329 50%, #165b33 100%);
+  background-size: 200% 100%;
   color: white;
-  border: none;
+  border: 2px solid rgba(255, 215, 0, 0.5);
+  box-shadow: 
+    0 4px 15px rgba(196, 30, 58, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
+  animation: button-shine 3s ease-in-out infinite;
+  font-weight: 600;
+}
+
+@keyframes button-shine {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 .theme-natale button:hover,
 .theme-natale .button:hover {
-  background: linear-gradient(135deg, #c41e3a 0%, #8b9a90 100%);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #165b33 0%, #c41e3a 50%, #ffd700 100%);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 
+    0 6px 25px rgba(196, 30, 58, 0.5),
+    0 0 30px rgba(255, 215, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-color: #ffd700;
 }
 
 /* === BADGE NATALIZI === */
 .theme-natale .badge {
-  background: linear-gradient(135deg, #c41e3a, #165b33);
+  background: linear-gradient(135deg, #c41e3a, #ffd700);
   color: white;
-  padding: 4px 12px;
-  border-radius: 16px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-weight: 700;
+  box-shadow: 
+    0 3px 10px rgba(196, 30, 58, 0.3),
+    0 0 20px rgba(255, 215, 0, 0.2);
+  animation: badge-pulse 2s ease-in-out infinite;
 }
 
-/* === DIVIDER === */
+@keyframes badge-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* === DIVIDER MAGICO === */
 .theme-natale .divider,
 .theme-natale hr {
-  background: linear-gradient(to right, transparent, #c41e3a40, transparent);
-  height: 1px;
+  background: linear-gradient(to right, 
+    transparent, 
+    #c41e3a 20%, 
+    #ffd700 40%,
+    #165b33 60%,
+    #c41e3a 80%,
+    transparent);
+  height: 2px;
   border: none;
-  margin: 20px 0;
+  margin: 25px 0;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+  animation: divider-glow 3s ease-in-out infinite;
+}
+
+@keyframes divider-glow {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* === TESTO === */
 .theme-natale .text-muted {
   color: #165b33 !important;
+  font-weight: 500;
 }
 
 .theme-natale.dark .text-muted {
   color: #81c784 !important;
+}
+
+/* === DECORAZIONI AGGIUNTIVE === */
+.theme-natale .christmas-ornament {
+  position: fixed;
+  font-size: 50px;
+  opacity: 0.25;
+  pointer-events: none;
+  animation: ornament-swing 4s ease-in-out infinite;
+  z-index: 2;
+}
+
+@keyframes ornament-swing {
+  0%, 100% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+}
+
+/* === EFFETTO NEVE DI SFONDO === */
+.theme-natale .snow-layer-2 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+    radial-gradient(circle at 60% 70%, rgba(255, 255, 255, 0.4) 2px, transparent 2px),
+    radial-gradient(circle at 40% 50%, rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.4) 2px, transparent 2px);
+  animation: gentle-snow 20s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes gentle-snow {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(100px);
+  }
+}
+
+/* === SCROLL BAR NATALIZIO === */
+.theme-natale::-webkit-scrollbar {
+  width: 14px;
+}
+
+.theme-natale::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #ffe8e8, #fff5f5);
+  border-radius: 10px;
+}
+
+.theme-natale::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #c41e3a, #165b33);
+  border-radius: 10px;
+  border: 2px solid rgba(255, 215, 0, 0.3);
+}
+
+.theme-natale::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ffd700, #c41e3a);
+  border-color: #ffd700;
 }
