@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 import { Sparkles, Lock } from 'lucide-react';
 import { Gallery } from '@shared/schema';
 import { getThemeById } from '@shared/special-themes';
+import { FloralCorner, BackgroundDecoration } from '@/components/WeddingIllustrations';
+import { WeddingImage } from '@/components/WeddingImages';
 
 export default function SpecialGalleryAccess() {
   const [, setLocation] = useLocation();
@@ -65,15 +67,36 @@ export default function SpecialGalleryAccess() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 dark:from-gray-900 dark:via-purple-950 dark:to-gray-900 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-xl">
+    <div className="min-h-screen bg-off-white dark:bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorazioni floreali */}
+      <FloralCorner
+        position="top-left"
+        className="absolute top-0 left-0 w-40 h-40 opacity-15 dark:opacity-10 pointer-events-none"
+      />
+      <FloralCorner
+        position="bottom-right"
+        className="absolute bottom-0 right-0 w-40 h-40 opacity-15 dark:opacity-10 pointer-events-none"
+      />
+      <BackgroundDecoration className="absolute inset-0 w-full h-full opacity-10 dark:opacity-5 pointer-events-none" />
+
+      <Card className="w-full max-w-md shadow-xl border-sage/10 dark:border-sage/20 relative z-10">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+          {/* Immagine decorativa */}
+          <div className="mx-auto w-20 h-20 opacity-90 dark:opacity-70">
+            <WeddingImage
+              type="heart-balloon"
+              className="w-full h-auto"
+              alt="Decorazione cuore"
+            />
+          </div>
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-sage/80 to-dark-sage/80 dark:from-sage/60 dark:to-dark-sage/60 rounded-full flex items-center justify-center -mt-4">
             <Sparkles className="w-8 h-8 text-white" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">Galleria Speciale</CardTitle>
-            <CardDescription className="mt-2">
+            <CardTitle className="text-2xl font-bold text-blue-gray dark:text-white font-playfair">
+              Galleria Speciale
+            </CardTitle>
+            <CardDescription className="mt-2 dark:text-gray-300">
               Inserisci il PIN per accedere alla galleria tematica
             </CardDescription>
           </div>
@@ -82,7 +105,7 @@ export default function SpecialGalleryAccess() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="pin" className="flex items-center gap-2">
+              <Label htmlFor="pin" className="flex items-center gap-2 text-blue-gray dark:text-gray-200">
                 <Lock className="w-4 h-4" />
                 PIN di Accesso
               </Label>
@@ -92,19 +115,19 @@ export default function SpecialGalleryAccess() {
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="Inserisci il PIN"
-                className="text-center text-lg tracking-widest font-mono"
+                className="text-center text-lg tracking-widest font-mono border-sage/30 dark:border-sage/40 focus:border-sage dark:focus:border-sage"
                 autoFocus
                 disabled={isLoading}
                 data-testid="input-special-pin"
               />
-              <p className="text-sm text-muted-foreground text-center">
+              <p className="text-sm text-muted-foreground dark:text-gray-400 text-center">
                 Il PIN ti è stato fornito dagli organizzatori
               </p>
             </div>
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+              className="w-full bg-sage hover:bg-dark-sage dark:bg-sage/90 dark:hover:bg-dark-sage/90 text-white shadow-md"
               disabled={isLoading}
               data-testid="button-submit-pin"
             >
@@ -114,9 +137,10 @@ export default function SpecialGalleryAccess() {
             <Button
               type="button"
               variant="ghost"
-              className="w-full"
+              className="w-full hover:bg-cream dark:hover:bg-gray-800"
               onClick={() => setLocation('/')}
               disabled={isLoading}
+              data-testid="button-home"
             >
               Torna alla Home
             </Button>
