@@ -1,51 +1,44 @@
-/* 🎄 Tema Natale - Eleganza Natalizia Raffinata ✨ */
+/* 🎄 Tema Natale Country - Eleganza Rustica con Palette October Mist ✨ */
 
-/* === SFONDO BASE ELEGANTE CON ATMOSFERA NATALIZIA === */
+/* === SFONDO COUNTRY RUSTICO CON TONALITÀ NATURALI === */
 .theme-natale {
   background: linear-gradient(135deg, 
-    #0f1419 0%, 
-    #1a0f0f 15%, 
-    #0f1a0f 30%, 
-    #1a0f0f 45%,
-    #0f1419 60%,
-    #1a0f0f 75%,
-    #0f1a0f 90%,
-    #0f1419 100%
+    #f5f0e8 0%,     /* off-white caldo */
+    #e8dcc8 15%,    /* beige caldo */
+    #d4c4a8 30%,    /* beige/cream */
+    #e8dcc8 45%,
+    #f5f0e8 60%,
+    #e8dcc8 75%,
+    #d4c4a8 90%,
+    #f5f0e8 100%
   );
   background-size: 400% 400%;
-  animation: elegant-christmas-aurora 30s ease infinite;
+  animation: country-warmth 20s ease infinite;
   background-attachment: fixed;
   position: relative;
   overflow-x: hidden;
   min-height: 100vh;
 }
 
-@keyframes elegant-christmas-aurora {
-  0%, 100% { background-position: 0% 50%; }
-  25% { background-position: 100% 50%; }
-  50% { background-position: 50% 100%; }
-  75% { background-position: 100% 0%; }
-}
-
-/* Dark mode - variante ancora più atmosferica */
-.theme-natale.dark {
-  background: linear-gradient(135deg, 
-    #0a0f0a 0%, 
-    #1a0e0e 25%, 
-    #0e1a0e 50%, 
-    #1a0e0e 75%, 
-    #0a0f0a 100%
-  );
-  background-size: 400% 400%;
-  animation: dark-christmas-aurora 25s ease infinite;
-}
-
-@keyframes dark-christmas-aurora {
+@keyframes country-warmth {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
 }
 
-/* === DECORAZIONI DORATE SOTTILI === */
+/* Dark mode - tonalità terrose scure */
+.theme-natale.dark {
+  background: linear-gradient(135deg, 
+    #2a2520 0%,     /* marrone scuro */
+    #3a3530 25%,    /* marrone medio */
+    #2a2520 50%, 
+    #3a3530 75%, 
+    #2a2520 100%
+  );
+  background-size: 400% 400%;
+  animation: country-warmth 20s ease infinite;
+}
+
+/* === TEXTURE LEGNO RUSTICO === */
 .theme-natale::before {
   content: '';
   position: fixed;
@@ -54,333 +47,214 @@
   right: 0;
   bottom: 0;
   background: 
-    radial-gradient(ellipse at 20% 30%, rgba(196, 30, 58, 0.03) 0%, transparent 40%),
-    radial-gradient(ellipse at 80% 70%, rgba(22, 91, 51, 0.03) 0%, transparent 40%),
-    radial-gradient(ellipse at 50% 50%, rgba(255, 215, 0, 0.02) 0%, transparent 50%);
+    repeating-linear-gradient(90deg, 
+      transparent, 
+      transparent 2px, 
+      rgba(120, 111, 106, 0.03) 2px, 
+      rgba(120, 111, 106, 0.03) 4px
+    ),
+    radial-gradient(ellipse at 25% 30%, rgba(140, 123, 104, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 70%, rgba(200, 171, 147, 0.04) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* === NEVE ELEGANTE E DELICATA === */
+/* === NEVE DELICATA COUNTRY === */
 .theme-natale::after {
-  content: '❄️';
+  content: '❄';
   position: fixed;
   top: -100px;
   left: 0;
   width: 100%;
-  font-size: 20px;
-  color: rgba(255, 255, 255, 0.15);
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
-  animation: elegant-snowfall 15s linear infinite;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.4);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+  animation: gentle-snow 18s linear infinite;
   pointer-events: none;
   z-index: 1;
-  letter-spacing: 150px;
-  line-height: 120px;
+  letter-spacing: 120px;
+  line-height: 100px;
 }
 
-@keyframes elegant-snowfall {
+@keyframes gentle-snow {
   0% {
     transform: translateY(-100px) translateX(0) rotate(0deg);
     opacity: 0;
   }
-  10% { opacity: 0.15; }
-  90% { opacity: 0.1; }
+  10% { opacity: 0.4; }
+  90% { opacity: 0.3; }
   100% {
-    transform: translateY(calc(100vh + 100px)) translateX(30px) rotate(180deg);
+    transform: translateY(calc(100vh + 100px)) translateX(20px) rotate(120deg);
     opacity: 0;
   }
 }
 
-/* === SECONDO LAYER DI NEVE (più sottile) === */
-.theme-natale .snow-layer-2 {
-  position: fixed;
-  top: -80px;
-  left: 0;
-  width: 100%;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.1);
-  text-shadow: 0 0 6px rgba(255, 255, 255, 0.15);
-  animation: medium-snowfall 18s linear infinite;
-  pointer-events: none;
-  z-index: 1;
-  letter-spacing: 100px;
-}
-
-.theme-natale .snow-layer-2::before {
-  content: '❅ ❆ ❄ ❅ ❆ ❄ ❅ ❆ ❄';
-}
-
-@keyframes medium-snowfall {
-  0% {
-    transform: translateY(-80px) translateX(20px) rotate(0deg);
-    opacity: 0;
-  }
-  15% { opacity: 0.1; }
-  85% { opacity: 0.08; }
-  100% {
-    transform: translateY(calc(100vh + 80px)) translateX(-20px) rotate(-180deg);
-    opacity: 0;
-  }
-}
-
-/* === TERZO LAYER DI NEVE (lento e grande) === */
-.theme-natale .snow-layer-3 {
-  position: fixed;
-  top: -120px;
-  left: 5%;
-  width: 90%;
-  font-size: 35px;
-  color: rgba(255, 255, 255, 0.4);
-  text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
-  animation: slow-snowfall 20s linear infinite;
-  pointer-events: none;
-  z-index: 98;
-  letter-spacing: 150px;
-}
-
-.theme-natale .snow-layer-3::before {
-  content: '❄ ❅ ❄ ❆ ❄ ❅';
-}
-
-@keyframes slow-snowfall {
-  0% {
-    transform: translateY(-120px) translateX(-20px) rotate(0deg);
-    opacity: 0;
-  }
-  20% { opacity: 0.4; }
-  80% { opacity: 0.4; }
-  100% {
-    transform: translateY(calc(100vh + 120px)) translateX(40px) rotate(180deg);
-    opacity: 0;
-  }
-}
-
-/* === ACCUMULO NEVE ALLA BASE === */
-.theme-natale .snow-ground {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 120px;
-  background: linear-gradient(
-    to top,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(245, 250, 255, 0.25) 30%,
-    rgba(235, 245, 255, 0.15) 60%,
-    rgba(220, 235, 255, 0.08) 80%,
-    transparent 100%
-  );
-  pointer-events: none;
-  z-index: 5;
-  animation: snow-accumulate 4s ease-in-out infinite;
-  box-shadow: 0 -10px 30px rgba(255, 255, 255, 0.2);
-}
-
-@keyframes snow-accumulate {
-  0%, 100% { 
-    height: 120px;
-    opacity: 0.8;
-  }
-  50% { 
-    height: 130px;
-    opacity: 1;
-  }
-}
-
-/* === GHIRLANDA LUMINOSA RAFFINATA === */
-.theme-natale .christmas-lights {
+/* === DECORAZIONI COUNTRY CON PALETTE OCTOBER MIST === */
+.theme-natale .country-ornaments {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 40px;
-  background-image: 
-    radial-gradient(circle at 10% 50%, rgba(196, 30, 58, 0.4) 4px, transparent 4px),
-    radial-gradient(circle at 20% 50%, rgba(22, 91, 51, 0.4) 4px, transparent 4px),
-    radial-gradient(circle at 30% 50%, rgba(255, 215, 0, 0.4) 4px, transparent 4px),
-    radial-gradient(circle at 40% 50%, rgba(255, 255, 255, 0.3) 4px, transparent 4px),
-    radial-gradient(circle at 50% 50%, rgba(196, 30, 58, 0.4) 4px, transparent 4px),
-    radial-gradient(circle at 60% 50%, rgba(22, 91, 51, 0.4) 4px, transparent 4px),
-    radial-gradient(circle at 70% 50%, rgba(255, 215, 0, 0.4) 4px, transparent 4px),
-    radial-gradient(circle at 80% 50%, rgba(255, 255, 255, 0.3) 4px, transparent 4px),
-    radial-gradient(circle at 90% 50%, rgba(196, 30, 58, 0.4) 4px, transparent 4px);
-  animation: lights-elegant-twinkle 3s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 10;
-  opacity: 0.6;
-}
-
-@keyframes lights-elegant-twinkle {
-  0%, 100% { 
-    opacity: 0.5;
-    filter: brightness(1);
-  }
-  50% { 
-    opacity: 0.8;
-    filter: brightness(1.2) drop-shadow(0 0 6px rgba(255, 215, 0, 0.3));
-  }
-}
-
-/* === STELLE SCINTILLANTI DELICATE === */
-.theme-natale .sparkle-stars {
-  position: fixed;
-  top: 10%;
-  left: 0;
-  right: 0;
-  bottom: 15%;
-  background-image: 
-    radial-gradient(circle at 15% 20%, rgba(255, 215, 0, 0.3) 2px, transparent 2px),
-    radial-gradient(circle at 40% 35%, rgba(255, 215, 0, 0.25) 2px, transparent 2px),
-    radial-gradient(circle at 65% 25%, rgba(255, 215, 0, 0.35) 2px, transparent 2px),
-    radial-gradient(circle at 85% 45%, rgba(255, 215, 0, 0.2) 2px, transparent 2px),
-    radial-gradient(circle at 25% 65%, rgba(255, 215, 0, 0.3) 2px, transparent 2px),
-    radial-gradient(circle at 55% 75%, rgba(255, 215, 0, 0.25) 2px, transparent 2px),
-    radial-gradient(circle at 75% 85%, rgba(255, 215, 0, 0.2) 2px, transparent 2px);
-  animation: stars-gentle-sparkle 5s ease-in-out infinite;
+  bottom: 0;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(140, 123, 104, 0.15) 3px, transparent 3px),
+    radial-gradient(circle at 85% 30%, rgba(200, 171, 147, 0.12) 4px, transparent 4px),
+    radial-gradient(circle at 30% 70%, rgba(120, 111, 106, 0.1) 3px, transparent 3px),
+    radial-gradient(circle at 70% 80%, rgba(140, 123, 104, 0.13) 3px, transparent 3px);
+  animation: ornament-glow 8s ease-in-out infinite;
   pointer-events: none;
   z-index: 1;
 }
 
-@keyframes stars-gentle-sparkle {
-  0%, 100% { 
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% { 
-    opacity: 0.7;
-    transform: scale(1.1);
-    filter: brightness(1.3);
-  }
+@keyframes ornament-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
 }
 
-/* === TITOLI CON TOCCO NATALIZIO ELEGANTE === */
+/* === GHIRLANDA PINO NATURALE === */
+.theme-natale .pine-garland {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: 
+    linear-gradient(to bottom, rgba(120, 111, 106, 0.3), transparent),
+    repeating-linear-gradient(90deg,
+      transparent,
+      transparent 80px,
+      rgba(140, 123, 104, 0.4) 80px,
+      rgba(140, 123, 104, 0.4) 100px
+    );
+  pointer-events: none;
+  z-index: 5;
+  border-bottom: 2px solid rgba(120, 111, 106, 0.2);
+}
+
+/* === CANDELE TREMOLANTI === */
+.theme-natale .candle-lights {
+  position: fixed;
+  top: 30px;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background-image:
+    radial-gradient(ellipse at 10% 50%, rgba(200, 171, 147, 0.6) 4px, transparent 8px),
+    radial-gradient(ellipse at 30% 50%, rgba(200, 171, 147, 0.5) 4px, transparent 8px),
+    radial-gradient(ellipse at 50% 50%, rgba(200, 171, 147, 0.6) 4px, transparent 8px),
+    radial-gradient(ellipse at 70% 50%, rgba(200, 171, 147, 0.5) 4px, transparent 8px),
+    radial-gradient(ellipse at 90% 50%, rgba(200, 171, 147, 0.6) 4px, transparent 8px);
+  animation: candle-flicker 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 6;
+}
+
+@keyframes candle-flicker {
+  0%, 100% { opacity: 0.7; filter: brightness(1); }
+  50% { opacity: 0.9; filter: brightness(1.3); }
+}
+
+/* === TITOLI COUNTRY CHRISTMAS === */
 .theme-natale .gallery-title {
   position: relative;
-  background: linear-gradient(135deg, #c41e3a 0%, #ffd700 50%, #165b33 100%);
-  background-size: 200% 200%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: title-elegant-shimmer 6s ease-in-out infinite;
+  color: hsl(var(--dark-sage));
+  font-family: 'Georgia', 'Playfair Display', serif;
   font-weight: 700;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  text-shadow: 2px 2px 4px rgba(120, 111, 106, 0.3);
+  filter: drop-shadow(0 2px 6px rgba(140, 123, 104, 0.2));
 }
 
-@keyframes title-elegant-shimmer {
-  0%, 100% { 
-    background-position: 0% 50%;
-  }
-  50% { 
-    background-position: 100% 50%;
-  }
+.theme-natale.dark .gallery-title {
+  color: hsl(var(--cream));
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .theme-natale .gallery-title::before {
-  content: '🎄';
-  margin-right: 14px;
-  animation: tree-gentle-sway 5s ease-in-out infinite;
+  content: '🌲';
+  margin-right: 12px;
+  animation: tree-sway 4s ease-in-out infinite;
   display: inline-block;
-  opacity: 0.85;
-  filter: drop-shadow(0 0 6px rgba(22, 91, 51, 0.4));
+  opacity: 0.8;
 }
 
 .theme-natale .gallery-title::after {
-  content: '⭐';
-  margin-left: 14px;
-  animation: star-gentle-pulse 4s ease-in-out infinite;
+  content: '🎄';
+  margin-left: 12px;
+  animation: tree-sway-reverse 4s ease-in-out infinite;
   display: inline-block;
-  opacity: 0.85;
-  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.5));
+  opacity: 0.8;
 }
 
-@keyframes tree-gentle-sway {
-  0%, 100% { 
-    transform: rotate(-2deg) scale(1);
-  }
-  50% { 
-    transform: rotate(2deg) scale(1.08);
-  }
+@keyframes tree-sway {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
 }
 
-@keyframes star-gentle-pulse {
-  0%, 100% { 
-    transform: rotate(0deg) scale(1);
-    opacity: 0.85;
-  }
-  50% { 
-    transform: rotate(180deg) scale(1.2);
-    opacity: 1;
-  }
+@keyframes tree-sway-reverse {
+  0%, 100% { transform: rotate(3deg); }
+  50% { transform: rotate(-3deg); }
 }
 
-/* === HEADING ELEGANTI === */
+/* === HEADING ELEGANTI CON PALETTE === */
 .theme-natale h1,
 .theme-natale h2,
 .theme-natale h3 {
-  background: linear-gradient(90deg, #c41e3a, #ffd700, #165b33, #c41e3a);
-  background-size: 200% 200%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: heading-shimmer 7s linear infinite;
+  color: hsl(var(--blue-gray));
+  font-family: 'Georgia', 'Playfair Display', serif;
   font-weight: 700;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.15));
-}
-
-@keyframes heading-shimmer {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
+  text-shadow: 1px 1px 3px rgba(120, 111, 106, 0.2);
 }
 
 .theme-natale.dark h1,
 .theme-natale.dark h2,
 .theme-natale.dark h3 {
-  background: linear-gradient(90deg, #ff6b7a, #ffd700, #81c784, #ff6b7a);
-  background-size: 200% 200%;
-  animation: heading-shimmer 7s linear infinite;
+  color: hsl(var(--cream));
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-/* === CARD CON BORDO NATALIZIO RAFFINATO === */
+/* === CARD COUNTRY CON BORDO RUSTICO === */
 .theme-natale .photo-card,
 .theme-natale .card,
 .theme-natale [class*="card"] {
   position: relative;
-  border: 1px solid transparent;
-  border-image: linear-gradient(135deg, 
-    rgba(196, 30, 58, 0.2), 
-    rgba(255, 215, 0, 0.3), 
-    rgba(22, 91, 51, 0.2)
-  ) 1;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(245, 240, 232, 0.95);
+  border: 2px solid rgba(140, 123, 104, 0.3);
   box-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.05),
-    0 0 15px rgba(255, 215, 0, 0.05);
+    0 4px 12px rgba(120, 111, 106, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.3s ease;
+}
+
+.theme-natale.dark .photo-card,
+.theme-natale.dark .card,
+.theme-natale.dark [class*="card"] {
+  background: rgba(42, 37, 32, 0.9);
+  border-color: rgba(140, 123, 104, 0.4);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(200, 171, 147, 0.1);
 }
 
 .theme-natale .photo-card::before,
 .theme-natale .card::before {
   content: '';
   position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(135deg, 
-    rgba(196, 30, 58, 0.4), 
-    rgba(255, 215, 0, 0.5), 
-    rgba(22, 91, 51, 0.4)
-  );
-  background-size: 200% 200%;
-  animation: border-elegant-flow 8s linear infinite;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid transparent;
   border-radius: inherit;
+  background: linear-gradient(135deg, 
+    rgba(140, 123, 104, 0.4), 
+    rgba(200, 171, 147, 0.4)
+  ) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
   opacity: 0;
-  transition: opacity 0.4s ease;
-  z-index: -1;
-}
-
-@keyframes border-elegant-flow {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
+  transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .theme-natale .photo-card:hover::before,
@@ -390,264 +264,215 @@
 
 .theme-natale .photo-card:hover,
 .theme-natale .card:hover {
-  transform: translateY(-4px) scale(1.01);
+  transform: translateY(-4px);
   box-shadow: 
-    0 8px 20px rgba(0, 0, 0, 0.1),
-    0 0 25px rgba(255, 215, 0, 0.15);
+    0 8px 24px rgba(120, 111, 106, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-.theme-natale.dark .photo-card,
-.theme-natale.dark .card,
-.theme-natale.dark [class*="card"] {
-  background: rgba(30, 20, 20, 0.6);
-  backdrop-filter: blur(16px) saturate(200%);
-  box-shadow: 
-    0 8px 32px rgba(196, 30, 58, 0.4),
-    0 0 50px rgba(255, 215, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-}
-
-/* === BOTTONI PREMIUM CON TOCCO NATALIZIO === */
+/* === BOTTONI COUNTRY STYLE === */
 .theme-natale button,
 .theme-natale .button,
 .theme-natale [class*="button"] {
   background: linear-gradient(135deg, 
-    rgba(196, 30, 58, 0.85) 0%, 
-    rgba(139, 19, 41, 0.9) 100%
+    hsl(var(--sage)) 0%, 
+    hsl(var(--dark-sage)) 100%
   );
   color: white;
-  border: 1px solid rgba(255, 215, 0, 0.25);
+  border: 2px solid rgba(140, 123, 104, 0.4);
   box-shadow: 
-    0 2px 8px rgba(196, 30, 58, 0.2),
-    0 0 12px rgba(255, 215, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    0 2px 8px rgba(120, 111, 106, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
   font-weight: 600;
-  position: relative;
-  overflow: hidden;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.theme-natale button::before,
-.theme-natale .button::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 215, 0, 0.3), transparent);
-  transform: translate(-50%, -50%);
-  transition: width 0.5s ease, height 0.5s ease;
-}
-
-.theme-natale button:hover::before,
-.theme-natale .button:hover::before {
-  width: 250px;
-  height: 250px;
 }
 
 .theme-natale button:hover,
 .theme-natale .button:hover {
   background: linear-gradient(135deg, 
-    rgba(255, 215, 0, 0.9) 0%, 
-    rgba(196, 30, 58, 0.9) 100%
+    hsl(var(--blue-gray)) 0%, 
+    hsl(var(--sage)) 100%
   );
-  transform: translateY(-2px) scale(1.03);
+  transform: translateY(-2px);
   box-shadow: 
-    0 6px 16px rgba(255, 215, 0, 0.25),
-    0 0 20px rgba(196, 30, 58, 0.2);
-  border-color: rgba(255, 215, 0, 0.5);
+    0 4px 12px rgba(120, 111, 106, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-color: rgba(200, 171, 147, 0.6);
 }
 
-.theme-natale button:active,
-.theme-natale .button:active {
-  transform: translateY(-1px) scale(1.02);
-}
-
-/* === BADGE ELEGANTI === */
+/* === BADGE RUSTICO === */
 .theme-natale .badge {
-  background: linear-gradient(135deg, #c41e3a, #ffd700, #165b33);
+  background: linear-gradient(135deg, 
+    hsl(var(--terracotta)) 0%, 
+    hsl(var(--sage)) 100%
+  );
   color: white;
   padding: 6px 16px;
   border-radius: 20px;
   font-weight: 700;
   font-size: 0.875rem;
-  box-shadow: 
-    0 2px 8px rgba(196, 30, 58, 0.3),
-    0 0 15px rgba(255, 215, 0, 0.2);
-  animation: badge-subtle-pulse 4s ease-in-out infinite;
+  box-shadow: 0 2px 8px rgba(120, 111, 106, 0.3);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-@keyframes badge-subtle-pulse {
-  0%, 100% { 
-    transform: scale(1);
-    opacity: 0.95;
-  }
-  50% { 
-    transform: scale(1.05);
-    opacity: 1;
-  }
-}
-
-/* === DIVIDER ELEGANTE === */
+/* === DIVIDER RUSTICO === */
 .theme-natale .divider,
 .theme-natale hr {
   background: linear-gradient(to right, 
     transparent, 
-    rgba(196, 30, 58, 0.3) 20%, 
-    rgba(255, 215, 0, 0.4) 40%, 
-    rgba(22, 91, 51, 0.3) 50%, 
-    rgba(255, 215, 0, 0.4) 60%, 
-    rgba(196, 30, 58, 0.3) 80%, 
+    rgba(140, 123, 104, 0.4) 20%, 
+    rgba(120, 111, 106, 0.5) 50%, 
+    rgba(140, 123, 104, 0.4) 80%, 
     transparent
   );
-  height: 2px;
+  height: 3px;
   border: none;
   margin: 24px 0;
-  box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
-  animation: divider-subtle-glow 5s ease-in-out infinite;
   position: relative;
 }
 
 .theme-natale .divider::before,
 .theme-natale hr::before {
-  content: '❄️';
+  content: '🌿';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 16px;
-  background: var(--background, #ffffff);
+  font-size: 18px;
+  background: hsl(var(--off-white));
   padding: 4px 12px;
-  border-radius: 16px;
-  animation: divider-icon-gentle-spin 10s linear infinite;
-  opacity: 0.8;
+  border-radius: 12px;
+  opacity: 0.9;
 }
 
-@keyframes divider-subtle-glow {
-  0%, 100% { 
-    opacity: 0.6;
-  }
-  50% { 
-    opacity: 0.9;
-    filter: brightness(1.2);
-  }
+.theme-natale.dark .divider::before,
+.theme-natale.dark hr::before {
+  background: hsl(var(--dark-sage) / 0.3);
 }
 
-@keyframes divider-icon-gentle-spin {
-  0% { transform: translate(-50%, -50%) rotate(0deg); }
-  100% { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
-/* === TESTO MUTED CON TOCCO DORATO === */
+/* === TESTO MUTED CON TONALITÀ NATURALI === */
 .theme-natale .text-muted {
-  color: rgba(255, 215, 0, 0.75) !important;
+  color: hsl(var(--dark-sage)) !important;
   font-weight: 500;
 }
 
 .theme-natale.dark .text-muted {
-  color: rgba(255, 215, 0, 0.85) !important;
-  text-shadow: 0 0 6px rgba(255, 215, 0, 0.2);
+  color: hsl(var(--beige)) !important;
 }
 
-/* === DECORAZIONI NATALIZIE SOTTILI === */
-.theme-natale .christmas-ornament {
+/* === DECORAZIONI PIGNE E BACCHE === */
+.theme-natale .pine-cones {
   position: fixed;
+  top: 15%;
+  left: 5%;
   font-size: 40px;
   opacity: 0.15;
   pointer-events: none;
-  animation: ornament-gentle-swing 8s ease-in-out infinite;
+  animation: gentle-swing 6s ease-in-out infinite;
   z-index: 1;
-  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.3));
 }
 
-.theme-natale .christmas-ornament:nth-child(1) {
-  top: 15%;
-  left: 8%;
-  animation-delay: 0s;
+.theme-natale .pine-cones::before {
+  content: '🌰';
 }
 
-.theme-natale .christmas-ornament:nth-child(2) {
+.theme-natale .berries {
+  position: fixed;
   top: 25%;
-  right: 12%;
-  animation-delay: 1.5s;
+  right: 8%;
+  font-size: 35px;
+  opacity: 0.15;
+  pointer-events: none;
+  animation: gentle-swing-reverse 7s ease-in-out infinite;
+  z-index: 1;
 }
 
-.theme-natale .christmas-ornament:nth-child(3) {
-  bottom: 35%;
-  left: 15%;
-  animation-delay: 3s;
+.theme-natale .berries::before {
+  content: '🍂';
 }
 
-@keyframes ornament-gentle-swing {
-  0%, 100% { 
-    transform: rotate(-8deg) translateY(0);
-    opacity: 0.12;
-  }
-  50% { 
-    transform: rotate(8deg) translateY(-8px);
-    opacity: 0.2;
-  }
+@keyframes gentle-swing {
+  0%, 100% { transform: rotate(-5deg) translateY(0); }
+  50% { transform: rotate(5deg) translateY(-10px); }
 }
 
-/* === SCROLLBAR ELEGANTE === */
+@keyframes gentle-swing-reverse {
+  0%, 100% { transform: rotate(5deg) translateY(0); }
+  50% { transform: rotate(-5deg) translateY(-10px); }
+}
+
+/* === SCROLLBAR RUSTICA === */
 .theme-natale::-webkit-scrollbar {
-  width: 12px;
+  width: 14px;
 }
 
 .theme-natale::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(245, 240, 232, 0.3);
   border-radius: 10px;
 }
 
 .theme-natale::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, 
-    rgba(196, 30, 58, 0.6), 
-    rgba(255, 215, 0, 0.6), 
-    rgba(22, 91, 51, 0.6)
+    hsl(var(--sage)), 
+    hsl(var(--dark-sage))
   );
   border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  border: 3px solid rgba(245, 240, 232, 0.3);
 }
 
 .theme-natale::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, 
-    rgba(255, 215, 0, 0.8), 
-    rgba(196, 30, 58, 0.8), 
-    rgba(22, 91, 51, 0.8)
+    hsl(var(--blue-gray)), 
+    hsl(var(--sage))
   );
-  box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
 }
 
-/* === PARTICELLE DI LUCE MAGICHE === */
-.theme-natale .magic-particles {
+/* === FIOCCHI DI NEVE GRANDI === */
+.theme-natale .big-snowflakes {
   position: fixed;
-  top: 0;
+  top: -80px;
+  left: 10%;
+  width: 80%;
+  font-size: 50px;
+  color: rgba(255, 255, 255, 0.25);
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+  animation: big-snow-fall 25s linear infinite;
+  pointer-events: none;
+  z-index: 2;
+  letter-spacing: 200px;
+}
+
+.theme-natale .big-snowflakes::before {
+  content: '❄ ❅ ❄';
+}
+
+@keyframes big-snow-fall {
+  0% {
+    transform: translateY(-80px) rotate(0deg);
+    opacity: 0;
+  }
+  15% { opacity: 0.25; }
+  85% { opacity: 0.2; }
+  100% {
+    transform: translateY(calc(100vh + 80px)) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+/* === EFFETTO BRINA ALLA BASE === */
+.theme-natale .frost-effect {
+  position: fixed;
+  bottom: 0;
   left: 0;
   right: 0;
-  bottom: 0;
-  background-image: 
-    radial-gradient(circle at 8% 12%, rgba(255, 215, 0, 0.15) 1px, transparent 1px),
-    radial-gradient(circle at 18% 28%, rgba(255, 255, 255, 0.12) 1.5px, transparent 1.5px),
-    radial-gradient(circle at 35% 45%, rgba(255, 215, 0, 0.18) 1px, transparent 1px),
-    radial-gradient(circle at 55% 22%, rgba(255, 255, 255, 0.15) 1px, transparent 1px),
-    radial-gradient(circle at 72% 38%, rgba(255, 215, 0, 0.12) 1.5px, transparent 1.5px),
-    radial-gradient(circle at 88% 58%, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
-    radial-gradient(circle at 92% 78%, rgba(255, 215, 0, 0.15) 1px, transparent 1px);
-  animation: particles-gentle-float 18s ease-in-out infinite;
+  height: 100px;
+  background: linear-gradient(to top,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(245, 240, 232, 0.15) 40%,
+    transparent 100%
+  );
   pointer-events: none;
-  z-index: 1;
-}
-
-@keyframes particles-gentle-float {
-  0%, 100% { 
-    opacity: 0.3;
-    transform: translateY(0);
-  }
-  50% { 
-    opacity: 0.5;
-    transform: translateY(-15px);
-  }
+  z-index: 3;
 }
