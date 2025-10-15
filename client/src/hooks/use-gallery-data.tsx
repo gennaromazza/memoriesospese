@@ -21,6 +21,8 @@ export interface GalleryData {
   photoCount?: number;
   code?: string; // Aggiunto il codice galleria necessario per la condivisione
   active?: boolean; // Status attivazione galleria
+  specialTheme?: string; // Tema stagionale (natale, carnevale, san-valentino, pasqua, halloween)
+  specialPin?: string; // PIN per gallerie speciali
 }
 
 export interface PhotoData {

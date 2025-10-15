@@ -4,6 +4,11 @@ import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
 import { User } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import "@/styles/themes/natale.css";
+import "@/styles/themes/carnevale.css";
+import "@/styles/themes/san-valentino.css";
+import "@/styles/themes/pasqua.css";
+import "@/styles/themes/halloween.css";
 import {
   Tooltip,
   TooltipContent,
@@ -409,8 +414,13 @@ export default function Gallery() {
     );
   }
 
+  // Determina la classe del tema basata su galleryData.specialTheme
+  const themeClass = galleryData?.specialTheme && galleryData.specialTheme !== 'none' 
+    ? `theme-${galleryData.specialTheme}` 
+    : '';
+
   return (
-    <div className="min-h-screen bg-off-white">
+    <div className={`min-h-screen ${themeClass || 'bg-off-white'}`}>
 
       <Navigation galleryOwner={galleryData.name} galleryCode={id} />
 
