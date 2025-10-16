@@ -112,3 +112,6 @@ externalPort = 5000
 [[ports]]
 localPort = 46253
 externalPort = 6000
+
+[agent]
+integrations = ["google-mail:1.0.0"]
