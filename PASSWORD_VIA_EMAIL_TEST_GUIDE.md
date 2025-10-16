@@ -1,6 +1,27 @@
-# Guida Test: Password Galleria via Email
+# Guida Test: Password Galleria via Email (SICURA)
 
-## ✅ Implementazione Completata
+## ✅ Implementazione Completata con Sicurezza Garantita
+
+### 🔒 Architettura Sicurezza
+
+**FLUSSO SICURO IMPLEMENTATO:**
+```
+1. User richiede password → Form (nome, email, etc.)
+2. Frontend valida dati → NON recupera MAI password
+3. Frontend → Firebase Function (solo galleryId, NO password)
+4. Firebase Function → Firestore (recupera password server-side)
+5. Firebase Function → Gmail API (invia email con password)
+6. User riceve email → Password sicura via email
+```
+
+**✅ GARANZIA SICUREZZA:**
+- Password MAI caricata nel browser
+- Password MAI in React state
+- Password MAI in Network tab
+- Password MAI accessibile in DevTools
+- Password recuperata SOLO server-side
+
+---
 
 ### Modifiche Effettuate
 
@@ -11,14 +32,18 @@
 - ✅ Messaggio "Conserva questa email per accedere"
 - ✅ Nota privacy: "Questa email contiene informazioni riservate"
 
-#### 2. **Firebase Function Aggiornata** (`functions/src/index.ts`)
-- ✅ `sendGalleryPassword` accetta parametri completi
-- ✅ Logging migliorato con galleryName
-- ✅ Ritorna recipientEmail nella response
+#### 2. **Firebase Function SICURA** (`functions/src/index.ts`)
+- ✅ `sendGalleryPassword` recupera password da Firestore server-side
+- ✅ Client invia solo galleryId (MAI la password)
+- ✅ Validazione galleryId e esistenza documento
+- ✅ Password MAI esposta al client
+- ✅ Logging sicuro (galleryId, non password)
 
-#### 3. **Hook use-password-request.tsx**
-- ✅ **RIMOSSA** restituzione password in chiaro
-- ✅ Chiama Firebase Function `sendGalleryPassword`
+#### 3. **Hook use-password-request.tsx SICURO**
+- ✅ **RIMOSSA** fetch password da Firestore
+- ✅ GalleryInfo NON contiene campo password
+- ✅ Recupera solo metadata galleria (nome, code, security question)
+- ✅ Chiama Firebase Function con galleryId (non password)
 - ✅ Costruisce galleryUrl automaticamente (base path aware)
 - ✅ Ritorna: `{ success: true, emailSent: true, recipientEmail: string }`
 - ✅ Salva richiesta in collection `passwordRequests`
@@ -199,29 +224,41 @@ INFO: Gallery password sent to mario.rossi@example.com for gallery [Nome Galleri
 
 ---
 
-## 🚨 Test di Sicurezza
+## 🚨 Test di Sicurezza (CRITICI)
 
-### Security Checklist
+### Security Checklist CRITICI
 
-1. **Password Non Esposta nel Browser** ✅
-   - Inspect Element: NO password
-   - Network Tab: password solo in payload criptato
-   - Console Log: NO password in chiaro
-   - LocalStorage/SessionStorage: NO password
+1. **Password MAI Esposta nel Browser** ✅ ✅ ✅
+   - ❌ Inspect Element: NO password MAI
+   - ❌ React DevTools: NO password in state MAI
+   - ❌ Network Tab: password MAI inviata dal client
+   - ❌ Network Response: password MAI ritornata al client
+   - ❌ Console Log: NO password in chiaro MAI
+   - ❌ LocalStorage/SessionStorage: NO password MAI
+   - ✅ Password SOLO server-side (Firebase Function → Firestore)
 
-2. **Email Sicura** ✅
+2. **Flusso Server-Side Sicuro** ✅
+   - ✅ Client invia SOLO: galleryId, email, nome, cognome
+   - ✅ Firebase Function recupera password da Firestore
+   - ✅ Password viaggia SOLO: Firestore → Function → Gmail
+   - ✅ Password MAI ritorna al client (nemmeno criptata)
+
+3. **Email Sicura** ✅
    - Email inviata solo a indirizzo fornito dall'utente
    - Nessuna possibilità di intercettazione browser-side
    - Password non loggata in console client
+   - Password MAI transitata tramite client
 
-3. **Database Firestore** ✅
+4. **Database Firestore** ✅
    - passwordRequests collection: NO password salvata
-   - Password solo in collection galleries (protetta)
+   - Password solo in collection galleries (protetta server-side)
+   - Access rules impediscono lettura password da client
 
-4. **Audit Trail** ✅
+5. **Audit Trail** ✅
    - Ogni richiesta tracciata in passwordRequests
    - Timestamp creazione
    - Email destinatario registrata
+   - galleryId tracciato (non password)
 
 ---
 
