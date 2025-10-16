@@ -4,9 +4,10 @@ import { useToast } from '@/hooks/use-toast';
 interface GalleryInfo {
   id: string;
   name: string;
-  password: string;
+  code: string;
   requiresSecurityQuestion: boolean;
   securityQuestion?: string;
+  securityAnswer?: string; // Solo per validazione client-side security question
 }
 
 interface RequestPasswordParams {
@@ -60,9 +61,10 @@ export function usePasswordRequest() {
       const info: GalleryInfo = {
         id: galleryId,
         name: galleryData.name,
-        password: galleryData.password,
+        code: galleryData.code || galleryCode,
         requiresSecurityQuestion: hasSecurityQuestion,
-        securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
+        securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined,
+        securityAnswer: hasSecurityQuestion ? galleryData.securityAnswer : undefined
       };
 
 
@@ -116,20 +118,11 @@ export function usePasswordRequest() {
 
       // Se è stata fornita una risposta alla domanda di sicurezza, verificala
       if (galleryInfo.requiresSecurityQuestion && params.securityAnswer) {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
+        const correctAnswer = galleryInfo.securityAnswer?.toLowerCase().trim();
+        const providedAnswer = params.securityAnswer.toLowerCase().trim();
         
-        const galleryRef = doc(db, "galleries", galleryInfo.id);
-        const galleryDoc = await getDoc(galleryRef);
-        
-        if (galleryDoc.exists()) {
-          const galleryData = galleryDoc.data();
-          const correctAnswer = galleryData.securityAnswer?.toLowerCase().trim();
-          const providedAnswer = params.securityAnswer.toLowerCase().trim();
-          
-          if (providedAnswer !== correctAnswer) {
-            throw new Error('Risposta alla domanda di sicurezza non corretta');
-          }
+        if (providedAnswer !== correctAnswer) {
+          throw new Error('Risposta alla domanda di sicurezza non corretta');
         }
       }
 
@@ -150,6 +143,8 @@ export function usePasswordRequest() {
       });
 
       // Invia password via email usando Firebase Function
+      // IMPORTANTE: La password viene recuperata server-side dalla Cloud Function
+      // Il client NON conosce mai la password per motivi di sicurezza
       const { httpsCallable } = await import('firebase/functions');
       const { functions } = await import('@/lib/firebase');
       
@@ -158,13 +153,14 @@ export function usePasswordRequest() {
       // Costruisci URL galleria
       const baseUrl = window.location.origin;
       const basePath = import.meta.env.VITE_BASE_PATH || '';
-      const galleryUrl = `${baseUrl}${basePath}/gallery/${params.galleryId}`;
+      const galleryUrl = `${baseUrl}${basePath}/gallery/${galleryInfo.code}`;
       
+      // NON inviamo la password - la Cloud Function la recupera da Firestore
       await sendPasswordEmail({
+        galleryId: galleryInfo.id, // La function usa questo per recuperare la password
         recipientEmail: params.email,
         galleryName: galleryInfo.name,
-        galleryCode: params.galleryId,
-        galleryPassword: galleryInfo.password,
+        galleryCode: galleryInfo.code,
         firstName: params.firstName,
         lastName: params.lastName,
         galleryUrl: galleryUrl

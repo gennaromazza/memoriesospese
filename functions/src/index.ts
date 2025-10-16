@@ -125,13 +125,32 @@ export const sendNewPhotosNotificationCall = onCall(async (request) => {
 
 /**
  * Function per invio password galleria
+ * SICUREZZA: Recupera la password direttamente da Firestore server-side
+ * Il client NON deve mai conoscere la password
  */
 export const sendGalleryPassword = onCall(async (request) => {
   try {
-    const { recipientEmail, galleryName, galleryCode, galleryPassword, firstName, lastName, galleryUrl } = request.data;
+    const { galleryId, recipientEmail, galleryName, galleryCode, firstName, lastName, galleryUrl } = request.data;
 
-    if (!recipientEmail || !galleryName || !galleryCode) {
-      throw new HttpsError('invalid-argument', 'Missing required parameters');
+    if (!galleryId || !recipientEmail || !galleryName || !galleryCode) {
+      throw new HttpsError('invalid-argument', 'Missing required parameters: galleryId, recipientEmail, galleryName, galleryCode');
+    }
+
+    // SICUREZZA: Recupera password da Firestore server-side
+    // Il client NON invia mai la password
+    const galleryDoc = await admin.firestore().collection('galleries').doc(galleryId).get();
+    
+    if (!galleryDoc.exists) {
+      logger.error(`Gallery not found: ${galleryId}`);
+      throw new HttpsError('not-found', 'Gallery not found');
+    }
+    
+    const galleryData = galleryDoc.data();
+    const galleryPassword = galleryData?.password;
+    
+    if (!galleryPassword) {
+      logger.error(`Gallery password not found: ${galleryId}`);
+      throw new HttpsError('internal', 'Gallery password not configured');
     }
 
     // Crea HTML email con parametri completi
@@ -147,7 +166,7 @@ export const sendGalleryPassword = onCall(async (request) => {
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipientEmail, subject, htmlContent);
-    logger.info(`Gallery password sent to ${recipientEmail} for gallery ${galleryName} via Gmail API`);
+    logger.info(`Gallery password sent to ${recipientEmail} for gallery ${galleryName} (ID: ${galleryId}) via Gmail API`);
     
     return { success: true, message: 'Gallery password sent successfully', recipientEmail };
   } catch (error) {
