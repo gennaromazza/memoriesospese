@@ -124,13 +124,98 @@ export const sendNewPhotosNotificationCall = onCall(async (request) => {
 });
 
 /**
+ * Helper: Ottieni testo domanda di sicurezza
+ */
+function getSecurityQuestionText(galleryData: any): string | undefined {
+  const questionMap: Record<string, string> = {
+    'groomName': 'Nome dello sposo',
+    'brideName': 'Nome della sposa',
+    'weddingDate': 'Data del matrimonio (gg/mm/aaaa)',
+    'weddingLocation': 'Luogo del matrimonio',
+    'custom': galleryData.customSecurityQuestion || 'Domanda personalizzata'
+  };
+  
+  return galleryData.securityQuestionType ? questionMap[galleryData.securityQuestionType] : undefined;
+}
+
+/**
+ * Function per recuperare metadata galleria (SICURI - senza password/securityAnswer)
+ * SICUREZZA: Ritorna SOLO dati non-sensibili, MAI password o securityAnswer
+ */
+export const getGalleryMetadata = onCall(async (request) => {
+  try {
+    const { galleryCode } = request.data;
+
+    if (!galleryCode) {
+      throw new HttpsError('invalid-argument', 'galleryCode is required');
+    }
+
+    // Cerca galleria per code field
+    const galleriesByCode = await admin.firestore()
+      .collection('galleries')
+      .where('code', '==', galleryCode)
+      .limit(1)
+      .get();
+
+    let galleryDoc;
+    let galleryId;
+
+    if (!galleriesByCode.empty) {
+      galleryDoc = galleriesByCode.docs[0];
+      galleryId = galleryDoc.id;
+    } else {
+      // Fallback: cerca per document ID
+      galleryDoc = await admin.firestore().collection('galleries').doc(galleryCode).get();
+      galleryId = galleryCode;
+      
+      if (!galleryDoc.exists) {
+        logger.warn(`Gallery not found for code: ${galleryCode}`);
+        throw new HttpsError('not-found', 'Gallery not found');
+      }
+    }
+
+    const galleryData = galleryDoc.data();
+    if (!galleryData) {
+      throw new HttpsError('internal', 'Gallery data is empty');
+    }
+
+    // Verifica se ha domanda di sicurezza
+    const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true && 
+                               galleryData.securityQuestionType && 
+                               galleryData.securityAnswer;
+
+    // SICUREZZA: Ritorna SOLO metadata non-sensibili
+    // ❌ NO password
+    // ❌ NO securityAnswer
+    const metadata = {
+      id: galleryId,
+      name: galleryData.name,
+      code: galleryData.code || galleryCode,
+      requiresSecurityQuestion: hasSecurityQuestion,
+      securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
+    };
+
+    logger.info(`Gallery metadata retrieved for: ${galleryCode} (ID: ${galleryId}) - NO sensitive data exposed`);
+    return metadata;
+    
+  } catch (error) {
+    logger.error('Error retrieving gallery metadata:', error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError('internal', 'Failed to retrieve gallery metadata');
+  }
+});
+
+/**
  * Function per invio password galleria
  * SICUREZZA: Recupera la password direttamente da Firestore server-side
+ * VALIDAZIONE: Security question validata server-side
  * Il client NON deve mai conoscere la password
  */
 export const sendGalleryPassword = onCall(async (request) => {
   try {
-    const { galleryId, recipientEmail, galleryName, galleryCode, firstName, lastName, galleryUrl } = request.data;
+    const { galleryId, recipientEmail, galleryName, galleryCode, firstName, lastName, galleryUrl, securityAnswer } = request.data;
 
     if (!galleryId || !recipientEmail || !galleryName || !galleryCode) {
       throw new HttpsError('invalid-argument', 'Missing required parameters: galleryId, recipientEmail, galleryName, galleryCode');
@@ -151,6 +236,28 @@ export const sendGalleryPassword = onCall(async (request) => {
     if (!galleryPassword) {
       logger.error(`Gallery password not found: ${galleryId}`);
       throw new HttpsError('internal', 'Gallery password not configured');
+    }
+
+    // VALIDAZIONE SERVER-SIDE: Security question (se configurata)
+    const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true && 
+                               galleryData.securityQuestionType && 
+                               galleryData.securityAnswer;
+    
+    if (hasSecurityQuestion) {
+      if (!securityAnswer) {
+        logger.warn(`Security answer required but not provided for gallery ${galleryId}`);
+        throw new HttpsError('invalid-argument', 'Security answer required');
+      }
+      
+      const correctAnswer = galleryData.securityAnswer.toLowerCase().trim();
+      const providedAnswer = securityAnswer.toLowerCase().trim();
+      
+      if (providedAnswer !== correctAnswer) {
+        logger.warn(`Incorrect security answer for gallery ${galleryId}`);
+        throw new HttpsError('permission-denied', 'Incorrect security answer');
+      }
+      
+      logger.info(`Security question validated successfully for gallery ${galleryId}`);
     }
 
     // Crea HTML email con parametri completi
