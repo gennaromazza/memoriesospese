@@ -7,7 +7,7 @@ interface GalleryInfo {
   code: string;
   requiresSecurityQuestion: boolean;
   securityQuestion?: string;
-  securityAnswer?: string; // Solo per validazione client-side security question
+  // ❌ securityAnswer rimosso - validazione ora server-side
 }
 
 interface RequestPasswordParams {
@@ -39,37 +39,23 @@ export function usePasswordRequest() {
     setError('');
 
     try {
-      const { collection, query, where, getDocs } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
+      // SICUREZZA: Usa Cloud Function per recuperare SOLO metadata sicuri
+      // ❌ NO query Firestore diretta (esporrebbe password/securityAnswer)
+      // ✅ Cloud Function ritorna SOLO: id, name, code, requiresSecurityQuestion, securityQuestion
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('@/lib/firebase');
       
-      const galleriesRef = collection(db, "galleries");
-      const q = query(galleriesRef, where("code", "==", galleryCode));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
+      const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
+      const result = await getGalleryMetadata({ galleryCode });
+      
+      if (!result.data) {
         throw new Error('Galleria non trovata');
       }
 
-      const galleryData = querySnapshot.docs[0].data();
-      const galleryId = querySnapshot.docs[0].id;
+      const metadata = result.data as GalleryInfo;
       
-      // Verifica più robusta per requiresSecurityQuestion
-      const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true && 
-                                 galleryData.securityQuestionType && 
-                                 galleryData.securityAnswer;
-      
-      const info: GalleryInfo = {
-        id: galleryId,
-        name: galleryData.name,
-        code: galleryData.code || galleryCode,
-        requiresSecurityQuestion: hasSecurityQuestion,
-        securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined,
-        securityAnswer: hasSecurityQuestion ? galleryData.securityAnswer : undefined
-      };
-
-
-      setGalleryInfo(info);
-      return info;
+      setGalleryInfo(metadata);
+      return metadata;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
       setError(errorMessage);
@@ -78,23 +64,6 @@ export function usePasswordRequest() {
       setIsLoading(false);
     }
   }, []);
-
-  const getSecurityQuestionText = (galleryData: any): string => {
-    if (!galleryData.requiresSecurityQuestion) return '';
-    
-    const questionType = galleryData.securityQuestionType;
-    
-    switch (questionType) {
-      case 'location':
-        return "Qual è il nome della location dell'evento?";
-      case 'month':
-        return "In che mese si è svolto l'evento?";
-      case 'custom':
-        return galleryData.securityQuestionCustom || 'Domanda personalizzata';
-      default:
-        return 'Domanda di sicurezza';
-    }
-  };
 
   const submitPasswordRequest = useCallback(async (params: RequestPasswordParams): Promise<PasswordRequestResult> => {
     setIsLoading(true);
@@ -116,15 +85,9 @@ export function usePasswordRequest() {
         };
       }
 
-      // Se è stata fornita una risposta alla domanda di sicurezza, verificala
-      if (galleryInfo.requiresSecurityQuestion && params.securityAnswer) {
-        const correctAnswer = galleryInfo.securityAnswer?.toLowerCase().trim();
-        const providedAnswer = params.securityAnswer.toLowerCase().trim();
-        
-        if (providedAnswer !== correctAnswer) {
-          throw new Error('Risposta alla domanda di sicurezza non corretta');
-        }
-      }
+      // ❌ RIMOSSA validazione client-side security question
+      // ✅ La validazione è ora server-side in sendGalleryPassword
+      // Il server verificherà la risposta e ritornerà errore se incorretta
 
       // Salva la richiesta nel database
       const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
@@ -143,8 +106,8 @@ export function usePasswordRequest() {
       });
 
       // Invia password via email usando Firebase Function
-      // IMPORTANTE: La password viene recuperata server-side dalla Cloud Function
-      // Il client NON conosce mai la password per motivi di sicurezza
+      // SICUREZZA: La password viene recuperata server-side dalla Cloud Function
+      // VALIDAZIONE: Security question validata server-side (se presente)
       const { httpsCallable } = await import('firebase/functions');
       const { functions } = await import('@/lib/firebase');
       
@@ -155,15 +118,16 @@ export function usePasswordRequest() {
       const basePath = import.meta.env.VITE_BASE_PATH || '';
       const galleryUrl = `${baseUrl}${basePath}/gallery/${galleryInfo.code}`;
       
-      // NON inviamo la password - la Cloud Function la recupera da Firestore
+      // Payload sicuro: NO password, security answer validata server-side
       await sendPasswordEmail({
-        galleryId: galleryInfo.id, // La function usa questo per recuperare la password
+        galleryId: galleryInfo.id, // Function recupera password da Firestore
         recipientEmail: params.email,
         galleryName: galleryInfo.name,
         galleryCode: galleryInfo.code,
         firstName: params.firstName,
         lastName: params.lastName,
-        galleryUrl: galleryUrl
+        galleryUrl: galleryUrl,
+        securityAnswer: params.securityAnswer // Validazione server-side
       });
 
       // Ritorna successo con conferma email
