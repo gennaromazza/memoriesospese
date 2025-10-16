@@ -20,7 +20,8 @@ interface RequestPasswordParams {
 
 interface PasswordRequestResult {
   success: boolean;
-  password?: string;
+  emailSent?: boolean;
+  recipientEmail?: string;
   requiresSecurityQuestion?: boolean;
   securityQuestion?: string;
   message?: string;
@@ -148,11 +149,33 @@ export function usePasswordRequest() {
         securityQuestionAnswered: galleryInfo.requiresSecurityQuestion
       });
 
-      // Restituisci la password se la verifica è completata
+      // Invia password via email usando Firebase Function
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('@/lib/firebase');
+      
+      const sendPasswordEmail = httpsCallable(functions, 'sendGalleryPassword');
+      
+      // Costruisci URL galleria
+      const baseUrl = window.location.origin;
+      const basePath = import.meta.env.VITE_BASE_PATH || '';
+      const galleryUrl = `${baseUrl}${basePath}/gallery/${params.galleryId}`;
+      
+      await sendPasswordEmail({
+        recipientEmail: params.email,
+        galleryName: galleryInfo.name,
+        galleryCode: params.galleryId,
+        galleryPassword: galleryInfo.password,
+        firstName: params.firstName,
+        lastName: params.lastName,
+        galleryUrl: galleryUrl
+      });
+
+      // Ritorna successo con conferma email
       return {
         success: true,
-        password: galleryInfo.password,
-        message: 'Richiesta completata con successo'
+        emailSent: true,
+        recipientEmail: params.email,
+        message: 'Email inviata con successo'
       };
 
     } catch (error) {

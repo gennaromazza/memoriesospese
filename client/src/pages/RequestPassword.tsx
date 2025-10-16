@@ -52,7 +52,7 @@ export default function RequestPassword() {
   const [showSecurityQuestion, setShowSecurityQuestion] = useState(false);
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [securityError, setSecurityError] = useState("");
-  const [finalPassword, setFinalPassword] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const { toast } = useToast();
   
   const { getGalleryInfo, submitPasswordRequest, galleryInfo, isLoading, error } = usePasswordRequest();
@@ -107,13 +107,13 @@ export default function RequestPassword() {
         securityAnswer: securityAnswer
       });
 
-      if (result.success && result.password) {
-        setFinalPassword(result.password);
+      if (result.success && result.emailSent) {
+        setRecipientEmail(result.recipientEmail || data.email);
         setSuccess(true);
         
         toast({
-          title: "Richiesta completata!",
-          description: "La password è ora disponibile qui sotto.",
+          title: "Email inviata con successo!",
+          description: `La password è stata inviata a ${result.recipientEmail || data.email}`,
         });
       }
       
@@ -146,14 +146,14 @@ export default function RequestPassword() {
         securityAnswer: securityAnswer.trim()
       });
 
-      if (result.success && result.password) {
-        setFinalPassword(result.password);
+      if (result.success && result.emailSent) {
+        setRecipientEmail(result.recipientEmail || formData.email);
         setSuccess(true);
         setShowSecurityQuestion(false);
         
         toast({
-          title: "Accesso autorizzato!",
-          description: "La password è ora disponibile qui sotto.",
+          title: "Email inviata con successo!",
+          description: `La password è stata inviata a ${result.recipientEmail || formData.email}`,
         });
       }
       
@@ -215,15 +215,22 @@ export default function RequestPassword() {
                     <WeddingImage type="wedding-cake" className="w-full h-auto opacity-60" alt="Torta nuziale" />
                   </div>
                   <h2 className="text-2xl font-bold text-blue-gray font-playfair mb-2">
-                    Password Disponibile
+                    ✉️ Email Inviata con Successo!
                   </h2>
                   <p className="text-gray-600 mb-4">
-                    La tua richiesta è stata approvata. Ecco la password per accedere alla galleria:
+                    La tua richiesta è stata approvata. Abbiamo inviato la password di accesso alla galleria a:
                   </p>
                   <div className="bg-sage/10 border border-sage/30 rounded-lg p-4 mb-6">
-                    <div className="text-lg font-mono font-bold text-blue-gray">
-                      {finalPassword}
+                    <div className="text-lg font-semibold text-blue-gray">
+                      📧 {recipientEmail}
                     </div>
+                  </div>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>📬 Controlla la tua casella di posta!</strong><br/>
+                      L'email contiene il codice e la password per accedere alla galleria.
+                      Se non la vedi, controlla anche la cartella spam.
+                    </p>
                   </div>
                   <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4 justify-center">
                     <Link href={createUrl(`/gallery/${id}`)}>

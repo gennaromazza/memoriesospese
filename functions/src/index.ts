@@ -128,21 +128,28 @@ export const sendNewPhotosNotificationCall = onCall(async (request) => {
  */
 export const sendGalleryPassword = onCall(async (request) => {
   try {
-    const { recipientEmail, galleryName, galleryCode, galleryPassword } = request.data;
+    const { recipientEmail, galleryName, galleryCode, galleryPassword, firstName, lastName, galleryUrl } = request.data;
 
     if (!recipientEmail || !galleryName || !galleryCode) {
       throw new HttpsError('invalid-argument', 'Missing required parameters');
     }
 
-    // Crea HTML email
-    const htmlContent = createGalleryPasswordEmailHTML(galleryName, galleryCode, galleryPassword);
-    const subject = `🔑 Codice di accesso per "${galleryName}"`;
+    // Crea HTML email con parametri completi
+    const htmlContent = createGalleryPasswordEmailHTML(
+      galleryName, 
+      galleryCode, 
+      galleryPassword,
+      firstName,
+      lastName,
+      galleryUrl
+    );
+    const subject = `🔑 Accesso autorizzato alla galleria "${galleryName}"`;
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipientEmail, subject, htmlContent);
-    logger.info(`Gallery password sent to ${recipientEmail} via Gmail API`);
+    logger.info(`Gallery password sent to ${recipientEmail} for gallery ${galleryName} via Gmail API`);
     
-    return { success: true, message: 'Gallery password sent successfully' };
+    return { success: true, message: 'Gallery password sent successfully', recipientEmail };
   } catch (error) {
     logger.error('Error sending gallery password:', error);
     throw new HttpsError('internal', 'Failed to send gallery password email');

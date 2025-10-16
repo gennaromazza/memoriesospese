@@ -90,12 +90,12 @@ localPort = 33875
 externalPort = 8008
 
 [[ports]]
-localPort = 36705
-externalPort = 6800
+localPort = 34799
+externalPort = 8081
 
 [[ports]]
-localPort = 37657
-externalPort = 8081
+localPort = 36705
+externalPort = 6800
 
 [[ports]]
 localPort = 40305

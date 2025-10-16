@@ -147,14 +147,23 @@ export function createNewPhotosEmailHTML(
 export function createGalleryPasswordEmailHTML(
   galleryName: string,
   galleryCode: string,
-  galleryPassword?: string
+  galleryPassword?: string,
+  firstName?: string,
+  lastName?: string,
+  galleryUrl?: string
 ): string {
+  const greeting = firstName ? `Ciao ${firstName}${lastName ? ' ' + lastName : ''},` : 'Ciao,';
+  
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">🔑 Accesso alla Galleria</h2>
+      <h2 style="color: #8b5a3c; text-align: center;">🔑 Accesso alla Galleria Autorizzato</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 10px;">
+          ${greeting}
+        </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
-          Ecco i dati per accedere alla galleria <strong style="color: #8b5a3c;">${galleryName}</strong>:
+          La tua richiesta di accesso è stata approvata! Ecco i dati per accedere alla galleria 
+          <strong style="color: #8b5a3c;">${galleryName}</strong>:
         </p>
         <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #666;">Codice Galleria:</p>
@@ -168,12 +177,22 @@ export function createGalleryPasswordEmailHTML(
             </h3>
           ` : ''}
         </div>
-        <p style="font-size: 14px; color: #666; text-align: center;">
-          Usa questi dati per accedere alla galleria e visualizzare le foto.
+        ${galleryUrl ? `
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${galleryUrl}" 
+             style="background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            📸 Accedi alla Galleria
+          </a>
+        </div>
+        ` : ''}
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 20px;">
+          Conserva questa email per accedere alla galleria in qualsiasi momento.
         </p>
       </div>
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
         <p>Memorie Sospese - Wedding Gallery System</p>
+        <p style="margin-top: 10px;">Questa email contiene informazioni riservate.</p>
       </div>
     </div>
   `;
