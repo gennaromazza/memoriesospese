@@ -39,23 +39,66 @@ export function usePasswordRequest() {
     setError('');
 
     try {
-      // SICUREZZA: Usa Cloud Function per recuperare SOLO metadata sicuri
-      // ❌ NO query Firestore diretta (esporrebbe password/securityAnswer)
-      // ✅ Cloud Function ritorna SOLO: id, name, code, requiresSecurityQuestion, securityQuestion
+      // SICUREZZA: Tenta di usare Cloud Function per metadata sicuri
+      // FALLBACK: Se Cloud Function non deployata, usa metodo diretto (TEMPORANEO)
       const { httpsCallable } = await import('firebase/functions');
       const { functions } = await import('@/lib/firebase');
       
-      const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
-      const result = await getGalleryMetadata({ galleryCode });
-      
-      if (!result.data) {
-        throw new Error('Galleria non trovata');
-      }
+      try {
+        const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
+        const result = await getGalleryMetadata({ galleryCode });
+        
+        if (!result.data) {
+          throw new Error('Galleria non trovata');
+        }
 
-      const metadata = result.data as GalleryInfo;
-      
-      setGalleryInfo(metadata);
-      return metadata;
+        const metadata = result.data as GalleryInfo;
+        setGalleryInfo(metadata);
+        return metadata;
+      } catch (functionError) {
+        console.warn('⚠️ Cloud Function getGalleryMetadata non disponibile, uso fallback Firestore diretto');
+        
+        // FALLBACK TEMPORANEO: Query Firestore diretta (solo fino a deploy Cloud Functions)
+        const { collection, query, where, getDocs, doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        
+        // Cerca per code field
+        const galleriesRef = collection(db, "galleries");
+        const q = query(galleriesRef, where("code", "==", galleryCode));
+        const querySnapshot = await getDocs(q);
+
+        let galleryData: any;
+        let galleryId: string;
+
+        if (!querySnapshot.empty) {
+          galleryData = querySnapshot.docs[0].data();
+          galleryId = querySnapshot.docs[0].id;
+        } else {
+          // Fallback: cerca per document ID
+          const galleryDoc = await getDoc(doc(db, "galleries", galleryCode));
+          if (!galleryDoc.exists()) {
+            throw new Error('Galleria non trovata');
+          }
+          galleryData = galleryDoc.data();
+          galleryId = galleryCode;
+        }
+        
+        // Verifica security question
+        const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true && 
+                                   galleryData.securityQuestionType && 
+                                   galleryData.securityAnswer;
+        
+        const info: GalleryInfo = {
+          id: galleryId,
+          name: galleryData.name,
+          code: galleryData.code || galleryCode,
+          requiresSecurityQuestion: hasSecurityQuestion,
+          securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
+        };
+
+        setGalleryInfo(info);
+        return info;
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
       setError(errorMessage);
@@ -64,6 +107,18 @@ export function usePasswordRequest() {
       setIsLoading(false);
     }
   }, []);
+
+  const getSecurityQuestionText = (galleryData: any): string => {
+    const questionMap: Record<string, string> = {
+      'groomName': 'Nome dello sposo',
+      'brideName': 'Nome della sposa',
+      'weddingDate': 'Data del matrimonio (gg/mm/aaaa)',
+      'weddingLocation': 'Luogo del matrimonio',
+      'custom': galleryData.customSecurityQuestion || 'Domanda personalizzata'
+    };
+    
+    return galleryData.securityQuestionType ? questionMap[galleryData.securityQuestionType] : 'Domanda di sicurezza';
+  };
 
   const submitPasswordRequest = useCallback(async (params: RequestPasswordParams): Promise<PasswordRequestResult> => {
     setIsLoading(true);
