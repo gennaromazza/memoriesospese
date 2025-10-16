@@ -4,7 +4,12 @@
  * Gestisce invio email tramite Gmail API OAuth2
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createTestEmailHTML = exports.createWelcomeEmailHTML = exports.createGalleryPasswordEmailHTML = exports.createNewPhotosEmailHTML = exports.sendGmailEmail = exports.getGmailClient = void 0;
+exports.getGmailClient = getGmailClient;
+exports.sendGmailEmail = sendGmailEmail;
+exports.createNewPhotosEmailHTML = createNewPhotosEmailHTML;
+exports.createGalleryPasswordEmailHTML = createGalleryPasswordEmailHTML;
+exports.createWelcomeEmailHTML = createWelcomeEmailHTML;
+exports.createTestEmailHTML = createTestEmailHTML;
 const googleapis_1 = require("googleapis");
 const firebase_functions_1 = require("firebase-functions");
 let connectionSettings;
@@ -12,7 +17,6 @@ let connectionSettings;
  * Ottiene access token dall'integrazione Replit Gmail
  */
 async function getAccessToken() {
-    var _a, _b, _c, _d;
     if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
         return connectionSettings.settings.access_token;
     }
@@ -30,8 +34,8 @@ async function getAccessToken() {
             'Accept': 'application/json',
             'X_REPLIT_TOKEN': xReplitToken
         }
-    }).then(res => res.json()).then(data => { var _a; return (_a = data.items) === null || _a === void 0 ? void 0 : _a[0]; });
-    const accessToken = ((_a = connectionSettings === null || connectionSettings === void 0 ? void 0 : connectionSettings.settings) === null || _a === void 0 ? void 0 : _a.access_token) || ((_d = (_c = (_b = connectionSettings.settings) === null || _b === void 0 ? void 0 : _b.oauth) === null || _c === void 0 ? void 0 : _c.credentials) === null || _d === void 0 ? void 0 : _d.access_token);
+    }).then(res => res.json()).then(data => data.items?.[0]);
+    const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
     if (!connectionSettings || !accessToken) {
         throw new Error('Gmail not connected');
     }
@@ -49,7 +53,6 @@ async function getGmailClient() {
     });
     return googleapis_1.google.gmail({ version: 'v1', auth: oauth2Client });
 }
-exports.getGmailClient = getGmailClient;
 /**
  * Invia email tramite Gmail API
  */
@@ -88,7 +91,6 @@ async function sendGmailEmail(to, subject, htmlContent, from = 'Memorie Sospese 
         throw error;
     }
 }
-exports.sendGmailEmail = sendGmailEmail;
 /**
  * Template HTML per email nuove foto
  */
@@ -116,7 +118,6 @@ function createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, gal
     </div>
   `;
 }
-exports.createNewPhotosEmailHTML = createNewPhotosEmailHTML;
 /**
  * Template HTML per email password galleria
  */
@@ -165,7 +166,6 @@ function createGalleryPasswordEmailHTML(galleryName, galleryCode, galleryPasswor
     </div>
   `;
 }
-exports.createGalleryPasswordEmailHTML = createGalleryPasswordEmailHTML;
 /**
  * Template HTML per email di benvenuto
  */
@@ -184,7 +184,6 @@ function createWelcomeEmailHTML(galleryName) {
     </div>
   `;
 }
-exports.createWelcomeEmailHTML = createWelcomeEmailHTML;
 /**
  * Template HTML per test configurazione
  */
@@ -201,5 +200,4 @@ function createTestEmailHTML() {
     </div>
   `;
 }
-exports.createTestEmailHTML = createTestEmailHTML;
 //# sourceMappingURL=gmail.js.map
