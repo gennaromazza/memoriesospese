@@ -1,23 +1,24 @@
-
 /**
  * Firebase Cloud Functions per Wedding Gallery
- * Gestisce invio email tramite Brevo SMTP con supporto CORS
+ * Gestisce invio email tramite Gmail API con Replit Integration
  */
 
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import * as nodemailer from 'nodemailer';
 import * as cors from 'cors';
+import { 
+  sendGmailEmail, 
+  createNewPhotosEmailHTML,
+  createGalleryPasswordEmailHTML,
+  createWelcomeEmailHTML,
+  createTestEmailHTML
+} from './gmail';
 
 // Initialize Firebase Admin if not already done
 if (!admin.apps.length) {
   admin.initializeApp();
 }
-
-// Import subscription functions
-// Stripe functions imported from './stripe'
-// Gallery ZIP and CSV export functions imported from their respective files
 
 // Configurazione CORS per permettere richieste da gennaromazzacane.it
 const corsHandler = cors({
@@ -32,31 +33,6 @@ const corsHandler = cors({
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
-});
-
-// Configurazione SMTP Brevo - Email corretta
-const smtpConfig = {
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false, // STARTTLS
-  auth: {
-    user: 'memoriesospese@gennaromazzacane.it',
-    pass: 'sIBRNp2r1y6Y0WTZ'
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
-};
-
-const transporter = nodemailer.createTransport(smtpConfig);
-
-// Verifica configurazione SMTP al caricamento
-transporter.verify((error, success) => {
-  if (error) {
-    logger.error('SMTP configuration error:', error);
-  } else {
-    logger.info('SMTP server ready for email sending');
-  }
 });
 
 /**
@@ -105,42 +81,13 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
         return;
       }
 
-      const mailOptions = {
-        from: '"Memorie Sospese" <memoriesospese@gennaromazzacane.it>',
-        to: recipients.join(','),
-        subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #8b5a3c; text-align: center;">🎉 Nuove foto disponibili!</h2>
-            <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-              <p style="font-size: 16px; margin-bottom: 10px;">
-                <strong>${uploaderName}</strong> ha caricato <strong>${newPhotosCount}</strong> 
-                nuova${newPhotosCount > 1 ? 'e' : ''} foto nella galleria 
-                <strong style="color: #8b5a3c;">${galleryName}</strong>.
-              </p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${galleryUrl}" 
-                   style="background: #8b5a3c; color: white; padding: 15px 30px; 
-                          text-decoration: none; border-radius: 5px; font-weight: bold;">
-                  📸 Visualizza la Galleria
-                </a>
-              </div>
-            </div>
-            <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-              <p>Wedding Gallery System - Powered by Firebase</p>
-            </div>
-          </div>
-        `,
-        headers: {
-          'X-Mailer': 'Memorie Sospese Gallery System',
-          'X-Priority': '3',
-          'List-Unsubscribe': '<mailto:memoriesospese@gennaromazzacane.it?subject=Unsubscribe>',
-          'Reply-To': 'memoriesospese@gennaromazzacane.it'
-        }
-      };
+      // Crea HTML email
+      const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
+      const subject = `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
 
-      await transporter.sendMail(mailOptions);
-      logger.info(`New photos notification sent to ${recipients.length} recipients`);
+      // Invia email tramite Gmail API
+      await sendGmailEmail(recipients, subject, htmlContent);
+      logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
       
       res.status(200).json({ success: true, message: 'Notification sent successfully' });
     } catch (error) {
@@ -161,42 +108,13 @@ export const sendNewPhotosNotificationCall = onCall(async (request) => {
       throw new HttpsError('invalid-argument', 'Recipients list is required');
     }
 
-    const mailOptions = {
-      from: '"Memorie Sospese" <memoriesospese@gennaromazzacane.it>',
-      to: recipients.join(','),
-      subject: `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #8b5a3c; text-align: center;">🎉 Nuove foto disponibili!</h2>
-          <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-            <p style="font-size: 16px; margin-bottom: 10px;">
-              <strong>${uploaderName}</strong> ha caricato <strong>${newPhotosCount}</strong> 
-              nuova${newPhotosCount > 1 ? 'e' : ''} foto nella galleria 
-              <strong style="color: #8b5a3c;">${galleryName}</strong>.
-            </p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${galleryUrl}" 
-                 style="background: #8b5a3c; color: white; padding: 15px 30px; 
-                        text-decoration: none; border-radius: 5px; font-weight: bold;">
-                📸 Visualizza la Galleria
-              </a>
-            </div>
-          </div>
-          <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-            <p>Wedding Gallery System - Powered by Firebase</p>
-          </div>
-        </div>
-      `,
-      headers: {
-        'X-Mailer': 'Memorie Sospese Gallery System',
-        'X-Priority': '3',
-        'List-Unsubscribe': '<mailto:memoriesospese@gennaromazzacane.it?subject=Unsubscribe>',
-        'Reply-To': 'memoriesospese@gennaromazzacane.it'
-      }
-    };
+    // Crea HTML email
+    const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
+    const subject = `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
 
-    await transporter.sendMail(mailOptions);
-    logger.info(`New photos notification sent to ${recipients.length} recipients`);
+    // Invia email tramite Gmail API
+    await sendGmailEmail(recipients, subject, htmlContent);
+    logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
     
     return { success: true, message: 'Notification sent successfully' };
   } catch (error) {
@@ -216,46 +134,13 @@ export const sendGalleryPassword = onCall(async (request) => {
       throw new HttpsError('invalid-argument', 'Missing required parameters');
     }
 
-    const mailOptions = {
-      from: '"Memorie Sospese" <memoriesospese@gennaromazzacane.it>',
-      to: recipientEmail,
-      subject: `🔑 Codice di accesso per "${galleryName}"`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #8b5a3c; text-align: center;">🔑 Accesso alla Galleria</h2>
-          <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-            <p style="font-size: 16px; margin-bottom: 20px;">
-              Ecco i dati per accedere alla galleria <strong style="color: #8b5a3c;">${galleryName}</strong>:
-            </p>
-            <div style="background: white; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
-              <p style="margin: 0; font-size: 14px; color: #666;">Codice Galleria:</p>
-              <h3 style="margin: 5px 0; color: #8b5a3c; font-size: 24px; font-family: monospace;">
-                ${galleryCode}
-              </h3>
-              ${galleryPassword ? `
-                <p style="margin: 15px 0 0 0; font-size: 14px; color: #666;">Password:</p>
-                <h3 style="margin: 5px 0; color: #8b5a3c; font-size: 20px; font-family: monospace;">
-                  ${galleryPassword}
-                </h3>
-              ` : ''}
-            </div>
-            <p style="font-size: 14px; color: #666; text-align: center;">
-              Usa questi dati per accedere alla galleria e visualizzare le foto.
-            </p>
-          </div>
-          <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-            <p>Wedding Gallery System - Powered by Firebase</p>
-          </div>
-        </div>
-      `,
-      headers: {
-        'X-Mailer': 'Memorie Sospese Gallery System',
-        'Reply-To': 'memoriesospese@gennaromazzacane.it'
-      }
-    };
+    // Crea HTML email
+    const htmlContent = createGalleryPasswordEmailHTML(galleryName, galleryCode, galleryPassword);
+    const subject = `🔑 Codice di accesso per "${galleryName}"`;
 
-    await transporter.sendMail(mailOptions);
-    logger.info(`Gallery password sent to ${recipientEmail}`);
+    // Invia email tramite Gmail API
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    logger.info(`Gallery password sent to ${recipientEmail} via Gmail API`);
     
     return { success: true, message: 'Gallery password sent successfully' };
   } catch (error) {
@@ -272,25 +157,13 @@ export const testEmailConfiguration = onCall(async (request) => {
     const { testRecipient } = request.data;
     const recipient = testRecipient || 'gennaro.mazzacane@gmail.com';
 
-    const mailOptions = {
-      from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
-      to: recipient,
-      subject: '✅ Test Configurazione Email - Wedding Gallery',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #8b5a3c; text-align: center;">✅ Test Email Configurazione</h2>
-          <div style="background: #f9f7f4; padding: 20px; border-radius: 10px;">
-            <p>Questo è un test per verificare che la configurazione email Brevo funzioni correttamente.</p>
-            <p><strong>Data/Ora:</strong> ${new Date().toLocaleString('it-IT')}</p>
-            <p><strong>Sistema:</strong> Firebase Cloud Functions + Brevo SMTP</p>
-            <p><strong>Status:</strong> ✅ Configurazione funzionante!</p>
-          </div>
-        </div>
-      `
-    };
+    // Crea HTML email
+    const htmlContent = createTestEmailHTML();
+    const subject = '✅ Test Configurazione Email - Wedding Gallery';
 
-    await transporter.sendMail(mailOptions);
-    logger.info(`Test email sent to ${recipient}`);
+    // Invia email tramite Gmail API
+    await sendGmailEmail(recipient, subject, htmlContent);
+    logger.info(`Test email sent to ${recipient} via Gmail API`);
     
     return { success: true, message: 'Test email sent successfully' };
   } catch (error) {
@@ -310,24 +183,13 @@ export const sendWelcomeEmail = onCall(async (request) => {
       throw new HttpsError('invalid-argument', 'Missing required parameters');
     }
 
-    const mailOptions = {
-      from: '"Wedding Gallery" <91c91c001@smtp-brevo.com>',
-      to: recipientEmail,
-      subject: `✨ Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #8b5a3c; text-align: center;">✨ Benvenuto nella Galleria!</h2>
-          <div style="background: #f9f7f4; padding: 20px; border-radius: 10px;">
-            <p>Ciao! Sei stato iscritto alle notifiche della galleria <strong>${galleryName}</strong>.</p>
-            <p>Riceverai automaticamente una email ogni volta che verranno caricate nuove foto.</p>
-            <p>Grazie per essere parte di questo momento speciale! 💕</p>
-          </div>
-        </div>
-      `
-    };
+    // Crea HTML email
+    const htmlContent = createWelcomeEmailHTML(galleryName);
+    const subject = `✨ Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`;
 
-    await transporter.sendMail(mailOptions);
-    logger.info(`Welcome email sent to ${recipientEmail}`);
+    // Invia email tramite Gmail API
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    logger.info(`Welcome email sent to ${recipientEmail} via Gmail API`);
     
     return { success: true, message: 'Welcome email sent successfully' };
   } catch (error) {
