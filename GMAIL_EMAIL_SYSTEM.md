@@ -36,7 +36,10 @@ Firebase Cloud Functions che espongono endpoint email:
 - `sendWelcomeEmail`: Email benvenuto nuovi iscritti
 
 ### 3. client/src/lib/email.ts
-Client-side service per chiamare Firebase Functions (nessuna modifica necessaria)
+Client-side service per chiamare Firebase Functions. Include autenticazione Firebase per HTTP endpoint:
+- Ottiene ID token da Firebase Auth current user
+- Aggiunge Authorization header `Bearer {token}` alle richieste HTTP
+- Fallback graceful se token non disponibile
 
 ## Funzioni Email Disponibili
 
@@ -51,6 +54,8 @@ await sendNewPhotosNotification({
   recipients: string[]
 });
 ```
+
+**Nota:** L'endpoint HTTP (`sendNewPhotosNotification`) richiede autenticazione Firebase. Il client aggiunge automaticamente il token ID Firebase nell'header `Authorization: Bearer {token}`.
 
 ### 2. Password Galleria
 ```typescript

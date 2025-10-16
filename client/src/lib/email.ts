@@ -46,16 +46,38 @@ export const sendWelcomeEmail = httpsCallable(functions, "sendWelcomeEmail");
 export async function sendNewPhotosNotificationHTTP(
   data: EmailNotificationData,
 ) {
+  // Import Firebase auth per ottenere ID token
+  const { auth } = await import('./firebase');
+  
+  // Ottiene current user e ID token
+  const currentUser = auth.currentUser;
+  let idToken = '';
+  
+  if (currentUser) {
+    try {
+      idToken = await currentUser.getIdToken();
+    } catch (error) {
+      console.warn('⚠️ Unable to get Firebase ID token:', error);
+    }
+  }
+
   // Costruisce URL dinamicamente basato sulla configurazione Firebase
   const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || "wedding-gallery-397b6";
   const region = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
   const functionUrl = `https://${region}-${projectId}.cloudfunctions.net/sendNewPhotosNotification`;
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  
+  // Aggiunge Authorization header se disponibile ID token
+  if (idToken) {
+    headers["Authorization"] = `Bearer ${idToken}`;
+  }
+
   const response = await fetch(functionUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(data),
   });
 
