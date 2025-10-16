@@ -34,7 +34,7 @@ async function getAccessToken() {
             'Accept': 'application/json',
             'X_REPLIT_TOKEN': xReplitToken
         }
-    }).then(res => res.json()).then(data => data.items?.[0]);
+    }).then(res => res.json()).then((data) => data.items?.[0]);
     const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
     if (!connectionSettings || !accessToken) {
         throw new Error('Gmail not connected');
