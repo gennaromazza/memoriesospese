@@ -9,7 +9,44 @@
 		"node8WarnAfter": 1600128000000,
 		"fetched": 1760637651270
 	},
-	"lastError": 1760426119590,
 	"usage": true,
-	"analytics-uuid": "eeec0afd-4852-4670-8abb-a0319c413162"
+	"analytics-uuid": "eeec0afd-4852-4670-8abb-a0319c413162",
+	"gemini": true,
+	"user": {
+		"iss": "accounts.google.com",
+		"azp": "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com",
+		"aud": "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com",
+		"sub": "112082172522237184449",
+		"email": "gennaro.mazzacane@gmail.com",
+		"email_verified": true,
+		"at_hash": "Yc4UqAf1qtHeqnoPrytedA",
+		"iat": 1760638038,
+		"exp": 1760641638
+	},
+	"tokens": {
+		"expires_at": 1760641637021,
+		"access_token": "ya29.a0AQQ_BDRTkEWeJ-zqlukeSlRHBCU6jyvecl2tJePH_zj8uCwSE-YRw-zYOo8vJufaQA59g4TRKtiT0E3LlS1Q0vOAr_ySOLNUvB5PJN5Y_2kMBT8q7Mqlwtbfp5F35CzHjbIkQHjywemlO9AFIYim6GavckAd0-Ab_W6fIC8blto3oqxjxCsdMQrBuLF3dbbYB_lJfVTvsmU6aCgYKAX0SAQ8SFQHGX2MinFa30GXLes9061I0eDsY_A0211",
+		"expires_in": 3599,
+		"refresh_token": "1//06VKIRdSXrg1LCgYIARAAGAYSNwF-L9IrBpZiexP7carj3FTtDCG1qpUuF4K14-cgYXfqNOhG3kS9_JUwwkk8D7kLo7A4WB2syeE",
+		"scope": "openid https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloudplatformprojects.readonly",
+		"token_type": "Bearer",
+		"id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZiOWY5MzcxZDU3NTVmM2UzODNhNDBhYjNhMTcyY2Q4YmFjYTUxN2YiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJhY2NvdW50cy5nb29nbGUuY29tIiwiYXpwIjoiNTYzNTg0MzM1ODY5LWZncmhnbWQ0N2JxbmVraWo1aThiNXByMDNobzg0OWU2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwiYXVkIjoiNTYzNTg0MzM1ODY5LWZncmhnbWQ0N2JxbmVraWo1aThiNXByMDNobzg0OWU2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwic3ViIjoiMTEyMDgyMTcyNTIyMjM3MTg0NDQ5IiwiZW1haWwiOiJnZW5uYXJvLm1henphY2FuZUBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiYXRfaGFzaCI6IlljNFVxQWYxcXRIZXFub1ByeXRlZEEiLCJpYXQiOjE3NjA2MzgwMzgsImV4cCI6MTc2MDY0MTYzOH0.ARQuGI1sSg5rn7tvK3cYjJhkCvXpfggiLLTPKtM7thoQuVSYDKODY1j0xG5WPr__IInHcEdQuWv38chxcqC-nddMh9h4rj7HynvN9iCUX3Dk36J4mkWa13qf76qTuSwG-al-Qd5FLZGOeZn8LOX2ZPeRYkrFiyO2llcBLr2U_cNfNjAAP99gc977_dsFjiuwR_q33bcasJhd4bBTcFu1mfxu1B0QT5yHBlqPdKlqgW1bHrjJJngtW7FYWrWrdCf0sHHipLu7YXCSrjbFYErJA8zkdxSbdtKNMmFAGUYsDtufMVmKRT-XyzbJ1QVh7NX5NOy7-rRsf2gdh7hC4j88WA"
+	},
+	"loginScopes": [
+		"email",
+		"openid",
+		"https://www.googleapis.com/auth/cloudplatformprojects.readonly",
+		"https://www.googleapis.com/auth/firebase",
+		"https://www.googleapis.com/auth/cloud-platform"
+	],
+	"apiEnablementCache": {
+		"wedding-gallery-397b6": {
+			"cloudresourcemanager.googleapis.com": true,
+			"runtimeconfig.googleapis.com": true,
+			"cloudfunctions.googleapis.com": true,
+			"artifactregistry.googleapis.com": true,
+			"cloudbuild.googleapis.com": true
+		}
+	},
+	"lastError": 1760638241715
 }
