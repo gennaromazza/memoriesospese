@@ -1,0 +1,49 @@
+Explanation
+
+Understanding the problem
+The error message indicates a Cross-Origin Resource Sharing (CORS) issue. Your web page, hosted at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev, is trying to make a request to a resource located at a different origin: https://us-central1-wedding-gallery-397b6.cloudfunctions.net.
+
+Browsers implement a security feature called the Same-Origin Policy, which by default restricts requests to resources from different origins. To allow cross-origin requests, the server hosting the requested resource must explicitly permit it by including specific CORS headers in its response. In this case, the server at https://us-central1-wedding-gallery-397b6.cloudfunctions.net is not including the necessary Access-Control-Allow-Origin header in its response to the preflight request (an automatic request sent by the browser before the actual request to check for CORS permission).
+
+How to verify
+You can verify this by inspecting the network request in Chrome DevTools.
+
+Open the Network tab in DevTools.
+Refresh the page.
+Find the request to https://us-central1-wedding-gallery-397b6.cloudfunctions.net/getGalleryMetadata.
+Select the request and look at the Headers tab.
+In the Response Headers section, you will likely not see the Access-Control-Allow-Origin header.
+Suggested fix
+To fix this, you need to configure the server at https://us-central1-wedding-gallery-397b6.cloudfunctions.net (which appears to be a Google Cloud Function based on the URL) to include the Access-Control-Allow-Origin header in its responses.
+
+For Google Cloud Functions written in Node.js, you can use the cors middleware.
+
+Install the middleware:
+
+sh
+
+npm install cors
+Use code snippets with caution
+
+Modify your Cloud Function code:
+
+js
+
+const cors = require('cors')({ origin: true });
+
+exports.getGalleryMetadata = (req, res) => {
+  cors(req, res, () => {
+    // Your existing function logic goes here
+    // For example:
+    // res.status(200).send({ message: 'Metadata received' });
+  });
+};
+
+Use code snippets with caution
+
+Replace // Your existing function logic goes here with the actual code that your Cloud Function is supposed to execute. The cors({ origin: true }) configuration allows requests from any origin. You can also specify a specific origin or a list of origins if you need more restricted access.
+
+Summary
+The "Access to fetch... has been blocked by CORS policy" error means your browser is preventing a request to a different origin because the server of the requested resource is not explicitly allowing it via CORS headers. To fix this, configure the server hosting the requested resource (in this case, the Google Cloud Function) to include the Access-Control-Allow-Origin header in its response, often by using a CORS middleware.
+
+Data used to understand this message
