@@ -6,18 +6,14 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as cors from 'cors';
-import { 
-  sendGmailEmail, 
-  createNewPhotosEmailHTML,
-  createGalleryPasswordEmailHTML,
-  createWelcomeEmailHTML,
-  createTestEmailHTML
-} from './gmail';
 
 // Initialize Firebase Admin if not already done
 if (!admin.apps.length) {
   admin.initializeApp();
 }
+
+// Re-export della funzione isolata (no heavy dependencies)
+export { getGalleryMetadata } from './metadata';
 
 // Configurazione CORS per permettere richieste da gennaromazzacane.it
 const corsHandler = cors({
@@ -80,6 +76,9 @@ export const sendNewPhotosNotification = functions.https.onRequest(async (req, r
         return;
       }
 
+      // Lazy import di gmail (solo quando necessario)
+      const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
+      
       // Crea HTML email
       const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
       const subject = `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
@@ -107,6 +106,9 @@ export const sendNewPhotosNotificationCall = functions.https.onCall(async (data,
       throw new functions.https.HttpsError('invalid-argument', 'Recipients list is required');
     }
 
+    // Lazy import di gmail (solo quando necessario)
+    const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
+    
     // Crea HTML email
     const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
     const subject = `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
@@ -119,108 +121,6 @@ export const sendNewPhotosNotificationCall = functions.https.onCall(async (data,
   } catch (error) {
     functions.logger.error('Error sending new photos notification:', error);
     throw new functions.https.HttpsError('internal', 'Failed to send notification email');
-  }
-});
-
-/**
- * Helper: Ottieni testo domanda di sicurezza
- */
-function getSecurityQuestionText(galleryData: any): string | undefined {
-  const questionMap: Record<string, string> = {
-    'groomName': 'Nome dello sposo',
-    'brideName': 'Nome della sposa',
-    'weddingDate': 'Data del matrimonio (gg/mm/aaaa)',
-    'weddingLocation': 'Luogo del matrimonio',
-    'custom': galleryData.customSecurityQuestion || 'Domanda personalizzata'
-  };
-  
-  return galleryData.securityQuestionType ? questionMap[galleryData.securityQuestionType] : undefined;
-}
-
-/**
- * Function per recuperare metadata galleria (SICURI - senza password/securityAnswer)
- * SICUREZZA: Ritorna SOLO dati non-sensibili, MAI password o securityAnswer
- */
-export const getGalleryMetadata = functions.https.onCall(async (data, context) => {
-  try {
-    const { galleryCode } = data;
-
-    if (!galleryCode || typeof galleryCode !== 'string' || !galleryCode.trim()) {
-      functions.logger.warn('getGalleryMetadata called with invalid/empty galleryCode');
-      throw new functions.https.HttpsError('invalid-argument', 'galleryCode is required and must be a non-empty string');
-    }
-
-    const normalizedCode = galleryCode.trim();
-    functions.logger.info(`getGalleryMetadata called with code: ${normalizedCode}`);
-
-    // Cerca galleria per code field (case-sensitive per Firestore)
-    const galleriesByCode = await admin.firestore()
-      .collection('galleries')
-      .where('code', '==', normalizedCode)
-      .limit(1)
-      .get();
-
-    let galleryDoc;
-    let galleryId;
-    let searchMethod = '';
-
-    if (!galleriesByCode.empty) {
-      galleryDoc = galleriesByCode.docs[0];
-      galleryId = galleryDoc.id;
-      searchMethod = 'code-field';
-      functions.logger.info(`Gallery found by code field: ${galleryId}`);
-    } else {
-      // Fallback: cerca per document ID
-      functions.logger.info(`Gallery not found by code field, trying document ID: ${normalizedCode}`);
-      galleryDoc = await admin.firestore().collection('galleries').doc(normalizedCode).get();
-      
-      if (!galleryDoc.exists) {
-        functions.logger.warn(`Gallery NOT FOUND for code: ${normalizedCode} (tried both code field and document ID)`);
-        throw new functions.https.HttpsError('not-found', 'Gallery not found');
-      }
-      
-      galleryId = normalizedCode;
-      searchMethod = 'document-id';
-      functions.logger.info(`Gallery found by document ID: ${galleryId}`);
-    }
-
-    const galleryData = galleryDoc.data();
-    if (!galleryData) {
-      functions.logger.error(`Gallery ${galleryId} exists but data is empty`);
-      throw new functions.https.HttpsError('internal', 'Gallery data is empty');
-    }
-
-    // Verifica se ha domanda di sicurezza
-    const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true && 
-                               galleryData.securityQuestionType && 
-                               galleryData.securityAnswer;
-
-    // SICUREZZA: Ritorna SOLO metadata non-sensibili
-    // ❌ NO password
-    // ❌ NO securityAnswer
-    const metadata = {
-      id: galleryId,
-      name: galleryData.name,
-      code: galleryData.code || normalizedCode,
-      requiresSecurityQuestion: hasSecurityQuestion,
-      securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
-    };
-
-    functions.logger.info(`✅ Gallery metadata retrieved successfully via ${searchMethod}: ${normalizedCode} → ${galleryId} - NO sensitive data exposed`);
-    return metadata;
-    
-  } catch (error) {
-    functions.logger.error('❌ Error in getGalleryMetadata:', error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    // Log dettagliato per debugging
-    functions.logger.error('Unexpected error details:', {
-      name: (error as Error).name,
-      message: (error as Error).message,
-      stack: (error as Error).stack
-    });
-    throw new functions.https.HttpsError('internal', 'Failed to retrieve gallery metadata');
   }
 });
 
@@ -277,6 +177,9 @@ export const sendGalleryPassword = functions.https.onCall(async (data, context) 
       functions.logger.info(`Security question validated successfully for gallery ${galleryId}`);
     }
 
+    // Lazy import di gmail (solo quando necessario)
+    const { sendGmailEmail, createGalleryPasswordEmailHTML } = await import('./gmail');
+    
     // Crea HTML email con parametri completi
     const htmlContent = createGalleryPasswordEmailHTML(
       galleryName, 
@@ -310,6 +213,9 @@ export const testEmailConfiguration = functions.https.onCall(async (data, contex
     const { testRecipient } = data;
     const recipient = testRecipient || 'gennaro.mazzacane@gmail.com';
 
+    // Lazy import di gmail (solo quando necessario)
+    const { sendGmailEmail, createTestEmailHTML } = await import('./gmail');
+    
     // Crea HTML email
     const htmlContent = createTestEmailHTML();
     const subject = '✅ Test Configurazione Email - Wedding Gallery';
@@ -336,6 +242,9 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
       throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
     }
 
+    // Lazy import di gmail (solo quando necessario)
+    const { sendGmailEmail, createWelcomeEmailHTML } = await import('./gmail');
+    
     // Crea HTML email
     const htmlContent = createWelcomeEmailHTML(galleryName);
     const subject = `✨ Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`;

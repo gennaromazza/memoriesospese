@@ -1,0 +1,133 @@
+ OBIETTIVO
+Il problema è che la Cloud Function `getGalleryMetadata` restituisce sempre l'errore `functions/internal`.
+Questo indica che la funzione crasha **prima dell'esecuzione** del codice (fase di load del modulo).
+Il motivo è che `index.ts` importa moduli pesanti come `./gmail` che inizializzano variabili d'ambiente o librerie non disponibili in runtime.
+Serve separare la funzione `getGalleryMetadata` in un file autonomo e rendere gli import del modulo `gmail` “lazy” (dinamici).
+
+---
+
+🛠️ AZIONI DA ESEGUIRE
+
+1️⃣ Crea un nuovo file: `functions/src/metadata.ts`  
+   Contenuto completo del file:
+
+```ts
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+
+if (!admin.apps.length) admin.initializeApp();
+
+export const getGalleryMetadata = functions.https.onCall(async (data) => {
+  try {
+    const galleryCode = String(data?.galleryCode || '').trim();
+    if (!galleryCode) {
+      throw new functions.https.HttpsError('invalid-argument', 'galleryCode is required');
+    }
+
+    const db = admin.firestore();
+
+    // Ricerca per campo "code"
+    const byCode = await db.collection('galleries')
+      .where('code', '==', galleryCode)
+      .limit(1)
+      .get();
+
+    const doc = byCode.empty
+      ? await db.collection('galleries').doc(galleryCode).get()
+      : byCode.docs[0];
+
+    if (!doc || (('exists' in doc) && !doc.exists)) {
+      throw new functions.https.HttpsError('not-found', 'Gallery not found', { galleryCode });
+    }
+
+    const d: any = ('data' in doc) ? (doc as any).data() : (doc as any).data();
+    if (!d) throw new functions.https.HttpsError('internal', 'Gallery data is empty');
+
+    const hasQ = d?.requiresSecurityQuestion && d?.securityQuestionType && d?.securityAnswer;
+    const questionMap: Record<string, string> = {
+      groomName: 'Nome dello sposo',
+      brideName: 'Nome della sposa',
+      weddingDate: 'Data del matrimonio (gg/mm/aaaa)',
+      weddingLocation: 'Luogo del matrimonio',
+      custom: d?.customSecurityQuestion || 'Domanda personalizzata'
+    };
+
+    return {
+      id: ('id' in doc && (doc as any).id) ? (doc as any).id : galleryCode,
+      name: d?.name,
+      code: d?.code || galleryCode,
+      requiresSecurityQuestion: !!hasQ,
+      securityQuestion: hasQ ? questionMap[d.securityQuestionType] : undefined
+    };
+  } catch (err: any) {
+    if (err instanceof functions.https.HttpsError) throw err;
+    throw new functions.https.HttpsError('internal', 'Failed to retrieve gallery metadata');
+  }
+});
+2️⃣ Apri functions/src/index.ts e:
+
+Rimuovi qualsiasi import './gmail' o altre dipendenze pesanti a livello top-level.
+
+Aggiungi in cima:
+
+ts
+Copia codice
+import * as admin from 'firebase-admin';
+if (!admin.apps.length) admin.initializeApp();
+Re-esporta la nuova funzione:
+
+ts
+Copia codice
+export { getGalleryMetadata } from './metadata';
+Trasforma le altre funzioni email in lazy import, ad esempio:
+
+ts
+Copia codice
+import * as functions from 'firebase-functions';
+export const sendWelcomeEmail = functions.https.onCall(async (data) => {
+  try {
+    const { recipientEmail, galleryName } = data || {};
+    if (!recipientEmail || !galleryName) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
+    }
+    const { sendGmailEmail, createWelcomeEmailHTML } = await import('./gmail'); // 👈 lazy
+    const html = createWelcomeEmailHTML(galleryName);
+    await sendGmailEmail(recipientEmail, `✨ Benvenuto! Sei iscritto a "${galleryName}"`, html);
+    return { success: true };
+  } catch (e: any) {
+    if (e instanceof functions.https.HttpsError) throw e;
+    throw new functions.https.HttpsError('internal', 'Failed to send welcome email');
+  }
+});
+3️⃣ Esegui il deploy solo della funzione isolata per testarla:
+
+bash
+Copia codice
+cd functions
+npm run build
+cd ..
+npx firebase deploy --only functions:getGalleryMetadata
+4️⃣ Dopo il deploy:
+
+Apri la pagina “Richiedi Password”
+
+Fai un hard refresh (Ctrl+Shift+R)
+
+Inserisci il codice esatto della galleria
+
+Controlla la console → dovresti vedere i log “Chiamata Cloud Function…” e “✅ Risposta Cloud Function: …”
+
+Se funziona, significa che il crash era causato dal modulo gmail caricato a top-level ✅
+
+5️⃣ (Facoltativo) Per verifica rapida dei log:
+
+bash
+Copia codice
+firebase functions:log --only getGalleryMetadata --limit 50
+📦 RISULTATO ATTESO
+
+getGalleryMetadata non dà più functions/internal
+
+Ritorna correttamente i metadati galleria
+
+Le altre funzioni (email) continueranno a funzionare perché importano gmail solo on-demand
