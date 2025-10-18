@@ -39,7 +39,7 @@ export function usePasswordRequest() {
     setError('');
 
     try {
-      // Normalizza il codice: solo trim (Firestore query è case-sensitive)
+      // Normalizza il codice: SOLO trim (NO toUpperCase, case-sensitive in DB)
       const normalizedCode = String(galleryCode || '').trim();
       console.log('🔍 Recupero metadata galleria per code:', normalizedCode);
       
@@ -47,13 +47,16 @@ export function usePasswordRequest() {
         throw new Error('Codice galleria non valido');
       }
       
-      // SICUREZZA: Usa SOLO Cloud Function per metadata sicuri
+      // SICUREZZA: Usa SOLO Cloud Function callable con regione us-central1
       // NO FALLBACK Firestore - previene esposizione password
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions } = await import('@/lib/firebase');
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app } = await import('@/lib/firebase');
       
-      console.log('📞 Chiamata Cloud Function getGalleryMetadata...');
+      console.log('📞 Chiamata Cloud Function getGalleryMetadata (us-central1)...');
+      const functions = getFunctions(app, 'us-central1');
       const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
+      
+      // Payload con chiave esatta 'galleryCode'
       const result = await getGalleryMetadata({ galleryCode: normalizedCode });
       
       console.log('✅ Risposta Cloud Function:', result.data);
@@ -70,7 +73,11 @@ export function usePasswordRequest() {
       
       // Gestione errori tipizzati Firebase Callable
       let errorMessage = 'Errore sconosciuto';
-      switch (error?.code) {
+      
+      // Estrai il codice errore (può essere error.code o functions/code)
+      const errorCode = error?.code?.replace('functions/', '') || error?.code;
+      
+      switch (errorCode) {
         case 'invalid-argument':
           errorMessage = 'Codice galleria non valido';
           break;
@@ -83,9 +90,14 @@ export function usePasswordRequest() {
         case 'permission-denied':
           errorMessage = 'Accesso negato';
           break;
-        case 'functions/internal':
         case 'internal':
           errorMessage = 'Errore interno del server. Riprova più tardi.';
+          break;
+        case 'unauthenticated':
+          errorMessage = 'Autenticazione richiesta';
+          break;
+        case 'unavailable':
+          errorMessage = 'Servizio temporaneamente non disponibile. Riprova tra poco.';
           break;
         default:
           errorMessage = error?.message || 'Errore durante il recupero delle informazioni';
@@ -141,9 +153,10 @@ export function usePasswordRequest() {
       // Invia password via email usando Firebase Function
       // SICUREZZA: La password viene recuperata server-side dalla Cloud Function
       // VALIDAZIONE: Security question validata server-side (se presente)
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions } = await import('@/lib/firebase');
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app } = await import('@/lib/firebase');
       
+      const functions = getFunctions(app, 'us-central1');
       const sendPasswordEmail = httpsCallable(functions, 'sendGalleryPassword');
       
       // Costruisci URL galleria
