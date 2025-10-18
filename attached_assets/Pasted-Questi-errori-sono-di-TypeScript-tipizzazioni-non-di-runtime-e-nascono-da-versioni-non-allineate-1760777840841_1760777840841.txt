@@ -1,0 +1,88 @@
+Questi errori sono di TypeScript / tipizzazioni (non di runtime) e nascono da versioni non allineate tra:
+
+typescript
+
+@types/node
+
+@google-cloud/storage (e altre lib)
+
+tsconfig.json (manca esnext.disposable, ecc.)
+
+Ti do la cura rapida e sicura per Functions Node 20.
+
+✅ Fix consigliato (pinna versioni + tsconfig “compatibile”)
+1) Installa versioni stabili e allineate
+
+da /functions
+
+npm i -D typescript@5.5.4 @types/node@20.11.30
+# (TS 5.5 + types Node 20: niente Disposable/AsyncDisposable nuovi)
+
+# se usi @google-cloud/storage:
+npm i @google-cloud/storage@7.10.2
+# (versione che non tira dentro tipi recenti problematici)
+
+
+Nota: tieni firebase-functions@^4 e firebase-admin@^12.
+Se hai già TS 5.6/5.7, questi errori compaiono perché i tipi Node nuovi richiedono “esnext.disposable”.
+
+2) Sistema tsconfig.json (in /functions)
+
+Apri il tuo tsconfig.json e assicurati che la sezione sia così:
+
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020", "DOM"],
+    "moduleResolution": "node",
+    "outDir": "lib",
+    "rootDir": "src",
+    "types": ["node"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
+
+
+Punti chiave:
+
+niente esnext.disposable (coerente con @types/node@20.11.x)
+
+skipLibCheck: true → ignora errori “strani” dentro node_modules
+
+module: commonjs + types: ["node"]
+
+3) Ricompila e redeploy
+rm -rf lib
+npm run build
+cd ..
+npx firebase deploy --only functions
+
+🔄 Alternativa (se vuoi tenere TS 5.6+)
+
+Se preferisci restare con TypeScript 5.6/5.7 e le tipizzazioni Node più nuove:
+
+Aggiorna tipi:
+
+npm i -D @types/node@22
+
+
+Aggiorna tsconfig.json aggiungendo le nuove lib:
+
+"lib": ["ES2022", "DOM", "esnext.disposable"]
+
+
+(opzionale anche "ESNext.AsyncIterable" se necessario)
+3) Tieni comunque skipLibCheck: true.
+
+Ma per Firebase Functions Node 20 è più semplice la prima strada (TS 5.5 + types Node 20.11.x).
+
+Perché comparivano i tuoi errori
+
+Symbol.dispose / Symbol.asyncDispose, Disposable, AsyncDisposable compaiono nei tipi Node 22 e richiedono TS 5.6 + lib: ["esnext.disposable"]. Con TS 5.3–5.5 o senza quelle lib → gli errori che vedi.
+
+Int32Array<ArrayBuffer> ecc. sono warning che spariscono con versioni allineate e/o skipLibCheck.

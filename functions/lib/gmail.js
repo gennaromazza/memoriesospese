@@ -6,7 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createTestEmailHTML = exports.createWelcomeEmailHTML = exports.createGalleryPasswordEmailHTML = exports.createNewPhotosEmailHTML = exports.sendGmailEmail = exports.getGmailClient = void 0;
 const googleapis_1 = require("googleapis");
-const firebase_functions_1 = require("firebase-functions");
+const functions = require("firebase-functions");
 let connectionSettings;
 /**
  * Ottiene access token dall'integrazione Replit Gmail
@@ -81,10 +81,10 @@ async function sendGmailEmail(to, subject, htmlContent, from = 'Memorie Sospese 
                 raw: encodedMessage
             }
         });
-        firebase_functions_1.logger.info(`📧 Email inviata via Gmail API a ${recipients}`);
+        functions.logger.info(`📧 Email inviata via Gmail API a ${recipients}`);
     }
     catch (error) {
-        firebase_functions_1.logger.error('❌ Errore invio email Gmail:', error);
+        functions.logger.error('❌ Errore invio email Gmail:', error);
         throw error;
     }
 }
