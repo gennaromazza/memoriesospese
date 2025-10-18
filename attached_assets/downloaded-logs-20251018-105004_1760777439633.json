@@ -1,0 +1,761 @@
+[
+  {
+    "textPayload": "Starting new instance. Reason: DEPLOYMENT_ROLLOUT - Instance started due to traffic shifting between revisions due to deployment, traffic split adjustment, or deployment health check.",
+    "insertId": "68f354660007c2a7f7d0d65a",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "us-central1",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "project_id": "wedding-gallery-397b6",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "service_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:38.508583Z",
+    "severity": "INFO",
+    "labels": {
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "deployment-callable": "true",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "scaling_reason": "DEPLOYMENT_ROLLOUT",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2025-10-18T08:48:38.513076472Z"
+  },
+  {
+    "textPayload": "Provided module can't be loaded.",
+    "insertId": "68f3546a0004ca39b4ed567e",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "location": "us-central1",
+        "project_id": "wedding-gallery-397b6",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "service_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.313913Z",
+    "labels": {
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "deployment-callable": "true",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "Did you list all required modules in the package.json dependencies?",
+    "insertId": "68f3546a0004ca5419a8b6cc",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "wedding-gallery-397b6",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "service_name": "sendnewphotosnotificationcall",
+        "location": "us-central1"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.313940Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "deployment-callable": "true",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "Detailed stack trace: Error: Cannot find module 'archiver'",
+    "insertId": "68f3546a0004ca6b43056d23",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "us-central1",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "project_id": "wedding-gallery-397b6",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "service_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.313963Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "deployment-callable": "true",
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "Require stack:",
+    "insertId": "68f3546a0004ca72fc6a0ff4",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "us-central1",
+        "project_id": "wedding-gallery-397b6",
+        "service_name": "sendnewphotosnotificationcall",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "configuration_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.313970Z",
+    "labels": {
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "deployment-callable": "true",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "- /workspace/lib/gallery-zip.js",
+    "insertId": "68f3546a0004ca78a24ec30a",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "service_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "project_id": "wedding-gallery-397b6"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.313976Z",
+    "labels": {
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-managed-by": "cloudfunctions",
+      "deployment-callable": "true"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "- /workspace/lib/index.js",
+    "insertId": "68f3546a0004ca7e9d3792d6",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "service_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "project_id": "wedding-gallery-397b6",
+        "configuration_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.313982Z",
+    "labels": {
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "deployment-callable": "true",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "- /layers/google.nodejs.functions-framework/functions-framework/node_modules/@google-cloud/functions-framework/build/src/loader.js",
+    "insertId": "68f3546a0004ca84177642bd",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "wedding-gallery-397b6",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "service_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "configuration_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.313988Z",
+    "labels": {
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-managed-by": "cloudfunctions",
+      "deployment-callable": "true",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "- /layers/google.nodejs.functions-framework/functions-framework/node_modules/@google-cloud/functions-framework/build/src/main.js",
+    "insertId": "68f3546a0004ca8a163db348",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "project_id": "wedding-gallery-397b6",
+        "service_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.313994Z",
+    "labels": {
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "goog-managed-by": "cloudfunctions",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "deployment-callable": "true"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "    at Module._resolveFilename (node:internal/modules/cjs/loader:1140:15)",
+    "insertId": "68f3546a0004ca919218c4cb",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "service_name": "sendnewphotosnotificationcall",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "project_id": "wedding-gallery-397b6",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314001Z",
+    "labels": {
+      "deployment-callable": "true",
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "    at Module._load (node:internal/modules/cjs/loader:981:27)",
+    "insertId": "68f3546a0004ca988d97d603",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "wedding-gallery-397b6",
+        "location": "us-central1",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "service_name": "sendnewphotosnotificationcall",
+        "configuration_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314008Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "goog-managed-by": "cloudfunctions",
+      "deployment-callable": "true"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "    at Module.require (node:internal/modules/cjs/loader:1231:19)",
+    "insertId": "68f3546a0004ca9e1ba90742",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "project_id": "wedding-gallery-397b6",
+        "service_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314014Z",
+    "labels": {
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "deployment-callable": "true",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.317500307Z"
+  },
+  {
+    "textPayload": "    at require (node:internal/modules/helpers:177:18)",
+    "insertId": "68f3546a0004caa312b645fe",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "project_id": "wedding-gallery-397b6",
+        "service_name": "sendnewphotosnotificationcall",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "location": "us-central1"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314019Z",
+    "labels": {
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "goog-managed-by": "cloudfunctions",
+      "deployment-callable": "true",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.652751169Z"
+  },
+  {
+    "textPayload": "    at Object.<anonymous> (/workspace/lib/gallery-zip.js:6:18)",
+    "insertId": "68f3546a0004caad2b1897aa",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "sendnewphotosnotificationcall",
+        "service_name": "sendnewphotosnotificationcall",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "location": "us-central1",
+        "project_id": "wedding-gallery-397b6"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314029Z",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "deployment-callable": "true",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.652751169Z"
+  },
+  {
+    "textPayload": "    at Module._compile (node:internal/modules/cjs/loader:1364:14)",
+    "insertId": "68f3546a0004cab16e436946",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "wedding-gallery-397b6",
+        "location": "us-central1",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "service_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314033Z",
+    "labels": {
+      "deployment-callable": "true",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-location": "us-central1"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.652751169Z"
+  },
+  {
+    "textPayload": "    at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)",
+    "insertId": "68f3546a0004cab63a1acc1f",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "service_name": "sendnewphotosnotificationcall",
+        "project_id": "wedding-gallery-397b6",
+        "location": "us-central1",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "configuration_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314038Z",
+    "labels": {
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-managed-by": "cloudfunctions",
+      "deployment-callable": "true",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-drz-cloudfunctions-location": "us-central1"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.652751169Z"
+  },
+  {
+    "textPayload": "    at Module.load (node:internal/modules/cjs/loader:1203:32)",
+    "insertId": "68f3546a0004caba28b6920b",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "project_id": "wedding-gallery-397b6",
+        "service_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314042Z",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "deployment-callable": "true"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.652751169Z"
+  },
+  {
+    "textPayload": "    at Module._load (node:internal/modules/cjs/loader:1019:12)",
+    "insertId": "68f3546a0004cac17728dabb",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "wedding-gallery-397b6",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "service_name": "sendnewphotosnotificationcall",
+        "location": "us-central1"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314049Z",
+    "labels": {
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "deployment-callable": "true"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.652751169Z"
+  },
+  {
+    "textPayload": "    at Module.require (node:internal/modules/cjs/loader:1231:19)",
+    "insertId": "68f3546a0004cac64f8aa6c1",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "wedding-gallery-397b6",
+        "service_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "configuration_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314054Z",
+    "labels": {
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "goog-managed-by": "cloudfunctions",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "deployment-callable": "true"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.652751169Z"
+  },
+  {
+    "textPayload": "Could not load the function, shutting down.",
+    "insertId": "68f3546a0004cbf313f22335",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "service_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "project_id": "wedding-gallery-397b6"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.314355Z",
+    "labels": {
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-managed-by": "cloudfunctions",
+      "deployment-callable": "true",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-drz-cloudfunctions-location": "us-central1"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-10-18T08:48:42.652751169Z"
+  },
+  {
+    "textPayload": "Container called exit(1).",
+    "insertId": "68f3546a000a32b31b901937",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "wedding-gallery-397b6",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "service_name": "sendnewphotosnotificationcall",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "location": "us-central1"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.668305808Z",
+    "severity": "WARNING",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "container_name": "worker",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "goog-managed-by": "cloudfunctions",
+      "deployment-callable": "true",
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2025-10-18T08:48:42.841828405Z"
+  },
+  {
+    "textPayload": "Default STARTUP TCP probe failed 1 time consecutively for container \"worker\" on port 8080. The instance was not started.\nConnection failed with status CANCELLED.",
+    "insertId": "68f3546a000c1b12b0e789a6",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "us-central1",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol",
+        "service_name": "sendnewphotosnotificationcall",
+        "project_id": "wedding-gallery-397b6",
+        "configuration_name": "sendnewphotosnotificationcall"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.793362Z",
+    "severity": "ERROR",
+    "labels": {
+      "instanceId": "0069c7a988759b41ae037f3bb7df9c7a4d0a995c4f23f81d8db009b82063b318bf3f9e8905dc420004d121116126a1cea22e944e3aad6d39ca036159b60df644883372d152bf3945d795a16d76b3",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18:nodejs18_20251012_18_20_8_RC00",
+      "goog-drz-cloudfunctions-location": "us-central1",
+      "deployment-callable": "true",
+      "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall"
+    },
+    "logName": "projects/wedding-gallery-397b6/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2025-10-18T08:48:42.841828405Z"
+  },
+  {
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "status": {
+        "code": 9,
+        "message": "Ready condition status changed to False for Revision sendnewphotosnotificationcall-00002-jol with message: The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=wedding-gallery-397b6&resource=cloud_run_revision/service_name/sendnewphotosnotificationcall/revision_name/sendnewphotosnotificationcall-00002-jol&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22sendnewphotosnotificationcall%22%0Aresource.labels.revision_name%3D%22sendnewphotosnotificationcall-00002-jol%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start"
+      },
+      "serviceName": "run.googleapis.com",
+      "methodName": "/InternalServices.ReplaceInternalService",
+      "resourceName": "namespaces/wedding-gallery-397b6/revisions/sendnewphotosnotificationcall-00002-jol",
+      "response": {
+        "metadata": {
+          "name": "sendnewphotosnotificationcall-00002-jol",
+          "namespace": "1072998290999",
+          "selfLink": "/apis/serving.knative.dev/v1/namespaces/1072998290999/revisions/sendnewphotosnotificationcall-00002-jol",
+          "uid": "d1c98cfd-5417-4893-aefd-8981d552afe1",
+          "resourceVersion": "AAZBauraiZw",
+          "generation": 1,
+          "creationTimestamp": "2025-10-18T08:48:33.796320Z",
+          "labels": {
+            "goog-drz-cloudfunctions-location": "us-central1",
+            "firebase-functions-hash": "3524f2d58b278450c004119864b8d40e236ba87c",
+            "goog-drz-cloudfunctions-id": "sendnewphotosnotificationcall",
+            "deployment-callable": "true",
+            "serving.knative.dev/configuration": "sendnewphotosnotificationcall",
+            "serving.knative.dev/configurationGeneration": "2",
+            "serving.knative.dev/service": "sendnewphotosnotificationcall",
+            "serving.knative.dev/serviceUid": "6f768673-65d6-4ca3-bbae-779412f950b4",
+            "goog-managed-by": "cloudfunctions",
+            "goog-cloudfunctions-runtime": "nodejs18",
+            "cloud.googleapis.com/location": "us-central1",
+            "serving.knative.dev/route": "sendnewphotosnotificationcall",
+            "run.googleapis.com/startupProbeType": "Default"
+          },
+          "annotations": {
+            "run.googleapis.com/client-name": "cloudfunctions",
+            "cloudfunctions.googleapis.com/trigger-type": "HTTP_TRIGGER",
+            "autoscaling.knative.dev/maxScale": "20",
+            "serving.knative.dev/creator": "service-1072998290999@gcf-admin-robot.iam.gserviceaccount.com",
+            "run.googleapis.com/build-source-location": "{\"worker\":\"gs://gcf-v2-sources-1072998290999-us-central1/sendNewPhotosNotification/function-source.zip#1760777244111675\"}",
+            "run.googleapis.com/build-id": "{\"worker\":\"f07a50e5-1756-4920-9c61-2374eca461e6\"}",
+            "run.googleapis.com/build-function-target": "{\"worker\":\"sendNewPhotosNotification\"}",
+            "run.googleapis.com/operation-id": "5ccb7dc8-4a86-4297-88a1-8e0e1fef046f",
+            "run.googleapis.com/startup-cpu-boost": "true",
+            "run.googleapis.com/base-images": "{\"worker\":\"us-central1-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs18\"}"
+          },
+          "ownerReferences": [
+            {
+              "kind": "Configuration",
+              "name": "sendnewphotosnotificationcall",
+              "uid": "34e35f9e-e944-4c7d-859a-22bcdc5b017d",
+              "apiVersion": "serving.knative.dev/v1",
+              "controller": true,
+              "blockOwnerDeletion": true
+            }
+          ]
+        },
+        "apiVersion": "serving.knative.dev/v1",
+        "kind": "Revision",
+        "spec": {
+          "containerConcurrency": 80,
+          "timeoutSeconds": 60,
+          "serviceAccountName": "1072998290999-compute@developer.gserviceaccount.com",
+          "containers": [
+            {
+              "name": "worker",
+              "image": "us-central1-docker.pkg.dev/wedding-gallery-397b6/gcf-artifacts/wedding--gallery--397b6__us--central1__send_new_photos_notification@sha256:0d850e9d670c0a9d4d1e7e9b16ae4170037bdea3d41d8adfd7ac9b62ce8af944",
+              "ports": [
+                {
+                  "name": "http1",
+                  "containerPort": 8080
+                }
+              ],
+              "env": [
+                {
+                  "name": "FIREBASE_CONFIG",
+                  "value": "{\"projectId\":\"wedding-gallery-397b6\",\"storageBucket\":\"wedding-gallery-397b6.firebasestorage.app\"}"
+                },
+                {
+                  "name": "GCLOUD_PROJECT",
+                  "value": "wedding-gallery-397b6"
+                },
+                {
+                  "name": "EVENTARC_CLOUD_EVENT_SOURCE",
+                  "value": "projects/wedding-gallery-397b6/locations/us-central1/services/sendNewPhotosNotificationCall"
+                },
+                {
+                  "name": "FUNCTION_TARGET",
+                  "value": "sendNewPhotosNotificationCall"
+                },
+                {
+                  "name": "LOG_EXECUTION_ID",
+                  "value": "true"
+                },
+                {
+                  "name": "FUNCTION_SIGNATURE_TYPE",
+                  "value": "http"
+                }
+              ],
+              "resources": {
+                "limits": {
+                  "cpu": "1",
+                  "memory": "256Mi"
+                }
+              },
+              "startupProbe": {
+                "timeoutSeconds": 240,
+                "periodSeconds": 240,
+                "failureThreshold": 1,
+                "tcpSocket": {
+                  "port": 8080
+                }
+              }
+            }
+          ],
+          "runtimeClassName": "run.googleapis.com/linux-base-image-update"
+        },
+        "status": {
+          "observedGeneration": 1,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "False",
+              "reason": "HealthCheckContainerError",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=wedding-gallery-397b6&resource=cloud_run_revision/service_name/sendnewphotosnotificationcall/revision_name/sendnewphotosnotificationcall-00002-jol&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22sendnewphotosnotificationcall%22%0Aresource.labels.revision_name%3D%22sendnewphotosnotificationcall-00002-jol%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "lastTransitionTime": "2025-10-18T08:48:42.793372Z"
+            },
+            {
+              "type": "ContainerHealthy",
+              "status": "False",
+              "reason": "HealthCheckContainerError",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=wedding-gallery-397b6&resource=cloud_run_revision/service_name/sendnewphotosnotificationcall/revision_name/sendnewphotosnotificationcall-00002-jol&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22sendnewphotosnotificationcall%22%0Aresource.labels.revision_name%3D%22sendnewphotosnotificationcall-00002-jol%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "lastTransitionTime": "2025-10-18T08:48:42.793372Z"
+            },
+            {
+              "type": "ContainerReady",
+              "status": "True",
+              "message": "Container image import completed.",
+              "lastTransitionTime": "2025-10-18T08:48:34.600215Z"
+            },
+            {
+              "type": "ResourcesAvailable",
+              "status": "True",
+              "message": "Provisioning imported containers completed in 3.74s. Checking container health. This will wait for up to 4m for the configured startup probe, including an initial delay of 0s.",
+              "lastTransitionTime": "2025-10-18T08:48:38.343929Z"
+            },
+            {
+              "type": "Retry",
+              "status": "True",
+              "reason": "ImmediateRetry",
+              "message": "System will retry after 0:00:00 from lastTransitionTime for attempt 0.",
+              "lastTransitionTime": "2025-10-18T08:48:38.343929Z",
+              "severity": "Info"
+            }
+          ],
+          "logUrl": "https://console.cloud.google.com/logs/viewer?project=wedding-gallery-397b6&resource=cloud_run_revision/service_name/sendnewphotosnotificationcall/revision_name/sendnewphotosnotificationcall-00002-jol&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22sendnewphotosnotificationcall%22%0Aresource.labels.revision_name%3D%22sendnewphotosnotificationcall-00002-jol%22",
+          "imageDigest": "us-central1-docker.pkg.dev/wedding-gallery-397b6/gcf-artifacts/wedding--gallery--397b6__us--central1__send_new_photos_notification@sha256:0d850e9d670c0a9d4d1e7e9b16ae4170037bdea3d41d8adfd7ac9b62ce8af944",
+          "containerStatuses": [
+            {
+              "name": "worker",
+              "imageDigest": "us-central1-docker.pkg.dev/wedding-gallery-397b6/gcf-artifacts/wedding--gallery--397b6__us--central1__send_new_photos_notification@sha256:0d850e9d670c0a9d4d1e7e9b16ae4170037bdea3d41d8adfd7ac9b62ce8af944"
+            }
+          ]
+        },
+        "@type": "type.googleapis.com/google.cloud.run.v1.Revision"
+      }
+    },
+    "insertId": "-y3y0h8d389q",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "wedding-gallery-397b6",
+        "configuration_name": "sendnewphotosnotificationcall",
+        "service_name": "sendnewphotosnotificationcall",
+        "location": "us-central1",
+        "revision_name": "sendnewphotosnotificationcall-00002-jol"
+      }
+    },
+    "timestamp": "2025-10-18T08:48:42.807957Z",
+    "severity": "ERROR",
+    "logName": "projects/wedding-gallery-397b6/logs/cloudaudit.googleapis.com%2Fsystem_event",
+    "receiveTimestamp": "2025-10-18T08:48:43.714803122Z"
+  }
+]

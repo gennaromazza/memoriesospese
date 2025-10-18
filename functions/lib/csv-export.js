@@ -7,6 +7,7 @@ const Papa = require("papaparse");
 const db = admin.firestore();
 // Export gallery access data to CSV (Pro/Premium only)
 exports.exportGalleryAccessCSV = functions.https.onCall(async (data, context) => {
+    var _a;
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Devi essere autenticato per esportare i dati');
     }
@@ -27,7 +28,7 @@ exports.exportGalleryAccessCSV = functions.https.onCall(async (data, context) =>
         }
         const gallery = galleryDoc.data();
         // Check if user owns the gallery
-        if (gallery?.userId !== userId) {
+        if ((gallery === null || gallery === void 0 ? void 0 : gallery.userId) !== userId) {
             throw new functions.https.HttpsError('permission-denied', 'Non hai i permessi per esportare i dati di questa galleria');
         }
         // Get all access requests from gallery-access collection
@@ -40,8 +41,9 @@ exports.exportGalleryAccessCSV = functions.https.onCall(async (data, context) =>
         }
         // Prepare data for CSV
         const csvData = accessSnapshot.docs.map(doc => {
+            var _a, _b;
             const data = doc.data();
-            const createdAt = data.createdAt?.toDate?.() || new Date();
+            const createdAt = ((_b = (_a = data.createdAt) === null || _a === void 0 ? void 0 : _a.toDate) === null || _b === void 0 ? void 0 : _b.call(_a)) || new Date();
             return {
                 'Email': data.email || '',
                 'Nome': data.name || '',
@@ -65,7 +67,7 @@ exports.exportGalleryAccessCSV = functions.https.onCall(async (data, context) =>
         const base64Csv = Buffer.from(csvWithBom).toString('base64');
         return {
             csv: base64Csv,
-            fileName: `accessi_${gallery?.name?.replace(/[^a-z0-9]/gi, '_') || galleryId}_${new Date().toISOString().split('T')[0]}.csv`,
+            fileName: `accessi_${((_a = gallery === null || gallery === void 0 ? void 0 : gallery.name) === null || _a === void 0 ? void 0 : _a.replace(/[^a-z0-9]/gi, '_')) || galleryId}_${new Date().toISOString().split('T')[0]}.csv`,
             recordCount: csvData.length,
         };
     }
