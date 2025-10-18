@@ -145,36 +145,48 @@ export const getGalleryMetadata = functions.https.onCall(async (data, context) =
   try {
     const { galleryCode } = data;
 
-    if (!galleryCode) {
-      throw new functions.https.HttpsError('invalid-argument', 'galleryCode is required');
+    if (!galleryCode || typeof galleryCode !== 'string' || !galleryCode.trim()) {
+      functions.logger.warn('getGalleryMetadata called with invalid/empty galleryCode');
+      throw new functions.https.HttpsError('invalid-argument', 'galleryCode is required and must be a non-empty string');
     }
 
-    // Cerca galleria per code field
+    const normalizedCode = galleryCode.trim();
+    functions.logger.info(`getGalleryMetadata called with code: ${normalizedCode}`);
+
+    // Cerca galleria per code field (case-sensitive per Firestore)
     const galleriesByCode = await admin.firestore()
       .collection('galleries')
-      .where('code', '==', galleryCode)
+      .where('code', '==', normalizedCode)
       .limit(1)
       .get();
 
     let galleryDoc;
     let galleryId;
+    let searchMethod = '';
 
     if (!galleriesByCode.empty) {
       galleryDoc = galleriesByCode.docs[0];
       galleryId = galleryDoc.id;
+      searchMethod = 'code-field';
+      functions.logger.info(`Gallery found by code field: ${galleryId}`);
     } else {
       // Fallback: cerca per document ID
-      galleryDoc = await admin.firestore().collection('galleries').doc(galleryCode).get();
-      galleryId = galleryCode;
+      functions.logger.info(`Gallery not found by code field, trying document ID: ${normalizedCode}`);
+      galleryDoc = await admin.firestore().collection('galleries').doc(normalizedCode).get();
       
       if (!galleryDoc.exists) {
-        functions.logger.warn(`Gallery not found for code: ${galleryCode}`);
+        functions.logger.warn(`Gallery NOT FOUND for code: ${normalizedCode} (tried both code field and document ID)`);
         throw new functions.https.HttpsError('not-found', 'Gallery not found');
       }
+      
+      galleryId = normalizedCode;
+      searchMethod = 'document-id';
+      functions.logger.info(`Gallery found by document ID: ${galleryId}`);
     }
 
     const galleryData = galleryDoc.data();
     if (!galleryData) {
+      functions.logger.error(`Gallery ${galleryId} exists but data is empty`);
       throw new functions.https.HttpsError('internal', 'Gallery data is empty');
     }
 
@@ -189,19 +201,25 @@ export const getGalleryMetadata = functions.https.onCall(async (data, context) =
     const metadata = {
       id: galleryId,
       name: galleryData.name,
-      code: galleryData.code || galleryCode,
+      code: galleryData.code || normalizedCode,
       requiresSecurityQuestion: hasSecurityQuestion,
       securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
     };
 
-    functions.logger.info(`Gallery metadata retrieved for: ${galleryCode} (ID: ${galleryId}) - NO sensitive data exposed`);
+    functions.logger.info(`✅ Gallery metadata retrieved successfully via ${searchMethod}: ${normalizedCode} → ${galleryId} - NO sensitive data exposed`);
     return metadata;
     
   } catch (error) {
-    functions.logger.error('Error retrieving gallery metadata:', error);
+    functions.logger.error('❌ Error in getGalleryMetadata:', error);
     if (error instanceof functions.https.HttpsError) {
       throw error;
     }
+    // Log dettagliato per debugging
+    functions.logger.error('Unexpected error details:', {
+      name: (error as Error).name,
+      message: (error as Error).message,
+      stack: (error as Error).stack
+    });
     throw new functions.https.HttpsError('internal', 'Failed to retrieve gallery metadata');
   }
 });
@@ -333,8 +351,8 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
   }
 });
 
-// Import altre funzioni
-import { exportGalleryAccessCSV } from './csv-export';
+// Import altre funzioni - TEMPORANEAMENTE DISABILITATI PER DEBUG
+// import { exportGalleryAccessCSV } from './csv-export';
 
 // Export functions
-export { exportGalleryAccessCSV };
+// export { exportGalleryAccessCSV };

@@ -39,7 +39,13 @@ export function usePasswordRequest() {
     setError('');
 
     try {
-      console.log('🔍 Recupero metadata galleria per code:', galleryCode);
+      // Normalizza il codice: solo trim (Firestore query è case-sensitive)
+      const normalizedCode = String(galleryCode || '').trim();
+      console.log('🔍 Recupero metadata galleria per code:', normalizedCode);
+      
+      if (!normalizedCode) {
+        throw new Error('Codice galleria non valido');
+      }
       
       // SICUREZZA: Usa SOLO Cloud Function per metadata sicuri
       // NO FALLBACK Firestore - previene esposizione password
@@ -48,7 +54,7 @@ export function usePasswordRequest() {
       
       console.log('📞 Chiamata Cloud Function getGalleryMetadata...');
       const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
-      const result = await getGalleryMetadata({ galleryCode });
+      const result = await getGalleryMetadata({ galleryCode: normalizedCode });
       
       console.log('✅ Risposta Cloud Function:', result.data);
       
@@ -59,11 +65,34 @@ export function usePasswordRequest() {
       const metadata = result.data as GalleryInfo;
       setGalleryInfo(metadata);
       return metadata;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Errore getGalleryInfo:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
+      
+      // Gestione errori tipizzati Firebase Callable
+      let errorMessage = 'Errore sconosciuto';
+      switch (error?.code) {
+        case 'invalid-argument':
+          errorMessage = 'Codice galleria non valido';
+          break;
+        case 'not-found':
+          errorMessage = 'Galleria non trovata';
+          break;
+        case 'failed-precondition':
+          errorMessage = 'Verifica di sicurezza fallita. Ricarica la pagina e riprova.';
+          break;
+        case 'permission-denied':
+          errorMessage = 'Accesso negato';
+          break;
+        case 'functions/internal':
+        case 'internal':
+          errorMessage = 'Errore interno del server. Riprova più tardi.';
+          break;
+        default:
+          errorMessage = error?.message || 'Errore durante il recupero delle informazioni';
+      }
+      
       setError(errorMessage);
-      throw error;
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }

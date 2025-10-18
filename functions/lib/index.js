@@ -4,7 +4,7 @@
  * Gestisce invio email tramite Gmail API con Replit Integration
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.exportGalleryAccessCSV = exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendGalleryPassword = exports.getGalleryMetadata = exports.sendNewPhotosNotificationCall = exports.sendNewPhotosNotification = void 0;
+exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendGalleryPassword = exports.getGalleryMetadata = exports.sendNewPhotosNotificationCall = exports.sendNewPhotosNotification = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const cors = require("cors");
@@ -123,32 +123,42 @@ function getSecurityQuestionText(galleryData) {
 exports.getGalleryMetadata = functions.https.onCall(async (data, context) => {
     try {
         const { galleryCode } = data;
-        if (!galleryCode) {
-            throw new functions.https.HttpsError('invalid-argument', 'galleryCode is required');
+        if (!galleryCode || typeof galleryCode !== 'string' || !galleryCode.trim()) {
+            functions.logger.warn('getGalleryMetadata called with invalid/empty galleryCode');
+            throw new functions.https.HttpsError('invalid-argument', 'galleryCode is required and must be a non-empty string');
         }
-        // Cerca galleria per code field
+        const normalizedCode = galleryCode.trim();
+        functions.logger.info(`getGalleryMetadata called with code: ${normalizedCode}`);
+        // Cerca galleria per code field (case-sensitive per Firestore)
         const galleriesByCode = await admin.firestore()
             .collection('galleries')
-            .where('code', '==', galleryCode)
+            .where('code', '==', normalizedCode)
             .limit(1)
             .get();
         let galleryDoc;
         let galleryId;
+        let searchMethod = '';
         if (!galleriesByCode.empty) {
             galleryDoc = galleriesByCode.docs[0];
             galleryId = galleryDoc.id;
+            searchMethod = 'code-field';
+            functions.logger.info(`Gallery found by code field: ${galleryId}`);
         }
         else {
             // Fallback: cerca per document ID
-            galleryDoc = await admin.firestore().collection('galleries').doc(galleryCode).get();
-            galleryId = galleryCode;
+            functions.logger.info(`Gallery not found by code field, trying document ID: ${normalizedCode}`);
+            galleryDoc = await admin.firestore().collection('galleries').doc(normalizedCode).get();
             if (!galleryDoc.exists) {
-                functions.logger.warn(`Gallery not found for code: ${galleryCode}`);
+                functions.logger.warn(`Gallery NOT FOUND for code: ${normalizedCode} (tried both code field and document ID)`);
                 throw new functions.https.HttpsError('not-found', 'Gallery not found');
             }
+            galleryId = normalizedCode;
+            searchMethod = 'document-id';
+            functions.logger.info(`Gallery found by document ID: ${galleryId}`);
         }
         const galleryData = galleryDoc.data();
         if (!galleryData) {
+            functions.logger.error(`Gallery ${galleryId} exists but data is empty`);
             throw new functions.https.HttpsError('internal', 'Gallery data is empty');
         }
         // Verifica se ha domanda di sicurezza
@@ -161,18 +171,24 @@ exports.getGalleryMetadata = functions.https.onCall(async (data, context) => {
         const metadata = {
             id: galleryId,
             name: galleryData.name,
-            code: galleryData.code || galleryCode,
+            code: galleryData.code || normalizedCode,
             requiresSecurityQuestion: hasSecurityQuestion,
             securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
         };
-        functions.logger.info(`Gallery metadata retrieved for: ${galleryCode} (ID: ${galleryId}) - NO sensitive data exposed`);
+        functions.logger.info(`✅ Gallery metadata retrieved successfully via ${searchMethod}: ${normalizedCode} → ${galleryId} - NO sensitive data exposed`);
         return metadata;
     }
     catch (error) {
-        functions.logger.error('Error retrieving gallery metadata:', error);
+        functions.logger.error('❌ Error in getGalleryMetadata:', error);
         if (error instanceof functions.https.HttpsError) {
             throw error;
         }
+        // Log dettagliato per debugging
+        functions.logger.error('Unexpected error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
         throw new functions.https.HttpsError('internal', 'Failed to retrieve gallery metadata');
     }
 });
@@ -276,7 +292,8 @@ exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'Failed to send welcome email');
     }
 });
-// Import altre funzioni
-const csv_export_1 = require("./csv-export");
-Object.defineProperty(exports, "exportGalleryAccessCSV", { enumerable: true, get: function () { return csv_export_1.exportGalleryAccessCSV; } });
+// Import altre funzioni - TEMPORANEAMENTE DISABILITATI PER DEBUG
+// import { exportGalleryAccessCSV } from './csv-export';
+// Export functions
+// export { exportGalleryAccessCSV };
 //# sourceMappingURL=index.js.map
