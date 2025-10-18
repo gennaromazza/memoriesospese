@@ -39,50 +39,33 @@ export function usePasswordRequest() {
     setError('');
 
     try {
+      // Normalizza il codice: solo trim (Firestore query è case-sensitive)
       const normalizedCode = String(galleryCode || '').trim();
-      if (!normalizedCode) throw new Error('Codice galleria non valido');
-
-      // 1️⃣ tenta la CALLABLE
-      const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const { app } = await import('@/lib/firebase');
-      const functionsInstance = getFunctions(app, 'us-central1');
-      const getGalleryMetadata = httpsCallable(functionsInstance, 'getGalleryMetadata');
-
-      try {
-        const res = await getGalleryMetadata({ galleryCode: normalizedCode });
-        const metadata = res.data as GalleryInfo;
-        if (!metadata) throw new Error('Galleria non trovata');
-        setGalleryInfo(metadata);
-        return metadata;
-      } catch (e: any) {
-        const code = e?.code?.replace('functions/', '') || e?.code || '';
-        const isLikelyCors = (
-          code === 'internal' ||
-          /Failed to fetch|ERR_FAILED|CORS|preflight/i.test(e?.message || '')
-        );
-
-        if (!isLikelyCors) throw e;
-
-        // 2️⃣ FALLBACK HTTP con CORS
-        const resp = await fetch(
-          'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/getGalleryMetadataHttp',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ galleryCode: normalizedCode })
-          }
-        );
-
-        if (!resp.ok) {
-          if (resp.status === 404) throw new Error('Galleria non trovata');
-          if (resp.status === 400) throw new Error('Codice galleria non valido');
-          throw new Error('Errore interno del server. Riprova più tardi.');
-        }
-
-        const data = await resp.json() as GalleryInfo;
-        setGalleryInfo(data);
-        return data;
+      console.log('🔍 Recupero metadata galleria per code:', normalizedCode);
+      
+      if (!normalizedCode) {
+        throw new Error('Codice galleria non valido');
       }
+      
+      // SICUREZZA: Usa SOLO Cloud Function per metadata sicuri
+      // NO FALLBACK Firestore - previene esposizione password
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('@/lib/firebase');
+      
+      console.log('📞 Chiamata Cloud Function getGalleryMetadata...');
+      const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
+      const result = await getGalleryMetadata({ galleryCode: normalizedCode });
+      
+      console.log('✅ Risposta Cloud Function:', result.data);
+      
+      if (!result.data) {
+        throw new Error('Galleria non trovata');
+      }
+
+      const metadata = result.data as GalleryInfo;
+      setGalleryInfo(metadata);
+      return metadata;
+      
     } catch (error: any) {
       const errorCode = error?.code?.replace('functions/', '') || error?.code;
       let errorMessage = error?.message || 'Errore durante il recupero delle informazioni';

@@ -45,7 +45,7 @@ export const getGalleryMetadata = functions.https.onCall(async (data, context) =
     };
 
     return {
-      id: ('id' in doc && (doc as any).id) ? (doc as any).id : galleryCode,
+      id: doc.id,
       name: d?.name,
       code: d?.code || galleryCode,
       requiresSecurityQuestion: !!hasQ,

@@ -14,7 +14,6 @@ if (!admin.apps.length) {
 
 // Re-export della funzione isolata (no heavy dependencies)
 export { getGalleryMetadata } from './metadata';
-export { getGalleryMetadataHttp } from './metadata-http';
 
 // Configurazione CORS per permettere richieste da gennaromazzacane.it
 const corsHandler = cors({
