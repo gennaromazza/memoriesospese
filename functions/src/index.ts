@@ -3,8 +3,7 @@
  * Gestisce invio email tramite Gmail API con Replit Integration
  */
 
-import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
-import { logger } from 'firebase-functions';
+import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as cors from 'cors';
 import { 
@@ -38,7 +37,7 @@ const corsHandler = cors({
 /**
  * Function per invio notifiche nuove foto - Con supporto CORS e validazione auth
  */
-export const sendNewPhotosNotification = onRequest(async (req, res) => {
+export const sendNewPhotosNotification = functions.https.onRequest(async (req, res) => {
   corsHandler(req, res, async () => {
     try {
       // Gestione preflight OPTIONS
@@ -69,7 +68,7 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
           return;
         }
       } catch (error) {
-        logger.error('Authentication verification failed:', error);
+        functions.logger.error('Authentication verification failed:', error);
         res.status(401).json({ error: 'Authentication verification failed' });
         return;
       }
@@ -87,11 +86,11 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
 
       // Invia email tramite Gmail API
       await sendGmailEmail(recipients, subject, htmlContent);
-      logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
+      functions.logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
       
       res.status(200).json({ success: true, message: 'Notification sent successfully' });
     } catch (error) {
-      logger.error('Error sending new photos notification:', error);
+      functions.logger.error('Error sending new photos notification:', error);
       res.status(500).json({ error: 'Failed to send notification email' });
     }
   });
@@ -100,12 +99,12 @@ export const sendNewPhotosNotification = onRequest(async (req, res) => {
 /**
  * Function per invio notifiche nuove foto - Versione onCall per compatibilità
  */
-export const sendNewPhotosNotificationCall = onCall(async (request) => {
+export const sendNewPhotosNotificationCall = functions.https.onCall(async (data, context) => {
   try {
-    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = request.data;
+    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
 
     if (!recipients || recipients.length === 0) {
-      throw new HttpsError('invalid-argument', 'Recipients list is required');
+      throw new functions.https.HttpsError('invalid-argument', 'Recipients list is required');
     }
 
     // Crea HTML email
@@ -114,12 +113,12 @@ export const sendNewPhotosNotificationCall = onCall(async (request) => {
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipients, subject, htmlContent);
-    logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
+    functions.logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
     
     return { success: true, message: 'Notification sent successfully' };
   } catch (error) {
-    logger.error('Error sending new photos notification:', error);
-    throw new HttpsError('internal', 'Failed to send notification email');
+    functions.logger.error('Error sending new photos notification:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send notification email');
   }
 });
 
@@ -142,12 +141,12 @@ function getSecurityQuestionText(galleryData: any): string | undefined {
  * Function per recuperare metadata galleria (SICURI - senza password/securityAnswer)
  * SICUREZZA: Ritorna SOLO dati non-sensibili, MAI password o securityAnswer
  */
-export const getGalleryMetadata = onCall(async (request) => {
+export const getGalleryMetadata = functions.https.onCall(async (data, context) => {
   try {
-    const { galleryCode } = request.data;
+    const { galleryCode } = data;
 
     if (!galleryCode) {
-      throw new HttpsError('invalid-argument', 'galleryCode is required');
+      throw new functions.https.HttpsError('invalid-argument', 'galleryCode is required');
     }
 
     // Cerca galleria per code field
@@ -169,14 +168,14 @@ export const getGalleryMetadata = onCall(async (request) => {
       galleryId = galleryCode;
       
       if (!galleryDoc.exists) {
-        logger.warn(`Gallery not found for code: ${galleryCode}`);
-        throw new HttpsError('not-found', 'Gallery not found');
+        functions.logger.warn(`Gallery not found for code: ${galleryCode}`);
+        throw new functions.https.HttpsError('not-found', 'Gallery not found');
       }
     }
 
     const galleryData = galleryDoc.data();
     if (!galleryData) {
-      throw new HttpsError('internal', 'Gallery data is empty');
+      throw new functions.https.HttpsError('internal', 'Gallery data is empty');
     }
 
     // Verifica se ha domanda di sicurezza
@@ -195,15 +194,15 @@ export const getGalleryMetadata = onCall(async (request) => {
       securityQuestion: hasSecurityQuestion ? getSecurityQuestionText(galleryData) : undefined
     };
 
-    logger.info(`Gallery metadata retrieved for: ${galleryCode} (ID: ${galleryId}) - NO sensitive data exposed`);
+    functions.logger.info(`Gallery metadata retrieved for: ${galleryCode} (ID: ${galleryId}) - NO sensitive data exposed`);
     return metadata;
     
   } catch (error) {
-    logger.error('Error retrieving gallery metadata:', error);
-    if (error instanceof HttpsError) {
+    functions.logger.error('Error retrieving gallery metadata:', error);
+    if (error instanceof functions.https.HttpsError) {
       throw error;
     }
-    throw new HttpsError('internal', 'Failed to retrieve gallery metadata');
+    throw new functions.https.HttpsError('internal', 'Failed to retrieve gallery metadata');
   }
 });
 
@@ -213,12 +212,12 @@ export const getGalleryMetadata = onCall(async (request) => {
  * VALIDAZIONE: Security question validata server-side
  * Il client NON deve mai conoscere la password
  */
-export const sendGalleryPassword = onCall(async (request) => {
+export const sendGalleryPassword = functions.https.onCall(async (data, context) => {
   try {
-    const { galleryId, recipientEmail, galleryName, galleryCode, firstName, lastName, galleryUrl, securityAnswer } = request.data;
+    const { galleryId, recipientEmail, galleryName, galleryCode, firstName, lastName, galleryUrl, securityAnswer } = data;
 
     if (!galleryId || !recipientEmail || !galleryName || !galleryCode) {
-      throw new HttpsError('invalid-argument', 'Missing required parameters: galleryId, recipientEmail, galleryName, galleryCode');
+      throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters: galleryId, recipientEmail, galleryName, galleryCode');
     }
 
     // SICUREZZA: Recupera password da Firestore server-side
@@ -226,16 +225,16 @@ export const sendGalleryPassword = onCall(async (request) => {
     const galleryDoc = await admin.firestore().collection('galleries').doc(galleryId).get();
     
     if (!galleryDoc.exists) {
-      logger.error(`Gallery not found: ${galleryId}`);
-      throw new HttpsError('not-found', 'Gallery not found');
+      functions.logger.error(`Gallery not found: ${galleryId}`);
+      throw new functions.https.HttpsError('not-found', 'Gallery not found');
     }
     
     const galleryData = galleryDoc.data();
     const galleryPassword = galleryData?.password;
     
     if (!galleryPassword) {
-      logger.error(`Gallery password not found: ${galleryId}`);
-      throw new HttpsError('internal', 'Gallery password not configured');
+      functions.logger.error(`Gallery password not found: ${galleryId}`);
+      throw new functions.https.HttpsError('internal', 'Gallery password not configured');
     }
 
     // VALIDAZIONE SERVER-SIDE: Security question (se configurata)
@@ -245,19 +244,19 @@ export const sendGalleryPassword = onCall(async (request) => {
     
     if (hasSecurityQuestion) {
       if (!securityAnswer) {
-        logger.warn(`Security answer required but not provided for gallery ${galleryId}`);
-        throw new HttpsError('invalid-argument', 'Security answer required');
+        functions.logger.warn(`Security answer required but not provided for gallery ${galleryId}`);
+        throw new functions.https.HttpsError('invalid-argument', 'Security answer required');
       }
       
       const correctAnswer = galleryData.securityAnswer.toLowerCase().trim();
       const providedAnswer = securityAnswer.toLowerCase().trim();
       
       if (providedAnswer !== correctAnswer) {
-        logger.warn(`Incorrect security answer for gallery ${galleryId}`);
-        throw new HttpsError('permission-denied', 'Incorrect security answer');
+        functions.logger.warn(`Incorrect security answer for gallery ${galleryId}`);
+        throw new functions.https.HttpsError('permission-denied', 'Incorrect security answer');
       }
       
-      logger.info(`Security question validated successfully for gallery ${galleryId}`);
+      functions.logger.info(`Security question validated successfully for gallery ${galleryId}`);
     }
 
     // Crea HTML email con parametri completi
@@ -273,21 +272,24 @@ export const sendGalleryPassword = onCall(async (request) => {
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipientEmail, subject, htmlContent);
-    logger.info(`Gallery password sent to ${recipientEmail} for gallery ${galleryName} (ID: ${galleryId}) via Gmail API`);
+    functions.logger.info(`Gallery password sent to ${recipientEmail} for gallery ${galleryName} (ID: ${galleryId}) via Gmail API`);
     
     return { success: true, message: 'Gallery password sent successfully', recipientEmail };
   } catch (error) {
-    logger.error('Error sending gallery password:', error);
-    throw new HttpsError('internal', 'Failed to send gallery password email');
+    functions.logger.error('Error sending gallery password:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to send gallery password email');
   }
 });
 
 /**
  * Function per test configurazione email
  */
-export const testEmailConfiguration = onCall(async (request) => {
+export const testEmailConfiguration = functions.https.onCall(async (data, context) => {
   try {
-    const { testRecipient } = request.data;
+    const { testRecipient } = data;
     const recipient = testRecipient || 'gennaro.mazzacane@gmail.com';
 
     // Crea HTML email
@@ -296,24 +298,24 @@ export const testEmailConfiguration = onCall(async (request) => {
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipient, subject, htmlContent);
-    logger.info(`Test email sent to ${recipient} via Gmail API`);
+    functions.logger.info(`Test email sent to ${recipient} via Gmail API`);
     
     return { success: true, message: 'Test email sent successfully' };
   } catch (error) {
-    logger.error('Error sending test email:', error);
-    throw new HttpsError('internal', 'Failed to send test email');
+    functions.logger.error('Error sending test email:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send test email');
   }
 });
 
 /**
  * Function per email di benvenuto
  */
-export const sendWelcomeEmail = onCall(async (request) => {
+export const sendWelcomeEmail = functions.https.onCall(async (data, context) => {
   try {
-    const { recipientEmail, galleryName } = request.data;
+    const { recipientEmail, galleryName } = data;
 
     if (!recipientEmail || !galleryName) {
-      throw new HttpsError('invalid-argument', 'Missing required parameters');
+      throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
     }
 
     // Crea HTML email
@@ -322,15 +324,16 @@ export const sendWelcomeEmail = onCall(async (request) => {
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipientEmail, subject, htmlContent);
-    logger.info(`Welcome email sent to ${recipientEmail} via Gmail API`);
+    functions.logger.info(`Welcome email sent to ${recipientEmail} via Gmail API`);
     
     return { success: true, message: 'Welcome email sent successfully' };
   } catch (error) {
-    logger.error('Error sending welcome email:', error);
-    throw new HttpsError('internal', 'Failed to send welcome email');
+    functions.logger.error('Error sending welcome email:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send welcome email');
   }
 });
 
+// Import altre funzioni
 import { generateGalleryZip } from './gallery-zip';
 import { exportGalleryAccessCSV } from './csv-export';
 

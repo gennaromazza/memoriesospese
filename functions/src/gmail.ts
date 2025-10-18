@@ -4,7 +4,7 @@
  */
 
 import { google } from 'googleapis';
-import { logger } from 'firebase-functions';
+import * as functions from 'firebase-functions';
 
 let connectionSettings: any;
 
@@ -101,9 +101,9 @@ export async function sendGmailEmail(
       }
     });
 
-    logger.info(`📧 Email inviata via Gmail API a ${recipients}`);
+    functions.logger.info(`📧 Email inviata via Gmail API a ${recipients}`);
   } catch (error) {
-    logger.error('❌ Errore invio email Gmail:', error);
+    functions.logger.error('❌ Errore invio email Gmail:', error);
     throw error;
   }
 }
