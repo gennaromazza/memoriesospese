@@ -39,13 +39,18 @@ export function usePasswordRequest() {
     setError('');
 
     try {
+      console.log('🔍 Recupero metadata galleria per code:', galleryCode);
+      
       // SICUREZZA: Usa SOLO Cloud Function per metadata sicuri
       // NO FALLBACK Firestore - previene esposizione password
       const { httpsCallable } = await import('firebase/functions');
       const { functions } = await import('@/lib/firebase');
       
+      console.log('📞 Chiamata Cloud Function getGalleryMetadata...');
       const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
       const result = await getGalleryMetadata({ galleryCode });
+      
+      console.log('✅ Risposta Cloud Function:', result.data);
       
       if (!result.data) {
         throw new Error('Galleria non trovata');
@@ -55,6 +60,7 @@ export function usePasswordRequest() {
       setGalleryInfo(metadata);
       return metadata;
     } catch (error) {
+      console.error('❌ Errore getGalleryInfo:', error);
       const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
       setError(errorMessage);
       throw error;

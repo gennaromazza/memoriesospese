@@ -4,7 +4,7 @@
  * Gestisce invio email tramite Gmail API con Replit Integration
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.exportGalleryAccessCSV = exports.generateGalleryZip = exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendGalleryPassword = exports.getGalleryMetadata = exports.sendNewPhotosNotificationCall = exports.sendNewPhotosNotification = void 0;
+exports.exportGalleryAccessCSV = exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendGalleryPassword = exports.getGalleryMetadata = exports.sendNewPhotosNotificationCall = exports.sendNewPhotosNotification = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const cors = require("cors");
@@ -277,8 +277,6 @@ exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
     }
 });
 // Import altre funzioni
-const gallery_zip_1 = require("./gallery-zip");
-Object.defineProperty(exports, "generateGalleryZip", { enumerable: true, get: function () { return gallery_zip_1.generateGalleryZip; } });
 const csv_export_1 = require("./csv-export");
 Object.defineProperty(exports, "exportGalleryAccessCSV", { enumerable: true, get: function () { return csv_export_1.exportGalleryAccessCSV; } });
 //# sourceMappingURL=index.js.map

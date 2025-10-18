@@ -334,8 +334,7 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
 });
 
 // Import altre funzioni
-import { generateGalleryZip } from './gallery-zip';
 import { exportGalleryAccessCSV } from './csv-export';
 
 // Export functions
-export { generateGalleryZip, exportGalleryAccessCSV };
+export { exportGalleryAccessCSV };
