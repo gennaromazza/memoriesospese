@@ -53,8 +53,8 @@ export function usePasswordRequest() {
       const { app } = await import('@/lib/firebase');
       
       console.log('📞 Chiamata Cloud Function getGalleryMetadata (us-central1)...');
-      const functions = getFunctions(app, 'us-central1');
-      const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
+      const functionsInstance = getFunctions(app, 'us-central1');
+      const getGalleryMetadata = httpsCallable(functionsInstance, 'getGalleryMetadata');
       
       // Payload con chiave esatta 'galleryCode'
       const result = await getGalleryMetadata({ galleryCode: normalizedCode });
@@ -156,8 +156,8 @@ export function usePasswordRequest() {
       const { getFunctions, httpsCallable } = await import('firebase/functions');
       const { app } = await import('@/lib/firebase');
       
-      const functions = getFunctions(app, 'us-central1');
-      const sendPasswordEmail = httpsCallable(functions, 'sendGalleryPassword');
+      const functionsInstance = getFunctions(app, 'us-central1');
+      const sendPasswordEmail = httpsCallable(functionsInstance, 'sendGalleryPassword');
       
       // Costruisci URL galleria
       const baseUrl = window.location.origin;

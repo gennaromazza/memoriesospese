@@ -3,7 +3,13 @@ import * as admin from 'firebase-admin';
 
 if (!admin.apps.length) admin.initializeApp();
 
-export const getGalleryMetadata = functions.https.onCall(async (data) => {
+/**
+ * Cloud Function per recuperare metadata galleria sicuri (senza password)
+ * Usa SOLO questa function dal client, MAI query Firestore dirette
+ * 
+ * REGIONE: us-central1 (deve corrispondere al client)
+ */
+export const getGalleryMetadata = functions.https.onCall(async (data, context) => {
   try {
     const galleryCode = String(data?.galleryCode || '').trim();
     if (!galleryCode) {
