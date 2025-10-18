@@ -28,10 +28,13 @@
       }
     ]
   },
-  "functions": {
-    "source": "functions",
-    "runtime": "nodejs18"
-  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs20"
+    }
+  ],
   "storage": {
     "rules": "storage.rules"
   }

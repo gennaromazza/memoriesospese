@@ -12,7 +12,6 @@ let connectionSettings;
  * Ottiene access token dall'integrazione Replit Gmail
  */
 async function getAccessToken() {
-    var _a, _b, _c, _d;
     if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
         return connectionSettings.settings.access_token;
     }
@@ -30,8 +29,8 @@ async function getAccessToken() {
             'Accept': 'application/json',
             'X_REPLIT_TOKEN': xReplitToken
         }
-    }).then(res => res.json()).then((data) => { var _a; return (_a = data.items) === null || _a === void 0 ? void 0 : _a[0]; });
-    const accessToken = ((_a = connectionSettings === null || connectionSettings === void 0 ? void 0 : connectionSettings.settings) === null || _a === void 0 ? void 0 : _a.access_token) || ((_d = (_c = (_b = connectionSettings.settings) === null || _b === void 0 ? void 0 : _b.oauth) === null || _c === void 0 ? void 0 : _c.credentials) === null || _d === void 0 ? void 0 : _d.access_token);
+    }).then(res => res.json()).then((data) => data.items?.[0]);
+    const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
     if (!connectionSettings || !accessToken) {
         throw new Error('Gmail not connected');
     }

@@ -28,7 +28,7 @@ exports.generateGalleryZip = functions.https.onCall(async (data, context) => {
         }
         const gallery = galleryDoc.data();
         // Check if user owns the gallery
-        if ((gallery === null || gallery === void 0 ? void 0 : gallery.userId) !== userId) {
+        if (gallery?.userId !== userId) {
             throw new functions.https.HttpsError('permission-denied', 'Non hai i permessi per scaricare questa galleria');
         }
         // Get all photos from the gallery

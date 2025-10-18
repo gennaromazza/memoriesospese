@@ -196,7 +196,7 @@ exports.sendGalleryPassword = functions.https.onCall(async (data, context) => {
             throw new functions.https.HttpsError('not-found', 'Gallery not found');
         }
         const galleryData = galleryDoc.data();
-        const galleryPassword = galleryData === null || galleryData === void 0 ? void 0 : galleryData.password;
+        const galleryPassword = galleryData?.password;
         if (!galleryPassword) {
             functions.logger.error(`Gallery password not found: ${galleryId}`);
             throw new functions.https.HttpsError('internal', 'Gallery password not configured');
