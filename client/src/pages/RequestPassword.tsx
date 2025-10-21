@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { usePasswordRequest } from "@/hooks/use-password-request";
 import { useToast } from "@/hooks/use-toast";
@@ -47,12 +47,12 @@ type RequestFormData = z.infer<typeof requestSchema>;
 
 export default function RequestPassword() {
   const { id } = useParams();
-  const [, navigate] = useLocation();
   const [success, setSuccess] = useState(false);
   const [showSecurityQuestion, setShowSecurityQuestion] = useState(false);
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [securityError, setSecurityError] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [isCheckingGallery, setIsCheckingGallery] = useState(true);
   const { toast } = useToast();
   
   const { getGalleryInfo, submitPasswordRequest, galleryInfo, isLoading, error } = usePasswordRequest();
@@ -72,7 +72,7 @@ export default function RequestPassword() {
   useEffect(() => {
     async function loadGalleryInfo() {
       if (!id) return;
-      
+      setIsCheckingGallery(true);
       try {
         await getGalleryInfo(id);
       } catch (error) {
@@ -81,6 +81,8 @@ export default function RequestPassword() {
           description: "Non è stato possibile verificare la galleria.",
           variant: "destructive",
         });
+      } finally {
+        setIsCheckingGallery(false);
       }
     }
     
@@ -182,7 +184,17 @@ export default function RequestPassword() {
       
       <div className="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8 relative z-10">
-          {!galleryInfo ? (
+          {!galleryInfo && isCheckingGallery ? (
+            <Card className="border-sage/20 shadow-md overflow-hidden">
+              <CardContent className="pt-8">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-8 bg-sage/10 rounded w-2/3 mx-auto" />
+                  <div className="h-24 bg-sage/10 rounded" />
+                  <div className="h-10 bg-sage/10 rounded w-1/2 mx-auto" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : !galleryInfo ? (
             <Card className="border-sage/20 shadow-md overflow-hidden">
               <div className="absolute inset-0 opacity-5 pointer-events-none">
                 <BackgroundDecoration />
@@ -195,9 +207,8 @@ export default function RequestPassword() {
                   <h2 className="text-2xl font-bold text-blue-gray font-playfair mb-4">
                     Galleria non trovata
                   </h2>
-                  <p className="text-gray-600 mb-6">
-                    La galleria che stai cercando non esiste o è stata rimossa.
-                  </p>
+                  <p className="text-gray-600 mb-2">La galleria che stai cercando non esiste o è stata rimossa.</p>
+                  {error && <p className="text-sm text-red-500">{String(error)}</p>}
                   <Link href={createUrl("/")}>
                     <Button className="btn-primary">Torna alla Home</Button>
                   </Link>
@@ -428,41 +439,45 @@ export default function RequestPassword() {
                     <label htmlFor="relation" className="block text-sm font-medium text-blue-gray">
                       Relazione con gli sposi
                     </label>
-                    <div className="mt-1 relative">
-                      <Select 
-                        onValueChange={(value) => {
-                          form.setValue("relation", value);
-                          form.trigger("relation"); // Forza la validazione dopo la selezione
-                        }}
-                      >
-                        <SelectTrigger 
-                          className={`w-full border-beige rounded-md focus:ring-sage focus:border-sage
-                            ${form.formState.errors.relation ? "border-red-500 focus:ring-red-500 focus:border-red-500" : ""}
-                            ${form.formState.dirtyFields.relation && !form.formState.errors.relation ? "border-green-500 focus:ring-green-500 focus:border-green-500" : ""}`}
-                        >
-                          <SelectValue placeholder="Seleziona..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="family">Famiglia</SelectItem>
-                          <SelectItem value="friend">Amico/a</SelectItem>
-                          <SelectItem value="colleague">Collega</SelectItem>
-                          <SelectItem value="other">Altro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {form.formState.errors.relation && (
-                        <div className="flex items-center mt-1">
-                          <AlertCircle className="h-3 w-3 text-red-500 mr-1" />
-                          <p className="text-sm text-red-500">{form.formState.errors.relation.message}</p>
+                    <Controller
+                      name="relation"
+                      control={form.control}
+                      render={({ field, fieldState }) => (
+                        <div className="mt-1 relative">
+                          <Select
+                            value={field.value}
+                            onValueChange={(val) => field.onChange(val)}
+                          >
+                            <SelectTrigger
+                              className={`w-full border-beige rounded-md focus:ring-sage focus:border-sage
+                                ${fieldState.error ? "border-red-500 focus:ring-red-500 focus:border-red-500" : ""}
+                                ${!fieldState.error && field.value ? "border-green-500 focus:ring-green-500 focus:border-green-500" : ""}`}
+                            >
+                              <SelectValue placeholder="Seleziona..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="family">Famiglia</SelectItem>
+                              <SelectItem value="friend">Amico/a</SelectItem>
+                              <SelectItem value="colleague">Collega</SelectItem>
+                              <SelectItem value="other">Altro</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {fieldState.error && (
+                            <div className="flex items-center mt-1">
+                              <AlertCircle className="h-3 w-3 text-red-500 mr-1" />
+                              <p className="text-sm text-red-500">{fieldState.error.message}</p>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
+                    />
                   </div>
                   
                   <div className="pt-2">
                     <Button
                       type="submit"
                       className="w-full btn-primary py-3 relative group overflow-hidden"
-                      disabled={isLoading}
+                      disabled={isLoading || !form.formState.isValid}
                     >
                       <span className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity">
                         <BackgroundDecoration />
