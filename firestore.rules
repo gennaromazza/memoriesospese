@@ -115,6 +115,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Password requests collection - Richieste password pubbliche
+    match /passwordRequests/{requestId} {
+      allow read: if isAdmin();
+      allow create: if true; // Chiunque può richiedere la password
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     // Studio settings (legacy)
     match /studio-settings/{settingId} {
       allow read: if true;

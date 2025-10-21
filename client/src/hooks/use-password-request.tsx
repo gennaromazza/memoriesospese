@@ -49,20 +49,34 @@ export function usePasswordRequest() {
       
       // SICUREZZA: Usa SOLO Cloud Function per metadata sicuri
       // NO FALLBACK Firestore - previene esposizione password
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions } = await import('@/lib/firebase');
+      console.log('📞 Chiamata Cloud Function getGalleryMetadata (HTTP)...');
       
-      console.log('📞 Chiamata Cloud Function getGalleryMetadata...');
-      const getGalleryMetadata = httpsCallable(functions, 'getGalleryMetadata');
-      const result = await getGalleryMetadata({ galleryCode: normalizedCode });
+      // Chiamata HTTP POST alla Cloud Function v1 con CORS
+      const functionUrl = 'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/getGalleryMetadata';
       
-      console.log('✅ Risposta Cloud Function:', result.data);
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          data: { galleryCode: normalizedCode } 
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const responseData = await response.json();
+      console.log('✅ Risposta Cloud Function:', responseData);
       
-      if (!result.data) {
+      if (!responseData.result) {
         throw new Error('Galleria non trovata');
       }
 
-      const metadata = result.data as GalleryInfo;
+      const metadata = responseData.result as GalleryInfo;
       setGalleryInfo(metadata);
       return metadata;
       
@@ -135,11 +149,10 @@ export function usePasswordRequest() {
       // Invia password via email usando Firebase Function
       // SICUREZZA: La password viene recuperata server-side dalla Cloud Function
       // VALIDAZIONE: Security question validata server-side (se presente)
-      const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const { app } = await import('@/lib/firebase');
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('@/lib/firebase');
 
-      const functionsInstance = getFunctions(app, 'us-central1');
-      const sendPasswordEmail = httpsCallable(functionsInstance, 'sendGalleryPassword');
+      const sendPasswordEmail = httpsCallable(functions, 'sendGalleryPassword');
 
       // Costruisci URL galleria
       const baseUrl = window.location.origin;

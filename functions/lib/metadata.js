@@ -5,17 +5,50 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 if (!admin.apps.length)
     admin.initializeApp();
+// ✅ CORS Configuration - v1 Setup
+const allowedOrigins = new Set([
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev",
+    "https://gennaromazzacane.it",
+    "https://www.gennaromazzacane.it"
+]);
 /**
  * Cloud Function per recuperare metadata galleria sicuri (senza password)
  * Usa SOLO questa function dal client, MAI query Firestore dirette
  *
  * REGIONE: us-central1 (deve corrispondere al client)
+ * TIPO: onRequest con CORS manuale (v1)
  */
-exports.getGalleryMetadata = functions.https.onCall(async (data, context) => {
+exports.getGalleryMetadata = functions
+    .region('us-central1')
+    .https.onRequest(async (req, res) => {
     try {
+        // ✅ CORS Headers - Gestione manuale per v1
+        const origin = req.headers.origin || '';
+        const allowOrigin = allowedOrigins.has(origin) ? origin : '*';
+        // Gestione preflight OPTIONS
+        if (req.method === 'OPTIONS') {
+            res.set('Access-Control-Allow-Origin', allowOrigin);
+            res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+            res.set('Access-Control-Max-Age', '3600');
+            res.status(204).send('');
+            return;
+        }
+        // Set CORS per risposta principale
+        res.set('Access-Control-Allow-Origin', allowOrigin);
+        res.set('Access-Control-Allow-Credentials', 'true');
+        // Solo POST accettato
+        if (req.method !== 'POST') {
+            res.status(405).json({ error: 'Method not allowed' });
+            return;
+        }
+        const { data } = req.body;
         const galleryCode = String(data?.galleryCode || '').trim();
         if (!galleryCode) {
-            throw new functions.https.HttpsError('invalid-argument', 'galleryCode is required');
+            res.status(400).json({ error: 'galleryCode is required' });
+            return;
         }
         const db = admin.firestore();
         // Ricerca per campo "code"
@@ -27,11 +60,15 @@ exports.getGalleryMetadata = functions.https.onCall(async (data, context) => {
             ? await db.collection('galleries').doc(galleryCode).get()
             : byCode.docs[0];
         if (!doc || (('exists' in doc) && !doc.exists)) {
-            throw new functions.https.HttpsError('not-found', 'Gallery not found', { galleryCode });
+            functions.logger.warn('Gallery not found:', { galleryCode });
+            res.status(404).json({ error: 'Gallery not found' });
+            return;
         }
         const d = ('data' in doc) ? doc.data() : doc.data();
-        if (!d)
-            throw new functions.https.HttpsError('internal', 'Gallery data is empty');
+        if (!d) {
+            res.status(500).json({ error: 'Gallery data is empty' });
+            return;
+        }
         const hasQ = d?.requiresSecurityQuestion && d?.securityQuestionType && d?.securityAnswer;
         const questionMap = {
             groomName: 'Nome dello sposo',
@@ -40,18 +77,19 @@ exports.getGalleryMetadata = functions.https.onCall(async (data, context) => {
             weddingLocation: 'Luogo del matrimonio',
             custom: d?.customSecurityQuestion || 'Domanda personalizzata'
         };
-        return {
+        const result = {
             id: doc.id,
             name: d?.name,
             code: d?.code || galleryCode,
             requiresSecurityQuestion: !!hasQ,
             securityQuestion: hasQ ? questionMap[d.securityQuestionType] : undefined
         };
+        functions.logger.info('Gallery metadata retrieved:', { galleryCode, hasSecurityQuestion: !!hasQ });
+        res.status(200).json({ result });
     }
     catch (err) {
-        if (err instanceof functions.https.HttpsError)
-            throw err;
-        throw new functions.https.HttpsError('internal', 'Failed to retrieve gallery metadata');
+        functions.logger.error('Error retrieving gallery metadata:', err);
+        res.status(500).json({ error: 'Failed to retrieve gallery metadata' });
     }
 });
 //# sourceMappingURL=metadata.js.map
