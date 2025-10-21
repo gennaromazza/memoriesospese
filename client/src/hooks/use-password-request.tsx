@@ -164,7 +164,7 @@ export function usePasswordRequest() {
         galleryId: galleryInfo.id, // Function recupera password da Firestore
         recipientEmail: params.email,
         galleryName: galleryInfo.name,
-        galleryCode: galleryInfo.code, // Corretto: usa galleryInfo.code
+        galleryCode: galleryInfo.code,
         firstName: params.firstName,
         lastName: params.lastName,
         galleryUrl: galleryUrl,

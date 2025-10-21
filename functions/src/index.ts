@@ -129,8 +129,11 @@ export const sendNewPhotosNotificationCall = functions.https.onCall(async (data,
  * SICUREZZA: Recupera la password direttamente da Firestore server-side
  * VALIDAZIONE: Security question validata server-side
  * Il client NON deve mai conoscere la password
+ * SECRETS: Usa Firebase secrets (REPL_IDENTITY) e config per accesso Gmail API
  */
-export const sendGalleryPassword = functions.https.onCall(async (data, context) => {
+export const sendGalleryPassword = functions
+  .runWith({ secrets: ['REPL_IDENTITY'] }) // Secret configurato
+  .https.onCall(async (data, context) => {
   try {
     const { galleryId, recipientEmail, galleryName, galleryCode, firstName, lastName, galleryUrl, securityAnswer } = data;
 

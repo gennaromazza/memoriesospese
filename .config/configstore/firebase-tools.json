@@ -48,7 +48,8 @@
 			"artifactregistry.googleapis.com": true,
 			"cloudbuild.googleapis.com": true,
 			"firebaseextensions.googleapis.com": true,
-			"firestore.googleapis.com": true
+			"firestore.googleapis.com": true,
+			"secretmanager.googleapis.com": true
 		},
 		"1072998290999": {
 			"run.googleapis.com": true,
@@ -59,6 +60,5 @@
 	},
 	"activeProjects": {
 		"/home/runner/workspace": "default"
-	},
-	"lastError": 1761033881416
+	}
 }
