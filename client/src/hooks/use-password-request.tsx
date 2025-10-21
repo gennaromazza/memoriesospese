@@ -146,30 +146,47 @@ export function usePasswordRequest() {
         securityQuestionAnswered: galleryInfo.requiresSecurityQuestion
       });
 
-      // Invia password via email usando Firebase Function
+      // Invia password via email usando Firebase Function (HTTP)
       // SICUREZZA: La password viene recuperata server-side dalla Cloud Function
       // VALIDAZIONE: Security question validata server-side (se presente)
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions } = await import('@/lib/firebase');
-
-      const sendPasswordEmail = httpsCallable(functions, 'sendGalleryPassword');
-
+      
       // Costruisci URL galleria
       const baseUrl = window.location.origin;
       const basePath = import.meta.env.VITE_BASE_PATH || '';
       const galleryUrl = `${baseUrl}${basePath}/gallery/${galleryInfo.code}`;
 
-      // Payload sicuro: NO password, security answer validata server-side
-      await sendPasswordEmail({
-        galleryId: galleryInfo.id, // Function recupera password da Firestore
-        recipientEmail: params.email,
-        galleryName: galleryInfo.name,
-        galleryCode: galleryInfo.code,
-        firstName: params.firstName,
-        lastName: params.lastName,
-        galleryUrl: galleryUrl,
-        securityAnswer: params.securityAnswer // Validazione server-side
+      // Chiamata HTTP POST alla Cloud Function
+      const functionUrl = 'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendGalleryPassword';
+      
+      console.log('📧 Invio richiesta password via HTTP...');
+      
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            galleryId: galleryInfo.id,
+            recipientEmail: params.email,
+            galleryName: galleryInfo.name,
+            galleryCode: galleryInfo.code,
+            firstName: params.firstName,
+            lastName: params.lastName,
+            galleryUrl: galleryUrl,
+            securityAnswer: params.securityAnswer
+          }
+        })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Errore risposta:', errorData);
+        throw new Error(errorData.error?.message || 'Failed to send password email');
+      }
+
+      const result = await response.json();
+      console.log('✅ Password inviata:', result);
 
       // Ritorna successo con conferma email
       return {
