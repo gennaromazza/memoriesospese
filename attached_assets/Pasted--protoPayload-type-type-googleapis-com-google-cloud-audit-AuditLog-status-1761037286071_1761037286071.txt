@@ -1,0 +1,59 @@
+{
+  "protoPayload": {
+    "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+    "status": {
+      "code": 9,
+      "message": "Failed to delete 1st Gen function projects/wedding-gallery-397b6/locations/us-central1/functions/sendGalleryPassword: An operation on function sendGalleryPassword in region us-central1 in project wedding-gallery-397b6 is already in progress. Please try again later."
+    },
+    "authenticationInfo": {
+      "principalEmail": "gennaro.mazzacane@gmail.com",
+      "principalSubject": "user:gennaro.mazzacane@gmail.com",
+      "oauthInfo": {
+        "oauthClientId": "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com"
+      }
+    },
+    "requestMetadata": {
+      "callerIp": "34.169.214.123",
+      "callerSuppliedUserAgent": "FirebaseCLI/14.20.0,gzip(gfe),gzip(gfe)",
+      "requestAttributes": {
+        "time": "2025-10-21T08:21:50.743621Z",
+        "auth": {}
+      },
+      "destinationAttributes": {}
+    },
+    "serviceName": "cloudfunctions.googleapis.com",
+    "methodName": "google.cloud.functions.v1.CloudFunctionsService.DeleteFunction",
+    "authorizationInfo": [
+      {
+        "resource": "projects/wedding-gallery-397b6/locations/us-central1/functions/sendGalleryPassword",
+        "permission": "cloudfunctions.functions.delete",
+        "granted": true,
+        "resourceAttributes": {},
+        "permissionType": "ADMIN_WRITE"
+      }
+    ],
+    "resourceName": "projects/wedding-gallery-397b6/locations/us-central1/functions/sendGalleryPassword",
+    "request": {
+      "name": "projects/wedding-gallery-397b6/locations/us-central1/functions/sendGalleryPassword",
+      "@type": "type.googleapis.com/google.cloud.functions.v1.DeleteFunctionRequest"
+    },
+    "resourceLocation": {
+      "currentLocations": [
+        "us-central1"
+      ]
+    }
+  },
+  "insertId": "1mavv2xdbt5g",
+  "resource": {
+    "type": "cloud_function",
+    "labels": {
+      "region": "us-central1",
+      "function_name": "sendGalleryPassword",
+      "project_id": "wedding-gallery-397b6"
+    }
+  },
+  "timestamp": "2025-10-21T08:21:50.439808Z",
+  "severity": "ERROR",
+  "logName": "projects/wedding-gallery-397b6/logs/cloudaudit.googleapis.com%2Factivity",
+  "receiveTimestamp": "2025-10-21T08:21:51.216216337Z"
+}

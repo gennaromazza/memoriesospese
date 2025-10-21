@@ -143,12 +143,9 @@ export const sendGalleryPassword = functions
     ];
 
     const origin = req.headers.origin || '';
-    const isAllowedOrigin = allowedOrigins.some(allowed => {
-      if (allowed.includes('*.replit.dev')) {
-        return origin.includes('.replit.dev');
-      }
-      return allowed === origin;
-    });
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+                           origin.includes('.replit.dev') || // Tutti i domini Replit
+                           origin.includes('replit.app');    // Replit deployments
 
     if (isAllowedOrigin) {
       res.set('Access-Control-Allow-Origin', origin);
