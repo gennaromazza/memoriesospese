@@ -159,6 +159,12 @@ export function usePasswordRequest() {
       const functionUrl = 'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendGalleryPassword';
       
       console.log('📧 Invio richiesta password via HTTP...');
+      console.log('📦 Payload:', {
+        galleryId: galleryInfo.id,
+        recipientEmail: params.email,
+        galleryName: galleryInfo.name,
+        galleryCode: galleryInfo.code,
+      });
       
       const response = await fetch(functionUrl, {
         method: 'POST',
@@ -179,14 +185,21 @@ export function usePasswordRequest() {
         })
       });
 
+      console.log('📡 Response status:', response.status, response.statusText);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ Errore risposta:', errorData);
-        throw new Error(errorData.error?.message || 'Failed to send password email');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { error: { message: `HTTP ${response.status}: ${response.statusText}` } };
+        }
+        console.error('❌ Errore risposta HTTP:', errorData);
+        throw new Error(errorData.error?.message || `HTTP error ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('✅ Password inviata:', result);
+      console.log('✅ Password inviata con successo:', result);
 
       // Ritorna successo con conferma email
       return {
@@ -197,6 +210,14 @@ export function usePasswordRequest() {
       };
 
     } catch (error) {
+      console.error('❌ Submit error dettagliato:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        type: typeof error,
+        stringified: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      });
+      
       const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
       setError(errorMessage);
       throw error;
