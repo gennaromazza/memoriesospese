@@ -81,7 +81,7 @@ export const sendNewPhotosNotification = functions.https.onRequest(async (req, r
       
       // Crea HTML email
       const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
-      const subject = `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
+      const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
 
       // Invia email tramite Gmail API
       await sendGmailEmail(recipients, subject, htmlContent);
@@ -111,7 +111,7 @@ export const sendNewPhotosNotificationCall = functions.https.onCall(async (data,
     
     // Crea HTML email
     const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
-    const subject = `📸 ${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
+    const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipients, subject, htmlContent);
@@ -266,7 +266,7 @@ export const testEmailConfiguration = functions.https.onCall(async (data, contex
     
     // Crea HTML email
     const htmlContent = createTestEmailHTML();
-    const subject = '✅ Test Configurazione Email - Wedding Gallery';
+    const subject = 'Test Configurazione Email - Wedding Gallery';
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipient, subject, htmlContent);
@@ -295,7 +295,7 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
     
     // Crea HTML email
     const htmlContent = createWelcomeEmailHTML(galleryName);
-    const subject = `✨ Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`;
+    const subject = `Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`;
 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipientEmail, subject, htmlContent);
