@@ -2,7 +2,9 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import UnifiedAuthDialog from '@/components/auth/UnifiedAuthDialog';
+import EmailSubscriptionBox from '@/components/EmailSubscriptionBox';
 import { 
   Heart, 
   MessageCircle, 
@@ -16,12 +18,14 @@ import {
 
 interface RegistrationCTAProps {
   galleryId: string;
+  galleryName: string;
   onAuthComplete: () => void;
   className?: string;
 }
 
 export default function RegistrationCTA({ 
-  galleryId, 
+  galleryId,
+  galleryName,
   onAuthComplete, 
   className = "" 
 }: RegistrationCTAProps) {
@@ -112,6 +116,7 @@ export default function RegistrationCTA({
               onClick={() => setShowAuthDialog(true)}
               size="lg"
               className="w-full bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-semibold py-3 sm:py-4 text-base sm:text-lg shadow-lg hover:shadow-xl transition-all duration-300 min-h-[48px]"
+              data-testid="button-register-now"
             >
               <UserPlus className="h-5 w-5 mr-2 flex-shrink-0" />
               <span className="truncate">Registrati Ora - È Gratis!</span>
@@ -127,6 +132,20 @@ export default function RegistrationCTA({
               </button>
             </p>
           </div>
+
+          <div className="relative my-6">
+            <Separator className="bg-sage-200" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="bg-white px-3 text-xs sm:text-sm text-sage-500 font-medium">
+                OPPURE
+              </span>
+            </div>
+          </div>
+
+          <EmailSubscriptionBox 
+            galleryId={galleryId}
+            galleryName={galleryName}
+          />
         </CardContent>
       </Card>
 

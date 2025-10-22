@@ -995,6 +995,7 @@ export default function Gallery() {
                 <div id="registration-section" className="mt-12 mb-8">
                   <RegistrationCTA
                     galleryId={galleryData.id}
+                    galleryName={galleryData.name}
                     onAuthComplete={() => {
                       // Auth state will update automatically via context
                     }}
