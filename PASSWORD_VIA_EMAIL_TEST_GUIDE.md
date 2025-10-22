@@ -131,7 +131,7 @@ Azione: Click su "Richiedi Accesso"
 **Email Attesa:**
 ```
 Da: [Gmail configurato]
-Oggetto: 🔑 Accesso autorizzato alla galleria "[Nome Galleria]"
+Oggetto:  Accesso autorizzato alla galleria "[Nome Galleria]"
 
 Contenuto:
 - Saluto: "Ciao Mario Rossi,"
@@ -146,7 +146,7 @@ Contenuto:
 
 **Verifica Email:**
 - ✅ Email ricevuta entro 30 secondi
-- ✅ Oggetto corretto con emoji 🔑
+- ✅ Oggetto corretto con emoji 
 - ✅ Saluto personalizzato con nome e cognome
 - ✅ Codice galleria presente
 - ✅ Password presente e corretta
