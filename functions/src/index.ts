@@ -236,7 +236,7 @@ export const sendGalleryPasswordV2 = functions
         lastName,
         galleryUrl
       );
-      const subject = `🔑 Accesso autorizzato alla galleria "${galleryName}"`;
+      const subject = `Accesso autorizzato alla galleria "${galleryName}"`;
 
       // Invia email tramite Gmail API
       await sendGmailEmail(recipientEmail, subject, htmlContent);
