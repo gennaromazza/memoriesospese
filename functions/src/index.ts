@@ -15,16 +15,33 @@ if (!admin.apps.length) {
 // Re-export della funzione isolata (no heavy dependencies)
 export { getGalleryMetadata } from './metadata';
 
-// Configurazione CORS per permettere richieste da gennaromazzacane.it
+// Configurazione CORS dinamica per gennaromazzacane.it e Replit
+const allowedOrigins = [
+  'https://gennaromazzacane.it',
+  'https://www.gennaromazzacane.it',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5000'
+];
+
 const corsHandler = cors({
-  origin: [
-    'https://gennaromazzacane.it',
-    'https://www.gennaromazzacane.it',
-    'http://localhost:3000',
-    'http://localhost:5000',
-    'https://localhost:3000',
-    'https://localhost:5000'
-  ],
+  origin: (origin, callback) => {
+    // Permetti richieste senza origin (es. Postman, curl)
+    if (!origin) return callback(null, true);
+    
+    // Permetti origin espliciti
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Permetti tutti i domini Replit (dev e deployment)
+    if (origin.includes('.replit.dev') || origin.includes('.replit.app')) {
+      return callback(null, true);
+    }
+    
+    // Blocca altri domini
+    callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
