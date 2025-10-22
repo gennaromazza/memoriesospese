@@ -38,10 +38,8 @@ export default function EmailSubscriptionBox({ galleryId, galleryName }: EmailSu
         setEmail('');
         
         toast({
-          title: result.alreadySubscribed ? "Già iscritto" : "Iscrizione confermata!",
-          description: result.alreadySubscribed 
-            ? "Sei già iscritto alle notifiche di questa galleria" 
-            : "Riceverai un'email ogni volta che verranno caricate nuove foto",
+          title: "Iscrizione confermata!",
+          description: "Riceverai un'email ogni volta che verranno caricate nuove foto in questa galleria",
         });
       } else {
         throw new Error(result.error || 'Errore sconosciuto');

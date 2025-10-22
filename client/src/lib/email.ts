@@ -233,25 +233,11 @@ export async function subscribeToGallery(
 ): Promise<{ success: boolean; alreadySubscribed?: boolean; error?: string }> {
   try {
     const normalizedEmail = email.toLowerCase();
-
-    // 1. Controlla se l'utente è già iscritto
     const subscriptionsRef = collection(db, "subscriptions");
-    const existingSubscription = await getDocs(
-      query(
-        subscriptionsRef,
-        where("galleryId", "==", galleryId),
-        where("email", "==", normalizedEmail),
-      ),
-    );
 
-    if (!existingSubscription.empty) {
-      console.log(
-        `ℹ️ ${email} è già iscritto alle notifiche di "${galleryName}"`,
-      );
-      return { success: true, alreadySubscribed: true };
-    }
-
-    // 2. Salva nuova iscrizione in Firestore
+    // Salva iscrizione in Firestore
+    // Nota: Non controlliamo duplicati per evitare problemi di permissions
+    // Le email duplicate verranno filtrate lato backend quando inviamo notifiche
     await addDoc(subscriptionsRef, {
       galleryId,
       galleryName,
@@ -261,7 +247,7 @@ export async function subscribeToGallery(
       lastNotified: null,
     });
 
-    // 3. Invia email di benvenuto (con gestione errori robusta)
+    // Invia email di benvenuto (con gestione errori robusta)
     if (process.env.NODE_ENV === "production") {
       Promise.resolve()
         .then(async () => {
