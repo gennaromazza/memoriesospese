@@ -156,7 +156,7 @@ export function usePasswordRequest() {
       const galleryUrl = `${baseUrl}${basePath}/gallery/${galleryInfo.code}`;
 
       // Chiamata HTTP POST alla Cloud Function
-      const functionUrl = 'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendGalleryPassword';
+      const functionUrl = 'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendGalleryPasswordV2';
       
       console.log('📧 Invio richiesta password via HTTP...');
       console.log('📦 Payload:', {

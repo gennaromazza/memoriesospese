@@ -131,7 +131,7 @@ export const sendNewPhotosNotificationCall = functions.https.onCall(async (data,
  * Il client NON deve mai conoscere la password
  * SECRETS: Usa Firebase secrets (REPL_IDENTITY) e config per accesso Gmail API
  */
-export const sendGalleryPassword = functions
+export const sendGalleryPasswordV2 = functions
   .runWith({ secrets: ['REPL_IDENTITY'] })
   .https.onRequest(async (req, res) => {
     // CORS per domini autorizzati
