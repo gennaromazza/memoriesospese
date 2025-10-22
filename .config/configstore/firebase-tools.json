@@ -55,10 +55,12 @@
 			"run.googleapis.com": true,
 			"eventarc.googleapis.com": true,
 			"pubsub.googleapis.com": true,
-			"storage.googleapis.com": true
+			"storage.googleapis.com": true,
+			"secretmanager.googleapis.com": true
 		}
 	},
 	"activeProjects": {
 		"/home/runner/workspace": "default"
-	}
+	},
+	"lastError": 1761147862164
 }

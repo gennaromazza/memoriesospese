@@ -4,7 +4,7 @@
  * Gestisce invio email tramite Gmail API con Replit Integration
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendGalleryPassword = exports.sendNewPhotosNotificationCall = exports.sendNewPhotosNotification = exports.getGalleryMetadata = void 0;
+exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendGalleryPasswordV2 = exports.sendNewPhotosNotificationCall = exports.sendNewPhotosNotification = exports.getGalleryMetadata = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const cors = require("cors");
@@ -110,29 +110,65 @@ exports.sendNewPhotosNotificationCall = functions.https.onCall(async (data, cont
     }
 });
 /**
- * Function per invio password galleria
+ * Function per invio password galleria (HTTP endpoint - NO AUTH REQUIRED)
  * SICUREZZA: Recupera la password direttamente da Firestore server-side
  * VALIDAZIONE: Security question validata server-side
  * Il client NON deve mai conoscere la password
+ * SECRETS: Usa Firebase secrets (REPL_IDENTITY) e config per accesso Gmail API
  */
-exports.sendGalleryPassword = functions.https.onCall(async (data, context) => {
+exports.sendGalleryPasswordV2 = functions
+    .runWith({ secrets: ['REPL_IDENTITY'] })
+    .https.onRequest(async (req, res) => {
+    // CORS per domini autorizzati
+    const allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://gennaromazzacane.it',
+        'https://www.gennaromazzacane.it'
+    ];
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+        origin.includes('.replit.dev') || // Tutti i domini Replit
+        origin.includes('replit.app'); // Replit deployments
+    if (isAllowedOrigin) {
+        res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    res.set('Access-Control-Max-Age', '3600');
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
     try {
+        const data = req.body.data || req.body;
         const { galleryId, recipientEmail, galleryName, galleryCode, firstName, lastName, galleryUrl, securityAnswer } = data;
+        functions.logger.info(`📧 Password request received for gallery ${galleryCode} (${galleryId})`);
         if (!galleryId || !recipientEmail || !galleryName || !galleryCode) {
-            throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters: galleryId, recipientEmail, galleryName, galleryCode');
+            functions.logger.error('Missing required parameters');
+            res.status(400).json({
+                error: { code: 'invalid-argument', message: 'Missing required parameters' }
+            });
+            return;
         }
         // SICUREZZA: Recupera password da Firestore server-side
-        // Il client NON invia mai la password
         const galleryDoc = await admin.firestore().collection('galleries').doc(galleryId).get();
         if (!galleryDoc.exists) {
             functions.logger.error(`Gallery not found: ${galleryId}`);
-            throw new functions.https.HttpsError('not-found', 'Gallery not found');
+            res.status(404).json({
+                error: { code: 'not-found', message: 'Gallery not found' }
+            });
+            return;
         }
         const galleryData = galleryDoc.data();
         const galleryPassword = galleryData?.password;
         if (!galleryPassword) {
             functions.logger.error(`Gallery password not found: ${galleryId}`);
-            throw new functions.https.HttpsError('internal', 'Gallery password not configured');
+            res.status(500).json({
+                error: { code: 'internal', message: 'Gallery password not configured' }
+            });
+            return;
         }
         // VALIDAZIONE SERVER-SIDE: Security question (se configurata)
         const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true &&
@@ -141,32 +177,39 @@ exports.sendGalleryPassword = functions.https.onCall(async (data, context) => {
         if (hasSecurityQuestion) {
             if (!securityAnswer) {
                 functions.logger.warn(`Security answer required but not provided for gallery ${galleryId}`);
-                throw new functions.https.HttpsError('invalid-argument', 'Security answer required');
+                res.status(400).json({
+                    error: { code: 'invalid-argument', message: 'Security answer required' }
+                });
+                return;
             }
             const correctAnswer = galleryData.securityAnswer.toLowerCase().trim();
             const providedAnswer = securityAnswer.toLowerCase().trim();
             if (providedAnswer !== correctAnswer) {
                 functions.logger.warn(`Incorrect security answer for gallery ${galleryId}`);
-                throw new functions.https.HttpsError('permission-denied', 'Incorrect security answer');
+                res.status(403).json({
+                    error: { code: 'permission-denied', message: 'Incorrect security answer' }
+                });
+                return;
             }
             functions.logger.info(`Security question validated successfully for gallery ${galleryId}`);
         }
-        // Lazy import di gmail (solo quando necessario)
+        // Lazy import di gmail
         const { sendGmailEmail, createGalleryPasswordEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
-        // Crea HTML email con parametri completi
+        // Crea HTML email
         const htmlContent = createGalleryPasswordEmailHTML(galleryName, galleryCode, galleryPassword, firstName, lastName, galleryUrl);
         const subject = `🔑 Accesso autorizzato alla galleria "${galleryName}"`;
         // Invia email tramite Gmail API
         await sendGmailEmail(recipientEmail, subject, htmlContent);
-        functions.logger.info(`Gallery password sent to ${recipientEmail} for gallery ${galleryName} (ID: ${galleryId}) via Gmail API`);
-        return { success: true, message: 'Gallery password sent successfully', recipientEmail };
+        functions.logger.info(`✅ Gallery password sent to ${recipientEmail} for gallery ${galleryName}`);
+        res.status(200).json({
+            result: { success: true, message: 'Gallery password sent successfully', recipientEmail }
+        });
     }
     catch (error) {
-        functions.logger.error('Error sending gallery password:', error);
-        if (error instanceof functions.https.HttpsError) {
-            throw error;
-        }
-        throw new functions.https.HttpsError('internal', 'Failed to send gallery password email');
+        functions.logger.error('❌ Error sending gallery password:', error);
+        res.status(500).json({
+            error: { code: 'internal', message: 'Failed to send gallery password email' }
+        });
     }
 });
 /**

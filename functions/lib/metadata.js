@@ -9,10 +9,15 @@ if (!admin.apps.length)
 const allowedOrigins = new Set([
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev",
     "https://gennaromazzacane.it",
     "https://www.gennaromazzacane.it"
 ]);
+// Helper per verificare se origin è consentito
+function isOriginAllowed(origin) {
+    return allowedOrigins.has(origin) ||
+        origin.includes('.replit.dev') ||
+        origin.includes('replit.app');
+}
 /**
  * Cloud Function per recuperare metadata galleria sicuri (senza password)
  * Usa SOLO questa function dal client, MAI query Firestore dirette
@@ -26,7 +31,7 @@ exports.getGalleryMetadata = functions
     try {
         // ✅ CORS Headers - Gestione manuale per v1
         const origin = req.headers.origin || '';
-        const allowOrigin = allowedOrigins.has(origin) ? origin : '*';
+        const allowOrigin = isOriginAllowed(origin) ? origin : '*';
         // Gestione preflight OPTIONS
         if (req.method === 'OPTIONS') {
             res.set('Access-Control-Allow-Origin', allowOrigin);

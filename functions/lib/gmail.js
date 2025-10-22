@@ -15,15 +15,24 @@ async function getAccessToken() {
     if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
         return connectionSettings.settings.access_token;
     }
-    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-    const xReplitToken = process.env.REPL_IDENTITY
-        ? 'repl ' + process.env.REPL_IDENTITY
-        : process.env.WEB_REPL_RENEWAL
-            ? 'depl ' + process.env.WEB_REPL_RENEWAL
+    // Firebase Functions: usa secrets e config
+    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || functions.config().replit?.connectors_hostname;
+    const replIdentity = process.env.REPL_IDENTITY; // Firebase secret
+    const webRenewal = process.env.WEB_REPL_RENEWAL || functions.config().replit?.web_renewal;
+    const xReplitToken = replIdentity
+        ? 'repl ' + replIdentity
+        : webRenewal
+            ? 'depl ' + webRenewal
             : null;
-    if (!xReplitToken) {
-        throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+    if (!xReplitToken || !hostname) {
+        functions.logger.error('❌ Missing Replit credentials:', {
+            hasHostname: !!hostname,
+            hasReplIdentity: !!replIdentity,
+            hasWebRenewal: !!webRenewal
+        });
+        throw new Error('X_REPLIT_TOKEN or hostname not found');
     }
+    functions.logger.info('🔐 Using Replit token from Firebase Functions config');
     connectionSettings = await fetch('https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail', {
         headers: {
             'Accept': 'application/json',
