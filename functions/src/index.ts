@@ -5,7 +5,6 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import * as cors from 'cors';
 
 // Initialize Firebase Admin if not already done
 if (!admin.apps.length) {
@@ -15,50 +14,39 @@ if (!admin.apps.length) {
 // Re-export della funzione isolata (no heavy dependencies)
 export { getGalleryMetadata } from './metadata';
 
-// Configurazione CORS dinamica per gennaromazzacane.it e Replit
-const allowedOrigins = [
-  'https://gennaromazzacane.it',
-  'https://www.gennaromazzacane.it',
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:5000'
-];
-
-const corsHandler = cors({
-  origin: (origin, callback) => {
-    // Permetti richieste senza origin (es. Postman, curl)
-    if (!origin) return callback(null, true);
-    
-    // Permetti origin espliciti
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    // Permetti tutti i domini Replit (dev e deployment)
-    if (origin.includes('.replit.dev') || origin.includes('.replit.app')) {
-      return callback(null, true);
-    }
-    
-    // Blocca altri domini
-    callback(new Error('Not allowed by CORS'));
-  },
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-});
-
 /**
  * Function per invio notifiche nuove foto - Con supporto CORS e validazione auth
  */
-export const sendNewPhotosNotification = functions.https.onRequest(async (req, res) => {
-  corsHandler(req, res, async () => {
-    try {
-      // Gestione preflight OPTIONS
-      if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-      }
+export const sendNewPhotosNotification = functions
+  .runWith({ secrets: ['REPL_IDENTITY'] })
+  .https.onRequest(async (req, res) => {
+    // CORS per domini autorizzati
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://gennaromazzacane.it',
+      'https://www.gennaromazzacane.it'
+    ];
 
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+                           origin.includes('.replit.dev') ||
+                           origin.includes('replit.app');
+
+    if (isAllowedOrigin) {
+      res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    try {
       if (req.method !== 'POST') {
         res.status(405).json({ error: 'Method not allowed' });
         return;
@@ -110,7 +98,6 @@ export const sendNewPhotosNotification = functions.https.onRequest(async (req, r
       res.status(500).json({ error: 'Failed to send notification email' });
     }
   });
-});
 
 /**
  * Function per invio notifiche nuove foto - Versione onCall per compatibilità
