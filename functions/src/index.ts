@@ -21,9 +21,7 @@ export { getGalleryMetadata } from './metadata';
 // export const sendNewPhotosNotification = functions.https.onRequest(...);
 
 /**
- * Function per invio notifiche nuove foto - CALLABLE (funzione principale)
- * NOTA: Usa Firebase callable invece di HTTP per evitare problemi IAM 403
- * SECRETS: Richiede REPL_IDENTITY per accesso Gmail API via Replit Integration
+ * Function per invio notifiche nuove foto - CALLABLE (legacy, non più usata dal frontend web)
  */
 export const sendNewPhotosNotificationCall = functions
   .runWith({ secrets: ['REPL_IDENTITY'] })
@@ -35,14 +33,10 @@ export const sendNewPhotosNotificationCall = functions
       throw new functions.https.HttpsError('invalid-argument', 'Recipients list is required');
     }
 
-    // Lazy import di gmail (solo quando necessario)
     const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
-    
-    // Crea HTML email
     const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
     const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
 
-    // Invia email tramite Gmail API
     await sendGmailEmail(recipients, subject, htmlContent);
     functions.logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
     
@@ -52,6 +46,130 @@ export const sendNewPhotosNotificationCall = functions
     throw new functions.https.HttpsError('internal', 'Failed to send notification email');
   }
 });
+
+/**
+ * Function per invio notifiche nuove foto - HTTP PUBLIC (funzione principale)
+ * CORS gestito manualmente, identico a sendGalleryPasswordV2
+ * AUTENTICAZIONE richiesta via Firebase Bearer token
+ * SECRETS: REPL_IDENTITY per accesso Gmail API
+ */
+export const sendNewPhotosNotificationPublic = functions
+  .runWith({ secrets: ['REPL_IDENTITY'] })
+  .https.onRequest(async (req, res) => {
+    // CORS - Identico a sendGalleryPasswordV2
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://gennaromazzacane.it',
+      'https://www.gennaromazzacane.it'
+    ];
+
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+                           origin.includes('.replit.dev') ||
+                           origin.includes('replit.app');
+
+    if (isAllowedOrigin) {
+      res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({
+        error: { code: 'method-not-allowed', message: 'Only POST allowed' }
+      });
+      return;
+    }
+
+    try {
+      // AUTENTICAZIONE Firebase
+      const authHeader = req.headers.authorization || '';
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({
+          error: { code: 'unauthenticated', message: 'Missing Authorization Bearer token' }
+        });
+        return;
+      }
+
+      const idToken = authHeader.replace('Bearer ', '').trim();
+      let uid = '';
+      try {
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        uid = decoded.uid;
+        functions.logger.info(`🔐 sendNewPhotosNotificationPublic called by uid=${uid}`);
+      } catch (authError) {
+        functions.logger.error('Auth verification failed:', authError);
+        res.status(401).json({
+          error: { code: 'unauthenticated', message: 'Invalid token' }
+        });
+        return;
+      }
+
+      // LETTURA DATI DAL BODY
+      const data = req.body.data || req.body;
+      const {
+        galleryName,
+        newPhotosCount,
+        uploaderName,
+        galleryUrl,
+        recipients
+      } = data || {};
+
+      // VALIDAZIONI
+      if (!galleryName || !galleryUrl) {
+        res.status(400).json({
+          error: { code: 'invalid-argument', message: 'Missing galleryName or galleryUrl' }
+        });
+        return;
+      }
+
+      if (!Array.isArray(recipients) || recipients.length === 0) {
+        res.status(400).json({
+          error: { code: 'invalid-argument', message: 'recipients must be a non-empty array' }
+        });
+        return;
+      }
+
+      // INVIO EMAIL
+      const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
+      
+      const htmlContent = createNewPhotosEmailHTML(
+        galleryName,
+        uploaderName,
+        newPhotosCount,
+        galleryUrl
+      );
+
+      const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
+
+      await sendGmailEmail(recipients, subject, htmlContent);
+
+      functions.logger.info(
+        `✉️ Notifica nuove foto inviata a ${recipients.length} destinatari per ${galleryName} da uid=${uid}`
+      );
+
+      res.status(200).json({
+        result: {
+          success: true,
+          message: 'Notification sent successfully',
+          notified: recipients.length
+        }
+      });
+    } catch (error) {
+      functions.logger.error('❌ Error sendNewPhotosNotificationPublic:', error);
+      res.status(500).json({
+        error: { code: 'internal', message: 'Failed to send notification email' }
+      });
+    }
+  });
 
 /**
  * Function per invio password galleria (HTTP endpoint - NO AUTH REQUIRED)

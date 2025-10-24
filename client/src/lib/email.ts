@@ -103,6 +103,7 @@ export async function sendNewPhotosNotificationHTTP(
 
 /**
  * Notifica automatica quando vengono caricate nuove foto
+ * USA HTTP Function con CORS manuale e autenticazione Firebase
  */
 export async function notifyNewPhotos(
   galleryId: string,
@@ -121,7 +122,7 @@ export async function notifyNewPhotos(
       `🔔 Iniziando notifica per ${newPhotosCount} nuove foto in "${galleryName}"`,
     );
 
-    // 1. Recupera tutti i subscribers della galleria
+    // 1. Recupera tutti i subscribers attivi
     const subscriptionsRef = collection(db, "subscriptions");
     const q = query(
       subscriptionsRef,
@@ -132,48 +133,80 @@ export async function notifyNewPhotos(
     const snapshot = await getDocs(q);
     const subscribers = snapshot.docs.map((doc) => doc.data().email as string);
 
-    console.log(`📊 Trovati ${subscribers.length} subscribers per la galleria "${galleryName}"`);
-    
+    console.log(
+      `📊 Trovati ${subscribers.length} subscribers per "${galleryName}"`,
+    );
+
     if (subscribers.length === 0) {
       console.log("📭 Nessun subscriber trovato per questa galleria");
       return { success: true, notified: 0 };
     }
 
-    // 2. Crea URL galleria (usando basepath dinamico)  
+    // 2. URL pubblico galleria
     const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
 
-    // 3. Invia notifiche tramite Firebase Functions callable
-    try {
-      const result = await sendNewPhotosNotification({
+    // 3. Recupera ID token Firebase dell'utente corrente (serve per Authorization Bearer)
+    const { auth } = await import("./firebase");
+    const currentUser = auth.currentUser;
+    let idToken = "";
+    if (currentUser) {
+      idToken = await currentUser.getIdToken();
+    } else {
+      console.warn("⚠️ notifyNewPhotos chiamata senza utente autenticato");
+    }
+
+    // 4. Costruisci URL della nuova funzione HTTP
+    const region =
+      import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
+    const projectId =
+      import.meta.env.VITE_FIREBASE_PROJECT_ID || "wedding-gallery-397b6";
+    const url = `https://${region}-${projectId}.cloudfunctions.net/sendNewPhotosNotificationPublic`;
+
+    // 5. POST verso la HTTP function
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+      },
+      body: JSON.stringify({
         galleryName,
         newPhotosCount,
         uploaderName,
         galleryUrl,
         recipients: subscribers,
-      });
+      }),
+    });
 
-      console.log(
-        `✅ Notifiche inviate tramite Firebase Functions a ${subscribers.length} subscribers`,
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      console.error(
+        "❌ Errore HTTP notifica nuove foto:",
+        response.status,
+        errBody,
       );
       return {
-        success: true,
-        notified: subscribers.length,
-        method: "firebase_functions_callable",
-        details: result.data,
-      };
-    } catch (error) {
-      console.error("❌ Errore invio notifiche Firebase Functions:", error);
-      return {
         success: false,
-        notified: 0,
-        method: "development_skip",
+        error: errBody?.error?.message || "HTTP request failed",
+        method: "http_function",
       };
     }
-  } catch (error) {
+
+    const json = await response.json();
+    console.log(
+      `✅ Notifiche inviate via HTTP a ${subscribers.length} subscribers`,
+    );
+    return {
+      success: true,
+      notified: json?.result?.notified ?? subscribers.length,
+      method: "http_function",
+      details: json,
+    };
+  } catch (error: any) {
     console.error("❌ Errore invio notifiche:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Errore sconosciuto",
+      error: error?.message || "Errore sconosciuto",
     };
   }
 }

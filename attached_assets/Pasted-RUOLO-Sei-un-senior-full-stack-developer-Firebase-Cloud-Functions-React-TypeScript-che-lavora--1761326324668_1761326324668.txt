@@ -1,0 +1,295 @@
+RUOLO:
+Sei un senior full-stack developer (Firebase Cloud Functions + React/TypeScript) che lavora sul mio progetto "Wedding Gallery".
+Devi APPLICARE direttamente le modifiche al codice senza chiedere chiarimenti.
+
+OBIETTIVO:
+Risolvere definitivamente l’errore CORS/403 sulla notifica nuove foto (“sendNewPhotosNotificationCall”) creando una HTTP Function con CORS gestito a mano, e aggiornando il frontend per chiamare quella HTTP Function invece della callable. La funzione di invio password GIA' FUNZIONA e va presa come modello di riferimento per stile CORS e sicurezza.
+
+PARTE 1 — BACKEND (functions/src/index.ts)
+1. Verifica che in testa al file ci siano già:
+   import * as functions from 'firebase-functions';
+   import * as admin from 'firebase-admin';
+   if (!admin.apps.length) { admin.initializeApp(); }
+
+2. LASCIA INVARIATE le funzioni esistenti:
+   - getGalleryMetadata
+   - sendGalleryPasswordV2 (https.onRequest)  <-- NON toccare
+   - testEmailConfiguration (https.onCall)
+   - sendWelcomeEmail (https.onCall)
+
+3. La funzione callable esistente:
+   export const sendNewPhotosNotificationCall = functions.https.onCall(...)
+   NON VA CANCELLATA, ma NON sarà più usata dal frontend web. Puoi anche lasciarla lì com’è, ma NON modificarla ulteriormente.
+
+4. AGGIUNGI una nuova funzione HTTP chiamata:
+   export const sendNewPhotosNotificationPublic = functions
+     .runWith({ secrets: ['REPL_IDENTITY'] })
+     .https.onRequest(async (req, res) => { ... });
+
+   IMPLEMENTAZIONE DETTAGLIATA DA INSERIRE:
+
+   - CORS:
+     Usa esattamente la stessa logica CORS di sendGalleryPasswordV2.
+     Quindi:
+       const allowedOrigins = [
+         'http://localhost:5173',
+         'http://localhost:3000',
+         'https://gennaromazzacane.it',
+         'https://www.gennaromazzacane.it'
+       ];
+       const origin = req.headers.origin || '';
+       const isAllowedOrigin =
+         allowedOrigins.includes(origin) ||
+         origin.includes('.replit.dev') ||
+         origin.includes('replit.app');
+
+       if (isAllowedOrigin) {
+         res.set('Access-Control-Allow-Origin', origin);
+       }
+       res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+       res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+       res.set('Access-Control-Max-Age', '3600');
+
+     Se req.method === 'OPTIONS':
+       restituisci status 204 e termina.
+
+     Se req.method !== 'POST':
+       restituisci status 405 con JSON:
+       { error: { code: 'method-not-allowed', message: 'Only POST allowed' } }
+
+   - AUTENTICAZIONE:
+     Questa funzione deve essere accessibile SOLO ad utenti autenticati Firebase (admin lato dashboard).
+     Quindi:
+       1. Leggi l'header Authorization:
+          const authHeader = req.headers.authorization || '';
+       2. Se NON esiste o non inizia con 'Bearer ':
+          res.status(401).json({
+            error: { code: 'unauthenticated', message: 'Missing Authorization Bearer token' }
+          });
+          return;
+       3. Se esiste, estrai il token e verifica:
+          const idToken = authHeader.replace('Bearer ', '').trim();
+          const decoded = await admin.auth().verifyIdToken(idToken).catch(...);
+          Se la verifica fallisce → 401 come sopra con code 'unauthenticated'.
+          Se la verifica passa salva decoded.uid in una variabile uid e fai un logger.info con l'uid.
+
+   - LETTURA DATI DAL BODY:
+     Accetta sia { ... } sia { data: { ... } }.
+     Quindi:
+       const data = req.body.data || req.body;
+       const {
+         galleryName,
+         newPhotosCount,
+         uploaderName,
+         galleryUrl,
+         recipients
+       } = data || {};
+
+     Validazioni:
+       Se mancano galleryName o galleryUrl → 400 invalid-argument
+       Se recipients NON è array o è vuoto → 400 invalid-argument
+
+     Risposta 400:
+       res.status(400).json({
+         error: { code: 'invalid-argument', message: 'Missing required params' }
+       });
+
+   - INVIO EMAIL:
+     Lazy import dal modulo gmail ESATTAMENTE come nelle altre funzioni:
+       const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
+
+     Crea l'HTML:
+       const htmlContent = createNewPhotosEmailHTML(
+         galleryName,
+         uploaderName,
+         newPhotosCount,
+         galleryUrl
+       );
+
+     Crea l'oggetto subject:
+       const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
+
+     Poi:
+       await sendGmailEmail(recipients, subject, htmlContent);
+
+     Logga:
+       functions.logger.info(
+         `✉️ Notifica nuove foto inviata a ${recipients.length} destinatari per ${galleryName} da uid=${uid}`
+       );
+
+     Rispondi 200 con:
+       res.status(200).json({
+         result: {
+           success: true,
+           message: 'Notification sent successfully',
+           notified: recipients.length
+         }
+       });
+
+   - GESTIONE ERRORE GENERICO:
+     catch (error) {
+       functions.logger.error('❌ Error sendNewPhotosNotificationPublic:', error);
+       res.status(500).json({
+         error: { code: 'internal', message: 'Failed to send notification email' }
+       });
+     }
+
+   - NOTA IMPORTANTE:
+     Assicurati che questa funzione sia esportata nel file, col nome SENDNEWPHOTOSNOTIFICATIONPUBLIC esattamente così:
+     export const sendNewPhotosNotificationPublic = ...
+     Non cambiare nome.
+
+5. Mantieni .runWith({ secrets: ['REPL_IDENTITY'] }) anche sulla funzione nuova (sendNewPhotosNotificationPublic) in modo che possa usare le credenziali Gmail, identiche a quelle già usate da sendGalleryPasswordV2.
+
+6. NON rimuovere sendGalleryPasswordV2 e non toccare la logica di REPL_IDENTITY delle email.
+
+
+PARTE 2 — FRONTEND (src/email.ts o src/emailService.ts, dove c'è notifyNewPhotos)
+1. Non usare più la callable `sendNewPhotosNotificationCall` dentro notifyNewPhotos.
+   Rimuovi la parte che fa:
+     const result = await _sendNewPhotosNotificationCallable({...});
+   e tutto quello che riguarda `httpsCallable(..., "sendNewPhotosNotificationCall")` in quella funzione.
+
+2. Rendi notifyNewPhotos così:
+
+   async function notifyNewPhotos(
+     galleryId: string,
+     galleryName: string,
+     uploaderName: string,
+     newPhotosCount: number
+   ): Promise<{
+     success: boolean;
+     notified?: number;
+     method?: string;
+     details?: any;
+     error?: string;
+   }> {
+     try {
+       console.log(
+         `🔔 Iniziando notifica per ${newPhotosCount} nuove foto in "${galleryName}"`
+       );
+
+       // 1. Recupera tutti i subscribers attivi
+       const subscriptionsRef = collection(db, "subscriptions");
+       const q = query(
+         subscriptionsRef,
+         where("galleryId", "==", galleryId),
+         where("active", "==", true)
+       );
+       const snapshot = await getDocs(q);
+       const subscribers = snapshot.docs.map(
+         (doc) => (doc.data() as any).email as string
+       );
+
+       console.log(
+         `📊 Trovati ${subscribers.length} subscribers per "${galleryName}"`
+       );
+
+       if (subscribers.length === 0) {
+         console.log("📭 Nessun subscriber trovato per questa galleria");
+         return { success: true, notified: 0 };
+       }
+
+       // 2. URL pubblico galleria
+       const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
+
+       // 3. Recupera ID token Firebase dell'utente corrente (serve per Authorization Bearer)
+       const { auth } = await import("./firebase");
+       const currentUser = auth.currentUser;
+       let idToken = "";
+       if (currentUser) {
+         idToken = await currentUser.getIdToken();
+       } else {
+         console.warn("⚠️ notifyNewPhotos chiamata senza utente autenticato");
+       }
+
+       // 4. Costruisci URL della nuova funzione HTTP
+       const region =
+         import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
+       const projectId =
+         import.meta.env.VITE_FIREBASE_PROJECT_ID || "wedding-gallery-397b6";
+       const url = `https://${region}-${projectId}.cloudfunctions.net/sendNewPhotosNotificationPublic`;
+
+       // 5. POST verso la HTTP function
+       const response = await fetch(url, {
+         method: "POST",
+         headers: {
+           "Content-Type": "application/json",
+           ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+         },
+         body: JSON.stringify({
+           galleryName,
+           newPhotosCount,
+           uploaderName,
+           galleryUrl,
+           recipients: subscribers
+         })
+       });
+
+       if (!response.ok) {
+         const errBody = await response.json().catch(() => ({}));
+         console.error(
+           "❌ Errore HTTP notifica nuove foto:",
+           response.status,
+           errBody
+         );
+         return {
+           success: false,
+           error: errBody?.error?.message || "HTTP request failed",
+           method: "http_function"
+         };
+       }
+
+       const json = await response.json();
+       console.log(
+         `✅ Notifiche inviate via HTTP a ${subscribers.length} subscribers`
+       );
+       return {
+         success: true,
+         notified: json?.result?.notified ?? subscribers.length,
+         method: "http_function",
+         details: json
+       };
+     } catch (error: any) {
+       console.error("❌ Errore invio notifiche:", error);
+       return {
+         success: false,
+         error: error?.message || "Errore sconosciuto"
+       };
+     }
+   }
+
+3. IMPORTANTISSIMO:
+   - Nel resto del file frontend NON deve più esserci nulla che usa direttamente:
+     httpsCallable(functions, "sendNewPhotosNotificationCall")
+     o
+     httpsCallable(functions, "sendNewPhotosNotification")
+   - Puoi lasciare invece in piedi tutto quello che riguarda:
+     - testEmailConfiguration (callable)
+     - sendWelcomeEmail (callable)
+     - sendGalleryPasswordHTTP / sendGalleryPasswordV2 (http con CORS)
+   - La callable sendNewPhotosNotificationCall può rimanere importata da zero o rimossa del tutto. L’obiettivo è che notifyNewPhotos usi SEMPRE la fetch verso sendNewPhotosNotificationPublic.
+
+4. Non toccare subscribeToGallery, testEmailSystem o sendGalleryPasswordHTTP. Lasciali com’erano, salvo eventuali import aggiornati.
+
+
+PARTE 3 — DEPLOY E VERIFICA
+1. Dopo le modifiche fai il deploy SOLO della nuova funzione HTTP:
+   firebase deploy --only functions:sendNewPhotosNotificationPublic
+
+2. Per sicurezza esegui anche:
+   firebase functions:list
+   Deve comparire sia sendGalleryPasswordV2 che sendNewPhotosNotificationPublic.
+
+3. Dal browser (Replit dev) carica nuove foto così da triggerare notifyNewPhotos:
+   - NON deve più uscire errore CORS
+   - In console dovresti loggare "✅ Notifiche inviate via HTTP..."
+
+4. Controlla anche i log:
+   firebase functions:log --only sendNewPhotosNotificationPublic
+   Dovresti vedere uid, numero destinatari e nessun errore Gmail.
+
+
+NOTE FINALI
+- Mantieni .runWith({ secrets: ['REPL_IDENTITY'] }) in sendNewPhotosNotificationPublic perché quella funzione invia email e quindi deve avere accesso alle stesse credenziali Gmail già usate da sendGalleryPasswordV2.
+- Il token Bearer passato dal frontend serve per evitare che chiunque da internet colpisca la funzione e spamma email ai tuoi clienti. Se vuoi togliere il requisito auth, basta togliere il blocco che fa verifyIdToken e NON ritornare 401, ma di default LASCIA l'autenticazione attiva.
