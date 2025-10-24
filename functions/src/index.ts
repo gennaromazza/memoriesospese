@@ -23,8 +23,11 @@ export { getGalleryMetadata } from './metadata';
 /**
  * Function per invio notifiche nuove foto - CALLABLE (funzione principale)
  * NOTA: Usa Firebase callable invece di HTTP per evitare problemi IAM 403
+ * SECRETS: Richiede REPL_IDENTITY per accesso Gmail API via Replit Integration
  */
-export const sendNewPhotosNotificationCall = functions.https.onCall(async (data, context) => {
+export const sendNewPhotosNotificationCall = functions
+  .runWith({ secrets: ['REPL_IDENTITY'] })
+  .https.onCall(async (data, context) => {
   try {
     const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
 
