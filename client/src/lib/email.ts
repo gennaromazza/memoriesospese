@@ -56,9 +56,12 @@ export async function sendNewPhotosNotificationHTTP(
   if (currentUser) {
     try {
       idToken = await currentUser.getIdToken();
+      console.log('🔑 Firebase ID token ottenuto per:', currentUser.email);
     } catch (error) {
-      console.warn('⚠️ Unable to get Firebase ID token:', error);
+      console.error('❌ Errore ottenimento Firebase ID token:', error);
     }
+  } else {
+    console.warn('⚠️ Nessun utente Firebase autenticato per invio notifiche');
   }
 
   // Costruisce URL dinamicamente basato sulla configurazione Firebase
@@ -75,6 +78,10 @@ export async function sendNewPhotosNotificationHTTP(
     headers["Authorization"] = `Bearer ${idToken}`;
   }
 
+  console.log('📤 Chiamata HTTP function:', functionUrl);
+  console.log('📋 Headers:', headers);
+  console.log('📊 Recipients:', data.recipients.length);
+  
   const response = await fetch(functionUrl, {
     method: "POST",
     headers,
@@ -82,7 +89,13 @@ export async function sendNewPhotosNotificationHTTP(
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    const errorText = await response.text();
+    console.error('❌ Risposta HTTP function:', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText
+    });
+    throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
   }
 
   return await response.json();
@@ -119,6 +132,8 @@ export async function notifyNewPhotos(
     const snapshot = await getDocs(q);
     const subscribers = snapshot.docs.map((doc) => doc.data().email as string);
 
+    console.log(`📊 Trovati ${subscribers.length} subscribers per la galleria "${galleryName}"`);
+    
     if (subscribers.length === 0) {
       console.log("📭 Nessun subscriber trovato per questa galleria");
       return { success: true, notified: 0 };
@@ -148,8 +163,14 @@ export async function notifyNewPhotos(
           method: "firebase_functions_http",
           details: httpResult,
         };
-      } catch (httpError) {
-        console.warn("⚠️ HTTP function fallita, provo con callable:", httpError);
+      } catch (httpError: any) {
+        console.warn("⚠️ HTTP function fallita, provo con callable:");
+        console.error("Dettagli errore HTTP:", {
+          message: httpError?.message,
+          status: httpError?.status,
+          response: httpError?.response,
+          stack: httpError?.stack
+        });
 
         try {
           // Fallback con callable function
