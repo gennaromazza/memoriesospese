@@ -142,95 +142,29 @@ export async function notifyNewPhotos(
     // 2. Crea URL galleria (usando basepath dinamico)  
     const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
 
-    // 3. Invia notifiche tramite Firebase Functions (Brevo già configurato)
+    // 3. Invia notifiche tramite Firebase Functions callable
     try {
-      // Prova prima con HTTP function (supporta CORS)
-      try {
-        const httpResult = await sendNewPhotosNotificationHTTP({
-          galleryName,
-          newPhotosCount,
-          uploaderName,
-          galleryUrl,
-          recipients: subscribers,
-        });
+      const result = await sendNewPhotosNotification({
+        galleryName,
+        newPhotosCount,
+        uploaderName,
+        galleryUrl,
+        recipients: subscribers,
+      });
 
-        console.log(
-          `✅ Notifiche inviate tramite Firebase Functions HTTP a ${subscribers.length} subscribers`,
-        );
-        return {
-          success: true,
-          notified: subscribers.length,
-          method: "firebase_functions_http",
-          details: httpResult,
-        };
-      } catch (httpError: any) {
-        console.warn("⚠️ HTTP function fallita, provo con callable:");
-        console.error("Dettagli errore HTTP:", {
-          message: httpError?.message,
-          status: httpError?.status,
-          response: httpError?.response,
-          stack: httpError?.stack
-        });
-
-        try {
-          // Fallback con callable function
-          const result = await sendNewPhotosNotification({
-            galleryName,
-            newPhotosCount,
-            uploaderName,
-            galleryUrl,
-            recipients: subscribers,
-          });
-
-          console.log(
-            `✅ Notifiche inviate tramite Firebase Functions callable a ${subscribers.length} subscribers`,
-          );
-          return {
-            success: true,
-            notified: subscribers.length,
-            method: "firebase_functions_callable",
-            details: result.data,
-          };
-        } catch (error) {
-          console.warn(
-            "⚠️ Firebase Functions non disponibili in ambiente di sviluppo:",
-            error instanceof Error ? error.message : "Errore sconosciuto",
-          );
-
-          // Fallback: salva in Firestore solo se in produzione
-          if (process.env.NODE_ENV === "production") {
-            try {
-              const notificationQueue = collection(db, "emailQueue");
-              const queueData = {
-                type: "new_photos_notification",
-                galleryId,
-                galleryName,
-                newPhotosCount,
-                uploaderName,
-                galleryUrl,
-                recipients: subscribers,
-                status: "pending",
-                createdAt: new Date(),
-                error:
-                  error instanceof Error ? error.message : "Errore sconosciuto",
-              };
-              await addDoc(notificationQueue, queueData);
-            } catch (queueError) {
-              console.error("Errore salvataggio in coda:", queueError);
-            }
-          }
-
-          return {
-            success: true,
-            notified: 0,
-            method: "development_skip",
-          };
-        }
-      }
-    } catch (outerError) {
-      console.error("❌ Errore generale durante l'invio notifiche:", outerError);
+      console.log(
+        `✅ Notifiche inviate tramite Firebase Functions a ${subscribers.length} subscribers`,
+      );
       return {
         success: true,
+        notified: subscribers.length,
+        method: "firebase_functions_callable",
+        details: result.data,
+      };
+    } catch (error) {
+      console.error("❌ Errore invio notifiche Firebase Functions:", error);
+      return {
+        success: false,
         notified: 0,
         method: "development_skip",
       };
