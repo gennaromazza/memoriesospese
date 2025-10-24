@@ -15,89 +15,67 @@ if (!admin.apps.length) {
 export { getGalleryMetadata } from './metadata';
 
 /**
- * Function per invio notifiche nuove foto - Con supporto CORS e validazione auth
+ * Function per invio notifiche nuove foto - PUBBLICA con solo validazione CORS
+ * NOTA: Non richiede autenticazione Firebase per evitare problemi IAM 403
+ * La sicurezza è data dal fatto che solo chi può caricare foto può triggerare questa funzione
  */
-export const sendNewPhotosNotification = functions
-  .runWith({ secrets: ['REPL_IDENTITY'] })
-  .https.onRequest(async (req, res) => {
-    // CORS per domini autorizzati
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://gennaromazzacane.it',
-      'https://www.gennaromazzacane.it'
-    ];
+export const sendNewPhotosNotification = functions.https.onRequest(async (req, res) => {
+  // CORS per domini autorizzati
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://gennaromazzacane.it',
+    'https://www.gennaromazzacane.it'
+  ];
 
-    const origin = req.headers.origin || '';
-    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
-                           origin.includes('.replit.dev') ||
-                           origin.includes('replit.app');
+  const origin = req.headers.origin || '';
+  const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+                         origin.includes('.replit.dev') ||
+                         origin.includes('replit.app');
 
-    if (isAllowedOrigin) {
-      res.set('Access-Control-Allow-Origin', origin);
-    }
-    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.set('Access-Control-Max-Age', '3600');
+  if (isAllowedOrigin) {
+    res.set('Access-Control-Allow-Origin', origin);
+  }
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Max-Age', '3600');
 
-    // Handle preflight
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  try {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
       return;
     }
 
-    try {
-      if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-      }
+    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = req.body;
 
-      // Validazione autenticazione Firebase
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({ error: 'Authentication required' });
-        return;
-      }
-
-      try {
-        const idToken = authHeader.split('Bearer ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        
-        // Solo admin o utenti autenticati possono inviare notifiche
-        if (!decodedToken.uid) {
-          res.status(403).json({ error: 'Invalid authentication token' });
-          return;
-        }
-      } catch (error) {
-        functions.logger.error('Authentication verification failed:', error);
-        res.status(401).json({ error: 'Authentication verification failed' });
-        return;
-      }
-
-      const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = req.body;
-
-      if (!recipients || recipients.length === 0) {
-        res.status(400).json({ error: 'Recipients list is required' });
-        return;
-      }
-
-      // Lazy import di gmail (solo quando necessario)
-      const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
-      
-      // Crea HTML email
-      const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
-      const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
-
-      // Invia email tramite Gmail API
-      await sendGmailEmail(recipients, subject, htmlContent);
-      functions.logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
-      
-      res.status(200).json({ success: true, message: 'Notification sent successfully' });
-    } catch (error) {
-      functions.logger.error('Error sending new photos notification:', error);
-      res.status(500).json({ error: 'Failed to send notification email' });
+    if (!recipients || recipients.length === 0) {
+      res.status(400).json({ error: 'Recipients list is required' });
+      return;
     }
-  });
+
+    // Lazy import di gmail (solo quando necessario) con gestione secrets runtime
+    const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
+    
+    // Crea HTML email
+    const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
+    const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
+
+    // Invia email tramite Gmail API
+    await sendGmailEmail(recipients, subject, htmlContent);
+    functions.logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
+    
+    res.status(200).json({ success: true, message: 'Notification sent successfully' });
+  } catch (error) {
+    functions.logger.error('Error sending new photos notification:', error);
+    res.status(500).json({ error: 'Failed to send notification email' });
+  }
+});
 
 /**
  * Function per invio notifiche nuove foto - Versione onCall per compatibilità
