@@ -27,23 +27,54 @@ export const sendNewPhotosNotificationCall = functions
   .runWith({ secrets: ['REPL_IDENTITY'] })
   .https.onCall(async (data, context) => {
   try {
-    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
+    functions.logger.info('📧 sendNewPhotosNotificationCall invoked with data:', JSON.stringify(data));
+    
+    const { galleryId, galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
 
-    if (!recipients || recipients.length === 0) {
-      throw new functions.https.HttpsError('invalid-argument', 'Recipients list is required');
+    // Validazioni dettagliate
+    if (!galleryName) {
+      throw new functions.https.HttpsError('invalid-argument', 'galleryName is required');
+    }
+    if (!galleryUrl) {
+      throw new functions.https.HttpsError('invalid-argument', 'galleryUrl is required');
+    }
+    if (!recipients || !Array.isArray(recipients)) {
+      throw new functions.https.HttpsError('invalid-argument', 'recipients must be an array');
+    }
+    if (recipients.length === 0) {
+      functions.logger.warn('⚠️ No recipients provided, skipping email');
+      return { success: true, message: 'No recipients to notify', notified: 0 };
     }
 
-    const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
-    const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
-    const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
+    functions.logger.info(`📨 Preparing to send notification to ${recipients.length} recipient(s)`);
 
+    const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
+    const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName || 'Un ospite', newPhotosCount || 1, galleryUrl);
+    const subject = `${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? 'e' : ''} foto in "${galleryName}"`;
+
+    functions.logger.info(`📧 Sending email with subject: "${subject}"`);
     await sendGmailEmail(recipients, subject, htmlContent);
-    functions.logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
     
-    return { success: true, message: 'Notification sent successfully' };
-  } catch (error) {
-    functions.logger.error('Error sending new photos notification:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to send notification email');
+    functions.logger.info(`✅ New photos notification sent to ${recipients.length} recipients via Gmail API`);
+    
+    return { 
+      success: true, 
+      message: 'Notification sent successfully',
+      notified: recipients.length 
+    };
+  } catch (error: any) {
+    functions.logger.error('❌ Error sending new photos notification:', {
+      error: error?.message || error,
+      stack: error?.stack,
+      code: error?.code
+    });
+    
+    // Ritorna errore più dettagliato
+    const errorMessage = error?.message || 'Failed to send notification email';
+    throw new functions.https.HttpsError('internal', errorMessage, {
+      originalError: error?.message,
+      code: error?.code
+    });
   }
 });
 
