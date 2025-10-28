@@ -13,6 +13,7 @@ import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
 import { UploadCloud, Image, Trash } from "lucide-react";
+import { EmailNotificationDialog } from "./EmailNotificationDialog";
 import { getAllThemes } from "@shared/special-themes";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
@@ -83,6 +84,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const [photoFilter, setPhotoFilter] = useState<'all' | 'admin' | 'guest' | 'legacy'>('all');
+  
+  // Stati per modale notifiche email
+  const [showNotificationDialog, setShowNotificationDialog] = useState(false);
+  const [notificationStats, setNotificationStats] = useState({ photosCount: 0, notifiedCount: 0 });
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -781,12 +786,22 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Forza il refresh della galleria principale
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
 
-      // Invia notifiche ai subscribers (non-blocking)
-      notifyNewPhotos(gallery.id, gallery.name, 'Admin', uploadedPhotos.length)
-        .catch(notificationError => {
-          console.warn('⚠️ Errore invio notifiche:', notificationError);
-          // Non bloccare l'upload per errori di notifica
-        });
+      // Invia notifiche ai subscribers
+      let notifiedCount = 0;
+      try {
+        const result = await notifyNewPhotos(gallery.id, gallery.name, 'Admin', uploadedPhotos.length);
+        notifiedCount = result.notified || 0;
+      } catch (notificationError) {
+        console.warn('⚠️ Errore invio notifiche:', notificationError);
+        // Non bloccare l'upload per errori di notifica
+      }
+
+      // Mostra modale di conferma con statistiche
+      setNotificationStats({
+        photosCount: uploadedPhotos.length,
+        notifiedCount: notifiedCount
+      });
+      setShowNotificationDialog(true);
 
     } catch (error) {
       console.error('Errore upload foto:', error);
@@ -809,6 +824,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   if (!gallery) return null;
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
         className="sm:max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col" 
@@ -1247,5 +1263,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    {/* Modale notifiche email */}
+    <EmailNotificationDialog 
+      open={showNotificationDialog}
+      onOpenChange={setShowNotificationDialog}
+      photosCount={notificationStats.photosCount}
+      notifiedCount={notificationStats.notifiedCount}
+    />
+    </>
   );
 }

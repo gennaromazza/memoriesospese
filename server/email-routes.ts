@@ -5,19 +5,46 @@
 
 import { Router } from 'express';
 import { google } from 'googleapis';
-import admin from 'firebase-admin';
 
 const router = Router();
 
-// Inizializza Firebase Admin se non già fatto
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault()
-  });
+// Firebase Project ID per Firestore REST API
+const FIREBASE_PROJECT_ID = 'wedding-gallery-397b6';
+
+/**
+ * Accesso diretto a Firestore tramite REST API (no admin SDK)
+ */
+async function getFirestoreDocument(path: string): Promise<any> {
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/${path}`;
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const data = await response.json();
+  return data;
 }
 
-// Firestore reference
-const db = admin.firestore();
+/**
+ * Query Firestore tramite REST API
+ */
+async function queryFirestore(collectionPath: string, where?: any): Promise<any[]> {
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+  
+  const query: any = {
+    structuredQuery: {
+      from: [{ collectionId: collectionPath.split('/').pop() }],
+      where: where
+    }
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(query)
+  });
+
+  if (!response.ok) return [];
+  const data = await response.json();
+  return data;
+}
 
 // Cache per access token (evita troppe chiamate al connector)
 let cachedSettings: {
@@ -192,7 +219,8 @@ function createNewPhotosEmailHTML(
 }
 
 /**
- * Middleware per autenticazione Firebase
+ * Middleware per autenticazione Firebase usando REST API
+ * (Firebase Admin SDK non funziona su Replit senza service account)
  */
 async function authenticateFirebase(req: any, res: any, next: any) {
   try {
@@ -207,10 +235,34 @@ async function authenticateFirebase(req: any, res: any, next: any) {
     const idToken = authHeader.replace('Bearer ', '').trim();
     
     try {
-      const decoded = await admin.auth().verifyIdToken(idToken);
-      req.user = { uid: decoded.uid, email: decoded.email };
-      console.log(`🔐 Authenticated user: ${decoded.email} (${decoded.uid})`);
+      // Verifica token usando Firebase REST API invece di Admin SDK
+      const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyC7lP7f_xnflUsReaYRTwBcT3WNdmcEyjo`;
+      
+      const verifyResponse = await fetch(verifyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken })
+      });
+
+      if (!verifyResponse.ok) {
+        throw new Error('Invalid token');
+      }
+
+      const userData = await verifyResponse.json();
+      const user = userData.users?.[0];
+      
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      req.user = { 
+        uid: user.localId, 
+        email: user.email 
+      };
+      
+      console.log(`🔐 Authenticated user: ${user.email} (${user.localId})`);
       next();
+      
     } catch (authError) {
       console.error('❌ Token verification failed:', authError);
       return res.status(401).json({
@@ -247,17 +299,16 @@ router.post('/notify-new-photos', authenticateFirebase, async (req, res) => {
     // AUTORIZZAZIONE: Verifica che l'utente sia proprietario della galleria o admin
     console.log(`🔒 Verifica autorizzazione per galleria ${galleryId}`);
     
-    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
     
-    if (!galleryDoc.exists) {
+    if (!galleryDoc) {
       console.log(`❌ Galleria ${galleryId} non trovata`);
       return res.status(404).json({
         error: { code: 'not-found', message: 'Gallery not found' }
       });
     }
 
-    const galleryData = galleryDoc.data();
-    const galleryOwnerId = galleryData?.userId;
+    const galleryOwnerId = galleryDoc.fields?.userId?.stringValue;
     const isOwner = galleryOwnerId === req.user.uid;
     
     // Lista admin hardcoded (come nel resto dell'app)
@@ -276,12 +327,49 @@ router.post('/notify-new-photos', authenticateFirebase, async (req, res) => {
     // RECUPERA RECIPIENTS SERVER-SIDE dalla collection subscriptions
     console.log(`🔍 Recupero subscribers per galleria: ${galleryId}`);
     
-    const subscriptionsSnapshot = await db.collection('subscriptions')
-      .where('galleryId', '==', galleryId)
-      .where('active', '==', true)
-      .get();
+    // Query diretta usando Firestore REST API
+    const subscriptionsUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+    
+    const subscriptionsQuery = {
+      structuredQuery: {
+        from: [{ collectionId: 'subscriptions' }],
+        where: {
+          compositeFilter: {
+            op: 'AND',
+            filters: [
+              {
+                fieldFilter: {
+                  field: { fieldPath: 'galleryId' },
+                  op: 'EQUAL',
+                  value: { stringValue: galleryId }
+                }
+              },
+              {
+                fieldFilter: {
+                  field: { fieldPath: 'active' },
+                  op: 'EQUAL',
+                  value: { booleanValue: true }
+                }
+              }
+            ]
+          }
+        }
+      }
+    };
 
-    const recipients = subscriptionsSnapshot.docs.map(doc => doc.data().email as string);
+    const subscriptionsResponse = await fetch(subscriptionsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscriptionsQuery)
+    });
+
+    const subscriptionsData = await subscriptionsResponse.json();
+    
+    // Estrai email dai risultati
+    const recipients = subscriptionsData
+      .filter((result: any) => result.document)
+      .map((result: any) => result.document.fields.email?.stringValue || '')
+      .filter((email: string) => email);
 
     if (recipients.length === 0) {
       console.log(`⚠️ Nessun subscriber attivo per galleria ${galleryId}`);
@@ -394,17 +482,16 @@ router.post('/send-gallery-password', async (req, res) => {
     }
 
     // RECUPERA GALLERIA SERVER-SIDE da Firestore
-    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
 
-    if (!galleryDoc.exists) {
+    if (!galleryDoc) {
       console.log(`❌ Galleria ${galleryId} non trovata`);
       return res.status(404).json({
         error: { code: 'not-found', message: 'Gallery not found' }
       });
     }
 
-    const galleryData = galleryDoc.data();
-    const password = galleryData?.password;
+    const password = galleryDoc.fields?.password?.stringValue;
 
     if (!password) {
       console.error(`❌ Password non configurata per galleria ${galleryId}`);
@@ -414,7 +501,7 @@ router.post('/send-gallery-password', async (req, res) => {
     }
 
     // VALIDAZIONE SECURITY QUESTION SERVER-SIDE (se presente)
-    const expectedAnswer = galleryData?.securityAnswer;
+    const expectedAnswer = galleryDoc.fields?.securityAnswer?.stringValue;
     if (expectedAnswer) {
       if (!securityAnswer) {
         console.log(`❌ Security question richiesta ma risposta non fornita`);
