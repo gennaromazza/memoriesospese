@@ -1,0 +1,112 @@
+Il client React sta chiamando sendNewPhotosNotificationCall, una function "callable" (onCall) definita in Firebase (functions.https.onCall(...)).
+
+Ricevi un errore CORS quando provi a chiamarla da frontend su Replit.
+
+Il messaggio è:
+
+Access to fetch at 'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendNewPhotosNotificationCall' from origin 'https://65b2695f-...replit.dev' has been blocked by CORS policy
+
+🔍 Problema reale
+
+Le Firebase Callable Functions (onCall) NON supportano CORS personalizzato.
+
+Queste funzioni sono pensate per essere chiamate via httpsCallable() dalla SDK Firebase, non via fetch() diretto da browser.
+
+Nel tuo caso stai usando fetch() via funzione sendNewPhotosNotificationHTTP() nel client, verso sendNewPhotosNotification che è disabilitata, mentre sendNewPhotosNotificationCall è ancora una callable e quindi:
+
+✅ httpsCallable → OK
+❌ fetch() verso onCall → Errore CORS
+
+✅ Soluzione consigliata
+
+Hai già una function alternativa perfettamente progettata per risolvere il problema:
+
+export const sendNewPhotosNotificationPublic = functions
+  .runWith({ secrets: ['REPL_IDENTITY'] })
+  .https.onRequest(async (req, res) => {
+    // ...
+
+
+Questa function:
+
+È un endpoint HTTP normale.
+
+Supporta CORS dinamico (anche da Replit).
+
+Gestisce correttamente l’autenticazione via Firebase Bearer Token.
+
+Fa tutto quello che ti serve.
+
+✅ Azioni da fare ora
+🔁 1. Modifica il client per usare sendNewPhotosNotificationPublic
+
+Nel file email.ts, cambia questo:
+
+const result = await sendNewPhotosNotification({
+  galleryId,
+  galleryName,
+  newPhotosCount,
+  uploaderName,
+  galleryUrl,
+  recipients: subscribers,
+});
+
+
+con:
+
+const result = await sendNewPhotosNotificationHTTP({
+  galleryName,
+  newPhotosCount,
+  uploaderName,
+  galleryUrl,
+  recipients: subscribers,
+});
+
+
+Oppure: se lo stai già facendo, assicurati che sendNewPhotosNotificationHTTP() punti a:
+
+const functionUrl = `https://${region}-${projectId}.cloudfunctions.net/sendNewPhotosNotificationPublic`;
+
+
+e non a ...sendNewPhotosNotification.
+
+✅ 2. Assicurati che sendNewPhotosNotificationPublic sia DEPLOYED
+
+Controlla che sia visibile nel log:
+
+firebase deploy --only functions:sendNewPhotosNotificationPublic
+
+✅ 3. Controlla che il token Firebase venga passato
+
+Nel client:
+
+const idToken = await currentUser.getIdToken();
+
+const headers = {
+  "Content-Type": "application/json",
+  "Authorization": `Bearer ${idToken}`
+};
+
+
+✅ Già fatto correttamente nel tuo codice sendNewPhotosNotificationHTTP.
+
+🛠️ Fix finale da apportare (DIFF)
+
+Ecco il diff minimo per usare l’endpoint HTTP pubblico:
+
+- const result = await sendNewPhotosNotification({
+-   galleryId,
+-   galleryName,
+-   newPhotosCount,
+-   uploaderName,
+-   galleryUrl,
+-   recipients: subscribers,
+- });
+
++ const result = await sendNewPhotosNotificationHTTP({
++   galleryName,
++   newPhotosCount,
++   uploaderName,
++   galleryUrl,
++   recipients: subscribers,
++ });
