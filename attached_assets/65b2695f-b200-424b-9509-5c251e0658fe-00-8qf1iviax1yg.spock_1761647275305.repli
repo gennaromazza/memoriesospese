@@ -1,0 +1,175 @@
+chunk-SP6A6TOT.js?v=fc0864a8:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+firebase.ts:31 Using fallback Firebase configuration. Set environment variables for production.
+(anonymous) @ firebase.ts:31
+firebase.ts:50 🚀 Firebase: connessione diretta ai servizi produzione
+firebase.ts:51 📋 Questionari e token validation: produzione Firebase
+use-password-request.tsx:44 🔍 Recupero metadata galleria per code: cK2vumjz
+use-password-request.tsx:52 📞 Chiamata Cloud Function getGalleryMetadata (HTTP)...
+use-password-request.tsx:44 🔍 Recupero metadata galleria per code: cK2vumjz
+use-password-request.tsx:52 📞 Chiamata Cloud Function getGalleryMetadata (HTTP)...
+use-password-request.tsx:73 ✅ Risposta Cloud Function: {result: {…}}
+use-password-request.tsx:73 ✅ Risposta Cloud Function: {result: {…}}
+client:536 WebSocket connection to 'wss://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/?token=Nkicra_i4n-L' failed: 
+setupWebSocket @ client:536
+(anonymous) @ client:531
+client:560 [vite] server connection lost. Polling for restart...
+use-password-request.tsx:161 📧 Invio richiesta password via HTTP...
+use-password-request.tsx:162 📦 Payload: {galleryId: 'qZbsBZt1uMASZ5zHfsy5', recipientEmail: 'gennaro.mazzacane@gmail.com', galleryName: 'Gennaro e Debora', galleryCode: 'cK2vumjz'}
+use-password-request.tsx:169  POST https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendGalleryPasswordV2 500 (Internal Server Error)
+(anonymous) @ use-password-request.tsx:169
+await in (anonymous)
+onSubmit @ RequestPassword.tsx:103
+(anonymous) @ chunk-BSAFVDNM.js?v=fc0864a8:1531
+await in (anonymous)
+callCallback2 @ chunk-SP6A6TOT.js?v=fc0864a8:3674
+invokeGuardedCallbackDev @ chunk-SP6A6TOT.js?v=fc0864a8:3699
+invokeGuardedCallback @ chunk-SP6A6TOT.js?v=fc0864a8:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-SP6A6TOT.js?v=fc0864a8:3736
+executeDispatch @ chunk-SP6A6TOT.js?v=fc0864a8:7014
+processDispatchQueueItemsInOrder @ chunk-SP6A6TOT.js?v=fc0864a8:7034
+processDispatchQueue @ chunk-SP6A6TOT.js?v=fc0864a8:7043
+dispatchEventsForPlugins @ chunk-SP6A6TOT.js?v=fc0864a8:7051
+(anonymous) @ chunk-SP6A6TOT.js?v=fc0864a8:7174
+batchedUpdates$1 @ chunk-SP6A6TOT.js?v=fc0864a8:18913
+batchedUpdates @ chunk-SP6A6TOT.js?v=fc0864a8:3579
+dispatchEventForPluginEventSystem @ chunk-SP6A6TOT.js?v=fc0864a8:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-SP6A6TOT.js?v=fc0864a8:5478
+dispatchEvent @ chunk-SP6A6TOT.js?v=fc0864a8:5472
+dispatchDiscreteEvent @ chunk-SP6A6TOT.js?v=fc0864a8:5449
+use-password-request.tsx:188 📡 Response status: 500 
+use-password-request.tsx:197 ❌ Errore risposta HTTP: {error: {…}}
+(anonymous) @ use-password-request.tsx:197
+await in (anonymous)
+onSubmit @ RequestPassword.tsx:103
+(anonymous) @ chunk-BSAFVDNM.js?v=fc0864a8:1531
+await in (anonymous)
+callCallback2 @ chunk-SP6A6TOT.js?v=fc0864a8:3674
+invokeGuardedCallbackDev @ chunk-SP6A6TOT.js?v=fc0864a8:3699
+invokeGuardedCallback @ chunk-SP6A6TOT.js?v=fc0864a8:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-SP6A6TOT.js?v=fc0864a8:3736
+executeDispatch @ chunk-SP6A6TOT.js?v=fc0864a8:7014
+processDispatchQueueItemsInOrder @ chunk-SP6A6TOT.js?v=fc0864a8:7034
+processDispatchQueue @ chunk-SP6A6TOT.js?v=fc0864a8:7043
+dispatchEventsForPlugins @ chunk-SP6A6TOT.js?v=fc0864a8:7051
+(anonymous) @ chunk-SP6A6TOT.js?v=fc0864a8:7174
+batchedUpdates$1 @ chunk-SP6A6TOT.js?v=fc0864a8:18913
+batchedUpdates @ chunk-SP6A6TOT.js?v=fc0864a8:3579
+dispatchEventForPluginEventSystem @ chunk-SP6A6TOT.js?v=fc0864a8:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-SP6A6TOT.js?v=fc0864a8:5478
+dispatchEvent @ chunk-SP6A6TOT.js?v=fc0864a8:5472
+dispatchDiscreteEvent @ chunk-SP6A6TOT.js?v=fc0864a8:5449
+use-password-request.tsx:213 ❌ Submit error dettagliato: {error: Error: Failed to send gallery password email
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00…, message: 'Failed to send gallery password email', stack: 'Error: Failed to send gallery password email\n    a…es/.vite/deps/chunk-BSAFVDNM.js?v=fc0864a8:1531:9', type: 'object', stringified: '{"stack":"Error: Failed to send gallery password e…message":"Failed to send gallery password email"}'}
+(anonymous) @ use-password-request.tsx:213
+await in (anonymous)
+onSubmit @ RequestPassword.tsx:103
+(anonymous) @ chunk-BSAFVDNM.js?v=fc0864a8:1531
+await in (anonymous)
+callCallback2 @ chunk-SP6A6TOT.js?v=fc0864a8:3674
+invokeGuardedCallbackDev @ chunk-SP6A6TOT.js?v=fc0864a8:3699
+invokeGuardedCallback @ chunk-SP6A6TOT.js?v=fc0864a8:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-SP6A6TOT.js?v=fc0864a8:3736
+executeDispatch @ chunk-SP6A6TOT.js?v=fc0864a8:7014
+processDispatchQueueItemsInOrder @ chunk-SP6A6TOT.js?v=fc0864a8:7034
+processDispatchQueue @ chunk-SP6A6TOT.js?v=fc0864a8:7043
+dispatchEventsForPlugins @ chunk-SP6A6TOT.js?v=fc0864a8:7051
+(anonymous) @ chunk-SP6A6TOT.js?v=fc0864a8:7174
+batchedUpdates$1 @ chunk-SP6A6TOT.js?v=fc0864a8:18913
+batchedUpdates @ chunk-SP6A6TOT.js?v=fc0864a8:3579
+dispatchEventForPluginEventSystem @ chunk-SP6A6TOT.js?v=fc0864a8:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-SP6A6TOT.js?v=fc0864a8:5478
+dispatchEvent @ chunk-SP6A6TOT.js?v=fc0864a8:5472
+dispatchDiscreteEvent @ chunk-SP6A6TOT.js?v=fc0864a8:5449
+RequestPassword.tsx:123 Submit error: Error: Failed to send gallery password email
+    at use-password-request.tsx:198:15
+    at async onSubmit (RequestPassword.tsx:103:22)
+    at async chunk-BSAFVDNM.js?v=fc0864a8:1531:9
+onSubmit @ RequestPassword.tsx:123
+await in onSubmit
+(anonymous) @ chunk-BSAFVDNM.js?v=fc0864a8:1531
+await in (anonymous)
+callCallback2 @ chunk-SP6A6TOT.js?v=fc0864a8:3674
+invokeGuardedCallbackDev @ chunk-SP6A6TOT.js?v=fc0864a8:3699
+invokeGuardedCallback @ chunk-SP6A6TOT.js?v=fc0864a8:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-SP6A6TOT.js?v=fc0864a8:3736
+executeDispatch @ chunk-SP6A6TOT.js?v=fc0864a8:7014
+processDispatchQueueItemsInOrder @ chunk-SP6A6TOT.js?v=fc0864a8:7034
+processDispatchQueue @ chunk-SP6A6TOT.js?v=fc0864a8:7043
+dispatchEventsForPlugins @ chunk-SP6A6TOT.js?v=fc0864a8:7051
+(anonymous) @ chunk-SP6A6TOT.js?v=fc0864a8:7174
+batchedUpdates$1 @ chunk-SP6A6TOT.js?v=fc0864a8:18913
+batchedUpdates @ chunk-SP6A6TOT.js?v=fc0864a8:3579
+dispatchEventForPluginEventSystem @ chunk-SP6A6TOT.js?v=fc0864a8:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-SP6A6TOT.js?v=fc0864a8:5478
+dispatchEvent @ chunk-SP6A6TOT.js?v=fc0864a8:5472
+dispatchDiscreteEvent @ chunk-SP6A6TOT.js?v=fc0864a8:5449
+AdminDashboard.tsx:276 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+AdminDashboard.tsx:276 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+EditGalleryModal.tsx:272 🔄 Caricamento dati galleria nel modal: ILhBL3NxeJ1OPu0QGxew
+EditGalleryModal.tsx:302 🔄 Chiamando loadPhotos perché modal è aperto
+EditGalleryModal.tsx:99 🔄 Inizio caricamento foto per galleria: ILhBL3NxeJ1OPu0QGxew
+EditGalleryModal.tsx:100 🔄 Stato photos prima del caricamento: 0
+chunk-CEYKNUXH.js?v=fc0864a8:340 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ chunk-CEYKNUXH.js?v=fc0864a8:340
+commitHookEffectListMount @ chunk-SP6A6TOT.js?v=fc0864a8:16915
+commitPassiveMountOnFiber @ chunk-SP6A6TOT.js?v=fc0864a8:18156
+commitPassiveMountEffects_complete @ chunk-SP6A6TOT.js?v=fc0864a8:18129
+commitPassiveMountEffects_begin @ chunk-SP6A6TOT.js?v=fc0864a8:18119
+commitPassiveMountEffects @ chunk-SP6A6TOT.js?v=fc0864a8:18109
+flushPassiveEffectsImpl @ chunk-SP6A6TOT.js?v=fc0864a8:19490
+flushPassiveEffects @ chunk-SP6A6TOT.js?v=fc0864a8:19447
+commitRootImpl @ chunk-SP6A6TOT.js?v=fc0864a8:19416
+commitRoot @ chunk-SP6A6TOT.js?v=fc0864a8:19277
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=fc0864a8:18895
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=fc0864a8:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=fc0864a8:18627
+chunk-CEYKNUXH.js?v=fc0864a8:340 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ chunk-CEYKNUXH.js?v=fc0864a8:340
+commitHookEffectListMount @ chunk-SP6A6TOT.js?v=fc0864a8:16915
+invokePassiveEffectMountInDEV @ chunk-SP6A6TOT.js?v=fc0864a8:18324
+invokeEffectsInDev @ chunk-SP6A6TOT.js?v=fc0864a8:19701
+commitDoubleInvokeEffectsInDEV @ chunk-SP6A6TOT.js?v=fc0864a8:19686
+flushPassiveEffectsImpl @ chunk-SP6A6TOT.js?v=fc0864a8:19503
+flushPassiveEffects @ chunk-SP6A6TOT.js?v=fc0864a8:19447
+commitRootImpl @ chunk-SP6A6TOT.js?v=fc0864a8:19416
+commitRoot @ chunk-SP6A6TOT.js?v=fc0864a8:19277
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=fc0864a8:18895
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=fc0864a8:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=fc0864a8:18627
+EditGalleryModal.tsx:110 📷 Foto nuove trovate: 385
+EditGalleryModal.tsx:173 📸 Foto ospiti legacy caricate: 0
+EditGalleryModal.tsx:216 📸 Foto da Firebase Storage caricate: 0
+EditGalleryModal.tsx:242 📸 Totale foto caricate: 385
+EditGalleryModal.tsx:243 📊 Breakdown foto: {nuove: 385, legacy: 0, storage: 0}
+EditGalleryModal.tsx:250 ✅ Foto settate nello stato, lunghezza: 385
+EditGalleryModal.tsx:254 🔍 Verifica stato photos dopo setPhotos: 0
+photoUploader.ts:369 📦 Elaborando chunk 1/1 (1 file)
+photoUploader.ts:81 ✅ Compressione completata: 1595428938021.jpg
+photoUploader.ts:82 📊 Dimensioni: 17.98 KB → 17.98 KB
+photoUploader.ts:106 📤 Inizio upload: 1595428938021.jpg -> galleries/ILhBL3NxeJ1OPu0QGxew/1761647244895-362-1595428938021.jpg
+photoUploader.ts:107 📋 Dimensioni file: 17.98 KB
+photoUploader.ts:108 📄 Tipo file: image/jpeg
+photoUploader.ts:406 ✅ Upload completato: 1595428938021.jpg
+photoUploader.ts:414 📊 Progresso: 1/1 (1 successi, 0 errori)
+photoUploader.ts:473 📈 Upload completato in 1.8s
+photoUploader.ts:474 📊 Risultati: 1 successi, 0 errori su 1 file
+photoUploader.ts:475 ⚡ Velocità media: 0.55 file/secondo
+EditGalleryModal.tsx:727 1 foto caricate su Storage
+EditGalleryModal.tsx:732 💾 Salvando metadati foto 1/1: 1595428938021.jpg
+EditGalleryModal.tsx:749 ✅ Foto salvata in Firestore: mhaR5HtQOgF8KMB4twNO
+EditGalleryModal.tsx:99 🔄 Inizio caricamento foto per galleria: ILhBL3NxeJ1OPu0QGxew
+EditGalleryModal.tsx:100 🔄 Stato photos prima del caricamento: 0
+email.ts:121 🔔 Iniziando notifica per 1 nuove foto in "Giovanni e Deborah"
+EditGalleryModal.tsx:110 📷 Foto nuove trovate: 386
+email.ts:136 📊 Trovati 0 subscribers per "Giovanni e Deborah"
+email.ts:141 📭 Nessun subscriber trovato per questa galleria
+EditGalleryModal.tsx:173 📸 Foto ospiti legacy caricate: 0
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:749
+(anonymous) @ client:561
+EditGalleryModal.tsx:216 📸 Foto da Firebase Storage caricate: 0
+EditGalleryModal.tsx:242 📸 Totale foto caricate: 386
+EditGalleryModal.tsx:243 📊 Breakdown foto: {nuove: 386, legacy: 0, storage: 0}
+EditGalleryModal.tsx:250 ✅ Foto settate nello stato, lunghezza: 386
+EditGalleryModal.tsx:254 🔍 Verifica stato photos dopo setPhotos: 0

@@ -322,4 +322,150 @@ router.post('/notify-new-photos', authenticateFirebase, async (req, res) => {
   }
 });
 
+/**
+ * Template HTML per email password galleria
+ */
+function createGalleryPasswordEmailHTML(
+  firstName: string,
+  lastName: string,
+  galleryName: string,
+  galleryCode: string,
+  password: string,
+  galleryUrl: string
+): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">🔑 Password Galleria</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 10px;">
+          Ciao <strong>${firstName} ${lastName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 10px;">
+          Ecco la password per accedere alla galleria 
+          <strong style="color: #8b5a3c;">${galleryName}</strong> (codice: ${galleryCode}):
+        </p>
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+          <p style="font-size: 14px; color: #666; margin-bottom: 5px;">Password:</p>
+          <p style="font-size: 24px; font-weight: bold; color: #8b5a3c; margin: 0; letter-spacing: 2px;">
+            ${password}
+          </p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${galleryUrl}" 
+             style="background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 5px; font-weight: bold;">
+            📸 Accedi alla Galleria
+          </a>
+        </div>
+      </div>
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
+        <p>Memorie Sospese - Wedding Gallery System</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * POST /api/email/send-gallery-password
+ * Invia password galleria via email
+ * NO AUTENTICAZIONE RICHIESTA (endpoint pubblico per recupero password)
+ * SICUREZZA: Password recuperata server-side, security question validata server-side
+ */
+router.post('/send-gallery-password', async (req, res) => {
+  try {
+    const { 
+      galleryId, 
+      recipientEmail, 
+      galleryName, 
+      galleryCode,
+      firstName,
+      lastName,
+      galleryUrl,
+      securityAnswer 
+    } = req.body;
+
+    console.log(`🔑 Richiesta password per galleria ${galleryCode} (${galleryId})`);
+
+    // Validazione campi obbligatori
+    if (!galleryId || !recipientEmail || !galleryName || !galleryCode || !firstName || !lastName || !galleryUrl) {
+      return res.status(400).json({
+        error: { code: 'invalid-argument', message: 'Missing required fields' }
+      });
+    }
+
+    // RECUPERA GALLERIA SERVER-SIDE da Firestore
+    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+
+    if (!galleryDoc.exists) {
+      console.log(`❌ Galleria ${galleryId} non trovata`);
+      return res.status(404).json({
+        error: { code: 'not-found', message: 'Gallery not found' }
+      });
+    }
+
+    const galleryData = galleryDoc.data();
+    const password = galleryData?.password;
+
+    if (!password) {
+      console.error(`❌ Password non configurata per galleria ${galleryId}`);
+      return res.status(500).json({
+        error: { code: 'internal', message: 'Gallery password not configured' }
+      });
+    }
+
+    // VALIDAZIONE SECURITY QUESTION SERVER-SIDE (se presente)
+    const expectedAnswer = galleryData?.securityAnswer;
+    if (expectedAnswer) {
+      if (!securityAnswer) {
+        console.log(`❌ Security question richiesta ma risposta non fornita`);
+        return res.status(400).json({
+          error: { code: 'invalid-argument', message: 'Security question answer required' }
+        });
+      }
+
+      // Confronto case-insensitive
+      const normalizedProvided = securityAnswer.trim().toLowerCase();
+      const normalizedExpected = expectedAnswer.trim().toLowerCase();
+
+      if (normalizedProvided !== normalizedExpected) {
+        console.log(`❌ Risposta security question non corretta`);
+        return res.status(403).json({
+          error: { code: 'permission-denied', message: 'Incorrect security answer' }
+        });
+      }
+
+      console.log(`✅ Security question validata correttamente`);
+    }
+
+    // INVIA EMAIL CON PASSWORD
+    const htmlContent = createGalleryPasswordEmailHTML(
+      firstName,
+      lastName,
+      galleryName,
+      galleryCode,
+      password,
+      galleryUrl
+    );
+
+    const subject = `🔑 Password per la galleria "${galleryName}"`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(`✅ Password inviata via email a ${recipientEmail} per galleria ${galleryCode}`);
+
+    res.status(200).json({
+      result: {
+        success: true,
+        message: 'Password email sent successfully'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Errore send-gallery-password:', error);
+    res.status(500).json({
+      error: { code: 'internal', message: 'Failed to send password email' }
+    });
+  }
+});
+
 export default router;

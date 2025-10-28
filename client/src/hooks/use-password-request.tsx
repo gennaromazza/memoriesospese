@@ -155,10 +155,11 @@ export function usePasswordRequest() {
       const basePath = import.meta.env.VITE_BASE_PATH || '';
       const galleryUrl = `${baseUrl}${basePath}/gallery/${galleryInfo.code}`;
 
-      // Chiamata HTTP POST alla Cloud Function
-      const functionUrl = 'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendGalleryPasswordV2';
+      // CHIAMATA API LOCALE invece di Cloud Function
+      // Il server Express.js ha accesso a connectors-api.replit.com
+      const apiUrl = `${baseUrl}/api/email/send-gallery-password`;
       
-      console.log('📧 Invio richiesta password via HTTP...');
+      console.log('📧 Invio richiesta password via API locale...');
       console.log('📦 Payload:', {
         galleryId: galleryInfo.id,
         recipientEmail: params.email,
@@ -166,22 +167,20 @@ export function usePasswordRequest() {
         galleryCode: galleryInfo.code,
       });
       
-      const response = await fetch(functionUrl, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          data: {
-            galleryId: galleryInfo.id,
-            recipientEmail: params.email,
-            galleryName: galleryInfo.name,
-            galleryCode: galleryInfo.code,
-            firstName: params.firstName,
-            lastName: params.lastName,
-            galleryUrl: galleryUrl,
-            securityAnswer: params.securityAnswer
-          }
+          galleryId: galleryInfo.id,
+          recipientEmail: params.email,
+          galleryName: galleryInfo.name,
+          galleryCode: galleryInfo.code,
+          firstName: params.firstName,
+          lastName: params.lastName,
+          galleryUrl: galleryUrl,
+          securityAnswer: params.securityAnswer
         })
       });
 
