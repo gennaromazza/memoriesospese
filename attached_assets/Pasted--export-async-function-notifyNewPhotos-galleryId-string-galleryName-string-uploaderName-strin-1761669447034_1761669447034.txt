@@ -1,0 +1,75 @@
+@@ export async function notifyNewPhotos(galleryId: string, galleryName: string, uploaderName: string, newPhotosCount: number): Promise<any> {
+
+-  const { auth } = await import("./firebase");
+-  const currentUser = auth.currentUser;
+-  let idToken = "";
+-  if (currentUser) {
+-    idToken = await currentUser.getIdToken();
+-    console.log("🔑 Token Firebase ottenuto per utente:", currentUser.email);
+-  } else {
+-    console.warn("⚠️ notifyNewPhotos chiamata senza utente autenticato");
+-  }
+
++  const { auth } = await import("./firebase");
++  const currentUser = auth.currentUser;
++  if (!currentUser) {
++    console.error("❌ Nessun utente loggato: impossibile inviare notifiche");
++    return {
++      success: false,
++      error: "Utente non autenticato",
++    };
++  }
+
++  const idToken = await currentUser.getIdToken();
++  console.log("🔑 Token Firebase ottenuto per utente:", currentUser.email);
+
+   const subscribers = await getGallerySubscribers(galleryId);
+   const galleryUrl = `${window.location.origin}/gallery/${galleryId}`;
+   console.log(`🧾 ${subscribers.length} iscritti attivi trovati`);
+
+-  const baseUrl = window.location.origin;
+-  const url = `${baseUrl}/api/email/notify-new-photos`;
+
+-  const response = await fetch(url, {
+-    method: "POST",
+-    headers: {
+-      "Content-Type": "application/json",
+-      Authorization: `Bearer ${idToken}`,
+-    },
+-    body: JSON.stringify({
+-      galleryId,
+-      galleryName,
+-      newPhotosCount,
+-      uploaderName,
+-      galleryUrl,
+-    }),
+-  });
+
+-  if (!response.ok) {
+-    throw new Error("Errore invio email notifiche");
+-  }
+
+-  const json = await response.json();
+-  console.log("✅ Notifiche inviate a", json.notified);
+
+-  return {
+-    success: true,
+-    method: "express",
+-    notified: json.notified,
+-    details: json,
+-  };
+
++  const result = await sendNewPhotosNotificationCall({
++    galleryId,
++    galleryName,
++    newPhotosCount,
++    uploaderName,
++    galleryUrl,
++  });
++
++  console.log("✅ Notifiche inviate tramite Firebase:", result);
++  return {
++    ...result,
++    method: "firebase",
++  };
+ }
