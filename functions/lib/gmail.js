@@ -2,48 +2,74 @@
 /**
  * Gmail Email Service usando Replit Integration
  * Gestisce invio email tramite Gmail API OAuth2
+ * VERSIONE RISCRITTA - Gestione uniforme credenziali REPL_IDENTITY
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createTestEmailHTML = exports.createWelcomeEmailHTML = exports.createGalleryPasswordEmailHTML = exports.createNewPhotosEmailHTML = exports.sendGmailEmail = exports.getGmailClient = void 0;
 const googleapis_1 = require("googleapis");
 const functions = require("firebase-functions");
-let connectionSettings;
+// Cache per access token (evita troppe chiamate al connector)
+let cachedSettings = null;
 /**
  * Ottiene access token dall'integrazione Replit Gmail
+ * USA SOLO process.env.REPL_IDENTITY (Firebase secret)
  */
 async function getAccessToken() {
-    if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-        return connectionSettings.settings.access_token;
+    // 1. Controlla cache
+    if (cachedSettings && cachedSettings.expires_at && cachedSettings.expires_at > Date.now()) {
+        functions.logger.info('🔄 Using cached Gmail access token');
+        return cachedSettings.access_token;
     }
-    // Firebase Functions: usa secrets e config
-    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || functions.config().replit?.connectors_hostname;
-    const replIdentity = process.env.REPL_IDENTITY; // Firebase secret
-    const webRenewal = process.env.WEB_REPL_RENEWAL || functions.config().replit?.web_renewal;
-    const xReplitToken = replIdentity
-        ? 'repl ' + replIdentity
-        : webRenewal
-            ? 'depl ' + webRenewal
-            : null;
-    if (!xReplitToken || !hostname) {
-        functions.logger.error('❌ Missing Replit credentials:', {
-            hasHostname: !!hostname,
-            hasReplIdentity: !!replIdentity,
-            hasWebRenewal: !!webRenewal
+    // 2. Leggi credenziali da environment (Firebase secret)
+    const replIdentity = process.env.REPL_IDENTITY;
+    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || 'connectors-api.replit.com';
+    if (!replIdentity) {
+        functions.logger.error('❌ Missing REPL_IDENTITY secret');
+        throw new Error('Missing REPL_IDENTITY - Gmail API credentials not configured');
+    }
+    functions.logger.info('🔐 Fetching fresh Gmail access token from Replit Connectors API');
+    // 3. Costruisci header autenticazione
+    const xReplitToken = 'repl ' + replIdentity;
+    // 4. Fetch connection settings da Replit Connectors API
+    try {
+        const response = await fetch(`https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-mail`, {
+            headers: {
+                'Accept': 'application/json',
+                'X_REPLIT_TOKEN': xReplitToken
+            }
         });
-        throw new Error('X_REPLIT_TOKEN or hostname not found');
-    }
-    functions.logger.info('🔐 Using Replit token from Firebase Functions config');
-    connectionSettings = await fetch('https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail', {
-        headers: {
-            'Accept': 'application/json',
-            'X_REPLIT_TOKEN': xReplitToken
+        if (!response.ok) {
+            functions.logger.error('❌ Replit Connectors API error:', response.status, response.statusText);
+            throw new Error(`Failed to fetch Gmail credentials: ${response.status}`);
         }
-    }).then(res => res.json()).then((data) => data.items?.[0]);
-    const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-    if (!connectionSettings || !accessToken) {
-        throw new Error('Gmail not connected');
+        const data = await response.json();
+        const connection = data.items?.[0];
+        if (!connection || !connection.settings) {
+            functions.logger.error('❌ No Gmail connection found in Replit');
+            throw new Error('Gmail not connected in Replit Integration');
+        }
+        // 5. Estrai access token (supporta vari formati)
+        const accessToken = connection.settings?.access_token ||
+            connection.settings?.oauth?.credentials?.access_token;
+        if (!accessToken) {
+            functions.logger.error('❌ No access_token in Gmail connection settings');
+            throw new Error('Gmail access token not found');
+        }
+        // 6. Salva in cache
+        const expiresAt = connection.settings?.expires_at
+            ? new Date(connection.settings.expires_at).getTime()
+            : Date.now() + 3600 * 1000; // Default: 1 ora
+        cachedSettings = {
+            access_token: accessToken,
+            expires_at: expiresAt
+        };
+        functions.logger.info('✅ Gmail access token obtained successfully');
+        return accessToken;
     }
-    return accessToken;
+    catch (error) {
+        functions.logger.error('❌ Error fetching Gmail credentials:', error);
+        throw error;
+    }
 }
 /**
  * Crea client Gmail autenticato
@@ -60,13 +86,21 @@ async function getGmailClient() {
 exports.getGmailClient = getGmailClient;
 /**
  * Invia email tramite Gmail API
+ * @param to - Singolo destinatario (string) o array di destinatari (string[])
+ * @param subject - Oggetto email
+ * @param htmlContent - Contenuto HTML dell'email
+ * @param from - Mittente (default: Memorie Sospese)
  */
 async function sendGmailEmail(to, subject, htmlContent, from = 'Memorie Sospese <memoriesospese@gennaromazzacane.it>') {
     try {
+        // 1. Normalizza destinatari (supporta sia string che array)
+        const toList = Array.isArray(to) ? to : [to];
+        const recipients = toList.join(', ');
+        // 2. Log pre-invio
+        functions.logger.info(`📧 Sending email to ${toList.length} recipient(s): ${recipients} | subject="${subject}"`);
+        // 3. Ottieni client Gmail autenticato
         const gmail = await getGmailClient();
-        // Prepara destinatari
-        const recipients = Array.isArray(to) ? to.join(', ') : to;
-        // Crea messaggio RFC2822
+        // 4. Crea messaggio RFC2822
         const message = [
             `From: ${from}`,
             `To: ${recipients}`,
@@ -76,23 +110,23 @@ async function sendGmailEmail(to, subject, htmlContent, from = 'Memorie Sospese 
             '',
             htmlContent
         ].join('\n');
-        // Codifica in base64url
+        // 5. Codifica in base64url (formato richiesto da Gmail API)
         const encodedMessage = Buffer.from(message)
             .toString('base64')
             .replace(/\+/g, '-')
             .replace(/\//g, '_')
             .replace(/=+$/, '');
-        // Invia email
+        // 6. Invia email
         await gmail.users.messages.send({
             userId: 'me',
             requestBody: {
                 raw: encodedMessage
             }
         });
-        functions.logger.info(`📧 Email inviata via Gmail API a ${recipients}`);
+        functions.logger.info(`✅ Email sent successfully via Gmail API to ${toList.length} recipient(s)`);
     }
     catch (error) {
-        functions.logger.error('❌ Errore invio email Gmail:', error);
+        functions.logger.error('❌ Gmail send error:', error);
         throw error;
     }
 }
@@ -210,4 +244,3 @@ function createTestEmailHTML() {
   `;
 }
 exports.createTestEmailHTML = createTestEmailHTML;
-//# sourceMappingURL=gmail.js.map

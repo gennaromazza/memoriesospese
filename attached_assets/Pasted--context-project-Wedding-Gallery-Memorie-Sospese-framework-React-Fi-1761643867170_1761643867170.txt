@@ -1,0 +1,67 @@
+{
+  "context": {
+    "project": "Wedding Gallery (Memorie Sospese)",
+    "framework": "React + Firebase (Firestore, Storage, Cloud Functions)",
+    "function": "sendNewPhotosNotificationPublic",
+    "frontend_file": "src/utils/email.ts",
+    "runtime": "Firebase Functions - Node.js",
+    "error": {
+      "type": "HTTP 500 Internal Server Error",
+      "message": "Errore HTTP notifica nuove foto: 500 { error: {...} }",
+      "location": "email.ts:183",
+      "details": "Upload completato, ma errore nella chiamata HTTP alla Cloud Function sendNewPhotosNotificationPublic"
+    },
+    "api_call": {
+      "method": "POST",
+      "url": "https://us-central1-wedding-gallery-397b6.cloudfunctions.net/sendNewPhotosNotificationPublic",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer <optional Firebase ID token>"
+      },
+      "body_sent": {
+        "galleryName": "<string>",
+        "newPhotosCount": "<number>",
+        "uploaderName": "<string>",
+        "galleryUrl": "<string>",
+        "recipients": ["email1@example.com", "email2@example.com", "..."]
+      },
+      "issue": "Missing 'galleryId' field in POST body and possible invalid recipients"
+    }
+  },
+  "analysis": {
+    "hypotheses": [
+      "1️⃣ Missing required field 'galleryId' — the backend may reference it, causing TypeError",
+      "2️⃣ Some recipients may be null/undefined, causing crash during mail dispatch",
+      "3️⃣ Missing or invalid email provider credentials (SENDGRID_API_KEY, SMTP_USER, etc.)",
+      "4️⃣ Backend unhandled promise rejection inside try/catch during sendMail() loop"
+    ],
+    "probable_cause": "Backend Cloud Function expects galleryId or valid recipient array; frontend currently omits galleryId and may include undefined emails"
+  },
+  "frontend_fix": {
+    "description": "Include galleryId in request body and sanitize recipients list before sending",
+    "code_patch": {
+      "file": "src/utils/email.ts",
+      "function": "notifyNewPhotos",
+      "changes": [
+        {
+          "action": "add_field",
+          "field": "galleryId",
+          "to": "POST body"
+        },
+        {
+          "action": "sanitize_array",
+          "field": "recipients",
+          "filters": ["non-empty", "non-null", "lowercase", "deduplicate"]
+        }
+      ],
+      "patched_code": "body: JSON.stringify({ galleryId, galleryName, newPhotosCount, uploaderName, galleryUrl, recipients: subscribers })"
+    }
+  },
+  "next_steps": {
+    "1": "Run: firebase functions:log --only sendNewPhotosNotificationPublic --limit 20",
+    "2": "Check for runtime errors such as 'TypeError: Cannot read property of undefined' or 'Missing API key'",
+    "3": "Validate that function now receives galleryId and correct recipients array",
+    "4": "Confirm successful email dispatch without 500 errors"
+  },
+  "goal": "Diagnose and resolve the internal error in sendNewPhotosNotificationPublic, ensuring new photo email notifications are sent successfully after upload."
+}

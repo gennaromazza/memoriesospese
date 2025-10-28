@@ -292,4 +292,3 @@ exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
 // import { exportGalleryAccessCSV } from './csv-export';
 // Export functions
 // export { exportGalleryAccessCSV };
-//# sourceMappingURL=index.js.map
