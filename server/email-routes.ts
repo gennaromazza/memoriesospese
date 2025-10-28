@@ -5,8 +5,19 @@
 
 import { Router } from 'express';
 import { google } from 'googleapis';
+import admin from 'firebase-admin';
 
 const router = Router();
+
+// Inizializza Firebase Admin se non già fatto
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault()
+  });
+}
+
+// Firestore reference
+const db = admin.firestore();
 
 // Cache per access token (evita troppe chiamate al connector)
 let cachedSettings: {
@@ -181,25 +192,107 @@ function createNewPhotosEmailHTML(
 }
 
 /**
+ * Middleware per autenticazione Firebase
+ */
+async function authenticateFirebase(req: any, res: any, next: any) {
+  try {
+    const authHeader = req.headers.authorization || '';
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        error: { code: 'unauthenticated', message: 'Missing Authorization Bearer token' }
+      });
+    }
+
+    const idToken = authHeader.replace('Bearer ', '').trim();
+    
+    try {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      req.user = { uid: decoded.uid, email: decoded.email };
+      console.log(`🔐 Authenticated user: ${decoded.email} (${decoded.uid})`);
+      next();
+    } catch (authError) {
+      console.error('❌ Token verification failed:', authError);
+      return res.status(401).json({
+        error: { code: 'unauthenticated', message: 'Invalid or expired token' }
+      });
+    }
+  } catch (error) {
+    console.error('❌ Auth middleware error:', error);
+    return res.status(500).json({
+      error: { code: 'internal', message: 'Authentication error' }
+    });
+  }
+}
+
+/**
  * POST /api/email/notify-new-photos
  * Invia notifiche email per nuove foto caricate
+ * RICHIEDE AUTENTICAZIONE: Bearer token Firebase
+ * Recupera recipients SERVER-SIDE dalla collection subscriptions (no client input)
  */
-router.post('/notify-new-photos', async (req, res) => {
+router.post('/notify-new-photos', authenticateFirebase, async (req, res) => {
   try {
-    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = req.body;
+    const { galleryId, galleryName, newPhotosCount, uploaderName, galleryUrl } = req.body;
+    
+    console.log(`📧 Richiesta notifica da utente autenticato: ${req.user?.email}`);
 
     // Validazione
-    if (!galleryName || !galleryUrl) {
+    if (!galleryId || !galleryName || !galleryUrl) {
       return res.status(400).json({
-        error: { code: 'invalid-argument', message: 'Missing galleryName or galleryUrl' }
+        error: { code: 'invalid-argument', message: 'Missing required fields: galleryId, galleryName, galleryUrl' }
       });
     }
 
-    if (!Array.isArray(recipients) || recipients.length === 0) {
-      return res.status(400).json({
-        error: { code: 'invalid-argument', message: 'recipients must be a non-empty array' }
+    // AUTORIZZAZIONE: Verifica che l'utente sia proprietario della galleria o admin
+    console.log(`🔒 Verifica autorizzazione per galleria ${galleryId}`);
+    
+    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    
+    if (!galleryDoc.exists) {
+      console.log(`❌ Galleria ${galleryId} non trovata`);
+      return res.status(404).json({
+        error: { code: 'not-found', message: 'Gallery not found' }
       });
     }
+
+    const galleryData = galleryDoc.data();
+    const galleryOwnerId = galleryData?.userId;
+    const isOwner = galleryOwnerId === req.user.uid;
+    
+    // Lista admin hardcoded (come nel resto dell'app)
+    const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+    const isAdmin = ADMIN_EMAILS.includes(req.user.email || '');
+
+    if (!isOwner && !isAdmin) {
+      console.log(`❌ Utente ${req.user.email} non autorizzato per galleria ${galleryId}`);
+      return res.status(403).json({
+        error: { code: 'permission-denied', message: 'Not authorized to send notifications for this gallery' }
+      });
+    }
+
+    console.log(`✅ Utente autorizzato: ${isOwner ? 'proprietario' : 'admin'}`);
+
+    // RECUPERA RECIPIENTS SERVER-SIDE dalla collection subscriptions
+    console.log(`🔍 Recupero subscribers per galleria: ${galleryId}`);
+    
+    const subscriptionsSnapshot = await db.collection('subscriptions')
+      .where('galleryId', '==', galleryId)
+      .where('active', '==', true)
+      .get();
+
+    const recipients = subscriptionsSnapshot.docs.map(doc => doc.data().email as string);
+
+    if (recipients.length === 0) {
+      console.log(`⚠️ Nessun subscriber attivo per galleria ${galleryId}`);
+      return res.status(200).json({
+        success: true,
+        message: 'No active subscribers',
+        notified: 0
+      });
+    }
+
+    console.log(`📬 Trovati ${recipients.length} subscribers attivi`);
 
     // Crea HTML email
     const htmlContent = createNewPhotosEmailHTML(

@@ -161,18 +161,20 @@ export async function notifyNewPhotos(
 
     console.log(`📡 Chiamando API email locale: ${url}`);
 
-    // 5. POST verso la API locale
+    // 5. POST verso la API locale CON AUTENTICAZIONE
+    // IMPORTANTE: Non inviamo più recipients dal client - il server li recupera da Firestore
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       },
       body: JSON.stringify({
+        galleryId,
         galleryName,
         newPhotosCount,
         uploaderName,
         galleryUrl,
-        recipients: subscribers,
       }),
     });
 

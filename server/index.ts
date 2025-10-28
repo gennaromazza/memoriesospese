@@ -20,13 +20,33 @@ async function startServer() {
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
-    // CORS per sviluppo
+    // CORS ristretto ai domini autorizzati
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:5000',
+      'https://gennaromazzacane.it',
+      'https://www.gennaromazzacane.it'
+    ];
+
     app.use((req, res, next) => {
-      res.header('Access-Control-Allow-Origin', '*');
+      const origin = req.headers.origin || '';
+      
+      // Controlla se origin è autorizzato (inclusi domini Replit)
+      const isAllowed = allowedOrigins.includes(origin) ||
+                       origin.includes('.replit.dev') ||
+                       origin.includes('.replit.app');
+      
+      if (isAllowed) {
+        res.header('Access-Control-Allow-Origin', origin);
+      }
+      
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Max-Age', '3600');
+      
       if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
+        return res.sendStatus(204);
       }
       next();
     });
