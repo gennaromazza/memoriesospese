@@ -225,9 +225,20 @@ export async function subscribeToGallery(
     const normalizedEmail = email.toLowerCase();
     const subscriptionsRef = collection(db, "subscriptions");
 
+    // ✅ Controllo duplicati lato client
+    const existingQuery = query(
+      subscriptionsRef,
+      where("galleryId", "==", galleryId),
+      where("email", "==", normalizedEmail)
+    );
+    const existingSnapshot = await getDocs(existingQuery);
+    
+    if (!existingSnapshot.empty) {
+      console.log(`ℹ️ ${normalizedEmail} già iscritto alla galleria "${galleryName}"`);
+      return { success: true, alreadySubscribed: true };
+    }
+
     // Salva iscrizione in Firestore
-    // Nota: Non controlliamo duplicati per evitare problemi di permissions
-    // Le email duplicate verranno filtrate lato backend quando inviamo notifiche
     await addDoc(subscriptionsRef, {
       galleryId,
       galleryName,
