@@ -173,13 +173,11 @@ export async function notifyNewPhotos(
         "Authorization": `Bearer ${idToken}`,
       },
       body: JSON.stringify({
-        data: {
-          galleryName,
-          newPhotosCount,
-          uploaderName,
-          galleryUrl,
-          recipients: subscribers,
-        }
+        galleryName,
+        newPhotosCount,
+        uploaderName,
+        galleryUrl,
+        recipients: subscribers,
       }),
     });
 
