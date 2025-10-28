@@ -155,19 +155,17 @@ export async function notifyNewPhotos(
       console.warn("⚠️ notifyNewPhotos chiamata senza utente autenticato");
     }
 
-    // 4. Costruisci URL della nuova funzione HTTP
-    const region =
-      import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
-    const projectId =
-      import.meta.env.VITE_FIREBASE_PROJECT_ID || "wedding-gallery-397b6";
-    const url = `https://${region}-${projectId}.cloudfunctions.net/sendNewPhotosNotificationPublic`;
+    // 4. Costruisci URL API server locale (gira su Replit con accesso a connectors-api)
+    const baseUrl = window.location.origin;
+    const url = `${baseUrl}/api/email/notify-new-photos`;
 
-    // 5. POST verso la HTTP function
+    console.log(`📡 Chiamando API email locale: ${url}`);
+
+    // 5. POST verso la API locale
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       },
       body: JSON.stringify({
         galleryName,
@@ -194,12 +192,12 @@ export async function notifyNewPhotos(
 
     const json = await response.json();
     console.log(
-      `✅ Notifiche inviate via HTTP a ${subscribers.length} subscribers`,
+      `✅ Notifiche inviate via API locale a ${subscribers.length} subscribers`,
     );
     return {
       success: true,
-      notified: json?.result?.notified ?? subscribers.length,
-      method: "http_function",
+      notified: json?.notified ?? subscribers.length,
+      method: "local_api",
       details: json,
     };
   } catch (error: any) {
