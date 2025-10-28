@@ -19,7 +19,8 @@ export default function EmailSubscriptionBox({ galleryId, galleryName }: EmailSu
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !email.includes('@')) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
       toast({
         title: "Email non valida",
         description: "Inserisci un indirizzo email valido",
