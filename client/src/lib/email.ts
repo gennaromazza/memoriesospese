@@ -159,22 +159,48 @@ export async function notifyNewPhotos(
     // 3. URL pubblico galleria
     const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
 
-    // 4. Chiama direttamente la Firebase Cloud Function
-    const result = await sendNewPhotosNotification({
-      galleryId,
-      galleryName,
-      newPhotosCount,
-      uploaderName,
-      galleryUrl,
-      recipients: subscribers,
+    // 4. Chiama la HTTP Function pubblica (con CORS corretto)
+    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || "wedding-gallery-397b6";
+    const region = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
+    const functionUrl = `https://${region}-${projectId}.cloudfunctions.net/sendNewPhotosNotificationPublic`;
+
+    console.log('📤 Chiamata HTTP function:', functionUrl);
+
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        data: {
+          galleryName,
+          newPhotosCount,
+          uploaderName,
+          galleryUrl,
+          recipients: subscribers,
+        }
+      }),
     });
 
-    console.log("✅ Notifiche inviate tramite Firebase Cloud Function:", result);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Risposta HTTP function:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    console.log("✅ Notifiche inviate tramite HTTP Function:", result);
     return {
-      success: (result.data as any)?.success || false,
+      success: result.result?.success || false,
       notified: subscribers.length,
-      method: "firebase_function",
-      details: result.data,
+      method: "http_function",
+      details: result.result,
     };
   } catch (error: any) {
     console.error("❌ Errore invio notifiche:", error);
