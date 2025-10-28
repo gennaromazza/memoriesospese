@@ -148,14 +148,17 @@ export async function notifyNewPhotos(
     // 3. Recupera ID token Firebase dell'utente corrente (serve per Authorization Bearer)
     const { auth } = await import("./firebase");
     const currentUser = auth.currentUser;
-    let idToken = "";
-    if (currentUser) {
-      idToken = await currentUser.getIdToken();
-      console.log("🔑 Token Firebase ottenuto per utente:", currentUser.email);
-      console.log("📝 Token length:", idToken.length);
-    } else {
-      console.warn("⚠️ notifyNewPhotos chiamata senza utente autenticato");
+    if (!currentUser) {
+      console.error("❌ Nessun utente loggato: impossibile inviare notifiche");
+      return {
+        success: false,
+        error: "Utente non autenticato",
+      };
     }
+
+    const idToken = await currentUser.getIdToken();
+    console.log("🔑 Token Firebase ottenuto per utente:", currentUser.email);
+    console.log("📝 Token length:", idToken.length);
 
     // 4. Costruisci URL API server locale (gira su Replit con accesso a connectors-api)
     const baseUrl = window.location.origin;
@@ -169,7 +172,7 @@ export async function notifyNewPhotos(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        Authorization: `Bearer ${idToken}`,
       },
       body: JSON.stringify({
         galleryId,
