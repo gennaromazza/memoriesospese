@@ -43,16 +43,16 @@ export const sendWelcomeEmail = httpsCallable(functions, "sendWelcomeEmail");
 /**
  * Funzione HTTP per invio notifiche nuove foto (supporta CORS)
  */
-export async function sendNewPhotosNotificationHTTP(
+async function sendNewPhotosNotificationHTTP(
   data: EmailNotificationData,
 ) {
   // Import Firebase auth per ottenere ID token
   const { auth } = await import('./firebase');
-  
+
   // Ottiene current user e ID token
   const currentUser = auth.currentUser;
   let idToken = '';
-  
+
   if (currentUser) {
     try {
       idToken = await currentUser.getIdToken();
@@ -72,7 +72,7 @@ export async function sendNewPhotosNotificationHTTP(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  
+
   // Aggiunge Authorization header se disponibile ID token
   if (idToken) {
     headers["Authorization"] = `Bearer ${idToken}`;
@@ -81,7 +81,7 @@ export async function sendNewPhotosNotificationHTTP(
   console.log('📤 Chiamata HTTP function:', functionUrl);
   console.log('📋 Headers:', headers);
   console.log('📊 Recipients:', data.recipients.length);
-  
+
   const response = await fetch(functionUrl, {
     method: "POST",
     headers,
@@ -204,7 +204,7 @@ export async function subscribeToGallery(
       where("email", "==", normalizedEmail)
     );
     const existingSnapshot = await getDocs(existingQuery);
-    
+
     if (!existingSnapshot.empty) {
       console.log(`ℹ️ ${normalizedEmail} già iscritto alla galleria "${galleryName}"`);
       return { success: true, alreadySubscribed: true };

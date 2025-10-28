@@ -28,7 +28,7 @@ export const sendNewPhotosNotificationCall = functions
   .https.onCall(async (data, context) => {
   try {
     functions.logger.info('📧 sendNewPhotosNotificationCall invoked with data:', JSON.stringify(data));
-    
+
     const { galleryId, galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
 
     // Validazioni dettagliate
@@ -54,9 +54,9 @@ export const sendNewPhotosNotificationCall = functions
 
     functions.logger.info(`📧 Sending email with subject: "${subject}"`);
     await sendGmailEmail(recipients, subject, htmlContent);
-    
+
     functions.logger.info(`✅ New photos notification sent to ${recipients.length} recipients via Gmail API`);
-    
+
     return { 
       success: true, 
       message: 'Notification sent successfully',
@@ -68,7 +68,7 @@ export const sendNewPhotosNotificationCall = functions
       stack: error?.stack,
       code: error?.code
     });
-    
+
     // Ritorna errore più dettagliato
     const errorMessage = error?.message || 'Failed to send notification email';
     throw new functions.https.HttpsError('internal', errorMessage, {
@@ -79,10 +79,10 @@ export const sendNewPhotosNotificationCall = functions
 });
 
 /**
- * Function per invio notifiche nuove foto - HTTP PUBLIC (funzione principale)
- * CORS gestito manualmente, identico a sendGalleryPasswordV2
- * AUTENTICAZIONE richiesta via Firebase Bearer token
- * SECRETS: REPL_IDENTITY per accesso Gmail API
+ * ✅ VERSIONE PUBBLICA HTTP (CORS-enabled)
+ * Endpoint HTTP pubblico per notifiche email nuove foto
+ * Supporta CORS da qualsiasi origine (anche Replit)
+ * DEPLOYED: questo endpoint è attivo e accessibile via HTTPS
  */
 export const sendNewPhotosNotificationPublic = functions
   .runWith({ secrets: ['REPL_IDENTITY'] })
@@ -171,7 +171,7 @@ export const sendNewPhotosNotificationPublic = functions
 
       // INVIO EMAIL
       const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
-      
+
       const htmlContent = createNewPhotosEmailHTML(
         galleryName,
         uploaderName,
@@ -254,7 +254,7 @@ export const sendGalleryPasswordV2 = functions
 
       // SICUREZZA: Recupera password da Firestore server-side
       const galleryDoc = await admin.firestore().collection('galleries').doc(galleryId).get();
-      
+
       if (!galleryDoc.exists) {
         functions.logger.error(`Gallery not found: ${galleryId}`);
         res.status(404).json({ 
@@ -262,10 +262,10 @@ export const sendGalleryPasswordV2 = functions
         });
         return;
       }
-      
+
       const galleryData = galleryDoc.data();
       const galleryPassword = galleryData?.password;
-      
+
       if (!galleryPassword) {
         functions.logger.error(`Gallery password not found: ${galleryId}`);
         res.status(500).json({ 
@@ -278,7 +278,7 @@ export const sendGalleryPasswordV2 = functions
       const hasSecurityQuestion = galleryData.requiresSecurityQuestion === true && 
                                  galleryData.securityQuestionType && 
                                  galleryData.securityAnswer;
-      
+
       if (hasSecurityQuestion) {
         if (!securityAnswer) {
           functions.logger.warn(`Security answer required but not provided for gallery ${galleryId}`);
@@ -287,10 +287,10 @@ export const sendGalleryPasswordV2 = functions
           });
           return;
         }
-        
+
         const correctAnswer = galleryData.securityAnswer.toLowerCase().trim();
         const providedAnswer = securityAnswer.toLowerCase().trim();
-        
+
         if (providedAnswer !== correctAnswer) {
           functions.logger.warn(`Incorrect security answer for gallery ${galleryId}`);
           res.status(403).json({ 
@@ -298,13 +298,13 @@ export const sendGalleryPasswordV2 = functions
           });
           return;
         }
-        
+
         functions.logger.info(`Security question validated successfully for gallery ${galleryId}`);
       }
 
       // Lazy import di gmail
       const { sendGmailEmail, createGalleryPasswordEmailHTML } = await import('./gmail');
-      
+
       // Crea HTML email
       const htmlContent = createGalleryPasswordEmailHTML(
         galleryName, 
@@ -319,7 +319,7 @@ export const sendGalleryPasswordV2 = functions
       // Invia email tramite Gmail API
       await sendGmailEmail(recipientEmail, subject, htmlContent);
       functions.logger.info(`✅ Gallery password sent to ${recipientEmail} for gallery ${galleryName}`);
-      
+
       res.status(200).json({ 
         result: { success: true, message: 'Gallery password sent successfully', recipientEmail }
       });
@@ -341,7 +341,7 @@ export const testEmailConfiguration = functions.https.onCall(async (data, contex
 
     // Lazy import di gmail (solo quando necessario)
     const { sendGmailEmail, createTestEmailHTML } = await import('./gmail');
-    
+
     // Crea HTML email
     const htmlContent = createTestEmailHTML();
     const subject = 'Test Configurazione Email - Wedding Gallery';
@@ -349,7 +349,7 @@ export const testEmailConfiguration = functions.https.onCall(async (data, contex
     // Invia email tramite Gmail API
     await sendGmailEmail(recipient, subject, htmlContent);
     functions.logger.info(`Test email sent to ${recipient} via Gmail API`);
-    
+
     return { success: true, message: 'Test email sent successfully' };
   } catch (error) {
     functions.logger.error('Error sending test email:', error);
@@ -370,7 +370,7 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
 
     // Lazy import di gmail (solo quando necessario)
     const { sendGmailEmail, createWelcomeEmailHTML } = await import('./gmail');
-    
+
     // Crea HTML email
     const htmlContent = createWelcomeEmailHTML(galleryName);
     const subject = `Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`;
@@ -378,7 +378,7 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
     // Invia email tramite Gmail API
     await sendGmailEmail(recipientEmail, subject, htmlContent);
     functions.logger.info(`Welcome email sent to ${recipientEmail} via Gmail API`);
-    
+
     return { success: true, message: 'Welcome email sent successfully' };
   } catch (error) {
     functions.logger.error('Error sending welcome email:', error);
