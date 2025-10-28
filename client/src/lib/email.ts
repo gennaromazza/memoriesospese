@@ -122,7 +122,21 @@ export async function notifyNewPhotos(
       `🔔 Iniziando notifica per ${newPhotosCount} nuove foto in "${galleryName}"`,
     );
 
-    // 1. Recupera tutti i subscribers attivi
+    // 1. Verifica autenticazione PRIMA di procedere
+    const { auth } = await import("./firebase");
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.error("❌ Nessun utente loggato: impossibile inviare notifiche");
+      return {
+        success: false,
+        error: "Utente non autenticato",
+      };
+    }
+
+    const idToken = await currentUser.getIdToken();
+    console.log("🔑 Token Firebase ottenuto per utente:", currentUser.email);
+
+    // 2. Recupera tutti i subscribers attivi
     const subscriptionsRef = collection(db, "subscriptions");
     const q = query(
       subscriptionsRef,
@@ -142,70 +156,25 @@ export async function notifyNewPhotos(
       return { success: true, notified: 0 };
     }
 
-    // 2. URL pubblico galleria
+    // 3. URL pubblico galleria
     const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
 
-    // 3. Recupera ID token Firebase dell'utente corrente (serve per Authorization Bearer)
-    const { auth } = await import("./firebase");
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      console.error("❌ Nessun utente loggato: impossibile inviare notifiche");
-      return {
-        success: false,
-        error: "Utente non autenticato",
-      };
-    }
-
-    const idToken = await currentUser.getIdToken();
-    console.log("🔑 Token Firebase ottenuto per utente:", currentUser.email);
-    console.log("📝 Token length:", idToken.length);
-
-    // 4. Costruisci URL API server locale (gira su Replit con accesso a connectors-api)
-    const baseUrl = window.location.origin;
-    const url = `${baseUrl}/api/email/notify-new-photos`;
-
-    console.log(`📡 Chiamando API email locale: ${url}`);
-
-    // 5. POST verso la API locale CON AUTENTICAZIONE
-    // IMPORTANTE: Non inviamo più recipients dal client - il server li recupera da Firestore
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        galleryId,
-        galleryName,
-        newPhotosCount,
-        uploaderName,
-        galleryUrl,
-      }),
+    // 4. Chiama direttamente la Firebase Cloud Function
+    const result = await sendNewPhotosNotification({
+      galleryId,
+      galleryName,
+      newPhotosCount,
+      uploaderName,
+      galleryUrl,
+      recipients: subscribers,
     });
 
-    if (!response.ok) {
-      const errBody = await response.json().catch(() => ({}));
-      console.error(
-        "❌ Errore HTTP notifica nuove foto:",
-        response.status,
-        errBody,
-      );
-      return {
-        success: false,
-        error: errBody?.error?.message || "HTTP request failed",
-        method: "http_function",
-      };
-    }
-
-    const json = await response.json();
-    console.log(
-      `✅ Notifiche inviate via API locale a ${subscribers.length} subscribers`,
-    );
+    console.log("✅ Notifiche inviate tramite Firebase Cloud Function:", result);
     return {
-      success: true,
-      notified: json?.notified ?? subscribers.length,
-      method: "local_api",
-      details: json,
+      success: (result.data as any)?.success || false,
+      notified: subscribers.length,
+      method: "firebase_function",
+      details: result.data,
     };
   } catch (error: any) {
     console.error("❌ Errore invio notifiche:", error);
