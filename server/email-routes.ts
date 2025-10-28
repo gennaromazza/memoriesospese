@@ -390,11 +390,15 @@ router.post('/notify-new-photos', authenticateFirebase, async (req: any, res: Re
 
     const subscriptionsData = await subscriptionsResponse.json();
     
-    // Estrai email dai risultati
-    const recipients = subscriptionsData
+    console.log('🔍 Raw subscriptions data:', JSON.stringify(subscriptionsData));
+    
+    // Estrai email dai risultati - FIX: i risultati sono in un array
+    const recipients = (Array.isArray(subscriptionsData) ? subscriptionsData : [])
       .filter((result: any) => result.document)
       .map((result: any) => result.document.fields.email?.stringValue || '')
       .filter((email: string) => email);
+    
+    console.log(`📋 Recipients estratti: ${recipients.length}`, recipients);
 
     if (recipients.length === 0) {
       console.log(`⚠️ Nessun subscriber attivo per galleria ${galleryId}`);
