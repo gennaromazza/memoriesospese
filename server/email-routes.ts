@@ -3,7 +3,7 @@
  * Queste route girano sul server Replit che ha accesso a connectors-api.replit.com
  */
 
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { google } from 'googleapis';
 
 const router = Router();
@@ -218,11 +218,19 @@ function createNewPhotosEmailHTML(
   `;
 }
 
+// Estendi Request per includere user
+interface AuthRequest extends Request {
+  user?: {
+    uid: string;
+    email: string;
+  };
+}
+
 /**
  * Middleware per autenticazione Firebase usando REST API
  * (Firebase Admin SDK non funziona su Replit senza service account)
  */
-async function authenticateFirebase(req: any, res: any, next: any) {
+async function authenticateFirebase(req: any, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization || '';
     
@@ -235,8 +243,10 @@ async function authenticateFirebase(req: any, res: any, next: any) {
     const idToken = authHeader.replace('Bearer ', '').trim();
     
     try {
-      // Verifica token usando Firebase REST API invece di Admin SDK
-      const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyC7lP7f_xnflUsReaYRTwBcT3WNdmcEyjo`;
+      // Verifica token usando Firebase REST API - getAccountInfo verifica ID tokens
+      const verifyUrl = `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=AIzaSyC7lP7f_xnflUsReaYRTwBcT3WNdmcEyjo`;
+      
+      console.log('🔍 Verificando token Firebase...');
       
       const verifyResponse = await fetch(verifyUrl, {
         method: 'POST',
@@ -245,6 +255,8 @@ async function authenticateFirebase(req: any, res: any, next: any) {
       });
 
       if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json().catch(() => ({}));
+        console.error('❌ Firebase token verification failed:', errorData);
         throw new Error('Invalid token');
       }
 
@@ -283,7 +295,7 @@ async function authenticateFirebase(req: any, res: any, next: any) {
  * RICHIEDE AUTENTICAZIONE: Bearer token Firebase
  * Recupera recipients SERVER-SIDE dalla collection subscriptions (no client input)
  */
-router.post('/notify-new-photos', authenticateFirebase, async (req, res) => {
+router.post('/notify-new-photos', authenticateFirebase, async (req: any, res: Response) => {
   try {
     const { galleryId, galleryName, newPhotosCount, uploaderName, galleryUrl } = req.body;
     

@@ -151,6 +151,8 @@ export async function notifyNewPhotos(
     let idToken = "";
     if (currentUser) {
       idToken = await currentUser.getIdToken();
+      console.log("🔑 Token Firebase ottenuto per utente:", currentUser.email);
+      console.log("📝 Token length:", idToken.length);
     } else {
       console.warn("⚠️ notifyNewPhotos chiamata senza utente autenticato");
     }
