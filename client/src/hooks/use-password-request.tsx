@@ -130,22 +130,6 @@ export function usePasswordRequest() {
       // ✅ La validazione è ora server-side in sendGalleryPassword
       // Il server verificherà la risposta e ritornerà errore se incorretta
 
-      // Salva la richiesta nel database
-      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-
-      await addDoc(collection(db, "passwordRequests"), {
-        galleryId: galleryInfo.id,
-        galleryCode: params.galleryId,
-        firstName: params.firstName,
-        lastName: params.lastName,
-        email: params.email,
-        relation: params.relation,
-        status: "completed",
-        createdAt: serverTimestamp(),
-        securityQuestionAnswered: galleryInfo.requiresSecurityQuestion
-      });
-
       // Invia password via email usando Firebase Function (HTTP)
       // SICUREZZA: La password viene recuperata server-side dalla Cloud Function
       // VALIDAZIONE: Security question validata server-side (se presente)
@@ -199,6 +183,22 @@ export function usePasswordRequest() {
 
       const result = await response.json();
       console.log('✅ Password inviata con successo:', result);
+
+      // ✅ Salva la richiesta in Firestore SOLO se email inviata con successo
+      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+
+      await addDoc(collection(db, "passwordRequests"), {
+        galleryId: galleryInfo.id,
+        galleryCode: params.galleryId,
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        relation: params.relation,
+        status: "completed",
+        createdAt: serverTimestamp(),
+        securityQuestionAnswered: galleryInfo.requiresSecurityQuestion
+      });
 
       // Ritorna successo con conferma email
       return {
