@@ -5,45 +5,74 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { google } from 'googleapis';
+import * as admin from 'firebase-admin';
 
 const router = Router();
 
-// Firebase Project ID per Firestore REST API
+// Firebase Project ID
 const FIREBASE_PROJECT_ID = 'wedding-gallery-397b6';
 
 /**
- * Accesso diretto a Firestore tramite REST API (no admin SDK)
+ * Inizializza Firebase Admin SDK in modo sicuro (guarded initialization)
+ * Richiede FIREBASE_ADMIN_CREDENTIALS in Replit Secrets (service account JSON base64-encoded)
+ * Se non disponibile, il server parte comunque ma gli endpoint notifiche restituiscono 503
  */
-async function getFirestoreDocument(path: string): Promise<any> {
-  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/${path}`;
-  const response = await fetch(url);
-  if (!response.ok) return null;
-  const data = await response.json();
-  return data;
+let db: admin.firestore.Firestore | null = null;
+let adminInitialized = false;
+
+function initializeFirebaseAdmin(): void {
+  console.log('🔧 [Firebase Admin] Starting initialization...');
+  
+  if (adminInitialized) {
+    console.log('✅ [Firebase Admin] Already initialized, skipping');
+    return;
+  }
+  
+  if (admin.apps.length > 0) {
+    console.log('✅ [Firebase Admin] App already exists, using existing');
+    db = admin.firestore();
+    adminInitialized = true;
+    return;
+  }
+
+  const credentialsBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+  
+  if (!credentialsBase64) {
+    console.warn('⚠️  [Firebase Admin] FIREBASE_ADMIN_CREDENTIALS not found');
+    console.warn('📋 Email notifications will return 503 until credentials are configured');
+    console.warn('📖 Setup: https://console.firebase.google.com/project/wedding-gallery-397b6/settings/serviceaccounts/adminsdk');
+    console.log('✅ [Firebase Admin] Initialization skipped - server will continue without Admin SDK');
+    return;
+  }
+
+  try {
+    console.log('🔐 [Firebase Admin] Decoding credentials...');
+    const credentials = JSON.parse(Buffer.from(credentialsBase64, 'base64').toString('utf-8'));
+    
+    console.log('🚀 [Firebase Admin] Initializing app...');
+    admin.initializeApp({
+      credential: admin.credential.cert(credentials),
+      projectId: FIREBASE_PROJECT_ID,
+    });
+
+    db = admin.firestore();
+    adminInitialized = true;
+    console.log('✅ [Firebase Admin] Successfully initialized with service account');
+  } catch (error) {
+    console.error('❌ [Firebase Admin] Initialization failed:', error);
+    console.error('💡 Verify FIREBASE_ADMIN_CREDENTIALS contains valid base64-encoded service account JSON');
+    console.log('⚠️  [Firebase Admin] Server will continue without Admin SDK - email features disabled');
+  }
 }
 
-/**
- * Query Firestore tramite REST API
- */
-async function queryFirestore(collectionPath: string, where?: any): Promise<any[]> {
-  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
-  
-  const query: any = {
-    structuredQuery: {
-      from: [{ collectionId: collectionPath.split('/').pop() }],
-      where: where
-    }
-  };
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(query)
-  });
-
-  if (!response.ok) return [];
-  const data = await response.json();
-  return data;
+// Tenta inizializzazione all'avvio (non-blocking)
+console.log('📧 [Email Routes] Loading module...');
+try {
+  initializeFirebaseAdmin();
+  console.log('📧 [Email Routes] Module loaded successfully');
+} catch (error) {
+  console.error('❌ [Email Routes] Module load error:', error);
+  console.log('⚠️  [Email Routes] Continuing anyway - email features may be unavailable');
 }
 
 // Cache per access token (evita troppe chiamate al connector)
@@ -344,6 +373,18 @@ function createGalleryPasswordEmailHTML(
  */
 router.post('/notify-new-photos', authenticateFirebase, async (req: any, res: Response) => {
   try {
+    // Guard: verifica che Firebase Admin SDK sia inizializzato
+    if (!db || !adminInitialized) {
+      console.error('❌ Firebase Admin SDK not available for notifications');
+      return res.status(503).json({
+        error: { 
+          code: 'unavailable', 
+          message: 'Email notifications temporarily unavailable. Firebase Admin SDK not configured.',
+          details: 'Add FIREBASE_ADMIN_CREDENTIALS to Replit Secrets to enable this feature.'
+        }
+      });
+    }
+
     const { galleryId, galleryName, newPhotosCount, uploaderName, galleryUrl } = req.body;
     
     console.log(`📧 Richiesta notifica nuove foto da utente: ${req.user?.email}`);
@@ -358,16 +399,18 @@ router.post('/notify-new-photos', authenticateFirebase, async (req: any, res: Re
     // AUTORIZZAZIONE: Verifica che l'utente sia proprietario della galleria o admin
     console.log(`🔒 Verifica autorizzazione per galleria ${galleryId}`);
     
-    const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
+    // Usa Firebase Admin SDK per accesso sicuro
+    const galleryDocRef = await db.collection('galleries').doc(galleryId).get();
     
-    if (!galleryDoc) {
+    if (!galleryDocRef.exists) {
       console.log(`❌ Galleria ${galleryId} non trovata`);
       return res.status(404).json({
         error: { code: 'not-found', message: 'Gallery not found' }
       });
     }
 
-    const galleryOwnerId = galleryDoc.fields?.userId?.stringValue;
+    const galleryData = galleryDocRef.data();
+    const galleryOwnerId = galleryData?.userId;
     const isOwner = galleryOwnerId === req.user.uid;
     
     // Lista admin hardcoded (come nel resto dell'app)
@@ -383,52 +426,18 @@ router.post('/notify-new-photos', authenticateFirebase, async (req: any, res: Re
 
     console.log(`✅ Utente autorizzato: ${isOwner ? 'proprietario' : 'admin'}`);
 
-    // RECUPERA RECIPIENTS SERVER-SIDE dalla collection subscriptions
+    // RECUPERA RECIPIENTS SERVER-SIDE dalla collection subscriptions usando Firebase Admin SDK
     console.log(`🔍 Recupero subscribers per galleria: ${galleryId}`);
     
-    // Query Firestore REST API per subscribers attivi
-    const subscriptionsUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
-    
-    const subscriptionsQuery = {
-      structuredQuery: {
-        from: [{ collectionId: 'subscriptions' }],
-        where: {
-          compositeFilter: {
-            op: 'AND',
-            filters: [
-              {
-                fieldFilter: {
-                  field: { fieldPath: 'galleryId' },
-                  op: 'EQUAL',
-                  value: { stringValue: galleryId }
-                }
-              },
-              {
-                fieldFilter: {
-                  field: { fieldPath: 'active' },
-                  op: 'EQUAL',
-                  value: { booleanValue: true }
-                }
-              }
-            ]
-          }
-        }
-      }
-    };
+    // Query Firestore usando Admin SDK (accesso sicuro, bypassa security rules)
+    const subscriptionsSnapshot = await db.collection('subscriptions')
+      .where('galleryId', '==', galleryId)
+      .where('status', '==', 'active')
+      .get();
 
-    const subscriptionsResponse = await fetch(subscriptionsUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(subscriptionsQuery)
-    });
-
-    const subscriptionsData = await subscriptionsResponse.json();
-    
-    // Estrai email dai risultati Firestore REST API
-    const recipients = (Array.isArray(subscriptionsData) ? subscriptionsData : [])
-      .filter((result: any) => result.document)
-      .map((result: any) => result.document.fields.email?.stringValue || '')
-      .filter((email: string) => email);
+    const recipients = subscriptionsSnapshot.docs
+      .map(doc => doc.data().email)
+      .filter((email: string) => email && typeof email === 'string');
 
     if (recipients.length === 0) {
       console.log(`⚠️ Nessun subscriber attivo per galleria ${galleryId}`);
@@ -477,6 +486,18 @@ router.post('/notify-new-photos', authenticateFirebase, async (req: any, res: Re
  */
 router.post('/send-gallery-password', async (req, res) => {
   try {
+    // Guard: verifica che Firebase Admin SDK sia inizializzato
+    if (!db || !adminInitialized) {
+      console.error('❌ Firebase Admin SDK not available for password recovery');
+      return res.status(503).json({
+        error: { 
+          code: 'unavailable', 
+          message: 'Password recovery temporarily unavailable. Firebase Admin SDK not configured.',
+          details: 'Add FIREBASE_ADMIN_CREDENTIALS to Replit Secrets to enable this feature.'
+        }
+      });
+    }
+
     const { 
       galleryId, 
       recipientEmail, 
@@ -497,17 +518,18 @@ router.post('/send-gallery-password', async (req, res) => {
       });
     }
 
-    // RECUPERA GALLERIA SERVER-SIDE da Firestore
-    const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
+    // RECUPERA GALLERIA SERVER-SIDE da Firestore usando Firebase Admin SDK
+    const galleryDocRef = await db.collection('galleries').doc(galleryId).get();
 
-    if (!galleryDoc) {
+    if (!galleryDocRef.exists) {
       console.log(`❌ Galleria ${galleryId} non trovata`);
       return res.status(404).json({
         error: { code: 'not-found', message: 'Gallery not found' }
       });
     }
 
-    const password = galleryDoc.fields?.password?.stringValue;
+    const galleryData = galleryDocRef.data();
+    const password = galleryData?.password;
 
     if (!password) {
       console.error(`❌ Password non configurata per galleria ${galleryId}`);
@@ -517,7 +539,7 @@ router.post('/send-gallery-password', async (req, res) => {
     }
 
     // VALIDAZIONE SECURITY QUESTION SERVER-SIDE (se presente)
-    const expectedAnswer = galleryDoc.fields?.securityAnswer?.stringValue;
+    const expectedAnswer = galleryData?.securityAnswer;
     if (expectedAnswer) {
       if (!securityAnswer) {
         console.log(`❌ Security question richiesta ma risposta non fornita`);
