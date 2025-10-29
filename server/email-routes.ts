@@ -81,47 +81,6 @@ let cachedSettings: {
   expires_at: number;
 } | null = null;
 
-// Endpoint di status SICURO (no admin.apps)
-router.get('/status', (req: Request, res: Response) => {
-  try {
-    res.json({
-      adminInit: adminInitialized,
-      dbReady: !!db,
-      secretPresent: !!process.env.FIREBASE_ADMIN_CREDENTIALS,
-      time: new Date().toISOString()
-    });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-// Endpoint di test per decodifica secret
-router.get('/test-init', (req: Request, res: Response) => {
-  try {
-    const credentialsBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
-    
-    if (!credentialsBase64) {
-      return res.json({ error: 'No secret found' });
-    }
-    
-    // Test decodifica
-    const decoded = Buffer.from(credentialsBase64, 'base64').toString('utf-8');
-    const parsed = JSON.parse(decoded);
-    
-    res.json({
-      hasSecret: true,
-      secretLength: credentialsBase64.length,
-      decoded Length: decoded.length,
-      hasProjectId: !!parsed.project_id,
-      hasPrivateKey: !!parsed.private_key,
-      hasClientEmail: !!parsed.client_email,
-      projectId: parsed.project_id
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message, stack: err.stack });
-  }
-});
-
 /**
  * Ottiene access token dall'integrazione Replit Gmail
  * FUNZIONA SOLO su Replit (non su Cloud Functions deployate)
