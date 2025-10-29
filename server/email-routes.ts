@@ -195,22 +195,9 @@ interface AuthRequest extends Request {
 }
 
 /**
- * Middleware per autenticazione Firebase - TEMPORANEAMENTE DISABILITATO PER DEBUG
+ * Middleware per autenticazione Firebase
  */
 async function authenticateFirebase(req: any, res: Response, next: NextFunction) {
-  // TEMPORANEAMENTE DISABILITATO per testare se il resto del sistema funziona
-  console.log('⚠️ AUTENTICAZIONE TEMPORANEAMENTE DISABILITATA PER DEBUG');
-  
-  // Simula utente admin per test
-  req.user = { 
-    uid: 'debug-user', 
-    email: 'gennaro.mazzacane@gmail.com' 
-  };
-  
-  next();
-  return;
-  
-  /* CODICE ORIGINALE DISABILITATO
   try {
     const authHeader = req.headers.authorization || '';
     
@@ -267,9 +254,44 @@ async function authenticateFirebase(req: any, res: Response, next: NextFunction)
       error: { code: 'internal', message: 'Authentication error' }
     });
   }
-  */
 }
 
+
+/**
+ * Template HTML per email nuove foto
+ */
+function createNewPhotosEmailHTML(
+  galleryName: string,
+  uploaderName: string,
+  newPhotosCount: number,
+  galleryUrl: string
+): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">🎉 Nuove foto disponibili!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 10px;">
+          <strong>${uploaderName}</strong> ha caricato <strong>${newPhotosCount}</strong> 
+          nuova${newPhotosCount > 1 ? 'e' : ''} foto nella galleria 
+          <strong style="color: #8b5a3c;">${galleryName}</strong>.
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${galleryUrl}" 
+             style="background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 5px; font-weight: bold;">
+            📸 Visualizza la Galleria
+          </a>
+        </div>
+      </div>
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
+        <p>Memorie Sospese - Wedding Gallery System</p>
+        <p style="font-size: 10px; margin-top: 10px;">
+          Hai ricevuto questa email perché sei iscritto alle notifiche di questa galleria.
+        </p>
+      </div>
+    </div>
+  `;
+}
 
 /**
  * Template HTML per email password galleria
@@ -313,6 +335,139 @@ function createGalleryPasswordEmailHTML(
     </div>
   `;
 }
+
+/**
+ * POST /api/email/notify-new-photos
+ * Invia notifiche email per nuove foto caricate
+ * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin/owner)
+ * Recupera recipients SERVER-SIDE dalla collection subscriptions
+ */
+router.post('/notify-new-photos', authenticateFirebase, async (req: any, res: Response) => {
+  try {
+    const { galleryId, galleryName, newPhotosCount, uploaderName, galleryUrl } = req.body;
+    
+    console.log(`📧 Richiesta notifica nuove foto da utente: ${req.user?.email}`);
+
+    // Validazione campi obbligatori
+    if (!galleryId || !galleryName || !galleryUrl) {
+      return res.status(400).json({
+        error: { code: 'invalid-argument', message: 'Missing required fields: galleryId, galleryName, galleryUrl' }
+      });
+    }
+
+    // AUTORIZZAZIONE: Verifica che l'utente sia proprietario della galleria o admin
+    console.log(`🔒 Verifica autorizzazione per galleria ${galleryId}`);
+    
+    const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
+    
+    if (!galleryDoc) {
+      console.log(`❌ Galleria ${galleryId} non trovata`);
+      return res.status(404).json({
+        error: { code: 'not-found', message: 'Gallery not found' }
+      });
+    }
+
+    const galleryOwnerId = galleryDoc.fields?.userId?.stringValue;
+    const isOwner = galleryOwnerId === req.user.uid;
+    
+    // Lista admin hardcoded (come nel resto dell'app)
+    const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+    const isAdmin = ADMIN_EMAILS.includes(req.user.email || '');
+
+    if (!isOwner && !isAdmin) {
+      console.log(`❌ Utente ${req.user.email} non autorizzato per galleria ${galleryId}`);
+      return res.status(403).json({
+        error: { code: 'permission-denied', message: 'Not authorized to send notifications for this gallery' }
+      });
+    }
+
+    console.log(`✅ Utente autorizzato: ${isOwner ? 'proprietario' : 'admin'}`);
+
+    // RECUPERA RECIPIENTS SERVER-SIDE dalla collection subscriptions
+    console.log(`🔍 Recupero subscribers per galleria: ${galleryId}`);
+    
+    // Query Firestore REST API per subscribers attivi
+    const subscriptionsUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+    
+    const subscriptionsQuery = {
+      structuredQuery: {
+        from: [{ collectionId: 'subscriptions' }],
+        where: {
+          compositeFilter: {
+            op: 'AND',
+            filters: [
+              {
+                fieldFilter: {
+                  field: { fieldPath: 'galleryId' },
+                  op: 'EQUAL',
+                  value: { stringValue: galleryId }
+                }
+              },
+              {
+                fieldFilter: {
+                  field: { fieldPath: 'active' },
+                  op: 'EQUAL',
+                  value: { booleanValue: true }
+                }
+              }
+            ]
+          }
+        }
+      }
+    };
+
+    const subscriptionsResponse = await fetch(subscriptionsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscriptionsQuery)
+    });
+
+    const subscriptionsData = await subscriptionsResponse.json();
+    
+    // Estrai email dai risultati Firestore REST API
+    const recipients = (Array.isArray(subscriptionsData) ? subscriptionsData : [])
+      .filter((result: any) => result.document)
+      .map((result: any) => result.document.fields.email?.stringValue || '')
+      .filter((email: string) => email);
+
+    if (recipients.length === 0) {
+      console.log(`⚠️ Nessun subscriber attivo per galleria ${galleryId}`);
+      return res.status(200).json({
+        success: true,
+        message: 'No active subscribers',
+        notified: 0
+      });
+    }
+
+    console.log(`📬 Trovati ${recipients.length} subscribers attivi`);
+
+    // Crea HTML email
+    const htmlContent = createNewPhotosEmailHTML(
+      galleryName,
+      uploaderName || 'Admin',
+      newPhotosCount || 1,
+      galleryUrl
+    );
+
+    const subject = `🎉 ${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? 'e' : ''} foto in "${galleryName}"`;
+
+    // Invia email tramite Gmail API
+    await sendGmailEmail(recipients, subject, htmlContent);
+
+    console.log(`✉️ Notifiche inviate a ${recipients.length} destinatari per ${galleryName}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Notifications sent successfully',
+      notified: recipients.length
+    });
+  } catch (error) {
+    console.error('❌ Error notify-new-photos:', error);
+    res.status(500).json({
+      error: { code: 'internal', message: 'Failed to send notification email' }
+    });
+  }
+});
 
 /**
  * POST /api/email/send-gallery-password

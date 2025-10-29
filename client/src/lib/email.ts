@@ -29,6 +29,87 @@ export const sendGalleryPassword = httpsCallable(
 );
 export const sendWelcomeEmail = httpsCallable(functions, "sendWelcomeEmail");
 
+/**
+ * Notifica nuove foto caricate - SOLO ADMIN/OWNER
+ * Chiamata autenticata al server Express.js che gestisce invio email
+ */
+export async function notifyNewPhotos(
+  galleryId: string,
+  galleryName: string,
+  uploaderName: string,
+  newPhotosCount: number
+): Promise<{
+  success: boolean;
+  notified?: number;
+  error?: string;
+}> {
+  try {
+    // Ottieni Firebase ID token per autenticazione
+    const { auth } = await import("./firebase");
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      console.error("❌ Utente non autenticato");
+      return { success: false, error: "Utente non autenticato" };
+    }
+
+    const idToken = await currentUser.getIdToken();
+    
+    // Costruisce URL galleria
+    const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
+    
+    // Chiamata API locale Express.js con autenticazione
+    const baseUrl = window.location.origin;
+    const apiUrl = `${baseUrl}/api/email/notify-new-photos`;
+    
+    console.log(`📧 Invio notifiche nuove foto per galleria ${galleryName}...`);
+    
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        galleryId,
+        galleryName,
+        newPhotosCount,
+        uploaderName,
+        galleryUrl,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("❌ Errore invio notifiche:", errorData);
+      
+      // Gestione errori specifici
+      if (response.status === 401) {
+        return { success: false, error: "Autenticazione fallita" };
+      }
+      if (response.status === 403) {
+        return { success: false, error: "Non autorizzato" };
+      }
+      
+      return { success: false, error: errorData.error?.message || "Errore sconosciuto" };
+    }
+
+    const result = await response.json();
+    
+    console.log(`✅ Notifiche inviate: ${result.notified} destinatari`);
+    
+    return {
+      success: true,
+      notified: result.notified || 0,
+    };
+  } catch (error: any) {
+    console.error("❌ Errore notifyNewPhotos:", error);
+    return {
+      success: false,
+      error: error?.message || "Errore sconosciuto",
+    };
+  }
+}
 
 /**
  * Iscrivi utente alle notifiche di una galleria

@@ -33,6 +33,7 @@ import InteractionWrapper from "@/components/InteractionWrapper";
 import InteractionPanel from "@/components/InteractionPanel";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
+import { SubscriptionPrompt } from "@/components/SubscriptionPrompt";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -97,6 +98,9 @@ export default function Gallery() {
 
   // Stato per gestire l'apertura del modal EditGallery
   const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
+
+  // Stato per gestire il prompt di iscrizione (lo mostriamo ogni 20 foto)
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(true);
 
   // Stati per gestire la storia della coppia
   const [coupleStory, setCoupleStory] = useState<CoupleStory | null>(null);
@@ -823,37 +827,50 @@ export default function Gallery() {
                     <div>
                       <div className="masonry-grid">
                         {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
-                          <div key={photo.id} className="masonry-item">
-                            <div
-                              className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
-                              onClick={() => openLightbox(index)}
-                            >
-                              <img
-                                src={photo.url}
-                                alt={photo.name || `Foto ${index + 1}`}
-                                className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
-                                loading="lazy"
-                                onLoad={(e) => {
-                                  (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
-                                }}
-                                style={{
-                                  backgroundColor: '#f3f4f6',
-                                }}
-                                title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
-                              />
+                          <React.Fragment key={photo.id}>
+                            <div className="masonry-item">
+                              <div
+                                className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+                                onClick={() => openLightbox(index)}
+                              >
+                                <img
+                                  src={photo.url}
+                                  alt={photo.name || `Foto ${index + 1}`}
+                                  className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                                  loading="lazy"
+                                  onLoad={(e) => {
+                                    (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                                  }}
+                                  style={{
+                                    backgroundColor: '#f3f4f6',
+                                  }}
+                                  title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
+                                />
+                              </div>
+
+                              {/* Interaction panel below photo */}
+                              <div className="mt-2">
+                                <InteractionPanel
+                                  itemId={photo.id}
+                                  itemType="photo"
+                                  galleryId={galleryData.id}
+                                  isAdmin={isAdmin}
+                                  variant="default"
+                                />
+                              </div>
                             </div>
 
-                            {/* Interaction panel below photo */}
-                            <div className="mt-2">
-                              <InteractionPanel
-                                itemId={photo.id}
-                                itemType="photo"
-                                galleryId={galleryData.id}
-                                isAdmin={isAdmin}
-                                variant="default"
-                              />
-                            </div>
-                          </div>
+                            {/* Mostra prompt iscrizione ogni 20 foto */}
+                            {showSubscriptionPrompt && index === 19 && galleryData && (
+                              <div className="masonry-item col-span-full">
+                                <SubscriptionPrompt
+                                  galleryId={galleryData.id}
+                                  galleryName={galleryData.name}
+                                  onDismiss={() => setShowSubscriptionPrompt(false)}
+                                />
+                              </div>
+                            )}
+                          </React.Fragment>
                         ))}
                       </div>
 

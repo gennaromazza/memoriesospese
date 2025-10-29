@@ -11,7 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
+import { notifyNewPhotos } from "../lib/email";
 import { UploadCloud, Image, Trash } from "lucide-react";
+import { PhotoUploadSuccessModal } from "./PhotoUploadSuccessModal";
 import { getAllThemes } from "@shared/special-themes";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
@@ -82,6 +84,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const [photoFilter, setPhotoFilter] = useState<'all' | 'admin' | 'guest' | 'legacy'>('all');
+  
+  // Stati per modale successo upload
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [uploadStats, setUploadStats] = useState({ photosCount: 0, notifiedCount: 0 });
+  
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -761,10 +768,20 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         updatedAt: serverTimestamp()
       });
 
-      toast({
-        title: "Upload completato!",
-        description: `${uploadedPhotos.length} foto caricate con successo nella galleria.`
-      });
+      // Invia notifiche ai subscribers
+      let notifiedCount = 0;
+      try {
+        const result = await notifyNewPhotos(
+          gallery.id,
+          gallery.name,
+          'Admin',
+          uploadedPhotos.length
+        );
+        notifiedCount = result.notified || 0;
+      } catch (notificationError) {
+        console.warn('⚠️ Errore invio notifiche (non blocca upload):', notificationError);
+        // Non bloccare l'upload per errori di notifica
+      }
 
       // Reset form
       setSelectedFiles([]);
@@ -779,6 +796,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       // Forza il refresh della galleria principale
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
+
+      // Mostra modale di conferma con statistiche
+      setUploadStats({
+        photosCount: uploadedPhotos.length,
+        notifiedCount: notifiedCount
+      });
+      setShowSuccessModal(true);
 
     } catch (error) {
       console.error('Errore upload foto:', error);
@@ -1241,6 +1265,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       </DialogContent>
     </Dialog>
 
+    {/* Modale conferma upload con statistiche */}
+    <PhotoUploadSuccessModal
+      open={showSuccessModal}
+      onOpenChange={setShowSuccessModal}
+      photosCount={uploadStats.photosCount}
+      notifiedCount={uploadStats.notifiedCount}
+    />
     </>
   );
 }
