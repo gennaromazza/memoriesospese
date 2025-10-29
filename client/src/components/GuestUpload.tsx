@@ -12,10 +12,8 @@ import { AuthService } from '@/lib/auth';
 import { PhotoService } from '@/lib/photos';
 import { StorageService } from '@/lib/storage';
 import { GalleryService } from '@/lib/galleries';
-import { notifySubscribers, createGalleryUrl } from '@/lib/notificationService';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { EmailNotificationDialog } from './EmailNotificationDialog';
 
 interface GuestUploadProps {
   galleryId: string;
@@ -30,10 +28,6 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
-  
-  // Stato per modale notifiche email
-  const [showNotificationDialog, setShowNotificationDialog] = useState(false);
-  const [notificationStats, setNotificationStats] = useState({ photosCount: 0, notifiedCount: 0 });
 
   // Dati per autenticazione
   const [guestName, setGuestName] = useState('');
@@ -307,31 +301,10 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       // Aggiorna conteggio foto nella galleria
       await GalleryService.incrementPhotoCount(galleryId, uploadedPhotos.length);
 
-      // Invia notifiche email ai subscribers
-      let notifiedCount = 0;
-      try {
-        const galleryUrl = createGalleryUrl(galleryId);
-
-        const result = await notifySubscribers({
-          galleryId,
-          galleryName,
-          newPhotosCount: uploadedPhotos.length,
-          uploaderName: currentUserName,
-          galleryUrl
-        });
-        
-        notifiedCount = result.success;
-      } catch (notifyError) {
-        console.warn('Errore invio notifiche:', notifyError);
-        // Non bloccare l'upload per errori di notifica
-      }
-
-      // Mostra modale di conferma con statistiche
-      setNotificationStats({
-        photosCount: uploadedPhotos.length,
-        notifiedCount: notifiedCount
+      toast({
+        title: "Upload completato!",
+        description: `${uploadedPhotos.length} foto caricate con successo`
       });
-      setShowNotificationDialog(true);
 
       // Reset del form
       setSelectedFiles([]);
@@ -816,13 +789,6 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
       </DialogContent>
     </Dialog>
 
-    {/* Modale notifiche email */}
-    <EmailNotificationDialog 
-      open={showNotificationDialog}
-      onOpenChange={setShowNotificationDialog}
-      photosCount={notificationStats.photosCount}
-      notifiedCount={notificationStats.notifiedCount}
-    />
     </>
   );
 }
