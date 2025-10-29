@@ -67,7 +67,7 @@ export function SubscriptionPrompt({
 
   return (
     <div 
-      className="relative bg-gradient-to-br from-sage/10 via-sage/5 to-transparent dark:from-sage/20 dark:via-sage/10 border border-sage/20 dark:border-sage/30 rounded-lg p-6 shadow-lg"
+      className="relative bg-gradient-to-br from-sage/10 via-sage/5 to-transparent dark:from-sage/20 dark:via-sage/10 border border-sage/20 dark:border-sage/30 rounded-lg p-6 shadow-lg my-8"
       data-testid="subscription-prompt"
     >
       {/* Bottone chiudi */}

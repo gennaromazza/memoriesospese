@@ -230,7 +230,8 @@ async function authenticateFirebase(
 
     try {
       // Verifica token usando Firebase REST API - getAccountInfo verifica ID tokens
-      const verifyUrl = `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=AIzaSyC7lP7f_xnflUsReaYRTwBcT3WNdmcEyjo`;
+      const firebaseApiKey = process.env.VITE_FIREBASE_API_KEY || "AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME";
+      const verifyUrl = `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${firebaseApiKey}`;
 
       console.log("🔍 Verificando token Firebase...");
 
@@ -356,134 +357,165 @@ function createGalleryPasswordEmailHTML(
 /**
  * POST /api/email/notify-new-photos
  * Invia notifiche email per nuove foto caricate
- * NO AUTENTICAZIONE (chiamato da pannello admin già autenticato)
+ * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin/owner)
  * Recupera recipients SERVER-SIDE dalla collection subscriptions
  */
-router.post("/notify-new-photos", async (req: Request, res: Response) => {
-  try {
-    const {
-      galleryId,
-      galleryName,
-      newPhotosCount,
-      uploaderName,
-      galleryUrl,
-    } = req.body;
+router.post(
+  "/notify-new-photos",
+  authenticateFirebase,
+  async (req: any, res: Response) => {
+    try {
+      const {
+        galleryId,
+        galleryName,
+        newPhotosCount,
+        uploaderName,
+        galleryUrl,
+      } = req.body;
 
-    console.log(`📧 Richiesta notifica nuove foto per galleria: ${galleryName}`);
+      console.log(
+        `📧 Richiesta notifica nuove foto da utente: ${req.user?.email}`,
+      );
 
-    // Validazione campi obbligatori
-    if (!galleryId || !galleryName || !galleryUrl) {
-      return res.status(400).json({
-        error: {
-          code: "invalid-argument",
-          message:
-            "Missing required fields: galleryId, galleryName, galleryUrl",
-        },
-      });
-    }
+      // Validazione campi obbligatori
+      if (!galleryId || !galleryName || !galleryUrl) {
+        return res.status(400).json({
+          error: {
+            code: "invalid-argument",
+            message:
+              "Missing required fields: galleryId, galleryName, galleryUrl",
+          },
+        });
+      }
 
-    // Verifica esistenza galleria
-    const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
+      // AUTORIZZAZIONE: Verifica che l'utente sia proprietario della galleria o admin
+      console.log(`🔒 Verifica autorizzazione per galleria ${galleryId}`);
 
-    if (!galleryDoc) {
-      console.log(`❌ Galleria ${galleryId} non trovata`);
-      return res.status(404).json({
-        error: { code: "not-found", message: "Gallery not found" },
-      });
-    }
+      const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
 
-    // RECUPERA RECIPIENTS SERVER-SIDE dalla collection subscriptions
-    console.log(`🔍 Recupero subscribers per galleria: ${galleryId}`);
+      if (!galleryDoc) {
+        console.log(`❌ Galleria ${galleryId} non trovata`);
+        return res.status(404).json({
+          error: { code: "not-found", message: "Gallery not found" },
+        });
+      }
 
-    // Query Firestore REST API per subscribers attivi
-    const subscriptionsUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+      const galleryOwnerId = galleryDoc.fields?.userId?.stringValue;
+      const isOwner = galleryOwnerId === req.user.uid;
 
-    const subscriptionsQuery = {
-      structuredQuery: {
-        from: [{ collectionId: "subscriptions" }],
-        where: {
-          compositeFilter: {
-            op: "AND",
-            filters: [
-              {
-                fieldFilter: {
-                  field: { fieldPath: "galleryId" },
-                  op: "EQUAL",
-                  value: { stringValue: galleryId },
+      // Lista admin hardcoded (come nel resto dell'app)
+      const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+      const isAdmin = ADMIN_EMAILS.includes(req.user.email || "");
+
+      if (!isOwner && !isAdmin) {
+        console.log(
+          `❌ Utente ${req.user.email} non autorizzato per galleria ${galleryId}`,
+        );
+        return res.status(403).json({
+          error: {
+            code: "permission-denied",
+            message: "Not authorized to send notifications for this gallery",
+          },
+        });
+      }
+
+      console.log(
+        `✅ Utente autorizzato: ${isOwner ? "proprietario" : "admin"}`,
+      );
+
+      // RECUPERA RECIPIENTS SERVER-SIDE dalla collection subscriptions
+      console.log(`🔍 Recupero subscribers per galleria: ${galleryId}`);
+
+      // Query Firestore REST API per subscribers attivi
+      const subscriptionsUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+
+      const subscriptionsQuery = {
+        structuredQuery: {
+          from: [{ collectionId: "subscriptions" }],
+          where: {
+            compositeFilter: {
+              op: "AND",
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "galleryId" },
+                    op: "EQUAL",
+                    value: { stringValue: galleryId },
+                  },
                 },
-              },
-              {
-                fieldFilter: {
-                  field: { fieldPath: "active" },
-                  op: "EQUAL",
-                  value: { booleanValue: true },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "active" },
+                    op: "EQUAL",
+                    value: { booleanValue: true },
+                  },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
-      },
-    };
+      };
 
-    const subscriptionsResponse = await fetch(subscriptionsUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(subscriptionsQuery),
-    });
+      const subscriptionsResponse = await fetch(subscriptionsUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscriptionsQuery),
+      });
 
-    const subscriptionsData = await subscriptionsResponse.json();
+      const subscriptionsData = await subscriptionsResponse.json();
 
-    // Estrai email dai risultati Firestore REST API
-    const recipients = (
-      Array.isArray(subscriptionsData) ? subscriptionsData : []
-    )
-      .filter((result: any) => result.document)
-      .map((result: any) => result.document.fields.email?.stringValue || "")
-      .filter((email: string) => email);
+      // Estrai email dai risultati Firestore REST API
+      const recipients = (
+        Array.isArray(subscriptionsData) ? subscriptionsData : []
+      )
+        .filter((result: any) => result.document)
+        .map((result: any) => result.document.fields.email?.stringValue || "")
+        .filter((email: string) => email);
 
-    if (recipients.length === 0) {
-      console.log(`⚠️ Nessun subscriber attivo per galleria ${galleryId}`);
-      return res.status(200).json({
+      if (recipients.length === 0) {
+        console.log(`⚠️ Nessun subscriber attivo per galleria ${galleryId}`);
+        return res.status(200).json({
+          success: true,
+          message: "No active subscribers",
+          notified: 0,
+        });
+      }
+
+      console.log(`📬 Trovati ${recipients.length} subscribers attivi`);
+
+      // Crea HTML email
+      const htmlContent = createNewPhotosEmailHTML(
+        galleryName,
+        uploaderName || "Admin",
+        newPhotosCount || 1,
+        galleryUrl,
+      );
+
+      const subject = `🎉 ${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? "e" : ""} foto in "${galleryName}"`;
+
+      // Invia email tramite Gmail API
+      await sendGmailEmail(recipients, subject, htmlContent);
+
+      console.log(
+        `✉️ Notifiche inviate a ${recipients.length} destinatari per ${galleryName}`,
+      );
+
+      res.status(200).json({
         success: true,
-        message: "No active subscribers",
-        notified: 0,
+        message: "Notifications sent successfully",
+        notified: recipients.length,
+      });
+    } catch (error) {
+      console.error("❌ Error notify-new-photos:", error);
+      res.status(500).json({
+        error: {
+          code: "internal",
+          message: "Failed to send notification email",
+        },
       });
     }
-
-    console.log(`📬 Trovati ${recipients.length} subscribers attivi`);
-
-    // Crea HTML email
-    const htmlContent = createNewPhotosEmailHTML(
-      galleryName,
-      uploaderName || "Admin",
-      newPhotosCount || 1,
-      galleryUrl,
-    );
-
-    const subject = `🎉 ${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? "e" : ""} foto in "${galleryName}"`;
-
-    // Invia email tramite Gmail API
-    await sendGmailEmail(recipients, subject, htmlContent);
-
-    console.log(
-      `✉️ Notifiche inviate a ${recipients.length} destinatari per ${galleryName}`,
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Notifications sent successfully",
-      notified: recipients.length,
-    });
-  } catch (error) {
-    console.error("❌ Error notify-new-photos:", error);
-    res.status(500).json({
-      error: {
-        code: "internal",
-        message: "Failed to send notification email",
-      },
-    });
-  }
-});
+  },
+);
 
 /**
  * POST /api/email/send-gallery-password

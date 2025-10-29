@@ -860,9 +860,9 @@ export default function Gallery() {
                               </div>
                             </div>
 
-                            {/* Mostra prompt iscrizione ogni 20 foto */}
+                            {/* Mostra prompt iscrizione ogni 20 foto - full width per non sovrapporsi */}
                             {showSubscriptionPrompt && index === 19 && galleryData && (
-                              <div className="masonry-item col-span-full">
+                              <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-4">
                                 <SubscriptionPrompt
                                   galleryId={galleryData.id}
                                   galleryName={galleryData.name}

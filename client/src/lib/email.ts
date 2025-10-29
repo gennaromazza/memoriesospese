@@ -5,7 +5,7 @@
 
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "./firebase";
-import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, serverTimestamp } from "firebase/firestore";
 import { createAbsoluteUrl } from "./basePath";
 
 const functions = getFunctions();
@@ -30,9 +30,8 @@ export const sendGalleryPassword = httpsCallable(
 export const sendWelcomeEmail = httpsCallable(functions, "sendWelcomeEmail");
 
 /**
- * Notifica nuove foto caricate
- * Chiamata al server Express.js che gestisce invio email
- * NO autenticazione (chiamato da pannello admin già autenticato)
+ * Notifica nuove foto caricate - SOLO ADMIN/OWNER
+ * Chiamata autenticata al server Express.js che gestisce invio email
  */
 export async function notifyNewPhotos(
   galleryId: string,
@@ -45,10 +44,21 @@ export async function notifyNewPhotos(
   error?: string;
 }> {
   try {
+    // Ottieni Firebase ID token per autenticazione
+    const { auth } = await import("./firebase");
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      console.error("❌ Utente non autenticato");
+      return { success: false, error: "Utente non autenticato" };
+    }
+
+    const idToken = await currentUser.getIdToken();
+    
     // Costruisce URL galleria
     const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
     
-    // Chiamata API locale Express.js
+    // Chiamata API locale Express.js con autenticazione
     const baseUrl = window.location.origin;
     const apiUrl = `${baseUrl}/api/email/notify-new-photos`;
     
@@ -58,6 +68,7 @@ export async function notifyNewPhotos(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
       },
       body: JSON.stringify({
         galleryId,
@@ -125,13 +136,13 @@ export async function subscribeToGallery(
       return { success: true, alreadySubscribed: true };
     }
 
-    // Salva iscrizione in Firestore
+    // Salva iscrizione in Firestore (usando serverTimestamp per compatibilità Security Rules)
     await addDoc(subscriptionsRef, {
       galleryId,
       galleryName,
       email: normalizedEmail,
       active: true,
-      subscribedAt: new Date(),
+      subscribedAt: serverTimestamp(),
       lastNotified: null,
     });
 
