@@ -5,11 +5,19 @@
 
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "./firebase";
-import { collection, getDocs, query, where, addDoc, serverTimestamp } from "firebase/firestore";
+
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  addDoc,
+  Timestamp,
+  serverTimestamp,
+} from "firebase/firestore";
 import { createAbsoluteUrl } from "./basePath";
 
 const functions = getFunctions();
-
 
 export interface GalleryPasswordData {
   recipientEmail: string;
@@ -37,7 +45,7 @@ export async function notifyNewPhotos(
   galleryId: string,
   galleryName: string,
   uploaderName: string,
-  newPhotosCount: number
+  newPhotosCount: number,
 ): Promise<{
   success: boolean;
   notified?: number;
@@ -47,28 +55,28 @@ export async function notifyNewPhotos(
     // Ottieni Firebase ID token per autenticazione
     const { auth } = await import("./firebase");
     const currentUser = auth.currentUser;
-    
+
     if (!currentUser) {
       console.error("❌ Utente non autenticato");
       return { success: false, error: "Utente non autenticato" };
     }
 
     const idToken = await currentUser.getIdToken();
-    
+
     // Costruisce URL galleria
     const galleryUrl = createAbsoluteUrl(`/gallery/${galleryId}`);
-    
+
     // Chiamata API locale Express.js con autenticazione
     const baseUrl = window.location.origin;
     const apiUrl = `${baseUrl}/api/email/notify-new-photos`;
-    
+
     console.log(`📧 Invio notifiche nuove foto per galleria ${galleryName}...`);
-    
+
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${idToken}`,
+        Authorization: `Bearer ${idToken}`,
       },
       body: JSON.stringify({
         galleryId,
@@ -82,7 +90,7 @@ export async function notifyNewPhotos(
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error("❌ Errore invio notifiche:", errorData);
-      
+
       // Gestione errori specifici
       if (response.status === 401) {
         return { success: false, error: "Autenticazione fallita" };
@@ -90,14 +98,17 @@ export async function notifyNewPhotos(
       if (response.status === 403) {
         return { success: false, error: "Non autorizzato" };
       }
-      
-      return { success: false, error: errorData.error?.message || "Errore sconosciuto" };
+
+      return {
+        success: false,
+        error: errorData.error?.message || "Errore sconosciuto",
+      };
     }
 
     const result = await response.json();
-    
+
     console.log(`✅ Notifiche inviate: ${result.notified} destinatari`);
-    
+
     return {
       success: true,
       notified: result.notified || 0,
@@ -113,6 +124,7 @@ export async function notifyNewPhotos(
 
 /**
  * Iscrivi utente alle notifiche di una galleria
+ * Gestisce autenticazione anonima automatica per utenti non loggati
  */
 export async function subscribeToGallery(
   galleryId: string,
@@ -121,18 +133,33 @@ export async function subscribeToGallery(
 ): Promise<{ success: boolean; alreadySubscribed?: boolean; error?: string }> {
   try {
     const normalizedEmail = email.toLowerCase();
+    
+    // ✅ AUTENTICAZIONE ANONIMA: necessaria per query Firestore
+    const { auth } = await import("./firebase");
+    let currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      console.log("🔐 Autenticazione anonima in corso per iscrizione...");
+      const { signInAnonymously } = await import("firebase/auth");
+      const userCredential = await signInAnonymously(auth);
+      currentUser = userCredential.user;
+      console.log("✅ Utente anonimo autenticato:", currentUser.uid);
+    }
+    
     const subscriptionsRef = collection(db, "subscriptions");
 
-    // ✅ Controllo duplicati lato client
+    // ✅ Controllo duplicati lato client (ora funziona perché utente è autenticato)
     const existingQuery = query(
       subscriptionsRef,
       where("galleryId", "==", galleryId),
-      where("email", "==", normalizedEmail)
+      where("email", "==", normalizedEmail),
     );
     const existingSnapshot = await getDocs(existingQuery);
 
     if (!existingSnapshot.empty) {
-      console.log(`ℹ️ ${normalizedEmail} già iscritto alla galleria "${galleryName}"`);
+      console.log(
+        `ℹ️ ${normalizedEmail} già iscritto alla galleria "${galleryName}"`,
+      );
       return { success: true, alreadySubscribed: true };
     }
 
@@ -142,7 +169,7 @@ export async function subscribeToGallery(
       galleryName,
       email: normalizedEmail,
       active: true,
-      subscribedAt: serverTimestamp(),
+      subscribedAt: serverTimestamp(), // ✅ serverTimestamp() per regole Firestore
       lastNotified: null,
     });
 

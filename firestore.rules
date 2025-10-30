@@ -24,9 +24,10 @@ service cloud.firestore {
 
     // Subscriptions collection - Email notifications for new photos
     match /subscriptions/{subscriptionId} {
-      allow read: if isAdmin();
+      allow read: if isSignedIn() || isAdmin(); // Permetti lettura a utenti autenticati (inclusi anonimi) per controllo duplicati
       allow create: if 
-        // Permetti iscrizione pubblica con validazione campi richiesti
+        // Permetti iscrizione con autenticazione (anche anonima) e validazione campi richiesti
+        isSignedIn() &&
         request.resource.data.keys().hasAll(['galleryId', 'galleryName', 'email', 'active', 'subscribedAt']) &&
         request.resource.data.email is string &&
         request.resource.data.email.matches('.*@.*') && // Validazione email base
