@@ -291,3 +291,204 @@ export function createTestEmailHTML(): string {
     </div>
   `;
 }
+
+/**
+ * Template HTML email "Prenotazione Ricevuta" (dopo creazione booking)
+ */
+export function createBookingReceivedEmailHTML(bookingDetails: {
+  clienteNome: string;
+  clienteCognome: string;
+  campaignNome: string;
+  dataShootingInizio: string;
+  dataShootingFine: string;
+  prodottoNome?: string;
+  note: string;
+}): string {
+  const { clienteNome, clienteCognome, campaignNome, dataShootingInizio, dataShootingFine, prodottoNome, note } = bookingDetails;
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
+      <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #8b5a3c 0%, #6b4530 100%); padding: 30px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px;">📸 Prenotazione Ricevuta</h1>
+        </div>
+
+        <!-- Contenuto -->
+        <div style="padding: 30px;">
+          <p style="font-size: 16px; color: #333; margin-bottom: 10px;">
+            Ciao <strong>${clienteNome} ${clienteCognome}</strong>,
+          </p>
+          <p style="font-size: 16px; color: #555; line-height: 1.6;">
+            Abbiamo ricevuto la tua richiesta di prenotazione per il servizio fotografico 
+            <strong style="color: #8b5a3c;">${campaignNome}</strong>.
+          </p>
+
+          <!-- Box In Attesa -->
+          <div style="background: #fff8e1; border-left: 4px solid #ffa726; padding: 20px; margin: 25px 0; border-radius: 8px;">
+            <h3 style="color: #e65100; margin: 0 0 10px 0; font-size: 18px;">⏳ In Attesa di Conferma</h3>
+            <p style="color: #555; margin: 0; font-size: 14px; line-height: 1.5;">
+              La tua prenotazione è stata registrata con successo! Riceverai una <strong>email di conferma</strong> 
+              non appena avremo verificato la disponibilità dello slot richiesto.
+            </p>
+          </div>
+
+          <!-- Dettagli Prenotazione -->
+          <div style="background: #f9f7f4; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="color: #8b5a3c; margin: 0 0 15px 0; font-size: 18px;">📋 Riepilogo Prenotazione</h3>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px; width: 40%;">📅 Data e Orario:</td>
+                <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">
+                  ${dataShootingInizio} - ${dataShootingFine}
+                </td>
+              </tr>
+              ${prodottoNome ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px;">📦 Pacchetto:</td>
+                <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${prodottoNome}</td>
+              </tr>
+              ` : ''}
+              ${note ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">💬 Note:</td>
+                <td style="padding: 8px 0; color: #555; font-size: 14px; line-height: 1.5;">${note}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+
+          <!-- Messaggio Rassicurante -->
+          <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 20px 0;">
+            Ti confermeremo al più presto la disponibilità. Nel frattempo, se hai domande o necessiti 
+            di modifiche, non esitare a contattarci!
+          </p>
+
+          <!-- Contatti WhatsApp -->
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="https://wa.me/393347103142" 
+               style="background: #25D366; color: white; padding: 12px 30px; 
+                      text-decoration: none; border-radius: 25px; font-weight: 600; 
+                      display: inline-block; font-size: 15px;">
+              💬 Contattaci su WhatsApp
+            </a>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f9f7f4; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="color: #666; font-size: 12px; margin: 5px 0;">Memorie Sospese - Wedding Gallery System</p>
+          <p style="color: #999; font-size: 11px; margin: 5px 0;">Servizi fotografici professionali</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML email "Prenotazione Confermata" (dopo approvazione admin)
+ */
+export function createBookingConfirmedEmailHTML(bookingDetails: {
+  clienteNome: string;
+  clienteCognome: string;
+  campaignNome: string;
+  dataShootingInizio: string;
+  dataShootingFine: string;
+  prodottoNome?: string;
+  note: string;
+}): string {
+  const { clienteNome, clienteCognome, campaignNome, dataShootingInizio, dataShootingFine, prodottoNome, note } = bookingDetails;
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
+      <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%); padding: 30px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px;">✅ Prenotazione Confermata!</h1>
+        </div>
+
+        <!-- Contenuto -->
+        <div style="padding: 30px;">
+          <p style="font-size: 16px; color: #333; margin-bottom: 10px;">
+            Ciao <strong>${clienteNome} ${clienteCognome}</strong>,
+          </p>
+          <p style="font-size: 16px; color: #555; line-height: 1.6;">
+            Ottima notizia! La tua prenotazione per il servizio fotografico 
+            <strong style="color: #4caf50;">${campaignNome}</strong> è stata <strong>confermata</strong>.
+          </p>
+
+          <!-- Box Confermato -->
+          <div style="background: #e8f5e9; border-left: 4px solid #4caf50; padding: 20px; margin: 25px 0; border-radius: 8px;">
+            <h3 style="color: #2e7d32; margin: 0 0 10px 0; font-size: 18px;">🎉 Tutto Pronto!</h3>
+            <p style="color: #555; margin: 0; font-size: 14px; line-height: 1.5;">
+              Il tuo slot è <strong>confermato e riservato</strong>. Ti aspettiamo alla data e orario indicati. 
+              Preparati a vivere un'esperienza fotografica indimenticabile!
+            </p>
+          </div>
+
+          <!-- Dettagli Shooting -->
+          <div style="background: #f9f7f4; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="color: #8b5a3c; margin: 0 0 15px 0; font-size: 18px;">📋 Dettagli Shooting</h3>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px; width: 40%;">📅 Data e Orario:</td>
+                <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">
+                  ${dataShootingInizio} - ${dataShootingFine}
+                </td>
+              </tr>
+              ${prodottoNome ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px;">📦 Pacchetto:</td>
+                <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${prodottoNome}</td>
+              </tr>
+              ` : ''}
+              ${note ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">💬 Note:</td>
+                <td style="padding: 8px 0; color: #555; font-size: 14px; line-height: 1.5;">${note}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+
+          <!-- Suggerimenti Utili -->
+          <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="color: #ef6c00; margin: 0 0 15px 0; font-size: 18px;">💡 Suggerimenti per lo Shooting</h3>
+            <ul style="margin: 0; padding-left: 20px; color: #555; font-size: 14px; line-height: 1.8;">
+              <li>Arriva 10-15 minuti prima dell'orario previsto</li>
+              <li>Porta eventuali accessori o abiti che desideri includere</li>
+              <li>Assicurati che il cellulare sia carico per eventuali preview</li>
+              <li>Rilassati e goditi l'esperienza! 📸</li>
+            </ul>
+          </div>
+
+          <!-- Messaggio Finale -->
+          <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 20px 0; text-align: center;">
+            Non vediamo l'ora di immortalare i tuoi momenti speciali! Per qualsiasi domanda, 
+            siamo sempre disponibili su WhatsApp.
+          </p>
+
+          <!-- Contatti WhatsApp -->
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="https://wa.me/393347103142" 
+               style="background: #25D366; color: white; padding: 12px 30px; 
+                      text-decoration: none; border-radius: 25px; font-weight: 600; 
+                      display: inline-block; font-size: 15px;">
+              💬 Contattaci su WhatsApp
+            </a>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f9f7f4; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="color: #666; font-size: 12px; margin: 5px 0;">Memorie Sospese - Wedding Gallery System</p>
+          <p style="color: #999; font-size: 11px; margin: 5px 0;">Servizi fotografici professionali</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
