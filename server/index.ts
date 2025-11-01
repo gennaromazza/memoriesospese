@@ -6,6 +6,7 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import emailRoutes from './email-routes.js';
+import bookingRoutes from './booking-routes.js';
 
 async function startServer() {
   const start = Date.now();
@@ -54,6 +55,9 @@ async function startServer() {
     // API Routes (PRIMA di Vite middleware)
     app.use('/api/email', emailRoutes);
     console.log('📧 Email API routes mounted at /api/email');
+    
+    app.use('/api/booking', bookingRoutes);
+    console.log('📅 Booking API routes mounted at /api/booking');
 
     // Health check
     app.get('/api/health', (req, res) => {

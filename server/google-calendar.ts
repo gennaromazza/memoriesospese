@@ -237,39 +237,75 @@ export interface WorkingHours {
   chiusura: string; // "19:00"
 }
 
+/**
+ * Valida formato HH:MM per orari
+ */
+function validateTimeFormat(time: string, fieldName: string): void {
+  const timeRegex = /^\d{2}:\d{2}$/;
+  if (!timeRegex.test(time)) {
+    throw new Error(`${fieldName} must be in HH:MM format (e.g., "09:00")`);
+  }
+  
+  const [hours, minutes] = time.split(':').map(Number);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    throw new Error(`${fieldName} has invalid hours (${hours}) or minutes (${minutes})`);
+  }
+}
+
+/**
+ * Crea Date in timezone Europe/Rome dalla stringa YYYY-MM-DD + orario HH:MM
+ * NOTA: Gestisce correttamente timezone per evitare shift UTC
+ */
+function createEuropeRomeDate(dateStr: string, time: string): Date {
+  const [hours, minutes] = time.split(':').map(Number);
+  
+  // Parse date in formato YYYY-MM-DD
+  const [year, month, day] = dateStr.split('-').map(Number);
+  
+  // Crea date string completo con timezone Europe/Rome
+  // Format: 2025-11-01T09:00:00.000+01:00 (winter) o +02:00 (summer)
+  const dateTimeStr = `${dateStr}T${time}:00.000`;
+  
+  // Usa toLocaleString per garantire interpretazione Europe/Rome
+  const date = new Date(dateTimeStr);
+  
+  // Verifica che non ci sia shift UTC applicando offset manualmente
+  date.setFullYear(year, month - 1, day);
+  date.setHours(hours, minutes, 0, 0);
+  
+  return date;
+}
+
 export async function getAvailableSlots(
   calendarId: string = 'primary',
   date: Date,
   workingHours: WorkingHours,
   durataMinuti: number
 ): Promise<{ start: Date; end: Date }[]> {
-  // Imposta inizio e fine giornata
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
+  // Valida formato orari
+  validateTimeFormat(workingHours.apertura, 'orarioApertura');
+  validateTimeFormat(workingHours.pausaInizio, 'orarioPausaInizio');
+  validateTimeFormat(workingHours.pausaFine, 'orarioPausaFine');
+  validateTimeFormat(workingHours.chiusura, 'orarioChiusura');
   
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
+  // Converti date in string YYYY-MM-DD per creare date Europe/Rome corrette
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+  
+  // Imposta inizio e fine giornata in Europe/Rome
+  const dayStart = createEuropeRomeDate(dateStr, '00:00');
+  const dayEnd = createEuropeRomeDate(dateStr, '23:59');
 
   // Ottieni periodi occupati da Google Calendar
   const busyPeriods = await checkFreeBusy(calendarId, dayStart, dayEnd);
 
-  // Converti orari lavorativi in Date
-  const [aperturaH, aperturaM] = workingHours.apertura.split(':').map(Number);
-  const [pausaInizioH, pausaInizioM] = workingHours.pausaInizio.split(':').map(Number);
-  const [pausaFineH, pausaFineM] = workingHours.pausaFine.split(':').map(Number);
-  const [chiusuraH, chiusuraM] = workingHours.chiusura.split(':').map(Number);
-
-  const apertura = new Date(date);
-  apertura.setHours(aperturaH, aperturaM, 0, 0);
-
-  const pausaInizio = new Date(date);
-  pausaInizio.setHours(pausaInizioH, pausaInizioM, 0, 0);
-
-  const pausaFine = new Date(date);
-  pausaFine.setHours(pausaFineH, pausaFineM, 0, 0);
-
-  const chiusura = new Date(date);
-  chiusura.setHours(chiusuraH, chiusuraM, 0, 0);
+  // Converti orari lavorativi in Date usando Europe/Rome timezone
+  const apertura = createEuropeRomeDate(dateStr, workingHours.apertura);
+  const pausaInizio = createEuropeRomeDate(dateStr, workingHours.pausaInizio);
+  const pausaFine = createEuropeRomeDate(dateStr, workingHours.pausaFine);
+  const chiusura = createEuropeRomeDate(dateStr, workingHours.chiusura);
 
   // Periodi lavorativi (mattina + pomeriggio)
   const workingPeriods = [
