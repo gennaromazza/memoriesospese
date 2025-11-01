@@ -557,7 +557,7 @@ export default function Home() {
       )}
 
       {/* Access Gallery Form */}
-      <section id="access-gallery" className="py-16 bg-off-white relative">
+      <section id="access-gallery" className="py-20 bg-off-white relative">
         {/* Decorazioni a tema matrimonio con le immagini fornite */}
         <div className="absolute left-0 top-0 w-40 h-40 opacity-20 pointer-events-none">
           <WeddingImage
@@ -574,36 +574,170 @@ export default function Home() {
           />
         </div>
 
-        <div className="max-w-md mx-auto animate-fade-in relative z-10">
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden border border-sage/10">
-            {/* Header decorativo con anelli matrimoniali */}
-            <div className="relative h-12 bg-gradient-to-r from-sage/30 via-sage/40 to-sage/30 flex items-center justify-center">
-              <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 h-20 w-20">
-                <DecorativeImage
-                  type="standing"
-                  className="w-full h-auto"
-                  alt="Decorazione sposi"
-                />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 animate-fade-in relative z-10">
+          {/* Titolo e Intro Sezione */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-blue-gray font-playfair mb-4">
+              Accedi alle Foto del Tuo Evento
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-2">
+              Rivivi le emozioni del tuo giorno speciale attraverso le nostre gallerie fotografiche esclusive
+            </p>
+            <div className="w-32 h-0.5 bg-gradient-to-r from-transparent via-sage to-transparent mx-auto"></div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 mb-12">
+            {/* Card Ricerca Galleria */}
+            <div className="bg-white shadow-xl rounded-xl overflow-hidden border border-sage/10">
+              {/* Header decorativo */}
+              <div className="relative h-16 bg-gradient-to-r from-sage/30 via-sage/40 to-sage/30 flex items-center justify-center">
+                <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 h-24 w-24">
+                  <DecorativeImage
+                    type="standing"
+                    className="w-full h-auto"
+                    alt="Decorazione sposi"
+                  />
+                </div>
               </div>
+
+              <div className="px-6 sm:px-8 pt-16 pb-8">
+                <h3 className="text-center text-xl font-bold text-blue-gray font-playfair mb-2">
+                  Cerca la Tua Galleria
+                </h3>
+                <p className="text-center text-gray-600 mb-6 text-sm">
+                  Inserisci i nomi dei protagonisti dell'evento
+                </p>
+
+                <div className="space-y-4">
+                  <div className="bg-off-white p-4 rounded-lg shadow-inner">
+                    <GallerySearch />
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer decorativo */}
+              <div className="h-2 bg-gradient-to-r from-sage/30 via-sage/40 to-sage/30"></div>
             </div>
 
-            <div className="px-8 pt-12 pb-8">
-              <h2 className="text-center text-2xl font-bold text-blue-gray font-playfair mb-3">
-                Accedi alle Foto dell'Evento
-              </h2>
-              <p className="text-center text-gray-600 mb-8 italic">
-                Inserisci i nomi dei protagonisti dell'evento
-              </p>
+            {/* Card Informazioni Accesso */}
+            <div className="bg-white shadow-xl rounded-xl overflow-hidden border border-sage/10 p-6 sm:p-8">
+              <div className="flex items-center justify-center mb-6">
+                <div className="w-20 h-20">
+                  <WeddingImage
+                    type="flower-bouquet"
+                    className="w-full h-auto opacity-70"
+                    alt="Decorazione bouquet"
+                  />
+                </div>
+              </div>
 
-              <div className="space-y-6">
-                <div className="mt-1 bg-off-white p-4 rounded-lg shadow-inner">
-                  <GallerySearch />
+              <h3 className="text-xl font-bold text-blue-gray font-playfair mb-6 text-center">
+                Come Funziona
+              </h3>
+
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 bg-sage/10 rounded-full flex items-center justify-center">
+                    <span className="text-sage font-bold text-sm">1</span>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-blue-gray mb-1">Cerca l'Evento</h4>
+                    <p className="text-sm text-gray-600">
+                      Inserisci i nomi degli sposi o il nome dell'evento nel campo di ricerca
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 bg-sage/10 rounded-full flex items-center justify-center">
+                    <span className="text-sage font-bold text-sm">2</span>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-blue-gray mb-1">Compila i Dati</h4>
+                    <p className="text-sm text-gray-600">
+                      Inserisci il tuo nome, email e indica il tuo ruolo all'evento
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 bg-sage/10 rounded-full flex items-center justify-center">
+                    <span className="text-sage font-bold text-sm">3</span>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-blue-gray mb-1">Ricevi l'Accesso</h4>
+                    <p className="text-sm text-gray-600">
+                      Visualizza immediatamente la password per accedere alla galleria
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 bg-sage/10 rounded-full flex items-center justify-center">
+                    <span className="text-sage font-bold text-sm">4</span>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-blue-gray mb-1">Goditi i Ricordi</h4>
+                    <p className="text-sm text-gray-600">
+                      Esplora, scarica e condividi le foto più belle del tuo evento speciale
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-sage/10">
+                <div className="bg-light-mint/30 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-sage mb-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span className="font-semibold text-sm">Accesso Sicuro e Privato</span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Le tue foto sono protette e accessibili solo agli invitati dell'evento
+                  </p>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Footer decorativo */}
-            <div className="h-2 bg-gradient-to-r from-sage/30 via-sage/40 to-sage/30"></div>
+          {/* Features Grid - Vantaggi della Galleria */}
+          <div className="grid sm:grid-cols-3 gap-6">
+            <div className="bg-white rounded-lg p-6 shadow-md border border-sage/10 text-center hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 mx-auto mb-4 bg-sage/10 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h4 className="font-semibold text-blue-gray mb-2">Foto in Alta Qualità</h4>
+              <p className="text-sm text-gray-600">
+                Scarica tutte le foto in risoluzione originale, senza limiti
+              </p>
+            </div>
+
+            <div className="bg-white rounded-lg p-6 shadow-md border border-sage/10 text-center hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 mx-auto mb-4 bg-sage/10 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              </div>
+              <h4 className="font-semibold text-blue-gray mb-2">Condivisione Facile</h4>
+              <p className="text-sm text-gray-600">
+                Condividi le foto preferite sui social o tramite link diretto
+              </p>
+            </div>
+
+            <div className="bg-white rounded-lg p-6 shadow-md border border-sage/10 text-center hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 mx-auto mb-4 bg-sage/10 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h4 className="font-semibold text-blue-gray mb-2">Accesso Illimitato</h4>
+              <p className="text-sm text-gray-600">
+                Rivedi le tue foto quando vuoi, per tutto il tempo che desideri
+              </p>
+            </div>
           </div>
         </div>
       </section>
