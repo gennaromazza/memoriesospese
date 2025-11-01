@@ -96,7 +96,8 @@ export interface Booking {
   stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata';
   
   // Tracking email/calendar
-  emailConfermataInviata: boolean;
+  emailRicevutaInviata: boolean; // Email "Prenotazione Ricevuta" (automatica dopo creazione)
+  emailConfermataInviata: boolean; // Email "Prenotazione Confermata" (dopo approvazione admin)
   googleCalendarEventId?: string; // ID evento creato su Google Calendar
   
   createdAt: Timestamp;
