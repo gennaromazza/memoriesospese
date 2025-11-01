@@ -23,6 +23,40 @@ async function getFirestoreDocument(path: string): Promise<any> {
 }
 
 /**
+ * Recupera dati contatto studio da Firestore
+ * ESPORTATA per uso in booking-routes.ts
+ */
+export async function getStudioContactInfo(): Promise<{
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+}> {
+  try {
+    const studioDoc = await getFirestoreDocument("settings/studio");
+    
+    if (studioDoc?.fields) {
+      return {
+        name: studioDoc.fields.name?.stringValue || "Memorie Sospese",
+        email: studioDoc.fields.email?.stringValue || "memoriesospese@gennaromazzacane.it",
+        phone: studioDoc.fields.phone?.stringValue || "+39 334 7103142",
+        address: studioDoc.fields.address?.stringValue || ""
+      };
+    }
+  } catch (error) {
+    console.error("⚠️ Errore recupero dati studio:", error);
+  }
+  
+  // Fallback ai valori di default
+  return {
+    name: "Memorie Sospese",
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+}
+
+/**
  * Query Firestore tramite REST API
  */
 async function queryFirestore(
@@ -286,10 +320,18 @@ function createNewPhotosEmailHTML(
   uploaderName: string,
   newPhotosCount: number,
   galleryUrl: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">🎉 Nuove foto disponibili!</h2>
+      <h2 style="color: #8b5a3c; text-align: center;">Nuove foto disponibili!</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 10px;">
           <strong>${uploaderName}</strong> ha caricato <strong>${newPhotosCount}</strong> 
@@ -304,9 +346,12 @@ function createNewPhotosEmailHTML(
           </a>
         </div>
       </div>
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-        <p>Memorie Sospese - Wedding Gallery System</p>
-        <p style="font-size: 10px; margin-top: 10px;">
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+        <p style="font-size: 10px; margin-top: 10px; opacity: 0.7;">
           Hai ricevuto questa email perché sei iscritto alle notifiche di questa galleria.
         </p>
       </div>
@@ -324,10 +369,18 @@ function createGalleryPasswordEmailHTML(
   galleryCode: string,
   password: string,
   galleryUrl: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;"> Password Galleria</h2>
+      <h2 style="color: #8b5a3c; text-align: center;">Password Galleria</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 10px;">
           Ciao <strong>${firstName} ${lastName}</strong>,
@@ -346,12 +399,15 @@ function createGalleryPasswordEmailHTML(
           <a href="${galleryUrl}" 
              style="background: #8b5a3c; color: white; padding: 15px 30px; 
                     text-decoration: none; border-radius: 5px; font-weight: bold;">
-            📸 Accedi alla Galleria
+            Accedi alla Galleria
           </a>
         </div>
       </div>
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-        <p>Memorie Sospese - Wedding Gallery System</p>
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
     </div>
   `;
@@ -498,15 +554,19 @@ router.post(
 
       console.log(`📬 Trovati ${recipients.length} subscribers attivi`);
 
+      // Recupera dati contatto studio
+      const studioInfo = await getStudioContactInfo();
+
       // Crea HTML email
       const htmlContent = createNewPhotosEmailHTML(
         galleryName,
         uploaderName || "Admin",
         newPhotosCount || 1,
         galleryUrl,
+        studioInfo
       );
 
-      const subject = ` ${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? "e" : ""} foto in "${galleryName}"`;
+      const subject = `${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? "e" : ""} foto in "${galleryName}"`;
 
       // Invia email tramite Gmail API
       await sendGmailEmail(recipients, subject, htmlContent);
@@ -619,6 +679,9 @@ router.post("/send-gallery-password", async (req, res) => {
       console.log(`✅ Security question validata correttamente`);
     }
 
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
     // INVIA EMAIL CON PASSWORD
     const htmlContent = createGalleryPasswordEmailHTML(
       firstName,
@@ -627,9 +690,10 @@ router.post("/send-gallery-password", async (req, res) => {
       galleryCode,
       password,
       galleryUrl,
+      studioInfo
     );
 
-    const subject = ` Password per la galleria "${galleryName}"`;
+    const subject = `Password per la galleria "${galleryName}"`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
@@ -660,11 +724,19 @@ export function createBookingReceivedEmailHTML(
   bookingDate: string,
   bookingTime: string,
   duration: number,
-  productName?: string
+  productName?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">📸 Richiesta Prenotazione Ricevuta!</h2>
+      <h2 style="color: #8b5a3c; text-align: center;">Richiesta Prenotazione Ricevuta!</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
@@ -695,9 +767,11 @@ export function createBookingReceivedEmailHTML(
         </p>
       </div>
       
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-        <p>Memorie Sospese - Wedding Photography</p>
-        <p style="margin-top: 5px;">📧 memoriesospese@gennaromazzacane.it</p>
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
     </div>
   `;
@@ -729,16 +803,20 @@ router.post("/send-booking-received", async (req, res) => {
 
     const clienteName = `${clienteNome} ${clienteCognome}`;
 
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
     const htmlContent = createBookingReceivedEmailHTML(
       clienteName,
       campaignNome,
       dataShootingInizio,
       dataShootingFine,
       0, // duration non usata nel template attuale
-      prodottoNome
+      prodottoNome,
+      studioInfo
     );
 
-    const subject = `📸 Prenotazione Ricevuta - ${campaignNome}`;
+    const subject = `Prenotazione Ricevuta - ${campaignNome}`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
@@ -785,6 +863,9 @@ router.post("/send-booking-confirmed", async (req, res) => {
 
     const clienteName = `${clienteNome} ${clienteCognome}`;
 
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
     const htmlContent = createBookingConfirmedEmailHTML(
       clienteName,
       campaignNome,
@@ -792,10 +873,11 @@ router.post("/send-booking-confirmed", async (req, res) => {
       dataShootingFine,
       0, // duration non usata nel template attuale
       prodottoNome,
-      note
+      note,
+      studioInfo
     );
 
-    const subject = `✅ Prenotazione Confermata - ${campaignNome}`;
+    const subject = `Prenotazione Confermata - ${campaignNome}`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
@@ -826,11 +908,20 @@ export function createBookingConfirmedEmailHTML(
   bookingTime: string,
   duration: number,
   productName?: string,
-  notes?: string
+  notes?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  bookingId?: string
 ): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #28a745; text-align: center;">✅ Prenotazione Confermata!</h2>
+      <h2 style="color: #28a745; text-align: center;">Prenotazione Confermata!</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
@@ -866,14 +957,38 @@ export function createBookingConfirmedEmailHTML(
           </ul>
         </div>
 
+        ${bookingId ? `
+        <div style="text-align: center; margin: 25px 0; padding: 20px; background: linear-gradient(135deg, #f5f7fa 0%, #e8eef7 100%); border-radius: 12px;">
+          <p style="font-size: 16px; color: #333; margin-bottom: 8px; font-weight: 600;">
+            📅 Non dimenticare il tuo appuntamento!
+          </p>
+          <p style="font-size: 14px; color: #666; margin-bottom: 18px; line-height: 1.5;">
+            Aggiungi questo evento al tuo calendario per ricevere un promemoria automatico 24 ore prima dello shooting. Basta un click!
+          </p>
+          <a href="${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/api/booking/calendar/${bookingId}" 
+             style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    color: white; padding: 16px 32px; text-decoration: none; border-radius: 10px; 
+                    font-weight: 600; font-size: 16px; box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+                    transition: all 0.3s ease;">
+            📲 Aggiungi al Calendario
+          </a>
+          <p style="font-size: 12px; color: #888; margin-top: 12px; line-height: 1.4;">
+            Funziona su tutti i dispositivi: iPhone, Android, PC, Mac<br>
+            Compatibile con Google Calendar, Outlook, Apple Calendar
+          </p>
+        </div>
+        ` : ''}
+
         <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Non vediamo l'ora di immortalare i tuoi momenti speciali! 📸✨
+          Non vediamo l'ora di immortalare i tuoi momenti speciali!
         </p>
       </div>
       
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-        <p>Memorie Sospese - Wedding Photography</p>
-        <p style="margin-top: 5px;">📧 memoriesospese@gennaromazzacane.it</p>
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
     </div>
   `;

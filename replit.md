@@ -41,7 +41,8 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - **Social Features:** Interactive social panel with real-time updates for likes, comments, and voice memos.
 - **User Interface:** Responsive design, consistent UI elements, centralized authentication dialogs, and improved navigation.
 - **Subscription System:** Stripe integration for Free, Starter, Pro, and Premium plans with access controls based on subscription tier.
-- **Email System:** All email operations handled by an Express.js server via Gmail API integration (Replit OAuth2 connector). Includes new photo notifications (with anonymous authentication support) and secure gallery password requests. OAuth access token caching implemented.
+- **Email System:** All email operations handled by an Express.js server (`server/email-routes.ts`) via Gmail API integration (Replit OAuth2 connector). Uses direct function imports instead of HTTP calls for reliability. Email templates dynamically fetch studio contact info from Firestore `settings/studio` collection. Includes: new photo notifications (with anonymous auth support), secure gallery password requests, and booking confirmation emails. No emojis in subject lines for professional appearance. OAuth access token caching implemented.
+- **Booking System:** Campaign-based photography booking with Google Calendar integration for slot management. Atomic booking flow prevents double-booking using Firestore transactions. Two-stage email notification: "Prenotazione Ricevuta" on creation (stato: in_attesa) and "Prenotazione Confermata" on admin approval (stato: confermata). Booking duration automatically calculated from slot timestamps. Email tracking via `emailRicevutaInviata` and `emailConfermataInviata` flags in Firestore.
 - **Security - Password Protection System:** Server-side password security via Firebase Cloud Functions. Client never accesses gallery passwords or security answers directly. Security questions are validated server-side, and passwords are sent via email only after successful validation.
 - **Deployment:** Designed for subfolder deployment with dynamic base path detection. Emphasis on Firebase-only architecture for core functionalities.
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and robust `try-catch` blocks.
@@ -50,10 +51,46 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - **Questionnaire System:** Enterprise-grade questionnaire management using secure 32-byte crypto tokens, SHA-256 hashing, role-based access, multi-step forms with auto-save, localStorage backup, progress tracking, and ChatGPT export templates. Includes token validation, temporary sessions, rate limiting, and masked error messages.
 - **Special Theme System:** Modular seasonal gallery system with predefined themes (Natale, Carnevale, San Valentino, Pasqua, Halloween) using dedicated CSS files with custom animations and elements. Galleries can be assigned a theme with mandatory PIN-based access. Homepage features a dedicated "Gallerie Speciali" section for themed gallery access.
 
+## Booking System - Technical Details
+
+**Architecture:**
+- **Server Routes:** `server/booking-routes.ts` - RESTful API for booking CRUD operations
+- **Email Templates:** `server/email-routes.ts` - Exported functions `createBookingReceivedEmailHTML`, `createBookingConfirmedEmailHTML`
+- **Calendar Integration:** `server/google-calendar.ts` - Slot management via Google Calendar API (Replit OAuth2)
+- **Client Components:** `client/src/pages/BookingPage.tsx` - Customer booking interface
+
+**Data Flow:**
+1. **Booking Creation (POST /api/booking/create):**
+   - Validates slot availability via Firestore transaction
+   - Creates Google Calendar event for slot reservation
+   - Saves booking to Firestore with `stato: 'in_attesa'`
+   - Sends "Prenotazione Ricevuta" email automatically
+   - Email includes: campaign name, date/time, duration (calculated from timestamps), product, studio contact info
+
+2. **Booking Approval (PATCH /api/booking/:id/approve):**
+   - Admin updates booking status to `confermata`
+   - Sends "Prenotazione Confermata" email automatically
+   - Email includes same details plus any admin notes
+
+**Email Workflow:**
+- Templates fetch dynamic studio info from `settings/studio` Firestore document (name, email, phone, address)
+- Duration calculated: `Math.round((slotEnd - slotStart) / (1000 * 60))` minutes
+- Email functions imported directly in booking routes (no HTTP calls for reliability)
+- Tracking flags prevent duplicate sends: `emailRicevutaInviata`, `emailConfermataInviata`
+- Subject format: "Prenotazione Ricevuta/Confermata - {Campaign Name}" (no emojis)
+
+**Key Files:**
+- `server/booking-routes.ts` - Booking API endpoints
+- `server/email-routes.ts` - Email template generators and `getStudioContactInfo()`
+- `server/google-calendar.ts` - Calendar slot management
+- `shared/booking-types.ts` - TypeScript interfaces for bookings
+- `client/src/lib/bookings.ts` - Frontend booking utilities
+
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting
 - **Stripe:** Payment processing for subscriptions
-- **Brevo (Sendinblue):** Email service
+- **Google Calendar API:** Booking slot management (Replit OAuth2)
+- **Gmail API:** Email delivery (Replit OAuth2)
 - **Express.js:** Web application framework
 - **React:** Frontend library
 - **TypeScript:** Type-safe JavaScript

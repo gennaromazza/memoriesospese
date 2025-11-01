@@ -296,8 +296,14 @@ router.post('/create', async (req, res) => {
         timeZone: 'Europe/Rome'
       })}`;
       
+      // Calcola durata in minuti
+      const durationMinutes = Math.round((slotEnd.getTime() - slotStart.getTime()) / (1000 * 60));
+      
       // Import diretto delle funzioni email
-      const { sendGmailEmail, createBookingReceivedEmailHTML } = await import('./email-routes.js');
+      const { sendGmailEmail, createBookingReceivedEmailHTML, getStudioContactInfo } = await import('./email-routes.js');
+      
+      // Recupera dati contatto studio
+      const studioInfo = await getStudioContactInfo();
       
       const clienteName = `${cliente.nome} ${cliente.cognome}`;
       const emailHTML = createBookingReceivedEmailHTML(
@@ -305,13 +311,14 @@ router.post('/create', async (req, res) => {
         campaignName,
         bookingDate,
         bookingTime,
-        0, // duration
-        prodottoNome
+        durationMinutes,
+        prodottoNome,
+        studioInfo
       );
       
       await sendGmailEmail(
         cliente.email,
-        `📸 Prenotazione Ricevuta - ${campaignName}`,
+        `Prenotazione Ricevuta - ${campaignName}`,
         emailHTML
       );
       
@@ -432,8 +439,14 @@ router.patch('/:id/approve', async (req, res) => {
         timeZone: 'Europe/Rome'
       })}`;
 
+      // Calcola durata in minuti
+      const durationMinutes = Math.round((slotEnd.getTime() - slotStart.getTime()) / (1000 * 60));
+
       // Import diretto delle funzioni email
-      const { sendGmailEmail, createBookingConfirmedEmailHTML } = await import('./email-routes.js');
+      const { sendGmailEmail, createBookingConfirmedEmailHTML, getStudioContactInfo } = await import('./email-routes.js');
+
+      // Recupera dati contatto studio
+      const studioInfo = await getStudioContactInfo();
 
       const clienteName = `${bookingData.cliente.nome} ${bookingData.cliente.cognome}`;
       const emailHTML = createBookingConfirmedEmailHTML(
@@ -441,14 +454,16 @@ router.patch('/:id/approve', async (req, res) => {
         campaignName,
         bookingDate,
         bookingTime,
-        0, // duration
+        durationMinutes,
         bookingData.prodottoNome,
-        bookingData.note
+        bookingData.note,
+        studioInfo,
+        id  // bookingId per generare link calendario
       );
 
       await sendGmailEmail(
         bookingData.cliente.email,
-        `✅ Prenotazione Confermata - ${campaignName}`,
+        `Prenotazione Confermata - ${campaignName}`,
         emailHTML
       );
 
@@ -470,6 +485,100 @@ router.patch('/:id/approve', async (req, res) => {
     console.error('[Booking API] Errore approvazione prenotazione:', error);
     return res.status(500).json({ 
       error: 'Errore interno del server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto' 
+    });
+  }
+});
+
+/**
+ * GET /api/booking/calendar/:id
+ * Genera e serve file .ics per aggiungere al calendario
+ */
+router.get('/calendar/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Inizializza Firebase Admin
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+    const db = admin.firestore();
+    
+    // Recupera booking da Firestore
+    const bookingRef = db.collection('bookings').doc(id);
+    const bookingDoc = await bookingRef.get();
+    
+    if (!bookingDoc.exists) {
+      return res.status(404).json({ error: 'Prenotazione non trovata' });
+    }
+    
+    const bookingData = bookingDoc.data();
+    
+    // Solo prenotazioni confermate possono essere aggiunte al calendario
+    if (bookingData?.stato !== 'confermata') {
+      return res.status(403).json({ error: 'Prenotazione non ancora confermata' });
+    }
+    
+    // Recupera nome campagna
+    const campaignDoc = await db.collection('booking_campaigns').doc(bookingData.campaignId).get();
+    const campaignName = campaignDoc.data()?.nome || 'Shooting Fotografico';
+    
+    // Recupera dati studio
+    const { getStudioContactInfo } = await import('./email-routes.js');
+    const studioInfo = await getStudioContactInfo();
+    
+    // Converti timestamp in Date
+    const slotStart = bookingData.dataShootingInizio.toDate();
+    const slotEnd = bookingData.dataShootingFine.toDate();
+    
+    // Genera file .ics
+    const formatICalDate = (date: Date): string => {
+      return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    };
+
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Memorie Sospese//Booking System//IT',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `DTSTART:${formatICalDate(slotStart)}`,
+      `DTEND:${formatICalDate(slotEnd)}`,
+      `SUMMARY:Shooting Fotografico - ${campaignName}`,
+      `DESCRIPTION:Sessione fotografica ${campaignName}${bookingData.prodottoNome ? ` - ${bookingData.prodottoNome}` : ''}${bookingData.note ? `\\n\\nNote: ${bookingData.note}` : ''}`,
+      `LOCATION:${studioInfo.address || studioInfo.name}`,
+      `ORGANIZER;CN=${studioInfo.name}:mailto:${studioInfo.email}`,
+      'STATUS:CONFIRMED',
+      'SEQUENCE:0',
+      'BEGIN:VALARM',
+      'TRIGGER:-PT24H',
+      'DESCRIPTION:Promemoria shooting fotografico',
+      'ACTION:DISPLAY',
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    // Imposta headers per download file .ics
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="shooting_${campaignName.replace(/\s+/g, '_')}.ics"`);
+    res.send(icsContent);
+    
+    console.log(`✅ File calendario generato per booking ${id}`);
+  } catch (error) {
+    console.error('[Booking API] Errore generazione calendario:', error);
+    return res.status(500).json({ 
+      error: 'Errore generazione file calendario',
       message: error instanceof Error ? error.message : 'Errore sconosciuto' 
     });
   }
