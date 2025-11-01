@@ -230,7 +230,9 @@ async function authenticateFirebase(
 
     try {
       // Verifica token usando Firebase REST API - getAccountInfo verifica ID tokens
-      const firebaseApiKey = process.env.VITE_FIREBASE_API_KEY || "AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME";
+      const firebaseApiKey =
+        process.env.VITE_FIREBASE_API_KEY ||
+        "AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME";
       const verifyUrl = `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${firebaseApiKey}`;
 
       console.log("🔍 Verificando token Firebase...");
@@ -503,7 +505,7 @@ router.post(
         galleryUrl,
       );
 
-      const subject = `🎉 ${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? "e" : ""} foto in "${galleryName}"`;
+      const subject = ` ${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? "e" : ""} foto in "${galleryName}"`;
 
       // Invia email tramite Gmail API
       await sendGmailEmail(recipients, subject, htmlContent);
