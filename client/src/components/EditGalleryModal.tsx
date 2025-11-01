@@ -311,6 +311,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [gallery, isOpen]);
 
+  // Carica foto ogni volta che il modal si apre (anche per la stessa galleria)
+  useEffect(() => {
+    if (isOpen && gallery && gallery.id) {
+      console.log('🔄 Modal aperto - caricamento foto per galleria:', gallery.id);
+      loadPhotos();
+    }
+  }, [isOpen, gallery?.id, loadPhotos]);
+
   // Reset currentGalleryId quando il modal si chiude
   useEffect(() => {
     if (!isOpen) {

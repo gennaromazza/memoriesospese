@@ -1078,7 +1078,7 @@ export default function Gallery() {
           gallery={{
             id: galleryData.id,
             name: galleryData.name || "",
-            code: id || "",
+            code: galleryData.code || id || "",
             date: galleryData.date || "",
             location: galleryData.location || "",
             description: galleryData.description || "",
