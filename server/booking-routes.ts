@@ -233,13 +233,15 @@ router.post('/create', async (req, res) => {
     
     // Inizializza Firebase Admin se non già fatto
     if (!admin.apps.length) {
-      // Usa service account completo da secret
-      const serviceAccountJson = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      // Usa service account completo da secret (Base64 encoded)
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       
-      if (!serviceAccountJson) {
+      if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
       }
       
+      // Decodifica Base64 e parse JSON
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
       const serviceAccount = JSON.parse(serviceAccountJson);
       
       admin.initializeApp({
