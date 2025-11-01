@@ -126,4 +126,4 @@ localPort = 46253
 externalPort = 6000
 
 [agent]
-integrations = ["google-mail:1.0.0"]
+integrations = ["google-mail:1.0.0", "google-calendar:1.0.0"]
