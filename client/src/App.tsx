@@ -24,6 +24,7 @@ import PasswordResult from "./pages/PasswordResult";
 import DeleteGalleryPage from "./pages/DeleteGalleryPage";
 import SecurityTestPage from "./pages/SecurityTestPage";
 import UserProfile from "./pages/UserProfile";
+import BookingPage from "./pages/BookingPage";
 import NotFound from "./pages/not-found";
 import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
@@ -48,6 +49,9 @@ function AppRoutes() {
       <Route path="/" component={Home} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
+
+      {/* Booking pubblico */}
+      <Route path="/prenota/:code" component={BookingPage} />
 
       {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
       <Route path="/special-gallery" component={SpecialGalleryAccess} />
