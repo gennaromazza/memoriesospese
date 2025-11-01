@@ -15,6 +15,16 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - **Multiple YouTube video support with interactive carousel slider** - galleries can now display multiple wedding videos with smooth navigation.
 - **Dual-device cover images** - separate optimized cover images for mobile (9:16 portrait) and desktop (16:9 landscape) with advanced crop tool featuring zoom, rotation, and real-time preview.
 - **Special Theme System (Seasonal Galleries)** - modular themed gallery system with hardcoded Tailwind styles (Natale, Carnevale, San Valentino, Pasqua, Halloween). Galleries can be assigned seasonal themes with PIN-based access, displayed in dedicated homepage section.
+- **Booking Management System (November 2025)** - Professional photography booking platform with:
+  - **Product Catalog** - Manage photography products (albums, prints, digital packages) with pricing, discounts, and photo quantity limits.
+  - **Seasonal Booking Campaigns** - Create time-limited booking campaigns with custom themes, working hours (opening, lunch break, closing), and shooting duration. Each campaign has unique public URL and product selection.
+  - **Google Calendar Integration** - Real-time availability checking. Booking form shows only available time slots by syncing with Google Calendar to avoid double bookings.
+  - **Client Booking Portal** - Public booking pages per campaign where clients select date/time, choose products (or decide later), and provide contact details (email + WhatsApp).
+  - **Admin Dashboard** - Manage all bookings with status tracking (pending → confirmed → completed), send confirmation emails, quick WhatsApp messaging, and link bookings to galleries.
+  - **Order Management** - Create multiple orders per gallery with product selection, manual payment tracking (deposit/balance with payment method), and status workflow.
+  - **Photo Selection System** - Global feature for all galleries. Admin enables selection mode with configurable photo limit. Clients select their favorite photos for products. Admin views selections as copyable text list (filename per line) for direct Lightroom import.
+  - **Multi-Gallery Bookings** - Each booking can have multiple galleries (e.g., engagement + ceremony + trash-the-dress), each with independent orders and photo selections.
+  - **Automated Workflows** - Email confirmations on booking approval, WhatsApp quick-send buttons with pre-filled messages for order updates, automatic Google Calendar event creation.
 
 **Vision:** To be a leading platform for digital wedding memory preservation, offering a seamless and engaging experience for all users.
 
