@@ -1,0 +1,77 @@
+Sei un assistente React + Tailwind esperto.
+Sto lavorando su un progetto chiamato “Memorie Sospese”.
+
+👉 Obiettivo:
+Trasformare il componente <SubscriptionPrompt /> in un box fluttuante in basso a destra dello schermo, con effetto “vetro satinato” e comportamento intelligente:
+- Deve apparire solo quando `showSubscriptionPrompt` è true.
+- Deve sparire automaticamente quando l’utente si iscrive o clicca sulla X.
+- Deve rimanere fisso anche durante lo scroll (position: fixed).
+- Deve avere una leggera animazione fade-in.
+
+---
+
+### 1️⃣ Modifica file `client/src/pages/Gallery.tsx`
+Rimuovi la parte che mostra `<SubscriptionPrompt />` dentro la griglia delle foto (attualmente intorno a `index === 19`) e sostituiscila con:
+
+```tsx
+{/* Prompt di iscrizione fluttuante - visibile solo se showSubscriptionPrompt è true */}
+{showSubscriptionPrompt && galleryData && (
+  <div className="fixed bottom-6 right-6 z-50 max-w-sm">
+    <SubscriptionPrompt
+      galleryId={galleryData.id}
+      galleryName={galleryData.name}
+      onDismiss={() => setShowSubscriptionPrompt(false)}
+    />
+  </div>
+)}
+2️⃣ Modifica file client/src/components/SubscriptionPrompt.tsx
+Nel wrapper principale del componente, sostituisci il div esterno con questo:
+
+tsx
+Copia codice
+<div
+  className="relative z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border border-sage/40 rounded-xl p-5 shadow-2xl animate-fade-in"
+  style={{ isolation: 'isolate' }}
+>
+Aggiungi (se manca) una classe CSS globale per l’animazione fade-in:
+nel file src/styles/globals.css o dove hai le animazioni globali, aggiungi:
+
+css
+Copia codice
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out;
+}
+3️⃣ Mantieni questa logica di chiusura nel handleSubscribe():
+Assicurati che dentro if (result.success) ci sia la chiamata:
+
+ts
+Copia codice
+if (onDismiss) onDismiss();
+così il box si chiude automaticamente dopo l’iscrizione riuscita.
+
+4️⃣ Aspetto visivo desiderato:
+Sfondo semi-opaco bianco (vetro satinato)
+
+Bordo leggero color sage
+
+Ombra soft (shadow-2xl)
+
+Arrotondato (rounded-xl)
+
+Fade-in quando appare
+
+Posizionato in basso a destra (bottom-6 right-6)
+
+z-index alto per evitare che si copra con le immagini
+
+Applica tutte le modifiche sopra e assicurati che:
+
+Il componente funzioni su mobile e desktop
+
+Il prompt si chiuda correttamente dopo iscrizione o clic su “X”
+
+Non venga coperto dalle foto della galleria
