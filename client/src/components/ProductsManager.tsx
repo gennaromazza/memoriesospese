@@ -2,12 +2,15 @@
  * ProductsManager - Gestione Catalogo Prodotti Fotografici
  */
 
-import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Package, Euro, Image } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import imageCompression from 'browser-image-compression';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   Dialog,
   DialogContent,
@@ -60,7 +63,13 @@ export default function ProductsManager() {
     numeroFoto: 0,
     categoria: 'album',
     attivo: true,
+    immagini: [],
   });
+
+  // Upload immagini
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [productImages, setProductImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast();
 
@@ -96,7 +105,9 @@ export default function ProductsManager() {
       numeroFoto: 0,
       categoria: 'album',
       attivo: true,
+      immagini: [],
     });
+    setProductImages([]);
     setIsDialogOpen(true);
   }
 
@@ -110,8 +121,95 @@ export default function ProductsManager() {
       numeroFoto: product.numeroFoto,
       categoria: product.categoria,
       attivo: product.attivo,
+      immagini: product.immagini || [],
     });
+    setProductImages(product.immagini || []);
     setIsDialogOpen(true);
+  }
+
+  // Comprimi e carica immagini prodotto
+  async function handleImageUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+
+    // Limite massimo 5 immagini per prodotto
+    if (productImages.length + files.length > 5) {
+      toast({
+        title: 'Limite raggiunto',
+        description: 'Puoi caricare massimo 5 immagini per prodotto',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingImages(true);
+
+    try {
+      const uploadedUrls: string[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+
+        // Validazione tipo file
+        if (!file.type.startsWith('image/')) {
+          toast({
+            title: 'File non valido',
+            description: `${file.name} non è un'immagine`,
+            variant: 'destructive',
+          });
+          continue;
+        }
+
+        // Comprimi immagine
+        const options = {
+          maxSizeMB: 0.5, // Max 500KB
+          maxWidthOrHeight: 1200,
+          useWebWorker: true,
+        };
+
+        const compressedFile = await imageCompression(file, options);
+
+        // Upload a Firebase Storage
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(7);
+        const fileName = `product_${timestamp}_${randomId}.jpg`;
+        const storagePath = `products/temp/${fileName}`; // Temp finché prodotto non è salvato
+        const storageRef = ref(storage, storagePath);
+
+        await uploadBytes(storageRef, compressedFile);
+        const downloadURL = await getDownloadURL(storageRef);
+
+        uploadedUrls.push(downloadURL);
+      }
+
+      // Aggiorna stato immagini
+      const newImages = [...productImages, ...uploadedUrls];
+      setProductImages(newImages);
+      setFormData({ ...formData, immagini: newImages });
+
+      toast({
+        title: 'Immagini caricate',
+        description: `${uploadedUrls.length} ${uploadedUrls.length === 1 ? 'immagine caricata' : 'immagini caricate'} con successo`,
+      });
+    } catch (error) {
+      console.error('Errore upload immagini:', error);
+      toast({
+        title: 'Errore upload',
+        description: 'Impossibile caricare le immagini',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingImages(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }
+
+  // Rimuovi immagine
+  function handleRemoveImage(imageUrl: string) {
+    const newImages = productImages.filter(url => url !== imageUrl);
+    setProductImages(newImages);
+    setFormData({ ...formData, immagini: newImages });
   }
 
   async function handleSave() {
@@ -303,6 +401,22 @@ export default function ProductsManager() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* Immagine prodotto */}
+                {product.immagini && product.immagini.length > 0 && (
+                  <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted">
+                    <img
+                      src={product.immagini[0]}
+                      alt={product.nome}
+                      className="w-full h-full object-cover"
+                    />
+                    {product.immagini.length > 1 && (
+                      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                        +{product.immagini.length - 1} foto
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <p className="text-sm text-muted-foreground line-clamp-2">
                   {product.descrizione || 'Nessuna descrizione'}
                 </p>
@@ -477,6 +591,72 @@ export default function ProductsManager() {
               <p className="text-xs text-muted-foreground">
                 Numero di foto che il cliente può selezionare per questo prodotto
               </p>
+            </div>
+
+            {/* Immagini Prodotto */}
+            <div className="space-y-3 pt-2 border-t">
+              <Label>Immagini Prodotto (max 5)</Label>
+              
+              {/* Griglia immagini caricate */}
+              {productImages.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {productImages.map((imageUrl, index) => (
+                    <div key={index} className="relative group aspect-square rounded-lg overflow-hidden border-2 border-muted">
+                      <img
+                        src={imageUrl}
+                        alt={`Prodotto ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(imageUrl)}
+                        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        data-testid={`button-remove-image-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Pulsante upload */}
+              {productImages.length < 5 && (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handleImageUpload(e.target.files)}
+                    className="hidden"
+                    data-testid="input-product-images"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImages}
+                    className="w-full"
+                    data-testid="button-upload-images"
+                  >
+                    {uploadingImages ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
+                        Caricamento...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Carica Immagini ({productImages.length}/5)
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Immagini compresse automaticamente (max 500KB, 1200px)
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Stato Attivo */}

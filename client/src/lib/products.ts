@@ -57,6 +57,7 @@ export async function createProduct(data: InsertProduct): Promise<string> {
   
   const docRef = await addDoc(collection(db, PRODUCTS_COLLECTION), {
     ...data,
+    immagini: data.immagini || [], // Array vuoto se non fornito
     prezzoFinale,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

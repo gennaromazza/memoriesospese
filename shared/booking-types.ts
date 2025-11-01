@@ -18,6 +18,7 @@ export interface Product {
   numeroFoto: number; // Numero foto incluse nel prodotto (es. 20 per album)
   categoria: 'album' | 'stampe' | 'digitale' | 'video' | 'pacchetto';
   attivo: boolean;
+  immagini: string[]; // Array URLs immagini prodotto da Firebase Storage
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -30,6 +31,7 @@ export interface InsertProduct {
   numeroFoto: number;
   categoria: 'album' | 'stampe' | 'digitale' | 'video' | 'pacchetto';
   attivo: boolean;
+  immagini?: string[]; // Opzionale in fase di creazione
 }
 
 /**
