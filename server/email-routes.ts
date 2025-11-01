@@ -466,8 +466,6 @@ router.post(
         console.error(
           `❌ Firestore query failed: ${subscriptionsResponse.status} ${subscriptionsResponse.statusText}`,
         );
-        const errorText = await subscriptionsResponse.text();
-        console.error(`❌ Error response: ${errorText}`);
         return res.status(500).json({
           error: {
             code: "internal",
@@ -477,11 +475,6 @@ router.post(
       }
 
       const subscriptionsData = await subscriptionsResponse.json();
-      
-      console.log(`🔍 Firestore response type: ${typeof subscriptionsData}`);
-      console.log(`🔍 Is array: ${Array.isArray(subscriptionsData)}`);
-      console.log(`🔍 Response keys: ${Object.keys(subscriptionsData || {}).join(", ")}`);
-      console.log(`🔍 Full response: ${JSON.stringify(subscriptionsData, null, 2)}`);
 
       // Estrai email dai risultati Firestore REST API
       const recipients = (

@@ -24,7 +24,7 @@ service cloud.firestore {
 
     // Subscriptions collection - Email notifications for new photos
     match /subscriptions/{subscriptionId} {
-      allow read: if isSignedIn() || isAdmin(); // Permetti lettura a utenti autenticati (inclusi anonimi) per controllo duplicati
+      allow read: if true; // Lettura pubblica necessaria per server Express (invio notifiche email)
       allow create: if 
         // Permetti iscrizione con autenticazione (anche anonima) e validazione campi richiesti
         isSignedIn() &&
