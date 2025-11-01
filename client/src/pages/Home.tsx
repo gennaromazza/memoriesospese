@@ -323,8 +323,12 @@ export default function Home() {
 
       {/* Active Booking Campaigns Slider - FULL WIDTH */}
       {activeCampaigns.length > 0 && (
-        <section className="py-0 bg-gradient-to-br from-sage/20 via-white to-cream/30 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sage/5 via-transparent to-transparent"></div>
+        <section className="py-16 bg-gradient-to-b from-sage/5 via-off-white to-cream/20 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(139, 154, 139, 0.05) 10px, rgba(139, 154, 139, 0.05) 20px)`
+            }}></div>
+          </div>
           
           <div className="relative z-10 w-full">
             {activeCampaigns.length === 1 ? (
@@ -339,50 +343,68 @@ export default function Home() {
                   const daysLeft = Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
                   return (
-                    <div className="bg-gradient-to-r from-sage via-dark-sage to-sage py-12 px-4 sm:px-6 lg:px-8">
-                      <div className="max-w-7xl mx-auto">
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                      <div className="bg-gradient-to-br from-white via-cream/30 to-white rounded-3xl shadow-xl border border-sage/10 overflow-hidden backdrop-blur-sm">
+                        <div className="flex flex-col md:flex-row items-center gap-12 p-8 sm:p-12 lg:p-16">
                           {/* Left side - Info */}
-                          <div className="flex-1 text-white text-center md:text-left">
-                            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full mb-4">
-                              <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
-                              <span className="text-sm font-semibold uppercase tracking-wide">🎉 Prenotazioni Aperte</span>
+                          <div className="flex-1 text-center md:text-left space-y-6">
+                            <div className="inline-flex items-center gap-2 bg-sage/5 px-5 py-2 rounded-full border border-sage/20">
+                              <Sparkles className="w-4 h-4 text-sage animate-shimmer" />
+                              <span className="text-xs font-semibold uppercase tracking-wider text-sage">Prenotazioni Aperte</span>
                             </div>
                             
-                            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold font-playfair mb-4 drop-shadow-lg text-shadow">
-                              ✨ {campaign.nome}
-                            </h2>
+                            <div>
+                              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
+                                {campaign.nome}
+                              </h2>
+                              <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
+                            </div>
                             
-                            <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 text-lg mb-6">
-                              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
-                                <Calendar className="w-5 h-5" />
-                                <span className="font-medium">{formatDate(startDate)} - {formatDate(endDate)}</span>
+                            <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4 text-base">
+                              <div className="flex items-center gap-2 bg-sage/5 px-5 py-3 rounded-xl border border-sage/10">
+                                <Calendar className="w-5 h-5 text-sage" />
+                                <span className="font-medium text-gray-700">{formatDate(startDate)}</span>
+                                <span className="text-gray-400">—</span>
+                                <span className="font-medium text-gray-700">{formatDate(endDate)}</span>
                               </div>
-                              <div className="flex items-center gap-2 bg-yellow-400/90 text-sage px-4 py-2 rounded-lg font-bold animate-pulse">
-                                <Clock className="w-5 h-5" />
-                                <span>⏰ {daysLeft} giorni rimasti!</span>
+                              <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-yellow-100/50 px-5 py-3 rounded-xl border border-yellow-200/50 shadow-sm animate-shimmer-slow">
+                                <Clock className="w-5 h-5 text-yellow-600" />
+                                <span className="font-bold text-yellow-700">{daysLeft} giorni rimasti</span>
                               </div>
                             </div>
 
                             {campaign.descrizione && (
-                              <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto md:mx-0">
-                                {campaign.descrizione}
-                              </p>
+                              <div className="bg-gradient-to-br from-sage/5 to-transparent p-6 rounded-2xl border border-sage/10">
+                                <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto md:mx-0">
+                                  {campaign.descrizione}
+                                </p>
+                              </div>
                             )}
                           </div>
 
                           {/* Right side - CTA */}
                           <div className="flex-shrink-0">
-                            <Button
-                              onClick={() => navigate(createUrl('/booking'))}
-                              size="lg"
-                              className="bg-white text-sage hover:bg-cream text-xl font-bold py-8 px-12 rounded-2xl shadow-2xl hover:shadow-yellow-300/50 transition-all transform hover:scale-105 hover:-translate-y-1"
-                              data-testid={`button-book-campaign-${campaign.id}`}
-                            >
-                              <Calendar className="w-7 h-7 mr-3" />
-                              📸 Prenota Subito!
-                            </Button>
+                            <div className="bg-gradient-to-br from-white to-sage/5 p-8 rounded-2xl border border-sage/20 shadow-lg">
+                              <Button
+                                onClick={() => navigate(createUrl('/booking'))}
+                                size="lg"
+                                className="bg-sage text-white hover:bg-dark-sage text-xl font-bold py-8 px-12 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-sage/20"
+                                data-testid={`button-book-campaign-${campaign.id}`}
+                                style={{ boxShadow: 'inset 0 -2px 8px rgba(0,0,0,0.1)' }}
+                              >
+                                <Calendar className="w-7 h-7 mr-3" />
+                                Prenota Subito
+                              </Button>
+                              <p className="text-center text-xs text-gray-500 mt-4 tracking-wide">
+                                Posti limitati disponibili
+                              </p>
+                            </div>
                           </div>
+                        </div>
+                        
+                        {/* Decorative floral divider */}
+                        <div className="flex justify-center pb-6">
+                          <FloralDivider className="w-32 h-8 text-sage/20" />
                         </div>
                       </div>
                     </div>
@@ -391,16 +413,16 @@ export default function Home() {
               </div>
             ) : (
               // Multiple campaigns - carousel slider
-              <div className="py-8">
-                <div className="text-center mb-8">
-                  <div className="inline-flex items-center gap-2 bg-sage/10 px-6 py-3 rounded-full mb-3">
-                    <Sparkles className="w-6 h-6 text-sage animate-pulse" />
-                    <span className="text-lg font-bold text-sage uppercase tracking-wide">🎉 Prenotazioni Aperte</span>
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="text-center mb-12">
+                  <div className="inline-flex items-center gap-2 bg-sage/5 px-6 py-3 rounded-full border border-sage/20 mb-3">
+                    <Sparkles className="w-5 h-5 text-sage animate-shimmer" />
+                    <span className="text-sm font-semibold uppercase tracking-wider text-sage">Prenotazioni Aperte</span>
                   </div>
                 </div>
 
                 <div className="overflow-hidden" ref={emblaRef}>
-                  <div className="flex">
+                  <div className="flex transition-all duration-500 ease-out">
                     {activeCampaigns.map((campaign) => {
                       const startDate = campaign.dataInizio.toDate();
                       const endDate = campaign.dataFine.toDate();
@@ -410,46 +432,62 @@ export default function Home() {
 
                       return (
                         <div key={campaign.id} className="flex-[0_0_100%] min-w-0 px-4">
-                          <div className="max-w-5xl mx-auto bg-gradient-to-r from-sage via-dark-sage to-sage rounded-3xl shadow-2xl overflow-hidden">
-                            <div className="p-8 sm:p-12">
-                              <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-                                {/* Campaign Info */}
-                                <div className="flex-1 text-white text-center md:text-left">
-                                  <h3 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-playfair mb-4 drop-shadow-lg">
-                                    ✨ {campaign.nome}
+                          <div className="bg-gradient-to-br from-white via-cream/30 to-white rounded-3xl shadow-xl border border-sage/10 overflow-hidden backdrop-blur-sm">
+                            <div className="flex flex-col md:flex-row items-center gap-10 p-8 sm:p-12 lg:p-14">
+                              {/* Campaign Info */}
+                              <div className="flex-1 text-center md:text-left space-y-5">
+                                <div>
+                                  <h3 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
+                                    {campaign.nome}
                                   </h3>
-                                  
-                                  <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 mb-6">
-                                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
-                                      <Calendar className="w-5 h-5" />
-                                      <span className="font-medium">{formatDate(startDate)} - {formatDate(endDate)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-yellow-400/90 text-sage px-4 py-2 rounded-lg font-bold animate-pulse">
-                                      <Clock className="w-5 h-5" />
-                                      <span>⏰ {daysLeft} giorni rimasti!</span>
-                                    </div>
+                                  <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
+                                </div>
+                                
+                                <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 text-sm">
+                                  <div className="flex items-center gap-2 bg-sage/5 px-4 py-2.5 rounded-xl border border-sage/10">
+                                    <Calendar className="w-4 h-4 text-sage" />
+                                    <span className="font-medium text-gray-700">{formatDate(startDate)}</span>
+                                    <span className="text-gray-400">—</span>
+                                    <span className="font-medium text-gray-700">{formatDate(endDate)}</span>
                                   </div>
-
-                                  {campaign.descrizione && (
-                                    <p className="text-lg text-white/90 mb-6 max-w-xl mx-auto md:mx-0">
-                                      {campaign.descrizione}
-                                    </p>
-                                  )}
+                                  <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-yellow-100/50 px-4 py-2.5 rounded-xl border border-yellow-200/50 shadow-sm animate-shimmer-slow">
+                                    <Clock className="w-4 h-4 text-yellow-600" />
+                                    <span className="font-bold text-yellow-700">{daysLeft} giorni rimasti</span>
+                                  </div>
                                 </div>
 
-                                {/* CTA Button */}
-                                <div className="flex-shrink-0">
+                                {campaign.descrizione && (
+                                  <div className="bg-gradient-to-br from-sage/5 to-transparent p-5 rounded-2xl border border-sage/10">
+                                    <p className="text-base text-gray-600 leading-relaxed max-w-xl mx-auto md:mx-0">
+                                      {campaign.descrizione}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* CTA Button */}
+                              <div className="flex-shrink-0">
+                                <div className="bg-gradient-to-br from-white to-sage/5 p-6 rounded-2xl border border-sage/20 shadow-lg">
                                   <Button
                                     onClick={() => navigate(createUrl('/booking'))}
                                     size="lg"
-                                    className="bg-white text-sage hover:bg-cream text-lg font-bold py-6 px-10 rounded-2xl shadow-2xl hover:shadow-yellow-300/50 transition-all transform hover:scale-105"
+                                    className="bg-sage text-white hover:bg-dark-sage text-lg font-bold py-6 px-10 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-sage/20"
                                     data-testid={`button-book-campaign-${campaign.id}`}
+                                    style={{ boxShadow: 'inset 0 -2px 8px rgba(0,0,0,0.1)' }}
                                   >
                                     <Calendar className="w-6 h-6 mr-2" />
-                                    📸 Prenota Ora!
+                                    Prenota Ora
                                   </Button>
+                                  <p className="text-center text-xs text-gray-500 mt-3 tracking-wide">
+                                    Posti limitati disponibili
+                                  </p>
                                 </div>
                               </div>
+                            </div>
+                            
+                            {/* Decorative floral divider */}
+                            <div className="flex justify-center pb-5">
+                              <FloralDivider className="w-28 h-7 text-sage/20" />
                             </div>
                           </div>
                         </div>
@@ -459,9 +497,9 @@ export default function Home() {
                 </div>
 
                 {/* Carousel indicators */}
-                <div className="flex justify-center gap-2 mt-6">
+                <div className="flex justify-center gap-2.5 mt-8">
                   {activeCampaigns.map((_, idx) => (
-                    <div key={idx} className="w-2 h-2 rounded-full bg-sage/30"></div>
+                    <div key={idx} className="w-2.5 h-2.5 rounded-full bg-sage/20 hover:bg-sage/40 transition-colors cursor-pointer border border-sage/30"></div>
                   ))}
                 </div>
               </div>
