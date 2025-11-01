@@ -1091,6 +1091,32 @@ export default function Gallery() {
           }}
         />
       )}
+
+      {/* Delete Photo Dialog */}
+      {/* The following lines are commented out because they are no longer relevant to the prompt's placement */}
+      {/* {photoToDelete && (
+        <DeletePhotoDialog
+          isOpen={deleteDialogOpen}
+          onClose={() => {
+            setDeleteDialogOpen(false);
+            setPhotoToDelete(null);
+          }}
+          onConfirm={confirmDelete}
+          photoName={photoToDelete.originalName || 'questa foto'}
+        />
+      )} */}
+    </div>
+
+      {/* Prompt di iscrizione fluttuante - visibile solo se showSubscriptionPrompt è true */}
+      {showSubscriptionPrompt && galleryData && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm">
+          <SubscriptionPrompt
+            galleryId={galleryData.id}
+            galleryName={galleryData.name}
+            onDismiss={() => setShowSubscriptionPrompt(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
