@@ -272,7 +272,7 @@ router.post('/create', async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // 4. Invia email automatica "Prenotazione Ricevuta" (chiamata al server Express)
+    // 4. Invia email automatica "Prenotazione Ricevuta" (chiamata diretta alla funzione)
     try {
       // Recupera nome campagna da Firestore
       const campaignDoc = await db.collection('booking_campaigns').doc(campaignId).get();
@@ -296,29 +296,28 @@ router.post('/create', async (req, res) => {
         timeZone: 'Europe/Rome'
       })}`;
       
-      // Chiamata API locale Express.js per invio email
-      const response = await fetch('http://localhost:5000/api/email/send-booking-received', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipientEmail: cliente.email,
-          clienteNome: cliente.nome,
-          clienteCognome: cliente.cognome,
-          campaignNome: campaignName,
-          dataShootingInizio: bookingDate,
-          dataShootingFine: bookingTime,
-          prodottoNome: prodottoNome || null,
-          note: note || ''
-        })
-      });
+      // Import diretto delle funzioni email
+      const { sendGmailEmail, createBookingReceivedEmailHTML } = await import('./email-routes.js');
       
-      if (response.ok) {
-        // Aggiorna flag email inviata
-        await bookingRef.update({ emailRicevutaInviata: true });
-        console.log(`✅ Email "Prenotazione Ricevuta" inviata a ${cliente.email}`);
-      } else {
-        console.error('⚠️ Errore HTTP invio email:', response.status);
-      }
+      const clienteName = `${cliente.nome} ${cliente.cognome}`;
+      const emailHTML = createBookingReceivedEmailHTML(
+        clienteName,
+        campaignName,
+        bookingDate,
+        bookingTime,
+        0, // duration
+        prodottoNome
+      );
+      
+      await sendGmailEmail(
+        cliente.email,
+        `📸 Prenotazione Ricevuta - ${campaignName}`,
+        emailHTML
+      );
+      
+      // Aggiorna flag email inviata
+      await bookingRef.update({ emailRicevutaInviata: true });
+      console.log(`✅ Email "Prenotazione Ricevuta" inviata a ${cliente.email}`);
     } catch (emailError) {
       // Non bloccare la prenotazione se email fallisce
       console.error('⚠️ Errore invio email prenotazione ricevuta:', emailError);
@@ -406,7 +405,7 @@ router.patch('/:id/approve', async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Invia email "Prenotazione Confermata" (chiamata al server Express)
+    // Invia email "Prenotazione Confermata" (chiamata diretta alla funzione)
     try {
       // Recupera nome campagna
       const campaignDoc = await db.collection('booking_campaigns').doc(bookingData.campaignId).get();
@@ -433,29 +432,29 @@ router.patch('/:id/approve', async (req, res) => {
         timeZone: 'Europe/Rome'
       })}`;
 
-      // Chiamata API locale Express.js per invio email
-      const response = await fetch('http://localhost:5000/api/email/send-booking-confirmed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipientEmail: bookingData.cliente.email,
-          clienteNome: bookingData.cliente.nome,
-          clienteCognome: bookingData.cliente.cognome,
-          campaignNome: campaignName,
-          dataShootingInizio: bookingDate,
-          dataShootingFine: bookingTime,
-          prodottoNome: bookingData.prodottoNome || null,
-          note: bookingData.note || ''
-        })
-      });
+      // Import diretto delle funzioni email
+      const { sendGmailEmail, createBookingConfirmedEmailHTML } = await import('./email-routes.js');
 
-      if (response.ok) {
-        // Aggiorna flag email confermata inviata
-        await bookingRef.update({ emailConfermataInviata: true });
-        console.log(`✅ Email "Prenotazione Confermata" inviata a ${bookingData.cliente.email}`);
-      } else {
-        console.error('⚠️ Errore HTTP invio email conferma:', response.status);
-      }
+      const clienteName = `${bookingData.cliente.nome} ${bookingData.cliente.cognome}`;
+      const emailHTML = createBookingConfirmedEmailHTML(
+        clienteName,
+        campaignName,
+        bookingDate,
+        bookingTime,
+        0, // duration
+        bookingData.prodottoNome,
+        bookingData.note
+      );
+
+      await sendGmailEmail(
+        bookingData.cliente.email,
+        `✅ Prenotazione Confermata - ${campaignName}`,
+        emailHTML
+      );
+
+      // Aggiorna flag email confermata inviata
+      await bookingRef.update({ emailConfermataInviata: true });
+      console.log(`✅ Email "Prenotazione Confermata" inviata a ${bookingData.cliente.email}`);
     } catch (emailError) {
       console.error('⚠️ Errore invio email conferma:', emailError);
       // Non bloccare l'approvazione se email fallisce

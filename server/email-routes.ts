@@ -139,8 +139,9 @@ async function getAccessToken(): Promise<string> {
 
 /**
  * Invia email tramite Gmail API
+ * ESPORTATA per uso diretto da altri moduli (booking-routes.ts)
  */
-async function sendGmailEmail(
+export async function sendGmailEmail(
   to: string | string[],
   subject: string,
   htmlContent: string,
