@@ -66,58 +66,67 @@ export function SubscriptionPrompt({
   };
 
   return (
-    <div
-      className="relative z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border border-sage/40 rounded-xl p-5 shadow-2xl animate-fade-in"
-      style={{ isolation: 'isolate' }}
+    <div 
+      className="relative bg-gradient-to-br from-sage/10 via-sage/5 to-transparent dark:from-sage/20 dark:via-sage/10 border border-sage/20 dark:border-sage/30 rounded-lg p-6 shadow-lg my-8"
+      data-testid="subscription-prompt"
     >
-      <div className="space-y-2 mb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-sage animate-pulse" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Resta Aggiornato!</h3>
+      {/* Bottone chiudi */}
+      {onDismiss && (
+        <button
+          onClick={onDismiss}
+          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+          aria-label="Chiudi"
+          data-testid="button-dismiss"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      )}
+
+      <div className="flex flex-col sm:flex-row items-center gap-4">
+        {/* Icona */}
+        <div className="flex-shrink-0">
+          <div className="rounded-full bg-sage/20 dark:bg-sage/30 p-4">
+            <Bell className="h-8 w-8 text-sage" />
           </div>
-          {onDismiss && (
-            <button
-              onClick={onDismiss}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-              aria-label="Chiudi"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
         </div>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          Ricevi una notifica quando vengono caricate nuove foto in questa galleria
-        </p>
-      </div>
-      <div className="space-y-4">
-        <form onSubmit={(e) => e.preventDefault()}>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                type="email"
-                placeholder="la-tua-email@esempio.it"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSubscribe();
-                }}
-                className="pl-10 bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 backdrop-blur-sm"
-                disabled={isSubscribing}
-                data-testid="input-email"
-              />
-            </div>
-            <Button
-              onClick={handleSubscribe}
+
+        {/* Contenuto */}
+        <div className="flex-1 text-center sm:text-left">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
+            Non perdere nessuna foto!
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Iscriviti per ricevere una notifica quando vengono aggiunte nuove foto a{" "}
+            <span className="font-medium text-sage">{galleryName}</span>
+          </p>
+        </div>
+
+        {/* Form iscrizione */}
+        <div className="flex gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="email"
+              placeholder="la-tua-email@esempio.it"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSubscribe();
+              }}
+              className="pl-10 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
               disabled={isSubscribing}
-              className="bg-sage hover:bg-sage/90 text-white px-6"
-              data-testid="button-subscribe"
-            >
-              {isSubscribing ? "Iscrizione..." : "Iscriviti alle notifiche"}
-            </Button>
+              data-testid="input-email"
+            />
           </div>
-        </form>
+          <Button
+            onClick={handleSubscribe}
+            disabled={isSubscribing}
+            className="bg-sage hover:bg-sage/90 text-white px-6"
+            data-testid="button-subscribe"
+          >
+            {isSubscribing ? "Iscrizione..." : "Iscriviti"}
+          </Button>
+        </div>
       </div>
     </div>
   );

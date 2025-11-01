@@ -269,25 +269,13 @@
     border-color: hsl(var(--beige));
   }
 
-  .text-balance {
-    text-wrap: balance;
+  .animate-fade-in {
+    animation: fadeIn 0.7s ease-in-out;
   }
-}
 
-/* Animazione fade-in per SubscriptionPrompt */
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
+  .animate-slide-up {
+    animation: slideUp 0.7s ease-out;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.4s ease-out;
 }
 
 @keyframes fadeIn {
