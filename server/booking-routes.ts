@@ -137,6 +137,161 @@ router.post('/available-slots', async (req, res) => {
 });
 
 /**
+ * POST /api/booking/create
+ * Crea prenotazione con verifica slot atomica + creazione evento Google Calendar
+ * 
+ * Body: {
+ *   campaignId: string,
+ *   cliente: { nome, cognome, email, whatsapp },
+ *   dataShootingInizio: ISO string,
+ *   dataShootingFine: ISO string,
+ *   prodottoId?: string,
+ *   prodottoNome?: string,
+ *   note: string,
+ *   workingHours: { apertura, pausaInizio, pausaFine, chiusura },
+ *   durataMinuti: number
+ * }
+ */
+router.post('/create', async (req, res) => {
+  try {
+    const {
+      campaignId,
+      cliente,
+      dataShootingInizio,
+      dataShootingFine,
+      prodottoId,
+      prodottoNome,
+      note,
+      workingHours,
+      durataMinuti
+    } = req.body;
+
+    // Validazione parametri base
+    if (!campaignId || !cliente || !dataShootingInizio || !dataShootingFine) {
+      return res.status(400).json({ 
+        error: 'Parametri mancanti' 
+      });
+    }
+
+    // Validazione cliente
+    if (!cliente.nome?.trim() || !cliente.cognome?.trim() || !cliente.email?.trim() || !cliente.whatsapp?.trim()) {
+      return res.status(400).json({ 
+        error: 'Dati cliente incompleti' 
+      });
+    }
+
+    // Parse date
+    const slotStart = new Date(dataShootingInizio);
+    const slotEnd = new Date(dataShootingFine);
+
+    if (isNaN(slotStart.getTime()) || isNaN(slotEnd.getTime())) {
+      return res.status(400).json({ 
+        error: 'Date invalide' 
+      });
+    }
+
+    // 1. Ricontrolla disponibilità slot via Google Calendar
+    const dateStr = slotStart.toISOString().split('T')[0];
+    
+    const availableSlots = await getAvailableSlots(
+      'primary',
+      slotStart,
+      workingHours as WorkingHours,
+      durataMinuti
+    );
+
+    // Verifica che lo slot selezionato sia ancora disponibile
+    const slotStillAvailable = availableSlots.some(slot => 
+      Math.abs(slot.start.getTime() - slotStart.getTime()) < 1000 &&
+      Math.abs(slot.end.getTime() - slotEnd.getTime()) < 1000
+    );
+
+    if (!slotStillAvailable) {
+      return res.status(409).json({ 
+        error: 'Slot non più disponibile',
+        message: 'Lo slot selezionato è stato prenotato da qualcun altro. Scegli un altro orario.'
+      });
+    }
+
+    // 2. Crea evento Google Calendar (riserva lo slot atomicamente)
+    const { createEvent } = await import('./google-calendar.js');
+    
+    const calendarEvent = await createEvent(
+      'primary',
+      {
+        summary: `Shooting: ${cliente.nome} ${cliente.cognome}`,
+        description: `Prenotazione shooting\n\nCliente: ${cliente.nome} ${cliente.cognome}\nEmail: ${cliente.email}\nWhatsApp: ${cliente.whatsapp}\n${prodottoNome ? `Prodotto: ${prodottoNome}\n` : ''}${note ? `Note: ${note}` : ''}`,
+        start: slotStart,
+        end: slotEnd,
+        location: 'Studio fotografico',
+        attendees: [cliente.email],
+      }
+    );
+
+    // 3. Solo DOPO evento creato, salva su Firestore
+    const admin = await import('firebase-admin');
+    
+    // Inizializza Firebase Admin se non già fatto
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
+      });
+    }
+
+    const db = admin.firestore();
+    
+    const bookingRef = await db.collection('bookings').add({
+      campaignId,
+      cliente: {
+        nome: cliente.nome.trim(),
+        cognome: cliente.cognome.trim(),
+        email: cliente.email.trim().toLowerCase(),
+        whatsapp: cliente.whatsapp.trim(),
+      },
+      dataShootingInizio: admin.firestore.Timestamp.fromDate(slotStart),
+      dataShootingFine: admin.firestore.Timestamp.fromDate(slotEnd),
+      prodottoId: prodottoId || null,
+      prodottoNome: prodottoNome || null,
+      note: note || '',
+      stato: 'in_attesa',
+      emailConfermataInviata: false,
+      googleCalendarEventId: calendarEvent.id || null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      bookingId: bookingRef.id,
+      calendarEventId: calendarEvent.id,
+      message: 'Prenotazione creata con successo'
+    });
+
+  } catch (error) {
+    console.error('[Booking API] Errore creazione prenotazione:', error);
+    
+    // Gestione errori specifici
+    if (error instanceof Error) {
+      if (error.message.includes('Google Calendar')) {
+        return res.status(503).json({ 
+          error: 'Errore Google Calendar',
+          details: 'Impossibile confermare la prenotazione. Riprova tra qualche minuto.' 
+        });
+      }
+    }
+    
+    return res.status(500).json({ 
+      error: 'Errore interno del server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto' 
+    });
+  }
+});
+
+/**
  * GET /api/booking/health
  * Health check per booking API
  */
