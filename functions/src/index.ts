@@ -332,6 +332,238 @@ export const sendGalleryPasswordV2 = functions
   });
 
 /**
+ * Cloud Function per invio email "Prenotazione Ricevuta"
+ * Inviata automaticamente dopo che il cliente crea una booking
+ */
+export const sendBookingReceivedEmail = functions
+  .runWith({ secrets: ['REPL_IDENTITY'] })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://gennaromazzacane.it',
+      'https://www.gennaromazzacane.it'
+    ];
+
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+                           origin.includes('.replit.dev') ||
+                           origin.includes('replit.app');
+
+    if (isAllowedOrigin) {
+      res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({
+        error: { code: 'method-not-allowed', message: 'Only POST allowed' }
+      });
+      return;
+    }
+
+    try {
+      // AUTENTICAZIONE Firebase (opzionale per booking - guest users)
+      const authHeader = req.headers.authorization || '';
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const idToken = authHeader.replace('Bearer ', '').trim();
+        try {
+          const decoded = await admin.auth().verifyIdToken(idToken);
+          functions.logger.info(`🔐 sendBookingReceivedEmail called by uid=${decoded.uid}`);
+        } catch (authError) {
+          // Log ma non bloccare (guest booking)
+          functions.logger.warn('Auth token provided but invalid:', authError);
+        }
+      }
+
+      // LETTURA DATI DAL BODY
+      const data = req.body.data || req.body;
+      const {
+        recipientEmail,
+        clienteNome,
+        clienteCognome,
+        campaignNome,
+        dataShootingInizio,
+        dataShootingFine,
+        prodottoNome,
+        note
+      } = data || {};
+
+      // VALIDAZIONI
+      if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !dataShootingInizio || !dataShootingFine) {
+        res.status(400).json({
+          error: { code: 'invalid-argument', message: 'Missing required booking details' }
+        });
+        return;
+      }
+
+      // INVIO EMAIL
+      const { sendGmailEmail, createBookingReceivedEmailHTML } = await import('./gmail');
+
+      const htmlContent = createBookingReceivedEmailHTML({
+        clienteNome,
+        clienteCognome,
+        campaignNome,
+        dataShootingInizio,
+        dataShootingFine,
+        prodottoNome,
+        note: note || ''
+      });
+
+      const subject = `Prenotazione Ricevuta - ${campaignNome}`;
+
+      await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+      functions.logger.info(
+        `✉️ Email "Prenotazione Ricevuta" inviata a ${recipientEmail} per campagna ${campaignNome}`
+      );
+
+      res.status(200).json({
+        result: {
+          success: true,
+          message: 'Booking received email sent successfully',
+          recipientEmail
+        }
+      });
+    } catch (error) {
+      functions.logger.error('❌ Error sendBookingReceivedEmail:', error);
+      res.status(500).json({
+        error: { code: 'internal', message: 'Failed to send booking received email' }
+      });
+    }
+  });
+
+/**
+ * Cloud Function per invio email "Prenotazione Confermata"
+ * Inviata dopo che l'admin approva la booking
+ */
+export const sendBookingConfirmedEmail = functions
+  .runWith({ secrets: ['REPL_IDENTITY'] })
+  .https.onRequest(async (req, res) => {
+    // CORS
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://gennaromazzacane.it',
+      'https://www.gennaromazzacane.it'
+    ];
+
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+                           origin.includes('.replit.dev') ||
+                           origin.includes('replit.app');
+
+    if (isAllowedOrigin) {
+      res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({
+        error: { code: 'method-not-allowed', message: 'Only POST allowed' }
+      });
+      return;
+    }
+
+    try {
+      // AUTENTICAZIONE Firebase OBBLIGATORIA (solo admin può confermare)
+      const authHeader = req.headers.authorization || '';
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({
+          error: { code: 'unauthenticated', message: 'Missing Authorization Bearer token' }
+        });
+        return;
+      }
+
+      const idToken = authHeader.replace('Bearer ', '').trim();
+      let uid = '';
+      try {
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        uid = decoded.uid;
+        functions.logger.info(`🔐 sendBookingConfirmedEmail called by uid=${uid}`);
+      } catch (authError) {
+        functions.logger.error('Auth verification failed:', authError);
+        res.status(401).json({
+          error: { code: 'unauthenticated', message: 'Invalid token' }
+        });
+        return;
+      }
+
+      // LETTURA DATI DAL BODY
+      const data = req.body.data || req.body;
+      const {
+        recipientEmail,
+        clienteNome,
+        clienteCognome,
+        campaignNome,
+        dataShootingInizio,
+        dataShootingFine,
+        prodottoNome,
+        note
+      } = data || {};
+
+      // VALIDAZIONI
+      if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !dataShootingInizio || !dataShootingFine) {
+        res.status(400).json({
+          error: { code: 'invalid-argument', message: 'Missing required booking details' }
+        });
+        return;
+      }
+
+      // INVIO EMAIL
+      const { sendGmailEmail, createBookingConfirmedEmailHTML } = await import('./gmail');
+
+      const htmlContent = createBookingConfirmedEmailHTML({
+        clienteNome,
+        clienteCognome,
+        campaignNome,
+        dataShootingInizio,
+        dataShootingFine,
+        prodottoNome,
+        note: note || ''
+      });
+
+      const subject = `✅ Prenotazione Confermata - ${campaignNome}`;
+
+      await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+      functions.logger.info(
+        `✉️ Email "Prenotazione Confermata" inviata a ${recipientEmail} per campagna ${campaignNome} da admin uid=${uid}`
+      );
+
+      res.status(200).json({
+        result: {
+          success: true,
+          message: 'Booking confirmed email sent successfully',
+          recipientEmail
+        }
+      });
+    } catch (error) {
+      functions.logger.error('❌ Error sendBookingConfirmedEmail:', error);
+      res.status(500).json({
+        error: { code: 'internal', message: 'Failed to send booking confirmed email' }
+      });
+    }
+  });
+
+/**
  * Function per test configurazione email
  */
 export const testEmailConfiguration = functions.https.onCall(async (data, context) => {
