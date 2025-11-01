@@ -190,6 +190,9 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               <Link to={createUrl("/")} className="font-medium text-blue-gray hover:text-dark-sage transition">
                 Home
               </Link>
+              <Link to={createUrl("/prenota")} className="font-medium text-blue-gray hover:text-dark-sage transition">
+                Servizi Fotografici
+              </Link>
               <a href="#about" className="font-medium text-blue-gray hover:text-dark-sage transition">Come Funziona</a>
               <a href="#contact" className="font-medium text-blue-gray hover:text-dark-sage transition">Contatti</a>
 
@@ -267,6 +270,9 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
           <Link to={createUrl("/")} className="block px-3 py-2 text-base font-medium text-blue-gray">
             Home
+          </Link>
+          <Link to={createUrl("/prenota")} className="block px-3 py-2 text-base font-medium text-blue-gray">
+            Servizi Fotografici
           </Link>
           <a href="#about" className="block px-3 py-2 text-base font-medium text-blue-gray">Come Funziona</a>
           <a href="#contact" className="block px-3 py-2 text-base font-medium text-blue-gray">Contatti</a>
