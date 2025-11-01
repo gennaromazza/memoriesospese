@@ -28,8 +28,8 @@ import { WeddingImage, DecorativeImage } from "@/components/WeddingImages";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Calendar, Clock, Sparkles } from "lucide-react";
-import useEmblaCarousel from 'embla-carousel-react';
-import Autoplay from 'embla-carousel-autoplay';
+import useEmblaCarousel from "embla-carousel-react";
+import Autoplay from "embla-carousel-autoplay";
 
 interface BookingCampaign {
   id: string;
@@ -50,12 +50,11 @@ export default function Home() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const { studioSettings } = useStudio();
-  
+
   // Carousel for campaigns
-  const [emblaRef] = useEmblaCarousel(
-    { loop: true, align: 'center' },
-    [Autoplay({ delay: 5000, stopOnInteraction: false })]
-  );
+  const [emblaRef] = useEmblaCarousel({ loop: true, align: "center" }, [
+    Autoplay({ delay: 5000, stopOnInteraction: false }),
+  ]);
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -108,9 +107,7 @@ export default function Home() {
       });
 
       setSearchResults(results);
-    } catch (error) {
-
-    }
+    } catch (error) {}
   };
 
   // Handle gallery selection
@@ -122,7 +119,7 @@ export default function Home() {
 
   // Get security question text
   const getSecurityQuestionText = (gallery: any): string => {
-    if (!gallery.requiresSecurityQuestion) return '';
+    if (!gallery.requiresSecurityQuestion) return "";
 
     const questionType = gallery.securityQuestionType;
 
@@ -132,9 +129,9 @@ export default function Home() {
       case SecurityQuestionType.MONTH:
         return "In che mese si è svolto l'evento?";
       case SecurityQuestionType.CUSTOM:
-        return gallery.securityQuestionCustom || 'Domanda personalizzata';
+        return gallery.securityQuestionCustom || "Domanda personalizzata";
       default:
-        return 'Domanda di sicurezza';
+        return "Domanda di sicurezza";
     }
   };
 
@@ -143,15 +140,15 @@ export default function Home() {
     const loadActiveCampaigns = async () => {
       try {
         const now = new Date();
-        const campaignsRef = collection(db, 'booking_campaigns');
+        const campaignsRef = collection(db, "booking_campaigns");
         const campaignsSnapshot = await getDocs(campaignsRef);
-        
+
         const active: BookingCampaign[] = [];
         campaignsSnapshot.forEach((doc) => {
           const data = doc.data();
           const startDate = data.dataInizio?.toDate();
           const endDate = data.dataFine?.toDate();
-          
+
           // Verifica se la campagna è attiva (oggi è tra dataInizio e dataFine)
           if (startDate && endDate && now >= startDate && now <= endDate) {
             active.push({
@@ -159,17 +156,20 @@ export default function Home() {
               nome: data.nome,
               dataInizio: data.dataInizio,
               dataFine: data.dataFine,
-              descrizione: data.descrizione
+              descrizione: data.descrizione,
             });
           }
         });
-        
+
         // Ordina per data fine più vicina
-        active.sort((a, b) => a.dataFine.toDate().getTime() - b.dataFine.toDate().getTime());
-        
+        active.sort(
+          (a, b) =>
+            a.dataFine.toDate().getTime() - b.dataFine.toDate().getTime(),
+        );
+
         setActiveCampaigns(active);
       } catch (error) {
-        console.error('Errore caricamento campagne attive:', error);
+        console.error("Errore caricamento campagne attive:", error);
       }
     };
 
@@ -204,9 +204,10 @@ export default function Home() {
     }
 
     // Verifica se la galleria richiede una domanda di sicurezza
-    const hasSecurityQuestion = selectedGallery.requiresSecurityQuestion === true && 
-                               selectedGallery.securityQuestionType && 
-                               selectedGallery.securityAnswer;
+    const hasSecurityQuestion =
+      selectedGallery.requiresSecurityQuestion === true &&
+      selectedGallery.securityQuestionType &&
+      selectedGallery.securityAnswer;
 
     if (hasSecurityQuestion && !showSecurityQuestion) {
       // Mostra la domanda di sicurezza
@@ -225,7 +226,9 @@ export default function Home() {
     try {
       // Verifica la risposta alla domanda di sicurezza se richiesta
       if (hasSecurityQuestion) {
-        const correctAnswer = selectedGallery.securityAnswer?.toLowerCase().trim();
+        const correctAnswer = selectedGallery.securityAnswer
+          ?.toLowerCase()
+          .trim();
         const providedAnswer = securityAnswer.toLowerCase().trim();
 
         if (providedAnswer !== correctAnswer) {
@@ -247,7 +250,7 @@ export default function Home() {
         relation: formData.relation,
         status: "completed",
         createdAt: serverTimestamp(),
-        securityQuestionAnswered: hasSecurityQuestion
+        securityQuestionAnswered: hasSecurityQuestion,
       });
 
       // Track password request in analytics
@@ -256,8 +259,8 @@ export default function Home() {
       // Show success message
       toast({
         title: "Richiesta ricevuta",
-        description: hasSecurityQuestion 
-          ? "Accesso autorizzato! Password visualizzata." 
+        description: hasSecurityQuestion
+          ? "Accesso autorizzato! Password visualizzata."
           : "Password visualizzata. Le tue informazioni sono state salvate.",
       });
 
@@ -315,7 +318,6 @@ export default function Home() {
               >
                 {studioSettings.heroButtonText}
               </a>
-
             </div>
           </div>
         </div>
@@ -325,11 +327,14 @@ export default function Home() {
       {activeCampaigns.length > 0 && (
         <section className="py-16 bg-gradient-to-b from-sage/5 via-off-white to-cream/20 relative overflow-hidden">
           <div className="absolute inset-0 opacity-5">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(139, 154, 139, 0.05) 10px, rgba(139, 154, 139, 0.05) 20px)`
-            }}></div>
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(139, 154, 139, 0.05) 10px, rgba(139, 154, 139, 0.05) 20px)`,
+              }}
+            ></div>
           </div>
-          
+
           <div className="relative z-10 w-full">
             {activeCampaigns.length === 1 ? (
               // Single campaign - full width display
@@ -338,9 +343,16 @@ export default function Home() {
                   const campaign = activeCampaigns[0];
                   const startDate = campaign.dataInizio.toDate();
                   const endDate = campaign.dataFine.toDate();
-                  const formatDate = (date: Date) => 
-                    date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
-                  const daysLeft = Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                  const formatDate = (date: Date) =>
+                    date.toLocaleDateString("it-IT", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    });
+                  const daysLeft = Math.ceil(
+                    (endDate.getTime() - new Date().getTime()) /
+                      (1000 * 60 * 60 * 24),
+                  );
 
                   return (
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -350,26 +362,34 @@ export default function Home() {
                           <div className="flex-1 text-center md:text-left space-y-6">
                             <div className="inline-flex items-center gap-2 bg-sage/5 px-5 py-2 rounded-full border border-sage/20">
                               <Sparkles className="w-4 h-4 text-sage animate-shimmer" />
-                              <span className="text-xs font-semibold uppercase tracking-wider text-sage">Prenotazioni Aperte</span>
+                              <span className="text-xs font-semibold uppercase tracking-wider text-sage">
+                                Prenotazioni Aperte
+                              </span>
                             </div>
-                            
+
                             <div>
                               <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
                                 {campaign.nome}
                               </h2>
                               <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
                             </div>
-                            
+
                             <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4 text-base">
                               <div className="flex items-center gap-2 bg-sage/5 px-5 py-3 rounded-xl border border-sage/10">
                                 <Calendar className="w-5 h-5 text-sage" />
-                                <span className="font-medium text-gray-700">{formatDate(startDate)}</span>
+                                <span className="font-medium text-gray-700">
+                                  {formatDate(startDate)}
+                                </span>
                                 <span className="text-gray-400">—</span>
-                                <span className="font-medium text-gray-700">{formatDate(endDate)}</span>
+                                <span className="font-medium text-gray-700">
+                                  {formatDate(endDate)}
+                                </span>
                               </div>
                               <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-yellow-100/50 px-5 py-3 rounded-xl border border-yellow-200/50 shadow-sm animate-shimmer-slow">
                                 <Clock className="w-5 h-5 text-yellow-600" />
-                                <span className="font-bold text-yellow-700">{daysLeft} giorni rimasti</span>
+                                <span className="font-bold text-yellow-700">
+                                  {daysLeft} giorni rimasti
+                                </span>
                               </div>
                             </div>
 
@@ -386,11 +406,13 @@ export default function Home() {
                           <div className="flex-shrink-0">
                             <div className="bg-gradient-to-br from-white to-sage/5 p-8 rounded-2xl border border-sage/20 shadow-lg">
                               <Button
-                                onClick={() => navigate(createUrl('/booking'))}
+                                onClick={() => navigate(createUrl("/booking"))}
                                 size="lg"
                                 className="bg-sage text-white hover:bg-dark-sage text-xl font-bold py-8 px-12 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-sage/20"
                                 data-testid={`button-book-campaign-${campaign.id}`}
-                                style={{ boxShadow: 'inset 0 -2px 8px rgba(0,0,0,0.1)' }}
+                                style={{
+                                  boxShadow: "inset 0 -2px 8px rgba(0,0,0,0.1)",
+                                }}
                               >
                                 <Calendar className="w-7 h-7 mr-3" />
                                 Prenota Subito
@@ -401,7 +423,7 @@ export default function Home() {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Decorative floral divider */}
                         <div className="flex justify-center pb-6">
                           <FloralDivider className="w-32 h-8 text-sage/20" />
@@ -417,7 +439,9 @@ export default function Home() {
                 <div className="text-center mb-12">
                   <div className="inline-flex items-center gap-2 bg-sage/5 px-6 py-3 rounded-full border border-sage/20 mb-3">
                     <Sparkles className="w-5 h-5 text-sage animate-shimmer" />
-                    <span className="text-sm font-semibold uppercase tracking-wider text-sage">Prenotazioni Aperte</span>
+                    <span className="text-sm font-semibold uppercase tracking-wider text-sage">
+                      Prenotazioni Aperte
+                    </span>
                   </div>
                 </div>
 
@@ -426,12 +450,22 @@ export default function Home() {
                     {activeCampaigns.map((campaign) => {
                       const startDate = campaign.dataInizio.toDate();
                       const endDate = campaign.dataFine.toDate();
-                      const formatDate = (date: Date) => 
-                        date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
-                      const daysLeft = Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                      const formatDate = (date: Date) =>
+                        date.toLocaleDateString("it-IT", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        });
+                      const daysLeft = Math.ceil(
+                        (endDate.getTime() - new Date().getTime()) /
+                          (1000 * 60 * 60 * 24),
+                      );
 
                       return (
-                        <div key={campaign.id} className="flex-[0_0_100%] min-w-0 px-4">
+                        <div
+                          key={campaign.id}
+                          className="flex-[0_0_100%] min-w-0 px-4"
+                        >
                           <div className="bg-gradient-to-br from-white via-cream/30 to-white rounded-3xl shadow-xl border border-sage/10 overflow-hidden backdrop-blur-sm">
                             <div className="flex flex-col md:flex-row items-center gap-10 p-8 sm:p-12 lg:p-14">
                               {/* Campaign Info */}
@@ -442,17 +476,23 @@ export default function Home() {
                                   </h3>
                                   <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
                                 </div>
-                                
+
                                 <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 text-sm">
                                   <div className="flex items-center gap-2 bg-sage/5 px-4 py-2.5 rounded-xl border border-sage/10">
                                     <Calendar className="w-4 h-4 text-sage" />
-                                    <span className="font-medium text-gray-700">{formatDate(startDate)}</span>
+                                    <span className="font-medium text-gray-700">
+                                      {formatDate(startDate)}
+                                    </span>
                                     <span className="text-gray-400">—</span>
-                                    <span className="font-medium text-gray-700">{formatDate(endDate)}</span>
+                                    <span className="font-medium text-gray-700">
+                                      {formatDate(endDate)}
+                                    </span>
                                   </div>
                                   <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-yellow-100/50 px-4 py-2.5 rounded-xl border border-yellow-200/50 shadow-sm animate-shimmer-slow">
                                     <Clock className="w-4 h-4 text-yellow-600" />
-                                    <span className="font-bold text-yellow-700">{daysLeft} giorni rimasti</span>
+                                    <span className="font-bold text-yellow-700">
+                                      {daysLeft} giorni rimasti
+                                    </span>
                                   </div>
                                 </div>
 
@@ -469,11 +509,16 @@ export default function Home() {
                               <div className="flex-shrink-0">
                                 <div className="bg-gradient-to-br from-white to-sage/5 p-6 rounded-2xl border border-sage/20 shadow-lg">
                                   <Button
-                                    onClick={() => navigate(createUrl('/booking'))}
+                                    onClick={() =>
+                                      navigate(createUrl("/booking"))
+                                    }
                                     size="lg"
                                     className="bg-sage text-white hover:bg-dark-sage text-lg font-bold py-6 px-10 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-sage/20"
                                     data-testid={`button-book-campaign-${campaign.id}`}
-                                    style={{ boxShadow: 'inset 0 -2px 8px rgba(0,0,0,0.1)' }}
+                                    style={{
+                                      boxShadow:
+                                        "inset 0 -2px 8px rgba(0,0,0,0.1)",
+                                    }}
                                   >
                                     <Calendar className="w-6 h-6 mr-2" />
                                     Prenota Ora
@@ -484,7 +529,7 @@ export default function Home() {
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Decorative floral divider */}
                             <div className="flex justify-center pb-5">
                               <FloralDivider className="w-28 h-7 text-sage/20" />
@@ -499,7 +544,10 @@ export default function Home() {
                 {/* Carousel indicators */}
                 <div className="flex justify-center gap-2.5 mt-8">
                   {activeCampaigns.map((_, idx) => (
-                    <div key={idx} className="w-2.5 h-2.5 rounded-full bg-sage/20 hover:bg-sage/40 transition-colors cursor-pointer border border-sage/30"></div>
+                    <div
+                      key={idx}
+                      className="w-2.5 h-2.5 rounded-full bg-sage/20 hover:bg-sage/40 transition-colors cursor-pointer border border-sage/30"
+                    ></div>
                   ))}
                 </div>
               </div>
@@ -541,26 +589,16 @@ export default function Home() {
 
             <div className="px-8 pt-12 pb-8">
               <h2 className="text-center text-2xl font-bold text-blue-gray font-playfair mb-3">
-              Accedi alle Foto dell'Evento
-            </h2>
-            <p className="text-center text-gray-600 mb-8 italic">
-              Inserisci i nomi dei protagonisti dell'evento
-            </p>
+                Accedi alle Foto dell'Evento
+              </h2>
+              <p className="text-center text-gray-600 mb-8 italic">
+                Inserisci i nomi dei protagonisti dell'evento
+              </p>
 
               <div className="space-y-6">
                 <div className="mt-1 bg-off-white p-4 rounded-lg shadow-inner">
                   <GallerySearch />
                 </div>
-
-                <div className="relative flex items-center py-5">
-                  <div className="flex-grow border-t border-beige"></div>
-                  <span className="flex-shrink mx-4 text-gray-500 bg-white px-2">
-                    oppure
-                  </span>
-                  <div className="flex-grow border-t border-beige"></div>
-                </div>
-
-                
               </div>
             </div>
 
@@ -585,15 +623,26 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-12">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-sage/80 to-dark-sage/80 dark:from-sage/60 dark:to-dark-sage/60 rounded-full mb-4">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              <svg
+                className="w-8 h-8 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                />
               </svg>
             </div>
             <h2 className="text-3xl font-bold text-blue-gray dark:text-white font-playfair mb-3">
               Gallerie Speciali
             </h2>
             <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-              Accedi alle nostre gallerie tematiche esclusive con il PIN che ti è stato fornito
+              Accedi alle nostre gallerie tematiche esclusive con il PIN che ti
+              è stato fornito
             </p>
           </div>
 
@@ -612,16 +661,27 @@ export default function Home() {
                 </div>
 
                 <p className="text-center text-gray-600 dark:text-gray-300 mb-6">
-                  Hai ricevuto un PIN per una galleria speciale? Inseriscilo qui per accedere
+                  Hai ricevuto un PIN per una galleria speciale? Inseriscilo qui
+                  per accedere
                 </p>
-                
-                <Button 
+
+                <Button
                   className="w-full bg-sage hover:bg-dark-sage dark:bg-sage/90 dark:hover:bg-dark-sage/90 text-white py-6 text-lg font-medium shadow-md hover:shadow-lg transition-all"
                   data-testid="button-access-special-gallery"
-                  onClick={() => navigate(createUrl('/special-gallery'))}
+                  onClick={() => navigate(createUrl("/special-gallery"))}
                 >
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <svg
+                    className="w-6 h-6 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    />
                   </svg>
                   Accedi con PIN
                 </Button>
@@ -633,23 +693,33 @@ export default function Home() {
                   <div className="grid grid-cols-5 gap-2 text-center">
                     <div className="bg-cream dark:bg-gray-700 p-2 rounded-lg border border-beige/50 dark:border-gray-600">
                       <span className="text-2xl">🎄</span>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Natale</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                        Natale
+                      </p>
                     </div>
                     <div className="bg-cream dark:bg-gray-700 p-2 rounded-lg border border-beige/50 dark:border-gray-600">
                       <span className="text-2xl">🎭</span>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Carnevale</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                        Carnevale
+                      </p>
                     </div>
                     <div className="bg-cream dark:bg-gray-700 p-2 rounded-lg border border-beige/50 dark:border-gray-600">
                       <span className="text-2xl">💕</span>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">S. Valentino</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                        S. Valentino
+                      </p>
                     </div>
                     <div className="bg-cream dark:bg-gray-700 p-2 rounded-lg border border-beige/50 dark:border-gray-600">
                       <span className="text-2xl">🐰</span>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Pasqua</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                        Pasqua
+                      </p>
                     </div>
                     <div className="bg-cream dark:bg-gray-700 p-2 rounded-lg border border-beige/50 dark:border-gray-600">
                       <span className="text-2xl">🎃</span>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Halloween</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                        Halloween
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -658,8 +728,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      
 
       {/* Separatore decorativo */}
       <div className="w-full flex justify-center py-2 bg-off-white">
@@ -916,8 +984,8 @@ export default function Home() {
                     Ricordi in alta qualità
                   </h3>
                   <p className="mt-2 text-base text-gray-500">
-                    Rivivi ogni emozione dell'evento con immagini
-                    professionali che catturano l'essenza di ogni momento.
+                    Rivivi ogni emozione dell'evento con immagini professionali
+                    che catturano l'essenza di ogni momento.
                   </p>
                 </div>
               </div>
