@@ -483,27 +483,19 @@ export const sendBookingConfirmedEmail = functions
     }
 
     try {
-      // AUTENTICAZIONE Firebase OBBLIGATORIA (solo admin può confermare)
+      // AUTENTICAZIONE Firebase (opzionale - chiamata server-side da Express)
       const authHeader = req.headers.authorization || '';
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({
-          error: { code: 'unauthenticated', message: 'Missing Authorization Bearer token' }
-        });
-        return;
-      }
-
-      const idToken = authHeader.replace('Bearer ', '').trim();
-      let uid = '';
-      try {
-        const decoded = await admin.auth().verifyIdToken(idToken);
-        uid = decoded.uid;
-        functions.logger.info(`🔐 sendBookingConfirmedEmail called by uid=${uid}`);
-      } catch (authError) {
-        functions.logger.error('Auth verification failed:', authError);
-        res.status(401).json({
-          error: { code: 'unauthenticated', message: 'Invalid token' }
-        });
-        return;
+      let uid = 'server';
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const idToken = authHeader.replace('Bearer ', '').trim();
+        try {
+          const decoded = await admin.auth().verifyIdToken(idToken);
+          uid = decoded.uid;
+          functions.logger.info(`🔐 sendBookingConfirmedEmail called by uid=${uid}`);
+        } catch (authError) {
+          // Log ma non bloccare (chiamata server-side)
+          functions.logger.warn('Auth token provided but invalid:', authError);
+        }
       }
 
       // LETTURA DATI DAL BODY

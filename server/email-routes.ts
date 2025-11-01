@@ -703,6 +703,119 @@ export function createBookingReceivedEmailHTML(
 }
 
 /**
+ * POST /api/email/send-booking-received
+ * Invia email "Prenotazione Ricevuta" dopo creazione booking
+ */
+router.post("/send-booking-received", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteNome,
+      clienteCognome,
+      campaignNome,
+      dataShootingInizio,
+      dataShootingFine,
+      prodottoNome,
+      note
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !dataShootingInizio || !dataShootingFine) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio email prenotazione ricevuta"
+      });
+    }
+
+    const clienteName = `${clienteNome} ${clienteCognome}`;
+
+    const htmlContent = createBookingReceivedEmailHTML(
+      clienteName,
+      campaignNome,
+      dataShootingInizio,
+      dataShootingFine,
+      0, // duration non usata nel template attuale
+      prodottoNome
+    );
+
+    const subject = `📸 Prenotazione Ricevuta - ${campaignNome}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Prenotazione Ricevuta" inviata a ${recipientEmail} per campagna ${campaignNome}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Booking received email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore send-booking-received:", error);
+    res.status(500).json({
+      error: "Errore invio email prenotazione ricevuta"
+    });
+  }
+});
+
+/**
+ * POST /api/email/send-booking-confirmed
+ * Invia email "Prenotazione Confermata" dopo approvazione admin
+ */
+router.post("/send-booking-confirmed", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteNome,
+      clienteCognome,
+      campaignNome,
+      dataShootingInizio,
+      dataShootingFine,
+      prodottoNome,
+      note
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !dataShootingInizio || !dataShootingFine) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio email prenotazione confermata"
+      });
+    }
+
+    const clienteName = `${clienteNome} ${clienteCognome}`;
+
+    const htmlContent = createBookingConfirmedEmailHTML(
+      clienteName,
+      campaignNome,
+      dataShootingInizio,
+      dataShootingFine,
+      0, // duration non usata nel template attuale
+      prodottoNome,
+      note
+    );
+
+    const subject = `✅ Prenotazione Confermata - ${campaignNome}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Prenotazione Confermata" inviata a ${recipientEmail} per campagna ${campaignNome}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Booking confirmed email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore send-booking-confirmed:", error);
+    res.status(500).json({
+      error: "Errore invio email prenotazione confermata"
+    });
+  }
+});
+
+/**
  * Template HTML per email prenotazione confermata (approvata da admin)
  */
 export function createBookingConfirmedEmailHTML(
