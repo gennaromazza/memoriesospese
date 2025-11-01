@@ -1,0 +1,537 @@
+/**
+ * ProductsManager - Gestione Catalogo Prodotti Fotografici
+ */
+
+import { useState, useEffect } from 'react';
+import { Plus, Edit, Trash2, Package, Euro, Image } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import {
+  getAllProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+} from '@/lib/products';
+import type { Product, InsertProduct } from '@shared/booking-types';
+
+const CATEGORIE = [
+  { value: 'album', label: 'Album Fotografico' },
+  { value: 'stampe', label: 'Stampe' },
+  { value: 'digitale', label: 'File Digitali' },
+  { value: 'video', label: 'Video/Montaggio' },
+  { value: 'pacchetto', label: 'Pacchetto Completo' },
+] as const;
+
+export default function ProductsManager() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  
+  // Form state
+  const [formData, setFormData] = useState<InsertProduct>({
+    nome: '',
+    descrizione: '',
+    prezzo: 0,
+    sconto: 0,
+    numeroFoto: 0,
+    categoria: 'album',
+    attivo: true,
+  });
+
+  const { toast } = useToast();
+
+  // Carica prodotti
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  async function loadProducts() {
+    try {
+      setIsLoading(true);
+      const data = await getAllProducts();
+      setProducts(data);
+    } catch (error) {
+      console.error('Errore caricamento prodotti:', error);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile caricare i prodotti',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function openCreateDialog() {
+    setEditingProduct(null);
+    setFormData({
+      nome: '',
+      descrizione: '',
+      prezzo: 0,
+      sconto: 0,
+      numeroFoto: 0,
+      categoria: 'album',
+      attivo: true,
+    });
+    setIsDialogOpen(true);
+  }
+
+  function openEditDialog(product: Product) {
+    setEditingProduct(product);
+    setFormData({
+      nome: product.nome,
+      descrizione: product.descrizione,
+      prezzo: product.prezzo,
+      sconto: product.sconto,
+      numeroFoto: product.numeroFoto,
+      categoria: product.categoria,
+      attivo: product.attivo,
+    });
+    setIsDialogOpen(true);
+  }
+
+  async function handleSave() {
+    // Validazione
+    if (!formData.nome.trim()) {
+      toast({
+        title: 'Errore',
+        description: 'Il nome del prodotto è obbligatorio',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (formData.prezzo <= 0) {
+      toast({
+        title: 'Errore',
+        description: 'Il prezzo deve essere maggiore di zero',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (formData.sconto < 0 || formData.sconto > 100) {
+      toast({
+        title: 'Errore',
+        description: 'Lo sconto deve essere tra 0% e 100%',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (formData.numeroFoto < 0) {
+      toast({
+        title: 'Errore',
+        description: 'Il numero di foto non può essere negativo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+
+      if (editingProduct) {
+        // Modifica
+        await updateProduct(editingProduct.id, formData);
+        toast({
+          title: 'Prodotto aggiornato',
+          description: `Il prodotto "${formData.nome}" è stato modificato con successo`,
+        });
+      } else {
+        // Creazione
+        await createProduct(formData);
+        toast({
+          title: 'Prodotto creato',
+          description: `Il prodotto "${formData.nome}" è stato creato con successo`,
+        });
+      }
+
+      setIsDialogOpen(false);
+      await loadProducts();
+    } catch (error) {
+      console.error('Errore salvataggio prodotto:', error);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile salvare il prodotto',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteProduct(id);
+      toast({
+        title: 'Prodotto eliminato',
+        description: 'Il prodotto è stato eliminato con successo',
+      });
+      setDeleteConfirmId(null);
+      await loadProducts();
+    } catch (error) {
+      console.error('Errore eliminazione prodotto:', error);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile eliminare il prodotto',
+        variant: 'destructive',
+      });
+    }
+  }
+
+  const prezzoFinale = formData.prezzo - (formData.prezzo * formData.sconto / 100);
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-1/4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-48 bg-muted rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Package className="h-6 w-6" />
+            Catalogo Prodotti
+          </h2>
+          <p className="text-muted-foreground mt-1">
+            Gestisci i prodotti fotografici disponibili per le prenotazioni
+          </p>
+        </div>
+        <Button onClick={openCreateDialog} data-testid="button-create-product">
+          <Plus className="h-4 w-4 mr-2" />
+          Nuovo Prodotto
+        </Button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Totale Prodotti</CardDescription>
+            <CardTitle className="text-3xl">{products.length}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Prodotti Attivi</CardDescription>
+            <CardTitle className="text-3xl text-green-600">
+              {products.filter(p => p.attivo).length}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Prodotti Disattivati</CardDescription>
+            <CardTitle className="text-3xl text-gray-400">
+              {products.filter(p => !p.attivo).length}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+
+      {/* Lista Prodotti */}
+      {products.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nessun prodotto</h3>
+            <p className="text-muted-foreground mb-4">
+              Inizia creando il tuo primo prodotto fotografico
+            </p>
+            <Button onClick={openCreateDialog} data-testid="button-create-product-empty">
+              <Plus className="h-4 w-4 mr-2" />
+              Crea Prodotto
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {products.map(product => (
+            <Card key={product.id} className={!product.attivo ? 'opacity-60' : ''}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <CardTitle className="flex items-center gap-2">
+                      {product.nome}
+                      {!product.attivo && (
+                        <Badge variant="secondary" className="text-xs">
+                          Disattivo
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      {CATEGORIE.find(c => c.value === product.categoria)?.label}
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {product.descrizione || 'Nessuna descrizione'}
+                </p>
+                
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Prezzo base:</span>
+                    <span className="font-medium">€{product.prezzo.toFixed(2)}</span>
+                  </div>
+                  
+                  {product.sconto > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Sconto:</span>
+                      <Badge variant="secondary">{product.sconto}%</Badge>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Prezzo finale:</span>
+                    <span className="text-lg font-bold text-primary">
+                      €{product.prezzoFinale.toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Image className="h-4 w-4" />
+                      Foto incluse:
+                    </span>
+                    <span className="font-semibold">{product.numeroFoto}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => openEditDialog(product)}
+                    data-testid={`button-edit-product-${product.id}`}
+                  >
+                    <Edit className="h-4 w-4 mr-1" />
+                    Modifica
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteConfirmId(product.id)}
+                    data-testid={`button-delete-product-${product.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Dialog Crea/Modifica Prodotto */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingProduct ? 'Modifica Prodotto' : 'Nuovo Prodotto'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingProduct
+                ? 'Modifica i dettagli del prodotto esistente'
+                : 'Crea un nuovo prodotto fotografico'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Nome */}
+            <div className="space-y-2">
+              <Label htmlFor="nome">Nome Prodotto *</Label>
+              <Input
+                id="nome"
+                value={formData.nome}
+                onChange={e => setFormData({ ...formData, nome: e.target.value })}
+                placeholder="es. Album Premium 30x40"
+                data-testid="input-product-name"
+              />
+            </div>
+
+            {/* Categoria */}
+            <div className="space-y-2">
+              <Label htmlFor="categoria">Categoria *</Label>
+              <Select
+                value={formData.categoria}
+                onValueChange={(value: any) => setFormData({ ...formData, categoria: value })}
+              >
+                <SelectTrigger data-testid="select-product-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIE.map(cat => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Descrizione */}
+            <div className="space-y-2">
+              <Label htmlFor="descrizione">Descrizione</Label>
+              <Textarea
+                id="descrizione"
+                value={formData.descrizione}
+                onChange={e => setFormData({ ...formData, descrizione: e.target.value })}
+                placeholder="Descrizione dettagliata del prodotto..."
+                rows={3}
+                data-testid="input-product-description"
+              />
+            </div>
+
+            {/* Prezzo e Sconto */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="prezzo">Prezzo Base (€) *</Label>
+                <Input
+                  id="prezzo"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.prezzo}
+                  onChange={e => setFormData({ ...formData, prezzo: parseFloat(e.target.value) || 0 })}
+                  data-testid="input-product-price"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sconto">Sconto (%)</Label>
+                <Input
+                  id="sconto"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.sconto}
+                  onChange={e => setFormData({ ...formData, sconto: parseFloat(e.target.value) || 0 })}
+                  data-testid="input-product-discount"
+                />
+              </div>
+            </div>
+
+            {/* Prezzo Finale Calcolato */}
+            {formData.prezzo > 0 && (
+              <div className="bg-muted p-3 rounded-lg" data-testid="preview-final-price">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Prezzo Finale:</span>
+                  <span className="text-xl font-bold text-primary" data-testid="text-final-price">
+                    €{prezzoFinale.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Numero Foto */}
+            <div className="space-y-2">
+              <Label htmlFor="numeroFoto">Numero Foto Incluse *</Label>
+              <Input
+                id="numeroFoto"
+                type="number"
+                min="0"
+                value={formData.numeroFoto}
+                onChange={e => setFormData({ ...formData, numeroFoto: parseInt(e.target.value) || 0 })}
+                placeholder="es. 20"
+                data-testid="input-product-photos"
+              />
+              <p className="text-xs text-muted-foreground">
+                Numero di foto che il cliente può selezionare per questo prodotto
+              </p>
+            </div>
+
+            {/* Stato Attivo */}
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div>
+                <Label htmlFor="attivo" className="text-sm font-medium">
+                  Prodotto Attivo
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Disattiva per nascondere il prodotto dalle prenotazioni
+                </p>
+              </div>
+              <Switch
+                id="attivo"
+                checked={formData.attivo}
+                onCheckedChange={checked => setFormData({ ...formData, attivo: checked })}
+                data-testid="switch-product-active"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel-product">
+              Annulla
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-product">
+              {isSaving ? 'Salvataggio...' : editingProduct ? 'Salva Modifiche' : 'Crea Prodotto'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Conferma Eliminazione */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Conferma Eliminazione</DialogTitle>
+            <DialogDescription>
+              Sei sicuro di voler eliminare questo prodotto? Questa azione non può essere annullata.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)} data-testid="button-cancel-delete">
+              Annulla
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+              data-testid="button-confirm-delete"
+            >
+              Elimina
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

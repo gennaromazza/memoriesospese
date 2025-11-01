@@ -15,6 +15,7 @@ import SlideshowManager from "@/components/SlideshowManager";
 import UserManager from "@/components/UserManager";
 import EmailStatusPanel from "@/components/EmailStatusPanel";
 import SecurityQuestionManager from "@/components/SecurityQuestionManager";
+import ProductsManager from "@/components/ProductsManager";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import { getAllThemes } from "@shared/special-themes";
 
@@ -1026,6 +1027,12 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Temi</span>
               </TabsTrigger>
 
+              <TabsTrigger value="products" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Package className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Prodotti</span>
+                <span className="sm:hidden">Prod</span>
+              </TabsTrigger>
+
               <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Impostazioni</span>
@@ -1469,6 +1476,11 @@ export default function AdminDashboard() {
                   </ul>
                 </div>
               </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Prodotti */}
+            <TabsContent value="products">
+              <ProductsManager />
             </TabsContent>
 
             {/* Contenuto Tab Impostazioni */}
