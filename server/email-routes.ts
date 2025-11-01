@@ -650,4 +650,119 @@ router.post("/send-gallery-password", async (req, res) => {
   }
 });
 
+/**
+ * Template HTML per email prenotazione ricevuta (in_attesa)
+ */
+export function createBookingReceivedEmailHTML(
+  clienteName: string,
+  campaignName: string,
+  bookingDate: string,
+  bookingTime: string,
+  duration: number,
+  productName?: string
+): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">📸 Richiesta Prenotazione Ricevuta!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Grazie per aver prenotato uno shooting fotografico! Abbiamo ricevuto la tua richiesta per <strong style="color: #8b5a3c;">${campaignName}</strong>.
+        </p>
+        
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Prenotazione</h3>
+          <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${bookingDate}</p>
+          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${bookingTime}</p>
+          <p style="margin: 8px 0;"><strong>⏱️ Durata:</strong> ${duration} minuti</p>
+          ${productName ? `<p style="margin: 8px 0;"><strong>📦 Pacchetto:</strong> ${productName}</p>` : ''}
+        </div>
+
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #856404;">
+            <strong>⏳ In Attesa di Conferma</strong><br>
+            La tua prenotazione è stata presa in carico. Riceverai una <strong>email di conferma</strong> 
+            non appena il fotografo approverà la tua richiesta.
+          </p>
+        </div>
+
+        <p style="font-size: 14px; color: #666; margin-top: 20px;">
+          Ti contatteremo a breve per confermare tutti i dettagli. Nel frattempo, se hai domande o necessiti di modifiche, 
+          non esitare a contattarci via WhatsApp.
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
+        <p>Memorie Sospese - Wedding Photography</p>
+        <p style="margin-top: 5px;">📧 memoriesospese@gennaromazzacane.it</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email prenotazione confermata (approvata da admin)
+ */
+export function createBookingConfirmedEmailHTML(
+  clienteName: string,
+  campaignName: string,
+  bookingDate: string,
+  bookingTime: string,
+  duration: number,
+  productName?: string,
+  notes?: string
+): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #28a745; text-align: center;">✅ Prenotazione Confermata!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ottima notizia! La tua prenotazione per <strong style="color: #8b5a3c;">${campaignName}</strong> 
+          è stata <strong style="color: #28a745;">confermata</strong>! 🎉
+        </p>
+        
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Riepilogo Shooting</h3>
+          <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${bookingDate}</p>
+          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${bookingTime}</p>
+          <p style="margin: 8px 0;"><strong>⏱️ Durata:</strong> ${duration} minuti</p>
+          ${productName ? `<p style="margin: 8px 0;"><strong>📦 Pacchetto:</strong> ${productName}</p>` : ''}
+          ${notes ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${notes}</p>` : ''}
+        </div>
+
+        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #155724;">
+            <strong>✅ Tutto Pronto!</strong><br>
+            Ti aspettiamo in studio all'orario concordato. Se hai bisogno di modificare la prenotazione 
+            o hai domande, contattaci via WhatsApp.
+          </p>
+        </div>
+
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">💡 Suggerimenti per lo Shooting</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
+            <li>Arriva 5-10 minuti prima per prepararti con calma</li>
+            <li>Porta abiti o accessori che desideri includere nelle foto</li>
+            <li>Comunica eventuali preferenze o idee creative</li>
+          </ul>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Non vediamo l'ora di immortalare i tuoi momenti speciali! 📸✨
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
+        <p>Memorie Sospese - Wedding Photography</p>
+        <p style="margin-top: 5px;">📧 memoriesospese@gennaromazzacane.it</p>
+      </div>
+    </div>
+  `;
+}
+
 export default router;

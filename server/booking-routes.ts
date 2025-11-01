@@ -265,11 +265,62 @@ router.post('/create', async (req, res) => {
       prodottoNome: prodottoNome || null,
       note: note || '',
       stato: 'in_attesa',
+      emailRicevutaInviata: false,
       emailConfermataInviata: false,
       googleCalendarEventId: calendarEvent.id || null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // 4. Invia email automatica "Prenotazione Ricevuta"
+    try {
+      const { sendGmailEmail, createBookingReceivedEmailHTML } = await import('./email-routes.js');
+      
+      // Recupera nome campagna da Firestore
+      const campaignDoc = await db.collection('booking_campaigns').doc(campaignId).get();
+      const campaignData = campaignDoc.data();
+      const campaignName = campaignData?.nome || 'Shooting Fotografico';
+      
+      // Formatta data e ora
+      const bookingDate = slotStart.toLocaleDateString('it-IT', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const bookingTime = `${slotStart.toLocaleTimeString('it-IT', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Europe/Rome'
+      })} - ${slotEnd.toLocaleTimeString('it-IT', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Europe/Rome'
+      })}`;
+      
+      const emailHTML = createBookingReceivedEmailHTML(
+        `${cliente.nome} ${cliente.cognome}`,
+        campaignName,
+        bookingDate,
+        bookingTime,
+        durataMinuti,
+        prodottoNome
+      );
+      
+      await sendGmailEmail(
+        cliente.email,
+        `📸 Prenotazione Ricevuta - ${campaignName}`,
+        emailHTML
+      );
+      
+      // Aggiorna flag email inviata
+      await bookingRef.update({ emailRicevutaInviata: true });
+      
+      console.log(`✅ Email "Prenotazione Ricevuta" inviata a ${cliente.email}`);
+    } catch (emailError) {
+      // Non bloccare la prenotazione se email fallisce
+      console.error('⚠️ Errore invio email prenotazione ricevuta:', emailError);
+    }
 
     return res.status(201).json({
       success: true,
@@ -291,6 +342,133 @@ router.post('/create', async (req, res) => {
       }
     }
     
+    return res.status(500).json({ 
+      error: 'Errore interno del server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto' 
+    });
+  }
+});
+
+/**
+ * PATCH /api/booking/:id/approve
+ * Approva prenotazione e invia email conferma
+ * 
+ * Body: { adminUid: string }
+ */
+router.patch('/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminUid } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: 'ID prenotazione mancante' });
+    }
+
+    // Inizializza Firebase Admin
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+
+    const db = admin.firestore();
+    const bookingRef = db.collection('bookings').doc(id);
+    const bookingDoc = await bookingRef.get();
+
+    if (!bookingDoc.exists) {
+      return res.status(404).json({ error: 'Prenotazione non trovata' });
+    }
+
+    const bookingData = bookingDoc.data();
+
+    // Verifica stato attuale
+    if (bookingData?.stato === 'confermata') {
+      return res.status(400).json({ 
+        error: 'Prenotazione già confermata',
+        message: 'Questa prenotazione è già stata approvata' 
+      });
+    }
+
+    // Aggiorna stato a "confermata"
+    await bookingRef.update({
+      stato: 'confermata',
+      confermataDa: adminUid || 'admin',
+      confermatail: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Invia email "Prenotazione Confermata"
+    try {
+      const { sendGmailEmail, createBookingConfirmedEmailHTML } = await import('./email-routes.js');
+
+      // Recupera nome campagna
+      const campaignDoc = await db.collection('booking_campaigns').doc(bookingData.campaignId).get();
+      const campaignData = campaignDoc.data();
+      const campaignName = campaignData?.nome || 'Shooting Fotografico';
+
+      // Formatta data e ora
+      const slotStart = bookingData.dataShootingInizio.toDate();
+      const slotEnd = bookingData.dataShootingFine.toDate();
+      
+      const bookingDate = slotStart.toLocaleDateString('it-IT', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const bookingTime = `${slotStart.toLocaleTimeString('it-IT', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Europe/Rome'
+      })} - ${slotEnd.toLocaleTimeString('it-IT', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Europe/Rome'
+      })}`;
+
+      // Calcola durata
+      const durataMinuti = Math.round((slotEnd.getTime() - slotStart.getTime()) / (1000 * 60));
+
+      const emailHTML = createBookingConfirmedEmailHTML(
+        `${bookingData.cliente.nome} ${bookingData.cliente.cognome}`,
+        campaignName,
+        bookingDate,
+        bookingTime,
+        durataMinuti,
+        bookingData.prodottoNome,
+        bookingData.note
+      );
+
+      await sendGmailEmail(
+        bookingData.cliente.email,
+        `✅ Prenotazione Confermata - ${campaignName}`,
+        emailHTML
+      );
+
+      // Aggiorna flag email confermata inviata
+      await bookingRef.update({ emailConfermataInviata: true });
+
+      console.log(`✅ Email "Prenotazione Confermata" inviata a ${bookingData.cliente.email}`);
+    } catch (emailError) {
+      console.error('⚠️ Errore invio email conferma:', emailError);
+      // Non bloccare l'approvazione se email fallisce
+    }
+
+    return res.json({
+      success: true,
+      message: 'Prenotazione confermata con successo',
+      bookingId: id
+    });
+
+  } catch (error) {
+    console.error('[Booking API] Errore approvazione prenotazione:', error);
     return res.status(500).json({ 
       error: 'Errore interno del server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto' 
