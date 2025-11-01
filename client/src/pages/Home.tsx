@@ -1,4 +1,4 @@
-import React, { useState, FormEvent } from "react";
+import React, { useState, FormEvent, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   collection,
@@ -7,6 +7,7 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +27,15 @@ import {
 import { WeddingImage, DecorativeImage } from "@/components/WeddingImages";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { Calendar, Clock } from "lucide-react";
+
+interface BookingCampaign {
+  id: string;
+  nome: string;
+  dataInizio: Timestamp;
+  dataFine: Timestamp;
+  descrizione?: string;
+}
 
 export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,6 +44,7 @@ export default function Home() {
   const [showSecurityQuestion, setShowSecurityQuestion] = useState(false);
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [securityError, setSecurityError] = useState("");
+  const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaign[]>([]);
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const { studioSettings } = useStudio();
@@ -118,6 +129,44 @@ export default function Home() {
         return 'Domanda di sicurezza';
     }
   };
+
+  // Load active booking campaigns
+  useEffect(() => {
+    const loadActiveCampaigns = async () => {
+      try {
+        const now = new Date();
+        const campaignsRef = collection(db, 'booking_campaigns');
+        const campaignsSnapshot = await getDocs(campaignsRef);
+        
+        const active: BookingCampaign[] = [];
+        campaignsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          const startDate = data.dataInizio?.toDate();
+          const endDate = data.dataFine?.toDate();
+          
+          // Verifica se la campagna è attiva (oggi è tra dataInizio e dataFine)
+          if (startDate && endDate && now >= startDate && now <= endDate) {
+            active.push({
+              id: doc.id,
+              nome: data.nome,
+              dataInizio: data.dataInizio,
+              dataFine: data.dataFine,
+              descrizione: data.descrizione
+            });
+          }
+        });
+        
+        // Ordina per data fine più vicina
+        active.sort((a, b) => a.dataFine.toDate().getTime() - b.dataFine.toDate().getTime());
+        
+        setActiveCampaigns(active);
+      } catch (error) {
+        console.error('Errore caricamento campagne attive:', error);
+      }
+    };
+
+    loadActiveCampaigns();
+  }, []);
 
   // Submit form to request password
   const handleSubmit = async (e: FormEvent) => {
@@ -335,6 +384,94 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Active Booking Campaigns Section */}
+      {activeCampaigns.length > 0 && (
+        <section className="py-20 bg-gradient-to-br from-sage/10 via-cream/50 to-sage/10 relative overflow-hidden">
+          {/* Decorazioni */}
+          <div className="absolute top-0 left-0 w-32 h-32 opacity-10 pointer-events-none">
+            <WeddingImage type="flower-bouquet" className="w-full h-auto" alt="Decorazione" />
+          </div>
+          <div className="absolute bottom-0 right-0 w-32 h-32 opacity-10 pointer-events-none">
+            <WeddingImage type="wedding-cake" className="w-full h-auto" alt="Decorazione" />
+          </div>
+
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-sage to-dark-sage rounded-full mb-6 shadow-lg">
+                <Calendar className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-4xl font-bold text-blue-gray font-playfair mb-4">
+                Prenotazioni Aperte
+              </h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Scopri le nostre campagne fotografiche attive e prenota il tuo shooting
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {activeCampaigns.map((campaign) => {
+                const startDate = campaign.dataInizio.toDate();
+                const endDate = campaign.dataFine.toDate();
+                const formatDate = (date: Date) => 
+                  date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                return (
+                  <div
+                    key={campaign.id}
+                    className="bg-white rounded-xl shadow-lg overflow-hidden border-2 border-sage/20 hover:border-sage/40 transition-all hover:shadow-xl transform hover:-translate-y-1"
+                  >
+                    <div className="bg-gradient-to-r from-sage to-dark-sage p-6">
+                      <div className="flex items-center justify-center mb-3">
+                        <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3">
+                          <Calendar className="w-8 h-8 text-white" />
+                        </div>
+                      </div>
+                      <h3 className="text-xl font-bold text-white text-center font-playfair">
+                        {campaign.nome}
+                      </h3>
+                    </div>
+
+                    <div className="p-6">
+                      <div className="flex items-center justify-center mb-4 text-gray-600">
+                        <Clock className="w-5 h-5 mr-2" />
+                        <span className="text-sm font-medium">
+                          Dal {formatDate(startDate)} al {formatDate(endDate)}
+                        </span>
+                      </div>
+
+                      {campaign.descrizione && (
+                        <p className="text-gray-600 text-center mb-6 text-sm line-clamp-3">
+                          {campaign.descrizione}
+                        </p>
+                      )}
+
+                      <Button
+                        onClick={() => navigate(createUrl('/booking'))}
+                        className="w-full bg-sage hover:bg-dark-sage text-white py-6 text-base font-semibold shadow-md hover:shadow-lg transition-all"
+                        data-testid={`button-book-campaign-${campaign.id}`}
+                      >
+                        <Calendar className="w-5 h-5 mr-2" />
+                        Prenota Ora
+                      </Button>
+
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <p className="text-xs text-center text-gray-500">
+                          ⏰ Ultimi{' '}
+                          <span className="font-semibold text-sage">
+                            {Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
+                          </span>{' '}
+                          giorni disponibili
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Special Gallery Section */}
       <section className="py-16 bg-off-white dark:bg-gray-900 relative overflow-hidden">
