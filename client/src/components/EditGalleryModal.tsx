@@ -302,22 +302,16 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       // Reset loading state quando cambia la galleria
       setIsLoading(false);
-
-      // Carica le foto solo se il modal è aperto
-      if (isOpen) {
-        console.log('🔄 Chiamando loadPhotos perché modal è aperto');
-        loadPhotos();
-      }
     }
-  }, [gallery, isOpen]);
+  }, [gallery]);
 
-  // Carica foto ogni volta che il modal si apre (anche per la stessa galleria)
+  // Carica foto ogni volta che il modal si apre
   useEffect(() => {
     if (isOpen && gallery && gallery.id) {
       console.log('🔄 Modal aperto - caricamento foto per galleria:', gallery.id);
       loadPhotos();
     }
-  }, [isOpen, gallery?.id, loadPhotos]);
+  }, [isOpen, gallery?.id]);
 
   // Reset currentGalleryId quando il modal si chiude
   useEffect(() => {
