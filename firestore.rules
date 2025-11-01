@@ -285,12 +285,18 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Only admin can delete orders
     }
     
-    // Photo Selections - Clients can select, admin can read
+    // Photo Selections - Guest users can select photos, admin can read all
     match /photo_selections/{selectionId} {
-      allow read: if isAdmin(); // Only admin can see all selections
-      allow create: if isSignedIn(); // Authenticated users can select photos
-      allow update: if isSignedIn() && resource.data.selectedBy == request.auth.uid; // Users can update their own selections
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.selectedBy == request.auth.uid); // Users can delete their own selections
+      allow read: if true; // Public read access for guests to see their selections
+      allow create: if true && // Allow guest selection with validation
+        request.resource.data.keys().hasAll(['galleryId', 'photoId', 'photoName', 'photoUrl', 'selectedAt']) &&
+        request.resource.data.galleryId is string &&
+        request.resource.data.photoId is string &&
+        request.resource.data.photoName is string &&
+        request.resource.data.photoUrl is string &&
+        request.resource.data.selectedAt is timestamp;
+      allow update: if isAdmin(); // Only admin can update selections
+      allow delete: if true; // Allow guest to deselect photos (public delete)
     }
   }
 }
