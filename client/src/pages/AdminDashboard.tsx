@@ -25,8 +25,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
+import CampaignsManager from "@/components/CampaignsManager";
 import { getAllThemes } from "@shared/special-themes";
 
 // Componente di paginazione riutilizzabile
@@ -1033,6 +1034,12 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Prod</span>
               </TabsTrigger>
 
+              <TabsTrigger value="campaigns" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Campagne</span>
+                <span className="sm:hidden">Camp</span>
+              </TabsTrigger>
+
               <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Impostazioni</span>
@@ -1481,6 +1488,11 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Prodotti */}
             <TabsContent value="products">
               <ProductsManager />
+            </TabsContent>
+
+            {/* Contenuto Tab Campagne */}
+            <TabsContent value="campaigns">
+              <CampaignsManager />
             </TabsContent>
 
             {/* Contenuto Tab Impostazioni */}

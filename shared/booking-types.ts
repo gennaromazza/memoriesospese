@@ -40,15 +40,15 @@ export interface InsertProduct {
 export interface BookingCampaign {
   id: string;
   nome: string; // es. "Shooting Natalizio 2025"
-  slug: string; // es. "natale-2025" per URL
+  code: string; // es. "ABC123XY" - 8 char alphanumeric per URL /prenota/[code]
   descrizione: string;
   
-  // Date validità
-  dataInizio: Timestamp;
-  dataFine: Timestamp;
+  // Date validità (Date per compatibilità client-side)
+  dataInizio: Date;
+  dataFine: Date;
   
-  // Tema associato
-  tema: 'none' | 'natale' | 'carnevale' | 'san-valentino' | 'pasqua' | 'halloween';
+  // Tema associato (null se nessun tema)
+  temaStagionale: string | null; // 'natale' | 'carnevale' | 'san-valentino' | 'pasqua' | 'halloween' | null
   
   // Orari lavorativi
   orarioApertura: string; // es. "09:00"
@@ -62,29 +62,8 @@ export interface BookingCampaign {
   // Prodotti disponibili per questa campagna
   prodottiDisponibili: string[]; // Array di productId
   
-  // Google Calendar
-  googleCalendarId?: string; // ID calendario Google da sincronizzare
-  
-  attivo: boolean;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
-
-export interface InsertBookingCampaign {
-  nome: string;
-  slug: string;
-  descrizione: string;
-  dataInizio: Date;
-  dataFine: Date;
-  tema: 'none' | 'natale' | 'carnevale' | 'san-valentino' | 'pasqua' | 'halloween';
-  orarioApertura: string;
-  orarioPausaInizio: string;
-  orarioPausaFine: string;
-  orarioChiusura: string;
-  durataShootingMinuti: number;
-  prodottiDisponibili: string[];
-  googleCalendarId?: string;
-  attivo: boolean;
+  attiva: boolean; // Femminile: "campagna attiva"
+  createdAt: Date;
 }
 
 /**
