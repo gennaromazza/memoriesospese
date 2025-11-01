@@ -27,7 +27,9 @@ import {
 import { WeddingImage, DecorativeImage } from "@/components/WeddingImages";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, Sparkles } from "lucide-react";
+import useEmblaCarousel from 'embla-carousel-react';
+import Autoplay from 'embla-carousel-autoplay';
 
 interface BookingCampaign {
   id: string;
@@ -48,6 +50,12 @@ export default function Home() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const { studioSettings } = useStudio();
+  
+  // Carousel for campaigns
+  const [emblaRef] = useEmblaCarousel(
+    { loop: true, align: 'center' },
+    [Autoplay({ delay: 5000, stopOnInteraction: false })]
+  );
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -135,41 +143,17 @@ export default function Home() {
     const loadActiveCampaigns = async () => {
       try {
         const now = new Date();
-        console.log('🔍 Caricamento campagne booking...', { now });
-        
         const campaignsRef = collection(db, 'booking_campaigns');
         const campaignsSnapshot = await getDocs(campaignsRef);
-        
-        console.log('📦 Campagne totali trovate:', campaignsSnapshot.size);
         
         const active: BookingCampaign[] = [];
         campaignsSnapshot.forEach((doc) => {
           const data = doc.data();
-          console.log('📋 Campagna:', {
-            id: doc.id,
-            nome: data.nome,
-            dataInizio: data.dataInizio,
-            dataFine: data.dataFine,
-            dataInizioDate: data.dataInizio?.toDate?.(),
-            dataFineDate: data.dataFine?.toDate?.()
-          });
-          
           const startDate = data.dataInizio?.toDate();
           const endDate = data.dataFine?.toDate();
           
           // Verifica se la campagna è attiva (oggi è tra dataInizio e dataFine)
-          const isActive = startDate && endDate && now >= startDate && now <= endDate;
-          console.log('✅ Campagna attiva?', {
-            nome: data.nome,
-            isActive,
-            startDate,
-            endDate,
-            now,
-            nowGreaterStart: now >= startDate,
-            nowLessEnd: now <= endDate
-          });
-          
-          if (isActive) {
+          if (startDate && endDate && now >= startDate && now <= endDate) {
             active.push({
               id: doc.id,
               nome: data.nome,
@@ -180,14 +164,12 @@ export default function Home() {
           }
         });
         
-        console.log('🎯 Campagne attive trovate:', active.length, active);
-        
         // Ordina per data fine più vicina
         active.sort((a, b) => a.dataFine.toDate().getTime() - b.dataFine.toDate().getTime());
         
         setActiveCampaigns(active);
       } catch (error) {
-        console.error('❌ Errore caricamento campagne attive:', error);
+        console.error('Errore caricamento campagne attive:', error);
       }
     };
 
@@ -339,6 +321,155 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Active Booking Campaigns Slider - FULL WIDTH */}
+      {activeCampaigns.length > 0 && (
+        <section className="py-0 bg-gradient-to-br from-sage/20 via-white to-cream/30 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sage/5 via-transparent to-transparent"></div>
+          
+          <div className="relative z-10 w-full">
+            {activeCampaigns.length === 1 ? (
+              // Single campaign - full width display
+              <div className="w-full">
+                {(() => {
+                  const campaign = activeCampaigns[0];
+                  const startDate = campaign.dataInizio.toDate();
+                  const endDate = campaign.dataFine.toDate();
+                  const formatDate = (date: Date) => 
+                    date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+                  const daysLeft = Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+                  return (
+                    <div className="bg-gradient-to-r from-sage via-dark-sage to-sage py-12 px-4 sm:px-6 lg:px-8">
+                      <div className="max-w-7xl mx-auto">
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                          {/* Left side - Info */}
+                          <div className="flex-1 text-white text-center md:text-left">
+                            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full mb-4">
+                              <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
+                              <span className="text-sm font-semibold uppercase tracking-wide">🎉 Prenotazioni Aperte</span>
+                            </div>
+                            
+                            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold font-playfair mb-4 drop-shadow-lg text-shadow">
+                              ✨ {campaign.nome}
+                            </h2>
+                            
+                            <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 text-lg mb-6">
+                              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
+                                <Calendar className="w-5 h-5" />
+                                <span className="font-medium">{formatDate(startDate)} - {formatDate(endDate)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 bg-yellow-400/90 text-sage px-4 py-2 rounded-lg font-bold animate-pulse">
+                                <Clock className="w-5 h-5" />
+                                <span>⏰ {daysLeft} giorni rimasti!</span>
+                              </div>
+                            </div>
+
+                            {campaign.descrizione && (
+                              <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto md:mx-0">
+                                {campaign.descrizione}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Right side - CTA */}
+                          <div className="flex-shrink-0">
+                            <Button
+                              onClick={() => navigate(createUrl('/booking'))}
+                              size="lg"
+                              className="bg-white text-sage hover:bg-cream text-xl font-bold py-8 px-12 rounded-2xl shadow-2xl hover:shadow-yellow-300/50 transition-all transform hover:scale-105 hover:-translate-y-1"
+                              data-testid={`button-book-campaign-${campaign.id}`}
+                            >
+                              <Calendar className="w-7 h-7 mr-3" />
+                              📸 Prenota Subito!
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              // Multiple campaigns - carousel slider
+              <div className="py-8">
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center gap-2 bg-sage/10 px-6 py-3 rounded-full mb-3">
+                    <Sparkles className="w-6 h-6 text-sage animate-pulse" />
+                    <span className="text-lg font-bold text-sage uppercase tracking-wide">🎉 Prenotazioni Aperte</span>
+                  </div>
+                </div>
+
+                <div className="overflow-hidden" ref={emblaRef}>
+                  <div className="flex">
+                    {activeCampaigns.map((campaign) => {
+                      const startDate = campaign.dataInizio.toDate();
+                      const endDate = campaign.dataFine.toDate();
+                      const formatDate = (date: Date) => 
+                        date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+                      const daysLeft = Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+                      return (
+                        <div key={campaign.id} className="flex-[0_0_100%] min-w-0 px-4">
+                          <div className="max-w-5xl mx-auto bg-gradient-to-r from-sage via-dark-sage to-sage rounded-3xl shadow-2xl overflow-hidden">
+                            <div className="p-8 sm:p-12">
+                              <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                                {/* Campaign Info */}
+                                <div className="flex-1 text-white text-center md:text-left">
+                                  <h3 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-playfair mb-4 drop-shadow-lg">
+                                    ✨ {campaign.nome}
+                                  </h3>
+                                  
+                                  <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 mb-6">
+                                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
+                                      <Calendar className="w-5 h-5" />
+                                      <span className="font-medium">{formatDate(startDate)} - {formatDate(endDate)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-yellow-400/90 text-sage px-4 py-2 rounded-lg font-bold animate-pulse">
+                                      <Clock className="w-5 h-5" />
+                                      <span>⏰ {daysLeft} giorni rimasti!</span>
+                                    </div>
+                                  </div>
+
+                                  {campaign.descrizione && (
+                                    <p className="text-lg text-white/90 mb-6 max-w-xl mx-auto md:mx-0">
+                                      {campaign.descrizione}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* CTA Button */}
+                                <div className="flex-shrink-0">
+                                  <Button
+                                    onClick={() => navigate(createUrl('/booking'))}
+                                    size="lg"
+                                    className="bg-white text-sage hover:bg-cream text-lg font-bold py-6 px-10 rounded-2xl shadow-2xl hover:shadow-yellow-300/50 transition-all transform hover:scale-105"
+                                    data-testid={`button-book-campaign-${campaign.id}`}
+                                  >
+                                    <Calendar className="w-6 h-6 mr-2" />
+                                    📸 Prenota Ora!
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Carousel indicators */}
+                <div className="flex justify-center gap-2 mt-6">
+                  {activeCampaigns.map((_, idx) => (
+                    <div key={idx} className="w-2 h-2 rounded-full bg-sage/30"></div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Access Gallery Form */}
       <section id="access-gallery" className="py-16 bg-off-white relative">
         {/* Decorazioni a tema matrimonio con le immagini fornite */}
@@ -410,94 +541,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* Active Booking Campaigns Section */}
-      {activeCampaigns.length > 0 && (
-        <section className="py-20 bg-gradient-to-br from-sage/10 via-cream/50 to-sage/10 relative overflow-hidden">
-          {/* Decorazioni */}
-          <div className="absolute top-0 left-0 w-32 h-32 opacity-10 pointer-events-none">
-            <WeddingImage type="flower-bouquet" className="w-full h-auto" alt="Decorazione" />
-          </div>
-          <div className="absolute bottom-0 right-0 w-32 h-32 opacity-10 pointer-events-none">
-            <WeddingImage type="wedding-cake" className="w-full h-auto" alt="Decorazione" />
-          </div>
-
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-sage to-dark-sage rounded-full mb-6 shadow-lg">
-                <Calendar className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-4xl font-bold text-blue-gray font-playfair mb-4">
-                Prenotazioni Aperte
-              </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Scopri le nostre campagne fotografiche attive e prenota il tuo shooting
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {activeCampaigns.map((campaign) => {
-                const startDate = campaign.dataInizio.toDate();
-                const endDate = campaign.dataFine.toDate();
-                const formatDate = (date: Date) => 
-                  date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
-
-                return (
-                  <div
-                    key={campaign.id}
-                    className="bg-white rounded-xl shadow-lg overflow-hidden border-2 border-sage/20 hover:border-sage/40 transition-all hover:shadow-xl transform hover:-translate-y-1"
-                  >
-                    <div className="bg-gradient-to-r from-sage to-dark-sage p-6">
-                      <div className="flex items-center justify-center mb-3">
-                        <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3">
-                          <Calendar className="w-8 h-8 text-white" />
-                        </div>
-                      </div>
-                      <h3 className="text-xl font-bold text-white text-center font-playfair">
-                        {campaign.nome}
-                      </h3>
-                    </div>
-
-                    <div className="p-6">
-                      <div className="flex items-center justify-center mb-4 text-gray-600">
-                        <Clock className="w-5 h-5 mr-2" />
-                        <span className="text-sm font-medium">
-                          Dal {formatDate(startDate)} al {formatDate(endDate)}
-                        </span>
-                      </div>
-
-                      {campaign.descrizione && (
-                        <p className="text-gray-600 text-center mb-6 text-sm line-clamp-3">
-                          {campaign.descrizione}
-                        </p>
-                      )}
-
-                      <Button
-                        onClick={() => navigate(createUrl('/booking'))}
-                        className="w-full bg-sage hover:bg-dark-sage text-white py-6 text-base font-semibold shadow-md hover:shadow-lg transition-all"
-                        data-testid={`button-book-campaign-${campaign.id}`}
-                      >
-                        <Calendar className="w-5 h-5 mr-2" />
-                        Prenota Ora
-                      </Button>
-
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <p className="text-xs text-center text-gray-500">
-                          ⏰ Ultimi{' '}
-                          <span className="font-semibold text-sage">
-                            {Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
-                          </span>{' '}
-                          giorni disponibili
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Special Gallery Section */}
       <section className="py-16 bg-off-white dark:bg-gray-900 relative overflow-hidden">

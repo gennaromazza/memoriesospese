@@ -15,6 +15,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - Dual-device cover images with advanced crop tool.
 - Special Themed Galleries (Seasonal Galleries) with PIN-based access.
 - Professional photography booking platform with product catalog, seasonal campaigns, Google Calendar integration for slot management, client booking portal, admin dashboard, order management, and photo selection system.
+- **Homepage Campaign Showcase**: Automatic full-width banner/slider displaying active booking campaigns with auto-rotation, emoji accents, countdown badges, and prominent CTA buttons.
 
 **Vision:** To be a leading platform for digital wedding memory preservation, offering a seamless and engaging experience for all users.
 
@@ -78,6 +79,16 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - Email functions imported directly in booking routes (no HTTP calls for reliability)
 - Tracking flags prevent duplicate sends: `emailRicevutaInviata`, `emailConfermataInviata`
 - Subject format: "Prenotazione Ricevuta/Confermata - {Campaign Name}" (no emojis)
+- "Add to Calendar" (.ics) feature via secure HTTPS endpoint `/api/booking/calendar/:id`
+
+**Homepage Campaign Display:**
+- Full-width banner positioned immediately after hero section (before gallery access)
+- Single campaign: Large gradient banner with campaign name (emoji ✨), date range, countdown, description, and prominent CTA
+- Multiple campaigns: Auto-rotating carousel slider (5s interval) with embla-carousel-react and Autoplay plugin
+- Campaigns auto-filtered by active date range (`dataInizio <= today <= dataFine`)
+- Campaigns auto-hide when expired
+- Design: Gradient sage/dark-sage background, white text with drop shadows, yellow countdown badges with pulse animation
+- CTA: Large white button with emoji 📸 "Prenota Subito!" / "Prenota Ora!"
 
 **Key Files:**
 - `server/booking-routes.ts` - Booking API endpoints
