@@ -250,5 +250,47 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update slideshow images
       allow delete: if isAdmin(); // Only admin can delete slideshow images
     }
+
+    // ====== BOOKING SYSTEM RULES (November 2025) ======
+    
+    // Products - Admin-only management, public read for booking form
+    match /products/{productId} {
+      allow read: if true; // Public read access for booking forms
+      allow create: if isAdmin(); // Only admin can create products
+      allow update: if isAdmin(); // Only admin can update products
+      allow delete: if isAdmin(); // Only admin can delete products
+    }
+    
+    // Booking Campaigns - Admin-only management, public read for active campaigns
+    match /booking_campaigns/{campaignId} {
+      allow read: if true; // Public read access for active booking campaigns
+      allow create: if isAdmin(); // Only admin can create campaigns
+      allow update: if isAdmin(); // Only admin can update campaigns
+      allow delete: if isAdmin(); // Only admin can delete campaigns
+    }
+    
+    // Bookings - Public can create, admin manages
+    match /bookings/{bookingId} {
+      allow read: if isAdmin(); // Only admin can see all bookings
+      allow create: if true; // Public can create bookings via booking form
+      allow update: if isAdmin(); // Only admin can update bookings (confirm, complete, etc.)
+      allow delete: if isAdmin(); // Only admin can delete bookings
+    }
+    
+    // Orders - Admin-only management
+    match /orders/{orderId} {
+      allow read: if isAdmin(); // Only admin can see orders
+      allow create: if isAdmin(); // Only admin can create orders
+      allow update: if isAdmin(); // Only admin can update orders (payment tracking)
+      allow delete: if isAdmin(); // Only admin can delete orders
+    }
+    
+    // Photo Selections - Clients can select, admin can read
+    match /photo_selections/{selectionId} {
+      allow read: if isAdmin(); // Only admin can see all selections
+      allow create: if isSignedIn(); // Authenticated users can select photos
+      allow update: if isSignedIn() && resource.data.selectedBy == request.auth.uid; // Users can update their own selections
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.selectedBy == request.auth.uid); // Users can delete their own selections
+    }
   }
 }
