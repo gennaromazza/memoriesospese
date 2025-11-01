@@ -135,17 +135,41 @@ export default function Home() {
     const loadActiveCampaigns = async () => {
       try {
         const now = new Date();
+        console.log('🔍 Caricamento campagne booking...', { now });
+        
         const campaignsRef = collection(db, 'booking_campaigns');
         const campaignsSnapshot = await getDocs(campaignsRef);
+        
+        console.log('📦 Campagne totali trovate:', campaignsSnapshot.size);
         
         const active: BookingCampaign[] = [];
         campaignsSnapshot.forEach((doc) => {
           const data = doc.data();
+          console.log('📋 Campagna:', {
+            id: doc.id,
+            nome: data.nome,
+            dataInizio: data.dataInizio,
+            dataFine: data.dataFine,
+            dataInizioDate: data.dataInizio?.toDate?.(),
+            dataFineDate: data.dataFine?.toDate?.()
+          });
+          
           const startDate = data.dataInizio?.toDate();
           const endDate = data.dataFine?.toDate();
           
           // Verifica se la campagna è attiva (oggi è tra dataInizio e dataFine)
-          if (startDate && endDate && now >= startDate && now <= endDate) {
+          const isActive = startDate && endDate && now >= startDate && now <= endDate;
+          console.log('✅ Campagna attiva?', {
+            nome: data.nome,
+            isActive,
+            startDate,
+            endDate,
+            now,
+            nowGreaterStart: now >= startDate,
+            nowLessEnd: now <= endDate
+          });
+          
+          if (isActive) {
             active.push({
               id: doc.id,
               nome: data.nome,
@@ -156,12 +180,14 @@ export default function Home() {
           }
         });
         
+        console.log('🎯 Campagne attive trovate:', active.length, active);
+        
         // Ordina per data fine più vicina
         active.sort((a, b) => a.dataFine.toDate().getTime() - b.dataFine.toDate().getTime());
         
         setActiveCampaigns(active);
       } catch (error) {
-        console.error('Errore caricamento campagne attive:', error);
+        console.error('❌ Errore caricamento campagne attive:', error);
       }
     };
 
