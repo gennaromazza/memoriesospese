@@ -500,24 +500,100 @@ export default function BookingPage() {
                   </div>
 
                   {availableProducts.length > 0 && (
-                    <div className="space-y-2">
-                      <Label htmlFor="prodotto">Pacchetto Fotografico (opzionale)</Label>
-                      <Select
-                        value={formData.prodottoId}
-                        onValueChange={value => setFormData({ ...formData, prodottoId: value })}
-                      >
-                        <SelectTrigger data-testid="select-product">
-                          <SelectValue placeholder="Scegli ora o decidi dopo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Da decidere</SelectItem>
-                          {availableProducts.map(product => (
-                            <SelectItem key={product.id} value={product.id}>
-                              {product.nome} - €{product.prezzoFinale.toFixed(2)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-3">
+                      <Label>Pacchetto Fotografico (opzionale)</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* Opzione "Da decidere" */}
+                        <Card 
+                          className={`cursor-pointer transition-all hover:shadow-md ${
+                            formData.prodottoId === '' 
+                              ? 'ring-2 ring-primary' 
+                              : 'hover:border-primary/50'
+                          }`}
+                          onClick={() => setFormData({ ...formData, prodottoId: '' })}
+                          data-testid="product-none"
+                        >
+                          <CardContent className="p-4 flex flex-col items-center justify-center min-h-[200px]">
+                            <Package className="h-12 w-12 text-muted-foreground mb-3" />
+                            <h3 className="font-semibold text-center mb-2">Da Decidere</h3>
+                            <p className="text-sm text-muted-foreground text-center">
+                              Sceglierò il pacchetto in sede
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        {/* Prodotti disponibili */}
+                        {availableProducts.map(product => (
+                          <Card 
+                            key={product.id}
+                            className={`cursor-pointer transition-all hover:shadow-md ${
+                              formData.prodottoId === product.id 
+                                ? 'ring-2 ring-primary' 
+                                : 'hover:border-primary/50'
+                            }`}
+                            onClick={() => setFormData({ ...formData, prodottoId: product.id })}
+                            data-testid={`product-${product.id}`}
+                          >
+                            <CardContent className="p-0">
+                              {/* Immagine prodotto */}
+                              {product.immagini && product.immagini.length > 0 ? (
+                                <div className="relative w-full h-40 bg-muted overflow-hidden rounded-t-lg">
+                                  <img 
+                                    src={product.immagini[0]} 
+                                    alt={product.nome}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {formData.prodottoId === product.id && (
+                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                                      <CheckCircle2 className="h-5 w-5" />
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="relative w-full h-40 bg-muted flex items-center justify-center rounded-t-lg">
+                                  <Package className="h-12 w-12 text-muted-foreground" />
+                                  {formData.prodottoId === product.id && (
+                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                                      <CheckCircle2 className="h-5 w-5" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Info prodotto */}
+                              <div className="p-4">
+                                <h3 className="font-semibold mb-2 line-clamp-1">{product.nome}</h3>
+                                
+                                {/* Prezzi */}
+                                <div className="flex items-baseline gap-2">
+                                  {product.sconto > 0 ? (
+                                    <>
+                                      <span className="text-lg font-bold text-primary">
+                                        €{product.prezzoFinale.toFixed(2)}
+                                      </span>
+                                      <span className="text-sm text-muted-foreground line-through">
+                                        €{product.prezzo.toFixed(2)}
+                                      </span>
+                                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                                        -{product.sconto}%
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="text-lg font-bold text-primary">
+                                      €{product.prezzoFinale.toFixed(2)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Info aggiuntive */}
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  {product.numeroFoto} foto incluse
+                                </p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </div>
                   )}
 

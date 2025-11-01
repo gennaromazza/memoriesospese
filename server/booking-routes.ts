@@ -233,12 +233,17 @@ router.post('/create', async (req, res) => {
     
     // Inizializza Firebase Admin se non già fatto
     if (!admin.apps.length) {
+      // Usa service account completo da secret
+      const serviceAccountJson = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      
+      if (!serviceAccountJson) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      
       admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        }),
+        credential: admin.credential.cert(serviceAccount),
       });
     }
 
