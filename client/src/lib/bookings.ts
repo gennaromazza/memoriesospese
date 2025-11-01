@@ -5,8 +5,14 @@
 import {
   collection,
   doc,
+  getDoc,
+  getDocs,
   addDoc,
   updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
   Timestamp,
   serverTimestamp
 } from 'firebase/firestore';
@@ -103,4 +109,122 @@ export async function getAvailableSlots(
 
   const data = await response.json();
   return data.slots;
+}
+
+/**
+ * Ottiene tutte le prenotazioni (admin only)
+ */
+export async function getAllBookings(): Promise<Booking[]> {
+  const q = query(
+    collection(db, COLLECTION),
+    orderBy('dataShootingInizio', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+    dataShootingInizio: doc.data().dataShootingInizio,
+    dataShootingFine: doc.data().dataShootingFine,
+    createdAt: doc.data().createdAt,
+    updatedAt: doc.data().updatedAt,
+    confermatail: doc.data().confermatail,
+  })) as Booking[];
+}
+
+/**
+ * Ottiene prenotazione singola per ID (admin only)
+ */
+export async function getBookingById(id: string): Promise<Booking | null> {
+  const docRef = doc(db, COLLECTION, id);
+  const docSnap = await getDoc(docRef);
+  
+  if (!docSnap.exists()) {
+    return null;
+  }
+  
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    ...data,
+  } as Booking;
+}
+
+/**
+ * Ottiene prenotazioni per campagna (admin only)
+ */
+export async function getBookingsByCampaign(campaignId: string): Promise<Booking[]> {
+  const q = query(
+    collection(db, COLLECTION),
+    where('campaignId', '==', campaignId),
+    orderBy('dataShootingInizio', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Booking[];
+}
+
+/**
+ * Ottiene prenotazioni per stato (admin only)
+ */
+export async function getBookingsByStatus(
+  stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata'
+): Promise<Booking[]> {
+  const q = query(
+    collection(db, COLLECTION),
+    where('stato', '==', stato),
+    orderBy('dataShootingInizio', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Booking[];
+}
+
+/**
+ * Approva prenotazione (admin only) - chiama API server
+ */
+export async function approveBooking(bookingId: string, adminUid: string): Promise<void> {
+  const response = await fetch(`/api/booking/${bookingId}/approve`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ adminUid }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || error.error || 'Errore approvazione prenotazione');
+  }
+}
+
+/**
+ * Aggiorna stato prenotazione (admin only)
+ */
+export async function updateBookingStatus(
+  bookingId: string,
+  stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata'
+): Promise<void> {
+  const docRef = doc(db, COLLECTION, bookingId);
+  await updateDoc(docRef, {
+    stato,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Elimina prenotazione (admin only)
+ */
+export async function deleteBooking(bookingId: string): Promise<void> {
+  const docRef = doc(db, COLLECTION, bookingId);
+  await deleteDoc(docRef);
 }
