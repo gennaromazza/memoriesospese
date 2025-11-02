@@ -965,6 +965,16 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               )}
             </div>
 
+            {/* Booking Link Info (Read-only) */}
+            {(gallery as any)?.bookingId && (
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <span className="text-green-700 font-semibold">📋 Galleria creata da Prenotazione</span>
+                  <span className="text-sm text-green-600">ID: {(gallery as any).bookingId}</span>
+                </div>
+              </div>
+            )}
+
             {/* Photo Selection Workflow Section (Task 2) */}
             <div className="border-t pt-4 space-y-4">
               <div className="space-y-2">
