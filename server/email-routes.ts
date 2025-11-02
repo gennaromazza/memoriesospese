@@ -1533,4 +1533,222 @@ router.post("/gallery-ready", async (req, res) => {
   }
 });
 
+/**
+ * Email template: Selection Completed (Task 16)
+ * Notifica admin quando cliente completa selezione foto
+ */
+export function createSelectionCompletedEmailHTML(
+  galleryName: string,
+  clienteName: string,
+  photoCount: number,
+  workspaceUrl: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">✅ Selezione Foto Completata!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 16px; font-weight: bold; color: #155724;">
+            🎉 Grande notizia! Il cliente ha completato la selezione!
+          </p>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Galleria:</strong> ${galleryName}
+          </p>
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Cliente:</strong> ${clienteName}
+          </p>
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Foto selezionate:</strong> <span style="color: #8b5a3c; font-size: 18px; font-weight: bold;">${photoCount} foto</span>
+          </p>
+        </div>
+
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Il cliente ha confermato la selezione delle foto per il suo album. 
+          Puoi visualizzare le foto selezionate e i nomi file per Lightroom nel workspace dedicato.
+        </p>
+
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${workspaceUrl}" style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+            📋 Vai al Workspace Galleria
+          </a>
+        </div>
+
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-top: 20px;">
+          <p style="margin: 0; font-size: 14px; color: #856404;">
+            💡 <strong>Prossimi passi:</strong><br>
+            1. Visualizza le foto selezionate nel tab "Selezioni Cliente"<br>
+            2. Copia i nomi file per importare in Lightroom<br>
+            3. Procedi con la preparazione dell'album
+          </p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * POST /api/email/selection-completed (Task 17)
+ * Invia notifica admin quando cliente completa selezione
+ */
+router.post("/selection-completed", async (req, res) => {
+  try {
+    const {
+      galleryId,
+      galleryName,
+      clienteName,
+      photoCount,
+      workspaceUrl
+    } = req.body;
+
+    // Validazioni
+    if (!galleryId || !galleryName || !clienteName || !photoCount || !workspaceUrl) {
+      return res.status(400).json({
+        error: "Parametri mancanti per email selection completed"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+    
+    // Email sempre a admin
+    const adminEmail = studioInfo.email;
+
+    const htmlContent = createSelectionCompletedEmailHTML(
+      galleryName,
+      clienteName,
+      photoCount,
+      workspaceUrl,
+      studioInfo
+    );
+
+    const subject = `✅ Selezione Completata - ${galleryName} (${clienteName})`;
+
+    await sendGmailEmail(adminEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Selection Completed" inviata a admin per galleria ${galleryName}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Selection completed email sent to admin",
+      recipientEmail: adminEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore selection-completed email:", error);
+    res.status(500).json({
+      error: "Errore invio email selection completed"
+    });
+  }
+});
+
+/**
+ * Email template: Selection Deadline Reminder (Task 18)
+ * Reminder 1 giorno prima scadenza selezione
+ */
+export function createSelectionDeadlineReminderEmailHTML(
+  clienteName: string,
+  galleryName: string,
+  galleryUrl: string,
+  requiredPhotoCount: number,
+  selectedPhotoCount: number,
+  deadlineDate: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const remainingPhotos = requiredPhotoCount - selectedPhotoCount;
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">⏰ Reminder: Scadenza Selezione Foto</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 16px; font-weight: bold; color: #856404;">
+            ⏰ La scadenza per selezionare le foto è domani: <strong>${deadlineDate}</strong>
+          </p>
+        </div>
+
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Questo è un gentile promemoria per la selezione delle foto della galleria "<strong style="color: #8b5a3c;">${galleryName}</strong>".
+        </p>
+
+        <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0; border: 2px solid #8b5a3c;">
+          <p style="text-align: center; margin: 10px 0;">
+            <span style="font-size: 14px; color: #666;">Stato attuale selezione:</span>
+          </p>
+          <p style="text-align: center; margin: 0;">
+            <span style="font-size: 36px; font-weight: bold; color: #8b5a3c;">${selectedPhotoCount} / ${requiredPhotoCount}</span>
+          </p>
+          <p style="text-align: center; margin: 10px 0; font-size: 14px; color: #666;">
+            ${remainingPhotos > 0 
+              ? `Mancano ancora <strong style="color: #d9534f;">${remainingPhotos} foto</strong> da selezionare` 
+              : '✅ Hai selezionato tutte le foto! Ricordati di confermare la selezione.'}
+          </p>
+        </div>
+
+        ${remainingPhotos > 0 ? `
+          <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #0c5460;">
+              💡 <strong>Come completare la selezione:</strong><br>
+              1. Apri la galleria con il bottone qui sotto<br>
+              2. Clicca sul cuore ❤️ sulle tue ${remainingPhotos} foto preferite rimanenti<br>
+              3. Clicca su "Conferma Selezione" quando hai finito
+            </p>
+          </div>
+        ` : `
+          <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #155724;">
+              ✅ <strong>Hai selezionato tutte le ${requiredPhotoCount} foto!</strong><br>
+              Non dimenticare di cliccare su "<strong>Conferma Selezione</strong>" per finalizzare la tua scelta.
+            </p>
+          </div>
+        `}
+
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${galleryUrl}" style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+            📸 Vai alla Galleria
+          </a>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px; font-style: italic;">
+          Serve aiuto? Contattaci! Siamo qui per assisterti. 😊
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
 export default router;

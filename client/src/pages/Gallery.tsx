@@ -108,6 +108,133 @@ export default function Gallery() {
   const [showStoryUpload, setShowStoryUpload] = useState(false);
   const [storyChecked, setStoryChecked] = useState(false);
 
+  // Stati per gestire la selezione foto (Tasks 12-15)
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
+  const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
+
+  // Check se gallery è in selection mode
+  const isSelectionMode = galleryData?.selectionEnabled || false;
+  const requiredPhotoCount = galleryData?.requiredPhotoCount || 0;
+  const selectionDeadline = galleryData?.selectionDeadline;
+  const selectionStatus = galleryData?.selectionStatus || 'pending';
+
+  // Check deadline enforcement
+  const isDeadlinePassed = useMemo(() => {
+    if (!selectionDeadline || !galleryData?.selectionDeadlineEnforced) return false;
+    const deadline = selectionDeadline.toDate ? selectionDeadline.toDate() : new Date(selectionDeadline);
+    return new Date() > deadline;
+  }, [selectionDeadline, galleryData?.selectionDeadlineEnforced]);
+
+  // Sync selectedPhotoIds with galleryData on load
+  useEffect(() => {
+    if (galleryData?.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0) {
+      setSelectedPhotoIds(galleryData.selectedPhotoIds);
+    }
+  }, [galleryData?.selectedPhotoIds]);
+
+  // Toggle photo selection
+  const handleTogglePhotoSelection = useCallback((photoId: string) => {
+    if (isDeadlinePassed && selectionStatus !== 'completed') {
+      toast({
+        title: '⏰ Scadenza superata',
+        description: 'Il termine per la selezione è scaduto. Contatta lo studio per assistenza.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (selectionStatus === 'completed') {
+      toast({
+        title: '✅ Selezione già completata',
+        description: 'Hai già confermato la tua selezione.',
+      });
+      return;
+    }
+
+    setSelectedPhotoIds(prev => {
+      const isSelected = prev.includes(photoId);
+      if (isSelected) {
+        return prev.filter(id => id !== photoId);
+      } else {
+        if (prev.length >= requiredPhotoCount) {
+          toast({
+            title: '⚠️ Limite raggiunto',
+            description: `Puoi selezionare massimo ${requiredPhotoCount} foto. Rimuovi una selezione prima di aggiungerne altre.`,
+            variant: 'destructive',
+          });
+          return prev;
+        }
+        return [...prev, photoId];
+      }
+    });
+  }, [isDeadlinePassed, selectionStatus, requiredPhotoCount, toast]);
+
+  // Confirm selection
+  const handleConfirmSelection = useCallback(async () => {
+    if (!id || !user) {
+      toast({
+        title: '❌ Errore',
+        description: 'Devi essere autenticato per confermare la selezione.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (selectedPhotoIds.length !== requiredPhotoCount) {
+      toast({
+        title: '⚠️ Selezione incompleta',
+        description: `Devi selezionare esattamente ${requiredPhotoCount} foto (${selectedPhotoIds.length}/${requiredPhotoCount} selezionate).`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsSubmittingSelection(true);
+
+      // Update gallery with selected photos
+      const { GalleryService } = await import('@/lib/galleries');
+      await GalleryService.updateGallery(id, {
+        selectedPhotoIds,
+        selectionStatus: 'completed',
+      });
+
+      // Send email notification to admin (Task 17)
+      try {
+        await fetch('/api/email/selection-completed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            galleryId: id,
+            galleryName: galleryData?.name || 'Galleria',
+            clienteName: user.displayName || user.email || 'Cliente',
+            photoCount: selectedPhotoIds.length,
+            workspaceUrl: `${window.location.origin}/admin/gallery/${id}/manage`,
+          }),
+        });
+      } catch (emailError) {
+        console.error('⚠️ Errore invio email admin:', emailError);
+      }
+
+      toast({
+        title: '✅ Selezione confermata!',
+        description: `Le tue ${requiredPhotoCount} foto sono state confermate. Riceverai presto il tuo album!`,
+      });
+
+      // Refresh gallery data
+      await refreshGallery();
+    } catch (error) {
+      console.error('Errore conferma selezione:', error);
+      toast({
+        title: '❌ Errore',
+        description: 'Errore durante la conferma della selezione. Riprova.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingSelection(false);
+    }
+  }, [id, user, selectedPhotoIds, requiredPhotoCount, galleryData, toast, refreshGallery]);
+
   // Funzione per eliminare la storia (solo admin)
   const handleDeleteStory = useCallback(async () => {
     if (!isAdmin || !id || !coupleStory) return;
@@ -825,13 +952,49 @@ export default function Gallery() {
                     </div>
                   ) : (
                     <div>
+                      {/* Selection Mode Banner (Task 13) */}
+                      {isSelectionMode && (
+                        <div className="mb-6 bg-gradient-to-r from-sage/20 to-blue-gray/20 border-2 border-sage rounded-lg p-6 text-center">
+                          <h3 className="text-2xl font-playfair text-blue-gray mb-3">
+                            ✨ Modalità Selezione Foto ✨
+                          </h3>
+                          <p className="text-lg text-gray-700 mb-4">
+                            Seleziona le tue <strong className="text-sage">{requiredPhotoCount} foto preferite</strong> per il tuo album personalizzato!
+                          </p>
+                          <div className="flex items-center justify-center gap-6 mb-4 text-sm text-gray-600">
+                            <div className="flex items-center gap-2">
+                              <span className="text-3xl">❤️</span>
+                              <span>Clicca il cuore per selezionare</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl font-bold text-sage">{selectedPhotoIds.length}/{requiredPhotoCount}</span>
+                              <span>Foto selezionate</span>
+                            </div>
+                          </div>
+                          {selectionDeadline && (
+                            <p className="text-sm text-gray-500">
+                              ⏰ Scadenza: <strong>{new Date(selectionDeadline.toDate ? selectionDeadline.toDate() : selectionDeadline).toLocaleDateString('it-IT')}</strong>
+                            </p>
+                          )}
+                          {isDeadlinePassed && (
+                            <div className="mt-4 bg-red-100 border-2 border-red-300 rounded-lg p-3">
+                              <p className="text-red-700 font-semibold">
+                                ⚠️ La scadenza è superata! Contatta lo studio per assistenza.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="masonry-grid">
                         {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
                           <React.Fragment key={photo.id}>
                             <div className="masonry-item">
                               <div
-                                className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
-                                onClick={() => openLightbox(index)}
+                                className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
+                                  isSelectionMode && selectedPhotoIds.includes(photo.id) ? 'ring-4 ring-sage' : ''
+                                }`}
+                                onClick={() => isSelectionMode ? handleTogglePhotoSelection(photo.id) : openLightbox(index)}
                               >
                                 <img
                                   src={photo.url}
@@ -846,6 +1009,19 @@ export default function Gallery() {
                                   }}
                                   title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                                 />
+                                
+                                {/* Selection Mode Heart Overlay */}
+                                {isSelectionMode && (
+                                  <div className="absolute top-2 right-2 z-10">
+                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                                      selectedPhotoIds.includes(photo.id)
+                                        ? 'bg-sage text-white scale-110 shadow-lg'
+                                        : 'bg-white/80 text-gray-400 hover:bg-white hover:text-sage'
+                                    }`}>
+                                      <span className="text-2xl">{selectedPhotoIds.includes(photo.id) ? '❤️' : '🤍'}</span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Interaction panel below photo */}
@@ -881,6 +1057,66 @@ export default function Gallery() {
                           isLoading={loadingMorePhotos}
                           hasMore={hasMorePhotos}
                         />
+                      )}
+
+                      {/* Conferma Selezione Button (Task 14) */}
+                      {isSelectionMode && selectionStatus !== 'completed' && (
+                        <div className="mt-8 mb-6 text-center">
+                          <div className="bg-white rounded-lg border-2 border-sage p-6 shadow-lg max-w-2xl mx-auto">
+                            <h4 className="text-xl font-playfair text-blue-gray mb-4">
+                              Pronto a confermare la selezione?
+                            </h4>
+                            <div className="mb-4">
+                              <div className="text-3xl font-bold text-sage mb-2">
+                                {selectedPhotoIds.length} / {requiredPhotoCount}
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                {selectedPhotoIds.length === requiredPhotoCount
+                                  ? '✅ Perfetto! Puoi confermare la tua selezione.'
+                                  : `Seleziona ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
+                              </p>
+                            </div>
+                            <Button
+                              onClick={handleConfirmSelection}
+                              disabled={selectedPhotoIds.length !== requiredPhotoCount || isSubmittingSelection || isDeadlinePassed}
+                              className="bg-sage hover:bg-sage/90 text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                              data-testid="button-confirm-selection"
+                            >
+                              {isSubmittingSelection ? (
+                                <>
+                                  <span className="animate-spin mr-2">⏳</span>
+                                  Conferma in corso...
+                                </>
+                              ) : (
+                                <>
+                                  ✨ Conferma Selezione
+                                </>
+                              )}
+                            </Button>
+                            {isDeadlinePassed && (
+                              <p className="mt-3 text-sm text-red-600 font-medium">
+                                ⚠️ Scadenza superata - contatta lo studio
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Selezione Completata Message */}
+                      {isSelectionMode && selectionStatus === 'completed' && (
+                        <div className="mt-8 mb-6 text-center">
+                          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-6 shadow-lg max-w-2xl mx-auto">
+                            <h4 className="text-2xl font-playfair text-green-800 mb-3">
+                              ✅ Selezione Completata!
+                            </h4>
+                            <p className="text-gray-700 mb-2">
+                              Hai confermato la tua selezione di <strong>{requiredPhotoCount} foto</strong>.
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              Riceverai presto il tuo album personalizzato! 🎉
+                            </p>
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}

@@ -23,6 +23,15 @@ export interface GalleryData {
   active?: boolean; // Status attivazione galleria
   specialTheme?: string; // Tema stagionale (natale, carnevale, san-valentino, pasqua, halloween)
   specialPin?: string; // PIN per gallerie speciali
+  
+  // Photo Selection Mode (Tasks 12-15)
+  selectionEnabled?: boolean;
+  requiredPhotoCount?: number;
+  selectionStatus?: 'pending' | 'completed';
+  selectedPhotoIds?: string[];
+  selectionDeadline?: any; // Firebase Timestamp
+  selectionDeadlineEnforced?: boolean;
+  bookingId?: string;
 }
 
 export interface PhotoData {
