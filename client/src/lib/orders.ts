@@ -22,6 +22,16 @@ import type { Order, InsertOrder, Transaction } from '@shared/booking-types';
 const COLLECTION = 'orders';
 
 /**
+ * Helper: Rimuove campi undefined da un oggetto
+ * Firestore non accetta valori undefined
+ */
+function sanitizeData<T extends Record<string, any>>(obj: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) => v !== undefined)
+  ) as Partial<T>;
+}
+
+/**
  * Helper: Converti ordine legacy in nuovo schema (array prodotti + transactions)
  */
 function ensureProdottiArray(orderData: any): any {
@@ -252,17 +262,8 @@ export async function updateOrder(
 ): Promise<void> {
   const docRef = doc(db, COLLECTION, orderId);
   
-  // Filtra i campi undefined per evitare errori Firestore
-  const filteredData: any = {};
-  Object.keys(data).forEach(key => {
-    const value = (data as any)[key];
-    if (value !== undefined) {
-      filteredData[key] = value;
-    }
-  });
-  
   const updateData: any = {
-    ...filteredData,
+    ...data,
     updatedAt: serverTimestamp(),
   };
   
@@ -289,7 +290,8 @@ export async function updateOrder(
     updateData.dataSaldo = Timestamp.fromDate(data.dataSaldo);
   }
   
-  await updateDoc(docRef, updateData);
+  // Sanitizza dati (rimuovi undefined) prima di salvare
+  await updateDoc(docRef, sanitizeData(updateData));
 }
 
 /**
@@ -310,11 +312,11 @@ export async function recordAccontoPayment(
   data: Date = new Date()
 ): Promise<void> {
   const docRef = doc(db, COLLECTION, orderId);
-  await updateDoc(docRef, {
+  await updateDoc(docRef, sanitizeData({
     metodoPagamentoAcconto: metodo,
     dataAcconto: Timestamp.fromDate(data),
     updatedAt: serverTimestamp(),
-  });
+  }));
 }
 
 /**
@@ -326,11 +328,11 @@ export async function recordSaldoPayment(
   data: Date = new Date()
 ): Promise<void> {
   const docRef = doc(db, COLLECTION, orderId);
-  await updateDoc(docRef, {
+  await updateDoc(docRef, sanitizeData({
     metodoPagamentoSaldo: metodo,
     dataSaldo: Timestamp.fromDate(data),
     updatedAt: serverTimestamp(),
-  });
+  }));
 }
 
 /**
@@ -397,8 +399,8 @@ export async function addAccontoPayment(
   
   const nuovoSaldo = totale - nuovoAcconto;
   
-  // 7. Update Firestore con nuovi valori
-  await updateDoc(docRef, {
+  // 7. Update Firestore con nuovi valori (sanitizza per rimuovere undefined)
+  await updateDoc(docRef, sanitizeData({
     transactions: updatedTransactions,
     acconto: nuovoAcconto,
     saldo: nuovoSaldo,
@@ -406,7 +408,7 @@ export async function addAccontoPayment(
     metodoPagamentoAcconto: metodo,
     dataAcconto: Timestamp.fromDate(data),
     updatedAt: serverTimestamp(),
-  });
+  }));
   
   // 8. Return transaction creata (per email notification)
   return newTransaction;
