@@ -190,13 +190,25 @@ export async function createOrder(data: InsertOrder): Promise<string> {
   // Inizializza transactions array (vuoto per nuovi ordini)
   const transactions: Transaction[] = [];
   
+  // Normalizza campi opzionali per evitare undefined in Firestore
+  const normalizedData = {
+    bookingId: data.bookingId || null,
+    galleryId: data.galleryId || null,
+    nomeCliente: data.nomeCliente || '',
+    emailCliente: data.emailCliente || '',
+    whatsappCliente: data.whatsappCliente || null,
+    prodotti: data.prodotti,
+    note: data.note || null,
+    metodoPagamentoAcconto: data.metodoPagamentoAcconto || null,
+  };
+  
   const docRef = await addDoc(collection(db, COLLECTION), {
-    ...data,
+    ...normalizedData,
     acconto, // Usa valore validato
     totale,
     saldo,
     transactions, // Array vuoto per nuovi ordini
-    stato: 'bozza',
+    stato: data.stato || 'bozza',
     emailSaldoInviata: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

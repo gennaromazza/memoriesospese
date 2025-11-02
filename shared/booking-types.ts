@@ -188,8 +188,13 @@ export interface Order {
 export interface InsertOrder {
   bookingId?: string;
   galleryId?: string; // Opzionale
+  nomeCliente: string;
+  emailCliente: string;
+  whatsappCliente?: string;
   prodotti: OrderItem[]; // Array di prodotti (almeno 1)
   acconto: number; // Totale calcolato automaticamente dalla somma prodotti
+  note?: string;
+  stato?: 'bozza' | 'in_lavorazione' | 'completato' | 'annullato';
   metodoPagamentoAcconto?: 'contante' | 'carta' | 'bonifico' | 'paypal';
 }
 
