@@ -18,6 +18,7 @@ import { getAllOrders, createOrder } from '@/lib/orders';
 import { getActiveProducts } from '@/lib/products';
 import { GalleryService, type Gallery } from '@/lib/galleries';
 import type { Booking, BookingCampaign, Order, Product, OrderItem } from '@shared/booking-types';
+import NewGalleryModal from '@/components/NewGalleryModal';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -273,26 +274,6 @@ export default function BookingsManager() {
     },
   });
 
-  // Mutation: Crea galleria da booking
-  const createGalleryMutation = useMutation({
-    mutationFn: GalleryService.createGallery,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['galleries'] });
-      toast({
-        title: 'Galleria creata',
-        description: 'La galleria è stata creata con successo',
-      });
-      setSelectedBookingForGallery(null);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Errore creazione galleria',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
-
   // Handler: Apri dettagli e marca come vista
   const handleOpenDetails = async (booking: Booking) => {
     setSelectedBooking(booking);
@@ -314,6 +295,13 @@ export default function BookingsManager() {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return format(date, 'HH:mm', { locale: it });
+  };
+
+  // Helper: Formatta timestamp per input date (YYYY-MM-DD)
+  const formatDateForInput = (timestamp: any): string => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return format(date, 'yyyy-MM-dd');
   };
 
   return (
@@ -740,15 +728,30 @@ export default function BookingsManager() {
       )}
 
       {/* Dialog creazione galleria da booking */}
-      {selectedBookingForGallery && (
-        <CreateGalleryDialog
-          booking={selectedBookingForGallery}
-          campaign={campaigns.find(c => c.id === selectedBookingForGallery.campaignId)}
-          onClose={() => setSelectedBookingForGallery(null)}
-          onSubmit={(galleryData) => createGalleryMutation.mutate(galleryData)}
-          isPending={createGalleryMutation.isPending}
-        />
-      )}
+      {selectedBookingForGallery && (() => {
+        const campaign = campaigns.find(c => c.id === selectedBookingForGallery.campaignId);
+        return (
+          <NewGalleryModal
+            isOpen={true}
+            onClose={() => setSelectedBookingForGallery(null)}
+            onGalleryCreated={() => {
+              queryClient.invalidateQueries({ queryKey: ['galleries'] });
+              setSelectedBookingForGallery(null);
+              toast({
+                title: 'Galleria creata',
+                description: 'La galleria è stata creata con successo',
+              });
+            }}
+            prePopulate={{
+              name: campaign
+                ? `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome} - ${campaign.nome}`
+                : `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`,
+              date: formatDateForInput(selectedBookingForGallery.dataShootingInizio),
+              specialTheme: campaign?.temaStagionale || undefined,
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -1010,228 +1013,6 @@ function CreateOrderDialog({ booking, products, onClose, onSubmit, isPending }: 
               <>
                 <ShoppingCart className="w-4 h-4 mr-2" />
                 Crea Ordine
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/**
- * Dialog creazione galleria da booking
- */
-interface CreateGalleryDialogProps {
-  booking: Booking;
-  campaign?: BookingCampaign;
-  onClose: () => void;
-  onSubmit: (galleryData: any) => void;
-  isPending: boolean;
-}
-
-function CreateGalleryDialog({ booking, campaign, onClose, onSubmit, isPending }: CreateGalleryDialogProps) {
-  // Helper: Genera codice galleria random (8 char alphanumeric uppercase)
-  const generateRandomCode = (): string => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    for (let i = 0; i < 8; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  };
-
-  // Helper: Formatta data per input date (YYYY-MM-DD)
-  const formatDateForInput = (timestamp: any): string => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return format(date, 'yyyy-MM-dd');
-  };
-
-  // Pre-popola nome galleria
-  const defaultName = campaign
-    ? `${booking.cliente.nome} ${booking.cliente.cognome} - ${campaign.nome}`
-    : `${booking.cliente.nome} ${booking.cliente.cognome}`;
-
-  const [name, setName] = useState<string>(defaultName);
-  const [code, setCode] = useState<string>(generateRandomCode());
-  const [date, setDate] = useState<string>(formatDateForInput(booking.dataShootingInizio));
-  const [location, setLocation] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
-
-  // Handler: Submit galleria
-  const handleSubmit = () => {
-    // Validation
-    if (!name.trim()) {
-      alert('Inserisci il nome della galleria');
-      return;
-    }
-    if (!code.trim() || code.trim().length !== 8) {
-      alert('Il codice deve essere di 8 caratteri');
-      return;
-    }
-    if (!date) {
-      alert('Inserisci la data dell\'evento');
-      return;
-    }
-    if (!location.trim()) {
-      alert('Inserisci il luogo dell\'evento');
-      return;
-    }
-
-    // Build galleryData
-    const galleryData = {
-      name: name.trim(),
-      code: code.trim().toUpperCase(),
-      date,
-      location: location.trim(),
-      password: password.trim() || undefined,
-      description: description.trim() || undefined,
-    };
-
-    onSubmit(galleryData);
-  };
-
-  return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-playfair text-2xl flex items-center gap-2">
-            <ImageIcon className="w-6 h-6 text-blue-500" />
-            Crea Galleria da Prenotazione
-          </DialogTitle>
-          <DialogDescription>
-            Cliente: {booking.cliente.nome} {booking.cliente.cognome}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          {/* Nome Galleria */}
-          <div>
-            <Label htmlFor="name" className="mb-2 block">
-              Nome Galleria <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Nome della galleria"
-              data-testid="input-gallery-name"
-            />
-          </div>
-
-          {/* Codice Galleria */}
-          <div>
-            <Label htmlFor="code" className="mb-2 block">
-              Codice Galleria <span className="text-red-500">*</span>
-              <span className="text-sm text-gray-500 ml-2">(8 caratteri alfanumerici)</span>
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="code"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="ABC12XYZ"
-                maxLength={8}
-                className="uppercase"
-                data-testid="input-gallery-code"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setCode(generateRandomCode())}
-                data-testid="button-regenerate-code"
-              >
-                Rigenera
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Codice univoco per accedere alla galleria (es. /gallery/{code})
-            </p>
-          </div>
-
-          {/* Data Evento */}
-          <div>
-            <Label htmlFor="date" className="mb-2 block">
-              Data Evento <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              data-testid="input-gallery-date"
-            />
-          </div>
-
-          {/* Luogo */}
-          <div>
-            <Label htmlFor="location" className="mb-2 block">
-              Luogo <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Luogo dell'evento"
-              data-testid="input-gallery-location"
-            />
-          </div>
-
-          {/* Password (opzionale) */}
-          <div>
-            <Label htmlFor="password" className="mb-2 block">
-              Password (opzionale)
-            </Label>
-            <Input
-              id="password"
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password per proteggere la galleria"
-              data-testid="input-gallery-password"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Se vuoi proteggere la galleria con password, inseriscila qui
-            </p>
-          </div>
-
-          {/* Descrizione (opzionale) */}
-          <div>
-            <Label htmlFor="description" className="mb-2 block">
-              Descrizione (opzionale)
-            </Label>
-            <Input
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descrizione della galleria"
-              data-testid="input-gallery-description"
-            />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isPending}>
-            Annulla
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={isPending}
-            className="bg-blue-500 hover:bg-blue-600"
-            data-testid="button-submit-gallery"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creazione...
-              </>
-            ) : (
-              <>
-                <ImageIcon className="w-4 h-4 mr-2" />
-                Crea Galleria
               </>
             )}
           </Button>

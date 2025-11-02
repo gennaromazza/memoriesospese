@@ -48,6 +48,10 @@ export interface Gallery {
   // Special Theme fields (seasonal galleries)
   specialTheme?: string; // ID del tema stagionale (es. 'natale2024')
   specialPin?: string; // PIN specifico per galleria speciale
+  
+  // Photo Selection Mode
+  selectionEnabled?: boolean; // Modalità selezione foto - permette ai clienti di selezionare foto preferite (default: false per backward compatibility)
+  
   createdAt: any; // Firebase Timestamp
   updatedAt?: any; // Firebase Timestamp
 }

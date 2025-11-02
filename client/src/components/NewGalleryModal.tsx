@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { nanoid } from 'nanoid';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getAllThemes } from '@shared/special-themes';
@@ -16,9 +17,19 @@ interface NewGalleryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGalleryCreated?: () => void;
+  
+  // Pre-population fields (optional)
+  prePopulate?: {
+    name?: string;
+    date?: string;
+    location?: string;
+    description?: string;
+    specialTheme?: string; // Auto-populated from campaign.temaStagionale
+    specialPin?: string;
+  };
 }
 
-export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: NewGalleryModalProps) {
+export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, prePopulate }: NewGalleryModalProps) {
   const { user } = useFirebaseAuth();
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
@@ -27,9 +38,22 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
   const [password, setPassword] = useState('');
   const [specialTheme, setSpecialTheme] = useState<string>('none');
   const [specialPin, setSpecialPin] = useState('');
+  const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
   const availableThemes = getAllThemes();
+  
+  // Initialize form with pre-populated values
+  useEffect(() => {
+    if (prePopulate) {
+      setName(prePopulate.name || '');
+      setDate(prePopulate.date || '');
+      setLocation(prePopulate.location || '');
+      setDescription(prePopulate.description || '');
+      setSpecialTheme(prePopulate.specialTheme || 'none');
+      setSpecialPin(prePopulate.specialPin || '');
+    }
+  }, [prePopulate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +98,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
         password: password.trim(),
         userId: user.uid,
         photoCount: 0,
+        selectionEnabled, // Modalità selezione foto
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -96,6 +121,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
       setPassword('');
       setSpecialTheme('none');
       setSpecialPin('');
+      setSelectionEnabled(false);
 
       onGalleryCreated?.();
       onClose();
@@ -216,6 +242,24 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated }: N
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Photo Selection Section */}
+            <div className="border-t pt-4 space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="selectionEnabled"
+                  checked={selectionEnabled}
+                  onCheckedChange={(checked) => setSelectionEnabled(checked as boolean)}
+                  data-testid="checkbox-selection-enabled"
+                />
+                <Label htmlFor="selectionEnabled" className="font-medium cursor-pointer">
+                  Abilita Selezione Foto
+                </Label>
+              </div>
+              <p className="text-sm text-muted-foreground ml-6">
+                Permetti al cliente di selezionare le foto preferite dalla galleria
+              </p>
             </div>
           </div>
 
