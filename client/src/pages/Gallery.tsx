@@ -143,17 +143,24 @@ export default function Gallery() {
   // 🔍 DEBUG: Log stato modalità selezione
   useEffect(() => {
     if (galleryData) {
-      console.log('🔍 [SELECTION MODE DEBUG]', {
-        galleryId: galleryData.id,
-        galleryCode: galleryData.code,
-        selectionEnabled: galleryData.selectionEnabled,
-        isSelectionMode,
-        requiredPhotoCount: galleryData.requiredPhotoCount,
-        selectionStatus: galleryData.selectionStatus,
-        selectionDeadline: galleryData.selectionDeadline,
-        selectionDeadlineEnforced: galleryData.selectionDeadlineEnforced,
-        selectedPhotoIds: galleryData.selectedPhotoIds?.length || 0
-      });
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🔍 SELECTION MODE DEBUG - Galleria:', galleryData.code);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📌 Gallery ID:', galleryData.id);
+      console.log('📌 Gallery Code:', galleryData.code);
+      console.log('✅ selectionEnabled:', galleryData.selectionEnabled);
+      console.log('✅ isSelectionMode:', isSelectionMode);
+      console.log('📊 requiredPhotoCount:', galleryData.requiredPhotoCount);
+      console.log('📋 selectionStatus:', galleryData.selectionStatus);
+      console.log('⏰ selectionDeadline:', galleryData.selectionDeadline);
+      console.log('🔒 selectionDeadlineEnforced:', galleryData.selectionDeadlineEnforced);
+      console.log('💚 selectedPhotoIds count:', galleryData.selectedPhotoIds?.length || 0);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      if (!galleryData.selectionEnabled) {
+        console.error('❌ PROBLEMA: selectionEnabled è FALSE o undefined!');
+        console.error('❌ Per attivare: Admin → Gestione Gallerie → Gestisci → Impostazioni → ✓ Modalità Selezione Foto');
+      }
     }
   }, [galleryData, isSelectionMode]);
 
