@@ -108,6 +108,18 @@ export default function Gallery() {
   const [showStoryUpload, setShowStoryUpload] = useState(false);
   const [storyChecked, setStoryChecked] = useState(false);
 
+  // Carica dati galleria usando il custom hook (MOVED HERE - Fix "used before declaration")
+  const {
+    gallery: galleryData, // Renamed to galleryData to avoid conflict
+    photos,
+    guestPhotos,
+    isLoading: isLoadingPhotos, // Renamed to isLoadingPhotos
+    hasMorePhotos,
+    loadingMorePhotos,
+    loadMorePhotos,
+    refreshPhotos: refreshGalleryPhotosHook
+  } = useGalleryData(id || "");
+
   // Stati per gestire la selezione foto (Tasks 12-15)
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
@@ -201,9 +213,15 @@ export default function Gallery() {
 
       // Send email notification to admin (Task 17)
       try {
+        // Get Firebase ID token for authentication
+        const token = await user.getIdToken();
+        
         await fetch('/api/email/selection-completed', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           body: JSON.stringify({
             galleryId: id,
             galleryName: galleryData?.name || 'Galleria',
@@ -266,18 +284,6 @@ export default function Gallery() {
 
   // Ref per l'elemento sentinella per infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // Carica dati galleria usando il custom hook
-  const {
-    gallery: galleryData, // Renamed to galleryData to avoid conflict
-    photos,
-    guestPhotos,
-    isLoading: isLoadingPhotos, // Renamed to isLoadingPhotos
-    hasMorePhotos,
-    loadingMorePhotos,
-    loadMorePhotos,
-    refreshPhotos: refreshGalleryPhotosHook
-  } = useGalleryData(id || "");
 
   // Calcola la data dell'evento direttamente dalla galleria
   const eventDate = useMemo(() => {
