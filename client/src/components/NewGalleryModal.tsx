@@ -154,7 +154,8 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
         galleryData.selectedPhotoIds = [];
         if (selectionDeadline) {
           // Convert date string to Firestore Timestamp
-          galleryData.selectionDeadline = new Date(selectionDeadline);
+          const { Timestamp } = await import('firebase/firestore');
+          galleryData.selectionDeadline = Timestamp.fromDate(new Date(selectionDeadline));
           galleryData.selectionDeadlineEnforced = true;
         }
       }
@@ -164,8 +165,9 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
         galleryData.bookingId = prePopulate.bookingId;
       }
 
-      const galleryDocRef = await addDoc(collection(db, 'galleries'), galleryData);
-      const newGalleryId = galleryDocRef.id;
+      // Use GalleryService instead of direct Firestore write
+      const { GalleryService } = await import('@/lib/galleries');
+      const newGalleryId = await GalleryService.createGallery(galleryData);
 
       // Send email notification if selection enabled
       if (selectionEnabled && requiredPhotoCount > 0 && prePopulate?.clienteEmail) {
