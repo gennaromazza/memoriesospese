@@ -483,7 +483,15 @@ export function useGalleryData(galleryCode: string) {
           code: galleryData.code || galleryCode,
           active: isActive,
           specialTheme: galleryData.specialTheme || undefined,
-          specialPin: galleryData.specialPin || undefined
+          specialPin: galleryData.specialPin || undefined,
+          // Photo Selection Mode fields
+          selectionEnabled: galleryData.selectionEnabled || false,
+          requiredPhotoCount: galleryData.requiredPhotoCount || undefined,
+          selectionStatus: galleryData.selectionStatus || 'pending',
+          selectedPhotoIds: galleryData.selectedPhotoIds || [],
+          selectionDeadline: galleryData.selectionDeadline || undefined,
+          selectionDeadlineEnforced: galleryData.selectionDeadlineEnforced !== false, // default true
+          bookingId: galleryData.bookingId || undefined
         });
         
         
