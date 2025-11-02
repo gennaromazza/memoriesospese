@@ -127,6 +127,12 @@ export default function BookingsManager() {
     queryFn: getActiveProducts,
   });
 
+  // Query galleries per trovare gallerie create da bookings
+  const { data: allGalleries = [] } = useQuery<Gallery[]>({
+    queryKey: ['galleries'],
+    queryFn: GalleryService.getAllGalleries,
+  });
+
   // Helper: Ottieni nome campagna
   const getCampaignName = (campaignId: string) => {
     const campaign = campaigns.find(c => c.id === campaignId);
@@ -136,6 +142,11 @@ export default function BookingsManager() {
   // Helper: Trova ordine per booking
   const getOrderByBookingId = (bookingId: string): Order | undefined => {
     return allOrders.find(order => order.bookingId === bookingId);
+  };
+
+  // Helper: Trova galleria per booking
+  const getGalleryByBookingId = (bookingId: string): Gallery | undefined => {
+    return allGalleries.find(gallery => gallery.bookingId === bookingId);
   };
 
   // Filtra, cerca e ordina bookings
@@ -504,17 +515,35 @@ export default function BookingsManager() {
                       </Button>
                     )}
 
-                    {/* Pulsante + Galleria */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedBookingForGallery(booking)}
-                      className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"
-                      data-testid={`button-create-gallery-${booking.id}`}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Galleria
-                    </Button>
+                    {/* Pulsante + Galleria (solo se non esiste già) */}
+                    {!getGalleryByBookingId(booking.id) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedBookingForGallery(booking)}
+                        className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"
+                        data-testid={`button-create-gallery-${booking.id}`}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Galleria
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const gallery = getGalleryByBookingId(booking.id);
+                          if (gallery) {
+                            window.location.href = `/admin/gallery/${gallery.id}/manage`;
+                          }
+                        }}
+                        className="border-purple-500 text-purple-500 hover:bg-purple-500 hover:text-white"
+                        data-testid={`button-manage-gallery-${booking.id}`}
+                      >
+                        <ImageIcon className="w-4 h-4 mr-1" />
+                        Gestisci Galleria
+                      </Button>
+                    )}
 
                     {booking.stato === 'in_attesa' && (
                       <Button
@@ -748,6 +777,10 @@ export default function BookingsManager() {
                 : `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`,
               date: formatDateForInput(selectedBookingForGallery.dataShootingInizio),
               specialTheme: campaign?.temaStagionale || undefined,
+              bookingId: selectedBookingForGallery.id, // Link galleria a booking
+              prodottoId: selectedBookingForGallery.prodottoId, // Fetch product data per auto-populate selection
+              clienteEmail: selectedBookingForGallery.cliente.email, // Email for gallery ready notification
+              clienteNome: `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`, // Nome completo per email
             }}
           />
         );

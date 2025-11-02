@@ -32,6 +32,7 @@ export interface Gallery {
   youtubeUrl?: string;
   photoCount: number;
   active: boolean;
+  userId?: string;
   createdAt: any;
   updatedAt: any;
   
@@ -40,6 +41,21 @@ export interface Gallery {
   securityQuestionType?: 'bride_name' | 'groom_name' | 'wedding_location' | 'wedding_date' | 'custom';
   securityQuestionCustom?: string;
   securityAnswer?: string;
+  
+  // Special Theme fields (seasonal galleries)
+  specialTheme?: string;
+  specialPin?: string;
+  
+  // Photo Selection Mode
+  selectionEnabled?: boolean;
+  requiredPhotoCount?: number;
+  selectionStatus?: 'pending' | 'completed';
+  selectedPhotoIds?: string[];
+  selectionDeadline?: any;
+  selectionDeadlineEnforced?: boolean;
+  
+  // Booking Integration
+  bookingId?: string;
 }
 
 export interface GalleryAccessInfo {

@@ -1369,4 +1369,168 @@ export function createOrderSaldoPendenteEmailHTML(
   `;
 }
 
+/**
+ * Template HTML per email "Galleria Pronta" con selezione foto
+ * ESPORTATA per uso diretto da NewGalleryModal
+ */
+export function createGalleryReadyEmailHTML(
+  clienteName: string,
+  galleryName: string,
+  galleryUrl: string,
+  requiredPhotoCount: number,
+  selectionDeadline?: string,
+  photoCount?: number,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  // Logica dinamica: se galleria vuota, messaggio temporaneo
+  const isGalleryEmpty = photoCount === 0;
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">🎨 La tua galleria è pronta!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        
+        ${isGalleryEmpty ? `
+          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #856404;">
+              <strong>⏳ Stiamo caricando le foto...</strong><br>
+              La tua galleria è stata creata! 📸 Stiamo caricando le foto del tuo shooting.<br><br>
+              <strong>Torna tra 10-15 minuti</strong> per iniziare a selezionare le tue ${requiredPhotoCount} foto preferite per l'album! ❤️
+            </p>
+          </div>
+          
+          <p style="font-size: 16px; margin-top: 20px; text-align: center;">
+            Ti invieremo una notifica quando le foto saranno pronte.<br>
+            Nel frattempo, salva questo link:
+          </p>
+          
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${galleryUrl}" style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+              🔗 Vai alla Galleria
+            </a>
+          </div>
+        ` : `
+          <p style="font-size: 16px; margin-bottom: 20px;">
+            Fantastico! 🎉 Le foto del tuo shooting "<strong style="color: #8b5a3c;">${galleryName}</strong>" sono online!
+          </p>
+          
+          <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #0056b3; margin-top: 0; margin-bottom: 15px;">📸 Seleziona le tue foto preferite!</h3>
+            <p style="margin: 8px 0; font-size: 14px; color: #0c5460;">
+              Abbiamo caricato tutte le foto del tuo shooting. Ora è il momento di scegliere le tue preferite!
+            </p>
+            <div style="background: white; padding: 15px; border-radius: 5px; margin: 15px 0;">
+              <p style="margin: 0; font-size: 18px; font-weight: bold; color: #0056b3; text-align: center;">
+                🎯 Seleziona <span style="font-size: 24px; color: #8b5a3c;">${requiredPhotoCount} foto</span> per il tuo album
+              </p>
+            </div>
+            ${selectionDeadline ? `
+              <p style="margin: 8px 0; font-size: 14px; color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">
+                ⏰ <strong>Scadenza selezione:</strong> ${selectionDeadline}<br>
+                <span style="font-size: 12px;">Ti invieremo un reminder 1 giorno prima della scadenza!</span>
+              </p>
+            ` : ''}
+          </div>
+
+          <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
+            <h4 style="color: #0c5460; margin-top: 0; margin-bottom: 10px;">💡 Come funziona?</h4>
+            <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460; line-height: 1.8;">
+              <li>Apri la galleria cliccando il bottone qui sotto</li>
+              <li>Sfoglia tutte le foto con calma 🌟</li>
+              <li>Clicca sul <strong style="color: #8b5a3c;">cuore ❤️</strong> sulle tue ${requiredPhotoCount} foto preferite</li>
+              <li>Vedrai il contatore in alto (es. 15/${requiredPhotoCount}) mentre selezioni</li>
+              <li>Quando hai finito, clicca su "<strong>Conferma Selezione</strong>" ✅</li>
+            </ol>
+          </div>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${galleryUrl}" style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+              📸 Inizia a Selezionare le Foto
+            </a>
+          </div>
+
+          <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px; font-style: italic;">
+            Prenditi il tuo tempo e scegli le foto che ami di più! ❤️<br>
+            Saranno i ricordi che guarderai per sempre. ✨
+          </p>
+        `}
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * POST /api/email/gallery-ready
+ * Invia email "Galleria Pronta" al cliente dopo creazione galleria con selezione foto
+ */
+router.post("/gallery-ready", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteNome,
+      galleryName,
+      galleryUrl,
+      requiredPhotoCount,
+      selectionDeadline,
+      photoCount
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteNome || !galleryName || !galleryUrl || !requiredPhotoCount) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio email galleria pronta"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createGalleryReadyEmailHTML(
+      clienteNome,
+      galleryName,
+      galleryUrl,
+      requiredPhotoCount,
+      selectionDeadline,
+      photoCount || 0,
+      studioInfo
+    );
+
+    const subject = `🎨 La tua galleria è pronta - Seleziona le ${requiredPhotoCount} foto!`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Galleria Pronta" inviata a ${recipientEmail} per galleria ${galleryName}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Gallery ready email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore gallery-ready email:", error);
+    res.status(500).json({
+      error: "Errore invio email galleria pronta"
+    });
+  }
+});
+
 export default router;

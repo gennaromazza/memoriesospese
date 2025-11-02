@@ -12,6 +12,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getAllThemes } from '@shared/special-themes';
+import { getProductById } from '@/lib/products';
+import type { Product } from '@shared/booking-types';
+import { Info } from 'lucide-react';
 
 interface NewGalleryModalProps {
   isOpen: boolean;
@@ -26,6 +29,10 @@ interface NewGalleryModalProps {
     description?: string;
     specialTheme?: string; // Auto-populated from campaign.temaStagionale
     specialPin?: string;
+    bookingId?: string; // Link to booking (for integration)
+    prodottoId?: string; // Product ID to fetch data and auto-populate selection settings
+    clienteEmail?: string; // Client email for sending gallery ready notification
+    clienteNome?: string; // Client nome per email personalizzata
   };
 }
 
@@ -39,9 +46,39 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
   const [specialTheme, setSpecialTheme] = useState<string>('none');
   const [specialPin, setSpecialPin] = useState('');
   const [selectionEnabled, setSelectionEnabled] = useState(false);
+  const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(0);
+  const [selectionDeadline, setSelectionDeadline] = useState<string>('');
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
   const availableThemes = getAllThemes();
+  
+  // Fetch product data when prodottoId is provided
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (prePopulate?.prodottoId) {
+        setIsLoadingProduct(true);
+        try {
+          const productData = await getProductById(prePopulate.prodottoId);
+          if (productData) {
+            setProduct(productData);
+            // Auto-populate selection settings from product
+            if (productData.numeroFoto > 0) {
+              setSelectionEnabled(true);
+              setRequiredPhotoCount(productData.numeroFoto);
+            }
+          }
+        } catch (error) {
+          console.error('Errore fetch prodotto:', error);
+        } finally {
+          setIsLoadingProduct(false);
+        }
+      }
+    };
+    
+    fetchProduct();
+  }, [prePopulate?.prodottoId]);
   
   // Initialize form with pre-populated values
   useEffect(() => {
@@ -98,6 +135,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
         password: password.trim(),
         userId: user.uid,
         photoCount: 0,
+        active: true,
         selectionEnabled, // Modalità selezione foto
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -108,8 +146,64 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
         galleryData.specialTheme = specialTheme;
         galleryData.specialPin = specialPin.trim();
       }
+      
+      // Add photo selection fields if selection is enabled
+      if (selectionEnabled && requiredPhotoCount > 0) {
+        galleryData.requiredPhotoCount = requiredPhotoCount;
+        galleryData.selectionStatus = 'pending';
+        galleryData.selectedPhotoIds = [];
+        if (selectionDeadline) {
+          // Convert date string to Firestore Timestamp
+          galleryData.selectionDeadline = new Date(selectionDeadline);
+          galleryData.selectionDeadlineEnforced = true;
+        }
+      }
+      
+      // Add booking link if gallery created from BookingsManager
+      if (prePopulate?.bookingId) {
+        galleryData.bookingId = prePopulate.bookingId;
+      }
 
-      await addDoc(collection(db, 'galleries'), galleryData);
+      const galleryDocRef = await addDoc(collection(db, 'galleries'), galleryData);
+      const newGalleryId = galleryDocRef.id;
+
+      // Send email notification if selection enabled
+      if (selectionEnabled && requiredPhotoCount > 0 && prePopulate?.clienteEmail) {
+        try {
+          const galleryUrl = `${window.location.origin}/gallery/${code}`;
+          const deadlineFormatted = selectionDeadline 
+            ? new Date(selectionDeadline).toLocaleDateString('it-IT', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })
+            : undefined;
+
+          const emailResponse = await fetch('/api/email/gallery-ready', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipientEmail: prePopulate.clienteEmail,
+              clienteNome: prePopulate.clienteNome || 'Cliente',
+              galleryName: name.trim(),
+              galleryUrl,
+              requiredPhotoCount,
+              selectionDeadline: deadlineFormatted,
+              photoCount: 0 // Always 0 on creation
+            })
+          });
+
+          if (emailResponse.ok) {
+            console.log('✅ Email "Galleria Pronta" inviata al cliente');
+          } else {
+            console.error('⚠️ Email non inviata:', await emailResponse.text());
+          }
+        } catch (emailError) {
+          console.error('⚠️ Errore invio email galleria:', emailError);
+          // Non bloccare il flusso se email fallisce
+        }
+      }
 
       toast.success('Galleria creata con successo!');
 
@@ -122,6 +216,9 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
       setSpecialTheme('none');
       setSpecialPin('');
       setSelectionEnabled(false);
+      setRequiredPhotoCount(0);
+      setSelectionDeadline('');
+      setProduct(null);
 
       onGalleryCreated?.();
       onClose();
@@ -244,8 +341,33 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
               )}
             </div>
 
-            {/* Photo Selection Section */}
-            <div className="border-t pt-4 space-y-2">
+            {/* Product Snapshot & Photo Selection Section */}
+            {product && (
+              <div className="border-t pt-4 space-y-3">
+                <div className="bg-sage/10 border border-sage/30 rounded-lg p-4 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-5 h-5 text-sage mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-sage-dark">📦 Prodotto Prenotato</h4>
+                      <p className="text-sm text-gray-700 mt-1">
+                        <strong>{product.nome}</strong>
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        🎯 <strong>{product.numeroFoto} foto</strong> richieste per questo prodotto
+                      </p>
+                      {prePopulate?.specialTheme && (
+                        <p className="text-sm text-gray-600">
+                          🎨 Tema: {availableThemes.find(t => t.id === prePopulate.specialTheme)?.name || 'Standard'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Photo Selection Settings */}
+            <div className="border-t pt-4 space-y-4">
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="selectionEnabled"
@@ -254,12 +376,51 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
                   data-testid="checkbox-selection-enabled"
                 />
                 <Label htmlFor="selectionEnabled" className="font-medium cursor-pointer">
-                  Abilita Selezione Foto
+                  Abilita Selezione Foto {product && `(${product.numeroFoto} foto)`}
                 </Label>
               </div>
               <p className="text-sm text-muted-foreground ml-6">
                 Permetti al cliente di selezionare le foto preferite dalla galleria
               </p>
+              
+              {selectionEnabled && (
+                <div className="ml-6 space-y-4 border-l-2 border-sage/30 pl-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="requiredPhotoCount">Numero Foto da Selezionare *</Label>
+                    <Input
+                      id="requiredPhotoCount"
+                      type="number"
+                      min="1"
+                      value={requiredPhotoCount || ''}
+                      onChange={(e) => setRequiredPhotoCount(parseInt(e.target.value) || 0)}
+                      placeholder="Es. 50"
+                      required={selectionEnabled}
+                      data-testid="input-required-photo-count"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {product 
+                        ? `Pre-compilato da prodotto: ${product.numeroFoto} foto (puoi modificarlo)` 
+                        : 'Quante foto deve selezionare il cliente?'
+                      }
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="selectionDeadline">Scadenza Selezione (Opzionale)</Label>
+                    <Input
+                      id="selectionDeadline"
+                      type="date"
+                      value={selectionDeadline}
+                      onChange={(e) => setSelectionDeadline(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      data-testid="input-selection-deadline"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Se impostata, il cliente riceverà email reminder 1 giorno prima e selezione bloccata dopo deadline (puoi sbloccare manualmente)
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

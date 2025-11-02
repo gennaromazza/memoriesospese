@@ -51,6 +51,15 @@ export interface Gallery {
   
   // Photo Selection Mode
   selectionEnabled?: boolean; // Modalità selezione foto - permette ai clienti di selezionare foto preferite (default: false per backward compatibility)
+  requiredPhotoCount?: number; // Numero di foto che il cliente deve selezionare (es. 50 per album)
+  selectionStatus?: 'pending' | 'completed'; // Stato selezione cliente
+  selectedPhotoIds?: string[]; // Array IDs foto selezionate dal cliente
+  selectionDeadline?: any; // Firebase Timestamp - Scadenza per completare selezione (opzionale)
+  selectionDeadlineEnforced?: boolean; // Se true, blocca selezione dopo deadline (admin può sbloccare)
+  
+  // Booking Integration
+  bookingId?: string; // Link a booking se galleria creata da BookingsManager
+  userId: string; // UID admin/utente che ha creato la galleria
   
   createdAt: any; // Firebase Timestamp
   updatedAt?: any; // Firebase Timestamp
