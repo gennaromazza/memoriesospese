@@ -2,7 +2,7 @@
  * Bookings Manager - Gestione prenotazioni booking per admin
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import {
@@ -14,7 +14,9 @@ import {
   markBookingAsViewed,
 } from '@/lib/bookings';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
-import type { Booking, BookingCampaign } from '@shared/booking-types';
+import { getAllOrders, createOrder } from '@/lib/orders';
+import { getActiveProducts } from '@/lib/products';
+import type { Booking, BookingCampaign, Order, Product, OrderItem } from '@shared/booking-types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -56,7 +58,10 @@ import {
   AlertCircle,
   Loader2,
   FileText,
-  Search
+  Search,
+  ShoppingCart,
+  Plus,
+  Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -93,6 +98,7 @@ export default function BookingsManager() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<Booking | null>(null);
 
   // Query bookings - sempre tutti per permettere filtro client-side
   const { data: allBookings = [], isLoading, refetch } = useQuery<Booking[]>({
@@ -106,10 +112,27 @@ export default function BookingsManager() {
     queryFn: getAllCampaigns,
   });
 
+  // Query ordini per lookup
+  const { data: allOrders = [] } = useQuery<Order[]>({
+    queryKey: ['orders'],
+    queryFn: getAllOrders,
+  });
+
+  // Query prodotti attivi per dialog creazione ordine
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ['products', 'active'],
+    queryFn: getActiveProducts,
+  });
+
   // Helper: Ottieni nome campagna
   const getCampaignName = (campaignId: string) => {
     const campaign = campaigns.find(c => c.id === campaignId);
     return campaign?.nome || 'Campagna sconosciuta';
+  };
+
+  // Helper: Trova ordine per booking
+  const getOrderByBookingId = (bookingId: string): Order | undefined => {
+    return allOrders.find(order => order.bookingId === bookingId);
   };
 
   // Filtra, cerca e ordina bookings
@@ -224,6 +247,27 @@ export default function BookingsManager() {
     onError: (error: Error) => {
       console.error('Errore marca come vista:', error);
       // Silent fail - non mostrare toast per non disturbare admin
+    },
+  });
+
+  // Mutation: Crea ordine da booking
+  const createOrderMutation = useMutation({
+    mutationFn: createOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      toast({
+        title: 'Ordine creato',
+        description: 'L\'ordine è stato creato con successo',
+      });
+      setSelectedBookingForOrder(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore creazione ordine',
+        description: error.message,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -417,6 +461,14 @@ export default function BookingsManager() {
                         🔔 NUOVA
                       </Badge>
                     )}
+
+                    {/* Badge Ordine Creato */}
+                    {getOrderByBookingId(booking.id) && (
+                      <Badge className="bg-green-50 text-green-700 border-green-200" variant="outline">
+                        <ShoppingCart className="w-3 h-3 mr-1" />
+                        Ordine Creato
+                      </Badge>
+                    )}
                     
                     <Button
                       variant="outline"
@@ -426,6 +478,38 @@ export default function BookingsManager() {
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Dettagli
+                    </Button>
+
+                    {/* Pulsante + Ordine (solo se non esiste già) */}
+                    {!getOrderByBookingId(booking.id) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedBookingForOrder(booking)}
+                        className="border-sage text-sage hover:bg-sage hover:text-white"
+                        data-testid={`button-create-order-${booking.id}`}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Ordine
+                      </Button>
+                    )}
+
+                    {/* Pulsante + Galleria */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // TODO: Implementare dialog creazione galleria
+                        toast({
+                          title: 'Funzione in sviluppo',
+                          description: 'La creazione galleria sarà disponibile a breve',
+                        });
+                      }}
+                      className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"
+                      data-testid={`button-create-gallery-${booking.id}`}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Galleria
                     </Button>
 
                     {booking.stato === 'in_attesa' && (
@@ -627,6 +711,283 @@ export default function BookingsManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog creazione ordine da booking */}
+      {selectedBookingForOrder && (
+        <CreateOrderDialog
+          booking={selectedBookingForOrder}
+          products={products}
+          onClose={() => setSelectedBookingForOrder(null)}
+          onSubmit={(orderData) => createOrderMutation.mutate(orderData)}
+          isPending={createOrderMutation.isPending}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Dialog creazione ordine da booking
+ */
+interface CreateOrderDialogProps {
+  booking: Booking;
+  products: Product[];
+  onClose: () => void;
+  onSubmit: (orderData: any) => void;
+  isPending: boolean;
+}
+
+function CreateOrderDialog({ booking, products, onClose, onSubmit, isPending }: CreateOrderDialogProps) {
+  const [selectedProducts, setSelectedProducts] = useState<Array<{
+    prodottoId: string;
+    quantita: number;
+  }>>([]);
+  const [acconto, setAcconto] = useState<number>(0);
+  const [note, setNote] = useState<string>('');
+
+  // Pre-popola prodotto da booking se disponibile (solo al mount)
+  useEffect(() => {
+    if (booking.prodottoId) {
+      setSelectedProducts([{ prodottoId: booking.prodottoId, quantita: 1 }]);
+    }
+  }, []);
+
+  // Helper: Aggiungi prodotto vuoto
+  const addProduct = () => {
+    setSelectedProducts([...selectedProducts, { prodottoId: '', quantita: 1 }]);
+  };
+
+  // Helper: Rimuovi prodotto
+  const removeProduct = (index: number) => {
+    setSelectedProducts(selectedProducts.filter((_, i) => i !== index));
+  };
+
+  // Helper: Aggiorna prodotto
+  const updateProduct = (index: number, field: 'prodottoId' | 'quantita', value: string | number) => {
+    const updated = [...selectedProducts];
+    updated[index] = { ...updated[index], [field]: value };
+    setSelectedProducts(updated);
+  };
+
+  // Helper: Calcola subtotale per prodotto
+  const getProductSubtotal = (prodottoId: string, quantita: number): number => {
+    const product = products.find(p => p.id === prodottoId);
+    if (!product) return 0;
+    return product.prezzoFinale * quantita;
+  };
+
+  // Helper: Calcola totale ordine
+  const calculateTotale = (): number => {
+    return selectedProducts.reduce((sum, item) => {
+      return sum + getProductSubtotal(item.prodottoId, item.quantita);
+    }, 0);
+  };
+
+  // Handler: Submit ordine
+  const handleSubmit = () => {
+    // Validation
+    if (selectedProducts.length === 0) {
+      alert('Seleziona almeno un prodotto');
+      return;
+    }
+
+    // Verifica che tutti prodotti siano selezionati
+    if (selectedProducts.some(p => !p.prodottoId || p.quantita <= 0)) {
+      alert('Completa tutti i prodotti con quantità valida');
+      return;
+    }
+
+    // Costruisci array OrderItem con snapshot
+    const prodottiOrderItems: OrderItem[] = selectedProducts.map(item => {
+      const product = products.find(p => p.id === item.prodottoId)!;
+      return {
+        prodottoId: product.id,
+        prodottoNome: product.nome,
+        prodottoPrezzo: product.prezzoFinale,
+        prodottoNumeroFoto: product.numeroFoto,
+        quantita: item.quantita,
+      };
+    });
+
+    const totale = calculateTotale();
+
+    // Crea ordine
+    const orderData = {
+      bookingId: booking.id,
+      nomeCliente: `${booking.cliente.nome} ${booking.cliente.cognome}`,
+      emailCliente: booking.cliente.email,
+      whatsappCliente: booking.cliente.whatsapp,
+      prodotti: prodottiOrderItems,
+      acconto,
+      note,
+      stato: 'bozza' as const,
+    };
+
+    onSubmit(orderData);
+  };
+
+  const totale = calculateTotale();
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-playfair text-2xl flex items-center gap-2">
+            <ShoppingCart className="w-6 h-6 text-sage" />
+            Crea Ordine da Prenotazione
+          </DialogTitle>
+          <DialogDescription>
+            Cliente: {booking.cliente.nome} {booking.cliente.cognome}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Prodotti */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold">Prodotti</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={addProduct}
+                className="border-sage text-sage hover:bg-sage hover:text-white"
+                data-testid="button-add-product"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Aggiungi Prodotto
+              </Button>
+            </div>
+
+            {selectedProducts.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                <p>Nessun prodotto aggiunto</p>
+                <p className="text-sm mt-1">Clicca "Aggiungi Prodotto" per iniziare</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {selectedProducts.map((item, index) => {
+                  const product = products.find(p => p.id === item.prodottoId);
+                  const subtotale = getProductSubtotal(item.prodottoId, item.quantita);
+
+                  return (
+                    <div key={index} className="flex items-center gap-3 p-4 border rounded-lg bg-white">
+                      <div className="flex-1">
+                        <Select
+                          value={item.prodottoId}
+                          onValueChange={(value) => updateProduct(index, 'prodottoId', value)}
+                        >
+                          <SelectTrigger data-testid={`select-product-${index}`}>
+                            <SelectValue placeholder="Seleziona prodotto" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {products.map(p => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.nome} - €{p.prezzoFinale.toFixed(2)} ({p.numeroFoto} foto)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="w-24">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantita}
+                          onChange={(e) => updateProduct(index, 'quantita', parseInt(e.target.value) || 1)}
+                          placeholder="Qtà"
+                          data-testid={`input-quantity-${index}`}
+                        />
+                      </div>
+
+                      <div className="w-28 text-right font-medium">
+                        €{subtotale.toFixed(2)}
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeProduct(index)}
+                        data-testid={`button-remove-product-${index}`}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Riepilogo totale */}
+          <div className="bg-sage/10 p-4 rounded-lg">
+            <div className="flex justify-between items-center text-lg font-bold">
+              <span>Totale Ordine:</span>
+              <span className="text-sage">€{totale.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Acconto */}
+          <div>
+            <Label htmlFor="acconto" className="mb-2 block">Acconto (opzionale)</Label>
+            <Input
+              id="acconto"
+              type="number"
+              min="0"
+              max={totale}
+              step="0.01"
+              value={acconto}
+              onChange={(e) => setAcconto(parseFloat(e.target.value) || 0)}
+              placeholder="Inserisci acconto in euro"
+              data-testid="input-acconto"
+            />
+            {acconto > 0 && (
+              <p className="text-sm text-gray-600 mt-1">
+                Saldo da versare: €{(totale - acconto).toFixed(2)}
+              </p>
+            )}
+          </div>
+
+          {/* Note */}
+          <div>
+            <Label htmlFor="note" className="mb-2 block">Note (opzionale)</Label>
+            <Input
+              id="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Note aggiuntive per l'ordine"
+              data-testid="input-note"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
+            Annulla
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isPending || selectedProducts.length === 0}
+            className="bg-sage hover:bg-dark-sage"
+            data-testid="button-submit-order"
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Creazione...
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Crea Ordine
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
