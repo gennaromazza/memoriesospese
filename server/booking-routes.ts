@@ -787,4 +787,200 @@ router.get('/health', (req, res) => {
   });
 });
 
+/**
+ * PATCH /api/booking/:id/update
+ * Aggiorna dati prenotazione (nome, email, whatsapp, note)
+ * Invia notifica email se l'email cambia
+ * 
+ * Body: { 
+ *   cliente?: { nome?, cognome?, email?, whatsapp? },
+ *   note?: string,
+ *   oldEmail?: string // Per rilevare cambio email
+ * }
+ */
+router.patch('/:id/update', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cliente, note, oldEmail } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: 'ID prenotazione mancante' });
+    }
+
+    // Inizializza Firebase Admin
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+
+    const db = admin.firestore();
+    const bookingRef = db.collection('bookings').doc(id);
+    const bookingDoc = await bookingRef.get();
+
+    if (!bookingDoc.exists) {
+      return res.status(404).json({ error: 'Prenotazione non trovata' });
+    }
+
+    const bookingData = bookingDoc.data();
+    
+    if (!bookingData) {
+      return res.status(404).json({ error: 'Dati prenotazione non validi' });
+    }
+
+    // Prepara update data
+    const updateData: any = {
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    // Aggiorna dati cliente se forniti
+    if (cliente) {
+      const currentCliente = bookingData.cliente || {};
+      updateData.cliente = {
+        ...currentCliente,
+        ...(cliente.nome !== undefined && { nome: cliente.nome }),
+        ...(cliente.cognome !== undefined && { cognome: cliente.cognome }),
+        ...(cliente.email !== undefined && { email: cliente.email }),
+        ...(cliente.whatsapp !== undefined && { whatsapp: cliente.whatsapp }),
+      };
+    }
+
+    // Aggiorna note se fornite
+    if (note !== undefined) {
+      updateData.note = note;
+    }
+
+    // Aggiorna Firestore
+    await bookingRef.update(updateData);
+
+    console.log(`✅ Prenotazione ${id} aggiornata con successo`);
+
+    // Rilevamento cambio email e invio notifica
+    const newEmail = cliente?.email;
+    const emailChanged = oldEmail && newEmail && oldEmail !== newEmail;
+
+    if (emailChanged) {
+      console.log(`📧 Email cambiata da "${oldEmail}" a "${newEmail}" - invio notifica`);
+
+      try {
+        // Recupera nome campagna
+        const campaignDoc = await db.collection('booking_campaigns').doc(bookingData.campaignId).get();
+        const campaignName = campaignDoc.data()?.nome || 'Shooting Fotografico';
+
+        // Formatta data
+        const slotStart = bookingData.dataShootingInizio.toDate();
+        const bookingDate = slotStart.toLocaleDateString('it-IT', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+        const bookingTime = slotStart.toLocaleTimeString('it-IT', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+
+        // Import funzioni email
+        const { sendGmailEmail, getStudioContactInfo } = await import('./email-routes.js');
+        const studioInfo = await getStudioContactInfo();
+
+        const clienteName = `${updateData.cliente.nome || bookingData.cliente.nome} ${updateData.cliente.cognome || bookingData.cliente.cognome}`;
+
+        // Template email notifica cambio email
+        const emailHTML = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4;">
+            <div style="background-color: #ffffff; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #8B7355; margin: 0; font-size: 28px;">📧 Email Aggiornata</h1>
+              </div>
+              
+              <p style="font-size: 16px; margin-bottom: 20px;">Gentile <strong>${clienteName}</strong>,</p>
+              
+              <p style="font-size: 16px; margin-bottom: 20px;">
+                Ti informiamo che l'indirizzo email associato alla tua prenotazione è stato aggiornato con successo.
+              </p>
+
+              <div style="background-color: #f8f8f8; border-left: 4px solid #8B7355; padding: 15px; margin: 25px 0; border-radius: 5px;">
+                <p style="margin: 0; font-size: 14px; color: #666;">
+                  <strong>Email precedente:</strong> ${oldEmail}
+                </p>
+                <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">
+                  <strong>Nuova email:</strong> ${newEmail}
+                </p>
+              </div>
+
+              <div style="background-color: #e8f5e9; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                <h3 style="color: #2e7d32; margin-top: 0; font-size: 18px;">📅 Riepilogo Prenotazione</h3>
+                <p style="margin: 10px 0; font-size: 15px;"><strong>Servizio:</strong> ${campaignName}</p>
+                <p style="margin: 10px 0; font-size: 15px;"><strong>Data:</strong> ${bookingDate}</p>
+                <p style="margin: 10px 0; font-size: 15px;"><strong>Ora:</strong> ${bookingTime}</p>
+              </div>
+
+              <div style="background-color: #fff3e0; border-radius: 8px; padding: 15px; margin: 25px 0;">
+                <p style="margin: 0; font-size: 14px; color: #e65100;">
+                  ⚠️ <strong>Importante:</strong> D'ora in avanti tutte le comunicazioni verranno inviate a <strong>${newEmail}</strong>.
+                  Se non hai richiesto questa modifica, contattaci immediatamente.
+                </p>
+              </div>
+
+              <p style="font-size: 16px; margin: 25px 0;">
+                Ti aspettiamo! Per qualsiasi dubbio o informazione, non esitare a contattarci.
+              </p>
+
+              <div style="border-top: 2px solid #e0e0e0; margin-top: 30px; padding-top: 20px; text-align: center;">
+                <p style="margin: 5px 0; font-size: 14px; color: #666;">
+                  <strong>${studioInfo.nome}</strong>
+                </p>
+                ${studioInfo.telefono ? `<p style="margin: 5px 0; font-size: 14px; color: #666;">📞 ${studioInfo.telefono}</p>` : ''}
+                ${studioInfo.email ? `<p style="margin: 5px 0; font-size: 14px; color: #666;">📧 ${studioInfo.email}</p>` : ''}
+                ${studioInfo.indirizzo ? `<p style="margin: 5px 0; font-size: 14px; color: #666;">📍 ${studioInfo.indirizzo}</p>` : ''}
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+
+        // Invia email alla NUOVA email
+        await sendGmailEmail(
+          newEmail,
+          `Email Aggiornata - ${campaignName}`,
+          emailHTML
+        );
+
+        console.log(`✅ Email notifica cambio email inviata a ${newEmail}`);
+      } catch (emailError) {
+        console.error('❌ Errore invio email notifica cambio:', emailError);
+        // Non bloccare la risposta se l'email fallisce
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Prenotazione aggiornata con successo',
+      bookingId: id,
+      emailChanged,
+    });
+
+  } catch (error) {
+    console.error('[Booking API] Errore aggiornamento prenotazione:', error);
+    return res.status(500).json({ 
+      error: 'Errore interno del server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto' 
+    });
+  }
+});
+
 export default router;

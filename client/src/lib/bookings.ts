@@ -229,6 +229,39 @@ export async function updateBookingStatus(
 }
 
 /**
+ * Aggiorna dati prenotazione (admin only) - supporta cambio email con notifica
+ */
+export async function updateBooking(
+  bookingId: string,
+  data: {
+    cliente?: {
+      nome?: string;
+      cognome?: string;
+      email?: string;
+      whatsapp?: string;
+    };
+    note?: string;
+  },
+  oldEmail?: string // Per rilevare cambio email e inviare notifica
+): Promise<void> {
+  const response = await fetch(`/api/booking/${bookingId}/update`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ 
+      ...data,
+      oldEmail // Inviato al server per gestire notifica cambio email
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || error.error || 'Errore aggiornamento prenotazione');
+  }
+}
+
+/**
  * Marca prenotazione come visualizzata dall'admin
  */
 export async function markBookingAsViewed(bookingId: string): Promise<void> {

@@ -12,6 +12,7 @@ import {
   updateBookingStatus,
   deleteBooking,
   markBookingAsViewed,
+  updateBooking,
 } from '@/lib/bookings';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { getAllOrders, createOrder } from '@/lib/orders';
@@ -106,6 +107,14 @@ export default function BookingsManager() {
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<Booking | null>(null);
   const [selectedBookingForGallery, setSelectedBookingForGallery] = useState<Booking | null>(null);
   const [filterBookingId, setFilterBookingId] = useState<string | null>(null);
+  const [editBooking, setEditBooking] = useState<Booking | null>(null);
+  
+  // State form modifica prenotazione
+  const [editNome, setEditNome] = useState('');
+  const [editCognome, setEditCognome] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editWhatsapp, setEditWhatsapp] = useState('');
+  const [editNote, setEditNote] = useState('');
 
   // Query bookings - sempre tutti per permettere filtro client-side
   const { data: allBookings = [], isLoading, refetch } = useQuery<Booking[]>({
@@ -256,6 +265,38 @@ export default function BookingsManager() {
     },
   });
 
+  // Mutation: Aggiorna prenotazione
+  const updateBookingMutation = useMutation({
+    mutationFn: ({ 
+      bookingId, 
+      data, 
+      oldEmail 
+    }: { 
+      bookingId: string; 
+      data: { cliente?: any; note?: string }; 
+      oldEmail?: string 
+    }) => updateBooking(bookingId, data, oldEmail),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      const emailChanged = variables.oldEmail && variables.data.cliente?.email && 
+                          variables.oldEmail !== variables.data.cliente.email;
+      toast({
+        title: 'Prenotazione aggiornata',
+        description: emailChanged 
+          ? 'Dati aggiornati con successo. Email di notifica inviata al cliente.'
+          : 'I dati della prenotazione sono stati aggiornati',
+      });
+      setEditBooking(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore aggiornamento',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Mutation: Marca come vista
   const markAsViewedMutation = useMutation({
     mutationFn: markBookingAsViewed,
@@ -297,6 +338,56 @@ export default function BookingsManager() {
     if (!booking.dataVisualizzazione) {
       markAsViewedMutation.mutate(booking.id);
     }
+  };
+
+  // Handler: Apri dialog modifica
+  const handleOpenEdit = (booking: Booking) => {
+    setEditBooking(booking);
+    setEditNome(booking.cliente.nome);
+    setEditCognome(booking.cliente.cognome);
+    setEditEmail(booking.cliente.email);
+    setEditWhatsapp(booking.cliente.whatsapp);
+    setEditNote(booking.note || '');
+  };
+
+  // Handler: Salva modifiche prenotazione
+  const handleSaveEdit = () => {
+    if (!editBooking) return;
+
+    // Validazione base
+    if (!editNome.trim() || !editCognome.trim() || !editEmail.trim() || !editWhatsapp.trim()) {
+      toast({
+        title: 'Campi obbligatori',
+        description: 'Nome, Cognome, Email e WhatsApp sono campi obbligatori',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validazione email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmail)) {
+      toast({
+        title: 'Email non valida',
+        description: 'Inserisci un indirizzo email valido',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    updateBookingMutation.mutate({
+      bookingId: editBooking.id,
+      data: {
+        cliente: {
+          nome: editNome.trim(),
+          cognome: editCognome.trim(),
+          email: editEmail.trim(),
+          whatsapp: editWhatsapp.trim(),
+        },
+        note: editNote.trim(),
+      },
+      oldEmail: editBooking.cliente.email, // Per rilevare cambio email
+    });
   };
 
   // Helper: Formatta data/ora
@@ -741,6 +832,18 @@ export default function BookingsManager() {
           )}
 
           <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                if (selectedBooking) {
+                  handleOpenEdit(selectedBooking);
+                  setSelectedBooking(null);
+                }
+              }}
+              data-testid="button-edit-booking"
+            >
+              ✏️ Modifica Dati
+            </Button>
             {selectedBooking?.stato === 'in_attesa' && (
               <Button
                 onClick={() => approveMutation.mutate(selectedBooking.id)}
@@ -791,6 +894,122 @@ export default function BookingsManager() {
                 <Trash2 className="w-4 h-4 mr-2" />
               )}
               Elimina
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog modifica prenotazione */}
+      <Dialog open={!!editBooking} onOpenChange={() => setEditBooking(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-playfair text-2xl">
+              ✏️ Modifica Prenotazione
+            </DialogTitle>
+            <DialogDescription>
+              Modifica i dati della prenotazione. Se cambi l'email, verrà inviata una notifica al cliente.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editBooking && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-nome">Nome *</Label>
+                  <Input
+                    id="edit-nome"
+                    value={editNome}
+                    onChange={(e) => setEditNome(e.target.value)}
+                    placeholder="Nome cliente"
+                    data-testid="input-edit-nome"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-cognome">Cognome *</Label>
+                  <Input
+                    id="edit-cognome"
+                    value={editCognome}
+                    onChange={(e) => setEditCognome(e.target.value)}
+                    placeholder="Cognome cliente"
+                    data-testid="input-edit-cognome"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email *</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="email@esempio.com"
+                  data-testid="input-edit-email"
+                />
+                {editEmail !== editBooking.cliente.email && (
+                  <Alert className="bg-orange-50 border-orange-200">
+                    <AlertCircle className="w-4 h-4 text-orange-600" />
+                    <AlertDescription className="text-orange-800 text-sm">
+                      📧 <strong>Attenzione:</strong> Stai modificando l'email. Verrà inviata automaticamente una notifica al cliente al nuovo indirizzo.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-whatsapp">WhatsApp *</Label>
+                <Input
+                  id="edit-whatsapp"
+                  value={editWhatsapp}
+                  onChange={(e) => setEditWhatsapp(e.target.value)}
+                  placeholder="+39 XXX XXX XXXX"
+                  data-testid="input-edit-whatsapp"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-note">Note</Label>
+                <Input
+                  id="edit-note"
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                  placeholder="Note aggiuntive (opzionale)"
+                  data-testid="input-edit-note"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  ℹ️ <strong>Info:</strong> I campi marcati con * sono obbligatori. Le modifiche verranno salvate immediatamente.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setEditBooking(null)}
+              disabled={updateBookingMutation.isPending}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateBookingMutation.isPending}
+              className="bg-sage hover:bg-dark-sage"
+              data-testid="button-save-edit"
+            >
+              {updateBookingMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvataggio...
+                </>
+              ) : (
+                <>
+                  ✓ Salva Modifiche
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
