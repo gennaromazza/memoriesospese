@@ -213,8 +213,8 @@ export function OrdersManager() {
           o.booking?.cliente?.nome?.toLowerCase().includes(query) ||
           o.booking?.cliente?.cognome?.toLowerCase().includes(query) ||
           o.booking?.cliente?.email?.toLowerCase().includes(query) ||
-          o.prodottoNome.toLowerCase().includes(query) ||
-          o.galleryId.toLowerCase().includes(query)
+          o.prodotti?.some(p => p.prodottoNome.toLowerCase().includes(query)) ||
+          o.galleryId?.toLowerCase().includes(query)
       );
     }
 
@@ -263,7 +263,7 @@ export function OrdersManager() {
     if (order.booking) {
       return `${order.booking.cliente.nome} ${order.booking.cliente.cognome}`;
     }
-    return `Galleria ${order.galleryId.substring(0, 8)}`;
+    return order.galleryId ? `Galleria ${order.galleryId.substring(0, 8)}` : 'Ordine Standalone';
   };
 
   // Helper: Email cliente (con fallback)
@@ -361,7 +361,8 @@ export function OrdersManager() {
                           {getClienteEmail(order)}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {order.prodottoNome} • Galleria: {order.galleryId.substring(0, 12)}...
+                          {order.prodotti.length} prodott{order.prodotti.length === 1 ? 'o' : 'i'}
+                          {order.galleryId && ` • Galleria: ${order.galleryId.substring(0, 12)}...`}
                         </p>
                       </div>
                     </div>
@@ -513,13 +514,27 @@ export function OrdersManager() {
                 </div>
               )}
 
-              {/* Prodotto */}
+              {/* Prodotti */}
               <div>
-                <h3 className="font-semibold mb-2">Prodotto</h3>
-                <div className="space-y-1 text-sm">
-                  <p><strong>Nome:</strong> {selectedOrder.prodottoNome}</p>
-                  <p><strong>Numero Foto:</strong> {selectedOrder.prodottoNumeroFoto}</p>
-                  <p><strong>Galleria:</strong> {selectedOrder.galleryId}</p>
+                <h3 className="font-semibold mb-2">Prodotti ({selectedOrder.prodotti.length})</h3>
+                <div className="space-y-2">
+                  {selectedOrder.prodotti.map((prodotto, index) => (
+                    <Card key={index} className="p-3">
+                      <div className="space-y-1 text-sm">
+                        <p><strong>{prodotto.prodottoNome}</strong></p>
+                        <p>Prezzo: {formatCurrency(prodotto.prodottoPrezzo)} × {prodotto.quantita}</p>
+                        <p>Numero Foto: {prodotto.prodottoNumeroFoto}</p>
+                        <p className="font-semibold">
+                          Subtotale: {formatCurrency(prodotto.prodottoPrezzo * prodotto.quantita)}
+                        </p>
+                      </div>
+                    </Card>
+                  ))}
+                  {selectedOrder.galleryId && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      <strong>Galleria:</strong> {selectedOrder.galleryId}
+                    </p>
+                  )}
                 </div>
               </div>
 

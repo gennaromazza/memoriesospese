@@ -22,6 +22,36 @@ import type { Order, InsertOrder } from '@shared/booking-types';
 const COLLECTION = 'orders';
 
 /**
+ * Helper: Converti ordine legacy (singolo prodotto) in nuovo schema (array prodotti)
+ */
+function ensureProdottiArray(orderData: any): any {
+  // Se prodotti array già esiste, usa quello
+  if (Array.isArray(orderData.prodotti)) {
+    return orderData;
+  }
+  
+  // Backward compatibility: converti schema vecchio (singolo prodotto) in array
+  if (orderData.prodottoId || orderData.prodottoNome) {
+    return {
+      ...orderData,
+      prodotti: [{
+        prodottoId: orderData.prodottoId || 'legacy',
+        prodottoNome: orderData.prodottoNome || 'Prodotto Legacy',
+        prodottoPrezzo: orderData.totale || 0, // Fallback: usa totale come prezzo
+        prodottoNumeroFoto: orderData.prodottoNumeroFoto || 0,
+        quantita: 1,
+      }],
+    };
+  }
+  
+  // Caso edge: nessun prodotto → array vuoto
+  return {
+    ...orderData,
+    prodotti: [],
+  };
+}
+
+/**
  * Ottiene tutti gli ordini (admin only)
  */
 export async function getAllOrders(): Promise<Order[]> {
@@ -34,7 +64,7 @@ export async function getAllOrders(): Promise<Order[]> {
   
   return snapshot.docs.map(doc => ({
     id: doc.id,
-    ...doc.data(),
+    ...ensureProdottiArray(doc.data()),
   })) as Order[];
 }
 
@@ -51,7 +81,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
   
   return {
     id: docSnap.id,
-    ...docSnap.data(),
+    ...ensureProdottiArray(docSnap.data()),
   } as Order;
 }
 
@@ -69,7 +99,7 @@ export async function getOrdersByGallery(galleryId: string): Promise<Order[]> {
   
   return snapshot.docs.map(doc => ({
     id: doc.id,
-    ...doc.data(),
+    ...ensureProdottiArray(doc.data()),
   })) as Order[];
 }
 
@@ -87,7 +117,7 @@ export async function getOrdersByBooking(bookingId: string): Promise<Order[]> {
   
   return snapshot.docs.map(doc => ({
     id: doc.id,
-    ...doc.data(),
+    ...ensureProdottiArray(doc.data()),
   })) as Order[];
 }
 
@@ -107,19 +137,32 @@ export async function getOrdersByStatus(
   
   return snapshot.docs.map(doc => ({
     id: doc.id,
-    ...doc.data(),
+    ...ensureProdottiArray(doc.data()),
   })) as Order[];
+}
+
+/**
+ * Helper: Calcola totale ordine dalla somma prodotti
+ */
+function calculateTotale(prodotti: InsertOrder['prodotti']): number {
+  return prodotti.reduce((sum, item) => {
+    return sum + (item.prodottoPrezzo * item.quantita);
+  }, 0);
 }
 
 /**
  * Crea nuovo ordine (admin only)
  */
 export async function createOrder(data: InsertOrder): Promise<string> {
+  // Calcola totale dalla somma prodotti
+  const totale = calculateTotale(data.prodotti);
+  
   // Calcola saldo automaticamente
-  const saldo = data.totale - data.acconto;
+  const saldo = totale - data.acconto;
   
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...data,
+    totale,
     saldo,
     stato: 'bozza',
     emailSaldoInviata: false,
@@ -149,13 +192,20 @@ export async function updateOrder(
     updatedAt: serverTimestamp(),
   };
   
-  // Ricalcola saldo se totale o acconto cambiano
-  if (data.totale !== undefined || data.acconto !== undefined) {
+  // Ricalcola totale e saldo se prodotti o acconto cambiano
+  if (data.prodotti !== undefined || data.acconto !== undefined) {
     const currentDoc = await getDoc(docRef);
     if (currentDoc.exists()) {
       const currentData = currentDoc.data();
-      const totale = data.totale ?? currentData.totale;
+      
+      // Calcola nuovo totale da prodotti (se cambiano) o usa quello esistente
+      const totale = data.prodotti !== undefined 
+        ? calculateTotale(data.prodotti)
+        : currentData.totale;
+      
       const acconto = data.acconto ?? currentData.acconto;
+      
+      updateData.totale = totale;
       updateData.saldo = totale - acconto;
     }
   }

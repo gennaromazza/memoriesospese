@@ -126,6 +126,17 @@ export interface InsertBooking {
 }
 
 /**
+ * ORDER ITEM - Singolo prodotto in un ordine
+ */
+export interface OrderItem {
+  prodottoId: string;
+  prodottoNome: string; // Snapshot nome al momento ordine
+  prodottoPrezzo: number; // Snapshot prezzo al momento ordine
+  prodottoNumeroFoto: number; // Snapshot numero foto
+  quantita: number; // Default 1
+}
+
+/**
  * ORDERS - Ordini collegati a gallerie
  */
 export interface Order {
@@ -133,15 +144,13 @@ export interface Order {
   
   // Collegamenti
   bookingId?: string; // Opzionale - collegamento a prenotazione
-  galleryId: string; // Obbligatorio - ogni ordine è per una galleria
+  galleryId?: string; // Opzionale - collegamento a galleria (può essere null se ordine standalone)
   
-  // Prodotto
-  prodottoId: string;
-  prodottoNome: string; // Snapshot
-  prodottoNumeroFoto: number; // Snapshot
+  // Prodotti (array embedded - supporta multipli prodotti)
+  prodotti: OrderItem[];
   
   // Prezzi
-  totale: number;
+  totale: number; // Somma (prodotto.prezzo * quantita) per tutti prodotti
   acconto: number;
   saldo: number; // Auto-calcolato: totale - acconto
   
@@ -165,12 +174,9 @@ export interface Order {
 
 export interface InsertOrder {
   bookingId?: string;
-  galleryId: string;
-  prodottoId: string;
-  prodottoNome: string;
-  prodottoNumeroFoto: number;
-  totale: number;
-  acconto: number;
+  galleryId?: string; // Opzionale
+  prodotti: OrderItem[]; // Array di prodotti (almeno 1)
+  acconto: number; // Totale calcolato automaticamente dalla somma prodotti
   metodoPagamentoAcconto?: 'contante' | 'carta' | 'bonifico' | 'paypal';
 }
 
