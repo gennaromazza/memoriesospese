@@ -999,29 +999,11 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Eventi</span>
               </TabsTrigger>
 
-              {/* Booking System Group: Prenotazioni, Prodotti, Campagne, Ordini */}
+              {/* Booking System: Prenotazioni (con sub-tabs: Campagne, Prodotti, Ordini) */}
               <TabsTrigger value="bookings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Prenotazioni</span>
                 <span className="sm:hidden">Book</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="products" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Package className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Prodotti</span>
-                <span className="sm:hidden">Prod</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="campaigns" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Campagne</span>
-                <span className="sm:hidden">Camp</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="orders" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Ordini</span>
-                <span className="sm:hidden">Ord</span>
               </TabsTrigger>
 
               {/* Content Management: Questionari, Temi */}
@@ -1055,12 +1037,6 @@ export default function AdminDashboard() {
                 <Key className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Richieste Password</span>
                 <span className="sm:hidden">Pass</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="email" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Mail className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Sistema Email</span>
-                <span className="sm:hidden">Mail</span>
               </TabsTrigger>
 
               {/* Settings */}
@@ -1407,17 +1383,6 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* Contenuto Tab Sistema Email */}
-            <TabsContent value="email">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <h2 className="text-xl font-semibold text-blue-gray mb-4">Sistema di Notifiche Email</h2>
-                <p className="text-sm text-muted-foreground mb-6">
-                  Monitora e gestisci il sistema di invio email per le notifiche di benvenuto e nuove foto.
-                </p>
-                <EmailStatusPanel />
-              </div>
-            </TabsContent>
-
             {/* Contenuto Tab Questionari */}
             <TabsContent value="questionnaire">
               <div className="bg-white shadow sm:rounded-lg p-5">
@@ -1509,24 +1474,44 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* Contenuto Tab Prodotti */}
-            <TabsContent value="products">
-              <ProductsManager />
-            </TabsContent>
-
-            {/* Contenuto Tab Campagne */}
-            <TabsContent value="campaigns">
-              <CampaignsManager />
-            </TabsContent>
-
-            {/* Contenuto Tab Prenotazioni */}
+            {/* Contenuto Tab Prenotazioni con Sub-Tabs */}
             <TabsContent value="bookings">
-              <BookingsManager />
-            </TabsContent>
+              <Tabs defaultValue="bookings-list" className="w-full">
+                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
+                  <TabsTrigger value="bookings-list" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <CalendarCheck className="h-4 w-4 flex-shrink-0" />
+                    Prenotazioni
+                  </TabsTrigger>
+                  <TabsTrigger value="campaigns" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <Calendar className="h-4 w-4 flex-shrink-0" />
+                    Campagne
+                  </TabsTrigger>
+                  <TabsTrigger value="products" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <Package className="h-4 w-4 flex-shrink-0" />
+                    Prodotti
+                  </TabsTrigger>
+                  <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 flex-shrink-0" />
+                    Ordini
+                  </TabsTrigger>
+                </TabsList>
 
-            {/* Contenuto Tab Ordini */}
-            <TabsContent value="orders">
-              <OrdersManager />
+                <TabsContent value="bookings-list">
+                  <BookingsManager />
+                </TabsContent>
+
+                <TabsContent value="campaigns">
+                  <CampaignsManager />
+                </TabsContent>
+
+                <TabsContent value="products">
+                  <ProductsManager />
+                </TabsContent>
+
+                <TabsContent value="orders">
+                  <OrdersManager />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
 
             {/* Contenuto Tab Impostazioni */}
