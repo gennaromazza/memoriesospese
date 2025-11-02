@@ -209,7 +209,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 url: url,
                 contentType: metadata.contentType || 'image/jpeg',
                 size: metadata.size || 0,
-                createdAt: metadata.timeCreated ? new Date(metadata.timeCreated) : new Date(),
+                createdAt: Timestamp.fromDate(metadata.timeCreated ? new Date(metadata.timeCreated) : new Date()),
                 galleryId: gallery.id,
                 uploaderEmail: 'legacy@storage',
                 uploaderName: 'Sistema Legacy',

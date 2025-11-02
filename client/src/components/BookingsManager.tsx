@@ -490,6 +490,14 @@ export default function BookingsManager() {
                         Ordine Creato
                       </Badge>
                     )}
+
+                    {/* Badge Galleria Creata */}
+                    {getGalleryByBookingId(booking.id) && (
+                      <Badge className="bg-purple-50 text-purple-700 border-purple-200" variant="outline">
+                        <ImageIcon className="w-3 h-3 mr-1" />
+                        Galleria Creata
+                      </Badge>
+                    )}
                     
                     <Button
                       variant="outline"
