@@ -1,0 +1,642 @@
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
+import {
+  getAllOrders,
+  deleteOrder,
+  recordAccontoPayment,
+  recordSaldoPayment,
+  updateOrder,
+  createOrder,
+} from '@/lib/orders';
+import { getAllBookings } from '@/lib/bookings';
+import type { Order, Booking, InsertOrder } from '@shared/booking-types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Eye,
+  Trash2,
+  Plus,
+  Search,
+  Euro,
+  CheckCircle,
+  XCircle,
+  Clock,
+  FileText,
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
+
+type OrderWithBooking = Order & {
+  booking?: Booking;
+};
+
+export function OrdersManager() {
+  const { toast } = useToast();
+  
+  // State: Filtri e ricerca
+  const [statoFilter, setStatoFilter] = useState<string>('tutti');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<OrderWithBooking | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<{
+    orderId: string;
+    tipo: 'acconto' | 'saldo';
+  } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'contante' | 'carta' | 'bonifico' | 'paypal'>('contante');
+
+  // Query: Carica ordini
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['orders'],
+    queryFn: getAllOrders,
+  });
+
+  // Query: Carica bookings
+  const { data: bookings = [] } = useQuery({
+    queryKey: ['bookings'],
+    queryFn: getAllBookings,
+  });
+
+  // Arricchisci ordini con dati booking
+  const ordersWithBookings: OrderWithBooking[] = useMemo(() => {
+    return orders.map(order => {
+      const booking = order.bookingId 
+        ? bookings.find(b => b.id === order.bookingId)
+        : undefined;
+      
+      return { ...order, booking };
+    });
+  }, [orders, bookings]);
+
+  // Mutation: Elimina ordine
+  const deleteMutation = useMutation({
+    mutationFn: deleteOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({
+        title: 'Ordine eliminato',
+        description: 'L\'ordine è stato rimosso dal sistema',
+      });
+      setDeleteConfirmId(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore eliminazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation: Registra pagamento acconto
+  const accontoMutation = useMutation({
+    mutationFn: ({ orderId, metodo }: { orderId: string; metodo: 'contante' | 'carta' | 'bonifico' | 'paypal' }) =>
+      recordAccontoPayment(orderId, metodo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({
+        title: 'Acconto registrato',
+        description: 'Il pagamento dell\'acconto è stato salvato',
+      });
+      setPaymentDialog(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore registrazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation: Registra pagamento saldo
+  const saldoMutation = useMutation({
+    mutationFn: ({ orderId, metodo }: { orderId: string; metodo: 'contante' | 'carta' | 'bonifico' | 'paypal' }) =>
+      recordSaldoPayment(orderId, metodo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({
+        title: 'Saldo registrato',
+        description: 'Il pagamento del saldo è stato completato',
+      });
+      setPaymentDialog(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore registrazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation: Cambia stato ordine
+  const updateStatoMutation = useMutation({
+    mutationFn: ({ orderId, stato }: { orderId: string; stato: 'bozza' | 'in_lavorazione' | 'completato' | 'annullato' }) =>
+      updateOrder(orderId, { stato }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({
+        title: 'Stato aggiornato',
+        description: 'Lo stato dell\'ordine è stato modificato',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore aggiornamento',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Handler: Registra pagamento
+  const handlePayment = () => {
+    if (!paymentDialog) return;
+
+    if (paymentDialog.tipo === 'acconto') {
+      accontoMutation.mutate({
+        orderId: paymentDialog.orderId,
+        metodo: paymentMethod,
+      });
+    } else {
+      saldoMutation.mutate({
+        orderId: paymentDialog.orderId,
+        metodo: paymentMethod,
+      });
+    }
+  };
+
+  // Filtri: Ordini filtrati e cercati
+  const filteredOrders = useMemo(() => {
+    let result = ordersWithBookings;
+
+    // Filtro per stato
+    if (statoFilter !== 'tutti') {
+      result = result.filter(o => o.stato === statoFilter);
+    }
+
+    // Ricerca per nome cliente (dalla booking), prodotto, galleria
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        o =>
+          o.booking?.cliente?.nome?.toLowerCase().includes(query) ||
+          o.booking?.cliente?.cognome?.toLowerCase().includes(query) ||
+          o.booking?.cliente?.email?.toLowerCase().includes(query) ||
+          o.prodottoNome.toLowerCase().includes(query) ||
+          o.galleryId.toLowerCase().includes(query)
+      );
+    }
+
+    // Ordina per data creazione (più recenti prima)
+    return result.sort((a, b) => {
+      const dateA = a.createdAt?.toDate?.() || new Date(0);
+      const dateB = b.createdAt?.toDate?.() || new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [ordersWithBookings, statoFilter, searchQuery]);
+
+  // Helper: Badge stato
+  const getStatoBadge = (stato: Order['stato']) => {
+    const config = {
+      bozza: { label: 'Bozza', variant: 'secondary' as const, icon: FileText },
+      in_lavorazione: { label: 'In Lavorazione', variant: 'default' as const, icon: Clock },
+      completato: { label: 'Completato', variant: 'default' as const, icon: CheckCircle },
+      annullato: { label: 'Annullato', variant: 'destructive' as const, icon: XCircle },
+    };
+    const { label, variant, icon: Icon } = config[stato];
+    return (
+      <Badge variant={variant} className="flex items-center gap-1">
+        <Icon className="w-3 h-3" />
+        {label}
+      </Badge>
+    );
+  };
+
+  // Helper: Formatta data
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return 'N/A';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return format(date, 'dd MMM yyyy', { locale: it });
+  };
+
+  // Helper: Formatta valuta
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+
+  // Helper: Nome cliente dall'ordine (con fallback)
+  const getClienteName = (order: OrderWithBooking) => {
+    if (order.booking) {
+      return `${order.booking.cliente.nome} ${order.booking.cliente.cognome}`;
+    }
+    return `Galleria ${order.galleryId.substring(0, 8)}`;
+  };
+
+  // Helper: Email cliente (con fallback)
+  const getClienteEmail = (order: OrderWithBooking) => {
+    return order.booking?.cliente.email || 'N/A';
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-muted-foreground">Caricamento ordini...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Gestione Ordini</h2>
+          <p className="text-sm text-muted-foreground">
+            {filteredOrders.length} ordini trovati
+          </p>
+        </div>
+      </div>
+
+      {/* Filtri */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-2">
+          <Label htmlFor="stato-filter">Filtra per Stato</Label>
+          <Select value={statoFilter} onValueChange={setStatoFilter}>
+            <SelectTrigger id="stato-filter" data-testid="select-status-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti gli Stati</SelectItem>
+              <SelectItem value="bozza">Bozza</SelectItem>
+              <SelectItem value="in_lavorazione">In Lavorazione</SelectItem>
+              <SelectItem value="completato">Completato</SelectItem>
+              <SelectItem value="annullato">Annullato</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="search">Ricerca</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              id="search"
+              placeholder="Cerca per cliente, prodotto, galleria..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-orders"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Lista ordini */}
+      {filteredOrders.length === 0 ? (
+        <Card className="p-8 text-center">
+          <div className="flex flex-col items-center gap-2">
+            <FileText className="w-12 h-12 text-muted-foreground" />
+            <p className="text-lg font-medium">Nessun ordine trovato</p>
+            <p className="text-sm text-muted-foreground">
+              {statoFilter !== 'tutti'
+                ? 'Prova a cambiare i filtri'
+                : 'Gli ordini vengono creati automaticamente dalle prenotazioni'}
+            </p>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredOrders.map((order) => {
+            const isPagamentoCompleto = order.dataAcconto && order.dataSaldo;
+            const isSaldoPendente = order.dataAcconto && !order.dataSaldo;
+
+            return (
+              <Card key={order.id} className="p-4" data-testid={`card-order-${order.id}`}>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  {/* Info ordine */}
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-lg">
+                            {getClienteName(order)}
+                          </h3>
+                          {getStatoBadge(order.stato)}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {getClienteEmail(order)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {order.prodottoNome} • Galleria: {order.galleryId.substring(0, 12)}...
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Dettagli finanziari */}
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Totale</p>
+                        <p className="font-semibold">{formatCurrency(order.totale)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Acconto</p>
+                        <p className="font-semibold">{formatCurrency(order.acconto)}</p>
+                        {order.dataAcconto && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(order.dataAcconto)} • {order.metodoPagamentoAcconto}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Saldo</p>
+                        <p className="font-semibold">{formatCurrency(order.saldo)}</p>
+                        {order.dataSaldo && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(order.dataSaldo)} • {order.metodoPagamentoSaldo}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Stato Pagamento</p>
+                        {isPagamentoCompleto ? (
+                          <Badge className="bg-green-500 text-white">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Saldato
+                          </Badge>
+                        ) : isSaldoPendente ? (
+                          <Badge className="bg-yellow-500 text-white">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Saldo Pendente
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Acconto Pendente</Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Data creazione */}
+                    <p className="text-xs text-muted-foreground">
+                      Creato: {formatDate(order.createdAt)}
+                    </p>
+                  </div>
+
+                  {/* Azioni */}
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedOrder(order)}
+                      data-testid={`button-view-order-${order.id}`}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Dettagli
+                    </Button>
+
+                    {/* Pulsanti pagamento */}
+                    {!order.dataAcconto && (
+                      <Button
+                        size="sm"
+                        onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'acconto' })}
+                        data-testid={`button-record-acconto-${order.id}`}
+                      >
+                        <Euro className="w-4 h-4 mr-1" />
+                        Registra Acconto
+                      </Button>
+                    )}
+
+                    {order.dataAcconto && !order.dataSaldo && (
+                      <Button
+                        size="sm"
+                        onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'saldo' })}
+                        data-testid={`button-record-saldo-${order.id}`}
+                      >
+                        <Euro className="w-4 h-4 mr-1" />
+                        Registra Saldo
+                      </Button>
+                    )}
+
+                    {/* Cambio stato */}
+                    {order.stato === 'bozza' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateStatoMutation.mutate({ orderId: order.id, stato: 'in_lavorazione' })}
+                        data-testid={`button-start-order-${order.id}`}
+                      >
+                        Inizia Lavorazione
+                      </Button>
+                    )}
+
+                    {order.stato === 'in_lavorazione' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateStatoMutation.mutate({ orderId: order.id, stato: 'completato' })}
+                        data-testid={`button-complete-order-${order.id}`}
+                      >
+                        Completa Ordine
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setDeleteConfirmId(order.id)}
+                      data-testid={`button-delete-order-${order.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Elimina
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Dialog: Dettagli ordine */}
+      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Dettagli Ordine</DialogTitle>
+            <DialogDescription>
+              Visualizza tutte le informazioni dell'ordine
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-4">
+              {/* Info cliente */}
+              {selectedOrder.booking && (
+                <div>
+                  <h3 className="font-semibold mb-2">Cliente</h3>
+                  <div className="space-y-1 text-sm">
+                    <p><strong>Nome:</strong> {selectedOrder.booking.cliente.nome} {selectedOrder.booking.cliente.cognome}</p>
+                    <p><strong>Email:</strong> {selectedOrder.booking.cliente.email}</p>
+                    <p><strong>WhatsApp:</strong> {selectedOrder.booking.cliente.whatsapp}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Prodotto */}
+              <div>
+                <h3 className="font-semibold mb-2">Prodotto</h3>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Nome:</strong> {selectedOrder.prodottoNome}</p>
+                  <p><strong>Numero Foto:</strong> {selectedOrder.prodottoNumeroFoto}</p>
+                  <p><strong>Galleria:</strong> {selectedOrder.galleryId}</p>
+                </div>
+              </div>
+
+              {/* Stato */}
+              <div>
+                <h3 className="font-semibold mb-2">Stato</h3>
+                {getStatoBadge(selectedOrder.stato)}
+              </div>
+
+              {/* Dettagli finanziari */}
+              <div>
+                <h3 className="font-semibold mb-2">Dettagli Finanziari</h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Card className="p-3">
+                    <p className="text-xs text-muted-foreground mb-1">Totale</p>
+                    <p className="text-xl font-bold">{formatCurrency(selectedOrder.totale)}</p>
+                  </Card>
+                  <Card className="p-3">
+                    <p className="text-xs text-muted-foreground mb-1">Acconto</p>
+                    <p className="text-xl font-bold">{formatCurrency(selectedOrder.acconto)}</p>
+                    {selectedOrder.dataAcconto && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pagato: {formatDate(selectedOrder.dataAcconto)} • {selectedOrder.metodoPagamentoAcconto}
+                      </p>
+                    )}
+                  </Card>
+                  <Card className="p-3">
+                    <p className="text-xs text-muted-foreground mb-1">Saldo</p>
+                    <p className="text-xl font-bold">{formatCurrency(selectedOrder.saldo)}</p>
+                    {selectedOrder.dataSaldo && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pagato: {formatDate(selectedOrder.dataSaldo)} • {selectedOrder.metodoPagamentoSaldo}
+                      </p>
+                    )}
+                  </Card>
+                </div>
+              </div>
+
+              {/* Timestamp */}
+              <div>
+                <h3 className="font-semibold mb-2">Date</h3>
+                <div className="text-sm space-y-1">
+                  <p><strong>Creato:</strong> {formatDate(selectedOrder.createdAt)}</p>
+                  <p><strong>Aggiornato:</strong> {formatDate(selectedOrder.updatedAt)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Registra pagamento */}
+      <Dialog open={!!paymentDialog} onOpenChange={() => setPaymentDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Registra {paymentDialog?.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
+            </DialogTitle>
+            <DialogDescription>
+              Seleziona il metodo di pagamento utilizzato
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="payment-method">Metodo Pagamento</Label>
+              <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
+                <SelectTrigger id="payment-method" data-testid="select-payment-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contante">Contante</SelectItem>
+                  <SelectItem value="carta">Carta di Credito/Debito</SelectItem>
+                  <SelectItem value="bonifico">Bonifico Bancario</SelectItem>
+                  <SelectItem value="paypal">PayPal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialog(null)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={handlePayment}
+              disabled={accontoMutation.isPending || saldoMutation.isPending}
+              data-testid="button-confirm-payment"
+            >
+              Conferma Pagamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog: Conferma eliminazione */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare questo ordine? Questa azione è irreversibile.
+              Le foto selezionate associate non verranno eliminate.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

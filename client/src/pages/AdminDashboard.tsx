@@ -25,10 +25,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
+import { OrdersManager } from "@/components/OrdersManager";
 import { getAllThemes } from "@shared/special-themes";
 
 // Componente di paginazione riutilizzabile
@@ -1047,6 +1048,12 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Book</span>
               </TabsTrigger>
 
+              <TabsTrigger value="orders" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Ordini</span>
+                <span className="sm:hidden">Ord</span>
+              </TabsTrigger>
+
               <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Impostazioni</span>
@@ -1505,6 +1512,11 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Prenotazioni */}
             <TabsContent value="bookings">
               <BookingsManager />
+            </TabsContent>
+
+            {/* Contenuto Tab Ordini */}
+            <TabsContent value="orders">
+              <OrdersManager />
             </TabsContent>
 
             {/* Contenuto Tab Impostazioni */}
