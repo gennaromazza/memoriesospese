@@ -52,7 +52,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { PrettyCountdown } from "@/components/PrettyCountdown";
-import { resolveEventDate } from "@/lib/firebase";
+import { resolveEventDate, convertFirestoreTimestamp } from "@/lib/firebase";
 import CoupleStoryBook from "@/components/CoupleStoryBook";
 import StoryUploadForm from "@/components/StoryUploadForm";
 import StoryService from "@/lib/storyService";
@@ -1132,7 +1132,7 @@ export default function Gallery() {
                                       <li>• Puoi cambiare idea quante volte vuoi prima di confermare</li>
                                       <li>• Le foto selezionate hanno un <strong>bordo verde spesso</strong> e la scritta "SELEZIONATA"</li>
                                       <li>• Dopo aver confermato, la selezione sarà <strong>definitiva</strong> e visibile allo studio</li>
-                                      {selectionDeadline && <li>• Ricorda la scadenza: <strong>{new Date(selectionDeadline.toDate ? selectionDeadline.toDate() : selectionDeadline).toLocaleDateString('it-IT')}</strong></li>}
+                                      {selectionDeadline && <li>• Ricorda la scadenza: <strong>{convertFirestoreTimestamp(selectionDeadline)?.toLocaleDateString('it-IT')}</strong></li>}
                                     </ul>
                                   </div>
                                   
@@ -1195,7 +1195,7 @@ export default function Gallery() {
                           </div>
                           {selectionDeadline && (
                             <p className="text-sm text-gray-500">
-                              ⏰ Scadenza: <strong>{new Date(selectionDeadline.toDate ? selectionDeadline.toDate() : selectionDeadline).toLocaleDateString('it-IT')}</strong>
+                              ⏰ Scadenza: <strong>{convertFirestoreTimestamp(selectionDeadline)?.toLocaleDateString('it-IT') || 'Data non disponibile'}</strong>
                             </p>
                           )}
                           {isDeadlinePassed && (

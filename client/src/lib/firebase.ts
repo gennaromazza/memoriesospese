@@ -63,41 +63,50 @@ export type FirebaseTimestamp = any;
 export default app;
 
 /**
+ * Converte un Firestore Timestamp in Date nativa JavaScript
+ * Gestisce: Timestamp Firebase, oggetti {seconds, nanoseconds}, Date, string ISO
+ */
+export function convertFirestoreTimestamp(timestamp: any): Date | null {
+  if (!timestamp) return null;
+
+  // Firestore Timestamp con metodo toDate()
+  if (timestamp.toDate && typeof timestamp.toDate === "function") {
+    return timestamp.toDate();
+  }
+
+  // Oggetto {seconds, nanoseconds}
+  if (timestamp.seconds !== undefined) {
+    return new Date(timestamp.seconds * 1000);
+  }
+
+  // Già una Date
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+
+  // String ISO
+  if (typeof timestamp === "string") {
+    const parsed = new Date(timestamp);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+
+  return null;
+}
+
+/**
  * Risolve la data dell'evento con priorità: couple.eventDate > gallery.eventDate
  */
 export function resolveEventDate(couple?: any, gallery?: any): Date | null {
   // Priorità a couple.eventDate
   if (couple?.eventDate) {
-    if (
-      couple.eventDate.toDate &&
-      typeof couple.eventDate.toDate === "function"
-    ) {
-      return couple.eventDate.toDate();
-    }
-    if (couple.eventDate instanceof Date) {
-      return couple.eventDate;
-    }
-    if (typeof couple.eventDate === "string") {
-      const parsed = new Date(couple.eventDate);
-      if (!isNaN(parsed.getTime())) return parsed;
-    }
+    const date = convertFirestoreTimestamp(couple.eventDate);
+    if (date) return date;
   }
 
   // Fallback a gallery.eventDate
   if (gallery?.eventDate) {
-    if (
-      gallery.eventDate.toDate &&
-      typeof gallery.eventDate.toDate === "function"
-    ) {
-      return gallery.eventDate.toDate();
-    }
-    if (gallery.eventDate instanceof Date) {
-      return gallery.eventDate;
-    }
-    if (typeof gallery.eventDate === "string") {
-      const parsed = new Date(gallery.eventDate);
-      if (!isNaN(parsed.getTime())) return parsed;
-    }
+    const date = convertFirestoreTimestamp(gallery.eventDate);
+    if (date) return date;
   }
 
   return null;
