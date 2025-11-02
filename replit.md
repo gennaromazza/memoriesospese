@@ -97,6 +97,85 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - `shared/booking-types.ts` - TypeScript interfaces for bookings
 - `client/src/lib/bookings.ts` - Frontend booking utilities
 
+## Order & Gallery Management Integration
+
+**Overview:** Integrated order and gallery creation directly within BookingsManager admin panel, enabling seamless workflow from booking confirmation to order management and gallery setup.
+
+**Order System Enhancement:**
+- **Multi-Product Support:** Order model extended with `prodotti: OrderItem[]` array for managing multiple products per order
+- **Backward Compatibility:** Read-time conversion shim (`ensureProdottiArray`) handles legacy single-product orders without database migration
+- **Auto-Calculation:** Totale and saldo automatically recalculated from product array on create/update operations
+- **OrderItem Interface:** Each item includes `productId`, `nome`, `prezzo`, `quantita` for snapshot consistency
+
+**BookingsManager Integration:**
+
+### Badge System
+- **"Ordine Creato" Badge:** Green badge displayed on booking cards when order exists for booking
+- **Dynamic Visibility:** "+ Ordine" button hidden once order created (1-to-1 booking-order relationship)
+- **Visual Feedback:** Immediate UI update after order creation via query cache invalidation
+
+### CreateOrderDialog
+**Trigger:** Click "+ Ordine" button on booking card (visible only if no order exists)
+
+**Features:**
+- Pre-population: Auto-selects product from booking (`booking.prodotto`)
+- Multi-product selection: Checkboxes for all active products from `getActiveProducts()`
+- Quantity management: Adjustable quantity per product (default: 1)
+- Live totale calculation: Real-time update via `calculateTotale(selectedProducts)` helper
+- Validation: Alert if no products selected (non-empty validation)
+- Product snapshot: Creates OrderItem[] with frozen product names/prices for historical accuracy
+
+**Data Flow:**
+1. Admin opens dialog → Products fetched, booking product pre-selected
+2. Admin selects products, adjusts quantities → Totale updates live
+3. Submit → `createOrderMutation` → `createOrder(orderData)` → Firestore `orders` collection
+4. Success → Invalidate `orders` and `bookings` queries → Badge appears, dialog closes
+
+### CreateGalleryDialog
+**Trigger:** Click "+ Galleria" button on booking card (always visible, multiple galleries allowed)
+
+**Features:**
+- **Auto-Generated Code:** 8-character alphanumeric uppercase code generated via `generateRandomCode()`
+- **Code Regeneration:** "Rigenera" button for manual code refresh
+- **Pre-Population:**
+  - Nome: `${cliente.nome} ${cliente.cognome} - ${campaign?.nome || ''}`
+  - Codice: Random 8-char (e.g., "ABC12XYZ")
+  - Data: Formatted from `booking.dataShootingInizio` (YYYY-MM-DD)
+- **Required Fields:** Nome, Codice (8 chars), Data, Luogo
+- **Optional Fields:** Password, Descrizione
+- **Validation:** Alert-based validation for required fields
+- **Code Format:** Uppercase forced in input and submit
+
+**Data Flow:**
+1. Admin opens dialog → Form pre-populated with booking/campaign data
+2. Admin fills location (required), optional password/description
+3. Submit → `createGalleryMutation` → `GalleryService.createGallery(galleryData)` → Firestore `galleries` collection
+4. Success → Invalidate `galleries` query → Toast success, dialog closes
+
+**Technical Implementation:**
+
+### Shared Queries
+- `orders` query: Shared between BookingsManager and OrdersManager for cache efficiency
+- Badge logic: `orders.find(o => o.bookingId === booking.id)` determines badge visibility
+- Mutation invalidation: Both `orders` and `bookings` queries invalidated on order creation
+
+### Helpers
+- `calculateTotale(prodotti: OrderItem[]): number` - Sum of (prezzo * quantita) for all products
+- `generateRandomCode(): string` - 8-char random alphanumeric uppercase (collision-resistant)
+- `formatDateForInput(timestamp): string` - Firestore timestamp → YYYY-MM-DD for date input
+- `ensureProdottiArray(order): Order` - Backward compatibility shim for legacy orders
+
+### Key Files
+- `client/src/components/BookingsManager.tsx` - Admin panel with order/gallery integration
+- `client/src/lib/orders.ts` - Order CRUD operations with auto-totale calculation
+- `client/src/lib/galleries.ts` - GalleryService class-based API for Firestore
+- `shared/booking-types.ts` - Extended Order type with `prodotti: OrderItem[]`, `galleryId?: string`
+
+**Future Enhancements:**
+- Link `galleryId` back to booking for "Galleria Creata" badge (similar to order badge)
+- Server-side code uniqueness validation for gallery codes
+- Typed `NewGallery` payload for compile-time safety in dialog submit
+
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting
 - **Stripe:** Payment processing for subscriptions
