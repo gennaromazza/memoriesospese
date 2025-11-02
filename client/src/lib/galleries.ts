@@ -70,13 +70,21 @@ export class GalleryService {
    */
   static async getAllGalleries(): Promise<Gallery[]> {
     try {
+      // Rimuovo orderBy per evitare "failed-precondition" (manca indice composito)
+      // Ordino client-side invece
       const galleriesQuery = query(
         collection(db, 'galleries'), 
-        where('active', '==', true),
-        orderBy('createdAt', 'desc')
+        where('active', '==', true)
       );
       const snapshot = await getDocs(galleriesQuery);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gallery));
+      const galleries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gallery));
+      
+      // Ordina per createdAt (desc) client-side
+      return galleries.sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
     } catch (error) {
       console.error('Errore recupero gallerie:', error);
       return [];
@@ -288,15 +296,23 @@ export class GalleryService {
    * Real-time subscription a tutte le gallerie
    */
   static subscribeToGalleries(callback: (galleries: Gallery[]) => void) {
+    // Rimuovo orderBy per evitare "failed-precondition" (manca indice composito)
     const q = query(
       collection(db, 'galleries'), 
-      where('active', '==', true),
-      orderBy('createdAt', 'desc')
+      where('active', '==', true)
     );
     
     return onSnapshot(q, (snapshot) => {
       const galleries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gallery));
-      callback(galleries);
+      
+      // Ordina per createdAt (desc) client-side
+      const sorted = galleries.sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
+      
+      callback(sorted);
     }, (error) => {
       console.error('Errore subscription gallerie:', error);
       callback([]);
