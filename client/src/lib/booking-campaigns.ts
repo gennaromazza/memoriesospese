@@ -95,10 +95,11 @@ export async function getCampaignByCode(code: string): Promise<BookingCampaign |
 export async function getActiveCampaigns(): Promise<BookingCampaign[]> {
   const now = new Date();
   
+  // Rimuovo orderBy per evitare "failed-precondition" (manca indice composito)
+  // Ordino client-side invece
   const q = query(
     collection(db, COLLECTION),
-    where('attiva', '==', true),
-    orderBy('dataInizio', 'desc')
+    where('attiva', '==', true)
   );
   
   const snapshot = await getDocs(q);
@@ -111,10 +112,10 @@ export async function getActiveCampaigns(): Promise<BookingCampaign[]> {
     createdAt: doc.data().createdAt?.toDate?.() || new Date(),
   })) as BookingCampaign[];
   
-  // Filtra campagne nel range attivo
-  return campaigns.filter(c => 
-    c.dataInizio <= now && c.dataFine >= now
-  );
+  // Filtra campagne nel range attivo e ordina per dataInizio (desc)
+  return campaigns
+    .filter(c => c.dataInizio <= now && c.dataFine >= now)
+    .sort((a, b) => b.dataInizio.getTime() - a.dataInizio.getTime());
 }
 
 /**

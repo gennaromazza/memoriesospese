@@ -315,8 +315,8 @@ export default function Home() {
               <div className="w-full">
                 {(() => {
                   const campaign = activeCampaigns[0];
-                  const startDate = campaign.dataInizio.toDate();
-                  const endDate = campaign.dataFine.toDate();
+                  const startDate = campaign.dataInizio;
+                  const endDate = campaign.dataFine;
                   const formatDate = (date: Date) =>
                     date.toLocaleDateString("it-IT", {
                       day: "numeric",
@@ -422,8 +422,8 @@ export default function Home() {
                 <div className="overflow-hidden" ref={emblaRef}>
                   <div className="flex transition-all duration-500 ease-out">
                     {activeCampaigns.map((campaign) => {
-                      const startDate = campaign.dataInizio.toDate();
-                      const endDate = campaign.dataFine.toDate();
+                      const startDate = campaign.dataInizio;
+                      const endDate = campaign.dataFine;
                       const formatDate = (date: Date) =>
                         date.toLocaleDateString("it-IT", {
                           day: "numeric",
