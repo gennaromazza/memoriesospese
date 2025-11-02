@@ -137,8 +137,49 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
       metodo: 'contante' | 'carta' | 'bonifico' | 'paypal';
       note?: string;
     }) => addAccontoPayment(orderId, importo, metodo, note),
-    onSuccess: () => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      
+      // Recupera ordine per email (prima dell'aggiornamento, calcola i nuovi valori)
+      const order = orders.find(o => o.id === variables.orderId);
+      if (order && order.emailCliente && order.nomeCliente) {
+        try {
+          // Calcola valori aggiornati per email
+          const accontoAttuale = order.acconto || 0;
+          const totale = order.totale || 0;
+          const nuovoAccontoTotale = accontoAttuale + variables.importo;
+          const nuovoSaldo = totale - nuovoAccontoTotale;
+          
+          // Calcola il nome prodotto per l'email (primo prodotto o "Ordine Multi-Prodotto")
+          const prodottoNome = order.prodotti && order.prodotti.length > 0
+            ? order.prodotti.length === 1 
+              ? order.prodotti[0].prodottoNome
+              : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
+            : "Ordine";
+
+          // Invia email notifica acconto al cliente
+          await fetch('/api/email/acconto-received', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipientEmail: order.emailCliente,
+              clienteName: order.nomeCliente,
+              prodottoNome,
+              accontoImporto: variables.importo,
+              accontoTotale: nuovoAccontoTotale,
+              saldoRimanente: nuovoSaldo,
+              metodo: variables.metodo,
+              note: variables.note
+            })
+          });
+          
+          console.log('✅ Email acconto inviata a', order.emailCliente);
+        } catch (emailError) {
+          console.error('❌ Errore invio email acconto:', emailError);
+          // Non bloccare il successo se email fallisce
+        }
+      }
+      
       toast({
         title: 'Acconto registrato',
         description: 'Il pagamento dell\'acconto è stato salvato con successo',
@@ -160,8 +201,42 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
   const saldoMutation = useMutation({
     mutationFn: ({ orderId, metodo }: { orderId: string; metodo: 'contante' | 'carta' | 'bonifico' | 'paypal' }) =>
       recordSaldoPayment(orderId, metodo),
-    onSuccess: () => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      
+      // Recupera ordine per email (prima del pagamento saldo)
+      const order = orders.find(o => o.id === variables.orderId);
+      if (order && order.emailCliente && order.nomeCliente) {
+        try {
+          // Il saldo pagato è quello attualmente pendente
+          const saldoAmount = order.saldo || 0;
+          
+          // Calcola il nome prodotto per l'email (primo prodotto o "Ordine Multi-Prodotto")
+          const prodottoNome = order.prodotti && order.prodotti.length > 0
+            ? order.prodotti.length === 1 
+              ? order.prodotti[0].prodottoNome
+              : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
+            : "Ordine";
+
+          // Invia email notifica saldo al cliente
+          await fetch('/api/email/saldo-received', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipientEmail: order.emailCliente,
+              clienteName: order.nomeCliente,
+              prodottoNome,
+              saldoAmount
+            })
+          });
+          
+          console.log('✅ Email saldo inviata a', order.emailCliente);
+        } catch (emailError) {
+          console.error('❌ Errore invio email saldo:', emailError);
+          // Non bloccare il successo se email fallisce
+        }
+      }
+      
       toast({
         title: 'Saldo registrato',
         description: 'Il pagamento del saldo è stato completato',

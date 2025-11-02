@@ -1880,4 +1880,114 @@ export function createSelectionDeadlineReminderEmailHTML(
   `;
 }
 
+/**
+ * POST /api/email/acconto-received
+ * Invia email al cliente quando viene registrato un acconto
+ */
+router.post("/acconto-received", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      prodottoNome,
+      accontoImporto,
+      accontoTotale,
+      saldoRimanente,
+      metodo,
+      note
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteName || !prodottoNome || accontoImporto === undefined || accontoTotale === undefined || saldoRimanente === undefined || !metodo) {
+      return res.status(400).json({
+        error: "Parametri mancanti per email acconto ricevuto"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createOrderAccontoRicevutoEmailHTML(
+      clienteName,
+      prodottoNome,
+      accontoImporto,
+      accontoTotale,
+      saldoRimanente,
+      metodo,
+      note,
+      studioInfo
+    );
+
+    const subject = `Acconto Ricevuto - ${prodottoNome}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Acconto Ricevuto" inviata a ${recipientEmail} per ordine ${prodottoNome}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Acconto received email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore acconto-received email:", error);
+    res.status(500).json({
+      error: "Errore invio email acconto ricevuto"
+    });
+  }
+});
+
+/**
+ * POST /api/email/saldo-received
+ * Invia email al cliente quando viene registrato il saldo finale
+ */
+router.post("/saldo-received", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      prodottoNome,
+      saldoAmount
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteName || !prodottoNome || saldoAmount === undefined) {
+      return res.status(400).json({
+        error: "Parametri mancanti per email saldo ricevuto"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createOrderSaldoPendenteEmailHTML(
+      clienteName,
+      prodottoNome,
+      saldoAmount,
+      studioInfo
+    );
+
+    const subject = `Saldo Completato - ${prodottoNome}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Saldo Completato" inviata a ${recipientEmail} per ordine ${prodottoNome}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Saldo received email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore saldo-received email:", error);
+    res.status(500).json({
+      error: "Errore invio email saldo ricevuto"
+    });
+  }
+});
+
 export default router;
