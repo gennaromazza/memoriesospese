@@ -1512,7 +1512,7 @@ router.post("/gallery-ready", async (req, res) => {
       studioInfo
     );
 
-    const subject = `🎨 La tua galleria è pronta - Seleziona le ${requiredPhotoCount} foto!`;
+    const subject = `La tua galleria è pronta - Seleziona le ${requiredPhotoCount} foto!`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
