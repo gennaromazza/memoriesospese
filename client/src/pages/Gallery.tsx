@@ -1020,10 +1020,11 @@ export default function Gallery() {
                                     <p className="font-semibold text-gray-800 mb-2">📝 Come funziona:</p>
                                     <ol className="space-y-2 text-gray-700 list-decimal list-inside">
                                       <li><strong>Scorri le foto</strong> della galleria</li>
-                                      <li><strong>Clicca il cuore 🤍</strong> per selezionare una foto (diventerà ❤️)</li>
-                                      <li><strong>Clicca di nuovo ❤️</strong> per rimuoverla dalla selezione</li>
+                                      <li><strong>Clicca sulla foto</strong> che vuoi selezionare</li>
+                                      <li>Vedrai un <strong>✓ checkbox verde</strong> nell'angolo e la scritta <strong>"SELEZIONATA"</strong></li>
+                                      <li><strong>Clicca di nuovo</strong> sulla foto per deselezionarla</li>
                                       <li>Il <strong>counter</strong> ti mostra il progresso ({selectedPhotoIds.length}/{requiredPhotoCount})</li>
-                                      <li>Quando raggiungi <strong>{requiredPhotoCount}/{requiredPhotoCount}</strong>, clicca <strong>"Conferma Selezione"</strong></li>
+                                      <li>Quando raggiungi <strong>{requiredPhotoCount}/{requiredPhotoCount}</strong>, scorri in fondo e clicca <strong>"Conferma Selezione"</strong></li>
                                     </ol>
                                   </div>
                                   
@@ -1032,7 +1033,8 @@ export default function Gallery() {
                                     <ul className="text-gray-700 space-y-1 text-sm">
                                       <li>• Prenditi il tempo necessario per scegliere le tue foto preferite</li>
                                       <li>• Puoi cambiare idea quante volte vuoi prima di confermare</li>
-                                      <li>• Le foto selezionate hanno un <strong>bordo verde</strong> intorno</li>
+                                      <li>• Le foto selezionate hanno un <strong>bordo verde spesso</strong> e la scritta "SELEZIONATA"</li>
+                                      <li>• Dopo aver confermato, la selezione sarà <strong>definitiva</strong> e visibile allo studio</li>
                                       {selectionDeadline && <li>• Ricorda la scadenza: <strong>{new Date(selectionDeadline.toDate ? selectionDeadline.toDate() : selectionDeadline).toLocaleDateString('it-IT')}</strong></li>}
                                     </ul>
                                   </div>
@@ -1059,12 +1061,20 @@ export default function Gallery() {
                           <p className="text-lg text-gray-700 mb-4">
                             Seleziona le tue <strong className="text-sage">{requiredPhotoCount} foto preferite</strong> per il tuo album personalizzato!
                           </p>
+                          
+                          {/* Istruzioni chiare */}
+                          <div className="bg-white/60 rounded-lg p-4 mb-4 border border-sage/30">
+                            <p className="font-semibold text-sage mb-2">📋 Come selezionare:</p>
+                            <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                              <li><strong>Clicca sulla foto</strong> che vuoi selezionare</li>
+                              <li>Vedrai un <strong>✓ checkbox verde</strong> e la scritta "SELEZIONATA"</li>
+                              <li>Clicca di nuovo per <strong>deselezionare</strong></li>
+                              <li>Il counter mostra il progresso: <strong>{selectedPhotoIds.length}/{requiredPhotoCount}</strong></li>
+                              <li>Quando hai selezionato tutte le {requiredPhotoCount} foto, clicca <strong>"Conferma Selezione"</strong> in fondo alla pagina</li>
+                            </ol>
+                          </div>
+                          
                           <div className="flex items-center justify-center gap-6 mb-4 text-sm text-gray-600">
-                            <div className="flex items-center gap-2">
-                              <span className="text-3xl">❤️</span>
-                              <span>Clicca il cuore per selezionare</span>
-                            </div>
-                            
                             {/* Counter with Tooltip */}
                             <TooltipProvider>
                               <Tooltip>
@@ -1106,15 +1116,21 @@ export default function Gallery() {
                           <React.Fragment key={photo.id}>
                             <div className="masonry-item">
                               <div
-                                className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
-                                  isSelectionMode && selectedPhotoIds.includes(photo.id) ? 'ring-4 ring-sage' : ''
+                                className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg transition-all duration-300 ${
+                                  isSelectionMode && selectedPhotoIds.includes(photo.id) 
+                                    ? 'ring-4 ring-sage shadow-2xl scale-[1.02]' 
+                                    : isSelectionMode 
+                                    ? 'shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50' 
+                                    : 'shadow-md hover:shadow-lg'
                                 }`}
                                 onClick={() => isSelectionMode ? handleTogglePhotoSelection(photo.id) : openLightbox(index)}
                               >
                                 <img
                                   src={photo.url}
                                   alt={photo.name || `Foto ${index + 1}`}
-                                  className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
+                                  className={`w-full h-auto object-cover transition-all duration-300 opacity-0 ${
+                                    isSelectionMode && selectedPhotoIds.includes(photo.id) ? 'brightness-100' : 'hover:opacity-95'
+                                  }`}
                                   loading="lazy"
                                   onLoad={(e) => {
                                     (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
@@ -1125,17 +1141,33 @@ export default function Gallery() {
                                   title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                                 />
                                 
-                                {/* Selection Mode Heart Overlay */}
+                                {/* Selection Mode Checkbox Badge */}
                                 {isSelectionMode && (
-                                  <div className="absolute top-2 right-2 z-10">
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                                      selectedPhotoIds.includes(photo.id)
-                                        ? 'bg-sage text-white scale-110 shadow-lg'
-                                        : 'bg-white/80 text-gray-400 hover:bg-white hover:text-sage'
-                                    }`}>
-                                      <span className="text-2xl">{selectedPhotoIds.includes(photo.id) ? '❤️' : '🤍'}</span>
+                                  <>
+                                    {/* Checkbox Top Right */}
+                                    <div className="absolute top-3 right-3 z-10">
+                                      <div className={`w-8 h-8 rounded-md flex items-center justify-center transition-all border-2 ${
+                                        selectedPhotoIds.includes(photo.id)
+                                          ? 'bg-sage border-sage text-white scale-110 shadow-lg'
+                                          : 'bg-white border-gray-300 hover:border-sage hover:bg-sage/10'
+                                      }`}>
+                                        {selectedPhotoIds.includes(photo.id) ? (
+                                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                          </svg>
+                                        ) : (
+                                          <div className="w-4 h-4 rounded-sm border border-gray-400"></div>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
+                                    
+                                    {/* Badge "SELEZIONA" / "SELEZIONATA" */}
+                                    {selectedPhotoIds.includes(photo.id) && (
+                                      <div className="absolute bottom-0 left-0 right-0 bg-sage text-white text-center py-2 font-semibold text-sm">
+                                        ✓ SELEZIONATA
+                                      </div>
+                                    )}
+                                  </>
                                 )}
                               </div>
 
