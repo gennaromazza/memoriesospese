@@ -139,6 +139,23 @@ export default function Gallery() {
   const requiredPhotoCount = galleryData?.requiredPhotoCount || 0;
   const selectionDeadline = galleryData?.selectionDeadline;
   const selectionStatus = galleryData?.selectionStatus || 'pending';
+  
+  // 🔍 DEBUG: Log stato modalità selezione
+  useEffect(() => {
+    if (galleryData) {
+      console.log('🔍 [SELECTION MODE DEBUG]', {
+        galleryId: galleryData.id,
+        galleryCode: galleryData.code,
+        selectionEnabled: galleryData.selectionEnabled,
+        isSelectionMode,
+        requiredPhotoCount: galleryData.requiredPhotoCount,
+        selectionStatus: galleryData.selectionStatus,
+        selectionDeadline: galleryData.selectionDeadline,
+        selectionDeadlineEnforced: galleryData.selectionDeadlineEnforced,
+        selectedPhotoIds: galleryData.selectedPhotoIds?.length || 0
+      });
+    }
+  }, [galleryData, isSelectionMode]);
 
   // Check deadline enforcement
   const isDeadlinePassed = useMemo(() => {
