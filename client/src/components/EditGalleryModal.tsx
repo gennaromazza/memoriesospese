@@ -855,23 +855,23 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className="sm:max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col" 
+        className="sm:max-w-4xl max-h-[95vh] flex flex-col gap-4" 
         aria-describedby="edit-gallery-dialog-description"
       >
-        <DialogHeader>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Modifica Galleria: {gallery.name}</DialogTitle>
           <DialogDescription id="edit-gallery-dialog-description">
             Modifica i dettagli della galleria e gestisci le foto
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="grid w-full grid-cols-2 shrink-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
             <TabsTrigger value="details">Dettagli</TabsTrigger>
             <TabsTrigger value="photos">Foto ({photos.length})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="space-y-4 overflow-y-auto flex-1 pr-2">
+          <TabsContent value="details" className="space-y-4 overflow-y-auto flex-1 pr-2 min-h-0">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Nome Evento</Label>
@@ -1151,7 +1151,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             </DialogFooter>
           </TabsContent>
 
-          <TabsContent value="photos" className="space-y-4 overflow-y-auto flex-1 pr-2">
+          <TabsContent value="photos" className="space-y-4 overflow-y-auto flex-1 pr-2 min-h-0">
             <div>
               <Label htmlFor="photo-upload">Carica Nuove Foto</Label>
               <div className="flex items-center space-x-2">
