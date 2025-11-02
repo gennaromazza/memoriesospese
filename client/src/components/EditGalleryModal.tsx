@@ -78,6 +78,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(50);
   const [selectionDeadline, setSelectionDeadline] = useState<string>("");
   const [selectionDeadlineEnforced, setSelectionDeadlineEnforced] = useState(true);
+  const [selectionStatus, setSelectionStatus] = useState<'pending' | 'completed'>('pending');
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   
   const availableThemes = getAllThemes();
   const [activeTab, setActiveTab] = useState<string>("details");
@@ -310,6 +312,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setSelectionEnabled((gallery as any).selectionEnabled || false);
       setRequiredPhotoCount((gallery as any).requiredPhotoCount || 50);
       setSelectionDeadlineEnforced((gallery as any).selectionDeadlineEnforced !== false); // default true
+      setSelectionStatus((gallery as any).selectionStatus || 'pending');
+      setSelectedPhotoIds((gallery as any).selectedPhotoIds || []);
       
       // Convert Firebase Timestamp to date string for input[type="date"]
       if ((gallery as any).selectionDeadline) {
@@ -616,6 +620,44 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [gallery, photos, toast]);
 
+  // Funzione per sbloccare/reset selezione (Admin only)
+  const handleUnlockSelection = useCallback(async () => {
+    if (!gallery) return;
+    
+    const confirmed = window.confirm(
+      "Sei sicuro di voler sbloccare la selezione? Questo resetterà lo stato a 'pending' e permetterà al cliente di modificare la selezione."
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      setIsLoading(true);
+      const galleryRef = doc(db, "galleries", gallery.id);
+      
+      await updateDoc(galleryRef, {
+        selectionStatus: 'pending',
+        selectedPhotoIds: [],
+        updatedAt: serverTimestamp()
+      });
+      
+      setSelectionStatus('pending');
+      setSelectedPhotoIds([]);
+      
+      toast({
+        title: "Selezione sbloccata",
+        description: "Il cliente può ora modificare la selezione foto"
+      });
+    } catch (error) {
+      console.error('Errore sblocco selezione:', error);
+      toast({
+        title: "Errore",
+        description: "Errore durante lo sblocco della selezione",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [gallery, toast]);
 
   // Salva le modifiche alla galleria (memoizzata per performance)
   const saveGallery = useCallback(async () => {
@@ -653,6 +695,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         selectionDeadlineEnforced,
         updatedAt: serverTimestamp()
       };
+      
+      // Se disattivo la selezione, reset completo dello stato
+      if (!selectionEnabled) {
+        updateData.selectionStatus = 'pending';
+        updateData.selectedPhotoIds = [];
+      }
 
       // Gestisci tema e PIN
       if (specialTheme !== 'none') {
@@ -999,6 +1047,57 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   Abilita la selezione foto per album personalizzati. I clienti potranno scegliere le foto preferite direttamente dalla galleria.
                 </p>
               </div>
+              
+              {/* Stato Selezione (visibile solo se abilitata) */}
+              {selectionEnabled && (
+                <div className="p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 className="font-semibold text-gray-800">📊 Stato Selezione</h4>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {selectionStatus === 'completed' ? (
+                          <span className="text-green-600 font-medium">
+                            ✅ Selezione completata - {selectedPhotoIds.length}/{requiredPhotoCount} foto selezionate
+                          </span>
+                        ) : (
+                          <span className="text-orange-600 font-medium">
+                            ⏳ In attesa - {selectedPhotoIds.length}/{requiredPhotoCount} foto selezionate
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    
+                    {selectionStatus === 'completed' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleUnlockSelection}
+                        disabled={isLoading}
+                        className="bg-white hover:bg-red-50 text-red-600 border-red-300"
+                      >
+                        🔓 Sblocca Selezione
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {selectedPhotoIds.length > 0 && (
+                    <div className="text-xs text-gray-600 bg-white/60 rounded p-2">
+                      <strong>Foto selezionate ({selectedPhotoIds.length}):</strong>
+                      <div className="mt-1 max-h-20 overflow-y-auto">
+                        {selectedPhotoIds.slice(0, 10).map((id, idx) => (
+                          <span key={id} className="inline-block bg-sage/20 text-sage px-2 py-0.5 rounded mr-1 mb-1 text-xs">
+                            #{idx + 1}
+                          </span>
+                        ))}
+                        {selectedPhotoIds.length > 10 && (
+                          <span className="text-gray-500">... +{selectedPhotoIds.length - 10} altre</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {selectionEnabled && (
                 <>
