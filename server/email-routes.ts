@@ -1659,6 +1659,135 @@ router.post("/selection-completed", async (req, res) => {
 });
 
 /**
+ * Email template: Request Selection Modification
+ * Cliente richiede modifica selezione foto già completata
+ */
+export function createRequestModificationEmailHTML(
+  galleryName: string,
+  galleryCode: string,
+  userName: string,
+  userEmail: string,
+  requiredPhotoCount: number,
+  currentSelectionCount: number,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">✏️ Richiesta Modifica Selezione Foto</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 16px; font-weight: bold; color: #856404;">
+            📧 Un cliente ha richiesto di modificare la sua selezione foto
+          </p>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Galleria:</strong> ${galleryName} (${galleryCode})
+          </p>
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Cliente:</strong> ${userName}
+          </p>
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Email Cliente:</strong> <a href="mailto:${userEmail}" style="color: #8b5a3c;">${userEmail}</a>
+          </p>
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Selezione attuale:</strong> ${currentSelectionCount}/${requiredPhotoCount} foto confermate
+          </p>
+        </div>
+
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Il cliente ha richiesto di poter modificare la selezione delle foto già confermate. 
+          Contatta il cliente per comprendere le sue esigenze e gestire la richiesta.
+        </p>
+
+        <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin-top: 20px;">
+          <p style="margin: 0; font-size: 14px; color: #0c5460;">
+            💡 <strong>Azioni suggerite:</strong><br>
+            1. Contatta il cliente via email o telefono<br>
+            2. Comprendi quali foto desidera cambiare<br>
+            3. Se necessario, riabilita la selezione dall'admin panel<br>
+            4. Conferma le modifiche con il cliente
+          </p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * POST /api/email/request-selection-modification
+ * Invia notifica admin quando cliente richiede modifica selezione
+ */
+router.post("/request-selection-modification", async (req, res) => {
+  try {
+    const {
+      galleryId,
+      galleryCode,
+      galleryName,
+      userEmail,
+      userName,
+      requiredPhotoCount,
+      currentSelectionCount
+    } = req.body;
+
+    // Validazioni
+    if (!galleryId || !galleryName || !userEmail || !userName) {
+      return res.status(400).json({
+        error: "Parametri mancanti per richiesta modifica selezione"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+    
+    // Email sempre a admin
+    const adminEmail = studioInfo.email;
+
+    const htmlContent = createRequestModificationEmailHTML(
+      galleryName,
+      galleryCode || galleryId,
+      userName,
+      userEmail,
+      requiredPhotoCount || 0,
+      currentSelectionCount || 0,
+      studioInfo
+    );
+
+    const subject = `✏️ Richiesta Modifica Selezione - ${galleryName} (${userName})`;
+
+    await sendGmailEmail(adminEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Request Modification" inviata a admin per galleria ${galleryName}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Request modification email sent to admin",
+      recipientEmail: adminEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore request-modification email:", error);
+    res.status(500).json({
+      error: "Errore invio email richiesta modifica"
+    });
+  }
+});
+
+/**
  * Email template: Selection Deadline Reminder (Task 18)
  * Reminder 1 giorno prima scadenza selezione
  */

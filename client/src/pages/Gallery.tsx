@@ -133,6 +133,10 @@ export default function Gallery() {
   // Stati per gestire la selezione foto (Tasks 12-15)
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
+  const [isRequestingModification, setIsRequestingModification] = useState(false);
+  
+  // Ref per scrollare alla griglia
+  const galleryGridRef = useRef<HTMLDivElement>(null);
 
   // Check se gallery è in selection mode
   const isSelectionMode = galleryData?.selectionEnabled || false;
@@ -315,6 +319,69 @@ export default function Gallery() {
       setIsSubmittingSelection(false);
     }
   }, [id, user, selectedPhotoIds, requiredPhotoCount, galleryData, toast, refreshGallery]);
+
+  // Request modification of completed selection
+  const handleRequestModification = useCallback(async () => {
+    if (!id || !user || !galleryData) {
+      toast({
+        title: '❌ Errore',
+        description: 'Impossibile inviare la richiesta. Riprova più tardi.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsRequestingModification(true);
+      
+      // Get Firebase ID token for authentication
+      const token = await user.getIdToken();
+      
+      const response = await fetch('/api/email/request-selection-modification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          galleryId: galleryData.id,
+          galleryCode: galleryData.code,
+          galleryName: galleryData.name,
+          userEmail: user.email,
+          userName: userProfile?.name || user.email,
+          requiredPhotoCount,
+          currentSelectionCount: selectedPhotoIds.length,
+        }),
+      });
+
+      // Check response status
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
+        throw new Error(errorData.error || `Errore server: ${response.status}`);
+      }
+
+      toast({
+        title: '📧 Richiesta inviata!',
+        description: 'Lo studio ti contatterà presto per gestire la modifica.',
+      });
+    } catch (error: any) {
+      console.error('Errore invio richiesta modifica:', error);
+      toast({
+        title: '❌ Errore invio',
+        description: error.message || 'Impossibile inviare la richiesta. Riprova più tardi.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRequestingModification(false);
+    }
+  }, [id, user, galleryData, userProfile, requiredPhotoCount, selectedPhotoIds.length, toast]);
+
+  // Scroll to gallery grid
+  const scrollToGallery = useCallback(() => {
+    if (galleryGridRef.current) {
+      galleryGridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   // Funzione per eliminare la storia (solo admin)
   const handleDeleteStory = useCallback(async () => {
@@ -1021,8 +1088,8 @@ export default function Gallery() {
                     </div>
                   ) : (
                     <div>
-                      {/* Selection Mode Banner (Task 13 + Tooltip/Info Guide) */}
-                      {isSelectionMode && (
+                      {/* Selection Mode Banner (Task 13 + Tooltip/Info Guide) - nascosto quando completata */}
+                      {isSelectionMode && selectionStatus !== 'completed' && (
                         <div className="mb-6 bg-gradient-to-r from-sage/20 to-blue-gray/20 border-2 border-sage rounded-lg p-6 text-center relative">
                           {/* Info Icon Button - Top Right */}
                           <AlertDialog>
@@ -1141,25 +1208,25 @@ export default function Gallery() {
                         </div>
                       )}
 
-                      <div className="masonry-grid">
+                      <div ref={galleryGridRef} className="masonry-grid">
                         {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
                           <React.Fragment key={photo.id}>
                             <div className="masonry-item">
                               <div
                                 className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg transition-all duration-300 ${
-                                  isSelectionMode && selectedPhotoIds.includes(photo.id) 
+                                  isSelectionMode && selectionStatus !== 'completed' && selectedPhotoIds.includes(photo.id) 
                                     ? 'ring-4 ring-sage shadow-2xl scale-[1.02]' 
-                                    : isSelectionMode 
+                                    : isSelectionMode && selectionStatus !== 'completed'
                                     ? 'shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50' 
                                     : 'shadow-md hover:shadow-lg'
                                 }`}
-                                onClick={() => isSelectionMode ? handleTogglePhotoSelection(photo.id) : openLightbox(index)}
+                                onClick={() => (isSelectionMode && selectionStatus !== 'completed') ? handleTogglePhotoSelection(photo.id) : openLightbox(index)}
                               >
                                 <img
                                   src={photo.url}
                                   alt={photo.name || `Foto ${index + 1}`}
                                   className={`w-full h-auto object-cover transition-all duration-300 opacity-0 ${
-                                    isSelectionMode && selectedPhotoIds.includes(photo.id) ? 'brightness-100' : 'hover:opacity-95'
+                                    isSelectionMode && selectionStatus !== 'completed' && selectedPhotoIds.includes(photo.id) ? 'brightness-100' : 'hover:opacity-95'
                                   }`}
                                   loading="lazy"
                                   onLoad={(e) => {
@@ -1171,8 +1238,8 @@ export default function Gallery() {
                                   title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                                 />
                                 
-                                {/* Selection Mode Checkbox Badge */}
-                                {isSelectionMode && (
+                                {/* Selection Mode Checkbox Badge - nascosto quando completata */}
+                                {isSelectionMode && selectionStatus !== 'completed' && (
                                   <>
                                     {/* Checkbox Top Right */}
                                     <div className="absolute top-3 right-3 z-10">
@@ -1279,19 +1346,59 @@ export default function Gallery() {
                         </div>
                       )}
 
-                      {/* Selezione Completata Message */}
+                      {/* Selezione Completata Message - Migliorato */}
                       {isSelectionMode && selectionStatus === 'completed' && (
                         <div className="mt-8 mb-6 text-center">
-                          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-6 shadow-lg max-w-2xl mx-auto">
-                            <h4 className="text-2xl font-playfair text-green-800 mb-3">
-                              ✅ Selezione Completata!
-                            </h4>
-                            <p className="text-gray-700 mb-2">
-                              Hai confermato la tua selezione di <strong>{requiredPhotoCount} foto</strong>.
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              Riceverai presto il tuo album personalizzato! 🎉
-                            </p>
+                          <div className="bg-gradient-to-br from-green-50 to-sage/10 border-2 border-green-300 rounded-lg p-8 shadow-xl max-w-3xl mx-auto">
+                            <div className="mb-6">
+                              <div className="text-6xl mb-3">✨</div>
+                              <h4 className="text-3xl font-playfair text-green-800 mb-3">
+                                Selezione Confermata!
+                              </h4>
+                              <p className="text-lg text-gray-700 mb-2">
+                                Hai confermato la tua selezione di <strong className="text-sage">{requiredPhotoCount} foto</strong> per il tuo album personalizzato.
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                Riceverai presto il tuo album! 🎉
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                              {/* CTA: Goditi la Galleria */}
+                              <Button
+                                onClick={scrollToGallery}
+                                className="bg-sage hover:bg-sage/90 text-white px-8 py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+                                data-testid="button-enjoy-gallery"
+                              >
+                                🖼️ Goditi la Galleria
+                              </Button>
+
+                              {/* Richiedi Modifica */}
+                              <Button
+                                variant="outline"
+                                onClick={handleRequestModification}
+                                disabled={isRequestingModification}
+                                className="border-2 border-sage text-sage hover:bg-sage hover:text-white px-6 py-6 text-lg font-medium transition-all"
+                                data-testid="button-request-modification"
+                              >
+                                {isRequestingModification ? (
+                                  <>
+                                    <span className="animate-spin mr-2">⏳</span>
+                                    Invio richiesta...
+                                  </>
+                                ) : (
+                                  <>
+                                    ✏️ Richiedi Modifica
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+
+                            <div className="mt-6 bg-white/60 rounded-lg p-4 border border-sage/30">
+                              <p className="text-sm text-gray-600">
+                                💡 <strong>Nota:</strong> Puoi continuare a sfogliare e goderti la galleria normalmente. Se hai bisogno di modificare la selezione, clicca su "Richiedi Modifica" e lo studio ti contatterà.
+                              </p>
+                            </div>
                           </div>
                         </div>
                       )}
