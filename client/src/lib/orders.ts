@@ -176,16 +176,32 @@ function calculateTotale(prodotti: InsertOrder['prodotti']): number {
  * Crea nuovo ordine (admin only)
  */
 export async function createOrder(data: InsertOrder): Promise<string> {
+  console.log('🔍 createOrder - dati ricevuti:', data);
+  
+  // Normalizza i prodotti per evitare NaN o undefined
+  const normalizedProdotti = data.prodotti.map(item => ({
+    prodottoId: item.prodottoId || '',
+    prodottoNome: item.prodottoNome || '',
+    prodottoPrezzo: typeof item.prodottoPrezzo === 'number' && !isNaN(item.prodottoPrezzo) ? item.prodottoPrezzo : 0,
+    prodottoNumeroFoto: typeof item.prodottoNumeroFoto === 'number' && !isNaN(item.prodottoNumeroFoto) ? item.prodottoNumeroFoto : 0,
+    quantita: typeof item.quantita === 'number' && !isNaN(item.quantita) && item.quantita > 0 ? item.quantita : 1,
+  }));
+  
+  console.log('📦 Prodotti normalizzati:', normalizedProdotti);
+  
   // Calcola totale dalla somma prodotti
-  const totale = calculateTotale(data.prodotti);
+  const totale = calculateTotale(normalizedProdotti);
+  console.log('💰 Totale calcolato:', totale);
   
   // Valida e normalizza acconto (evita NaN)
   const acconto = typeof data.acconto === 'number' && !isNaN(data.acconto) && data.acconto >= 0 
     ? data.acconto 
     : 0;
+  console.log('💵 Acconto validato:', acconto);
   
   // Calcola saldo automaticamente
   const saldo = totale - acconto;
+  console.log('🧾 Saldo calcolato:', saldo);
   
   // Inizializza transactions array (vuoto per nuovi ordini)
   const transactions: Transaction[] = [];
@@ -197,12 +213,12 @@ export async function createOrder(data: InsertOrder): Promise<string> {
     nomeCliente: data.nomeCliente || '',
     emailCliente: data.emailCliente || '',
     whatsappCliente: data.whatsappCliente || null,
-    prodotti: data.prodotti,
+    prodotti: normalizedProdotti,
     note: data.note || null,
     metodoPagamentoAcconto: data.metodoPagamentoAcconto || null,
   };
   
-  const docRef = await addDoc(collection(db, COLLECTION), {
+  const finalData = {
     ...normalizedData,
     acconto, // Usa valore validato
     totale,
@@ -212,8 +228,13 @@ export async function createOrder(data: InsertOrder): Promise<string> {
     emailSaldoInviata: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  };
   
+  console.log('📝 Dati finali per Firestore:', finalData);
+  
+  const docRef = await addDoc(collection(db, COLLECTION), finalData);
+  
+  console.log('✅ Ordine creato con successo, ID:', docRef.id);
   return docRef.id;
 }
 
