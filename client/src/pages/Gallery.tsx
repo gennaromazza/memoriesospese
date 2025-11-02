@@ -39,8 +39,18 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
-import { Edit3, BookOpen, Trash2 } from "lucide-react";
+import { Edit3, BookOpen, Trash2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { PrettyCountdown } from "@/components/PrettyCountdown";
 import { resolveEventDate } from "@/lib/firebase";
 import CoupleStoryBook from "@/components/CoupleStoryBook";
@@ -137,12 +147,28 @@ export default function Gallery() {
     return new Date() > deadline;
   }, [selectionDeadline, galleryData?.selectionDeadlineEnforced]);
 
-  // Sync selectedPhotoIds with galleryData on load
+  // Sync selectedPhotoIds with galleryData on INITIAL load only
+  const [hasInitializedSelection, setHasInitializedSelection] = useState(false);
+  const [lastGalleryIdForSelection, setLastGalleryIdForSelection] = useState<string | null>(null);
+  
+  // Reset selection state when gallery ID changes (cross-gallery navigation)
   useEffect(() => {
-    if (galleryData?.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0) {
-      setSelectedPhotoIds(galleryData.selectedPhotoIds);
+    if (id && id !== lastGalleryIdForSelection) {
+      console.log('🔄 Gallery changed - reset selection state:', { from: lastGalleryIdForSelection, to: id });
+      setSelectedPhotoIds([]);
+      setHasInitializedSelection(false);
+      setLastGalleryIdForSelection(id);
     }
-  }, [galleryData?.selectedPhotoIds]);
+  }, [id, lastGalleryIdForSelection]);
+  
+  // Sync selectedPhotoIds from galleryData after reset (only once per gallery)
+  useEffect(() => {
+    if (!hasInitializedSelection && galleryData?.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0) {
+      console.log('🔄 Sync iniziale selectedPhotoIds da galleryData:', galleryData.selectedPhotoIds.length);
+      setSelectedPhotoIds(galleryData.selectedPhotoIds);
+      setHasInitializedSelection(true);
+    }
+  }, [galleryData?.selectedPhotoIds, hasInitializedSelection]);
 
   // Toggle photo selection
   const handleTogglePhotoSelection = useCallback((photoId: string) => {
@@ -165,8 +191,12 @@ export default function Gallery() {
 
     setSelectedPhotoIds(prev => {
       const isSelected = prev.includes(photoId);
+      console.log('❤️ Toggle photo:', photoId, 'isSelected:', isSelected, 'current count:', prev.length);
+      
       if (isSelected) {
-        return prev.filter(id => id !== photoId);
+        const newSelection = prev.filter(id => id !== photoId);
+        console.log('➖ Rimossa foto. Nuovo count:', newSelection.length);
+        return newSelection;
       } else {
         if (prev.length >= requiredPhotoCount) {
           toast({
@@ -174,9 +204,12 @@ export default function Gallery() {
             description: `Puoi selezionare massimo ${requiredPhotoCount} foto. Rimuovi una selezione prima di aggiungerne altre.`,
             variant: 'destructive',
           });
+          console.log('🚫 Limite raggiunto:', requiredPhotoCount);
           return prev;
         }
-        return [...prev, photoId];
+        const newSelection = [...prev, photoId];
+        console.log('➕ Aggiunta foto. Nuovo count:', newSelection.length);
+        return newSelection;
       }
     });
   }, [isDeadlinePassed, selectionStatus, requiredPhotoCount, toast]);
@@ -958,9 +991,68 @@ export default function Gallery() {
                     </div>
                   ) : (
                     <div>
-                      {/* Selection Mode Banner (Task 13) */}
+                      {/* Selection Mode Banner (Task 13 + Tooltip/Info Guide) */}
                       {isSelectionMode && (
-                        <div className="mb-6 bg-gradient-to-r from-sage/20 to-blue-gray/20 border-2 border-sage rounded-lg p-6 text-center">
+                        <div className="mb-6 bg-gradient-to-r from-sage/20 to-blue-gray/20 border-2 border-sage rounded-lg p-6 text-center relative">
+                          {/* Info Icon Button - Top Right */}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button 
+                                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-sage/80 hover:bg-sage text-white flex items-center justify-center transition-all shadow-md hover:shadow-lg"
+                                data-testid="button-selection-help"
+                              >
+                                <Info className="h-4 w-4" />
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle className="text-2xl font-playfair flex items-center gap-2">
+                                  <span className="text-3xl">📖</span>
+                                  Guida alla Selezione Foto
+                                </AlertDialogTitle>
+                                <AlertDialogDescription className="text-left space-y-3 text-base">
+                                  <div className="bg-sage/10 p-3 rounded-lg border border-sage/30">
+                                    <p className="font-semibold text-sage mb-1">🎯 Obiettivo</p>
+                                    <p className="text-gray-700">Devi selezionare esattamente <strong>{requiredPhotoCount} foto</strong> per il tuo album personalizzato.</p>
+                                  </div>
+                                  
+                                  <div>
+                                    <p className="font-semibold text-gray-800 mb-2">📝 Come funziona:</p>
+                                    <ol className="space-y-2 text-gray-700 list-decimal list-inside">
+                                      <li><strong>Scorri le foto</strong> della galleria</li>
+                                      <li><strong>Clicca il cuore 🤍</strong> per selezionare una foto (diventerà ❤️)</li>
+                                      <li><strong>Clicca di nuovo ❤️</strong> per rimuoverla dalla selezione</li>
+                                      <li>Il <strong>counter</strong> ti mostra il progresso ({selectedPhotoIds.length}/{requiredPhotoCount})</li>
+                                      <li>Quando raggiungi <strong>{requiredPhotoCount}/{requiredPhotoCount}</strong>, clicca <strong>"Conferma Selezione"</strong></li>
+                                    </ol>
+                                  </div>
+                                  
+                                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                    <p className="font-semibold text-blue-800 mb-1">💡 Suggerimenti</p>
+                                    <ul className="text-gray-700 space-y-1 text-sm">
+                                      <li>• Prenditi il tempo necessario per scegliere le tue foto preferite</li>
+                                      <li>• Puoi cambiare idea quante volte vuoi prima di confermare</li>
+                                      <li>• Le foto selezionate hanno un <strong>bordo verde</strong> intorno</li>
+                                      {selectionDeadline && <li>• Ricorda la scadenza: <strong>{new Date(selectionDeadline.toDate ? selectionDeadline.toDate() : selectionDeadline).toLocaleDateString('it-IT')}</strong></li>}
+                                    </ul>
+                                  </div>
+                                  
+                                  {isDeadlinePassed && (
+                                    <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                                      <p className="font-semibold text-red-700">⚠️ La scadenza è superata!</p>
+                                      <p className="text-sm text-gray-700 mt-1">Contatta lo studio per ricevere assistenza.</p>
+                                    </div>
+                                  )}
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogAction className="bg-sage hover:bg-sage/90">
+                                  Ho capito!
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          
                           <h3 className="text-2xl font-playfair text-blue-gray mb-3">
                             ✨ Modalità Selezione Foto ✨
                           </h3>
@@ -972,10 +1064,27 @@ export default function Gallery() {
                               <span className="text-3xl">❤️</span>
                               <span>Clicca il cuore per selezionare</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-2xl font-bold text-sage">{selectedPhotoIds.length}/{requiredPhotoCount}</span>
-                              <span>Foto selezionate</span>
-                            </div>
+                            
+                            {/* Counter with Tooltip */}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-2 cursor-help" data-testid="counter-selection">
+                                    <span className="text-2xl font-bold text-sage">{selectedPhotoIds.length}/{requiredPhotoCount}</span>
+                                    <span>Foto selezionate</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs bg-sage text-white">
+                                  <p className="font-semibold mb-1">📊 Progresso Selezione</p>
+                                  <p className="text-sm">
+                                    {selectedPhotoIds.length === 0 && `Inizia selezionando le tue ${requiredPhotoCount} foto preferite!`}
+                                    {selectedPhotoIds.length > 0 && selectedPhotoIds.length < requiredPhotoCount && `Ottimo inizio! Mancano ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
+                                    {selectedPhotoIds.length === requiredPhotoCount && `✅ Perfetto! Puoi confermare la selezione.`}
+                                    {selectedPhotoIds.length > requiredPhotoCount && `⚠️ Troppe foto! Rimuovine ${selectedPhotoIds.length - requiredPhotoCount}.`}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                           {selectionDeadline && (
                             <p className="text-sm text-gray-500">
