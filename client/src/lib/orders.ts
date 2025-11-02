@@ -252,8 +252,17 @@ export async function updateOrder(
 ): Promise<void> {
   const docRef = doc(db, COLLECTION, orderId);
   
+  // Filtra i campi undefined per evitare errori Firestore
+  const filteredData: any = {};
+  Object.keys(data).forEach(key => {
+    const value = (data as any)[key];
+    if (value !== undefined) {
+      filteredData[key] = value;
+    }
+  });
+  
   const updateData: any = {
-    ...data,
+    ...filteredData,
     updatedAt: serverTimestamp(),
   };
   
