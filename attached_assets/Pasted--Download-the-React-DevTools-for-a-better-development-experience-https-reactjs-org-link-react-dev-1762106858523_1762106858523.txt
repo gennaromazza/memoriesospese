@@ -1,0 +1,177 @@
+ Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+ Using fallback Firebase configuration. Set environment variables for production.
+(anonymous) @ firebase.ts:17
+ 🚀 Firebase: connessione diretta ai servizi produzione
+ 📋 Questionari e token validation: produzione Firebase
+ 🔄 Gallery changed - reset selection state: Object
+ 🔄 [ONCE] Caricamento iniziale storia per galleryId: GEPo71YB
+ 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: GEPo71YB
+ 📍 [GET] Collection: coupleStories, Document ID: GEPo71YB
+ 📄 [GET] Document reference creato: Object
+ 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+ 🔄 Gallery changed - reset selection state: Object
+ 🔄 [ONCE] Caricamento iniziale storia per galleryId: GEPo71YB
+ 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: GEPo71YB
+ 📍 [GET] Collection: coupleStories, Document ID: GEPo71YB
+ 📄 [GET] Document reference creato: Object
+ 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+ 🚫 [SKIP] Load story skipped: Object
+ 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+ 🔄 [NO-RESET] Stessa galleria - mantieni stato storia: Object
+ 🔎 [GET] getDoc() completato: Object
+ 🔎 [GET] Fallback: Query per galleryId field...
+ 🔎 [GET] getDoc() completato: Object
+ 🔎 [GET] Fallback: Query per galleryId field...
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 🔍 SELECTION MODE DEBUG - Galleria: GEPo71YB
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 📌 Gallery ID: LeOivshrxbUeNI50WNr3
+ 📌 Gallery Code: GEPo71YB
+ ✅ selectionEnabled: true
+ ✅ isSelectionMode: true
+ 📊 requiredPhotoCount: 20
+ 📋 selectionStatus: pending
+ ⏰ selectionDeadline: _Timestamp
+ 🔒 selectionDeadlineEnforced: true
+ 💚 selectedPhotoIds count: 0
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ❌ [GET] Nessuna storia trovata
+ 📖 [ONCE] Storia caricata da Firebase: NON TROVATA Object
+ ❌ [ONCE] Nessuna storia trovata - set null: GEPo71YB
+ ❌ [GET] Nessuna storia trovata
+ 📖 [ONCE] Storia caricata da Firebase: NON TROVATA Object
+ ❌ [ONCE] Nessuna storia trovata - set null: GEPo71YB
+ 🚫 [SKIP] Load story skipped: Object
+ 🔄 Caricamento dati galleria nel modal: LeOivshrxbUeNI50WNr3
+ 🔄 Caricamento dati galleria nel modal: LeOivshrxbUeNI50WNr3
+ 🔄 Caricamento dati galleria nel modal: LeOivshrxbUeNI50WNr3
+ [2025-11-02T18:06:45.145Z] [INFO] [Gallery:LeOivshrxbUeNI50WNr3] Foto totali nella galleria (new + legacy)
+ [2025-11-02T18:06:45.146Z] [INFO] [Gallery:LeOivshrxbUeNI50WNr3] Foto totali nella galleria (new + legacy)
+ [2025-11-02T18:06:45.381Z] [INFO] [Gallery:LeOivshrxbUeNI50WNr3] Top foto per like
+ [2025-11-02T18:06:45.382Z] [INFO] [Gallery:LeOivshrxbUeNI50WNr3] Top foto per like
+ ❤️ Toggle photo: dA7tojHksJfVfb1kcfat isSelected: false current count: 0
+ ➕ Aggiunta foto. Nuovo count: 1
+ ❤️ Toggle photo: dA7tojHksJfVfb1kcfat isSelected: false current count: 0
+ ➕ Aggiunta foto. Nuovo count: 1
+ ❤️ Toggle photo: dA7tojHksJfVfb1kcfat isSelected: true current count: 1
+ ➖ Rimossa foto. Nuovo count: 0
+ ❤️ Toggle photo: dA7tojHksJfVfb1kcfat isSelected: true current count: 1
+ ➖ Rimossa foto. Nuovo count: 0
+ ❤️ Toggle photo: dA7tojHksJfVfb1kcfat isSelected: false current count: 0
+ ➕ Aggiunta foto. Nuovo count: 1
+ ❤️ Toggle photo: dA7tojHksJfVfb1kcfat isSelected: false current count: 0
+ ➕ Aggiunta foto. Nuovo count: 1
+ ❤️ Toggle photo: i0kW2C1ntH61sb3te4Aw isSelected: false current count: 1
+ ➕ Aggiunta foto. Nuovo count: 2
+ ❤️ Toggle photo: i0kW2C1ntH61sb3te4Aw isSelected: false current count: 1
+ ➕ Aggiunta foto. Nuovo count: 2
+ WebSocket connection to 'wss://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/?token=eosqiI9wXC4L' failed: 
+setupWebSocket @ client:536
+ [vite] server connection lost. Polling for restart...
+ ❤️ Toggle photo: zJkUiuRD9JMdkrh0LI9a isSelected: false current count: 2
+ ➕ Aggiunta foto. Nuovo count: 3
+ ❤️ Toggle photo: zJkUiuRD9JMdkrh0LI9a isSelected: false current count: 2
+ ➕ Aggiunta foto. Nuovo count: 3
+ ❤️ Toggle photo: GT30MLfqTourrrlsfihR isSelected: false current count: 3
+ ➕ Aggiunta foto. Nuovo count: 4
+ ❤️ Toggle photo: GT30MLfqTourrrlsfihR isSelected: false current count: 3
+ ➕ Aggiunta foto. Nuovo count: 4
+ ❤️ Toggle photo: 3gM27c1QQBQQjPkXoPyS isSelected: false current count: 4
+ ➕ Aggiunta foto. Nuovo count: 5
+ ❤️ Toggle photo: 3gM27c1QQBQQjPkXoPyS isSelected: false current count: 4
+ ➕ Aggiunta foto. Nuovo count: 5
+ ❤️ Toggle photo: voPhEt6S3MNvpecLxzuX isSelected: false current count: 5
+ ➕ Aggiunta foto. Nuovo count: 6
+ ❤️ Toggle photo: voPhEt6S3MNvpecLxzuX isSelected: false current count: 5
+ ➕ Aggiunta foto. Nuovo count: 6
+ ❤️ Toggle photo: Omq5QUJ6MbJB7LYLnDPl isSelected: false current count: 6
+ ➕ Aggiunta foto. Nuovo count: 7
+ ❤️ Toggle photo: Omq5QUJ6MbJB7LYLnDPl isSelected: false current count: 6
+ ➕ Aggiunta foto. Nuovo count: 7
+ ❤️ Toggle photo: Omq5QUJ6MbJB7LYLnDPl isSelected: true current count: 7
+ ➖ Rimossa foto. Nuovo count: 6
+ ❤️ Toggle photo: Omq5QUJ6MbJB7LYLnDPl isSelected: true current count: 7
+ ➖ Rimossa foto. Nuovo count: 6
+ ❤️ Toggle photo: Omq5QUJ6MbJB7LYLnDPl isSelected: false current count: 6
+ ➕ Aggiunta foto. Nuovo count: 7
+ ❤️ Toggle photo: Omq5QUJ6MbJB7LYLnDPl isSelected: false current count: 6
+ ➕ Aggiunta foto. Nuovo count: 7
+ ❤️ Toggle photo: GF1eSD9pneJIouceWYzk isSelected: false current count: 7
+ ➕ Aggiunta foto. Nuovo count: 8
+ ❤️ Toggle photo: GF1eSD9pneJIouceWYzk isSelected: false current count: 7
+ ➕ Aggiunta foto. Nuovo count: 8
+ ❤️ Toggle photo: BCMkyMIaWz0qV8aeS1rm isSelected: false current count: 8
+ ➕ Aggiunta foto. Nuovo count: 9
+ ❤️ Toggle photo: BCMkyMIaWz0qV8aeS1rm isSelected: false current count: 8
+ ➕ Aggiunta foto. Nuovo count: 9
+ ❤️ Toggle photo: 2x24SA4If2TflbwA2hmS isSelected: false current count: 9
+ ➕ Aggiunta foto. Nuovo count: 10
+ ❤️ Toggle photo: 2x24SA4If2TflbwA2hmS isSelected: false current count: 9
+ ➕ Aggiunta foto. Nuovo count: 10
+ ❤️ Toggle photo: nTYNHEeNqt3EZ4zKMtMu isSelected: false current count: 10
+ ➕ Aggiunta foto. Nuovo count: 11
+Gallery.tsx:218 ❤️ Toggle photo: nTYNHEeNqt3EZ4zKMtMu isSelected: false current count: 10
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 11
+Gallery.tsx:218 ❤️ Toggle photo: gFy54sihcjUjVxWoml3C isSelected: false current count: 11
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 12
+Gallery.tsx:218 ❤️ Toggle photo: gFy54sihcjUjVxWoml3C isSelected: false current count: 11
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 12
+Gallery.tsx:218 ❤️ Toggle photo: MgFlzl8M08qbaCPydJ5B isSelected: false current count: 12
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 13
+Gallery.tsx:218 ❤️ Toggle photo: MgFlzl8M08qbaCPydJ5B isSelected: false current count: 12
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 13
+Gallery.tsx:218 ❤️ Toggle photo: qiDfa30BDqggc7LoOFDI isSelected: false current count: 13
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 14
+Gallery.tsx:218 ❤️ Toggle photo: qiDfa30BDqggc7LoOFDI isSelected: false current count: 13
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 14
+Gallery.tsx:218 ❤️ Toggle photo: PRM8Gtz5WuLnQZLEQTaP isSelected: false current count: 14
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 15
+Gallery.tsx:218 ❤️ Toggle photo: PRM8Gtz5WuLnQZLEQTaP isSelected: false current count: 14
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 15
+Gallery.tsx:218 ❤️ Toggle photo: HhEZIcfaPjtn71Ko6Mog isSelected: false current count: 15
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 16
+Gallery.tsx:218 ❤️ Toggle photo: HhEZIcfaPjtn71Ko6Mog isSelected: false current count: 15
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 16
+Gallery.tsx:218 ❤️ Toggle photo: eQeQlpGltkMSLD6J59Vr isSelected: false current count: 16
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 17
+Gallery.tsx:218 ❤️ Toggle photo: eQeQlpGltkMSLD6J59Vr isSelected: false current count: 16
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 17
+Gallery.tsx:218 ❤️ Toggle photo: C3aaTtjccIZ7zclcBAbu isSelected: false current count: 17
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 18
+Gallery.tsx:218 ❤️ Toggle photo: C3aaTtjccIZ7zclcBAbu isSelected: false current count: 17
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 18
+Gallery.tsx:218 ❤️ Toggle photo: ztRFi28V1s9dJWlSgRS2 isSelected: false current count: 18
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 19
+Gallery.tsx:218 ❤️ Toggle photo: ztRFi28V1s9dJWlSgRS2 isSelected: false current count: 18
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 19
+Gallery.tsx:218 ❤️ Toggle photo: A5YgAPWjZKbDkTOcbj4m isSelected: false current count: 19
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 20
+Gallery.tsx:218 ❤️ Toggle photo: A5YgAPWjZKbDkTOcbj4m isSelected: false current count: 19
+Gallery.tsx:235 ➕ Aggiunta foto. Nuovo count: 20
+Gallery.tsx:218 ❤️ Toggle photo: 5PX2bxAXbEC5dUxFXi7s isSelected: false current count: 20
+chunk-SP6A6TOT.js?v=e3201fc1:521 Warning: Cannot update a component (`Toaster`) while rendering a different component (`Gallery`). To locate the bad setState() call inside `Gallery`, follow the stack trace as described in https://reactjs.org/link/setstate-in-render
+    at Gallery (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/pages/Gallery.tsx:75:18)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=e3201fc1:206:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=e3201fc1:262:17)
+    at AppRoutes (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/App.tsx:65:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+    at FirebaseAuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=e3201fc1:38:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=e3201fc1:65:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=e3201fc1:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=e3201fc1:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=e3201fc1:2763:3)
+    at ErrorBoundary (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=e3201fc1:161:17)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+printWarning @ chunk-SP6A6TOT.js?v=e3201fc1:521
+Gallery.tsx:231 🚫 Limite raggiunto: 20
+Gallery.tsx:218 ❤️ Toggle photo: 5PX2bxAXbEC5dUxFXi7s isSelected: false current count: 20
+Gallery.tsx:231 🚫 Limite raggiunto: 20
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+galleries.ts:195 Errore aggiornamento galleria: FirebaseError: No document to update: projects/wedding-gallery-397b6/databases/(default)/documents/galleries/GEPo71YB
+updateGallery @ galleries.ts:195
+Gallery.tsx:302 Errore conferma selezione: FirebaseError: No document to update: projects/wedding-gallery-397b6/databases/(default)/documents/galleries/GEPo71YB
+(anonymous) @ Gallery.tsx:302
+firestore.googleapis.com/google.firestore.v1.Firestore/Write/channel?VER=8&database=projects%2Fwedding-gallery-397b6%2Fdatabases%2F(default)&gsessionid=PcTAtLvY2hFAT81Ujj4IN-SIoh03bvpxFQhGcaFAZr0&SID=tu85IfZBOmnAa3XzHA0-Ng&RID=26557&TYPE=terminate&zx=w0ytj5wydmty:1  Failed to load resource: the server responded with a status of 400 ()
