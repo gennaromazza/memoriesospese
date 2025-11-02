@@ -254,12 +254,19 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
       }
 
       // Mutation acconto con importo, metodo, note
-      accontoMutation.mutate({
+      const mutationData: any = {
         orderId: paymentDialog.orderId,
         importo,
         metodo: paymentMethod,
-        note: paymentNote.trim() || undefined,
-      });
+      };
+      
+      // Aggiungi note solo se non vuota (evita undefined)
+      const trimmedNote = paymentNote.trim();
+      if (trimmedNote) {
+        mutationData.note = trimmedNote;
+      }
+      
+      accontoMutation.mutate(mutationData);
     } else {
       saldoMutation.mutate({
         orderId: paymentDialog.orderId,
