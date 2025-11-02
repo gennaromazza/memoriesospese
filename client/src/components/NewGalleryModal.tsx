@@ -233,7 +233,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Crea Nuova Galleria Evento</DialogTitle>
