@@ -994,4 +994,191 @@ export function createBookingConfirmedEmailHTML(
   `;
 }
 
+/**
+ * Template HTML per notifica admin - nuova prenotazione ricevuta
+ * ESPORTATA per uso in booking-routes.ts
+ */
+export function createAdminNotificationEmailHTML(
+  clienteName: string,
+  clienteEmail: string,
+  clienteWhatsApp: string,
+  campaignName: string,
+  bookingDate: string,
+  bookingTime: string,
+  productName?: string,
+  notes?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #dc3545; text-align: center;">🔔 Nuova Prenotazione Ricevuta!</h2>
+      <div style="background: #fff3cd; padding: 20px; border-radius: 10px; margin: 20px 0; border: 2px solid #ffc107;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          <strong>Attenzione Admin!</strong>
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          È stata ricevuta una <strong>nuova richiesta di prenotazione</strong> per <strong style="color: #8b5a3c;">${campaignName}</strong>.
+        </p>
+        
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">👤 Dati Cliente</h3>
+          <p style="margin: 8px 0;"><strong>Nome:</strong> ${clienteName}</p>
+          <p style="margin: 8px 0;"><strong>📧 Email:</strong> <a href="mailto:${clienteEmail}">${clienteEmail}</a></p>
+          <p style="margin: 8px 0;"><strong>📱 WhatsApp:</strong> <a href="https://wa.me/${clienteWhatsApp}">${clienteWhatsApp}</a></p>
+        </div>
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Prenotazione</h3>
+          <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${bookingDate}</p>
+          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${bookingTime}</p>
+          ${productName ? `<p style="margin: 8px 0;"><strong>📦 Prodotto:</strong> ${productName}</p>` : ''}
+          ${notes ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${notes}</p>` : ''}
+        </div>
+
+        <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0c5460;">
+            <strong>⏰ Azione Richiesta</strong><br>
+            Accedi alla dashboard admin per <strong>approvare o gestire</strong> questa prenotazione. 
+            Il cliente ha ricevuto una email di conferma ricezione e attende la tua approvazione.
+          </p>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Gestisci questa prenotazione dalla dashboard admin.
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email cambio stato: COMPLETATA
+ * ESPORTATA per uso in booking-routes.ts
+ */
+export function createBookingCompletedEmailHTML(
+  clienteName: string,
+  campaignName: string,
+  bookingDate: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #17a2b8; text-align: center;">📸 Shooting Completato!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Grazie per aver partecipato allo shooting fotografico <strong style="color: #8b5a3c;">${campaignName}</strong>!
+        </p>
+        
+        <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0c5460;">
+            <strong>✅ Stato: Completato</strong><br>
+            Il tuo shooting si è svolto il <strong>${bookingDate}</strong> ed è ora completato. 
+            Ti contatteremo presto per la consegna delle foto e per eventuali pacchetti aggiuntivi.
+          </p>
+        </div>
+
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">💡 Prossimi Passi</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
+            <li>Riceverai una notifica quando le foto saranno pronte</li>
+            <li>Potrai visualizzare e selezionare le tue foto preferite</li>
+            <li>Ti invieremo tutte le info per il ritiro o la consegna</li>
+          </ul>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Grazie per aver scelto i nostri servizi! ❤️
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email cambio stato: ANNULLATA
+ * ESPORTATA per uso in booking-routes.ts
+ */
+export function createBookingCancelledEmailHTML(
+  clienteName: string,
+  campaignName: string,
+  bookingDate: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #6c757d; text-align: center;">Prenotazione Annullata</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ti informiamo che la tua prenotazione per <strong style="color: #8b5a3c;">${campaignName}</strong> 
+          è stata <strong>annullata</strong>.
+        </p>
+        
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 8px 0;"><strong>📅 Data originale:</strong> ${bookingDate}</p>
+          <p style="margin: 8px 0;"><strong>❌ Stato:</strong> Annullata</p>
+        </div>
+
+        <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #721c24;">
+            Se hai domande o desideri prenotare un nuovo shooting, non esitare a contattarci via email o WhatsApp. 
+            Saremo felici di aiutarti!
+          </p>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Ci auguriamo di poterti servire in futuro.
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
 export default router;

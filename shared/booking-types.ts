@@ -98,7 +98,11 @@ export interface Booking {
   // Tracking email/calendar
   emailRicevutaInviata: boolean; // Email "Prenotazione Ricevuta" (automatica dopo creazione)
   emailConfermataInviata: boolean; // Email "Prenotazione Confermata" (dopo approvazione admin)
+  emailAdminInviata?: boolean; // Email notifica admin (automatica dopo creazione)
   googleCalendarEventId?: string; // ID evento creato su Google Calendar
+  
+  // Tracking visualizzazione admin
+  dataVisualizzazione?: Timestamp; // Timestamp prima volta che admin vede prenotazione
   
   createdAt: Timestamp;
   updatedAt: Timestamp;

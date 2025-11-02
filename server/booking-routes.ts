@@ -325,6 +325,38 @@ router.post('/create', async (req, res) => {
       // Aggiorna flag email inviata
       await bookingRef.update({ emailRicevutaInviata: true });
       console.log(`✅ Email "Prenotazione Ricevuta" inviata a ${cliente.email}`);
+      
+      // 5. Invia email notifica admin (nuova prenotazione)
+      try {
+        const { createAdminNotificationEmailHTML } = await import('./email-routes.js');
+        
+        const adminEmail = studioInfo.email; // Email admin dallo studio
+        const clienteName = `${cliente.nome} ${cliente.cognome}`;
+        const adminEmailHTML = createAdminNotificationEmailHTML(
+          clienteName,
+          cliente.email,
+          cliente.whatsapp,
+          campaignName,
+          bookingDate,
+          bookingTime,
+          prodottoNome,
+          note,
+          studioInfo
+        );
+        
+        await sendGmailEmail(
+          adminEmail,
+          `Nuova Prenotazione - ${campaignName}`,
+          adminEmailHTML
+        );
+        
+        // Aggiorna flag email admin inviata
+        await bookingRef.update({ emailAdminInviata: true });
+        console.log(`✅ Email notifica admin inviata a ${adminEmail}`);
+      } catch (adminEmailError) {
+        // Non bloccare la prenotazione se email admin fallisce
+        console.error('⚠️ Errore invio email notifica admin:', adminEmailError);
+      }
     } catch (emailError) {
       // Non bloccare la prenotazione se email fallisce
       console.error('⚠️ Errore invio email prenotazione ricevuta:', emailError);
@@ -395,9 +427,13 @@ router.patch('/:id/approve', async (req, res) => {
     }
 
     const bookingData = bookingDoc.data();
+    
+    if (!bookingData) {
+      return res.status(404).json({ error: 'Dati prenotazione non validi' });
+    }
 
     // Verifica stato attuale
-    if (bookingData?.stato === 'confermata') {
+    if (bookingData.stato === 'confermata') {
       return res.status(400).json({ 
         error: 'Prenotazione già confermata',
         message: 'Questa prenotazione è già stata approvata' 
@@ -579,6 +615,161 @@ router.get('/calendar/:id', async (req, res) => {
     console.error('[Booking API] Errore generazione calendario:', error);
     return res.status(500).json({ 
       error: 'Errore generazione file calendario',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto' 
+    });
+  }
+});
+
+/**
+ * PATCH /api/booking/:id/status
+ * Cambia stato prenotazione e invia email notifica al cliente
+ * 
+ * Body: { stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata' }
+ */
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stato } = req.body;
+
+    if (!id || !stato) {
+      return res.status(400).json({ error: 'ID prenotazione e stato mancanti' });
+    }
+
+    // Validazione stato
+    const validStati = ['in_attesa', 'confermata', 'completata', 'annullata'];
+    if (!validStati.includes(stato)) {
+      return res.status(400).json({ 
+        error: 'Stato invalido',
+        message: `Stato deve essere uno tra: ${validStati.join(', ')}` 
+      });
+    }
+
+    // Inizializza Firebase Admin
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+
+    const db = admin.firestore();
+    const bookingRef = db.collection('bookings').doc(id);
+    const bookingDoc = await bookingRef.get();
+
+    if (!bookingDoc.exists) {
+      return res.status(404).json({ error: 'Prenotazione non trovata' });
+    }
+
+    const bookingData = bookingDoc.data();
+    
+    if (!bookingData) {
+      return res.status(404).json({ error: 'Dati prenotazione non validi' });
+    }
+    
+    const oldStato = bookingData.stato;
+
+    // Aggiorna stato
+    await bookingRef.update({
+      stato,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log(`✅ Stato prenotazione ${id} cambiato da "${oldStato}" a "${stato}"`);
+
+    // Invia email notifica al cliente solo se stato cambia (e non è già "confermata" che usa /approve)
+    try {
+      // Recupera nome campagna
+      const campaignDoc = await db.collection('booking_campaigns').doc(bookingData.campaignId).get();
+      const campaignName = campaignDoc.data()?.nome || 'Shooting Fotografico';
+
+      // Formatta data
+      const slotStart = bookingData.dataShootingInizio.toDate();
+      const bookingDate = slotStart.toLocaleDateString('it-IT', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+
+      // Import funzioni email
+      const { 
+        sendGmailEmail, 
+        createBookingCompletedEmailHTML, 
+        createBookingCancelledEmailHTML,
+        getStudioContactInfo 
+      } = await import('./email-routes.js');
+
+      // Recupera dati contatto studio
+      const studioInfo = await getStudioContactInfo();
+
+      const clienteName = `${bookingData.cliente.nome} ${bookingData.cliente.cognome}`;
+      let emailHTML = '';
+      let subject = '';
+
+      // Determina email template basato su nuovo stato
+      switch (stato) {
+        case 'completata':
+          emailHTML = createBookingCompletedEmailHTML(
+            clienteName,
+            campaignName,
+            bookingDate,
+            studioInfo
+          );
+          subject = `Shooting Completato - ${campaignName}`;
+          break;
+        
+        case 'annullata':
+          emailHTML = createBookingCancelledEmailHTML(
+            clienteName,
+            campaignName,
+            bookingDate,
+            studioInfo
+          );
+          subject = `Prenotazione Annullata - ${campaignName}`;
+          break;
+        
+        default:
+          // Per 'in_attesa' e 'confermata' non inviamo email (gestite da altre route)
+          console.log(`ℹ️ Nessuna email da inviare per stato "${stato}"`);
+          return res.json({
+            success: true,
+            message: 'Stato aggiornato con successo',
+            bookingId: id,
+            newStato: stato
+          });
+      }
+
+      // Invia email
+      if (emailHTML && subject) {
+        await sendGmailEmail(
+          bookingData.cliente.email,
+          subject,
+          emailHTML
+        );
+        console.log(`✅ Email cambio stato "${stato}" inviata a ${bookingData.cliente.email}`);
+      }
+    } catch (emailError) {
+      console.error('⚠️ Errore invio email cambio stato:', emailError);
+      // Non bloccare l'aggiornamento stato se email fallisce
+    }
+
+    return res.json({
+      success: true,
+      message: 'Stato aggiornato con successo',
+      bookingId: id,
+      newStato: stato
+    });
+
+  } catch (error) {
+    console.error('[Booking API] Errore cambio stato prenotazione:', error);
+    return res.status(500).json({ 
+      error: 'Errore interno del server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto' 
     });
   }

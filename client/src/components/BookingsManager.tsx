@@ -2,7 +2,7 @@
  * Bookings Manager - Gestione prenotazioni booking per admin
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import {
@@ -11,6 +11,7 @@ import {
   approveBooking,
   updateBookingStatus,
   deleteBooking,
+  markBookingAsViewed,
 } from '@/lib/bookings';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import type { Booking, BookingCampaign } from '@shared/booking-types';
@@ -38,6 +39,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import {
   Calendar,
@@ -52,7 +55,8 @@ import {
   Eye,
   AlertCircle,
   Loader2,
-  FileText
+  FileText,
+  Search
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -84,20 +88,16 @@ function getStatoBadge(stato: string) {
 
 export default function BookingsManager() {
   const { toast } = useToast();
-  const { currentUser } = useFirebaseAuth();
+  const { user } = useFirebaseAuth();
   const [selectedStato, setSelectedStato] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Query bookings
-  const { data: bookings = [], isLoading, refetch } = useQuery<Booking[]>({
-    queryKey: ['bookings', selectedStato],
-    queryFn: async () => {
-      if (selectedStato === 'all') {
-        return await getAllBookings();
-      }
-      return await getBookingsByStatus(selectedStato as any);
-    },
+  // Query bookings - sempre tutti per permettere filtro client-side
+  const { data: allBookings = [], isLoading, refetch } = useQuery<Booking[]>({
+    queryKey: ['bookings'],
+    queryFn: getAllBookings,
   });
 
   // Query campagne per nomi
@@ -106,10 +106,54 @@ export default function BookingsManager() {
     queryFn: getAllCampaigns,
   });
 
+  // Helper: Ottieni nome campagna
+  const getCampaignName = (campaignId: string) => {
+    const campaign = campaigns.find(c => c.id === campaignId);
+    return campaign?.nome || 'Campagna sconosciuta';
+  };
+
+  // Filtra, cerca e ordina bookings
+  const bookings = useMemo(() => {
+    let filtered = [...allBookings];
+
+    // 1. Filtra per stato
+    if (selectedStato !== 'all') {
+      filtered = filtered.filter(b => b.stato === selectedStato);
+    }
+
+    // 2. Ricerca per nome, email, campagna
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(b => {
+        const nomeCompleto = `${b.cliente.nome} ${b.cliente.cognome}`.toLowerCase();
+        const email = b.cliente.email.toLowerCase();
+        const campagna = getCampaignName(b.campaignId).toLowerCase();
+        
+        return nomeCompleto.includes(query) || 
+               email.includes(query) || 
+               campagna.includes(query);
+      });
+    }
+
+    // 3. Ordina per data e ora (più recenti prima)
+    filtered.sort((a, b) => {
+      const getTime = (timestamp: any): number => {
+        if (!timestamp) return 0;
+        if (timestamp.toDate) return timestamp.toDate().getTime();
+        if (timestamp instanceof Date) return timestamp.getTime();
+        return new Date(timestamp).getTime();
+      };
+      
+      return getTime(b.dataShootingInizio) - getTime(a.dataShootingInizio);
+    });
+
+    return filtered;
+  }, [allBookings, selectedStato, searchQuery, campaigns]);
+
   // Mutation: Approva prenotazione
   const approveMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      const adminUid = currentUser?.uid || 'admin';
+      const adminUid = user?.uid || 'admin';
       await approveBooking(bookingId, adminUid);
     },
     onSuccess: () => {
@@ -171,10 +215,26 @@ export default function BookingsManager() {
     },
   });
 
-  // Helper: Ottieni nome campagna
-  const getCampaignName = (campaignId: string) => {
-    const campaign = campaigns.find(c => c.id === campaignId);
-    return campaign?.nome || 'Campagna sconosciuta';
+  // Mutation: Marca come vista
+  const markAsViewedMutation = useMutation({
+    mutationFn: markBookingAsViewed,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+    },
+    onError: (error: Error) => {
+      console.error('Errore marca come vista:', error);
+      // Silent fail - non mostrare toast per non disturbare admin
+    },
+  });
+
+  // Handler: Apri dettagli e marca come vista
+  const handleOpenDetails = async (booking: Booking) => {
+    setSelectedBooking(booking);
+    
+    // Marca come vista solo se è nuova (dataVisualizzazione null/undefined)
+    if (!booking.dataVisualizzazione) {
+      markAsViewedMutation.mutate(booking.id);
+    }
   };
 
   // Helper: Formatta data/ora
@@ -204,32 +264,51 @@ export default function BookingsManager() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <Select value={selectedStato} onValueChange={setSelectedStato}>
-                <SelectTrigger data-testid="select-stato-filter">
-                  <SelectValue placeholder="Filtra per stato" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATI_BOOKING.map((stato) => (
-                    <SelectItem key={stato.value} value={stato.value}>
-                      <div className="flex items-center gap-2">
-                        <stato.icon className="w-4 h-4" />
+          <div className="space-y-4">
+            {/* Filtri */}
+            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+              <div className="flex-1">
+                <Select value={selectedStato} onValueChange={setSelectedStato}>
+                  <SelectTrigger data-testid="select-stato-filter">
+                    <SelectValue placeholder="Filtra per stato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATI_BOOKING.map((stato) => (
+                      <SelectItem key={stato.value} value={stato.value}>
                         {stato.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Cerca per nome, email o campagna..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-search-bookings"
+                  />
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="default"
+                onClick={() => refetch()}
+                data-testid="button-refresh"
+              >
+                Aggiorna
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              data-testid="button-refresh"
-            >
-              Aggiorna
-            </Button>
+
+            {/* Contatore risultati */}
+            {searchQuery.trim() && (
+              <div className="text-sm text-gray-600">
+                Trovate <strong>{bookings.length}</strong> prenotazioni
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -332,10 +411,17 @@ export default function BookingsManager() {
 
                   {/* Azioni */}
                   <div className="flex flex-col gap-2">
+                    {/* Badge NUOVA se non ancora visualizzata */}
+                    {!booking.dataVisualizzazione && (
+                      <Badge className="bg-red-500 text-white hover:bg-red-600 animate-pulse">
+                        🔔 NUOVA
+                      </Badge>
+                    )}
+                    
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setSelectedBooking(booking)}
+                      onClick={() => handleOpenDetails(booking)}
                       data-testid={`button-view-${booking.id}`}
                     >
                       <Eye className="w-4 h-4 mr-1" />

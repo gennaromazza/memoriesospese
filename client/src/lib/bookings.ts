@@ -208,16 +208,33 @@ export async function approveBooking(bookingId: string, adminUid: string): Promi
 }
 
 /**
- * Aggiorna stato prenotazione (admin only)
+ * Aggiorna stato prenotazione (admin only) - chiama API server per inviare email
  */
 export async function updateBookingStatus(
   bookingId: string,
   stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata'
 ): Promise<void> {
+  const response = await fetch(`/api/booking/${bookingId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ stato }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || error.error || 'Errore aggiornamento stato prenotazione');
+  }
+}
+
+/**
+ * Marca prenotazione come visualizzata dall'admin
+ */
+export async function markBookingAsViewed(bookingId: string): Promise<void> {
   const docRef = doc(db, COLLECTION, bookingId);
   await updateDoc(docRef, {
-    stato,
-    updatedAt: serverTimestamp(),
+    dataVisualizzazione: serverTimestamp(),
   });
 }
 
