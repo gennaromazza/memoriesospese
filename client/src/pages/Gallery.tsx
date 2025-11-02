@@ -263,7 +263,13 @@ export default function Gallery() {
 
       // Update gallery with selected photos
       const { GalleryService } = await import('@/lib/galleries');
-      await GalleryService.updateGallery(id, {
+      
+      // IMPORTANTE: usare galleryData.id (Firestore doc ID) non id (gallery code)
+      if (!galleryData?.id) {
+        throw new Error('Gallery ID non disponibile');
+      }
+      
+      await GalleryService.updateGallery(galleryData.id, {
         selectedPhotoIds,
         selectionStatus: 'completed',
       });
