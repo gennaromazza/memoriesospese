@@ -61,7 +61,11 @@ type OrderWithBooking = Order & {
   booking?: Booking;
 };
 
-export function OrdersManager() {
+interface OrdersManagerProps {
+  filterBookingId?: string | null;
+}
+
+export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
   const { toast } = useToast();
   
   // State: Filtri e ricerca
@@ -268,6 +272,11 @@ export function OrdersManager() {
   const filteredOrders = useMemo(() => {
     let result = ordersWithBookings;
 
+    // Filtro per bookingId (se passato come prop)
+    if (filterBookingId) {
+      result = result.filter(o => o.bookingId === filterBookingId);
+    }
+
     // Filtro per stato
     if (statoFilter !== 'tutti') {
       result = result.filter(o => o.stato === statoFilter);
@@ -292,7 +301,7 @@ export function OrdersManager() {
       const dateB = b.createdAt?.toDate?.() || new Date(0);
       return dateB.getTime() - dateA.getTime();
     });
-  }, [ordersWithBookings, statoFilter, searchQuery]);
+  }, [ordersWithBookings, statoFilter, searchQuery, filterBookingId]);
 
   // Helper: Badge stato
   const getStatoBadge = (stato: Order['stato']) => {

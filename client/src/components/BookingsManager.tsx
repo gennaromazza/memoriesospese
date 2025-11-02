@@ -19,6 +19,7 @@ import { getActiveProducts } from '@/lib/products';
 import { GalleryService, type Gallery } from '@/lib/galleries';
 import type { Booking, BookingCampaign, Order, Product, OrderItem } from '@shared/booking-types';
 import NewGalleryModal from '@/components/NewGalleryModal';
+import { OrdersManager } from '@/components/OrdersManager';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -63,7 +64,8 @@ import {
   Search,
   ShoppingCart,
   Plus,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Receipt
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -96,12 +98,14 @@ function getStatoBadge(stato: string) {
 export default function BookingsManager() {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
+  const [activeTab, setActiveTab] = useState<'bookings' | 'orders'>('bookings');
   const [selectedStato, setSelectedStato] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<Booking | null>(null);
   const [selectedBookingForGallery, setSelectedBookingForGallery] = useState<Booking | null>(null);
+  const [filterBookingId, setFilterBookingId] = useState<string | null>(null);
 
   // Query bookings - sempre tutti per permettere filtro client-side
   const { data: allBookings = [], isLoading, refetch } = useQuery<Booking[]>({
@@ -317,18 +321,43 @@ export default function BookingsManager() {
 
   return (
     <div className="space-y-6">
-      {/* Header e filtri */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-sage" />
-            Gestione Prenotazioni
-          </CardTitle>
-          <CardDescription>
-            Visualizza e gestisci tutte le prenotazioni dei clienti
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      {/* Tabs Prenotazioni/Ordini */}
+      <div className="flex gap-2 border-b pb-2">
+        <Button
+          variant={activeTab === 'bookings' ? 'default' : 'ghost'}
+          className={activeTab === 'bookings' ? 'bg-sage hover:bg-dark-sage' : ''}
+          onClick={() => setActiveTab('bookings')}
+          data-testid="tab-bookings"
+        >
+          <Calendar className="w-4 h-4 mr-2" />
+          Prenotazioni
+        </Button>
+        <Button
+          variant={activeTab === 'orders' ? 'default' : 'ghost'}
+          className={activeTab === 'orders' ? 'bg-sage hover:bg-dark-sage' : ''}
+          onClick={() => setActiveTab('orders')}
+          data-testid="tab-orders"
+        >
+          <Receipt className="w-4 h-4 mr-2" />
+          Ordini
+        </Button>
+      </div>
+
+      {/* Contenuto Tab Prenotazioni */}
+      {activeTab === 'bookings' && (
+        <>
+          {/* Header e filtri */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-6 h-6 text-sage" />
+                Gestione Prenotazioni
+              </CardTitle>
+              <CardDescription>
+                Visualizza e gestisci tutte le prenotazioni dei clienti
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
           <div className="space-y-4">
             {/* Filtri */}
             <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
@@ -510,7 +539,7 @@ export default function BookingsManager() {
                     </Button>
 
                     {/* Pulsante + Ordine (solo se non esiste già) */}
-                    {!getOrderByBookingId(booking.id) && (
+                    {!getOrderByBookingId(booking.id) ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -520,6 +549,20 @@ export default function BookingsManager() {
                       >
                         <Plus className="w-4 h-4 mr-1" />
                         Ordine
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFilterBookingId(booking.id);
+                          setActiveTab('orders');
+                        }}
+                        className="border-green-500 text-green-500 hover:bg-green-500 hover:text-white"
+                        data-testid={`button-manage-order-${booking.id}`}
+                      >
+                        <Receipt className="w-4 h-4 mr-1" />
+                        Gestisci Ordine
                       </Button>
                     )}
 
@@ -793,6 +836,33 @@ export default function BookingsManager() {
           />
         );
       })()}
+        </>
+      )}
+
+      {/* Contenuto Tab Ordini */}
+      {activeTab === 'orders' && (
+        <>
+          {filterBookingId && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">
+                  Filtrando ordini per prenotazione selezionata
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFilterBookingId(null)}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                Mostra tutti gli ordini
+              </Button>
+            </div>
+          )}
+          <OrdersManager filterBookingId={filterBookingId} />
+        </>
+      )}
     </div>
   );
 }
