@@ -30,14 +30,7 @@ import { Link } from "wouter";
 import { Calendar, Clock, Sparkles } from "lucide-react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
-
-interface BookingCampaign {
-  id: string;
-  nome: string;
-  dataInizio: Timestamp;
-  dataFine: Timestamp;
-  descrizione?: string;
-}
+import type { BookingCampaign } from "@shared/booking-types";
 
 export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,32 +132,13 @@ export default function Home() {
   useEffect(() => {
     const loadActiveCampaigns = async () => {
       try {
-        const now = new Date();
-        const campaignsRef = collection(db, "booking_campaigns");
-        const campaignsSnapshot = await getDocs(campaignsRef);
-
-        const active: BookingCampaign[] = [];
-        campaignsSnapshot.forEach((doc) => {
-          const data = doc.data();
-          const startDate = data.dataInizio?.toDate();
-          const endDate = data.dataFine?.toDate();
-
-          // Verifica se la campagna è attiva (oggi è tra dataInizio e dataFine)
-          if (startDate && endDate && now >= startDate && now <= endDate) {
-            active.push({
-              id: doc.id,
-              nome: data.nome,
-              dataInizio: data.dataInizio,
-              dataFine: data.dataFine,
-              descrizione: data.descrizione,
-            });
-          }
-        });
-
+        // Import helper function from booking-campaigns.ts
+        const { getActiveCampaigns } = await import('@/lib/booking-campaigns');
+        const active = await getActiveCampaigns();
+        
         // Ordina per data fine più vicina
         active.sort(
-          (a, b) =>
-            a.dataFine.toDate().getTime() - b.dataFine.toDate().getTime(),
+          (a, b) => a.dataFine.getTime() - b.dataFine.getTime()
         );
 
         setActiveCampaigns(active);
@@ -406,7 +380,7 @@ export default function Home() {
                           <div className="flex-shrink-0">
                             <div className="bg-gradient-to-br from-white to-sage/5 p-8 rounded-2xl border border-sage/20 shadow-lg">
                               <Button
-                                onClick={() => navigate(createUrl("/booking"))}
+                                onClick={() => navigate(createUrl(`/prenota/${campaign.code}`))}
                                 size="lg"
                                 className="bg-sage text-white hover:bg-dark-sage text-xl font-bold py-8 px-12 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-sage/20"
                                 data-testid={`button-book-campaign-${campaign.id}`}
@@ -510,7 +484,7 @@ export default function Home() {
                                 <div className="bg-gradient-to-br from-white to-sage/5 p-6 rounded-2xl border border-sage/20 shadow-lg">
                                   <Button
                                     onClick={() =>
-                                      navigate(createUrl("/booking"))
+                                      navigate(createUrl(`/prenota/${campaign.code}`))
                                     }
                                     size="lg"
                                     className="bg-sage text-white hover:bg-dark-sage text-lg font-bold py-6 px-10 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-sage/20"
