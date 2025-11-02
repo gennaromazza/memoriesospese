@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { convertFirestoreTimestamp } from '@/lib/firebase';
 
 interface UploadProgress {
   fileName: string;
@@ -133,8 +134,9 @@ export default function GalleryManagementWorkspace() {
   const filenameList = selectedPhotos.map(p => p.name).join('\n');
 
   // Check deadline status (Task 20)
-  const isDeadlinePassed = gallery?.selectionDeadline && gallery.selectionDeadlineEnforced
-    ? new Date() > (gallery.selectionDeadline.toDate ? gallery.selectionDeadline.toDate() : new Date(gallery.selectionDeadline))
+  const deadlineDate = gallery?.selectionDeadline ? convertFirestoreTimestamp(gallery.selectionDeadline) : null;
+  const isDeadlinePassed = gallery?.selectionDeadline && gallery.selectionDeadlineEnforced && deadlineDate
+    ? new Date() > deadlineDate
     : false;
 
   // Admin unlock mutation (Task 20)
@@ -339,7 +341,7 @@ export default function GalleryManagementWorkspace() {
                       <div>
                         <p className="text-gray-600">Scadenza Selezione</p>
                         <p className="text-lg font-semibold text-gray-700">
-                          {new Date(gallery.selectionDeadline).toLocaleDateString('it-IT')}
+                          {convertFirestoreTimestamp(gallery.selectionDeadline)?.toLocaleDateString('it-IT') || 'Data non disponibile'}
                         </p>
                       </div>
                     )}
@@ -434,7 +436,7 @@ export default function GalleryManagementWorkspace() {
                         </p>
                         {gallery.selectionDeadline && (
                           <p className="text-sm text-gray-600">
-                            <strong>Scadenza:</strong> {new Date(gallery.selectionDeadline).toLocaleDateString('it-IT')}
+                            <strong>Scadenza:</strong> {convertFirestoreTimestamp(gallery.selectionDeadline)?.toLocaleDateString('it-IT') || 'Data non disponibile'}
                           </p>
                         )}
                       </>
