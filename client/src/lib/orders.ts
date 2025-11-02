@@ -179,14 +179,20 @@ export async function createOrder(data: InsertOrder): Promise<string> {
   // Calcola totale dalla somma prodotti
   const totale = calculateTotale(data.prodotti);
   
+  // Valida e normalizza acconto (evita NaN)
+  const acconto = typeof data.acconto === 'number' && !isNaN(data.acconto) && data.acconto >= 0 
+    ? data.acconto 
+    : 0;
+  
   // Calcola saldo automaticamente
-  const saldo = totale - data.acconto;
+  const saldo = totale - acconto;
   
   // Inizializza transactions array (vuoto per nuovi ordini)
   const transactions: Transaction[] = [];
   
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...data,
+    acconto, // Usa valore validato
     totale,
     saldo,
     transactions, // Array vuoto per nuovi ordini
