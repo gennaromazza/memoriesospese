@@ -5,6 +5,7 @@ import {
   getAllOrders,
   deleteOrder,
   recordAccontoPayment,
+  addAccontoPayment,
   recordSaldoPayment,
   updateOrder,
   createOrder,
@@ -73,6 +74,8 @@ export function OrdersManager() {
     tipo: 'acconto' | 'saldo';
   } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'contante' | 'carta' | 'bonifico' | 'paypal'>('contante');
+  const [paymentAmount, setPaymentAmount] = useState<string>(''); // String per input controlled
+  const [paymentNote, setPaymentNote] = useState<string>(''); // Note opzionali
 
   // Query: Carica ordini
   const { data: orders = [], isLoading } = useQuery({
@@ -117,17 +120,28 @@ export function OrdersManager() {
     },
   });
 
-  // Mutation: Registra pagamento acconto
+  // Mutation: Registra pagamento acconto (supporta acconti multipli)
   const accontoMutation = useMutation({
-    mutationFn: ({ orderId, metodo }: { orderId: string; metodo: 'contante' | 'carta' | 'bonifico' | 'paypal' }) =>
-      recordAccontoPayment(orderId, metodo),
+    mutationFn: ({ 
+      orderId, 
+      importo, 
+      metodo, 
+      note 
+    }: { 
+      orderId: string; 
+      importo: number; 
+      metodo: 'contante' | 'carta' | 'bonifico' | 'paypal';
+      note?: string;
+    }) => addAccontoPayment(orderId, importo, metodo, note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       toast({
         title: 'Acconto registrato',
-        description: 'Il pagamento dell\'acconto è stato salvato',
+        description: 'Il pagamento dell\'acconto è stato salvato con successo',
       });
       setPaymentDialog(null);
+      setPaymentAmount('');
+      setPaymentNote('');
     },
     onError: (error: Error) => {
       toast({
@@ -179,14 +193,68 @@ export function OrdersManager() {
     },
   });
 
+  // Helper: Ottieni ordine corrente dal paymentDialog
+  const currentPaymentOrder = useMemo(() => {
+    if (!paymentDialog) return null;
+    return orders.find(o => o.id === paymentDialog.orderId);
+  }, [paymentDialog, orders]);
+
+  // Helper: Calcola riepilogo acconto
+  const accontoSummary = useMemo(() => {
+    if (!currentPaymentOrder || !paymentDialog || paymentDialog.tipo !== 'acconto') {
+      return null;
+    }
+
+    const importo = parseFloat(paymentAmount) || 0;
+    const accontoAttuale = currentPaymentOrder.acconto || 0;
+    const totale = currentPaymentOrder.totale || 0;
+    const nuovoAccontoTotale = accontoAttuale + importo;
+    const nuovoSaldo = totale - nuovoAccontoTotale;
+    const saldoMassimo = totale - accontoAttuale; // Max aggiungibile
+
+    return {
+      totale,
+      accontoAttuale,
+      nuovoImporto: importo,
+      nuovoAccontoTotale,
+      nuovoSaldo,
+      saldoMassimo,
+      isValid: importo > 0 && nuovoAccontoTotale <= totale,
+    };
+  }, [currentPaymentOrder, paymentDialog, paymentAmount]);
+
   // Handler: Registra pagamento
   const handlePayment = () => {
     if (!paymentDialog) return;
 
     if (paymentDialog.tipo === 'acconto') {
+      // Validation importo
+      const importo = parseFloat(paymentAmount);
+      if (isNaN(importo) || importo <= 0) {
+        toast({
+          title: 'Importo non valido',
+          description: 'Inserisci un importo maggiore di zero',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validation acconto totale <= totale ordine (già validato server-side, ma meglio client-side)
+      if (!accontoSummary || !accontoSummary.isValid) {
+        toast({
+          title: 'Importo non valido',
+          description: `L'acconto totale non può superare il totale ordine. Massimo aggiungibile: €${accontoSummary?.saldoMassimo.toFixed(2)}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Mutation acconto con importo, metodo, note
       accontoMutation.mutate({
         orderId: paymentDialog.orderId,
+        importo,
         metodo: paymentMethod,
+        note: paymentNote.trim() || undefined,
       });
     } else {
       saldoMutation.mutate({
@@ -587,18 +655,48 @@ export function OrdersManager() {
       </Dialog>
 
       {/* Dialog: Registra pagamento */}
-      <Dialog open={!!paymentDialog} onOpenChange={() => setPaymentDialog(null)}>
-        <DialogContent>
+      <Dialog open={!!paymentDialog} onOpenChange={() => {
+        setPaymentDialog(null);
+        setPaymentAmount('');
+        setPaymentNote('');
+      }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
               Registra {paymentDialog?.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
             </DialogTitle>
             <DialogDescription>
-              Seleziona il metodo di pagamento utilizzato
+              {paymentDialog?.tipo === 'acconto' 
+                ? 'Inserisci importo e metodo di pagamento per il nuovo acconto'
+                : 'Seleziona il metodo di pagamento per il saldo finale'
+              }
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Input Importo (solo per acconto) */}
+            {paymentDialog?.tipo === 'acconto' && (
+              <div>
+                <Label htmlFor="payment-amount">Importo Acconto (€) <span className="text-red-500">*</span></Label>
+                <Input
+                  id="payment-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Es. 500.00"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  data-testid="input-payment-amount"
+                />
+                {accontoSummary && accontoSummary.saldoMassimo > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Massimo aggiungibile: €{accontoSummary.saldoMassimo.toFixed(2)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Metodo Pagamento */}
             <div>
               <Label htmlFor="payment-method">Metodo Pagamento</Label>
               <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
@@ -613,18 +711,68 @@ export function OrdersManager() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Note Opzionali */}
+            <div>
+              <Label htmlFor="payment-note">Note (opzionale)</Label>
+              <Input
+                id="payment-note"
+                placeholder="Es. Primo acconto, Bonifico IBAN: IT..."
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                data-testid="input-payment-note"
+              />
+            </div>
+
+            {/* Riepilogo Acconto (solo per acconto con importo valido) */}
+            {paymentDialog?.tipo === 'acconto' && accontoSummary && accontoSummary.nuovoImporto > 0 && (
+              <div className={`p-3 rounded-md border ${accontoSummary.isValid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  {accontoSummary.isValid ? (
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-600" />
+                  )}
+                  Riepilogo Acconto
+                </h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Totale Ordine:</span>
+                    <span className="font-medium">€{accontoSummary.totale.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Acconto Attuale:</span>
+                    <span className="font-medium">€{accontoSummary.accontoAttuale.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1">
+                    <span className="text-gray-600 font-semibold">Nuovo Acconto Totale:</span>
+                    <span className="font-bold text-blue-600">€{accontoSummary.nuovoAccontoTotale.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 font-semibold">Saldo Rimanente:</span>
+                    <span className={`font-bold ${accontoSummary.isValid ? 'text-green-600' : 'text-red-600'}`}>
+                      €{accontoSummary.nuovoSaldo.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentDialog(null)}>
+            <Button variant="outline" onClick={() => {
+              setPaymentDialog(null);
+              setPaymentAmount('');
+              setPaymentNote('');
+            }}>
               Annulla
             </Button>
             <Button
               onClick={handlePayment}
-              disabled={accontoMutation.isPending || saldoMutation.isPending}
+              disabled={accontoMutation.isPending || saldoMutation.isPending || (paymentDialog?.tipo === 'acconto' && (!accontoSummary || !accontoSummary.isValid))}
               data-testid="button-confirm-payment"
             >
-              Conferma Pagamento
+              {accontoMutation.isPending || saldoMutation.isPending ? 'Registrazione...' : 'Conferma Pagamento'}
             </Button>
           </DialogFooter>
         </DialogContent>

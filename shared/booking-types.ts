@@ -137,6 +137,18 @@ export interface OrderItem {
 }
 
 /**
+ * TRANSACTION - Singola transazione di pagamento (acconto o saldo)
+ */
+export interface Transaction {
+  tipo: 'acconto' | 'saldo';
+  importo: number; // Importo pagato in euro
+  metodo: 'contante' | 'carta' | 'bonifico' | 'paypal';
+  data: Timestamp;
+  note?: string; // Note opzionali (es. "Primo acconto", "Bonifico IBAN: IT...")
+  emailInviata: boolean; // Flag per tracking notifica email cliente
+}
+
+/**
  * ORDERS - Ordini collegati a gallerie
  */
 export interface Order {
@@ -151,14 +163,15 @@ export interface Order {
   
   // Prezzi
   totale: number; // Somma (prodotto.prezzo * quantita) per tutti prodotti
-  acconto: number;
+  acconto: number; // Somma totale acconti (kept in sync con sum(transactions.filter(t => t.tipo === 'acconto')))
   saldo: number; // Auto-calcolato: totale - acconto
   
-  // Metodo pagamento acconto
+  // Storico pagamenti (NEW: supporta acconti multipli + saldo)
+  transactions: Transaction[]; // Array di tutte le transazioni (acconti + saldo)
+  
+  // Legacy fields (mantenuti per backward compatibility - deprecati)
   metodoPagamentoAcconto?: 'contante' | 'carta' | 'bonifico' | 'paypal';
   dataAcconto?: Timestamp;
-  
-  // Metodo pagamento saldo
   metodoPagamentoSaldo?: 'contante' | 'carta' | 'bonifico' | 'paypal';
   dataSaldo?: Timestamp;
   

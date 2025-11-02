@@ -17,38 +17,60 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Order, InsertOrder } from '@shared/booking-types';
+import type { Order, InsertOrder, Transaction } from '@shared/booking-types';
 
 const COLLECTION = 'orders';
 
 /**
- * Helper: Converti ordine legacy (singolo prodotto) in nuovo schema (array prodotti)
+ * Helper: Converti ordine legacy in nuovo schema (array prodotti + transactions)
  */
 function ensureProdottiArray(orderData: any): any {
-  // Se prodotti array già esiste, usa quello
-  if (Array.isArray(orderData.prodotti)) {
-    return orderData;
-  }
+  let result = { ...orderData };
   
-  // Backward compatibility: converti schema vecchio (singolo prodotto) in array
-  if (orderData.prodottoId || orderData.prodottoNome) {
-    return {
-      ...orderData,
-      prodotti: [{
-        prodottoId: orderData.prodottoId || 'legacy',
-        prodottoNome: orderData.prodottoNome || 'Prodotto Legacy',
-        prodottoPrezzo: orderData.totale || 0, // Fallback: usa totale come prezzo
-        prodottoNumeroFoto: orderData.prodottoNumeroFoto || 0,
+  // Backward compatibility: converti prodotto singolo in array
+  if (!Array.isArray(result.prodotti)) {
+    if (result.prodottoId || result.prodottoNome) {
+      result.prodotti = [{
+        prodottoId: result.prodottoId || 'legacy',
+        prodottoNome: result.prodottoNome || 'Prodotto Legacy',
+        prodottoPrezzo: result.totale || 0,
+        prodottoNumeroFoto: result.prodottoNumeroFoto || 0,
         quantita: 1,
-      }],
-    };
+      }];
+    } else {
+      result.prodotti = [];
+    }
   }
   
-  // Caso edge: nessun prodotto → array vuoto
-  return {
-    ...orderData,
-    prodotti: [],
-  };
+  // Backward compatibility: inizializza transactions array se mancante
+  if (!Array.isArray(result.transactions)) {
+    result.transactions = [];
+    
+    // Ricostruisci transactions da legacy fields se esistono
+    if (result.acconto > 0 && result.dataAcconto) {
+      result.transactions.push({
+        tipo: 'acconto',
+        importo: result.acconto,
+        metodo: result.metodoPagamentoAcconto || 'contante',
+        data: result.dataAcconto,
+        note: 'Migrato da ordine legacy',
+        emailInviata: false, // Unknown per ordini legacy
+      });
+    }
+    
+    if (result.dataSaldo) {
+      result.transactions.push({
+        tipo: 'saldo',
+        importo: result.saldo || 0,
+        metodo: result.metodoPagamentoSaldo || 'contante',
+        data: result.dataSaldo,
+        note: 'Migrato da ordine legacy',
+        emailInviata: result.emailSaldoInviata || false,
+      });
+    }
+  }
+  
+  return result;
 }
 
 /**
@@ -160,10 +182,14 @@ export async function createOrder(data: InsertOrder): Promise<string> {
   // Calcola saldo automaticamente
   const saldo = totale - data.acconto;
   
+  // Inizializza transactions array (vuoto per nuovi ordini)
+  const transactions: Transaction[] = [];
+  
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...data,
     totale,
     saldo,
+    transactions, // Array vuoto per nuovi ordini
     stato: 'bozza',
     emailSaldoInviata: false,
     createdAt: serverTimestamp(),
@@ -227,7 +253,8 @@ export async function deleteOrder(orderId: string): Promise<void> {
 }
 
 /**
- * Registra pagamento acconto (admin only)
+ * Registra pagamento acconto (admin only) - DEPRECATED
+ * Usa addAccontoPayment() per supporto acconti multipli
  */
 export async function recordAccontoPayment(
   orderId: string,
@@ -256,4 +283,83 @@ export async function recordSaldoPayment(
     dataSaldo: Timestamp.fromDate(data),
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * Aggiunge acconto con supporto acconti multipli (admin only)
+ * Sostituisce recordAccontoPayment() con supporto per:
+ * - Acconti multipli con storico
+ * - Validation acconto totale <= totale ordine
+ * - Ricalcolo automatico acconto/saldo
+ * - Tracking email notification per cliente
+ * 
+ * @returns Transaction creata (utile per email notification)
+ */
+export async function addAccontoPayment(
+  orderId: string,
+  importo: number,
+  metodo: 'contante' | 'carta' | 'bonifico' | 'paypal',
+  note?: string,
+  data: Date = new Date()
+): Promise<Transaction> {
+  const docRef = doc(db, COLLECTION, orderId);
+  
+  // 1. Fetch ordine corrente per validation
+  const orderSnap = await getDoc(docRef);
+  if (!orderSnap.exists()) {
+    throw new Error('Ordine non trovato');
+  }
+  
+  const orderData = ensureProdottiArray(orderSnap.data());
+  const totale = orderData.totale || 0;
+  const accontoAttuale = orderData.acconto || 0;
+  const transactions: Transaction[] = orderData.transactions || [];
+  
+  // 2. Validation: acconto totale non deve superare totale ordine
+  const nuovoAccontoTotale = accontoAttuale + importo;
+  if (nuovoAccontoTotale > totale) {
+    throw new Error(
+      `Acconto totale (€${nuovoAccontoTotale.toFixed(2)}) supera il totale ordine (€${totale.toFixed(2)}). ` +
+      `Puoi aggiungere massimo €${(totale - accontoAttuale).toFixed(2)}.`
+    );
+  }
+  
+  // 3. Validation: importo deve essere positivo
+  if (importo <= 0) {
+    throw new Error('L\'importo dell\'acconto deve essere maggiore di zero');
+  }
+  
+  // 4. Crea nuova transaction
+  const newTransaction: Transaction = {
+    tipo: 'acconto',
+    importo,
+    metodo,
+    data: Timestamp.fromDate(data),
+    note: note || undefined,
+    emailInviata: false, // Sarà settato a true dopo invio email
+  };
+  
+  // 5. Append transaction all'array
+  const updatedTransactions = [...transactions, newTransaction];
+  
+  // 6. Ricalcola acconto (somma di tutte le transactions tipo acconto)
+  const nuovoAcconto = updatedTransactions
+    .filter(t => t.tipo === 'acconto')
+    .reduce((sum, t) => sum + t.importo, 0);
+  
+  const nuovoSaldo = totale - nuovoAcconto;
+  
+  // 7. Update Firestore con nuovi valori
+  await updateDoc(docRef, {
+    transactions: updatedTransactions,
+    acconto: nuovoAcconto,
+    saldo: nuovoSaldo,
+    // Legacy fields (backward compat): update con ultimo pagamento
+    metodoPagamentoAcconto: metodo,
+    dataAcconto: Timestamp.fromDate(data),
+    updatedAt: serverTimestamp(),
+  });
+  
+  // 8. Return transaction creata (per email notification)
+  return newTransaction;
 }
