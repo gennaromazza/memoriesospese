@@ -73,6 +73,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [coverImageDesktopUrl, setCoverImageDesktopUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   
+  // Stati per Photo Selection Workflow (Task 2)
+  const [selectionEnabled, setSelectionEnabled] = useState(false);
+  const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(50);
+  const [selectionDeadline, setSelectionDeadline] = useState<string>("");
+  const [selectionDeadlineEnforced, setSelectionDeadlineEnforced] = useState(true);
+  
   const availableThemes = getAllThemes();
   const [activeTab, setActiveTab] = useState<string>("details");
   const [photos, setPhotos] = useState<PhotoData[]>([]);
@@ -299,6 +305,20 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setCoverImageUrl(gallery.coverImageUrl || "");
       setCoverImageMobileUrl(gallery.coverImageMobile || "");
       setCoverImageDesktopUrl(gallery.coverImageDesktop || "");
+      
+      // Popola campi Photo Selection Workflow (Task 2)
+      setSelectionEnabled((gallery as any).selectionEnabled || false);
+      setRequiredPhotoCount((gallery as any).requiredPhotoCount || 50);
+      setSelectionDeadlineEnforced((gallery as any).selectionDeadlineEnforced !== false); // default true
+      
+      // Convert Firebase Timestamp to date string for input[type="date"]
+      if ((gallery as any).selectionDeadline) {
+        const deadline = (gallery as any).selectionDeadline;
+        const deadlineDate = deadline.toDate ? deadline.toDate() : new Date(deadline);
+        setSelectionDeadline(deadlineDate.toISOString().split('T')[0]);
+      } else {
+        setSelectionDeadline("");
+      }
 
       // Reset loading state quando cambia la galleria
       setIsLoading(false);
@@ -626,6 +646,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         coverImageDesktop: coverImageDesktopUrl || null,
         youtubeUrls: youtubeUrls.length > 0 ? youtubeUrls : null,
         hasChapters: false,
+        // Photo Selection Workflow fields (Task 2)
+        selectionEnabled,
+        requiredPhotoCount: selectionEnabled ? requiredPhotoCount : null,
+        selectionDeadline: selectionEnabled && selectionDeadline ? Timestamp.fromDate(new Date(selectionDeadline)) : null,
+        selectionDeadlineEnforced,
         updatedAt: serverTimestamp()
       };
 
@@ -937,6 +962,85 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     PIN univoco per accedere a questa galleria speciale
                   </p>
                 </div>
+              )}
+            </div>
+
+            {/* Photo Selection Workflow Section (Task 2) */}
+            <div className="border-t pt-4 space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="selectionEnabled" className="text-base font-semibold">
+                    📸 Modalità Selezione Foto
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="selectionEnabled"
+                      checked={selectionEnabled}
+                      onChange={(e) => setSelectionEnabled(e.target.checked)}
+                      className="w-4 h-4 text-sage border-gray-300 rounded focus:ring-sage"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {selectionEnabled ? 'Attiva' : 'Disattivata'}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Abilita la selezione foto per album personalizzati. I clienti potranno scegliere le foto preferite direttamente dalla galleria.
+                </p>
+              </div>
+
+              {selectionEnabled && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="requiredPhotoCount">Numero Foto Richieste</Label>
+                      <Input
+                        id="requiredPhotoCount"
+                        type="number"
+                        min="1"
+                        max="500"
+                        value={requiredPhotoCount}
+                        onChange={(e) => setRequiredPhotoCount(parseInt(e.target.value) || 50)}
+                        placeholder="Es. 50"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Quante foto deve selezionare il cliente
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="selectionDeadline">Scadenza Selezione</Label>
+                      <Input
+                        id="selectionDeadline"
+                        type="date"
+                        value={selectionDeadline}
+                        onChange={(e) => setSelectionDeadline(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Data limite per completare la selezione
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="selectionDeadlineEnforced"
+                      checked={selectionDeadlineEnforced}
+                      onChange={(e) => setSelectionDeadlineEnforced(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="selectionDeadlineEnforced" className="text-sm font-medium cursor-pointer">
+                        Blocca selezione dopo scadenza
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Se disattivato, il cliente può ancora selezionare dopo la deadline (soft deadline)
+                      </p>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
