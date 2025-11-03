@@ -158,32 +158,21 @@ export class GalleryService {
   static getGalleryAccessInfo(gallery: Gallery): GalleryAccessInfo {
     return {
       requiresPassword: !!gallery.password,
-      requiresSecurityQuestion: !!gallery.requiresSecurityQuestion,
-      securityQuestion: gallery.requiresSecurityQuestion && gallery.securityQuestionType 
-        ? this.getSecurityQuestionText(gallery.securityQuestionType, gallery.securityQuestionCustom)
-        : undefined
+      requiresSecurityQuestion: false, // Feature rimossa
+      securityQuestion: undefined
     };
   }
 
   /**
-   * Verifica accesso alla galleria
+   * Verifica accesso alla galleria (solo password, security question rimossa)
    */
   static verifyGalleryAccess(
     gallery: Gallery, 
-    password?: string, 
-    securityAnswer?: string
+    password?: string
   ): boolean {
     // Verifica password se richiesta
     if (gallery.password && gallery.password !== password) {
       return false;
-    }
-
-    // Verifica domanda di sicurezza se richiesta
-    if (gallery.requiresSecurityQuestion && gallery.securityAnswer) {
-      if (!securityAnswer || 
-          gallery.securityAnswer.toLowerCase().trim() !== securityAnswer.toLowerCase().trim()) {
-        return false;
-      }
     }
 
     return true;

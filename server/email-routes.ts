@@ -649,35 +649,7 @@ router.post("/send-gallery-password", async (req, res) => {
       });
     }
 
-    // VALIDAZIONE SECURITY QUESTION SERVER-SIDE (se presente)
-    const expectedAnswer = galleryDoc.fields?.securityAnswer?.stringValue;
-    if (expectedAnswer) {
-      if (!securityAnswer) {
-        console.log(`❌ Security question richiesta ma risposta non fornita`);
-        return res.status(400).json({
-          error: {
-            code: "invalid-argument",
-            message: "Security question answer required",
-          },
-        });
-      }
-
-      // Confronto case-insensitive
-      const normalizedProvided = securityAnswer.trim().toLowerCase();
-      const normalizedExpected = expectedAnswer.trim().toLowerCase();
-
-      if (normalizedProvided !== normalizedExpected) {
-        console.log(`❌ Risposta security question non corretta`);
-        return res.status(403).json({
-          error: {
-            code: "permission-denied",
-            message: "Incorrect security answer",
-          },
-        });
-      }
-
-      console.log(`✅ Security question validata correttamente`);
-    }
+    // Security question feature rimossa - ora solo password
 
     // Recupera dati contatto studio
     const studioInfo = await getStudioContactInfo();
