@@ -12,9 +12,11 @@ import { formatPasswordRequestsForExcel, exportToExcel } from "@/lib/excelExport
 import { ref, listAll, deleteObject, uploadBytes, getDownloadURL } from "firebase/storage";
 import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
+import EditGalleryModal from "@/components/EditGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
 import UserManager from "@/components/UserManager";
 import EmailStatusPanel from "@/components/EmailStatusPanel";
+import SecurityQuestionManager from "@/components/SecurityQuestionManager";
 import ProductsManager from "@/components/ProductsManager";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -195,11 +197,15 @@ interface StudioSettings {
 
 export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa'>('galleries');
+  const [securityGalleryId, setSecurityGalleryId] = useState<string | null>(null);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
 
   // Detect if admin came from a specific gallery
   const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
@@ -488,6 +494,18 @@ export default function AdminDashboard() {
 
   const closeModal = () => {
     setIsModalOpen(false);
+    // Refresh the gallery list via React Query
+    queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+  };
+
+  const openEditModal = (gallery: GalleryItem) => {
+    setSelectedGallery(gallery);
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedGallery(null);
     // Refresh the gallery list via React Query
     queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
   };
@@ -1164,11 +1182,10 @@ export default function AdminDashboard() {
                                     variant="outline"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => navigate(`/admin/gallery/${gallery.id}/manage`)}
-                                    title="Gestisci galleria"
-                                    data-testid="button-manage-gallery"
+                                    onClick={() => openEditModal(gallery)}
+                                    title="Modifica galleria"
                                   >
-                                    <Settings className="h-4 w-4" />
+                                    <Edit className="h-4 w-4" />
                                   </Button>
                                 )}
                                 <Button
@@ -1225,6 +1242,18 @@ export default function AdminDashboard() {
                                     </div>
                                   </PopoverContent>
                                 </Popover>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                                  onClick={() => {
+                                    setSecurityGalleryId(gallery.id);
+                                    setShowSecurityModal(true);
+                                  }}
+                                  title="Configura domanda di sicurezza"
+                                >
+                                  <Shield className="h-4 w-4 text-blue-600" />
+                                </Button>
                                 <Button
                                   variant="destructive"
                                   size="icon"
@@ -1777,6 +1806,40 @@ export default function AdminDashboard() {
           queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
         }}
       />
+
+      {/* Finestra modale per modificare una galleria esistente */}
+      {selectedGallery && (
+        <EditGalleryModal
+          isOpen={isEditModalOpen}
+          onClose={closeEditModal}
+          gallery={selectedGallery}
+        />
+      )}
+
+      {/* Modale per configurazione domanda di sicurezza */}
+      {securityGalleryId && (
+        <div className={`fixed inset-0 z-50 ${showSecurityModal ? 'flex' : 'hidden'} items-center justify-center bg-black bg-opacity-50`}>
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Configurazione Domanda di Sicurezza</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowSecurityModal(false);
+                  setSecurityGalleryId(null);
+                }}
+              >
+                Chiudi
+              </Button>
+            </div>
+            <SecurityQuestionManager
+              galleryId={securityGalleryId}
+              initialData={{}}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

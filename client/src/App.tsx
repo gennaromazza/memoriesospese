@@ -22,6 +22,7 @@ import QuestionnaireForm from "./pages/QuestionnaireForm";
 import RequestPassword from "./pages/RequestPassword";
 import PasswordResult from "./pages/PasswordResult";
 import DeleteGalleryPage from "./pages/DeleteGalleryPage";
+import SecurityTestPage from "./pages/SecurityTestPage";
 import UserProfile from "./pages/UserProfile";
 import BookingIndex from "./pages/BookingIndex";
 import BookingPage from "./pages/BookingPage";
@@ -72,6 +73,7 @@ function AppRoutes() {
       <Route path="/request-password/:id" component={RequestPassword} />
       <Route path="/request-password" component={RequestPassword} />
       <Route path="/password-result/:id" component={PasswordResult} />
+      <Route path="/security-test" component={SecurityTestPage} />
       <Route path="/profile" component={UserProfile} />
 
       <Route component={NotFound} />

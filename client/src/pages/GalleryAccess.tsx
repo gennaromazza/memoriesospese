@@ -7,10 +7,9 @@ import { useToast } from "../hooks/use-toast";
 import { createUrl } from "@/lib/basePath";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
-import { Input } from "../components/ui/input";
 import Navigation from "../components/Navigation";
 import Footer from "../components/Footer";
-import { Lock } from "lucide-react";
+import GalleryAccessFlow from "../components/GalleryAccessFlow";
 
 export default function GalleryAccess() {
   const { id } = useParams();
@@ -19,8 +18,6 @@ export default function GalleryAccess() {
   const [galleryNotFound, setGalleryNotFound] = useState(false);
   const [galleryDetails, setGalleryDetails] = useState<{ name: string; date: string; location: string } | null>(null);
   const [accessGranted, setAccessGranted] = useState(false);
-  const [password, setPassword] = useState("");
-  const [isValidating, setIsValidating] = useState(false);
   const { toast } = useToast();
 
   // Check if gallery exists on component mount
@@ -73,28 +70,6 @@ export default function GalleryAccess() {
 
     checkGallery();
   }, [id, toast]);
-
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id || !password) return;
-
-    setIsValidating(true);
-    try {
-      // Salva password in localStorage per accesso galleria
-      localStorage.setItem(`gallery_password_${id}`, password);
-      
-      // Naviga direttamente alla galleria - Gallery.tsx gestirà validazione
-      navigate(createUrl(`/gallery/${id}`));
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'accesso.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsValidating(false);
-    }
-  };
 
   const handleAccessGranted = () => {
     if (!id) return;
@@ -153,41 +128,12 @@ export default function GalleryAccess() {
                 </div>
               </div>
 
-              {/* Password Form */}
+              {/* Gallery Access Flow Component */}
               {id && !accessGranted && (
-                <Card>
-                  <CardContent className="pt-6">
-                    <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                      <div>
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                          Password della Galleria
-                        </label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                          <Input
-                            id="password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Inserisci la password"
-                            className="pl-10"
-                            disabled={isValidating}
-                            required
-                            data-testid="input-gallery-password"
-                          />
-                        </div>
-                      </div>
-                      <Button 
-                        type="submit" 
-                        className="w-full btn-primary" 
-                        disabled={isValidating}
-                        data-testid="button-submit-password"
-                      >
-                        {isValidating ? "Verifica..." : "Accedi alla Galleria"}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
+                <GalleryAccessFlow
+                  galleryId={id}
+                  onAccessGranted={handleAccessGranted}
+                />
               )}
 
               <div className="text-center">
