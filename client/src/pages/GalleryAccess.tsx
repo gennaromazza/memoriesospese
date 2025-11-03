@@ -56,10 +56,17 @@ export default function GalleryAccess() {
           if (docSnapshot.exists()) {
             const galleryData = docSnapshot.data();
             const docId = docSnapshot.id;
+            
+            // CRITICAL: Gallerie con tema speciale (PIN) SOLO accessibili da /special-gallery
+            if (galleryData.specialTheme) {
+              console.log('🔒 Galleria con tema speciale rilevata - redirect a /special-gallery');
+              navigate(createUrl('/special-gallery'));
+              return;
+            }
+            
             // SICUREZZA: usa hasPassword flag boolean dal documento (NO lettura password in chiaro)
             // BACKWARD COMPATIBILITY: se hasPassword non esiste, controlla se c'è il vecchio campo password
             const hasPassword = galleryData.hasPassword === true || !!galleryData.password;
-            const hasSpecialPin = !!galleryData.specialTheme; // Se ha tema, probabilmente ha PIN
             
             setGalleryDetails({ 
               id: docId,
@@ -67,11 +74,11 @@ export default function GalleryAccess() {
               date: galleryData.date,
               location: galleryData.location,
               hasPassword: hasPassword,
-              specialTheme: galleryData.specialTheme
+              specialTheme: undefined // Non deve avere tema qui
             });
 
-            // Se la galleria non ha password E non ha tema (quindi no PIN), accesso diretto
-            if (!hasPassword && !hasSpecialPin) {
+            // Se la galleria non ha password, accesso diretto
+            if (!hasPassword) {
               localStorage.setItem(`gallery_auth_${id}`, "true");
               navigate(createUrl(`/view/${id}`));
             }
@@ -81,10 +88,17 @@ export default function GalleryAccess() {
         } else {
           const docId = querySnapshot.docs[0].id;
           const galleryData = querySnapshot.docs[0].data();
+          
+          // CRITICAL: Gallerie con tema speciale (PIN) SOLO accessibili da /special-gallery
+          if (galleryData.specialTheme) {
+            console.log('🔒 Galleria con tema speciale rilevata - redirect a /special-gallery');
+            navigate(createUrl('/special-gallery'));
+            return;
+          }
+          
           // SICUREZZA: usa hasPassword flag boolean dal documento (NO lettura password in chiaro)
           // BACKWARD COMPATIBILITY: se hasPassword non esiste, controlla se c'è il vecchio campo password
           const hasPassword = galleryData.hasPassword === true || !!galleryData.password;
-          const hasSpecialPin = !!galleryData.specialTheme; // Se ha tema, probabilmente ha PIN
           
           setGalleryDetails({ 
             id: docId,
@@ -92,11 +106,11 @@ export default function GalleryAccess() {
             date: galleryData.date,
             location: galleryData.location,
             hasPassword: hasPassword,
-            specialTheme: galleryData.specialTheme
+            specialTheme: undefined // Non deve avere tema qui
           });
 
-          // Se la galleria non ha password E non ha tema (quindi no PIN), accesso diretto
-          if (!hasPassword && !hasSpecialPin) {
+          // Se la galleria non ha password, accesso diretto
+          if (!hasPassword) {
             localStorage.setItem(`gallery_auth_${id}`, "true");
             navigate(createUrl(`/view/${id}`));
           }
