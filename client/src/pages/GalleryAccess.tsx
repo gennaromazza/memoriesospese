@@ -11,7 +11,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { Separator } from "../components/ui/separator";
 import Navigation from "../components/Navigation";
 import Footer from "../components/Footer";
-import { Lock, Mail } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 
 interface GalleryData {
   id: string;
@@ -32,6 +32,7 @@ export default function GalleryAccess() {
   const [accessGranted, setAccessGranted] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
 
   // Check if gallery exists on component mount
@@ -224,19 +225,33 @@ export default function GalleryAccess() {
                           <Lock className="w-4 h-4" />
                           Password Galleria
                         </label>
-                        <Input
-                          id="password"
-                          type="password"
-                          value={passwordInput}
-                          onChange={(e) => {
-                            setPasswordInput(e.target.value);
-                            setPasswordError("");
-                          }}
-                          placeholder="Inserisci la password"
-                          className="w-full"
-                          autoFocus
-                          data-testid="input-gallery-password"
-                        />
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            value={passwordInput}
+                            onChange={(e) => {
+                              setPasswordInput(e.target.value);
+                              setPasswordError("");
+                            }}
+                            placeholder="Inserisci la password"
+                            className="w-full pr-10"
+                            autoFocus
+                            data-testid="input-gallery-password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                            data-testid="button-toggle-password-visibility"
+                          >
+                            {showPassword ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
                         {passwordError && (
                           <p className="mt-1 text-sm text-red-500">{passwordError}</p>
                         )}

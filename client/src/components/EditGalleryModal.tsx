@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
-import { UploadCloud, Image, Trash } from "lucide-react";
+import { UploadCloud, Image, Trash, Eye, EyeOff } from "lucide-react";
 import { PhotoUploadSuccessModal } from "./PhotoUploadSuccessModal";
 import { getAllThemes } from "@shared/special-themes";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
@@ -64,8 +64,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [specialTheme, setSpecialTheme] = useState<string>("none");
   const [specialPin, setSpecialPin] = useState("");
+  const [showSpecialPin, setShowSpecialPin] = useState(false);
   const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
@@ -973,12 +975,27 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               </div>
               <div>
                 <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password di accesso"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Password di accesso"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1018,13 +1035,27 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               {specialTheme !== 'none' && (
                 <div className="space-y-2">
                   <Label htmlFor="specialPin">PIN Galleria Speciale</Label>
-                  <Input
-                    id="specialPin"
-                    type="text"
-                    value={specialPin}
-                    onChange={(e) => setSpecialPin(e.target.value)}
-                    placeholder="Es. 2024"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="specialPin"
+                      type={showSpecialPin ? "text" : "password"}
+                      value={specialPin}
+                      onChange={(e) => setSpecialPin(e.target.value)}
+                      placeholder="Es. 2024"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSpecialPin(!showSpecialPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showSpecialPin ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     PIN univoco per accedere a questa galleria speciale
                   </p>
