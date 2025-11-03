@@ -180,7 +180,7 @@ export default function GalleryAccess() {
                       <Button 
                         type="submit" 
                         className="w-full btn-primary" 
-                        disabled={isValidating || !password}
+                        disabled={isValidating}
                         data-testid="button-submit-password"
                       >
                         {isValidating ? "Verifica..." : "Accedi alla Galleria"}
