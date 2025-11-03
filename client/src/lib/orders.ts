@@ -187,7 +187,39 @@ function calculateTotale(prodotti: InsertOrder["prodotti"]): number {
 export async function createOrder(data: InsertOrder): Promise<string> {
   console.log("🔍 createOrder - dati ricevuti:", data);
 
-  // Normalizza i prodotti per evitare NaN o undefined
+  // 1. Validazione: Previeni ordini duplicati per stesso booking
+  if (data.bookingId) {
+    const existingOrdersQuery = query(
+      collection(db, COLLECTION),
+      where("bookingId", "==", data.bookingId)
+    );
+    const existingOrders = await getDocs(existingOrdersQuery);
+    
+    if (!existingOrders.empty) {
+      throw new Error(
+        `Esiste già un ordine per questa prenotazione (${existingOrders.docs.length} ordine/i trovato/i). ` +
+        `Non è possibile creare ordini duplicati.`
+      );
+    }
+    console.log("✅ Nessun ordine duplicato trovato per bookingId:", data.bookingId);
+  }
+
+  // 2. Auto-Link Galleria: Se esiste già una galleria per il booking, collegala
+  let autoLinkedGalleryId = data.galleryId || null;
+  if (data.bookingId && !autoLinkedGalleryId) {
+    const galleriesQuery = query(
+      collection(db, "galleries"),
+      where("bookingId", "==", data.bookingId)
+    );
+    const galleriesSnapshot = await getDocs(galleriesQuery);
+    
+    if (!galleriesSnapshot.empty) {
+      autoLinkedGalleryId = galleriesSnapshot.docs[0].id;
+      console.log("🔗 Auto-linked galleria esistente:", autoLinkedGalleryId);
+    }
+  }
+
+  // 3. Normalizza i prodotti per evitare NaN o undefined
   const normalizedProdotti = data.prodotti.map((item) => ({
     prodottoId: item.prodottoId || "",
     prodottoNome: item.prodottoNome || "",
@@ -233,7 +265,7 @@ export async function createOrder(data: InsertOrder): Promise<string> {
   // Normalizza campi opzionali per evitare undefined in Firestore
   const normalizedData = {
     bookingId: data.bookingId || null,
-    galleryId: data.galleryId || null,
+    galleryId: autoLinkedGalleryId, // Usa galleryId auto-linked se trovato
     nomeCliente: data.nomeCliente || "",
     emailCliente: data.emailCliente || "",
     whatsappCliente: data.whatsappCliente || null,

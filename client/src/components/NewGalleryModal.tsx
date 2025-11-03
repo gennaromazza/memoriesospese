@@ -169,6 +169,32 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
       const { GalleryService } = await import('@/lib/galleries');
       const newGalleryId = await GalleryService.createGallery(galleryData);
 
+      // Auto-Link Ordine: Se esiste un ordine per il booking, aggiornalo con il galleryId
+      if (prePopulate?.bookingId) {
+        try {
+          const { collection: firestoreCollection, query: firestoreQuery, where: firestoreWhere, getDocs: firestoreGetDocs, updateDoc: firestoreUpdateDoc, doc: firestoreDoc } = await import('firebase/firestore');
+          
+          const ordersQuery = firestoreQuery(
+            firestoreCollection(db, 'orders'),
+            firestoreWhere('bookingId', '==', prePopulate.bookingId)
+          );
+          const ordersSnapshot = await firestoreGetDocs(ordersQuery);
+          
+          if (!ordersSnapshot.empty) {
+            // Aggiorna l'ordine esistente con il galleryId appena creato
+            const orderDoc = ordersSnapshot.docs[0];
+            await firestoreUpdateDoc(firestoreDoc(db, 'orders', orderDoc.id), {
+              galleryId: newGalleryId,
+              updatedAt: serverTimestamp()
+            });
+            console.log(`🔗 Auto-linked ordine ${orderDoc.id} alla nuova galleria ${newGalleryId}`);
+          }
+        } catch (linkError) {
+          console.error('⚠️ Errore auto-linking ordine:', linkError);
+          // Non bloccare il flusso se linking fallisce
+        }
+      }
+
       // Send email notification if selection enabled
       if (selectionEnabled && requiredPhotoCount > 0 && prePopulate?.clienteEmail) {
         try {
