@@ -9,7 +9,6 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import Navigation from "../components/Navigation";
 import Footer from "../components/Footer";
-import GalleryAccessFlow from "../components/GalleryAccessFlow";
 
 export default function GalleryAccess() {
   const { id } = useParams();
@@ -128,22 +127,23 @@ export default function GalleryAccess() {
                 </div>
               </div>
 
-              {/* Gallery Access Flow Component */}
+              {/* Richiesta Password */}
               {id && !accessGranted && (
-                <GalleryAccessFlow
-                  galleryId={id}
-                  onAccessGranted={handleAccessGranted}
-                />
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center space-y-4">
+                      <p className="text-gray-700">
+                        Per accedere a questa galleria, richiedi la password via email.
+                      </p>
+                      <Link href={createUrl(`/request-password/${id}`)}>
+                        <Button className="btn-primary w-full" data-testid="button-request-password">
+                          Richiedi Password
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
-
-              <div className="text-center">
-                <p className="text-sm text-gray-600 mb-2">
-                  Non hai la password per questa galleria?
-                </p>
-                <Link href={createUrl(`/request-password/${id}`)} className="inline-block px-4 py-2 rounded text-blue-gray hover:text-terracotta transition">
-                  Richiedila qui
-                </Link>
-              </div>
             </div>
           )}
         </div>
