@@ -14,10 +14,11 @@ import Footer from "../components/Footer";
 import { Lock, Mail } from "lucide-react";
 
 interface GalleryData {
+  id: string;
   name: string;
   date: string;
   location: string;
-  password?: string;
+  hasPassword: boolean; // Flag per sapere se galleria ha password (NO password in chiaro!)
   specialPin?: string;
   specialTheme?: string;
 }
@@ -53,17 +54,21 @@ export default function GalleryAccess() {
           
           if (docSnapshot.exists()) {
             const galleryData = docSnapshot.data();
+            const docId = docSnapshot.id;
+            const hasPassword = !!galleryData.password;
+            
             setGalleryDetails({ 
+              id: docId,
               name: galleryData.name,
               date: galleryData.date,
               location: galleryData.location,
-              password: galleryData.password,
+              hasPassword: hasPassword,
               specialPin: galleryData.specialPin,
               specialTheme: galleryData.specialTheme
             });
 
             // Se la galleria non ha password E non ha specialPin, accesso diretto
-            if (!galleryData.password && !galleryData.specialPin) {
+            if (!hasPassword && !galleryData.specialPin) {
               localStorage.setItem(`gallery_auth_${id}`, "true");
               navigate(createUrl(`/view/${id}`));
             }
@@ -71,18 +76,22 @@ export default function GalleryAccess() {
             setGalleryNotFound(true);
           }
         } else {
+          const docId = querySnapshot.docs[0].id;
           const galleryData = querySnapshot.docs[0].data();
+          const hasPassword = !!galleryData.password;
+          
           setGalleryDetails({ 
+            id: docId,
             name: galleryData.name,
             date: galleryData.date,
             location: galleryData.location,
-            password: galleryData.password,
+            hasPassword: hasPassword,
             specialPin: galleryData.specialPin,
             specialTheme: galleryData.specialTheme
           });
 
           // Se la galleria non ha password E non ha specialPin, accesso diretto
-          if (!galleryData.password && !galleryData.specialPin) {
+          if (!hasPassword && !galleryData.specialPin) {
             localStorage.setItem(`gallery_auth_${id}`, "true");
             navigate(createUrl(`/view/${id}`));
           }
@@ -101,7 +110,7 @@ export default function GalleryAccess() {
     checkGallery();
   }, [id, toast, navigate]);
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!id || !galleryDetails) return;
@@ -115,18 +124,45 @@ export default function GalleryAccess() {
       return;
     }
 
-    // Check password
-    if (galleryDetails.password && passwordInput.trim() === galleryDetails.password) {
-      // Store session and navigate to gallery view
-      localStorage.setItem(`gallery_auth_${id}`, "true");
-      toast({
-        title: "Accesso consentito!",
-        description: "Benvenuto nella galleria",
+    setIsLoading(true);
+
+    try {
+      // Verifica password SERVER-SIDE (sicuro!)
+      const response = await fetch('/api/email/verify-gallery-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          galleryId: galleryDetails.id,
+          password: passwordInput.trim()
+        }),
       });
-      navigate(createUrl(`/view/${id}`));
-    } else {
-      setPasswordError("Password non corretta");
-      setPasswordInput("");
+
+      const data = await response.json();
+
+      if (response.ok && data.result?.valid) {
+        // Password corretta - salva sessione e naviga
+        localStorage.setItem(`gallery_auth_${id}`, "true");
+        toast({
+          title: "Accesso consentito!",
+          description: "Benvenuto nella galleria",
+        });
+        navigate(createUrl(`/view/${id}`));
+      } else {
+        // Password errata
+        setPasswordError("Password non corretta");
+        setPasswordInput("");
+      }
+    } catch (error) {
+      console.error('Errore verifica password:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile verificare la password. Riprova.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 

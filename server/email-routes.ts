@@ -2245,4 +2245,61 @@ router.post("/saldo-received", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/email/verify-gallery-password
+ * Verifica password galleria SERVER-SIDE senza esporla al client
+ * Sicuro: password mai inviata al browser
+ */
+router.post("/verify-gallery-password", async (req, res) => {
+  try {
+    const { galleryId, password } = req.body;
+
+    // Validazione parametri
+    if (!galleryId || !password) {
+      return res.status(400).json({
+        error: { code: "invalid-argument", message: "Missing galleryId or password" }
+      });
+    }
+
+    // RECUPERA GALLERIA SERVER-SIDE da Firestore
+    const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
+
+    if (!galleryDoc) {
+      console.log(`❌ Galleria ${galleryId} non trovata`);
+      return res.status(404).json({
+        error: { code: "not-found", message: "Gallery not found" }
+      });
+    }
+
+    const correctPassword = galleryDoc.fields?.password?.stringValue;
+
+    // Se la galleria non ha password, l'accesso è libero
+    if (!correctPassword) {
+      return res.status(200).json({
+        result: { valid: true, message: "Gallery has no password, access granted" }
+      });
+    }
+
+    // Verifica password (case-sensitive)
+    const isValid = password.trim() === correctPassword.trim();
+
+    if (isValid) {
+      console.log(`✅ Password corretta per galleria ${galleryId}`);
+      return res.status(200).json({
+        result: { valid: true, message: "Password correct" }
+      });
+    } else {
+      console.log(`❌ Password errata per galleria ${galleryId}`);
+      return res.status(200).json({
+        result: { valid: false, message: "Password incorrect" }
+      });
+    }
+  } catch (error) {
+    console.error("❌ Errore verify-gallery-password:", error);
+    res.status(500).json({
+      error: { code: "internal", message: "Failed to verify password" }
+    });
+  }
+});
+
 export default router;
