@@ -748,22 +748,23 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       await updateDoc(galleryRef, updateData);
 
       // SALVA PASSWORD E SPECIAL PIN in collection protetta `gallerySecrets`
+      // IMPORTANTE: Password e PIN sono MUTUAMENTE ESCLUSIVI
       const secretsRef = doc(db, "gallerySecrets", gallery.id);
-      const secretsData: any = {};
+      const secretsData: any = {
+        updatedAt: serverTimestamp()
+      };
       
-      if (password.trim()) {
-        secretsData.password = password.trim();
+      if (specialTheme !== 'none') {
+        // GALLERIA SPECIALE: Solo PIN, NO password
+        secretsData.specialPin = specialPin.trim() || null;
+        secretsData.password = null; // Rimuovi password esplicitamente
+        console.log('🔒 Salvando galleria speciale con PIN, password rimossa');
       } else {
-        secretsData.password = null; // Rimuovi password se vuota
+        // GALLERIA NORMALE: Solo password, NO PIN
+        secretsData.password = password.trim() || null;
+        secretsData.specialPin = null; // Rimuovi PIN esplicitamente
+        console.log('🔒 Salvando galleria normale con password, PIN rimosso');
       }
-      
-      if (specialTheme !== 'none' && specialPin.trim()) {
-        secretsData.specialPin = specialPin.trim();
-      } else {
-        secretsData.specialPin = null; // Rimuovi PIN se tema è "none" o PIN vuoto
-      }
-      
-      secretsData.updatedAt = serverTimestamp();
       
       // Usa setDoc con merge per creare/aggiornare il documento secrets
       await setDoc(secretsRef, secretsData, { merge: true });
