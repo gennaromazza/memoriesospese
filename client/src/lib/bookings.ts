@@ -273,8 +273,33 @@ export async function markBookingAsViewed(bookingId: string): Promise<void> {
 
 /**
  * Elimina prenotazione (admin only)
+ * Cancella anche l'evento da Google Calendar se presente
  */
 export async function deleteBooking(bookingId: string): Promise<void> {
+  // Prima recupera la prenotazione per ottenere googleCalendarEventId
   const docRef = doc(db, COLLECTION, bookingId);
+  const bookingSnap = await getDoc(docRef);
+  
+  if (bookingSnap.exists()) {
+    const bookingData = bookingSnap.data();
+    const googleCalendarEventId = bookingData.googleCalendarEventId;
+    
+    // Se esiste un evento Google Calendar, cancellalo prima
+    if (googleCalendarEventId) {
+      try {
+        await fetch(`/api/booking/${bookingId}/calendar-event`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ googleCalendarEventId })
+        });
+        console.log('✅ Evento Google Calendar cancellato');
+      } catch (error) {
+        console.error('❌ Errore cancellazione evento Google Calendar:', error);
+        // Continua comunque con la cancellazione della prenotazione
+      }
+    }
+  }
+  
+  // Cancella la prenotazione da Firestore
   await deleteDoc(docRef);
 }

@@ -84,9 +84,15 @@ export default function Home() {
       const querySnapshot = await getDocs(q);
 
       // Filter galleries based on search term
+      // Escludi special galleries (quelle con specialTheme definito)
       const results: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
+        // Salta le special gallery - hanno una schermata dedicata con PIN
+        if (data.specialTheme) {
+          return;
+        }
+        
         const galleryName = data.name.toLowerCase();
         const searchTermLower = searchTerm.toLowerCase();
 

@@ -983,4 +983,41 @@ router.patch('/:id/update', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/booking/:bookingId/calendar-event
+ * Cancella l'evento Google Calendar associato a una prenotazione
+ */
+router.delete('/:bookingId/calendar-event', async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { googleCalendarEventId } = req.body;
+
+    if (!googleCalendarEventId) {
+      return res.status(400).json({
+        error: 'googleCalendarEventId mancante'
+      });
+    }
+
+    // Importa deleteEvent da google-calendar
+    const { deleteEvent } = await import('./google-calendar.js');
+    
+    // Cancella evento da Google Calendar
+    await deleteEvent('primary', googleCalendarEventId);
+
+    console.log(`✅ Evento Google Calendar cancellato per booking ${bookingId}: ${googleCalendarEventId}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Evento Google Calendar cancellato con successo'
+    });
+
+  } catch (error: any) {
+    console.error('❌ Errore cancellazione evento Google Calendar:', error);
+    res.status(500).json({
+      error: 'Errore durante la cancellazione dell\'evento dal calendario',
+      details: error.message
+    });
+  }
+});
+
 export default router;

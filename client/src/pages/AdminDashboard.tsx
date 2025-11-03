@@ -262,14 +262,30 @@ export default function AdminDashboard() {
 
     // CRITICAL: Verifica autenticazione Firebase (richiesta dalle Security Rules)
     // Usa hook asincrono invece di auth.currentUser sincrono
-    if (!user || !isFirebaseAdmin || user.email !== 'gennaro.mazzacane@gmail.com') {
-      console.error('❌ Firebase Auth: utente non autenticato o non admin');
+    // FIX: Controlla solo user e email, isFirebaseAdmin si aggiorna in modo reattivo
+    if (!user) {
+      console.error('❌ Firebase Auth: utente non autenticato');
       toast({
         variant: "destructive",
         title: "Errore di autenticazione",
         description: "Devi essere autenticato come admin per accedere a questa sezione. Effettua il logout e riprova.",
       });
       // Redirect al login admin dopo 2 secondi
+      setTimeout(() => {
+        localStorage.removeItem('isAdmin');
+        navigate(createUrl("/admin"));
+      }, 2000);
+      return;
+    }
+
+    // Verifica email admin
+    if (user.email !== 'gennaro.mazzacane@gmail.com') {
+      console.error('❌ Firebase Auth: utente non admin');
+      toast({
+        variant: "destructive",
+        title: "Accesso negato",
+        description: "Non hai i permessi per accedere a questa sezione.",
+      });
       setTimeout(() => {
         localStorage.removeItem('isAdmin');
         navigate(createUrl("/admin"));
