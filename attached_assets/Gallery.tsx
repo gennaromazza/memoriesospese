@@ -581,13 +581,11 @@ export default function Gallery() {
         {gallery.youtubeUrl && gallery.youtubeUrl.trim() !== "" && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
             <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h3 className="text-lg font-semibold mb-4">
-                Video del matrimonio
-              </h3>
+              <h3 className="text-lg font-semibold mb-4">Video</h3>
               <div className="relative w-full pb-[56.25%]">
                 <iframe
                   src={`https://www.youtube.com/embed/${getYouTubeVideoId(gallery.youtubeUrl)}`}
-                  title="Video del matrimonio"
+                  title="Video"
                   className="absolute top-0 left-0 w-full h-full rounded-lg"
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
