@@ -253,29 +253,31 @@ export default function AdminDashboard() {
       return;
     }
 
+    // IMPORTANTE: Ora che il loading è completato, se non c'è user significa che NON è autenticato
     // Verifica localStorage (controllo primario per redirect rapido)
     const localAdminFlag = localStorage.getItem('isAdmin');
-    if (!localAdminFlag) {
-      navigate(createUrl("/admin"));
-      return;
-    }
-
-    // CRITICAL: Verifica autenticazione Firebase (richiesta dalle Security Rules)
-    // Usa hook asincrono invece di auth.currentUser sincrono
-    // FIX: Controlla solo user e email, isFirebaseAdmin si aggiorna in modo reattivo
-    if (!user) {
-      console.error('❌ Firebase Auth: utente non autenticato');
-      toast({
-        variant: "destructive",
-        title: "Errore di autenticazione",
-        description: "Devi essere autenticato come admin per accedere a questa sezione. Effettua il logout e riprova.",
-      });
-      // Redirect al login admin dopo 2 secondi
-      setTimeout(() => {
-        localStorage.removeItem('isAdmin');
+    if (!localAdminFlag || !user) {
+      // Redirect silenzioso senza errori se non c'è flag localStorage
+      if (!localAdminFlag) {
         navigate(createUrl("/admin"));
-      }, 2000);
-      return;
+        return;
+      }
+      
+      // Se c'è flag localStorage ma non c'è user, mostra errore
+      if (!user) {
+        console.error('❌ Firebase Auth: utente non autenticato');
+        toast({
+          variant: "destructive",
+          title: "Errore di autenticazione",
+          description: "Devi essere autenticato come admin per accedere a questa sezione. Effettua il logout e riprova.",
+        });
+        // Redirect al login admin dopo 2 secondi
+        setTimeout(() => {
+          localStorage.removeItem('isAdmin');
+          navigate(createUrl("/admin"));
+        }, 2000);
+        return;
+      }
     }
 
     // Verifica email admin

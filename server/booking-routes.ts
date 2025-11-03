@@ -942,11 +942,11 @@ router.patch('/:id/update', async (req, res) => {
 
               <div style="border-top: 2px solid #e0e0e0; margin-top: 30px; padding-top: 20px; text-align: center;">
                 <p style="margin: 5px 0; font-size: 14px; color: #666;">
-                  <strong>${studioInfo.nome}</strong>
+                  <strong>${studioInfo.name}</strong>
                 </p>
-                ${studioInfo.telefono ? `<p style="margin: 5px 0; font-size: 14px; color: #666;">📞 ${studioInfo.telefono}</p>` : ''}
+                ${studioInfo.phone ? `<p style="margin: 5px 0; font-size: 14px; color: #666;">📞 ${studioInfo.phone}</p>` : ''}
                 ${studioInfo.email ? `<p style="margin: 5px 0; font-size: 14px; color: #666;">📧 ${studioInfo.email}</p>` : ''}
-                ${studioInfo.indirizzo ? `<p style="margin: 5px 0; font-size: 14px; color: #666;">📍 ${studioInfo.indirizzo}</p>` : ''}
+                ${studioInfo.address ? `<p style="margin: 5px 0; font-size: 14px; color: #666;">📍 ${studioInfo.address}</p>` : ''}
               </div>
             </div>
           </body>
