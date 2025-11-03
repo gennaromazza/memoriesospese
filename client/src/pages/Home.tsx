@@ -83,14 +83,19 @@ export default function Home() {
       const q = query(galleryRef, where("active", "==", true));
       const querySnapshot = await getDocs(q);
 
+      // Lista dei temi speciali da escludere
+      const specialThemes = ['Natale', 'Carnevale', 'San Valentino', 'Pasqua', 'Halloween'];
+
       // Filter galleries based on search term
       // Escludi special galleries (quelle con specialTheme definito)
       const results: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
+        
         // Salta le special gallery - hanno una schermata dedicata con PIN
-        // Escludi se ha specialTheme valorizzato (non null, undefined, stringa vuota o "none")
-        if (data.specialTheme && data.specialTheme !== '' && data.specialTheme !== 'none') {
+        // Escludi se ha un tema speciale assegnato
+        if (data.specialTheme && specialThemes.includes(data.specialTheme)) {
+          console.log(`🚫 Esclusa special gallery "${data.name}" con tema "${data.specialTheme}"`);
           return;
         }
         
