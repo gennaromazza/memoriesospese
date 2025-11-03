@@ -57,7 +57,8 @@ export default function GalleryAccess() {
             const galleryData = docSnapshot.data();
             const docId = docSnapshot.id;
             // SICUREZZA: usa hasPassword flag boolean dal documento (NO lettura password in chiaro)
-            const hasPassword = galleryData.hasPassword === true;
+            // BACKWARD COMPATIBILITY: se hasPassword non esiste, controlla se c'è il vecchio campo password
+            const hasPassword = galleryData.hasPassword === true || !!galleryData.password;
             const hasSpecialPin = !!galleryData.specialTheme; // Se ha tema, probabilmente ha PIN
             
             setGalleryDetails({ 
@@ -81,7 +82,8 @@ export default function GalleryAccess() {
           const docId = querySnapshot.docs[0].id;
           const galleryData = querySnapshot.docs[0].data();
           // SICUREZZA: usa hasPassword flag boolean dal documento (NO lettura password in chiaro)
-          const hasPassword = galleryData.hasPassword === true;
+          // BACKWARD COMPATIBILITY: se hasPassword non esiste, controlla se c'è il vecchio campo password
+          const hasPassword = galleryData.hasPassword === true || !!galleryData.password;
           const hasSpecialPin = !!galleryData.specialTheme; // Se ha tema, probabilmente ha PIN
           
           setGalleryDetails({ 
