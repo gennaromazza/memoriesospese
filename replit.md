@@ -4,7 +4,7 @@
 A platform for preserving wedding memories, revolutionizing the digital capture and sharing of multimedia memories for couples and guests. The application provides an innovative and interactive solution to preserve and explore wedding moments.
 
 **Key Capabilities:**
-- Secure password-protected galleries with optional security questions.
+- Secure password-protected galleries with email-based password delivery.
 - Like/comment system with user authentication and voice memos.
 - Photo upload with automatic compression and watermarking for paid plans.
 - Email notification system for new photos.
@@ -44,7 +44,8 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - **Subscription System:** Stripe integration for Free, Starter, Pro, and Premium plans with access controls based on subscription tier.
 - **Email System:** All email operations handled by an Express.js server via Gmail API integration (Replit OAuth2 connector). Uses direct function imports for reliability. Email templates dynamically fetch studio contact info from Firestore.
 - **Booking System:** Campaign-based photography booking with Google Calendar integration for slot management. Atomic booking flow prevents double-booking using Firestore transactions. Two-stage email notification (received and confirmed). Booking duration automatically calculated.
-- **Security - Password Protection System:** Server-side password security via Firebase Cloud Functions. Client never accesses gallery passwords or security answers directly.
+- **Security - Password Protection System:** Server-side password security via Firebase Cloud Functions. Client never accesses gallery passwords directly. Legacy security questions deprecated in favor of email-based password delivery (schema fields retained for backward compatibility).
+- **Gallery Management UI:** Unified workspace at `/admin/gallery/:id/manage` with three tabs: Upload (photo management), Selezioni Cliente (photo selection review), and Impostazioni (comprehensive settings: base details, cover images mobile/desktop, YouTube URLs, special theme+PIN, selection configuration). AdminDashboard Edit button navigates to this workspace. Legacy EditGalleryModal completely removed to eliminate code duplication.
 - **Deployment:** Designed for subfolder deployment with dynamic base path detection. Emphasis on Firebase-only architecture.
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and robust `try-catch` blocks.
 - **Code Quality:** Strict TypeScript typing, modular components, and unified interfaces.
