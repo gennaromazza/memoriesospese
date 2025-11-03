@@ -1430,9 +1430,6 @@ export default function Gallery() {
                                   onLoad={(e) => {
                                     (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
                                   }}
-                                  style={{
-                                    backgroundColor: '#f3f4f6',
-                                  }}
                                   title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                                 />
                                 
