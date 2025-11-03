@@ -30,35 +30,56 @@ export default function SpecialGalleryAccess() {
     setIsLoading(true);
 
     try {
-      // Query galleries with this PIN
-      const galleriesRef = collection(db, 'galleries');
-      const q = query(
-        galleriesRef,
-        where('specialPin', '==', pin.trim())
-      );
-      
-      const snapshot = await getDocs(q);
+      // Verifica PIN SERVER-SIDE (sicuro!)
+      const response = await fetch('/api/email/verify-special-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pin: pin.trim()
+        }),
+      });
 
-      if (snapshot.empty) {
+      // Verifica che la risposta sia JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('Errore: risposta non JSON. Content-Type:', contentType);
+        console.error('Status:', response.status, response.statusText);
+        toast.error('Errore del server. Riprova tra poco o contatta l\'amministratore.');
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok || !data.result?.valid) {
         toast.error('PIN non valido. Riprova.');
         setPin('');
         return;
       }
 
-      // Get first matching gallery
-      const galleryDoc = snapshot.docs[0];
-      const gallery = { id: galleryDoc.id, ...galleryDoc.data() } as Gallery;
+      // PIN valido - recupera i dati della galleria
+      const { galleryId, galleryCode, galleryName } = data.result;
 
-      // Save PIN in sessionStorage for this gallery
-      sessionStorage.setItem(`specialGallery_${gallery.id}`, pin.trim());
+      // Save auth in localStorage (come le password normali)
+      localStorage.setItem(`gallery_auth_${galleryCode || galleryId}`, 'true');
 
-      // Get theme info for success message
-      const theme = gallery.specialTheme ? getThemeById(gallery.specialTheme) : null;
-
-      toast.success(`Accesso consentito${theme ? ` alla galleria ${theme.icon} ${theme.name}` : ''}!`);
+      // Get theme info dalla galleria
+      const galleriesRef = collection(db, 'galleries');
+      const q = query(galleriesRef, where('code', '==', galleryCode));
+      const snapshot = await getDocs(q);
       
-      // Redirect to gallery
-      setLocation(`/gallery/${gallery.code || gallery.id}`);
+      let themeName = '';
+      if (!snapshot.empty) {
+        const galleryData = snapshot.docs[0].data();
+        const theme = galleryData.specialTheme ? getThemeById(galleryData.specialTheme) : null;
+        themeName = theme ? ` ${theme.icon} ${theme.name}` : '';
+      }
+
+      toast.success(`Accesso consentito${themeName ? ` alla galleria${themeName}` : ''}!`);
+      
+      // Redirect to gallery view
+      setLocation(`/view/${galleryCode || galleryId}`);
     } catch (error) {
       console.error('Errore accesso PIN:', error);
       toast.error('Errore durante l\'accesso. Riprova.');

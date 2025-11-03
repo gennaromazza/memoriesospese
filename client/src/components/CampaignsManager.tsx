@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { deleteField } from 'firebase/firestore';
 import { queryClient } from '@/lib/queryClient';
 import {
   getAllCampaigns,
@@ -81,6 +82,7 @@ interface CampaignFormData {
   orarioChiusura: string;
   durataShootingMinuti: number;
   prodottiDisponibili: string[];
+  excludedDays: number[]; // Giorni esclusi (0=Domenica, 1=Lunedì, ..., 6=Sabato)
   attiva: boolean;
 }
 
@@ -97,6 +99,7 @@ const defaultFormData: CampaignFormData = {
   orarioChiusura: '19:00',
   durataShootingMinuti: 120,
   prodottiDisponibili: [],
+  excludedDays: [], // Nessun giorno escluso di default
   attiva: true,
 };
 
@@ -122,6 +125,7 @@ export default function CampaignsManager() {
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (data: CampaignFormData) => {
+      // Mantieni type safety con spread condizionale (Firestore non accetta undefined)
       const campaignData: Omit<BookingCampaign, 'id' | 'createdAt'> = {
         nome: data.nome,
         descrizione: data.descrizione,
@@ -136,6 +140,7 @@ export default function CampaignsManager() {
         durataShootingMinuti: data.durataShootingMinuti,
         prodottiDisponibili: data.prodottiDisponibili,
         attiva: data.attiva,
+        ...(data.excludedDays.length > 0 && { excludedDays: data.excludedDays }),
       };
       
       return await createCampaign(campaignData);
@@ -170,6 +175,15 @@ export default function CampaignsManager() {
       }
       if (data.temaStagionale !== undefined) {
         updateData.temaStagionale = data.temaStagionale === 'none' ? null : data.temaStagionale;
+      }
+      if (data.excludedDays !== undefined) {
+        // Aggiungi excludedDays solo se non è vuoto, altrimenti usa deleteField() per rimuoverlo
+        if (data.excludedDays.length > 0) {
+          updateData.excludedDays = data.excludedDays;
+        } else {
+          // Usa deleteField() di Firestore per rimuovere completamente il campo
+          updateData.excludedDays = deleteField();
+        }
       }
       
       return await updateCampaign(id, updateData);
@@ -251,6 +265,7 @@ export default function CampaignsManager() {
       orarioChiusura: campaign.orarioChiusura,
       durataShootingMinuti: campaign.durataShootingMinuti,
       prodottiDisponibili: campaign.prodottiDisponibili,
+      excludedDays: campaign.excludedDays || [],
       attiva: campaign.attiva,
     });
     setSelectedProducts(campaign.prodottiDisponibili);
@@ -518,6 +533,42 @@ export default function CampaignsManager() {
                   onChange={e => setFormData({ ...formData, durataShootingMinuti: parseInt(e.target.value) || 60 })}
                   data-testid="input-shooting-duration"
                 />
+              </div>
+
+              {/* Giorni Esclusi */}
+              <div className="space-y-3 pt-3 border-t">
+                <Label className="text-base font-semibold">Giorni Esclusi dalle Prenotazioni</Label>
+                <p className="text-sm text-muted-foreground">Seleziona i giorni in cui NON accetti prenotazioni</p>
+                <div className="grid grid-cols-4 gap-3">
+                  {[
+                    { value: 0, label: 'Dom', fullName: 'Domenica' },
+                    { value: 1, label: 'Lun', fullName: 'Lunedì' },
+                    { value: 2, label: 'Mar', fullName: 'Martedì' },
+                    { value: 3, label: 'Mer', fullName: 'Mercoledì' },
+                    { value: 4, label: 'Gio', fullName: 'Giovedì' },
+                    { value: 5, label: 'Ven', fullName: 'Venerdì' },
+                    { value: 6, label: 'Sab', fullName: 'Sabato' },
+                  ].map(day => (
+                    <div
+                      key={day.value}
+                      className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                        formData.excludedDays.includes(day.value)
+                          ? 'border-red-500 bg-red-50 text-red-700'
+                          : 'border-muted hover:border-red-300'
+                      }`}
+                      onClick={() => {
+                        const newExcludedDays = formData.excludedDays.includes(day.value)
+                          ? formData.excludedDays.filter(d => d !== day.value)
+                          : [...formData.excludedDays, day.value];
+                        setFormData({ ...formData, excludedDays: newExcludedDays });
+                      }}
+                      data-testid={`day-toggle-${day.value}`}
+                      title={day.fullName}
+                    >
+                      <span className="font-medium text-sm">{day.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Prodotti Disponibili */}

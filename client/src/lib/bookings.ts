@@ -83,7 +83,8 @@ export async function getAvailableSlots(
     pausaFine: string;
     chiusura: string;
   },
-  durataMinuti: number
+  durataMinuti: number,
+  excludedDays?: number[] // Array di giorni esclusi (0=Domenica, 1=Lunedì, ..., 6=Sabato)
 ): Promise<Array<{
   start: string;
   end: string;
@@ -99,6 +100,7 @@ export async function getAvailableSlots(
       date,
       workingHours,
       durataMinuti,
+      excludedDays,
     }),
   });
 

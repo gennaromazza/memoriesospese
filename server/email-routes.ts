@@ -2245,6 +2245,97 @@ router.post("/saldo-received", async (req, res) => {
 });
 
 /**
+ * POST /api/email/verify-special-pin
+ * Verifica PIN galleria speciale SERVER-SIDE senza esporlo al client
+ * SICURO: legge PIN da collection protetta `gallerySecrets` (admin-only)
+ * Ritorna anche l'ID e il code della galleria associata
+ */
+router.post("/verify-special-pin", async (req, res) => {
+  try {
+    const { pin } = req.body;
+
+    // Validazione parametri
+    if (!pin) {
+      return res.status(400).json({
+        error: { code: "invalid-argument", message: "Missing PIN" }
+      });
+    }
+
+    console.log(`🔍 Verifica PIN speciale: ${pin.substring(0, 2)}***`);
+
+    // Inizializza Firebase Admin
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    }
+
+    const db = admin.firestore();
+
+    // QUERY TUTTE LE GALLERIE CON TEMA SPECIALE (usando Firebase Admin SDK)
+    const galleriesSnapshot = await db.collection('galleries')
+      .where('specialTheme', '!=', null)
+      .get();
+
+    if (galleriesSnapshot.empty) {
+      console.log("❌ Nessuna galleria speciale trovata");
+      return res.status(200).json({
+        result: { valid: false, message: "No special galleries found" }
+      });
+    }
+
+    // Cerca galleria con PIN corrispondente nella collection protetta
+    for (const galleryDoc of galleriesSnapshot.docs) {
+      const galleryId = galleryDoc.id;
+      const galleryData = galleryDoc.data();
+      
+      // Recupera PIN da collection protetta
+      const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+      
+      if (secretsDoc.exists) {
+        const secretData = secretsDoc.data();
+        const correctPin = secretData?.specialPin;
+
+        // Verifica PIN
+        if (correctPin && correctPin.trim() === pin.trim()) {
+          const galleryCode = galleryData.code || galleryId;
+          const galleryName = galleryData.name || "Galleria Speciale";
+          
+          console.log(`✅ PIN corretto per galleria ${galleryCode}`);
+          return res.status(200).json({
+            result: { 
+              valid: true, 
+              galleryId,
+              galleryCode,
+              galleryName,
+              message: "PIN correct" 
+            }
+          });
+        }
+      }
+    }
+
+    // Nessuna galleria trovata con questo PIN
+    console.log("❌ PIN non valido");
+    return res.status(200).json({
+      result: { valid: false, message: "Invalid PIN" }
+    });
+  } catch (error) {
+    console.error("❌ Errore verify-special-pin:", error);
+    res.status(500).json({
+      error: { code: "internal", message: "Failed to verify PIN" }
+    });
+  }
+});
+
+/**
  * POST /api/email/verify-gallery-password
  * Verifica password galleria SERVER-SIDE senza esporla al client
  * SICURO: legge password da collection protetta `gallerySecrets` (admin-only)

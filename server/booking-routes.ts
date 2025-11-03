@@ -22,7 +22,7 @@ const router = express.Router();
  */
 router.post('/available-slots', async (req, res) => {
   try {
-    const { date, workingHours, durataMinuti, calendarId } = req.body;
+    const { date, workingHours, durataMinuti, calendarId, excludedDays } = req.body;
 
     // Validazione parametri
     if (!date || typeof date !== 'string') {
@@ -71,6 +71,24 @@ router.post('/available-slots', async (req, res) => {
       return res.status(400).json({ 
         error: `Formato orario invalido per: ${invalidTimes.join(', ')}. Usa HH:MM (es. "09:00")` 
       });
+    }
+
+    // Verifica se il giorno è escluso (0=Domenica, 1=Lunedì, ..., 6=Sabato)
+    if (excludedDays && Array.isArray(excludedDays)) {
+      const requestedDate = new Date(date);
+      const dayOfWeek = requestedDate.getDay();
+      
+      if (excludedDays.includes(dayOfWeek)) {
+        // Giorno escluso - ritorna array vuoto
+        return res.json({
+          date,
+          durataMinuti,
+          slots: [],
+          totalSlots: 0,
+          excludedDay: true,
+          dayOfWeek
+        });
+      }
     }
 
     // Calcola slot disponibili usando Google Calendar
@@ -190,6 +208,43 @@ router.post('/create', async (req, res) => {
       });
     }
 
+    // SECURITY: Verifica che il giorno non sia escluso dalla campagna
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    }
+    
+    const db = admin.firestore();
+    const campaignDoc = await db.collection('booking_campaigns').doc(campaignId).get();
+    
+    if (!campaignDoc.exists) {
+      return res.status(404).json({ 
+        error: 'Campagna non trovata' 
+      });
+    }
+    
+    const campaign = campaignDoc.data();
+    const excludedDays = campaign?.excludedDays || [];
+    
+    if (excludedDays.length > 0) {
+      const dayOfWeek = slotStart.getDay(); // 0=Domenica, 1=Lunedì, ..., 6=Sabato
+      
+      if (excludedDays.includes(dayOfWeek)) {
+        return res.status(400).json({ 
+          error: 'Giorno non disponibile',
+          message: 'Il giorno selezionato non è disponibile per le prenotazioni in questa campagna.'
+        });
+      }
+    }
+
     // 1. Ricontrolla disponibilità slot via Google Calendar
     const dateStr = slotStart.toISOString().split('T')[0];
     
@@ -228,28 +283,7 @@ router.post('/create', async (req, res) => {
       }
     );
 
-    // 3. Solo DOPO evento creato, salva su Firestore
-    const admin = await import('firebase-admin');
-    
-    // Inizializza Firebase Admin se non già fatto
-    if (!admin.apps.length) {
-      // Usa service account completo da secret (Base64 encoded)
-      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
-      
-      if (!serviceAccountBase64) {
-        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
-      }
-      
-      // Decodifica Base64 e parse JSON
-      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
-      const serviceAccount = JSON.parse(serviceAccountJson);
-      
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-    }
-
-    const db = admin.firestore();
+    // 3. Solo DOPO evento creato, salva su Firestore (db già inizializzato sopra)
     
     const bookingRef = await db.collection('bookings').add({
       campaignId,

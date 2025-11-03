@@ -77,7 +77,8 @@ export default function BookingPage() {
           pausaFine: campaign.orarioPausaFine,
           chiusura: campaign.orarioChiusura,
         },
-        campaign.durataShootingMinuti
+        campaign.durataShootingMinuti,
+        campaign.excludedDays
       );
     },
     enabled: !!selectedDate && !!campaign,

@@ -59,6 +59,9 @@ export interface BookingCampaign {
   // Durata shooting (in minuti)
   durataShootingMinuti: number; // es. 120 per 2 ore
   
+  // Giorni esclusi dalla prenotazione (0=Domenica, 1=Lunedì, ..., 6=Sabato)
+  excludedDays?: number[]; // es. [0] per escludere la domenica
+  
   // Prodotti disponibili per questa campagna
   prodottiDisponibili: string[]; // Array di productId
   
