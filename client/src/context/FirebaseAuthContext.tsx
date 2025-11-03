@@ -3,7 +3,7 @@
  * Sostituisce il doppio sistema di autenticazione esistente
  */
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
 import { User } from 'firebase/auth';
 import { AuthService, UserProfile } from '../lib/auth';
 
@@ -122,13 +122,24 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     }
   };
 
+  // Calcola isAdmin in modo reattivo quando user cambia
+  // Fix per race condition: ora si aggiorna automaticamente quando user è disponibile
+  const isAdmin = useMemo(() => {
+    if (!user?.email) return false;
+    
+    const isAdminByEmail = AuthService.isAdmin(user.email);
+    const isAdminByLocalStorage = localStorage.getItem('isAdmin') === 'true';
+    const isMainAdmin = user.email === 'gennaro.mazzacane@gmail.com';
+    
+    return isAdminByEmail || isAdminByLocalStorage || isMainAdmin;
+  }, [user]);
 
   const value: FirebaseAuthContextType = {
     user,
     userProfile,
     isLoading,
     isAuthenticated: !!user,
-    isAdmin: AuthService.isCurrentUserAdmin(),
+    isAdmin,
     showProfileWelcome,
     login,
     register,
