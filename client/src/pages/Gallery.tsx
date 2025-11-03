@@ -57,8 +57,7 @@ import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
-import EditGalleryModal from "@/components/EditGalleryModal";
-import { Edit3, BookOpen, Trash2, Info } from "lucide-react";
+import { Settings, BookOpen, Trash2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -122,9 +121,6 @@ export default function Gallery() {
 
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // Stato per gestire l'apertura del modal EditGallery
-  const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
 
   // Stato per gestire il prompt di iscrizione (lo mostriamo ogni 20 foto)
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(true);
@@ -1195,23 +1191,23 @@ export default function Gallery() {
                       </Tooltip>
                     )}
 
-                    {/* Pulsante Edit Gallery - Solo per Admin */}
-                    {isAdmin && (
+                    {/* Pulsante Gestisci Gallery - Solo per Admin */}
+                    {isAdmin && galleryData && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => setIsEditGalleryOpen(true)}
+                            onClick={() => navigate(`/admin/gallery/${galleryData.id}/manage`)}
                             className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 shadow-sm"
                           >
-                            <Edit3 className="h-4 w-4" />
+                            <Settings className="h-4 w-4" />
                             <span className="hidden sm:inline">
-                              Edit Gallery
+                              Gestisci Galleria
                             </span>
-                            <span className="sm:hidden">Edit</span>
+                            <span className="sm:hidden">Gestisci</span>
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="text-sm">
-                          <p>Modifica galleria e gestisci foto (solo admin)</p>
+                          <p>Gestisci foto, selezioni e impostazioni (solo admin)</p>
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -2293,28 +2289,6 @@ export default function Gallery() {
         }))}
         initialIndex={currentPhotoIndex}
       />
-
-      {/* Edit Gallery Modal - Solo per Admin */}
-      {galleryData && isAdmin && (
-        <EditGalleryModal
-          isOpen={isEditGalleryOpen}
-          onClose={() => setIsEditGalleryOpen(false)}
-          gallery={{
-            id: galleryData.id,
-            name: galleryData.name || "",
-            code: galleryData.code || id || "",
-            date: galleryData.date || "",
-            location: galleryData.location || "",
-            description: galleryData.description || "",
-            coverImageUrl: galleryData.coverImageUrl || "",
-            coverImageMobile: galleryData.coverImageMobile || "",
-            coverImageDesktop: galleryData.coverImageDesktop || "",
-            youtubeUrl: galleryData.youtubeUrl || "",
-            photoCount: photos.length,
-            password: "", // Aggiungi password field mancante
-          }}
-        />
-      )}
     </div>
   );
 }
