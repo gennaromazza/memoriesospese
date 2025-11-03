@@ -1,22 +1,36 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Link } from "wouter";
 import { useToast } from "../hooks/use-toast";
 import { createUrl } from "@/lib/basePath";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Card, CardContent } from "../components/ui/card";
+import { Separator } from "../components/ui/separator";
 import Navigation from "../components/Navigation";
 import Footer from "../components/Footer";
+import { Lock, Mail } from "lucide-react";
+
+interface GalleryData {
+  name: string;
+  date: string;
+  location: string;
+  password?: string;
+  specialPin?: string;
+  specialTheme?: string;
+}
 
 export default function GalleryAccess() {
   const { id } = useParams();
   const [, navigate] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [galleryNotFound, setGalleryNotFound] = useState(false);
-  const [galleryDetails, setGalleryDetails] = useState<{ name: string; date: string; location: string } | null>(null);
+  const [galleryDetails, setGalleryDetails] = useState<GalleryData | null>(null);
   const [accessGranted, setAccessGranted] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const { toast } = useToast();
 
   // Check if gallery exists on component mount
@@ -34,7 +48,6 @@ export default function GalleryAccess() {
 
         // Se non trova per code, cerca per ID Firestore (gallerie vecchie)
         if (querySnapshot.empty) {
-          const { doc, getDoc } = await import("firebase/firestore");
           const docRef = doc(db, "galleries", id);
           const docSnapshot = await getDoc(docRef);
           
@@ -43,8 +56,17 @@ export default function GalleryAccess() {
             setGalleryDetails({ 
               name: galleryData.name,
               date: galleryData.date,
-              location: galleryData.location
+              location: galleryData.location,
+              password: galleryData.password,
+              specialPin: galleryData.specialPin,
+              specialTheme: galleryData.specialTheme
             });
+
+            // Se la galleria non ha password E non ha specialPin, accesso diretto
+            if (!galleryData.password && !galleryData.specialPin) {
+              localStorage.setItem(`gallery_auth_${id}`, "true");
+              navigate(createUrl(`/view/${id}`));
+            }
           } else {
             setGalleryNotFound(true);
           }
@@ -53,8 +75,17 @@ export default function GalleryAccess() {
           setGalleryDetails({ 
             name: galleryData.name,
             date: galleryData.date,
-            location: galleryData.location
+            location: galleryData.location,
+            password: galleryData.password,
+            specialPin: galleryData.specialPin,
+            specialTheme: galleryData.specialTheme
           });
+
+          // Se la galleria non ha password E non ha specialPin, accesso diretto
+          if (!galleryData.password && !galleryData.specialPin) {
+            localStorage.setItem(`gallery_auth_${id}`, "true");
+            navigate(createUrl(`/view/${id}`));
+          }
         }
       } catch (error) {
         toast({
@@ -68,17 +99,35 @@ export default function GalleryAccess() {
     }
 
     checkGallery();
-  }, [id, toast]);
+  }, [id, toast, navigate]);
 
-  const handleAccessGranted = () => {
-    if (!id) return;
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!id || !galleryDetails) return;
 
-    // Store session and navigate to gallery view
-    localStorage.setItem(`gallery_auth_${id}`, "true");
-    setAccessGranted(true);
+    // Reset error
+    setPasswordError("");
 
-    // Navigate to gallery view
-    navigate(createUrl(`/view/${id}`));
+    // Validate password
+    if (!passwordInput.trim()) {
+      setPasswordError("Inserisci la password");
+      return;
+    }
+
+    // Check password
+    if (galleryDetails.password && passwordInput.trim() === galleryDetails.password) {
+      // Store session and navigate to gallery view
+      localStorage.setItem(`gallery_auth_${id}`, "true");
+      toast({
+        title: "Accesso consentito!",
+        description: "Benvenuto nella galleria",
+      });
+      navigate(createUrl(`/view/${id}`));
+    } else {
+      setPasswordError("Password non corretta");
+      setPasswordInput("");
+    }
   };
 
   return (
@@ -127,17 +176,59 @@ export default function GalleryAccess() {
                 </div>
               </div>
 
-              {/* Richiesta Password */}
-              {id && !accessGranted && (
+              {/* Form Inserimento Password */}
+              {id && !accessGranted && galleryDetails && (
                 <Card>
                   <CardContent className="pt-6">
-                    <div className="text-center space-y-4">
-                      <p className="text-gray-700">
-                        Per accedere a questa galleria, richiedi la password via email.
+                    <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                      <div>
+                        <label htmlFor="password" className="block text-sm font-medium text-blue-gray mb-2 flex items-center gap-2">
+                          <Lock className="w-4 h-4" />
+                          Password Galleria
+                        </label>
+                        <Input
+                          id="password"
+                          type="password"
+                          value={passwordInput}
+                          onChange={(e) => {
+                            setPasswordInput(e.target.value);
+                            setPasswordError("");
+                          }}
+                          placeholder="Inserisci la password"
+                          className="w-full"
+                          autoFocus
+                          data-testid="input-gallery-password"
+                        />
+                        {passwordError && (
+                          <p className="mt-1 text-sm text-red-500">{passwordError}</p>
+                        )}
+                      </div>
+
+                      <Button
+                        type="submit"
+                        className="btn-primary w-full"
+                        disabled={isLoading}
+                        data-testid="button-submit-password"
+                      >
+                        {isLoading ? "Verifica..." : "Accedi"}
+                      </Button>
+                    </form>
+
+                    <div className="my-6 relative">
+                      <Separator />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="bg-white px-4 text-sm text-gray-500">oppure</span>
+                      </div>
+                    </div>
+
+                    <div className="text-center space-y-3">
+                      <p className="text-sm text-gray-600">
+                        Non hai la password?
                       </p>
                       <Link href={createUrl(`/request-password/${id}`)}>
-                        <Button className="btn-primary w-full" data-testid="button-request-password">
-                          Richiedi Password
+                        <Button variant="outline" className="w-full" data-testid="button-request-password">
+                          <Mail className="w-4 h-4 mr-2" />
+                          Richiedi Password via Email
                         </Button>
                       </Link>
                     </div>
