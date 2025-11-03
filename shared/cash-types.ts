@@ -67,3 +67,14 @@ export interface MonthlyData {
   uscite: number;
   saldo: number;
 }
+
+// Forecast Types - Previsioni Incasso
+export interface ForecastedIncome {
+  data: Date;
+  importo: number;
+  ordini: {
+    id: string;
+    nomeSposi: string;
+    importoResiduo: number;
+  }[];
+}

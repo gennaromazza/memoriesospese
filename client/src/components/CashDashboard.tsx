@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText } from "lucide-react";
-import { getFinancialSummary, getMonthlyData, getAllCashMovements } from "@/lib/cash";
+import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText, Clock } from "lucide-react";
+import { getFinancialSummary, getMonthlyData, getAllCashMovements, getForecastedIncome } from "@/lib/cash";
 import { getAllOrders } from "@/lib/orders";
 import CashRegister from "./CashRegister";
-import type { FinancialSummary, MonthlyData } from "@shared/cash-types";
+import type { FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
 
 export default function CashDashboard() {
   // Helper per convertire Date | Timestamp in Date
@@ -54,6 +54,12 @@ export default function CashDashboard() {
     queryFn: getAllCashMovements,
   });
 
+  // Query per previsioni incasso
+  const { data: forecasts } = useQuery<ForecastedIncome[]>({
+    queryKey: ["forecasted-income"],
+    queryFn: getForecastedIncome,
+  });
+
   // Query per ultimi pagamenti ordini
   const { data: orders } = useQuery({
     queryKey: ["orders-payments"],
@@ -88,6 +94,10 @@ export default function CashDashboard() {
         <TabsTrigger value="register" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
           <FileText className="h-4 w-4 flex-shrink-0" />
           Registro Cassa
+        </TabsTrigger>
+        <TabsTrigger value="forecasts" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+          <Clock className="h-4 w-4 flex-shrink-0" />
+          Previsioni
         </TabsTrigger>
       </TabsList>
 
@@ -197,16 +207,26 @@ export default function CashDashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-orange-600" />
+              <Clock className="h-4 w-4 text-orange-600" />
               Incassi Previsti
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {formatCurrency(summary?.previstiIncasso || 0)}
+              {formatCurrency(
+                forecasts?.reduce((sum, f) => sum + f.importo, 0) || 0
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Saldi ordini in sospeso
+              {forecasts && forecasts.length > 0 ? (
+                <>
+                  {forecasts.reduce((sum, f) => sum + f.ordini.length, 0)} ordini in sospeso
+                  <br />
+                  Prossimo: {new Date(forecasts[0].data).toLocaleDateString("it-IT")}
+                </>
+              ) : (
+                "Nessun incasso previsto"
+              )}
             </p>
           </CardContent>
         </Card>
@@ -332,6 +352,114 @@ export default function CashDashboard() {
       {/* Registro Cassa Tab */}
       <TabsContent value="register">
         <CashRegister />
+      </TabsContent>
+
+      {/* Previsioni Tab */}
+      <TabsContent value="forecasts">
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-xl font-semibold text-blue-gray">📅 Calendario Incassi Previsti</h3>
+            <p className="text-sm text-muted-foreground">
+              Saldi residui da ordini raggruppati per data servizio
+            </p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Incassi Futuri</CardTitle>
+              <CardDescription>
+                {forecasts && forecasts.length > 0
+                  ? `${forecasts.length} date con incassi previsti`
+                  : "Nessun incasso previsto"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!forecasts || forecasts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  ✅ Tutti gli ordini sono stati completamente saldati!
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {forecasts.map((forecast, idx) => {
+                    const now = new Date();
+                    const daysUntil = Math.ceil(
+                      (forecast.data.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+                    );
+
+                    // Codice colore basato su vicinanza
+                    let colorClass = "bg-blue-50 border-blue-200";
+                    let badgeClass = "bg-blue-100 text-blue-800";
+                    if (daysUntil < 0) {
+                      colorClass = "bg-red-50 border-red-200";
+                      badgeClass = "bg-red-100 text-red-800";
+                    } else if (daysUntil <= 7) {
+                      colorClass = "bg-orange-50 border-orange-200";
+                      badgeClass = "bg-orange-100 text-orange-800";
+                    } else if (daysUntil <= 30) {
+                      colorClass = "bg-yellow-50 border-yellow-200";
+                      badgeClass = "bg-yellow-100 text-yellow-800";
+                    }
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-4 border rounded-lg ${colorClass}`}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-5 w-5 text-gray-600" />
+                              <h4 className="font-semibold text-lg">
+                                {forecast.data.toLocaleDateString("it-IT", {
+                                  weekday: "long",
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                })}
+                              </h4>
+                            </div>
+                            <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${badgeClass}`}>
+                              {daysUntil < 0
+                                ? `Scaduto da ${Math.abs(daysUntil)} giorni`
+                                : daysUntil === 0
+                                ? "Oggi"
+                                : daysUntil === 1
+                                ? "Domani"
+                                : `Tra ${daysUntil} giorni`}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-orange-600">
+                              {formatCurrency(forecast.importo)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {forecast.ordini.length} ordini
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Lista ordini */}
+                        <div className="space-y-2 pt-3 border-t border-gray-200">
+                          {forecast.ordini.map((ordine) => (
+                            <div
+                              key={ordine.id}
+                              className="flex justify-between items-center text-sm bg-white/50 p-2 rounded"
+                            >
+                              <span className="font-medium">{ordine.nomeSposi}</span>
+                              <span className="text-orange-600 font-semibold">
+                                {formatCurrency(ordine.importoResiduo)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </TabsContent>
     </Tabs>
   );

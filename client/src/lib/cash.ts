@@ -18,7 +18,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { CashMovement, InsertCashMovement, FinancialSummary, MonthlyData } from "@shared/cash-types";
+import type { CashMovement, InsertCashMovement, FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
 import { getAllOrders } from "./orders";
 import type { Order, Transaction } from "@shared/booking-types";
 
@@ -232,4 +232,60 @@ export async function getMonthlyData(): Promise<MonthlyData[]> {
   });
 
   return months;
+}
+
+/**
+ * Calcola previsioni incasso da ordini in sospeso
+ * Raggruppa per data servizio gli ordini con saldo residuo > 0
+ */
+export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
+  const orders = await getAllOrders();
+
+  // Filtra ordini con importo residuo > 0 e data servizio valida
+  const ordersWithBalance = orders
+    .map((order) => {
+      const totalePagato = (order.transactions || []).reduce(
+        (sum, t) => sum + t.importo,
+        0
+      );
+      const importoResiduo = order.totale - totalePagato;
+
+      return {
+        ...order,
+        importoResiduo,
+      };
+    })
+    .filter((order) => order.importoResiduo > 0 && order.dataServizio);
+
+  // Raggruppa per data servizio
+  const grouped = new Map<string, ForecastedIncome>();
+
+  ordersWithBalance.forEach((order) => {
+    const dataServizio = order.dataServizio instanceof Timestamp
+      ? order.dataServizio.toDate()
+      : new Date(order.dataServizio!);
+
+    const dateKey = dataServizio.toISOString().split("T")[0];
+
+    if (!grouped.has(dateKey)) {
+      grouped.set(dateKey, {
+        data: dataServizio,
+        importo: 0,
+        ordini: [],
+      });
+    }
+
+    const forecast = grouped.get(dateKey)!;
+    forecast.importo += order.importoResiduo;
+    forecast.ordini.push({
+      id: order.id,
+      nomeSposi: order.nomeCliente || order.nomeSposi || "Cliente sconosciuto",
+      importoResiduo: order.importoResiduo,
+    });
+  });
+
+  // Converti in array e ordina per data
+  return Array.from(grouped.values()).sort(
+    (a, b) => a.data.getTime() - b.data.getTime()
+  );
 }
