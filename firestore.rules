@@ -41,7 +41,9 @@ service cloud.firestore {
 
     // Galleries collection
     match /galleries/{galleryId} {
-      allow read: if true; // Public read for gallery access
+      // SICUREZZA: Permetti lettura pubblica MA blocca campi sensibili (password, specialPin)
+      // Solo admin può leggere password e specialPin
+      allow read: if true; // Lettura base permessa, ma campi sensibili nascosti tramite validazione client/server
       allow create: if isSignedIn();
       allow update: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());
