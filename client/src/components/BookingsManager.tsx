@@ -618,6 +618,16 @@ export default function BookingsManager() {
                         Galleria Creata
                       </Badge>
                     )}
+
+                    {/* Badge Selezione Completata */}
+                    {(() => {
+                      const gallery = getGalleryByBookingId(booking.id);
+                      return gallery && gallery.selectionStatus === 'completed' && (
+                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold" variant="outline">
+                          ✓ Selezione Completata
+                        </Badge>
+                      );
+                    })()}
                     
                     <Button
                       variant="outline"
