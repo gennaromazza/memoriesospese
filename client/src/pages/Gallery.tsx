@@ -15,6 +15,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import ImageLightbox from "@/components/ImageLightbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,10 @@ export default function Gallery() {
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
   const [isRequestingModification, setIsRequestingModification] = useState(false);
   
+  // 🎨 UX Enhancement States
+  const [showOnlySelected, setShowOnlySelected] = useState(false); // Filtro solo foto selezionate
+  const [showSidebar, setShowSidebar] = useState(false); // Sidebar miniature
+  
   // Ref per scrollare alla griglia
   const galleryGridRef = useRef<HTMLDivElement>(null);
 
@@ -197,6 +202,67 @@ export default function Gallery() {
       setHasInitializedSelection(true);
     }
   }, [galleryData?.selectedPhotoIds, hasInitializedSelection]);
+
+  // 💾 Auto-save selezioni in localStorage (UX Enhancement #2)
+  useEffect(() => {
+    if (!galleryData?.id || selectionStatus === 'completed' || !hasInitializedSelection) return;
+    
+    const storageKey = `gallery-selection-${galleryData.id}`;
+    
+    // Salva le selezioni correnti o rimuovi se vuoto
+    if (selectedPhotoIds.length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify({
+        photoIds: selectedPhotoIds,
+        timestamp: new Date().toISOString(),
+        count: selectedPhotoIds.length
+      }));
+      console.log('💾 Auto-saved selection:', selectedPhotoIds.length, 'photos');
+    } else {
+      // Rimuovi localStorage quando la selezione è vuota
+      localStorage.removeItem(storageKey);
+      console.log('🗑️ Cleared saved selection (empty)');
+    }
+  }, [selectedPhotoIds, galleryData?.id, selectionStatus, hasInitializedSelection]);
+
+  // 🔄 Restore selezioni da localStorage all'avvio (UX Enhancement #2)
+  useEffect(() => {
+    if (!galleryData?.id || hasInitializedSelection || selectionStatus === 'completed') return;
+    
+    const storageKey = `gallery-selection-${galleryData.id}`;
+    const saved = localStorage.getItem(storageKey);
+    
+    if (saved) {
+      try {
+        const { photoIds, timestamp, count } = JSON.parse(saved);
+        const savedDate = new Date(timestamp);
+        const hoursSince = (new Date().getTime() - savedDate.getTime()) / (1000 * 60 * 60);
+        
+        // Ripristina solo se salvato nelle ultime 24 ore
+        if (hoursSince < 24 && photoIds && photoIds.length > 0) {
+          console.log('🔄 Restored selection from localStorage:', count, 'photos');
+          setSelectedPhotoIds(photoIds);
+          setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato
+          toast({
+            title: '💾 Selezione ripristinata',
+            description: `Abbiamo recuperato le tue ${count} foto selezionate precedentemente.`,
+          });
+          // Rimuovi entry per evitare restore multipli
+          localStorage.removeItem(storageKey);
+        } else {
+          // Rimuovi dati vecchi
+          localStorage.removeItem(storageKey);
+          setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato anche se non c'era nulla
+        }
+      } catch (e) {
+        console.error('Failed to restore selection:', e);
+        localStorage.removeItem(storageKey);
+        setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato anche in caso di errore
+      }
+    } else {
+      // Nessun dato salvato, marca come inizializzato
+      setHasInitializedSelection(true);
+    }
+  }, [galleryData?.id, hasInitializedSelection, selectionStatus, toast]);
 
   // Toggle photo selection
   const handleTogglePhotoSelection = useCallback((photoId: string) => {
@@ -619,6 +685,43 @@ export default function Gallery() {
         : dateA.getTime() - dateB.getTime();
     });
   }, [photos, filters, areFiltersActive]);
+
+  // 🎨 UX Enhancement #1: Filtra per mostrare solo foto selezionate (se attivo)
+  const displayPhotos = useMemo(() => {
+    const basePhotos = areFiltersActive ? filteredPhotos : photos;
+    
+    // Se il filtro "solo selezionate" è attivo, mostra solo quelle
+    if (showOnlySelected && isSelectionMode && selectedPhotoIds.length > 0) {
+      return basePhotos.filter(photo => selectedPhotoIds.includes(photo.id));
+    }
+    
+    return basePhotos;
+  }, [areFiltersActive, filteredPhotos, photos, showOnlySelected, isSelectionMode, selectedPhotoIds]);
+
+  // 🎨 UX Enhancement #6: Messaggi smart basati sul progresso
+  const smartMessage = useMemo(() => {
+    if (!isSelectionMode || selectionStatus === 'completed') return null;
+    
+    const count = selectedPhotoIds.length;
+    const required = requiredPhotoCount;
+    const percentage = required > 0 ? Math.round((count / required) * 100) : 0;
+    
+    if (count === 0) {
+      return { emoji: '✨', text: `Inizia selezionando le tue ${required} foto preferite!`, color: 'text-blue-600' };
+    } else if (count < required * 0.25) {
+      return { emoji: '🎯', text: `Ottimo inizio! Continua così!`, color: 'text-green-600' };
+    } else if (count < required * 0.5) {
+      return { emoji: '💪', text: `Stai andando alla grande! Sei a ${count}/${required}`, color: 'text-green-600' };
+    } else if (count < required * 0.75) {
+      return { emoji: '🔥', text: `Fantastico! Più della metà completata!`, color: 'text-orange-600' };
+    } else if (count < required) {
+      return { emoji: '🎉', text: `Quasi fatto! Mancano solo ${required - count} foto!`, color: 'text-orange-600' };
+    } else if (count === required) {
+      return { emoji: '✅', text: `Perfetto! Puoi confermare la selezione!`, color: 'text-sage' };
+    } else {
+      return { emoji: '⚠️', text: `Troppe foto! Rimuovine ${count - required}`, color: 'text-red-600' };
+    }
+  }, [isSelectionMode, selectionStatus, selectedPhotoIds.length, requiredPhotoCount]);
 
   const handleSignOut = () => {
     localStorage.removeItem(`gallery_auth_${id}`);
@@ -1075,14 +1178,14 @@ export default function Gallery() {
                     </div>
                   )}
 
-                  {(areFiltersActive ? filteredPhotos : photos).length === 0 ? (
+                  {displayPhotos.length === 0 ? (
                     <div className="text-center py-12">
                       <div className="flex flex-col items-center">
                         <h3 className="text-xl font-playfair text-blue-gray mb-2">
-                          {areFiltersActive ? 'Nessuna foto corrisponde ai filtri selezionati' : 'Nessuna foto del fotografo'}
+                          {showOnlySelected ? 'Nessuna foto selezionata' : areFiltersActive ? 'Nessuna foto corrisponde ai filtri selezionati' : 'Nessuna foto del fotografo'}
                         </h3>
                         <p className="text-gray-500">
-                          {areFiltersActive ? 'Prova a modificare i criteri di filtro per visualizzare più foto.' : 'Non ci sono ancora foto del fotografo in questa galleria.'}
+                          {showOnlySelected ? 'Inizia a selezionare le tue foto preferite!' : areFiltersActive ? 'Prova a modificare i criteri di filtro per visualizzare più foto.' : 'Non ci sono ancora foto del fotografo in questa galleria.'}
                         </p>
                       </div>
                     </div>
@@ -1171,27 +1274,53 @@ export default function Gallery() {
                             </ol>
                           </div>
                           
-                          <div className="flex items-center justify-center gap-6 mb-4 text-sm text-gray-600">
-                            {/* Counter with Tooltip */}
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center gap-2 cursor-help" data-testid="counter-selection">
-                                    <span className="text-2xl font-bold text-sage">{selectedPhotoIds.length}/{requiredPhotoCount}</span>
-                                    <span>Foto selezionate</span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs bg-sage text-white">
-                                  <p className="font-semibold mb-1">📊 Progresso Selezione</p>
-                                  <p className="text-sm">
-                                    {selectedPhotoIds.length === 0 && `Inizia selezionando le tue ${requiredPhotoCount} foto preferite!`}
-                                    {selectedPhotoIds.length > 0 && selectedPhotoIds.length < requiredPhotoCount && `Ottimo inizio! Mancano ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
-                                    {selectedPhotoIds.length === requiredPhotoCount && `✅ Perfetto! Puoi confermare la selezione.`}
-                                    {selectedPhotoIds.length > requiredPhotoCount && `⚠️ Troppe foto! Rimuovine ${selectedPhotoIds.length - requiredPhotoCount}.`}
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                          {/* 🎨 UX Enhancement #4: Progress Bar */}
+                          <div className="mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-gray-700">Progresso</span>
+                              <span className="text-sm font-bold text-sage">{selectedPhotoIds.length}/{requiredPhotoCount}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-sage to-green-500 transition-all duration-500 ease-out rounded-full"
+                                style={{ width: `${Math.min((selectedPhotoIds.length / requiredPhotoCount) * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* 🎨 UX Enhancement #6: Smart Message */}
+                          {smartMessage && (
+                            <div className={`mb-4 p-3 rounded-lg bg-white/80 border-2 ${smartMessage.color === 'text-sage' ? 'border-sage' : smartMessage.color === 'text-red-600' ? 'border-red-300' : 'border-blue-300'}`}>
+                              <p className={`text-center font-semibold ${smartMessage.color}`}>
+                                <span className="text-2xl mr-2">{smartMessage.emoji}</span>
+                                {smartMessage.text}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* 🎨 UX Enhancement #1 & #5: Toggle Filtro + Sidebar */}
+                          <div className="flex items-center justify-center gap-4 mb-4">
+                            <Button
+                              variant={showOnlySelected ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setShowOnlySelected(!showOnlySelected)}
+                              disabled={selectedPhotoIds.length === 0}
+                              className={showOnlySelected ? "bg-sage hover:bg-sage/90" : ""}
+                              data-testid="button-toggle-selected-only"
+                            >
+                              {showOnlySelected ? '✓ Solo Selezionate' : '👁️ Tutte le Foto'}
+                              {selectedPhotoIds.length > 0 && ` (${selectedPhotoIds.length})`}
+                            </Button>
+                            
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowSidebar(!showSidebar)}
+                              disabled={selectedPhotoIds.length === 0}
+                              data-testid="button-toggle-sidebar"
+                            >
+                              {showSidebar ? '✕ Nascondi' : '🖼️ Anteprima'} {selectedPhotoIds.length > 0 && `(${selectedPhotoIds.length})`}
+                            </Button>
                           </div>
                           {selectionDeadline && (
                             <p className="text-sm text-gray-500">
@@ -1208,14 +1337,71 @@ export default function Gallery() {
                         </div>
                       )}
 
+                      {/* 🎨 UX Enhancement #5: Sidebar con miniature selezionate */}
+                      {isSelectionMode && selectionStatus !== 'completed' && (
+                        <Sheet open={showSidebar} onOpenChange={setShowSidebar}>
+                          <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto">
+                            <SheetHeader>
+                              <SheetTitle className="font-playfair text-2xl text-sage">
+                                🖼️ Foto Selezionate
+                              </SheetTitle>
+                              <SheetDescription>
+                                {selectedPhotoIds.length === 0 
+                                  ? 'Nessuna foto selezionata ancora'
+                                  : `${selectedPhotoIds.length} di ${requiredPhotoCount} foto selezionate`
+                                }
+                              </SheetDescription>
+                            </SheetHeader>
+                            
+                            <div className="mt-6 space-y-4">
+                              {selectedPhotoIds.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">
+                                  <p className="text-4xl mb-4">📷</p>
+                                  <p>Inizia a selezionare le tue foto preferite!</p>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-2 gap-3">
+                                  {selectedPhotoIds.map((photoId, idx) => {
+                                    const photo = displayPhotos.find(p => p.id === photoId);
+                                    if (!photo) return null;
+                                    
+                                    return (
+                                      <div key={photoId} className="relative group">
+                                        <div className="aspect-square overflow-hidden rounded-lg border-2 border-sage/30">
+                                          <img 
+                                            src={photo.url} 
+                                            alt={`Selezionata ${idx + 1}`}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        </div>
+                                        <div className="absolute top-2 left-2 bg-sage text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                                          {idx + 1}
+                                        </div>
+                                        <button
+                                          onClick={() => handleTogglePhotoSelection(photoId)}
+                                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                          title="Rimuovi selezione"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </SheetContent>
+                        </Sheet>
+                      )}
+
                       <div ref={galleryGridRef} className="masonry-grid">
-                        {(areFiltersActive ? filteredPhotos : photos).map((photo, index) => (
+                        {displayPhotos.map((photo, index) => (
                           <React.Fragment key={photo.id}>
                             <div className="masonry-item">
                               <div
                                 className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg transition-all duration-300 ${
                                   isSelectionMode && selectionStatus !== 'completed' && selectedPhotoIds.includes(photo.id) 
-                                    ? 'ring-4 ring-sage shadow-2xl scale-[1.02]' 
+                                    ? 'ring-6 ring-sage shadow-[0_0_20px_rgba(134,168,137,0.5)] scale-[1.02]' 
                                     : isSelectionMode && selectionStatus !== 'completed'
                                     ? 'shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50' 
                                     : 'shadow-md hover:shadow-lg'
