@@ -198,6 +198,7 @@ export default function AdminDashboard() {
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
   const [galleries, setGalleries] = useState<GalleryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
@@ -868,16 +869,27 @@ export default function AdminDashboard() {
     }
   };
 
-  // Filtra le gallerie in base alla query di ricerca
+  // Filtra le gallerie in base alla query di ricerca E tipo (generiche/special)
   const filteredGalleries = galleries.filter(gallery => {
-    if (!searchQuery) return true;
+    // Filtro ricerca testuale
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = (
+        gallery.name.toLowerCase().includes(query) ||
+        gallery.code.toLowerCase().includes(query) ||
+        gallery.date.toLowerCase().includes(query)
+      );
+      if (!matchesSearch) return false;
+    }
 
-    const query = searchQuery.toLowerCase();
-    return (
-      gallery.name.toLowerCase().includes(query) ||
-      gallery.code.toLowerCase().includes(query) ||
-      gallery.date.toLowerCase().includes(query)
-    );
+    // Filtro tipo galleria
+    if (galleryTypeFilter === 'generic') {
+      return !gallery.specialTheme; // Generiche = senza specialTheme
+    } else if (galleryTypeFilter === 'special') {
+      return !!gallery.specialTheme; // Special = con specialTheme
+    }
+    
+    return true; // 'all' mostra tutte
   });
 
   // Calcola gli indici per la paginazione delle gallerie
@@ -1089,6 +1101,37 @@ export default function AdminDashboard() {
                       <Plus className="mr-2 h-4 w-4" /> Nuova Galleria Evento
                     </Button>
                   </div>
+                </div>
+
+                {/* 🎨 Filtri Tipo Galleria */}
+                <div className="flex gap-2 mb-4">
+                  <Button
+                    variant={galleryTypeFilter === 'generic' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setGalleryTypeFilter('generic')}
+                    className="flex items-center gap-2"
+                    data-testid="filter-generic-galleries"
+                  >
+                    🏠 Generiche
+                  </Button>
+                  <Button
+                    variant={galleryTypeFilter === 'special' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setGalleryTypeFilter('special')}
+                    className="flex items-center gap-2"
+                    data-testid="filter-special-galleries"
+                  >
+                    🎨 Special/Tematiche
+                  </Button>
+                  <Button
+                    variant={galleryTypeFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setGalleryTypeFilter('all')}
+                    className="flex items-center gap-2"
+                    data-testid="filter-all-galleries"
+                  >
+                    📋 Tutte
+                  </Button>
                 </div>
 
                 {/* Skeleton loader durante il caricamento */}

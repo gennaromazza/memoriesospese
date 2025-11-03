@@ -348,6 +348,19 @@ export default function GalleryManagementWorkspace() {
                   </div>
                 </div>
 
+                {/* 📝 Note del Cliente */}
+                {gallery?.selectionNotes && (
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-gray mb-2 flex items-center gap-2">
+                      <span>💬</span>
+                      Note del Cliente
+                    </h4>
+                    <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed" data-testid="text-selection-notes">
+                      {gallery.selectionNotes}
+                    </p>
+                  </div>
+                )}
+
                 {/* Selected Photos Grid */}
                 {selectedPhotos.length > 0 ? (
                   <div className="space-y-4">

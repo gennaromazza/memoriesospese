@@ -19,6 +19,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import ImageLightbox from "@/components/ImageLightbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import GalleryHeader from "@/components/gallery/GalleryHeader";
 import YouTubeEmbed from "@/components/gallery/YouTubeEmbed";
 import LoadMoreButton from "@/components/gallery/LoadMoreButton";
@@ -135,6 +136,7 @@ export default function Gallery() {
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
   const [isRequestingModification, setIsRequestingModification] = useState(false);
+  const [selectionNotes, setSelectionNotes] = useState(''); // 📝 Note aggiuntive cliente
   
   // 🎨 UX Enhancement States
   const [showOnlySelected, setShowOnlySelected] = useState(false); // Filtro solo foto selezionate
@@ -342,6 +344,7 @@ export default function Gallery() {
       await GalleryService.updateGallery(galleryData.id, {
         selectedPhotoIds,
         selectionStatus: 'completed',
+        selectionNotes: selectionNotes.trim(), // 📝 Salva sempre note cliente (anche se vuote per permettere cancellazione)
       });
 
       // Send email notification to admin (Task 17)
@@ -384,7 +387,7 @@ export default function Gallery() {
     } finally {
       setIsSubmittingSelection(false);
     }
-  }, [id, user, selectedPhotoIds, requiredPhotoCount, galleryData, toast, refreshGallery]);
+  }, [id, user, selectedPhotoIds, selectionNotes, requiredPhotoCount, galleryData, toast, refreshGallery]);
 
   // Request modification of completed selection
   const handleRequestModification = useCallback(async () => {
@@ -414,7 +417,7 @@ export default function Gallery() {
           galleryCode: galleryData.code,
           galleryName: galleryData.name,
           userEmail: user.email,
-          userName: userProfile?.name || user.email,
+          userName: userProfile?.displayName || user.email,
           requiredPhotoCount,
           currentSelectionCount: selectedPhotoIds.length,
         }),
@@ -612,6 +615,7 @@ export default function Gallery() {
     return [...photos, ...guestPhotos];
   }, [photos, guestPhotos]);
 
+  // 🔍 UX Enhancement: Apre lightbox usando displayPhotos (supporta filtro "Solo Selezionate")
   const openLightbox = (index: number) => {
     setCurrentPhotoIndex(index);
     setLightboxOpen(true);
@@ -1406,7 +1410,15 @@ export default function Gallery() {
                                     ? 'shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50' 
                                     : 'shadow-md hover:shadow-lg'
                                 }`}
-                                onClick={() => (isSelectionMode && selectionStatus !== 'completed') ? handleTogglePhotoSelection(photo.id) : openLightbox(index)}
+                                onClick={() => {
+                                  // In modalità selezione: click foto = seleziona/deseleziona
+                                  if (isSelectionMode && selectionStatus !== 'completed') {
+                                    handleTogglePhotoSelection(photo.id);
+                                  } else {
+                                    // Altrimenti apre lightbox
+                                    openLightbox(index);
+                                  }
+                                }}
                               >
                                 <img
                                   src={photo.url}
@@ -1423,6 +1435,23 @@ export default function Gallery() {
                                   }}
                                   title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
                                 />
+                                
+                                {/* 👁️ UX Enhancement: Bottone Espandi/Zoom in modalità selezione */}
+                                {isSelectionMode && selectionStatus !== 'completed' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation(); // Previene trigger del click sulla foto
+                                      openLightbox(index);
+                                    }}
+                                    className="absolute top-3 left-3 z-20 bg-blue-gray/90 hover:bg-blue-gray text-white rounded-full w-9 h-9 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                    title="Visualizza a schermo intero"
+                                    data-testid="button-expand-photo"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                    </svg>
+                                  </button>
+                                )}
                                 
                                 {/* Selection Mode Checkbox Badge - nascosto quando completata */}
                                 {isSelectionMode && selectionStatus !== 'completed' && (
@@ -1506,6 +1535,26 @@ export default function Gallery() {
                                   : `Seleziona ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
                               </p>
                             </div>
+
+                            {/* 📝 Campo Note Aggiuntive */}
+                            <div className="mb-6 text-left">
+                              <label htmlFor="selection-notes" className="block text-sm font-semibold text-blue-gray mb-2">
+                                💬 Note aggiuntive (opzionale)
+                              </label>
+                              <Textarea
+                                id="selection-notes"
+                                value={selectionNotes}
+                                onChange={(e) => setSelectionNotes(e.target.value)}
+                                placeholder="Es: vorrei più foto del taglio torta, preferisco foto luminose, ecc..."
+                                className="w-full min-h-[100px] resize-none border-sage/30 focus:border-sage focus:ring-sage"
+                                maxLength={500}
+                                data-testid="textarea-selection-notes"
+                              />
+                              <p className="text-xs text-gray-500 mt-1 text-right">
+                                {selectionNotes.length}/500 caratteri
+                              </p>
+                            </div>
+
                             <Button
                               onClick={handleConfirmSelection}
                               disabled={selectedPhotoIds.length !== requiredPhotoCount || isSubmittingSelection || isDeadlinePassed}
@@ -1761,11 +1810,11 @@ export default function Gallery() {
       {/* Instagram Call to Action e Footer */}
       <GalleryFooter studioSettings={studioSettings} />
 
-      {/* Photo Lightbox */}
+      {/* Photo Lightbox - usa displayPhotos in modalità selezione per supportare filtro "Solo Selezionate" */}
       <ImageLightbox
         isOpen={lightboxOpen}
         onClose={closeLightbox}
-        photos={allPhotos.map(photo => ({
+        photos={(activeTab === 'photographer' && isSelectionMode && selectionStatus !== 'completed' ? displayPhotos : allPhotos).map(photo => ({
           id: photo.id,
           name: photo.name,
           url: photo.url,

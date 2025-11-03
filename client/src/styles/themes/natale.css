@@ -1,54 +1,17 @@
 /* 🎄 Tema Natale Country - Eleganza Rustica con Palette October Mist ✨ */
 
-/* === CURSORE STELLINA NATALIZIA === */
-.theme-natale,
-.theme-natale * {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23FFD700" stroke="%23FFF" stroke-width="0.5" d="M12 2l2.4 7.4h7.6l-6 4.6 2.3 7.4-6.3-4.6-6.3 4.6 2.3-7.4-6-4.6h7.6z"/></svg>'), auto !important;
-}
-
-.theme-natale button,
-.theme-natale a,
-.theme-natale input,
-.theme-natale textarea {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23FFD700" stroke="%23FFF" stroke-width="0.5" d="M12 2l2.4 7.4h7.6l-6 4.6 2.3 7.4-6.3-4.6-6.3 4.6 2.3-7.4-6-4.6h7.6z"/></svg>'), pointer !important;
-}
-
-/* === SFONDO COUNTRY RUSTICO CON TONALITÀ NATURALI === */
+/* === SFONDO NEUTRO LEGGIBILE (Fix UX) === */
 .theme-natale {
-  background: linear-gradient(135deg, 
-    #f5f0e8 0%,     /* off-white caldo */
-    #e8dcc8 15%,    /* beige caldo */
-    #d4c4a8 30%,    /* beige/cream */
-    #e8dcc8 45%,
-    #f5f0e8 60%,
-    #e8dcc8 75%,
-    #d4c4a8 90%,
-    #f5f0e8 100%
-  );
-  background-size: 400% 400%;
-  animation: country-warmth 20s ease infinite;
+  background: #f5f0e8; /* Beige/crema caldo uniforme */
   background-attachment: fixed;
   position: relative;
   overflow-x: hidden;
   min-height: 100vh;
 }
 
-@keyframes country-warmth {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-/* Dark mode - tonalità terrose scure */
+/* Dark mode - tonalità terrosa scura */
 .theme-natale.dark {
-  background: linear-gradient(135deg, 
-    #2a2520 0%,     /* marrone scuro */
-    #3a3530 25%,    /* marrone medio */
-    #2a2520 50%, 
-    #3a3530 75%, 
-    #2a2520 100%
-  );
-  background-size: 400% 400%;
-  animation: country-warmth 20s ease infinite;
+  background: #2a2520; /* Marrone scuro uniforme */
 }
 
 /* === TEXTURE LEGNO RUSTICO === */
@@ -72,162 +35,8 @@
   z-index: 0;
 }
 
-/* === NEVE CHE CADE - LAYER 1 (Fiocchi Grandi) === */
-.theme-natale::after {
-  content: '❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄';
-  position: fixed;
-  top: -150px;
-  left: 0;
-  width: 100%;
-  font-size: 28px;
-  color: rgba(255, 255, 255, 0.7);
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-  animation: snowfall-1 15s linear infinite;
-  pointer-events: none;
-  z-index: 50;
-  letter-spacing: 80px;
-  line-height: 120px;
-}
-
-@keyframes snowfall-1 {
-  0% {
-    transform: translateY(-150px) translateX(0) rotate(0deg);
-    opacity: 0;
-  }
-  10% { opacity: 0.7; }
-  90% { opacity: 0.5; }
-  100% {
-    transform: translateY(calc(100vh + 150px)) translateX(30px) rotate(180deg);
-    opacity: 0;
-  }
-}
-
-/* === NEVE CHE CADE - LAYER 2 (Fiocchi Medi) === */
-.theme-natale .snow-layer-2 {
-  content: '❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅';
-  position: fixed;
-  top: -120px;
-  left: 5%;
-  width: 90%;
-  font-size: 20px;
-  color: rgba(255, 255, 255, 0.6);
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
-  animation: snowfall-2 20s linear infinite;
-  pointer-events: none;
-  z-index: 49;
-  letter-spacing: 100px;
-  line-height: 100px;
-}
-
-@keyframes snowfall-2 {
-  0% {
-    transform: translateY(-120px) translateX(0) rotate(0deg);
-    opacity: 0;
-  }
-  15% { opacity: 0.6; }
-  85% { opacity: 0.4; }
-  100% {
-    transform: translateY(calc(100vh + 120px)) translateX(-20px) rotate(-150deg);
-    opacity: 0;
-  }
-}
-
-/* === NEVE CHE CADE - LAYER 3 (Fiocchi Piccoli) === */
-.theme-natale .snow-layer-3 {
-  content: '❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅';
-  position: fixed;
-  top: -100px;
-  left: 10%;
-  width: 80%;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.5);
-  text-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
-  animation: snowfall-3 25s linear infinite;
-  pointer-events: none;
-  z-index: 48;
-  letter-spacing: 60px;
-  line-height: 80px;
-}
-
-@keyframes snowfall-3 {
-  0% {
-    transform: translateY(-100px) translateX(0) rotate(0deg);
-    opacity: 0;
-  }
-  20% { opacity: 0.5; }
-  80% { opacity: 0.3; }
-  100% {
-    transform: translateY(calc(100vh + 100px)) translateX(15px) rotate(90deg);
-    opacity: 0;
-  }
-}
-
-/* === ACCUMULO NEVE SUL FONDO === */
-.theme-natale .snow-accumulation {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 120px;
-  background: linear-gradient(to top,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.85) 20%,
-    rgba(255, 255, 255, 0.7) 40%,
-    rgba(245, 240, 232, 0.5) 60%,
-    rgba(245, 240, 232, 0.3) 80%,
-    transparent 100%
-  );
-  pointer-events: none;
-  z-index: 45;
-  box-shadow: 
-    inset 0 -2px 10px rgba(200, 220, 255, 0.3),
-    inset 0 2px 20px rgba(255, 255, 255, 0.4);
-}
-
-/* === EFFETTO NEVE ACCUMULATA CON TEXTURE === */
-.theme-natale .snow-accumulation::before {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background-image: 
-    radial-gradient(ellipse at 10% 100%, rgba(255, 255, 255, 0.9) 0%, transparent 40%),
-    radial-gradient(ellipse at 30% 100%, rgba(255, 255, 255, 0.8) 0%, transparent 35%),
-    radial-gradient(ellipse at 50% 100%, rgba(255, 255, 255, 0.9) 0%, transparent 40%),
-    radial-gradient(ellipse at 70% 100%, rgba(255, 255, 255, 0.85) 0%, transparent 38%),
-    radial-gradient(ellipse at 90% 100%, rgba(255, 255, 255, 0.9) 0%, transparent 42%);
-  background-size: 20% 100%, 20% 100%, 20% 100%, 20% 100%, 20% 100%;
-  background-position: 0% 100%, 25% 100%, 50% 100%, 75% 100%, 100% 100%;
-  background-repeat: no-repeat;
-}
-
-/* === CRISTALLI DI GHIACCIO SULLA NEVE === */
-.theme-natale .snow-accumulation::after {
-  content: '❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄';
-  position: absolute;
-  bottom: 20px;
-  left: 0;
-  width: 100%;
-  font-size: 16px;
-  color: rgba(200, 220, 255, 0.4);
-  text-shadow: 0 0 8px rgba(200, 220, 255, 0.5);
-  letter-spacing: 100px;
-  text-align: center;
-  animation: ice-sparkle 4s ease-in-out infinite;
-}
-
-@keyframes ice-sparkle {
-  0%, 100% { 
-    opacity: 0.4;
-    text-shadow: 0 0 8px rgba(200, 220, 255, 0.5);
-  }
-  50% { 
-    opacity: 0.7;
-    text-shadow: 0 0 15px rgba(200, 220, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6);
-  }
-}
+/* === NEVE RIMOSSA (Fix UX: troppo invasiva) === */
+/* Layer neve e accumulo rimossi per leggibilità */
 
 /* === DECORAZIONI COUNTRY CON PALETTE OCTOBER MIST === */
 .theme-natale .country-ornaments {

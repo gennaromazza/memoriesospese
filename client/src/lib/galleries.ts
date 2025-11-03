@@ -53,6 +53,7 @@ export interface Gallery {
   selectedPhotoIds?: string[];
   selectionDeadline?: any;
   selectionDeadlineEnforced?: boolean;
+  selectionNotes?: string; // Note cliente durante selezione foto
   
   // Booking Integration
   bookingId?: string;
