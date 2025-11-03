@@ -16,7 +16,6 @@ import EditGalleryModal from "@/components/EditGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
 import UserManager from "@/components/UserManager";
 import EmailStatusPanel from "@/components/EmailStatusPanel";
-import SecurityQuestionManager from "@/components/SecurityQuestionManager";
 import ProductsManager from "@/components/ProductsManager";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -204,8 +203,6 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa'>('galleries');
-  const [securityGalleryId, setSecurityGalleryId] = useState<string | null>(null);
-  const [showSecurityModal, setShowSecurityModal] = useState(false);
 
   // Detect if admin came from a specific gallery
   const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
@@ -1256,18 +1253,6 @@ export default function AdminDashboard() {
                                   </PopoverContent>
                                 </Popover>
                                 <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
-                                  onClick={() => {
-                                    setSecurityGalleryId(gallery.id);
-                                    setShowSecurityModal(true);
-                                  }}
-                                  title="Configura domanda di sicurezza"
-                                >
-                                  <Shield className="h-4 w-4 text-blue-600" />
-                                </Button>
-                                <Button
                                   variant="destructive"
                                   size="icon"
                                   className="h-8 w-8"
@@ -1827,31 +1812,6 @@ export default function AdminDashboard() {
           onClose={closeEditModal}
           gallery={selectedGallery}
         />
-      )}
-
-      {/* Modale per configurazione domanda di sicurezza */}
-      {securityGalleryId && (
-        <div className={`fixed inset-0 z-50 ${showSecurityModal ? 'flex' : 'hidden'} items-center justify-center bg-black bg-opacity-50`}>
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Configurazione Domanda di Sicurezza</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowSecurityModal(false);
-                  setSecurityGalleryId(null);
-                }}
-              >
-                Chiudi
-              </Button>
-            </div>
-            <SecurityQuestionManager
-              galleryId={securityGalleryId}
-              initialData={{}}
-            />
-          </div>
-        </div>
       )}
     </div>
   );
