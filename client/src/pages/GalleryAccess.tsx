@@ -55,7 +55,9 @@ export default function GalleryAccess() {
           if (docSnapshot.exists()) {
             const galleryData = docSnapshot.data();
             const docId = docSnapshot.id;
-            const hasPassword = !!galleryData.password;
+            // SICUREZZA: usa hasPassword flag boolean dal documento (NO lettura password in chiaro)
+            const hasPassword = galleryData.hasPassword === true;
+            const hasSpecialPin = !!galleryData.specialTheme; // Se ha tema, probabilmente ha PIN
             
             setGalleryDetails({ 
               id: docId,
@@ -63,12 +65,11 @@ export default function GalleryAccess() {
               date: galleryData.date,
               location: galleryData.location,
               hasPassword: hasPassword,
-              specialPin: galleryData.specialPin,
               specialTheme: galleryData.specialTheme
             });
 
-            // Se la galleria non ha password E non ha specialPin, accesso diretto
-            if (!hasPassword && !galleryData.specialPin) {
+            // Se la galleria non ha password E non ha tema (quindi no PIN), accesso diretto
+            if (!hasPassword && !hasSpecialPin) {
               localStorage.setItem(`gallery_auth_${id}`, "true");
               navigate(createUrl(`/view/${id}`));
             }
@@ -78,7 +79,9 @@ export default function GalleryAccess() {
         } else {
           const docId = querySnapshot.docs[0].id;
           const galleryData = querySnapshot.docs[0].data();
-          const hasPassword = !!galleryData.password;
+          // SICUREZZA: usa hasPassword flag boolean dal documento (NO lettura password in chiaro)
+          const hasPassword = galleryData.hasPassword === true;
+          const hasSpecialPin = !!galleryData.specialTheme; // Se ha tema, probabilmente ha PIN
           
           setGalleryDetails({ 
             id: docId,
@@ -86,12 +89,11 @@ export default function GalleryAccess() {
             date: galleryData.date,
             location: galleryData.location,
             hasPassword: hasPassword,
-            specialPin: galleryData.specialPin,
             specialTheme: galleryData.specialTheme
           });
 
-          // Se la galleria non ha password E non ha specialPin, accesso diretto
-          if (!hasPassword && !galleryData.specialPin) {
+          // Se la galleria non ha password E non ha tema (quindi no PIN), accesso diretto
+          if (!hasPassword && !hasSpecialPin) {
             localStorage.setItem(`gallery_auth_${id}`, "true");
             navigate(createUrl(`/view/${id}`));
           }

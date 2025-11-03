@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
-import { doc, updateDoc, collection, getDocs, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp } from "firebase/firestore";
+import { doc, updateDoc, collection, getDocs, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject, getMetadata, listAll } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -676,13 +676,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Usa coverImageDesktop come fallback per vecchia coverImageUrl per retrocompatibilità
       const legacyCoverUrl = coverImageDesktopUrl || coverImageUrl;
       
-      // Prepara i dati del tema
+      // Prepara i dati del tema (SENZA password e specialPin - ora in gallerySecrets)
       const updateData: any = {
         name,
         date,
         location,
         description,
-        password,
+        hasPassword: !!password.trim(), // Solo flag boolean per sapere se c'è password
         coverImageUrl: legacyCoverUrl, // Retrocompatibilità
         coverImageMobile: coverImageMobileUrl || null,
         coverImageDesktop: coverImageDesktopUrl || null,
@@ -702,17 +702,36 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         updateData.selectedPhotoIds = [];
       }
 
-      // Gestisci tema e PIN
+      // Gestisci tema (solo ID tema, NO PIN qui)
       if (specialTheme !== 'none') {
         updateData.specialTheme = specialTheme;
-        updateData.specialPin = specialPin.trim();
       } else {
-        // Rimuovi tema se impostato su "none"
         updateData.specialTheme = null;
-        updateData.specialPin = null;
       }
 
+      // AGGIORNA DOCUMENTO PUBBLICO (senza password/PIN)
       await updateDoc(galleryRef, updateData);
+
+      // SALVA PASSWORD E SPECIAL PIN in collection protetta `gallerySecrets`
+      const secretsRef = doc(db, "gallerySecrets", gallery.id);
+      const secretsData: any = {};
+      
+      if (password.trim()) {
+        secretsData.password = password.trim();
+      } else {
+        secretsData.password = null; // Rimuovi password se vuota
+      }
+      
+      if (specialTheme !== 'none' && specialPin.trim()) {
+        secretsData.specialPin = specialPin.trim();
+      } else {
+        secretsData.specialPin = null; // Rimuovi PIN se tema è "none" o PIN vuoto
+      }
+      
+      secretsData.updatedAt = serverTimestamp();
+      
+      // Usa setDoc con merge per creare/aggiornare il documento secrets
+      await setDoc(secretsRef, secretsData, { merge: true });
 
       console.log('✅ Galleria salvata con successo');
       

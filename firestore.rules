@@ -39,11 +39,18 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Solo admin può eliminare
     }
 
+    // Gallery Secrets - Collection separata SOLO per password/PIN (admin/server-only access)
+    match /gallerySecrets/{galleryId} {
+      allow read: if isAdmin(); // Solo admin può leggere password/PIN
+      allow write: if isAdmin(); // Solo admin può modificare password/PIN
+    }
+
     // Galleries collection
     match /galleries/{galleryId} {
-      // SICUREZZA: Permetti lettura pubblica MA blocca campi sensibili (password, specialPin)
-      // Solo admin può leggere password e specialPin
-      allow read: if true; // Lettura base permessa, ma campi sensibili nascosti tramite validazione client/server
+      // SICUREZZA: password e specialPin RIMOSSI da questo documento
+      // Ora salvati in collection separata `gallerySecrets` con accesso admin-only
+      // Questo documento contiene solo dati pubblici (nome, data, hasPassword flag, etc.)
+      allow read: if true; // Lettura pubblica sicura (no password in chiaro)
       allow create: if isSignedIn();
       allow update: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());

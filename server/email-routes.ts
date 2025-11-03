@@ -630,9 +630,8 @@ router.post("/send-gallery-password", async (req, res) => {
       });
     }
 
-    // RECUPERA GALLERIA SERVER-SIDE da Firestore
+    // VERIFICA ESISTENZA GALLERIA (documento pubblico)
     const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
-
     if (!galleryDoc) {
       console.log(`❌ Galleria ${galleryId} non trovata`);
       return res.status(404).json({
@@ -640,7 +639,9 @@ router.post("/send-gallery-password", async (req, res) => {
       });
     }
 
-    const password = galleryDoc.fields?.password?.stringValue;
+    // RECUPERA PASSWORD da collection protetta `gallerySecrets` (admin-only access)
+    const secretDoc = await getFirestoreDocument(`gallerySecrets/${galleryId}`);
+    const password = secretDoc?.fields?.password?.stringValue;
 
     if (!password) {
       console.error(`❌ Password non configurata per galleria ${galleryId}`);
@@ -648,8 +649,6 @@ router.post("/send-gallery-password", async (req, res) => {
         error: { code: "internal", message: "Gallery password not configured" },
       });
     }
-
-    // Security question feature rimossa - ora solo password
 
     // Recupera dati contatto studio
     const studioInfo = await getStudioContactInfo();
@@ -2248,7 +2247,7 @@ router.post("/saldo-received", async (req, res) => {
 /**
  * POST /api/email/verify-gallery-password
  * Verifica password galleria SERVER-SIDE senza esporla al client
- * Sicuro: password mai inviata al browser
+ * SICURO: legge password da collection protetta `gallerySecrets` (admin-only)
  */
 router.post("/verify-gallery-password", async (req, res) => {
   try {
@@ -2261,9 +2260,8 @@ router.post("/verify-gallery-password", async (req, res) => {
       });
     }
 
-    // RECUPERA GALLERIA SERVER-SIDE da Firestore
+    // VERIFICA ESISTENZA GALLERIA (documento pubblico)
     const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
-
     if (!galleryDoc) {
       console.log(`❌ Galleria ${galleryId} non trovata`);
       return res.status(404).json({
@@ -2271,10 +2269,13 @@ router.post("/verify-gallery-password", async (req, res) => {
       });
     }
 
-    const correctPassword = galleryDoc.fields?.password?.stringValue;
-
-    // Se la galleria non ha password, l'accesso è libero
+    // RECUPERA PASSWORD da collection protetta `gallerySecrets` (admin-only access)
+    const secretDoc = await getFirestoreDocument(`gallerySecrets/${galleryId}`);
+    
+    // Se non esiste documento secrets O non ha password, accesso libero
+    const correctPassword = secretDoc?.fields?.password?.stringValue;
     if (!correctPassword) {
+      console.log(`✅ Galleria ${galleryId} senza password, accesso libero`);
       return res.status(200).json({
         result: { valid: true, message: "Gallery has no password, access granted" }
       });
