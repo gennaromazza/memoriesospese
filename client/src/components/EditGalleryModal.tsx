@@ -105,6 +105,39 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   // Traccia l'ID della galleria per evitare loop infiniti
   const currentGalleryId = useRef<string | null>(null);
 
+  // MUTUA ESCLUSIVITÀ: Password e PIN non possono coesistere
+  const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+    
+    // Se viene impostata una password, rimuovi tema e PIN
+    if (newPassword.trim()) {
+      if (specialTheme !== 'none') {
+        console.log('🔄 Password impostata - rimozione tema e PIN');
+        setSpecialTheme('none');
+        setSpecialPin('');
+        toast({
+          title: "Modalità cambiata",
+          description: "Passato a galleria con password. Il tema speciale e il PIN sono stati rimossi.",
+        });
+      }
+    }
+  };
+
+  const handleSpecialThemeChange = (newTheme: string) => {
+    setSpecialTheme(newTheme);
+    
+    // Se viene selezionato un tema (diverso da 'none'), rimuovi la password
+    if (newTheme !== 'none' && password.trim()) {
+      console.log('🔄 Tema speciale selezionato - rimozione password');
+      setPassword('');
+      toast({
+        title: "Modalità cambiata",
+        description: "Passato a galleria speciale con PIN. La password è stata rimossa.",
+      });
+    }
+  };
+
   // Carica le foto dalla galleria (memoizzata per performance)
   const loadPhotos = useCallback(async () => {
     if (!gallery) {
@@ -974,20 +1007,22 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 />
               </div>
               <div>
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Password {specialTheme !== 'none' && <span className="text-xs text-muted-foreground">(disabilitata - tema speciale attivo)</span>}</Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={handlePasswordChange}
                     placeholder="Password di accesso"
                     className="pr-10"
+                    disabled={specialTheme !== 'none'}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    disabled={specialTheme !== 'none'}
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -1013,8 +1048,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             {/* Special Theme Section */}
             <div className="border-t pt-4 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="specialTheme">Tema Stagionale</Label>
-                <Select value={specialTheme} onValueChange={setSpecialTheme}>
+                <Label htmlFor="specialTheme">Tema Stagionale {password.trim() && <span className="text-xs text-muted-foreground">(password impostata - rimuovi per abilitare)</span>}</Label>
+                <Select value={specialTheme} onValueChange={handleSpecialThemeChange} disabled={password.trim() !== ''}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleziona tema (opzionale)" />
                   </SelectTrigger>
@@ -1028,7 +1063,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-muted-foreground">
-                  Tema corrente: {specialTheme !== 'none' ? availableThemes.find(t => t.id === specialTheme)?.name : 'Nessuno'}
+                  {password.trim() ? '🔒 Rimuovi la password per abilitare i temi speciali' : `Tema corrente: ${specialTheme !== 'none' ? availableThemes.find(t => t.id === specialTheme)?.name : 'Nessuno'}`}
                 </p>
               </div>
 
