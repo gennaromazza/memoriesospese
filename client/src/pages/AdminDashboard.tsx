@@ -5,6 +5,8 @@ import { getAuth, signOut } from "firebase/auth";
 import { db, storage, auth } from "@/lib/firebase";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
+import { GalleryService, type Gallery } from "@/lib/galleries";
+import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatPasswordRequestsForExcel, exportToExcel } from "@/lib/excelExport";
 import { ref, listAll, deleteObject, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -197,11 +199,9 @@ export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
-  const [galleries, setGalleries] = useState<GalleryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa'>('galleries');
   const [securityGalleryId, setSecurityGalleryId] = useState<string | null>(null);
@@ -247,6 +247,19 @@ export default function AdminDashboard() {
   
   // Hook Firebase Auth per verifica autenticazione asincrona
   const { user, isLoading: authLoading, isAdmin: isFirebaseAdmin } = useFirebaseAuth();
+
+  // Query React Query per gallerie (solo quando auth è pronto)
+  const { 
+    data: galleries = [], 
+    isLoading, 
+    error: galleriesError
+  } = useQuery<Gallery[]>({
+    queryKey: ['galleries', 'admin'],
+    queryFn: GalleryService.getAllGalleriesForAdmin,
+    enabled: !authLoading && !!user, // Abilita solo quando auth è pronto e user esiste
+    retry: 2, // Riprova 2 volte in caso di errore
+    staleTime: 30000, // Cache valida per 30 secondi
+  });
 
   // Check authentication and referrer gallery
   useEffect(() => {
@@ -315,8 +328,7 @@ export default function AdminDashboard() {
   // Fetch data (galleries, password requests and studio settings)
   useEffect(() => {
     async function loadAllData() {
-      // Carica gallerie
-      await fetchData();
+      // Gallerie caricate via React Query (vedi hook sopra)
 
       // Carica richieste password
       try {
@@ -482,8 +494,8 @@ export default function AdminDashboard() {
 
   const closeModal = () => {
     setIsModalOpen(false);
-    // Refresh the gallery list
-    fetchData();
+    // Refresh the gallery list via React Query
+    queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
   };
 
   const openEditModal = (gallery: GalleryItem) => {
@@ -494,8 +506,8 @@ export default function AdminDashboard() {
   const closeEditModal = () => {
     setIsEditModalOpen(false);
     setSelectedGallery(null);
-    // Refresh the gallery list
-    fetchData();
+    // Refresh the gallery list via React Query
+    queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
   };
 
   // Verifica se l'utente corrente è admin
@@ -505,70 +517,17 @@ export default function AdminDashboard() {
     return user?.email === 'gennaro.mazzacane@gmail.com';
   };
 
-  // Funzione di fetch data da usare anche dopo le modifiche
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        // Reindirizza al login se non autenticato
-        navigate(createUrl("/admin"));
-        setIsLoading(false);
-        return;
-      }
-
-      // Controlla se l'utente è un amministratore
-      const isAdmin = user.email === 'gennaro.mazzacane@gmail.com';
-
-      let galleriesQuery;
-      if (isAdmin) {
-        // Gli amministratori vedono tutte le gallerie
-        galleriesQuery = query(
-          collection(db, "galleries"),
-          orderBy("createdAt", "desc")
-        );
-      } else {
-        // Query con filtro per userId del fotografo corrente
-        galleriesQuery = query(
-          collection(db, "galleries"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc")
-        );
-      }
-      const gallerySnapshot = await getDocs(galleriesQuery);
-
-      const galleryList = gallerySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          // Assicuriamoci che active sia sempre un boolean (default true se non definito)
-          active: data.active !== undefined ? data.active : true
-        };
-      }) as GalleryItem[];
-
-      // Sort by creation date, newest first
-      galleryList.sort((a, b) => {
-        const dateA = a.createdAt?.toDate?.() || new Date(0);
-        const dateB = b.createdAt?.toDate?.() || new Date(0);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      setGalleries(galleryList);
-
-
-
-    } catch (error) {
-
+  // Error handling per gallerie (React Query)
+  useEffect(() => {
+    if (galleriesError) {
+      console.error('Errore caricamento gallerie:', galleriesError);
       toast({
         title: "Errore",
         description: "Si è verificato un errore nel caricamento delle gallerie.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [galleriesError, toast]);
 
   // Elimina una richiesta di password
   const deletePasswordRequest = async (requestId: string) => {
@@ -649,12 +608,8 @@ export default function AdminDashboard() {
         updatedAt: new Date() // Track when the status was changed
       });
 
-
-
-      // Update local state
-      setGalleries(prev =>
-        prev.map(g => g.id === gallery.id ? { ...g, active: newActiveStatus } : g)
-      );
+      // Update local state via React Query
+      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
 
       toast({
         title: newActiveStatus ? "Galleria attivata" : "Galleria disattivata",
@@ -813,8 +768,8 @@ export default function AdminDashboard() {
       // 4. Elimina il documento principale della galleria
       await deleteDoc(doc(db, "galleries", gallery.id));
 
-      // 5. Aggiorna lo stato locale
-      setGalleries(prev => prev.filter(g => g.id !== gallery.id));
+      // 5. Aggiorna lo stato locale via React Query
+      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
 
       toast({
         title: "Galleria eliminata",
@@ -854,8 +809,8 @@ export default function AdminDashboard() {
         description: "La password della galleria è stata aggiornata con successo."
       });
 
-      // Update local state
-      fetchData();
+      // Update local state via React Query
+      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
 
       return true;
     } catch (error) {
@@ -1847,8 +1802,8 @@ export default function AdminDashboard() {
         isOpen={isModalOpen}
         onClose={closeModal}
         onGalleryCreated={() => {
-          // Ricarichiamo le gallerie dopo la creazione
-          fetchData();
+          // Ricarichiamo le gallerie dopo la creazione via React Query
+          queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
         }}
       />
 

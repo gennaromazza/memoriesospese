@@ -93,6 +93,31 @@ export class GalleryService {
   }
 
   /**
+   * Ottieni TUTTE le gallerie (incluse disattivate) - Solo per admin
+   */
+  static async getAllGalleriesForAdmin(): Promise<Gallery[]> {
+    try {
+      // Admin vede TUTTE le gallerie (anche disattivate)
+      const galleriesQuery = query(
+        collection(db, 'galleries'),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(galleriesQuery);
+      const galleries = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(),
+        // Assicura che active sia sempre boolean (default true)
+        active: doc.data().active !== undefined ? doc.data().active : true
+      } as Gallery));
+      
+      return galleries;
+    } catch (error) {
+      console.error('Errore recupero gallerie admin:', error);
+      throw error; // Lancia errore per error handling React Query
+    }
+  }
+
+  /**
    * Ottieni galleria per ID
    */
   static async getGalleryById(id: string): Promise<Gallery | null> {
