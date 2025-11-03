@@ -985,20 +985,6 @@ export default function Gallery() {
     <div
       className={`min-h-screen ${themeClass || "bg-off-white"} custom-cursor`}
     >
-      {/* Layer neve natalizia - solo per tema natale */}
-      {currentTheme === "natale" && (
-        <>
-          <div className="snow-layer-slow" />
-          <div className="snow-layer-2">❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅</div>
-          <div className="snow-layer-3">
-            ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅
-          </div>
-          <div className="snow-accumulation"></div>
-          <div className="christmas-lights" />
-          <div className="sparkle-stars" />
-        </>
-      )}
-
       <Navigation galleryOwner={galleryData.name} galleryCode={id} />
 
       <div>
