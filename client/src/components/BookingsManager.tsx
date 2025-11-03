@@ -157,9 +157,14 @@ export default function BookingsManager() {
     return allOrders.find(order => order.bookingId === bookingId);
   };
 
-  // Helper: Trova galleria per booking
+  // Helper: Trova galleria per booking (prima galleria trovata)
   const getGalleryByBookingId = (bookingId: string): Gallery | undefined => {
     return allGalleries.find(gallery => gallery.bookingId === bookingId);
+  };
+
+  // Helper: Trova TUTTE le gallerie collegate a un booking
+  const getGalleriesByBookingId = (bookingId: string): Gallery[] => {
+    return allGalleries.filter(gallery => gallery.bookingId === bookingId);
   };
 
   // Filtra, cerca e ordina bookings
@@ -827,6 +832,71 @@ export default function BookingsManager() {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Gallerie Collegate */}
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="font-semibold text-blue-gray flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-purple-600" />
+                  Gallerie Collegate
+                </h4>
+                {(() => {
+                  const galleries = getGalleriesByBookingId(selectedBooking.id);
+                  
+                  if (galleries.length === 0) {
+                    return (
+                      <Alert className="bg-gray-50 border-gray-200">
+                        <AlertCircle className="w-4 h-4 text-gray-600" />
+                        <AlertDescription className="text-gray-700">
+                          Nessuna galleria ancora creata per questa prenotazione.
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {galleries.map((gallery) => (
+                        <Card key={gallery.id} className="border border-purple-200 bg-purple-50/30">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <h5 className="font-semibold text-sm">{gallery.name}</h5>
+                                  {gallery.selectionStatus === 'completed' && (
+                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
+                                      ✓ Selezione Completata
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-gray-600">
+                                  <span className="font-mono bg-white px-2 py-1 rounded border">
+                                    Codice: {gallery.code}
+                                  </span>
+                                  {gallery.date && (
+                                    <span>📅 {format(new Date(gallery.date), 'dd/MM/yyyy', { locale: it })}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  window.location.href = `/admin/gallery/${gallery.id}/manage`;
+                                }}
+                                className="border-purple-500 text-purple-500 hover:bg-purple-500 hover:text-white shrink-0"
+                                data-testid={`button-open-gallery-${gallery.id}`}
+                              >
+                                <ImageIcon className="w-4 h-4 mr-1" />
+                                Apri Galleria
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Azioni rapide */}
