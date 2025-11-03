@@ -3,7 +3,6 @@
  * Fornisce type safety completa per tutta l'applicazione
  */
 
-import { SecurityQuestionType } from './schema';
 
 // ==================== FIREBASE TYPES ====================
 
@@ -33,10 +32,6 @@ export interface GalleryData {
   youtubeUrl?: string;
   photoCount: number;
   active: boolean;
-  requiresSecurityQuestion?: boolean;
-  securityQuestionType?: SecurityQuestionType;
-  securityQuestionCustom?: string;
-  securityAnswer?: string;
   createdAt: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;
 }
@@ -216,10 +211,6 @@ export interface GalleryFormData {
   password: string;
   coverImageUrl?: string;
   youtubeUrl?: string;
-  requiresSecurityQuestion?: boolean;
-  securityQuestionType?: SecurityQuestionType;
-  securityQuestionCustom?: string;
-  securityAnswer?: string;
 }
 
 export interface UserFormData {

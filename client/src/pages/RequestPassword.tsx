@@ -48,9 +48,6 @@ type RequestFormData = z.infer<typeof requestSchema>;
 export default function RequestPassword() {
   const { id } = useParams();
   const [success, setSuccess] = useState(false);
-  const [showSecurityQuestion, setShowSecurityQuestion] = useState(false);
-  const [securityAnswer, setSecurityAnswer] = useState("");
-  const [securityError, setSecurityError] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [isCheckingGallery, setIsCheckingGallery] = useState(true);
   const { toast } = useToast();
@@ -92,21 +89,13 @@ export default function RequestPassword() {
   const onSubmit = async (data: RequestFormData) => {
     if (!id || !galleryInfo) return;
     
-    // Controlla se la galleria richiede una domanda di sicurezza PRIMA di inviare la richiesta
-    if (galleryInfo.requiresSecurityQuestion && !showSecurityQuestion) {
-      // Mostra la domanda di sicurezza
-      setShowSecurityQuestion(true);
-      return;
-    }
-    
     try {
       const result = await submitPasswordRequest({
         galleryId: id,
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
-        relation: data.relation,
-        securityAnswer: securityAnswer
+        relation: data.relation
       });
 
       if (result.success && result.emailSent) {
@@ -126,41 +115,6 @@ export default function RequestPassword() {
         description: error instanceof Error ? error.message : "Si è verificato un errore durante l'invio della richiesta.",
         variant: "destructive",
       });
-    }
-  };
-
-  const handleSecurityAnswer = async () => {
-    if (!id || !galleryInfo || !securityAnswer.trim()) {
-      setSecurityError("La risposta è obbligatoria");
-      return;
-    }
-
-    setSecurityError("");
-
-    try {
-      const formData = form.getValues();
-      const result = await submitPasswordRequest({
-        galleryId: id,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        relation: formData.relation,
-        securityAnswer: securityAnswer.trim()
-      });
-
-      if (result.success && result.emailSent) {
-        setRecipientEmail(result.recipientEmail || formData.email);
-        setSuccess(true);
-        setShowSecurityQuestion(false);
-        
-        toast({
-          title: "Email inviata con successo!",
-          description: `La password è stata inviata a ${result.recipientEmail || formData.email}`,
-        });
-      }
-      
-    } catch (error) {
-      setSecurityError(error instanceof Error ? error.message : "Errore durante la verifica");
     }
   };
 
@@ -250,63 +204,6 @@ export default function RequestPassword() {
                     <Link href={createUrl("/")}>
                       <Button variant="outline">Torna alla Home</Button>
                     </Link>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : showSecurityQuestion ? (
-            <Card className="border-sage/20 shadow-md overflow-hidden">
-              <div className="absolute inset-0 opacity-5 pointer-events-none">
-                <BackgroundDecoration />
-              </div>
-              <CardContent className="pt-8 relative z-10">
-                <div className="text-center">
-                  <div className="w-32 h-32 mx-auto mb-4">
-                    <WeddingImage type="heart-balloon" className="w-full h-auto opacity-30" alt="Decorazione a tema matrimonio" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-blue-gray font-playfair mb-4">
-                    Domanda di Sicurezza
-                  </h2>
-                  <p className="text-gray-600 mb-6">
-                    Per completare la richiesta, rispondi alla domanda di sicurezza:
-                  </p>
-                  
-                  <div className="text-left space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-blue-gray mb-2">
-                        {galleryInfo?.securityQuestion}
-                      </label>
-                      <Input
-                        value={securityAnswer}
-                        onChange={(e) => setSecurityAnswer(e.target.value)}
-                        placeholder="Inserisci la tua risposta"
-                        className="w-full"
-                        autoFocus
-                      />
-                      {securityError && (
-                        <p className="mt-1 text-sm text-red-500">{securityError}</p>
-                      )}
-                    </div>
-                    
-                    <div className="flex space-x-3">
-                      <Button 
-                        onClick={handleSecurityAnswer}
-                        disabled={isLoading || !securityAnswer.trim()}
-                        className="btn-primary flex-1"
-                      >
-                        {isLoading ? "Verifica..." : "Conferma"}
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        onClick={() => {
-                          setShowSecurityQuestion(false);
-                          setSecurityAnswer("");
-                          setSecurityError("");
-                        }}
-                      >
-                        Indietro
-                      </Button>
-                    </div>
                   </div>
                 </div>
               </CardContent>

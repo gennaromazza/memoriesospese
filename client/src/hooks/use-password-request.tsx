@@ -5,9 +5,6 @@ interface GalleryInfo {
   id: string;
   name: string;
   code: string;
-  requiresSecurityQuestion: boolean;
-  securityQuestion?: string;
-  // ❌ securityAnswer rimosso - validazione ora server-side
 }
 
 interface RequestPasswordParams {
@@ -16,15 +13,12 @@ interface RequestPasswordParams {
   lastName: string;
   email: string;
   relation: string;
-  securityAnswer?: string;
 }
 
 interface PasswordRequestResult {
   success: boolean;
   emailSent?: boolean;
   recipientEmail?: string;
-  requiresSecurityQuestion?: boolean;
-  securityQuestion?: string;
   message?: string;
 }
 
@@ -115,24 +109,8 @@ export function usePasswordRequest() {
         throw new Error('Informazioni galleria non disponibili');
       }
 
-      // Se la galleria richiede una domanda di sicurezza e non è stata fornita la risposta
-      if (galleryInfo.requiresSecurityQuestion && !params.securityAnswer) {
-        setIsLoading(false);
-        return {
-          success: false,
-          requiresSecurityQuestion: true,
-          securityQuestion: galleryInfo.securityQuestion,
-          message: 'Risposta alla domanda di sicurezza richiesta'
-        };
-      }
-
-      // ❌ RIMOSSA validazione client-side security question
-      // ✅ La validazione è ora server-side in sendGalleryPassword
-      // Il server verificherà la risposta e ritornerà errore se incorretta
-
       // Invia password via email usando Firebase Function (HTTP)
       // SICUREZZA: La password viene recuperata server-side dalla Cloud Function
-      // VALIDAZIONE: Security question validata server-side (se presente)
       
       // Costruisci URL galleria
       const baseUrl = window.location.origin;
@@ -163,8 +141,7 @@ export function usePasswordRequest() {
           galleryCode: galleryInfo.code,
           firstName: params.firstName,
           lastName: params.lastName,
-          galleryUrl: galleryUrl,
-          securityAnswer: params.securityAnswer
+          galleryUrl: galleryUrl
         })
       });
 
@@ -196,8 +173,7 @@ export function usePasswordRequest() {
         email: params.email,
         relation: params.relation,
         status: "completed",
-        createdAt: serverTimestamp(),
-        securityQuestionAnswered: galleryInfo.requiresSecurityQuestion
+        createdAt: serverTimestamp()
       });
 
       // Ritorna successo con conferma email
