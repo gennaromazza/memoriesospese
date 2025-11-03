@@ -158,6 +158,11 @@ export interface Order {
   bookingId?: string; // Opzionale - collegamento a prenotazione
   galleryId?: string; // Opzionale - collegamento a galleria (può essere null se ordine standalone)
   
+  // Dati cliente (snapshot per email notifications)
+  nomeCliente?: string; // Nome completo cliente
+  emailCliente?: string; // Email cliente per notifiche
+  whatsappCliente?: string; // WhatsApp cliente
+  
   // Prodotti (array embedded - supporta multipli prodotti)
   prodotti: OrderItem[];
   

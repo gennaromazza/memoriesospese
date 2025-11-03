@@ -1637,7 +1637,7 @@ router.post("/selection-completed", async (req, res) => {
       studioInfo
     );
 
-    const subject = `✅ Selezione Completata - ${galleryName} (${clienteName})`;
+    const subject = `Selezione Completata - ${galleryName} (${clienteName})`;
 
     await sendGmailEmail(adminEmail, subject, htmlContent);
 
@@ -1766,7 +1766,7 @@ router.post("/request-selection-modification", async (req, res) => {
       studioInfo
     );
 
-    const subject = `✏️ Richiesta Modifica Selezione - ${galleryName} (${userName})`;
+    const subject = `Richiesta Modifica Selezione - ${galleryName} (${userName})`;
 
     await sendGmailEmail(adminEmail, subject, htmlContent);
 
@@ -1935,6 +1935,296 @@ router.post("/acconto-received", async (req, res) => {
     console.error("❌ Errore acconto-received email:", error);
     res.status(500).json({
       error: "Errore invio email acconto ricevuto"
+    });
+  }
+});
+
+/**
+ * Template HTML per email creazione ordine
+ * Inviata al cliente quando viene creato un nuovo ordine
+ */
+function createOrderCreatedEmailHTML(
+  clienteName: string,
+  prodottoNome: string,
+  totale: number,
+  acconto: number,
+  saldo: number,
+  prodotti: Array<{ nome: string; prezzo: number; quantita: number }>,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">Ordine Creato con Successo</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Grazie per averci scelto! Il tuo ordine per <strong style="color: #8b5a3c;">${prodottoNome}</strong> 
+          è stato creato con successo.
+        </p>
+        
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Dettagli Ordine</h3>
+          <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
+            ${prodotti.map(p => `
+              <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px 0;">${p.nome} (x${p.quantita})</td>
+                <td style="padding: 8px 0; text-align: right;">${formatCurrency(p.prezzo * p.quantita)}</td>
+              </tr>
+            `).join('')}
+            <tr style="border-top: 2px solid #8b5a3c; font-weight: bold;">
+              <td style="padding: 12px 0;">Totale:</td>
+              <td style="padding: 12px 0; text-align: right; color: #8b5a3c; font-size: 18px;">${formatCurrency(totale)}</td>
+            </tr>
+          </table>
+        </div>
+
+        ${acconto > 0 ? `
+        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Pagamenti</h4>
+          <table style="width: 100%; font-size: 14px; color: #333;">
+            <tr>
+              <td>Acconto richiesto:</td>
+              <td style="text-align: right; font-weight: bold;">${formatCurrency(acconto)}</td>
+            </tr>
+            <tr>
+              <td>Saldo rimanente:</td>
+              <td style="text-align: right; font-weight: bold;">${formatCurrency(saldo)}</td>
+            </tr>
+          </table>
+        </div>
+        ` : ''}
+
+        <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin-top: 0; margin-bottom: 10px;">Prossimi Passi</h4>
+          <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
+            <li>Ti contatteremo a breve per confermare i dettagli</li>
+            ${acconto > 0 ? '<li>Procederemo con la richiesta di acconto per iniziare la lavorazione</li>' : ''}
+            <li>Ti terremo aggiornato sullo stato dell'ordine</li>
+          </ol>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Per qualsiasi domanda, contattaci via email o telefono!
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email cancellazione acconto
+ * Inviata al cliente quando un acconto viene cancellato/stornato
+ */
+function createAccontoCancelledEmailHTML(
+  clienteName: string,
+  prodottoNome: string,
+  accontoImporto: number,
+  nuovoAccontoTotale: number,
+  nuovoSaldo: number,
+  motivo?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #6c757d; text-align: center;">Acconto Annullato</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ti informiamo che un acconto per l'ordine <strong style="color: #8b5a3c;">${prodottoNome}</strong> 
+          è stato <strong>annullato</strong>.
+        </p>
+        
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #dc3545; margin-top: 0; margin-bottom: 15px;">Dettagli Annullamento</h3>
+          <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 10px 0;">
+            <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold; color: #721c24;">
+              Acconto annullato: ${formatCurrency(accontoImporto)}
+            </p>
+            ${motivo ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #721c24; font-style: italic;">Motivo: ${motivo}</p>` : ''}
+          </div>
+        </div>
+
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">Saldo Aggiornato</h4>
+          <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 8px 0;">Acconto totale:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${formatCurrency(nuovoAccontoTotale)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 8px 0;">Saldo rimanente:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #856404;">${formatCurrency(nuovoSaldo)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0c5460;">
+            Se hai domande riguardo questa modifica, non esitare a contattarci via email o telefono. 
+            Saremo felici di chiarire ogni dubbio.
+          </p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * POST /api/email/order-created
+ * Invia email al cliente quando viene creato un nuovo ordine
+ */
+router.post("/order-created", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      prodottoNome,
+      totale,
+      acconto,
+      saldo,
+      prodotti
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteName || !prodottoNome || totale === undefined || acconto === undefined || saldo === undefined || !prodotti) {
+      return res.status(400).json({
+        error: "Parametri mancanti per email creazione ordine"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createOrderCreatedEmailHTML(
+      clienteName,
+      prodottoNome,
+      totale,
+      acconto,
+      saldo,
+      prodotti,
+      studioInfo
+    );
+
+    const subject = `Nuovo Ordine Creato - ${prodottoNome}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Ordine Creato" inviata a ${recipientEmail} per ordine ${prodottoNome}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Order created email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore order-created email:", error);
+    res.status(500).json({
+      error: "Errore invio email creazione ordine"
+    });
+  }
+});
+
+/**
+ * POST /api/email/acconto-cancelled
+ * Invia email al cliente quando un acconto viene cancellato
+ */
+router.post("/acconto-cancelled", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      prodottoNome,
+      accontoImporto,
+      nuovoAccontoTotale,
+      nuovoSaldo,
+      motivo
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteName || !prodottoNome || accontoImporto === undefined || nuovoAccontoTotale === undefined || nuovoSaldo === undefined) {
+      return res.status(400).json({
+        error: "Parametri mancanti per email cancellazione acconto"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createAccontoCancelledEmailHTML(
+      clienteName,
+      prodottoNome,
+      accontoImporto,
+      nuovoAccontoTotale,
+      nuovoSaldo,
+      motivo,
+      studioInfo
+    );
+
+    const subject = `Acconto Annullato - ${prodottoNome}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Acconto Annullato" inviata a ${recipientEmail} per ordine ${prodottoNome}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Acconto cancelled email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore acconto-cancelled email:", error);
+    res.status(500).json({
+      error: "Errore invio email cancellazione acconto"
     });
   }
 });

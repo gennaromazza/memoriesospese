@@ -341,18 +341,100 @@ export async function recordAccontoPayment(
 
 /**
  * Registra pagamento saldo (admin only)
+ * Crea transaction nel transactions array e aggiorna legacy fields
  */
 export async function recordSaldoPayment(
   orderId: string,
   metodo: "contante" | "carta" | "bonifico" | "paypal",
+  note?: string,
   data: Date = new Date(),
-): Promise<void> {
+): Promise<{ transaction: Transaction; index: number }> {
   const docRef = doc(db, COLLECTION, orderId);
+
+  // 1. Fetch ordine corrente
+  const orderSnap = await getDoc(docRef);
+  if (!orderSnap.exists()) {
+    throw new Error("Ordine non trovato");
+  }
+
+  const orderData = ensureProdottiArray(orderSnap.data());
+  const saldo = orderData.saldo || 0;
+  const transactions: Transaction[] = orderData.transactions || [];
+
+  // 2. Validation: deve esserci un saldo da pagare
+  if (saldo <= 0) {
+    throw new Error("Non c'è saldo da pagare per questo ordine");
+  }
+
+  // 3. Crea nuova transaction per saldo
+  const newTransaction: Transaction = {
+    tipo: "saldo",
+    importo: saldo,
+    metodo,
+    data: Timestamp.fromDate(data),
+    note: note?.trim() || undefined,
+    emailInviata: false, // Sarà settato a true dopo invio email
+  };
+
+  // 4. Append transaction all'array
+  const updatedTransactions = [...transactions, newTransaction];
+
+  // 5. Update Firestore con nuovi valori (sanitizza per rimuovere undefined)
   await updateDoc(
     docRef,
     sanitizeData({
+      transactions: updatedTransactions,
+      saldo: 0, // Saldo azzerato dopo pagamento
+      // Legacy fields (backward compat)
       metodoPagamentoSaldo: metodo,
       dataSaldo: Timestamp.fromDate(data),
+      updatedAt: serverTimestamp(),
+    }),
+  );
+
+  // 6. Return transaction creata e il suo index (per email notification e tracking)
+  return {
+    transaction: newTransaction,
+    index: updatedTransactions.length - 1,
+  };
+}
+
+/**
+ * Marca una transaction come "email inviata" (admin only)
+ * Utile per tracking dopo invio email notifica cliente
+ */
+export async function markTransactionEmailSent(
+  orderId: string,
+  transactionIndex: number,
+): Promise<void> {
+  const docRef = doc(db, COLLECTION, orderId);
+
+  // 1. Fetch ordine corrente
+  const orderSnap = await getDoc(docRef);
+  if (!orderSnap.exists()) {
+    throw new Error("Ordine non trovato");
+  }
+
+  const orderData = ensureProdottiArray(orderSnap.data());
+  const transactions: Transaction[] = orderData.transactions || [];
+
+  // 2. Validation: index valido
+  if (transactionIndex < 0 || transactionIndex >= transactions.length) {
+    throw new Error(`Transaction index ${transactionIndex} non valido`);
+  }
+
+  // 3. Update emailInviata flag
+  const updatedTransactions = [...transactions];
+  updatedTransactions[transactionIndex] = {
+    ...updatedTransactions[transactionIndex],
+    emailInviata: true,
+  };
+
+  // 4. Update Firestore
+  await updateDoc(
+    docRef,
+    sanitizeData({
+      transactions: updatedTransactions,
       updatedAt: serverTimestamp(),
     }),
   );
@@ -374,7 +456,7 @@ export async function addAccontoPayment(
   metodo: "contante" | "carta" | "bonifico" | "paypal",
   note?: string,
   data: Date = new Date(),
-): Promise<Transaction> {
+): Promise<{ transaction: Transaction; index: number }> {
   const docRef = doc(db, COLLECTION, orderId);
 
   // 1. Fetch ordine corrente per validation
@@ -408,7 +490,7 @@ export async function addAccontoPayment(
     importo,
     metodo,
     data: Timestamp.fromDate(data),
-    note: note?.trim() || null,
+    note: note?.trim() || undefined,
     emailInviata: false, // Sarà settato a true dopo invio email
   };
 
@@ -436,6 +518,9 @@ export async function addAccontoPayment(
     }),
   );
 
-  // 8. Return transaction creata (per email notification)
-  return newTransaction;
+  // 8. Return transaction creata e il suo index (per email notification e tracking)
+  return {
+    transaction: newTransaction,
+    index: updatedTransactions.length - 1,
+  };
 }

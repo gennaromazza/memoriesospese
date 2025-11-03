@@ -9,6 +9,7 @@ import {
   recordSaldoPayment,
   updateOrder,
   createOrder,
+  markTransactionEmailSent,
 } from '@/lib/orders';
 import { getAllBookings } from '@/lib/bookings';
 import type { Order, Booking, InsertOrder } from '@shared/booking-types';
@@ -137,12 +138,14 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
       metodo: 'contante' | 'carta' | 'bonifico' | 'paypal';
       note?: string;
     }) => addAccontoPayment(orderId, importo, metodo, note),
-    onSuccess: async (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    onSuccess: async (result, variables) => {
+      // Estrai transaction e index dal risultato
+      const { transaction, index: transactionIndex } = result;
       
       // Recupera ordine per email (prima dell'aggiornamento, calcola i nuovi valori)
       const order = orders.find(o => o.id === variables.orderId);
-      if (order && order.emailCliente && order.nomeCliente) {
+      // Guard: skip email se emailCliente è vuota/blank
+      if (order && order.emailCliente?.trim() && order.nomeCliente?.trim()) {
         try {
           // Calcola valori aggiornati per email
           const accontoAttuale = order.acconto || 0;
@@ -174,11 +177,22 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
           });
           
           console.log('✅ Email acconto inviata a', order.emailCliente);
+          
+          // Marca transaction come email inviata
+          try {
+            await markTransactionEmailSent(variables.orderId, transactionIndex);
+            console.log('✅ Transaction marcata come email inviata');
+          } catch (markError) {
+            console.error('❌ Errore marking email sent:', markError);
+          }
         } catch (emailError) {
           console.error('❌ Errore invio email acconto:', emailError);
           // Non bloccare il successo se email fallisce
         }
       }
+      
+      // Invalida cache DOPO email send e mark (evita race condition con stale data)
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
       
       toast({
         title: 'Acconto registrato',
@@ -199,17 +213,19 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
 
   // Mutation: Registra pagamento saldo
   const saldoMutation = useMutation({
-    mutationFn: ({ orderId, metodo }: { orderId: string; metodo: 'contante' | 'carta' | 'bonifico' | 'paypal' }) =>
-      recordSaldoPayment(orderId, metodo),
-    onSuccess: async (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    mutationFn: ({ orderId, metodo, note }: { orderId: string; metodo: 'contante' | 'carta' | 'bonifico' | 'paypal'; note?: string }) =>
+      recordSaldoPayment(orderId, metodo, note),
+    onSuccess: async (result, variables) => {
+      // Estrai transaction e index dal risultato
+      const { transaction, index: transactionIndex } = result;
       
-      // Recupera ordine per email (prima del pagamento saldo)
+      // Recupera ordine per email PRIMA dell'invalidazione (usa valori dal result)
       const order = orders.find(o => o.id === variables.orderId);
-      if (order && order.emailCliente && order.nomeCliente) {
+      // Guard: skip email se emailCliente è vuota/blank
+      if (order && order.emailCliente?.trim() && order.nomeCliente?.trim()) {
         try {
-          // Il saldo pagato è quello attualmente pendente
-          const saldoAmount = order.saldo || 0;
+          // Usa l'importo dalla transaction appena creata invece di order.saldo (evita stale cache)
+          const saldoAmount = transaction.importo;
           
           // Calcola il nome prodotto per l'email (primo prodotto o "Ordine Multi-Prodotto")
           const prodottoNome = order.prodotti && order.prodotti.length > 0
@@ -231,11 +247,22 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
           });
           
           console.log('✅ Email saldo inviata a', order.emailCliente);
+          
+          // Marca transaction come email inviata
+          try {
+            await markTransactionEmailSent(variables.orderId, transactionIndex);
+            console.log('✅ Transaction marcata come email inviata');
+          } catch (markError) {
+            console.error('❌ Errore marking email sent:', markError);
+          }
         } catch (emailError) {
           console.error('❌ Errore invio email saldo:', emailError);
           // Non bloccare il successo se email fallisce
         }
       }
+      
+      // Invalida cache DOPO email send e mark (evita race condition con stale data)
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
       
       toast({
         title: 'Saldo registrato',
@@ -343,10 +370,19 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
       
       accontoMutation.mutate(mutationData);
     } else {
-      saldoMutation.mutate({
+      // Mutation saldo con metodo e note
+      const saldoData: any = {
         orderId: paymentDialog.orderId,
         metodo: paymentMethod,
-      });
+      };
+      
+      // Aggiungi note solo se non vuota (evita undefined)
+      const trimmedNote = paymentNote.trim();
+      if (trimmedNote) {
+        saldoData.note = trimmedNote;
+      }
+      
+      saldoMutation.mutate(saldoData);
     }
   };
 
@@ -587,22 +623,26 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
                     </Button>
 
                     {/* Pulsanti pagamento */}
-                    {!order.dataAcconto && (
+                    {/* Mostra "Aggiungi Acconto" se c'è ancora saldo da pagare e non è stato pagato il saldo finale */}
+                    {order.saldo > 0 && !order.dataSaldo && (
                       <Button
                         size="sm"
                         onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'acconto' })}
                         data-testid={`button-record-acconto-${order.id}`}
+                        className="bg-blue-600 hover:bg-blue-700"
                       >
                         <Euro className="w-4 h-4 mr-1" />
-                        Registra Acconto
+                        {order.dataAcconto ? 'Aggiungi Acconto' : 'Registra Acconto'}
                       </Button>
                     )}
 
-                    {order.dataAcconto && !order.dataSaldo && (
+                    {/* Mostra "Registra Saldo" solo se c'è già almeno un acconto e saldo > 0 */}
+                    {order.dataAcconto && order.saldo > 0 && !order.dataSaldo && (
                       <Button
                         size="sm"
                         onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'saldo' })}
                         data-testid={`button-record-saldo-${order.id}`}
+                        className="bg-green-600 hover:bg-green-700"
                       >
                         <Euro className="w-4 h-4 mr-1" />
                         Registra Saldo
