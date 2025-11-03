@@ -2245,6 +2245,179 @@ router.post("/saldo-received", async (req, res) => {
 });
 
 /**
+ * POST /api/email/special-gallery-pin-notification
+ * Invia email al cliente con PIN di accesso alla galleria speciale
+ * Include: nome galleria, tema, PIN, link di accesso, istruzioni
+ */
+router.post("/special-gallery-pin-notification", async (req, res) => {
+  try {
+    const { galleryId, clientEmail, clientName } = req.body;
+
+    if (!galleryId || !clientEmail) {
+      return res.status(400).json({
+        error: "Missing required fields: galleryId, clientEmail"
+      });
+    }
+
+    console.log(`📧 Invio notifica PIN galleria speciale a: ${clientEmail}`);
+
+    // Inizializza Firebase Admin per recuperare dati galleria
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    }
+
+    const db = admin.firestore();
+
+    // Recupera dati galleria
+    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    if (!galleryDoc.exists) {
+      return res.status(404).json({ error: "Gallery not found" });
+    }
+
+    const galleryData = galleryDoc.data();
+    const galleryCode = galleryData?.code || galleryId;
+    const galleryName = galleryData?.name || "Galleria Speciale";
+    const specialTheme = galleryData?.specialTheme;
+
+    // Recupera PIN da collection protetta
+    const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+    if (!secretsDoc.exists || !secretsDoc.data()?.specialPin) {
+      return res.status(400).json({ error: "PIN not configured for this gallery" });
+    }
+
+    const pin = secretsDoc.data()?.specialPin;
+
+    // Mappa tema a emoji/nome
+    const themeInfo: Record<string, { emoji: string; name: string }> = {
+      natale: { emoji: "🎄", name: "Natale" },
+      carnevale: { emoji: "🎭", name: "Carnevale" },
+      sanvalentino: { emoji: "💕", name: "San Valentino" },
+      pasqua: { emoji: "🐰", name: "Pasqua" },
+      halloween: { emoji: "🎃", name: "Halloween" }
+    };
+
+    const theme = specialTheme ? themeInfo[specialTheme] || { emoji: "✨", name: "Speciale" } : { emoji: "✨", name: "Speciale" };
+
+    // Recupera info studio
+    const studioInfo = await getStudioInfo();
+
+    // URL di accesso diretto
+    const accessUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://wedding-gallery-397b6.web.app'}/special-gallery`;
+
+    // Componi email HTML
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .pin-box { background: white; border: 3px dashed #667eea; padding: 20px; margin: 20px 0; text-align: center; border-radius: 8px; }
+          .pin-code { font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 8px; font-family: 'Courier New', monospace; }
+          .btn { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+          .instructions { background: white; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 4px; }
+          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 style="margin: 0; font-size: 28px;">${theme.emoji} Galleria Speciale ${theme.name}</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.9;">Accesso Privato</p>
+        </div>
+        
+        <div class="content">
+          <p>Ciao${clientName ? ` ${clientName}` : ''},</p>
+          
+          <p>La tua <strong>Galleria Speciale ${theme.name}</strong> è pronta!</p>
+          
+          <p><strong>Nome Galleria:</strong> ${galleryName}</p>
+          
+          <div class="instructions">
+            <h3 style="margin-top: 0; color: #667eea;">📱 Come accedere:</h3>
+            <ol>
+              <li>Visita il link sottostante</li>
+              <li>Inserisci il PIN di accesso</li>
+              <li>Goditi la tua galleria speciale!</li>
+            </ol>
+          </div>
+          
+          <div class="pin-box">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">Il tuo PIN di accesso:</p>
+            <div class="pin-code">${pin}</div>
+            <p style="margin: 15px 0 0 0; font-size: 12px; color: #999;">Conserva questo PIN in modo sicuro</p>
+          </div>
+          
+          <div style="text-align: center;">
+            <a href="${accessUrl}" class="btn">🔓 Accedi alla Galleria</a>
+          </div>
+          
+          <p style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;">
+            <strong>💡 Nota:</strong> Il PIN è personale e ti permette di accedere in qualsiasi momento alla tua galleria speciale.
+          </p>
+        </div>
+        
+        <div class="footer">
+          <p><strong>${studioInfo.name}</strong></p>
+          <p>${studioInfo.email} • ${studioInfo.phone}</p>
+          <p style="margin-top: 10px; color: #999;">Questa è una email automatica, per favore non rispondere.</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Invia email via Gmail API
+    const gmail = google.gmail({ version: "v1", auth: await getOAuth2Client() });
+
+    const rawMessage = [
+      `To: ${clientEmail}`,
+      `Subject: ${theme.emoji} Accesso alla Galleria Speciale ${theme.name} - ${galleryName}`,
+      "MIME-Version: 1.0",
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      htmlContent
+    ].join("\n");
+
+    const encodedMessage = Buffer.from(rawMessage)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+
+    await gmail.users.messages.send({
+      userId: "me",
+      requestBody: {
+        raw: encodedMessage
+      }
+    });
+
+    console.log(`✅ Email PIN inviata con successo a: ${clientEmail}`);
+
+    res.status(200).json({
+      success: true,
+      message: "PIN notification email sent successfully",
+      recipientEmail: clientEmail
+    });
+
+  } catch (error) {
+    console.error("❌ Errore invio email PIN:", error);
+    res.status(500).json({
+      error: "Errore invio email notifica PIN"
+    });
+  }
+});
+
+/**
  * POST /api/email/verify-special-pin
  * Verifica PIN galleria speciale SERVER-SIDE senza esporlo al client
  * SICURO: legge PIN da collection protetta `gallerySecrets` (admin-only)
@@ -2331,6 +2504,80 @@ router.post("/verify-special-pin", async (req, res) => {
     console.error("❌ Errore verify-special-pin:", error);
     res.status(500).json({
       error: { code: "internal", message: "Failed to verify PIN" }
+    });
+  }
+});
+
+/**
+ * POST /api/email/check-pin-unique
+ * Verifica se un PIN è già in uso da un'altra galleria speciale
+ * SICURO: usa Firebase Admin SDK per query gallerySecrets
+ */
+router.post("/check-pin-unique", async (req, res) => {
+  try {
+    const { pin, currentGalleryId } = req.body;
+
+    if (!pin) {
+      return res.status(400).json({
+        error: { code: "invalid-argument", message: "Missing PIN" }
+      });
+    }
+
+    console.log(`🔍 Verifica unicità PIN per galleria: ${currentGalleryId}`);
+
+    // Inizializza Firebase Admin
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    }
+
+    const db = admin.firestore();
+
+    // Query tutti i gallerySecrets con specialPin
+    const secretsSnapshot = await db.collection('gallerySecrets').get();
+    
+    for (const secretDoc of secretsSnapshot.docs) {
+      const galleryId = secretDoc.id;
+      const secretData = secretDoc.data();
+      
+      // Skip la galleria corrente (permetti di salvare lo stesso PIN sulla stessa galleria)
+      if (galleryId === currentGalleryId) {
+        continue;
+      }
+      
+      // Verifica se questo PIN è già usato
+      if (secretData?.specialPin && secretData.specialPin.trim() === pin.trim()) {
+        // PIN duplicato trovato - recupera info galleria
+        const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+        const galleryData = galleryDoc.exists ? galleryDoc.data() : {};
+        
+        console.log(`❌ PIN duplicato trovato in galleria: ${galleryData?.code || galleryId}`);
+        
+        return res.status(200).json({
+          unique: false,
+          usedByGallery: galleryData?.code || galleryId,
+          usedByGalleryName: galleryData?.name || 'Galleria Sconosciuta'
+        });
+      }
+    }
+
+    console.log('✅ PIN unico, nessun duplicato trovato');
+    return res.status(200).json({
+      unique: true
+    });
+
+  } catch (error) {
+    console.error("❌ Errore check-pin-unique:", error);
+    res.status(500).json({
+      error: { code: "internal", message: "Failed to check PIN uniqueness" }
     });
   }
 });

@@ -68,6 +68,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [specialTheme, setSpecialTheme] = useState<string>("none");
   const [specialPin, setSpecialPin] = useState("");
   const [showSpecialPin, setShowSpecialPin] = useState(false);
+  const [clientEmail, setClientEmail] = useState(""); // Email cliente per invio PIN
+  const [clientName, setClientName] = useState(""); // Nome cliente per personalizzazione email
   const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
@@ -328,6 +330,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setPassword(gallery.password || "");
       setSpecialTheme(gallery.specialTheme || "none");
       setSpecialPin(gallery.specialPin || "");
+      setClientEmail((gallery as any).clientEmail || "");
+      setClientName((gallery as any).clientName || "");
       
       // Gestione retrocompatibilità: se c'è youtubeUrl singolo, convertilo in array
       const urls: string[] = [];
@@ -705,6 +709,35 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     setIsLoading(true);
 
     try {
+      // VALIDAZIONE: Verifica unicità PIN se impostato
+      if (specialTheme !== 'none' && specialPin.trim()) {
+        console.log('🔍 Verifica unicità PIN...');
+        
+        const checkResponse = await fetch('/api/email/check-pin-unique', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pin: specialPin.trim(),
+            currentGalleryId: gallery.id
+          })
+        });
+
+        const checkResult = await checkResponse.json();
+        
+        if (!checkResult.unique) {
+          toast({
+            title: "PIN già in uso",
+            description: `Questo PIN è già utilizzato dalla galleria "${checkResult.usedByGalleryName}". Scegli un PIN diverso.`,
+            variant: "destructive",
+            duration: 5000
+          });
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('✅ PIN unico, procedo con il salvataggio');
+      }
+
       console.log('📝 Aggiornamento documento galleria...');
       const galleryRef = doc(db, "galleries", gallery.id);
       
@@ -728,6 +761,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         requiredPhotoCount: selectionEnabled ? requiredPhotoCount : null,
         selectionDeadline: selectionEnabled && selectionDeadline ? Timestamp.fromDate(new Date(selectionDeadline)) : null,
         selectionDeadlineEnforced,
+        // Client info per invio email PIN (opzionale)
+        clientEmail: clientEmail.trim() || null,
+        clientName: clientName.trim() || null,
         updatedAt: serverTimestamp()
       };
       
@@ -771,10 +807,49 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       console.log('✅ Galleria salvata con successo');
       
-      toast({
-        title: "Galleria aggiornata",
-        description: "Le modifiche alla galleria sono state salvate con successo"
-      });
+      // INVIO EMAIL AUTOMATICO: Se galleria speciale con PIN e email cliente fornita
+      if (specialTheme !== 'none' && specialPin.trim() && clientEmail.trim()) {
+        console.log('📧 Invio email PIN al cliente...');
+        
+        try {
+          const emailResponse = await fetch('/api/email/special-gallery-pin-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              galleryId: gallery.id,
+              clientEmail: clientEmail.trim(),
+              clientName: clientName.trim() || undefined
+            })
+          });
+
+          if (emailResponse.ok) {
+            console.log('✅ Email PIN inviata con successo');
+            toast({
+              title: "Galleria aggiornata e email inviata",
+              description: `Email con PIN inviata a ${clientEmail}`,
+            });
+          } else {
+            console.error('❌ Errore invio email PIN');
+            toast({
+              title: "Galleria aggiornata",
+              description: "Galleria salvata, ma l'invio email ha avuto problemi",
+              variant: "destructive"
+            });
+          }
+        } catch (emailError) {
+          console.error('❌ Eccezione invio email:', emailError);
+          toast({
+            title: "Galleria aggiornata",
+            description: "Galleria salvata, ma l'invio email non è riuscito",
+            variant: "destructive"
+          });
+        }
+      } else {
+        toast({
+          title: "Galleria aggiornata",
+          description: "Le modifiche alla galleria sono state salvate con successo"
+        });
+      }
 
       onClose();
       
@@ -793,7 +868,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, youtubeUrls, selectionEnabled, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, onClose, toast]);
+  }, [gallery, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, youtubeUrls, selectionEnabled, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, onClose, toast]);
 
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
@@ -1069,33 +1144,67 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               </div>
 
               {specialTheme !== 'none' && (
-                <div className="space-y-2">
-                  <Label htmlFor="specialPin">PIN Galleria Speciale</Label>
-                  <div className="relative">
-                    <Input
-                      id="specialPin"
-                      type={showSpecialPin ? "text" : "password"}
-                      value={specialPin}
-                      onChange={(e) => setSpecialPin(e.target.value)}
-                      placeholder="Es. 2024"
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowSpecialPin(!showSpecialPin)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-                    >
-                      {showSpecialPin ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="specialPin">PIN Galleria Speciale</Label>
+                    <div className="relative">
+                      <Input
+                        id="specialPin"
+                        type={showSpecialPin ? "text" : "password"}
+                        value={specialPin}
+                        onChange={(e) => setSpecialPin(e.target.value)}
+                        placeholder="Es. 2024"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSpecialPin(!showSpecialPin)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        {showSpecialPin ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      PIN univoco per accedere a questa galleria speciale
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    PIN univoco per accedere a questa galleria speciale
-                  </p>
-                </div>
+
+                  <div className="space-y-4 border-t pt-4">
+                    <p className="text-sm font-medium text-muted-foreground">📧 Notifica Email Cliente (opzionale)</p>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="clientName">Nome Cliente</Label>
+                      <Input
+                        id="clientName"
+                        type="text"
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        placeholder="Es. Mario Rossi"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Nome per personalizzare l'email
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="clientEmail">Email Cliente</Label>
+                      <Input
+                        id="clientEmail"
+                        type="email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        placeholder="Es. cliente@example.com"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Se inserita, verrà inviata automaticamente una email con il PIN al salvataggio
+                      </p>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
