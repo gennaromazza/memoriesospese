@@ -1831,13 +1831,7 @@ export default function Gallery() {
                                 <img
                                   src={photo.url}
                                   alt={photo.name || `Foto ${index + 1}`}
-                                  className={`w-full h-auto object-cover transition-all duration-300 opacity-0 ${
-                                    isSelectionMode &&
-                                    selectionStatus !== "completed" &&
-                                    selectedPhotoIds.includes(photo.id)
-                                      ? "brightness-100"
-                                      : "hover:opacity-95"
-                                  }`}
+                                  className="w-full h-auto object-cover transition-all duration-300 opacity-0 hover:opacity-95"
                                   loading="lazy"
                                   onLoad={(e) => {
                                     (
