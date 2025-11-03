@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText, Clock } from "lucide-react";
-import { getFinancialSummary, getMonthlyData, getAllCashMovements, getForecastedIncome } from "@/lib/cash";
+import { getFinancialSummary, getMonthlyData, getAllCashMovements, getForecastedIncome, exportFinancialData } from "@/lib/cash";
 import { getAllOrders } from "@/lib/orders";
 import CashRegister from "./CashRegister";
 import type { FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
@@ -33,7 +33,8 @@ export default function CashDashboard() {
       if (dateRange === "month") {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       } else if (dateRange === "quarter") {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+        startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
       } else if (dateRange === "year") {
         startDate = new Date(now.getFullYear(), 0, 1);
       }
@@ -42,28 +43,99 @@ export default function CashDashboard() {
     },
   });
 
-  // Query per dati mensili
+  // Query per dati mensili (sempre ultimi 12 mesi)
   const { data: monthlyData, isLoading: monthlyLoading } = useQuery<MonthlyData[]>({
     queryKey: ["monthly-data"],
     queryFn: getMonthlyData,
   });
 
-  // Query per ultimi movimenti
+  // Query per ultimi movimenti (filtra per dateRange)
   const { data: movements } = useQuery({
-    queryKey: ["cash-movements"],
-    queryFn: getAllCashMovements,
+    queryKey: ["cash-movements", dateRange],
+    queryFn: async () => {
+      const allMovements = await getAllCashMovements();
+      const now = new Date();
+      let startDate: Date | undefined;
+
+      if (dateRange === "month") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else if (dateRange === "quarter") {
+        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+        startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+      } else if (dateRange === "year") {
+        startDate = new Date(now.getFullYear(), 0, 1);
+      }
+
+      if (!startDate) return allMovements;
+
+      return allMovements.filter((m) => {
+        const movDate = m.data instanceof Timestamp ? m.data.toDate() : new Date(m.data);
+        return movDate >= startDate!;
+      });
+    },
   });
 
-  // Query per previsioni incasso
+  // Query per previsioni incasso (filtra per dateRange)
   const { data: forecasts } = useQuery<ForecastedIncome[]>({
-    queryKey: ["forecasted-income"],
-    queryFn: getForecastedIncome,
+    queryKey: ["forecasted-income", dateRange],
+    queryFn: async () => {
+      const allForecasts = await getForecastedIncome();
+      const now = new Date();
+      let startDate: Date | undefined;
+      let endDate: Date | undefined;
+
+      if (dateRange === "month") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      } else if (dateRange === "quarter") {
+        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+        startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+        endDate = new Date(now.getFullYear(), quarterStartMonth + 3, 0);
+      } else if (dateRange === "year") {
+        startDate = new Date(now.getFullYear(), 0, 1);
+        endDate = new Date(now.getFullYear(), 11, 31);
+      }
+
+      if (!startDate) return allForecasts;
+
+      // Filtra forecasts con data servizio nel range
+      return allForecasts.filter((f) => {
+        const fDate = f.data instanceof Date ? f.data : new Date(f.data);
+        return fDate >= startDate! && fDate <= endDate!;
+      });
+    },
   });
 
-  // Query per ultimi pagamenti ordini
+  // Query per ultimi pagamenti ordini (filtra transazioni per dateRange)
   const { data: orders } = useQuery({
-    queryKey: ["orders-payments"],
-    queryFn: getAllOrders,
+    queryKey: ["orders-payments", dateRange],
+    queryFn: async () => {
+      const allOrders = await getAllOrders();
+      const now = new Date();
+      let startDate: Date | undefined;
+
+      if (dateRange === "month") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else if (dateRange === "quarter") {
+        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+        startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+      } else if (dateRange === "year") {
+        startDate = new Date(now.getFullYear(), 0, 1);
+      }
+
+      if (!startDate) return allOrders;
+
+      // Filtra ordini che hanno almeno una transazione nel range
+      return allOrders
+        .map((order) => ({
+          ...order,
+          transactions: (order.transactions || []).filter((t) => {
+            const tDate = t.data instanceof Timestamp ? t.data.toDate() : new Date(t.data);
+            return tDate >= startDate!;
+          }),
+        }))
+        .filter((order) => order.transactions && order.transactions.length > 0);
+    },
   });
 
   // Formatta valuta
@@ -113,7 +185,36 @@ export default function CashDashboard() {
               </p>
             </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const now = new Date();
+              let startDate: Date | undefined;
+
+              if (dateRange === "month") {
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+              } else if (dateRange === "quarter") {
+                const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+              } else if (dateRange === "year") {
+                startDate = new Date(now.getFullYear(), 0, 1);
+              }
+
+              await exportFinancialData(startDate, now);
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Esporta Excel
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => window.print()}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Stampa Estratto
+          </Button>
           <Button
             variant={dateRange === "month" ? "default" : "outline"}
             size="sm"

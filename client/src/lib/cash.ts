@@ -18,6 +18,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import * as XLSX from "xlsx";
 import type { CashMovement, InsertCashMovement, FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
 import { getAllOrders } from "./orders";
 import type { Order, Transaction } from "@shared/booking-types";
@@ -288,4 +289,115 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
   return Array.from(grouped.values()).sort(
     (a, b) => a.data.getTime() - b.data.getTime()
   );
+}
+
+/**
+ * Esporta dati finanziari in Excel
+ * Include movimenti cassa e transazioni ordini
+ */
+export async function exportFinancialData(
+  startDate?: Date,
+  endDate?: Date
+): Promise<void> {
+  const toDate = (d: Date | Timestamp): Date => {
+    return d instanceof Timestamp ? d.toDate() : d;
+  };
+
+  const formatDate = (d: Date | Timestamp): string => {
+    return toDate(d).toLocaleDateString("it-IT");
+  };
+
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(value);
+  };
+
+  // Recupera dati
+  const movements = await getAllCashMovements();
+  const orders = await getAllOrders();
+
+  // Filtra per range date se specificato
+  const filterByDate = (d: Date | Timestamp): boolean => {
+    const date = toDate(d);
+    if (startDate && date < startDate) return false;
+    if (endDate && date > endDate) return false;
+    return true;
+  };
+
+  const filteredMovements = movements.filter((m) => filterByDate(m.data));
+
+  // Estrai transazioni da ordini
+  const transactions: any[] = [];
+  orders.forEach((order) => {
+    (order.transactions || []).forEach((t) => {
+      if (filterByDate(t.data)) {
+        transactions.push({
+          data: formatDate(t.data),
+          tipo: "Entrata Ordine",
+          categoria: `Ordine ${order.nomeCliente || "N/A"}`,
+          descrizione: `${t.tipo.toUpperCase()} - ${order.nomeCliente || "N/A"}`,
+          importo: formatCurrency(t.importo),
+          metodo: t.metodo,
+          note: t.note || "",
+        });
+      }
+    });
+  });
+
+  // Converti movimenti cassa in formato Excel
+  const cashData = filteredMovements.map((m) => ({
+    data: formatDate(m.data),
+    tipo: m.tipo === "entrata" ? "Entrata Cassa" : "Uscita Cassa",
+    categoria: m.categoria,
+    descrizione: m.descrizione,
+    importo: formatCurrency(m.importo),
+    metodo: m.metodoPagamento,
+    note: m.note || "",
+  }));
+
+  // Combina tutti i movimenti
+  const allData = [...transactions, ...cashData].sort((a, b) => {
+    const dateA = new Date(a.data.split("/").reverse().join("-"));
+    const dateB = new Date(b.data.split("/").reverse().join("-"));
+    return dateB.getTime() - dateA.getTime();
+  });
+
+  // Calcola totali
+  const summary = await getFinancialSummary(startDate);
+  const summaryData = [
+    { campo: "Entrate da Ordini", valore: formatCurrency(summary.entrateOrdini) },
+    { campo: "Altre Entrate", valore: formatCurrency(summary.entrateAltre) },
+    { campo: "Totale Entrate", valore: formatCurrency(summary.totaleEntrate) },
+    { campo: "Totale Uscite", valore: formatCurrency(summary.totaleUscite) },
+    { campo: "Saldo Netto", valore: formatCurrency(summary.saldo) },
+    { campo: "Incassi Previsti", valore: formatCurrency(summary.previstiIncasso) },
+  ];
+
+  // Crea workbook
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Tutti i movimenti
+  const ws1 = XLSX.utils.json_to_sheet(allData);
+  XLSX.utils.book_append_sheet(wb, ws1, "Movimenti");
+
+  // Sheet 2: Riepilogo
+  const ws2 = XLSX.utils.json_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(wb, ws2, "Riepilogo");
+
+  // Sheet 3: Solo movimenti cassa
+  const ws3 = XLSX.utils.json_to_sheet(cashData);
+  XLSX.utils.book_append_sheet(wb, ws3, "Registro Cassa");
+
+  // Sheet 4: Solo transazioni ordini
+  const ws4 = XLSX.utils.json_to_sheet(transactions);
+  XLSX.utils.book_append_sheet(wb, ws4, "Pagamenti Ordini");
+
+  // Genera nome file
+  const dateStr = new Date().toISOString().split("T")[0];
+  const fileName = `Report_Finanziario_${dateStr}.xlsx`;
+
+  // Download
+  XLSX.writeFile(wb, fileName);
 }

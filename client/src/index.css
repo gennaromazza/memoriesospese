@@ -4,6 +4,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Print Styles per Estratto Conto */
+@media print {
+  /* Nascondi elementi UI non necessari */
+  button,
+  nav,
+  .no-print,
+  [data-radix-collection-item],
+  [role="tablist"] {
+    display: none !important;
+  }
+
+  /* Ottimizza layout per stampa */
+  body {
+    background: white !important;
+  }
+
+  /* Mostra solo tab attivo */
+  [role="tabpanel"][data-state="inactive"] {
+    display: none !important;
+  }
+
+  /* Migliora leggibilità */
+  * {
+    color: black !important;
+    background: white !important;
+  }
+
+  /* Mantieni bordi per tabelle */
+  table,
+  th,
+  td {
+    border: 1px solid #ccc !important;
+  }
+}
+
 :root {
   /* Base colors from October Mist palette */
   --mint: 140 23% 84%;
