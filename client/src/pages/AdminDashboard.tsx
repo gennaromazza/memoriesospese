@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Shield, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -1187,6 +1187,19 @@ export default function AdminDashboard() {
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
+                                )}
+                                {isCurrentUserAdmin() && (
+                                  <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)}>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                                      title="Gestisci galleria"
+                                      data-testid="button-manage-gallery"
+                                    >
+                                      <FolderOpen className="h-4 w-4 text-blue-600" />
+                                    </Button>
+                                  </Link>
                                 )}
                                 <Button
                                   variant={gallery.active ? "destructive" : "default"}
