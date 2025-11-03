@@ -46,7 +46,7 @@ export default function YouTubeEmbed({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 mt-6">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
           <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-            Video del matrimonio
+            Video
           </h3>
           <div className="relative w-full pb-[56.25%]">
             <iframe
@@ -98,7 +98,7 @@ function YouTubeSlider({ videoUrls }: { videoUrls: string[] }) {
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Video del matrimonio
+            Video
           </h3>
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -134,7 +134,7 @@ function YouTubeSlider({ videoUrls }: { videoUrls: string[] }) {
                   <div className="relative w-full pb-[56.25%]">
                     <iframe
                       src={`https://www.youtube.com/embed/${videoId}`}
-                      title={`Video del matrimonio ${index + 1}`}
+                      title={`Video ${index + 1}`}
                       className="absolute top-0 left-0 w-full h-full rounded-lg"
                       frameBorder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
