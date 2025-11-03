@@ -285,6 +285,14 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Only admin can delete orders
     }
     
+    // Cash Movements - Admin-only financial management (November 2025)
+    match /cashMovements/{movementId} {
+      allow read: if isAdmin(); // Only admin can view cash movements
+      allow create: if isAdmin(); // Only admin can create cash movements
+      allow update: if isAdmin(); // Only admin can update cash movements
+      allow delete: if isAdmin(); // Only admin can delete cash movements
+    }
+    
     // Photo Selections - Guest users can select photos, admin can read all
     match /photo_selections/{selectionId} {
       allow read: if true; // Public read access for guests to see their selections

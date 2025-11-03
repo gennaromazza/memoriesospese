@@ -158,6 +158,9 @@ export interface Order {
   bookingId?: string; // Opzionale - collegamento a prenotazione
   galleryId?: string; // Opzionale - collegamento a galleria (può essere null se ordine standalone)
   
+  // Data servizio (per previsioni incasso e financial dashboard)
+  dataServizio?: Timestamp; // Data servizio fotografico (copiata da booking.dataShootingInizio)
+  
   // Dati cliente (snapshot per email notifications)
   nomeCliente?: string; // Nome completo cliente
   emailCliente?: string; // Email cliente per notifiche

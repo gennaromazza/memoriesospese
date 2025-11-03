@@ -130,10 +130,13 @@ export async function getFinancialSummary(
       }
     });
 
-    // Calcola saldo previsto (se ordine non completato)
+    // Calcola saldo previsto (se ordine non completato E dataServizio nel range)
     const saldo = order.saldo || 0;
-    if (saldo > 0) {
-      previstiIncasso += saldo;
+    if (saldo > 0 && order.dataServizio) {
+      // Filtra previsioni per dataServizio nel range
+      if (filterByDate(order.dataServizio)) {
+        previstiIncasso += saldo;
+      }
     }
   });
 
@@ -262,9 +265,17 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
   const grouped = new Map<string, ForecastedIncome>();
 
   ordersWithBalance.forEach((order) => {
-    const dataServizio = order.dataServizio instanceof Timestamp
-      ? order.dataServizio.toDate()
-      : new Date(order.dataServizio!);
+    // Converti dataServizio in Date (garantito non-null dal filtro precedente)
+    if (!order.dataServizio) return; // Sicurezza extra
+    
+    let dataServizio: Date;
+    if (order.dataServizio instanceof Timestamp) {
+      dataServizio = order.dataServizio.toDate();
+    } else if (typeof order.dataServizio === 'string') {
+      dataServizio = new Date(order.dataServizio);
+    } else {
+      dataServizio = order.dataServizio as Date;
+    }
 
     const dateKey = dataServizio.toISOString().split("T")[0];
 
@@ -280,7 +291,7 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
     forecast.importo += order.importoResiduo;
     forecast.ordini.push({
       id: order.id,
-      nomeSposi: order.nomeCliente || order.nomeSposi || "Cliente sconosciuto",
+      nomeSposi: order.nomeCliente || "Cliente sconosciuto",
       importoResiduo: order.importoResiduo,
     });
   });

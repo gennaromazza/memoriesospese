@@ -204,7 +204,23 @@ export async function createOrder(data: InsertOrder): Promise<string> {
     console.log("✅ Nessun ordine duplicato trovato per bookingId:", data.bookingId);
   }
 
-  // 2. Auto-Link Galleria: Se esiste già una galleria per il booking, collegala
+  // 2. Recupera data servizio dal booking (se presente)
+  let dataServizio: Timestamp | null = null;
+  if (data.bookingId) {
+    const bookingDoc = await getDoc(doc(db, "bookings", data.bookingId));
+    if (bookingDoc.exists()) {
+      const bookingData = bookingDoc.data();
+      // Copia dataShootingInizio come dataServizio
+      if (bookingData.dataShootingInizio) {
+        dataServizio = bookingData.dataShootingInizio instanceof Timestamp 
+          ? bookingData.dataShootingInizio 
+          : Timestamp.fromDate(new Date(bookingData.dataShootingInizio));
+        console.log("📅 Data servizio copiata da booking:", dataServizio.toDate());
+      }
+    }
+  }
+
+  // 3. Auto-Link Galleria: Se esiste già una galleria per il booking, collegala
   let autoLinkedGalleryId = data.galleryId || null;
   if (data.bookingId && !autoLinkedGalleryId) {
     const galleriesQuery = query(
@@ -219,7 +235,7 @@ export async function createOrder(data: InsertOrder): Promise<string> {
     }
   }
 
-  // 3. Normalizza i prodotti per evitare NaN o undefined
+  // 4. Normalizza i prodotti per evitare NaN o undefined
   const normalizedProdotti = data.prodotti.map((item) => ({
     prodottoId: item.prodottoId || "",
     prodottoNome: item.prodottoNome || "",
@@ -266,6 +282,7 @@ export async function createOrder(data: InsertOrder): Promise<string> {
   const normalizedData = {
     bookingId: data.bookingId || null,
     galleryId: autoLinkedGalleryId, // Usa galleryId auto-linked se trovato
+    dataServizio: dataServizio, // Data servizio copiata da booking (null se non presente)
     nomeCliente: data.nomeCliente || "",
     emailCliente: data.emailCliente || "",
     whatsappCliente: data.whatsappCliente || null,
