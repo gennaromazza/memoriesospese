@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import { useParams, useLocation } from "wouter";
 import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
@@ -15,7 +21,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import ImageLightbox from "@/components/ImageLightbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -26,7 +38,9 @@ import LoadMoreButton from "@/components/gallery/LoadMoreButton";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
-import GalleryFilter, { FilterCriteria } from "@/components/gallery/GalleryFilter";
+import GalleryFilter, {
+  FilterCriteria,
+} from "@/components/gallery/GalleryFilter";
 import GuestUpload from "@/components/GuestUpload";
 import { GalleryActions } from "@/components/gallery/GalleryActions";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
@@ -75,7 +89,7 @@ export default function Gallery() {
   const [loadingState, setLoadingState] = useState({
     totalPhotos: 0,
     loadedPhotos: 0,
-    progress: 0
+    progress: 0,
   });
 
   // Stato per i filtri
@@ -84,17 +98,24 @@ export default function Gallery() {
     endDate: undefined,
     startTime: undefined,
     endTime: undefined,
-    sortOrder: 'newest'
+    sortOrder: "newest",
   });
 
   // Stato per tracciare se i filtri sono attivi
   const [areFiltersActive, setAreFiltersActive] = useState(false);
 
   // Stato per il tab attivo (foto del fotografo, ospiti, vocali segreti o storia)
-  const [activeTab, setActiveTab] = useState<'photographer' | 'guests' | 'voice-memos' | 'story'>('photographer');
+  const [activeTab, setActiveTab] = useState<
+    "photographer" | "guests" | "voice-memos" | "story"
+  >("photographer");
 
   // Hook per il refresh intelligente dei dati
-  const { refreshPhotos, refreshGallery, refreshVoiceMemos, refreshInteractions } = useGalleryRefresh(id);
+  const {
+    refreshPhotos,
+    refreshGallery,
+    refreshVoiceMemos,
+    refreshInteractions,
+  } = useGalleryRefresh(id);
 
   // Funzione di refresh che combina entrambi i sistemi
   const handleRefreshPhotos = useCallback(async () => {
@@ -129,19 +150,20 @@ export default function Gallery() {
     hasMorePhotos,
     loadingMorePhotos,
     loadMorePhotos,
-    refreshPhotos: refreshGalleryPhotosHook
+    refreshPhotos: refreshGalleryPhotosHook,
   } = useGalleryData(id || "");
 
   // Stati per gestire la selezione foto (Tasks 12-15)
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
-  const [isRequestingModification, setIsRequestingModification] = useState(false);
-  const [selectionNotes, setSelectionNotes] = useState(''); // 📝 Note aggiuntive cliente
-  
+  const [isRequestingModification, setIsRequestingModification] =
+    useState(false);
+  const [selectionNotes, setSelectionNotes] = useState(""); // 📝 Note aggiuntive cliente
+
   // 🎨 UX Enhancement States
   const [showOnlySelected, setShowOnlySelected] = useState(false); // Filtro solo foto selezionate
   const [showSidebar, setShowSidebar] = useState(false); // Sidebar miniature
-  
+
   // Ref per scrollare alla griglia
   const galleryGridRef = useRef<HTMLDivElement>(null);
 
@@ -149,57 +171,80 @@ export default function Gallery() {
   const isSelectionMode = galleryData?.selectionEnabled || false;
   const requiredPhotoCount = galleryData?.requiredPhotoCount || 0;
   const selectionDeadline = galleryData?.selectionDeadline;
-  const selectionStatus = galleryData?.selectionStatus || 'pending';
-  
+  const selectionStatus = galleryData?.selectionStatus || "pending";
+
   // 🔍 DEBUG: Log stato modalità selezione
   useEffect(() => {
     if (galleryData) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🔍 SELECTION MODE DEBUG - Galleria:', galleryData.code);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📌 Gallery ID:', galleryData.id);
-      console.log('📌 Gallery Code:', galleryData.code);
-      console.log('✅ selectionEnabled:', galleryData.selectionEnabled);
-      console.log('✅ isSelectionMode:', isSelectionMode);
-      console.log('📊 requiredPhotoCount:', galleryData.requiredPhotoCount);
-      console.log('📋 selectionStatus:', galleryData.selectionStatus);
-      console.log('⏰ selectionDeadline:', galleryData.selectionDeadline);
-      console.log('🔒 selectionDeadlineEnforced:', galleryData.selectionDeadlineEnforced);
-      console.log('💚 selectedPhotoIds count:', galleryData.selectedPhotoIds?.length || 0);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("🔍 SELECTION MODE DEBUG - Galleria:", galleryData.code);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📌 Gallery ID:", galleryData.id);
+      console.log("📌 Gallery Code:", galleryData.code);
+      console.log("✅ selectionEnabled:", galleryData.selectionEnabled);
+      console.log("✅ isSelectionMode:", isSelectionMode);
+      console.log("📊 requiredPhotoCount:", galleryData.requiredPhotoCount);
+      console.log("📋 selectionStatus:", galleryData.selectionStatus);
+      console.log("⏰ selectionDeadline:", galleryData.selectionDeadline);
+      console.log(
+        "🔒 selectionDeadlineEnforced:",
+        galleryData.selectionDeadlineEnforced,
+      );
+      console.log(
+        "💚 selectedPhotoIds count:",
+        galleryData.selectedPhotoIds?.length || 0,
+      );
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
       if (!galleryData.selectionEnabled) {
-        console.error('❌ PROBLEMA: selectionEnabled è FALSE o undefined!');
-        console.error('❌ Per attivare: Admin → Gestione Gallerie → Gestisci → Impostazioni → ✓ Modalità Selezione Foto');
+        console.error("❌ PROBLEMA: selectionEnabled è FALSE o undefined!");
+        console.error(
+          "❌ Per attivare: Admin → Gestione Gallerie → Gestisci → Impostazioni → ✓ Modalità Selezione Foto",
+        );
       }
     }
   }, [galleryData, isSelectionMode]);
 
   // Check deadline enforcement
   const isDeadlinePassed = useMemo(() => {
-    if (!selectionDeadline || !galleryData?.selectionDeadlineEnforced) return false;
-    const deadline = selectionDeadline.toDate ? selectionDeadline.toDate() : new Date(selectionDeadline);
+    if (!selectionDeadline || !galleryData?.selectionDeadlineEnforced)
+      return false;
+    const deadline = selectionDeadline.toDate
+      ? selectionDeadline.toDate()
+      : new Date(selectionDeadline);
     return new Date() > deadline;
   }, [selectionDeadline, galleryData?.selectionDeadlineEnforced]);
 
   // Sync selectedPhotoIds with galleryData on INITIAL load only
   const [hasInitializedSelection, setHasInitializedSelection] = useState(false);
-  const [lastGalleryIdForSelection, setLastGalleryIdForSelection] = useState<string | null>(null);
-  
+  const [lastGalleryIdForSelection, setLastGalleryIdForSelection] = useState<
+    string | null
+  >(null);
+
   // Reset selection state when gallery ID changes (cross-gallery navigation)
   useEffect(() => {
     if (id && id !== lastGalleryIdForSelection) {
-      console.log('🔄 Gallery changed - reset selection state:', { from: lastGalleryIdForSelection, to: id });
+      console.log("🔄 Gallery changed - reset selection state:", {
+        from: lastGalleryIdForSelection,
+        to: id,
+      });
       setSelectedPhotoIds([]);
       setHasInitializedSelection(false);
       setLastGalleryIdForSelection(id);
     }
   }, [id, lastGalleryIdForSelection]);
-  
+
   // Sync selectedPhotoIds from galleryData after reset (only once per gallery)
   useEffect(() => {
-    if (!hasInitializedSelection && galleryData?.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0) {
-      console.log('🔄 Sync iniziale selectedPhotoIds da galleryData:', galleryData.selectedPhotoIds.length);
+    if (
+      !hasInitializedSelection &&
+      galleryData?.selectedPhotoIds &&
+      galleryData.selectedPhotoIds.length > 0
+    ) {
+      console.log(
+        "🔄 Sync iniziale selectedPhotoIds da galleryData:",
+        galleryData.selectedPhotoIds.length,
+      );
       setSelectedPhotoIds(galleryData.selectedPhotoIds);
       setHasInitializedSelection(true);
     }
@@ -207,45 +252,72 @@ export default function Gallery() {
 
   // 💾 Auto-save selezioni in localStorage (UX Enhancement #2)
   useEffect(() => {
-    if (!galleryData?.id || selectionStatus === 'completed' || !hasInitializedSelection) return;
-    
+    if (
+      !galleryData?.id ||
+      selectionStatus === "completed" ||
+      !hasInitializedSelection
+    )
+      return;
+
     const storageKey = `gallery-selection-${galleryData.id}`;
-    
+
     // Salva le selezioni correnti o rimuovi se vuoto
     if (selectedPhotoIds.length > 0) {
-      localStorage.setItem(storageKey, JSON.stringify({
-        photoIds: selectedPhotoIds,
-        timestamp: new Date().toISOString(),
-        count: selectedPhotoIds.length
-      }));
-      console.log('💾 Auto-saved selection:', selectedPhotoIds.length, 'photos');
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          photoIds: selectedPhotoIds,
+          timestamp: new Date().toISOString(),
+          count: selectedPhotoIds.length,
+        }),
+      );
+      console.log(
+        "💾 Auto-saved selection:",
+        selectedPhotoIds.length,
+        "photos",
+      );
     } else {
       // Rimuovi localStorage quando la selezione è vuota
       localStorage.removeItem(storageKey);
-      console.log('🗑️ Cleared saved selection (empty)');
+      console.log("🗑️ Cleared saved selection (empty)");
     }
-  }, [selectedPhotoIds, galleryData?.id, selectionStatus, hasInitializedSelection]);
+  }, [
+    selectedPhotoIds,
+    galleryData?.id,
+    selectionStatus,
+    hasInitializedSelection,
+  ]);
 
   // 🔄 Restore selezioni da localStorage all'avvio (UX Enhancement #2)
   useEffect(() => {
-    if (!galleryData?.id || hasInitializedSelection || selectionStatus === 'completed') return;
-    
+    if (
+      !galleryData?.id ||
+      hasInitializedSelection ||
+      selectionStatus === "completed"
+    )
+      return;
+
     const storageKey = `gallery-selection-${galleryData.id}`;
     const saved = localStorage.getItem(storageKey);
-    
+
     if (saved) {
       try {
         const { photoIds, timestamp, count } = JSON.parse(saved);
         const savedDate = new Date(timestamp);
-        const hoursSince = (new Date().getTime() - savedDate.getTime()) / (1000 * 60 * 60);
-        
+        const hoursSince =
+          (new Date().getTime() - savedDate.getTime()) / (1000 * 60 * 60);
+
         // Ripristina solo se salvato nelle ultime 24 ore
         if (hoursSince < 24 && photoIds && photoIds.length > 0) {
-          console.log('🔄 Restored selection from localStorage:', count, 'photos');
+          console.log(
+            "🔄 Restored selection from localStorage:",
+            count,
+            "photos",
+          );
           setSelectedPhotoIds(photoIds);
           setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato
           toast({
-            title: '💾 Selezione ripristinata',
+            title: "💾 Selezione ripristinata",
             description: `Abbiamo recuperato le tue ${count} foto selezionate precedentemente.`,
           });
           // Rimuovi entry per evitare restore multipli
@@ -256,7 +328,7 @@ export default function Gallery() {
           setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato anche se non c'era nulla
         }
       } catch (e) {
-        console.error('Failed to restore selection:', e);
+        console.error("Failed to restore selection:", e);
         localStorage.removeItem(storageKey);
         setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato anche in caso di errore
       }
@@ -267,65 +339,76 @@ export default function Gallery() {
   }, [galleryData?.id, hasInitializedSelection, selectionStatus, toast]);
 
   // Toggle photo selection
-  const handleTogglePhotoSelection = useCallback((photoId: string) => {
-    if (isDeadlinePassed && selectionStatus !== 'completed') {
-      toast({
-        title: '⏰ Scadenza superata',
-        description: 'Il termine per la selezione è scaduto. Contatta lo studio per assistenza.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (selectionStatus === 'completed') {
-      toast({
-        title: '✅ Selezione già completata',
-        description: 'Hai già confermato la tua selezione.',
-      });
-      return;
-    }
-
-    setSelectedPhotoIds(prev => {
-      const isSelected = prev.includes(photoId);
-      console.log('❤️ Toggle photo:', photoId, 'isSelected:', isSelected, 'current count:', prev.length);
-      
-      if (isSelected) {
-        const newSelection = prev.filter(id => id !== photoId);
-        console.log('➖ Rimossa foto. Nuovo count:', newSelection.length);
-        return newSelection;
-      } else {
-        if (prev.length >= requiredPhotoCount) {
-          toast({
-            title: '⚠️ Limite raggiunto',
-            description: `Puoi selezionare massimo ${requiredPhotoCount} foto. Rimuovi una selezione prima di aggiungerne altre.`,
-            variant: 'destructive',
-          });
-          console.log('🚫 Limite raggiunto:', requiredPhotoCount);
-          return prev;
-        }
-        const newSelection = [...prev, photoId];
-        console.log('➕ Aggiunta foto. Nuovo count:', newSelection.length);
-        return newSelection;
+  const handleTogglePhotoSelection = useCallback(
+    (photoId: string) => {
+      if (isDeadlinePassed && selectionStatus !== "completed") {
+        toast({
+          title: "⏰ Scadenza superata",
+          description:
+            "Il termine per la selezione è scaduto. Contatta lo studio per assistenza.",
+          variant: "destructive",
+        });
+        return;
       }
-    });
-  }, [isDeadlinePassed, selectionStatus, requiredPhotoCount, toast]);
+
+      if (selectionStatus === "completed") {
+        toast({
+          title: "✅ Selezione già completata",
+          description: "Hai già confermato la tua selezione.",
+        });
+        return;
+      }
+
+      setSelectedPhotoIds((prev) => {
+        const isSelected = prev.includes(photoId);
+        console.log(
+          "❤️ Toggle photo:",
+          photoId,
+          "isSelected:",
+          isSelected,
+          "current count:",
+          prev.length,
+        );
+
+        if (isSelected) {
+          const newSelection = prev.filter((id) => id !== photoId);
+          console.log("➖ Rimossa foto. Nuovo count:", newSelection.length);
+          return newSelection;
+        } else {
+          if (prev.length >= requiredPhotoCount) {
+            toast({
+              title: "⚠️ Limite raggiunto",
+              description: `Puoi selezionare massimo ${requiredPhotoCount} foto. Rimuovi una selezione prima di aggiungerne altre.`,
+              variant: "destructive",
+            });
+            console.log("🚫 Limite raggiunto:", requiredPhotoCount);
+            return prev;
+          }
+          const newSelection = [...prev, photoId];
+          console.log("➕ Aggiunta foto. Nuovo count:", newSelection.length);
+          return newSelection;
+        }
+      });
+    },
+    [isDeadlinePassed, selectionStatus, requiredPhotoCount, toast],
+  );
 
   // Confirm selection
   const handleConfirmSelection = useCallback(async () => {
     if (!id || !user) {
       toast({
-        title: '❌ Errore',
-        description: 'Devi essere autenticato per confermare la selezione.',
-        variant: 'destructive',
+        title: "❌ Errore",
+        description: "Devi essere autenticato per confermare la selezione.",
+        variant: "destructive",
       });
       return;
     }
 
     if (selectedPhotoIds.length !== requiredPhotoCount) {
       toast({
-        title: '⚠️ Selezione incompleta',
+        title: "⚠️ Selezione incompleta",
         description: `Devi selezionare esattamente ${requiredPhotoCount} foto (${selectedPhotoIds.length}/${requiredPhotoCount} selezionate).`,
-        variant: 'destructive',
+        variant: "destructive",
       });
       return;
     }
@@ -334,16 +417,16 @@ export default function Gallery() {
       setIsSubmittingSelection(true);
 
       // Update gallery with selected photos
-      const { GalleryService } = await import('@/lib/galleries');
-      
+      const { GalleryService } = await import("@/lib/galleries");
+
       // IMPORTANTE: usare galleryData.id (Firestore doc ID) non id (gallery code)
       if (!galleryData?.id) {
-        throw new Error('Gallery ID non disponibile');
+        throw new Error("Gallery ID non disponibile");
       }
-      
+
       await GalleryService.updateGallery(galleryData.id, {
         selectedPhotoIds,
-        selectionStatus: 'completed',
+        selectionStatus: "completed",
         selectionNotes: selectionNotes.trim(), // 📝 Salva sempre note cliente (anche se vuote per permettere cancellazione)
       });
 
@@ -351,104 +434,131 @@ export default function Gallery() {
       try {
         // Get Firebase ID token for authentication
         const token = await user.getIdToken();
-        
-        await fetch('/api/email/selection-completed', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+
+        await fetch("/api/email/selection-completed", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             galleryId: id,
-            galleryName: galleryData?.name || 'Galleria',
-            clienteName: user.displayName || user.email || 'Cliente',
+            galleryName: galleryData?.name || "Galleria",
+            clienteName: user.displayName || user.email || "Cliente",
             photoCount: selectedPhotoIds.length,
             workspaceUrl: `${window.location.origin}/admin/gallery/${id}/manage`,
           }),
         });
       } catch (emailError) {
-        console.error('⚠️ Errore invio email admin:', emailError);
+        console.error("⚠️ Errore invio email admin:", emailError);
       }
 
       toast({
-        title: '✅ Selezione confermata!',
+        title: "✅ Selezione confermata!",
         description: `Le tue ${requiredPhotoCount} foto sono state confermate. Riceverai presto il tuo album!`,
       });
 
       // Refresh gallery data
       await refreshGallery();
     } catch (error) {
-      console.error('Errore conferma selezione:', error);
+      console.error("Errore conferma selezione:", error);
       toast({
-        title: '❌ Errore',
-        description: 'Errore durante la conferma della selezione. Riprova.',
-        variant: 'destructive',
+        title: "❌ Errore",
+        description: "Errore durante la conferma della selezione. Riprova.",
+        variant: "destructive",
       });
     } finally {
       setIsSubmittingSelection(false);
     }
-  }, [id, user, selectedPhotoIds, selectionNotes, requiredPhotoCount, galleryData, toast, refreshGallery]);
+  }, [
+    id,
+    user,
+    selectedPhotoIds,
+    selectionNotes,
+    requiredPhotoCount,
+    galleryData,
+    toast,
+    refreshGallery,
+  ]);
 
   // Request modification of completed selection
   const handleRequestModification = useCallback(async () => {
     if (!id || !user || !galleryData) {
       toast({
-        title: '❌ Errore',
-        description: 'Impossibile inviare la richiesta. Riprova più tardi.',
-        variant: 'destructive',
+        title: "❌ Errore",
+        description: "Impossibile inviare la richiesta. Riprova più tardi.",
+        variant: "destructive",
       });
       return;
     }
 
     try {
       setIsRequestingModification(true);
-      
+
       // Get Firebase ID token for authentication
       const token = await user.getIdToken();
-      
-      const response = await fetch('/api/email/request-selection-modification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+
+      const response = await fetch(
+        "/api/email/request-selection-modification",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            galleryId: galleryData.id,
+            galleryCode: galleryData.code,
+            galleryName: galleryData.name,
+            userEmail: user.email,
+            userName: userProfile?.displayName || user.email,
+            requiredPhotoCount,
+            currentSelectionCount: selectedPhotoIds.length,
+          }),
         },
-        body: JSON.stringify({
-          galleryId: galleryData.id,
-          galleryCode: galleryData.code,
-          galleryName: galleryData.name,
-          userEmail: user.email,
-          userName: userProfile?.displayName || user.email,
-          requiredPhotoCount,
-          currentSelectionCount: selectedPhotoIds.length,
-        }),
-      });
+      );
 
       // Check response status
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Errore sconosciuto" }));
         throw new Error(errorData.error || `Errore server: ${response.status}`);
       }
 
       toast({
-        title: '📧 Richiesta inviata!',
-        description: 'Lo studio ti contatterà presto per gestire la modifica.',
+        title: "📧 Richiesta inviata!",
+        description: "Lo studio ti contatterà presto per gestire la modifica.",
       });
     } catch (error: any) {
-      console.error('Errore invio richiesta modifica:', error);
+      console.error("Errore invio richiesta modifica:", error);
       toast({
-        title: '❌ Errore invio',
-        description: error.message || 'Impossibile inviare la richiesta. Riprova più tardi.',
-        variant: 'destructive',
+        title: "❌ Errore invio",
+        description:
+          error.message ||
+          "Impossibile inviare la richiesta. Riprova più tardi.",
+        variant: "destructive",
       });
     } finally {
       setIsRequestingModification(false);
     }
-  }, [id, user, galleryData, userProfile, requiredPhotoCount, selectedPhotoIds.length, toast]);
+  }, [
+    id,
+    user,
+    galleryData,
+    userProfile,
+    requiredPhotoCount,
+    selectedPhotoIds.length,
+    toast,
+  ]);
 
   // Scroll to gallery grid
   const scrollToGallery = useCallback(() => {
     if (galleryGridRef.current) {
-      galleryGridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      galleryGridRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
   }, []);
 
@@ -457,7 +567,7 @@ export default function Gallery() {
     if (!isAdmin || !id || !coupleStory) return;
 
     const confirmed = window.confirm(
-      "Sei sicuro di voler eliminare la storia della coppia? Questa azione non può essere annullata."
+      "Sei sicuro di voler eliminare la storia della coppia? Questa azione non può essere annullata.",
     );
 
     if (!confirmed) return;
@@ -472,7 +582,7 @@ export default function Gallery() {
         description: "La storia della coppia è stata eliminata con successo.",
       });
     } catch (error) {
-      console.error('Errore eliminazione storia:', error);
+      console.error("Errore eliminazione storia:", error);
       toast({
         title: "Errore",
         description: "Errore durante l'eliminazione della storia. Riprova.",
@@ -501,12 +611,17 @@ export default function Gallery() {
   useEffect(() => {
     // Aggiorna il conteggio delle foto caricate includendo quelle degli ospiti
     const totalLoadedPhotos = photos.length + guestPhotos.length;
-    setLoadingState(prev => ({
+    setLoadingState((prev) => ({
       ...prev,
       loadedPhotos: totalLoadedPhotos,
       // Se c'è una galleria, usa il suo photoCount, altrimenti usa la lunghezza totale delle foto
       totalPhotos: galleryData?.photoCount || totalLoadedPhotos,
-      progress: galleryData?.photoCount ? Math.min(100, Math.round((totalLoadedPhotos / galleryData.photoCount) * 100)) : 100
+      progress: galleryData?.photoCount
+        ? Math.min(
+            100,
+            Math.round((totalLoadedPhotos / galleryData.photoCount) * 100),
+          )
+        : 100,
     }));
   }, [photos.length, guestPhotos.length, galleryData]);
 
@@ -516,25 +631,46 @@ export default function Gallery() {
     const shouldLoadStory = id && !storyLoading && !storyChecked;
 
     if (shouldLoadStory) {
-      console.log('%c🔄 [ONCE] Caricamento iniziale storia per galleryId:', 'background: blue; color: white; font-weight: bold', id);
+      console.log(
+        "%c🔄 [ONCE] Caricamento iniziale storia per galleryId:",
+        "background: blue; color: white; font-weight: bold",
+        id,
+      );
       setStoryLoading(true);
       StoryService.getStoryByGalleryId(id)
-        .then(story => {
-          console.log('%c📖 [ONCE] Storia caricata da Firebase:', 'background: green; color: white; font-weight: bold', story ? 'TROVATA' : 'NON TROVATA', { galleryId: id });
+        .then((story) => {
+          console.log(
+            "%c📖 [ONCE] Storia caricata da Firebase:",
+            "background: green; color: white; font-weight: bold",
+            story ? "TROVATA" : "NON TROVATA",
+            { galleryId: id },
+          );
           if (story) {
-            console.log('%c✅ [ONCE] Storia impostata nel state React:', 'background: green; color: white; font-weight: bold', {
-              titolo: story.metadata?.titolo,
-              galleryId: story.galleryId,
-              storyId: story.id
-            });
+            console.log(
+              "%c✅ [ONCE] Storia impostata nel state React:",
+              "background: green; color: white; font-weight: bold",
+              {
+                titolo: story.metadata?.titolo,
+                galleryId: story.galleryId,
+                storyId: story.id,
+              },
+            );
             setCoupleStory(story);
           } else {
-            console.log('%c❌ [ONCE] Nessuna storia trovata - set null:', 'background: red; color: white; font-weight: bold', id);
+            console.log(
+              "%c❌ [ONCE] Nessuna storia trovata - set null:",
+              "background: red; color: white; font-weight: bold",
+              id,
+            );
             setCoupleStory(null);
           }
         })
-        .catch(error => {
-          console.error('%c💥 [ONCE] Errore caricamento storia:', 'background: red; color: white; font-weight: bold', error);
+        .catch((error) => {
+          console.error(
+            "%c💥 [ONCE] Errore caricamento storia:",
+            "background: red; color: white; font-weight: bold",
+            error,
+          );
           setCoupleStory(null);
         })
         .finally(() => {
@@ -542,16 +678,18 @@ export default function Gallery() {
           setStoryChecked(true); // ✅ Segna sempre come verificato
         });
     } else {
-      console.log('%c🚫 [SKIP] Load story skipped:', 'background: orange; color: white', {
-        hasId: !!id,
-        storyLoading,
-        storyChecked,
-        shouldLoad: shouldLoadStory
-      });
+      console.log(
+        "%c🚫 [SKIP] Load story skipped:",
+        "background: orange; color: white",
+        {
+          hasId: !!id,
+          storyLoading,
+          storyChecked,
+          shouldLoad: shouldLoadStory,
+        },
+      );
     }
   }, [id, storyLoading, storyChecked]); // 🔧 RIMOSSE dipendenze problematiche
-
-
 
   // Verifica autenticazione - SOLO reset se cambia galleria (non al reload)
   const [lastGalleryId, setLastGalleryId] = useState<string | null>(null);
@@ -571,33 +709,40 @@ export default function Gallery() {
 
       // 🔧 FIX: Reset storia SOLO se cambia galleria (non al reload della stessa)
       if (lastGalleryId && lastGalleryId !== id) {
-        console.log('%c📋 [RESET] Cambio galleria - reset stato storia:', 'background: red; color: white; font-weight: bold', {
-          lastGalleryId,
-          newId: id
-        });
+        console.log(
+          "%c📋 [RESET] Cambio galleria - reset stato storia:",
+          "background: red; color: white; font-weight: bold",
+          {
+            lastGalleryId,
+            newId: id,
+          },
+        );
         setCoupleStory(null);
         setStoryChecked(false);
         setStoryLoading(false);
         setShowStoryUpload(false);
       } else {
-        console.log('%c🔄 [NO-RESET] Stessa galleria - mantieni stato storia:', 'background: green; color: white', {
-          lastGalleryId,
-          currentId: id,
-          storyLoaded: !!coupleStory
-        });
+        console.log(
+          "%c🔄 [NO-RESET] Stessa galleria - mantieni stato storia:",
+          "background: green; color: white",
+          {
+            lastGalleryId,
+            currentId: id,
+            storyLoaded: !!coupleStory,
+          },
+        );
       }
 
       setLastGalleryId(id);
     }
   }, [id, isAdmin, navigate, lastGalleryId]);
 
-
-
   // Scroll infinito come fallback
   useEffect(() => {
     const handleScroll = () => {
       if (
-        window.innerHeight + window.scrollY >= document.body.offsetHeight - 300 &&
+        window.innerHeight + window.scrollY >=
+          document.body.offsetHeight - 300 &&
         hasMorePhotos &&
         !loadingMorePhotos &&
         !isLoadingPhotos
@@ -606,8 +751,8 @@ export default function Gallery() {
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, [hasMorePhotos, loadingMorePhotos, isLoadingPhotos, loadMorePhotos]);
 
   // Combina tutte le foto per il lightbox
@@ -635,7 +780,7 @@ export default function Gallery() {
       newFilters.endDate !== undefined ||
       newFilters.startTime !== undefined ||
       newFilters.endTime !== undefined ||
-      newFilters.sortOrder !== 'newest';
+      newFilters.sortOrder !== "newest";
 
     setAreFiltersActive(hasActiveFilter);
   };
@@ -647,7 +792,7 @@ export default function Gallery() {
       endDate: undefined,
       startTime: undefined,
       endTime: undefined,
-      sortOrder: 'newest'
+      sortOrder: "newest",
     });
     setAreFiltersActive(false);
   };
@@ -656,76 +801,118 @@ export default function Gallery() {
   const filteredPhotos = useMemo(() => {
     if (!areFiltersActive) return photos;
 
-    return photos.filter(photo => {
-      const photoDate = photo.createdAt ? new Date(photo.createdAt) : null;
-      if (!photoDate) return true; // Se non c'è data, include la foto
+    return photos
+      .filter((photo) => {
+        const photoDate = photo.createdAt ? new Date(photo.createdAt) : null;
+        if (!photoDate) return true; // Se non c'è data, include la foto
 
-      // Filtra per data
-      if (filters.startDate && photoDate < filters.startDate) return false;
-      if (filters.endDate) {
-        // Imposta l'ora finale a 23:59:59
-        const endDateWithTime = new Date(filters.endDate);
-        endDateWithTime.setHours(23, 59, 59);
-        if (photoDate > endDateWithTime) return false;
-      }
+        // Filtra per data
+        if (filters.startDate && photoDate < filters.startDate) return false;
+        if (filters.endDate) {
+          // Imposta l'ora finale a 23:59:59
+          const endDateWithTime = new Date(filters.endDate);
+          endDateWithTime.setHours(23, 59, 59);
+          if (photoDate > endDateWithTime) return false;
+        }
 
-      // Filtra per ora
-      if (filters.startTime || filters.endTime) {
-        const hours = photoDate.getHours();
-        const minutes = photoDate.getMinutes();
-        const photoTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        // Filtra per ora
+        if (filters.startTime || filters.endTime) {
+          const hours = photoDate.getHours();
+          const minutes = photoDate.getMinutes();
+          const photoTime = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 
-        if (filters.startTime && photoTime < filters.startTime) return false;
-        if (filters.endTime && photoTime > filters.endTime) return false;
-      }
+          if (filters.startTime && photoTime < filters.startTime) return false;
+          if (filters.endTime && photoTime > filters.endTime) return false;
+        }
 
-      return true;
-    }).sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
 
-      return filters.sortOrder === 'newest'
-        ? dateB.getTime() - dateA.getTime()
-        : dateA.getTime() - dateB.getTime();
-    });
+        return filters.sortOrder === "newest"
+          ? dateB.getTime() - dateA.getTime()
+          : dateA.getTime() - dateB.getTime();
+      });
   }, [photos, filters, areFiltersActive]);
 
   // 🎨 UX Enhancement #1: Filtra per mostrare solo foto selezionate (se attivo)
   const displayPhotos = useMemo(() => {
     const basePhotos = areFiltersActive ? filteredPhotos : photos;
-    
+
     // Se il filtro "solo selezionate" è attivo, mostra solo quelle
     if (showOnlySelected && isSelectionMode && selectedPhotoIds.length > 0) {
-      return basePhotos.filter(photo => selectedPhotoIds.includes(photo.id));
+      return basePhotos.filter((photo) => selectedPhotoIds.includes(photo.id));
     }
-    
+
     return basePhotos;
-  }, [areFiltersActive, filteredPhotos, photos, showOnlySelected, isSelectionMode, selectedPhotoIds]);
+  }, [
+    areFiltersActive,
+    filteredPhotos,
+    photos,
+    showOnlySelected,
+    isSelectionMode,
+    selectedPhotoIds,
+  ]);
 
   // 🎨 UX Enhancement #6: Messaggi smart basati sul progresso
   const smartMessage = useMemo(() => {
-    if (!isSelectionMode || selectionStatus === 'completed') return null;
-    
+    if (!isSelectionMode || selectionStatus === "completed") return null;
+
     const count = selectedPhotoIds.length;
     const required = requiredPhotoCount;
     const percentage = required > 0 ? Math.round((count / required) * 100) : 0;
-    
+
     if (count === 0) {
-      return { emoji: '✨', text: `Inizia selezionando le tue ${required} foto preferite!`, color: 'text-blue-600' };
+      return {
+        emoji: "✨",
+        text: `Inizia selezionando le tue ${required} foto preferite!`,
+        color: "text-blue-600",
+      };
     } else if (count < required * 0.25) {
-      return { emoji: '🎯', text: `Ottimo inizio! Continua così!`, color: 'text-green-600' };
+      return {
+        emoji: "🎯",
+        text: `Ottimo inizio! Continua così!`,
+        color: "text-green-600",
+      };
     } else if (count < required * 0.5) {
-      return { emoji: '💪', text: `Stai andando alla grande! Sei a ${count}/${required}`, color: 'text-green-600' };
+      return {
+        emoji: "💪",
+        text: `Stai andando alla grande! Sei a ${count}/${required}`,
+        color: "text-green-600",
+      };
     } else if (count < required * 0.75) {
-      return { emoji: '🔥', text: `Fantastico! Più della metà completata!`, color: 'text-orange-600' };
+      return {
+        emoji: "🔥",
+        text: `Fantastico! Più della metà completata!`,
+        color: "text-orange-600",
+      };
     } else if (count < required) {
-      return { emoji: '🎉', text: `Quasi fatto! Mancano solo ${required - count} foto!`, color: 'text-orange-600' };
+      return {
+        emoji: "🎉",
+        text: `Quasi fatto! Mancano solo ${required - count} foto!`,
+        color: "text-orange-600",
+      };
     } else if (count === required) {
-      return { emoji: '✅', text: `Perfetto! Puoi confermare la selezione!`, color: 'text-sage' };
+      return {
+        emoji: "✅",
+        text: `Perfetto! Puoi confermare la selezione!`,
+        color: "text-sage",
+      };
     } else {
-      return { emoji: '⚠️', text: `Troppe foto! Rimuovine ${count - required}`, color: 'text-red-600' };
+      return {
+        emoji: "⚠️",
+        text: `Troppe foto! Rimuovine ${count - required}`,
+        color: "text-red-600",
+      };
     }
-  }, [isSelectionMode, selectionStatus, selectedPhotoIds.length, requiredPhotoCount]);
+  }, [
+    isSelectionMode,
+    selectionStatus,
+    selectedPhotoIds.length,
+    requiredPhotoCount,
+  ]);
 
   const handleSignOut = () => {
     localStorage.removeItem(`gallery_auth_${id}`);
@@ -758,8 +945,9 @@ export default function Gallery() {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Galleria non trovata</h1>
           <p className="text-gray-600 mb-6">
-            La galleria che stai cercando potrebbe non esistere o essere stata rimossa.
-            Verifica il link ricevuto dagli organizzatori dell'evento o contatta il servizio clienti.
+            La galleria che stai cercando potrebbe non esistere o essere stata
+            rimossa. Verifica il link ricevuto dagli organizzatori dell'evento o
+            contatta il servizio clienti.
           </p>
           <button
             className="px-4 py-2 bg-sage-600 text-white rounded-md hover:bg-sage-700"
@@ -790,18 +978,21 @@ export default function Gallery() {
 
   // Determina la classe del tema basata su galleryData.specialTheme
   const currentTheme = galleryData?.specialTheme;
-  const themeClass = currentTheme && currentTheme !== 'none'
-    ? `theme-${currentTheme}`
-    : '';
+  const themeClass =
+    currentTheme && currentTheme !== "none" ? `theme-${currentTheme}` : "";
 
   return (
-    <div className={`min-h-screen ${themeClass || 'bg-off-white'} custom-cursor`}>
+    <div
+      className={`min-h-screen ${themeClass || "bg-off-white"} custom-cursor`}
+    >
       {/* Layer neve natalizia - solo per tema natale */}
-      {currentTheme === 'natale' && (
+      {currentTheme === "natale" && (
         <>
           <div className="snow-layer-slow" />
           <div className="snow-layer-2">❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅</div>
-          <div className="snow-layer-3">❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅</div>
+          <div className="snow-layer-3">
+            ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅ ❄ ❅
+          </div>
           <div className="snow-accumulation"></div>
           <div className="christmas-lights" />
           <div className="sparkle-stars" />
@@ -841,16 +1032,16 @@ export default function Gallery() {
                   return `Sono passati ${diffDays} giorni da questo giorno speciale ✨`;
                 } else if (diffDays < 365) {
                   const months = Math.floor(diffDays / 30);
-                  return `${months === 1 ? 'È passato 1 mese' : `Sono passati ${months} mesi`} da questo giorno speciale ✨`;
+                  return `${months === 1 ? "È passato 1 mese" : `Sono passati ${months} mesi`} da questo giorno speciale ✨`;
                 } else {
                   const years = Math.floor(diffDays / 365);
                   const remainingDays = diffDays % 365;
                   const months = Math.floor(remainingDays / 30);
 
                   if (months === 0) {
-                    return `${years === 1 ? 'È passato 1 anno' : `Sono passati ${years} anni`} da questo giorno speciale ✨`;
+                    return `${years === 1 ? "È passato 1 anno" : `Sono passati ${years} anni`} da questo giorno speciale ✨`;
                   } else {
-                    return `${years === 1 ? 'È passato 1 anno' : `Sono passati ${years} anni`} e ${months} ${months === 1 ? 'mese' : 'mesi'} da questo giorno speciale ✨`;
+                    return `${years === 1 ? "È passato 1 anno" : `Sono passati ${years} anni`} e ${months} ${months === 1 ? "mese" : "mesi"} da questo giorno speciale ✨`;
                   }
                 }
               }}
@@ -862,7 +1053,6 @@ export default function Gallery() {
             />
           </div>
         )}
-
 
         {/* Video YouTube se presente */}
         <YouTubeEmbed
@@ -880,34 +1070,41 @@ export default function Gallery() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
-                          onClick={() => setActiveTab('photographer')}
+                          onClick={() => setActiveTab("photographer")}
                           className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
-                            activeTab === 'photographer'
-                              ? 'bg-white shadow-sm text-blue-gray'
-                              : 'text-gray-600 hover:text-blue-gray'
+                            activeTab === "photographer"
+                              ? "bg-white shadow-sm text-blue-gray"
+                              : "text-gray-600 hover:text-blue-gray"
                           }`}
                         >
-                          <span className="hidden sm:inline">Foto del fotografo</span>
+                          <span className="hidden sm:inline">
+                            Foto del fotografo
+                          </span>
                           <span className="sm:hidden">Fotografo</span>
                           <span className="ml-1">({photos.length})</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="text-sm">
-                        <p>Visualizza le foto professionali scattate dal fotografo</p>
+                        <p>
+                          Visualizza le foto professionali scattate dal
+                          fotografo
+                        </p>
                       </TooltipContent>
                     </Tooltip>
 
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
-                          onClick={() => setActiveTab('guests')}
+                          onClick={() => setActiveTab("guests")}
                           className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
-                            activeTab === 'guests'
-                              ? 'bg-white shadow-sm text-blue-gray'
-                              : 'text-gray-600 hover:text-blue-gray'
+                            activeTab === "guests"
+                              ? "bg-white shadow-sm text-blue-gray"
+                              : "text-gray-600 hover:text-blue-gray"
                           }`}
                         >
-                          <span className="hidden sm:inline">Foto degli ospiti</span>
+                          <span className="hidden sm:inline">
+                            Foto degli ospiti
+                          </span>
                           <span className="sm:hidden">Ospiti</span>
                           <span className="ml-1">({guestPhotos.length})</span>
                         </button>
@@ -920,48 +1117,72 @@ export default function Gallery() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
-                          onClick={() => setActiveTab('voice-memos')}
+                          onClick={() => setActiveTab("voice-memos")}
                           className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
-                            activeTab === 'voice-memos'
-                              ? 'bg-gradient-to-r from-sage-100 to-blue-gray-100 shadow-lg text-sage-800 border border-sage-200'
-                              : 'text-gray-600 hover:text-sage-700 hover:bg-sage-50'
+                            activeTab === "voice-memos"
+                              ? "bg-gradient-to-r from-sage-100 to-blue-gray-100 shadow-lg text-sage-800 border border-sage-200"
+                              : "text-gray-600 hover:text-sage-700 hover:bg-sage-50"
                           }`}
                         >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                            />
                           </svg>
-                          <span className="hidden sm:inline">Vocali Segreti</span>
+                          <span className="hidden sm:inline">
+                            Vocali Segreti
+                          </span>
                           <span className="sm:hidden">Vocali</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="text-sm">
-                        <p>Ascolta i messaggi vocali privati lasciati dagli ospiti</p>
+                        <p>
+                          Ascolta i messaggi vocali privati lasciati dagli
+                          ospiti
+                        </p>
                       </TooltipContent>
                     </Tooltip>
 
                     {/* Tab Storia - Mostra solo se esiste una storia o se l'admin sta caricando */}
-                    {(coupleStory || showStoryUpload || (isAdmin && activeTab === 'story')) && (
+                    {(coupleStory ||
+                      showStoryUpload ||
+                      (isAdmin && activeTab === "story")) && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => {
-                              setActiveTab('story');
+                              setActiveTab("story");
                               // 🔧 FIX: Non forzare reload - evita loop infinito
-                              console.log('📘 Click tab Storia - no reload forzato');
+                              console.log(
+                                "📘 Click tab Storia - no reload forzato",
+                              );
                             }}
                             className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
-                              activeTab === 'story'
-                                ? 'bg-gradient-to-r from-terracotta-100 to-cream-100 shadow-lg text-terracotta-800 border border-terracotta-200'
-                                : 'text-gray-600 hover:text-terracotta-700 hover:bg-terracotta-50'
+                              activeTab === "story"
+                                ? "bg-gradient-to-r from-terracotta-100 to-cream-100 shadow-lg text-terracotta-800 border border-terracotta-200"
+                                : "text-gray-600 hover:text-terracotta-700 hover:bg-terracotta-50"
                             }`}
                           >
                             <BookOpen className="h-4 w-4" />
-                            <span className="hidden sm:inline">Storia della Coppia</span>
+                            <span className="hidden sm:inline">
+                              Storia della Coppia
+                            </span>
                             <span className="sm:hidden">Storia</span>
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="text-sm">
-                          <p>Leggi la storia d'amore della coppia in un libro digitale</p>
+                          <p>
+                            Leggi la storia d'amore della coppia in un libro
+                            digitale
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -973,17 +1194,21 @@ export default function Gallery() {
                           <button
                             onClick={() => {
                               setShowStoryUpload(true);
-                              setActiveTab('story');
+                              setActiveTab("story");
                             }}
                             className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 bg-terracotta-50 text-terracotta-700 hover:bg-terracotta-100 hover:text-terracotta-800 border border-terracotta-200 shadow-sm"
                           >
                             <BookOpen className="h-4 w-4" />
-                            <span className="hidden sm:inline">Aggiungi Storia</span>
+                            <span className="hidden sm:inline">
+                              Aggiungi Storia
+                            </span>
                             <span className="sm:hidden">+ Storia</span>
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="text-sm">
-                          <p>Carica la storia d'amore della coppia da ChatGPT</p>
+                          <p>
+                            Carica la storia d'amore della coppia da ChatGPT
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -997,7 +1222,9 @@ export default function Gallery() {
                             className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 shadow-sm"
                           >
                             <Edit3 className="h-4 w-4" />
-                            <span className="hidden sm:inline">Edit Gallery</span>
+                            <span className="hidden sm:inline">
+                              Edit Gallery
+                            </span>
                             <span className="sm:hidden">Edit</span>
                           </button>
                         </TooltipTrigger>
@@ -1011,7 +1238,7 @@ export default function Gallery() {
               </div>
 
               {/* Barra con filtri e azioni - solo per tab fotografo */}
-              {activeTab === 'photographer' && (
+              {activeTab === "photographer" && (
                 <div className="space-y-4 mb-6">
                   {/* Filtri - sempre sopra su mobile */}
                   <div className="w-full">
@@ -1027,24 +1254,38 @@ export default function Gallery() {
                   <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                     <div className="flex flex-col lg:flex-row gap-4">
                       {/* Sezione riservata per future funzionalità */}
-                      <div className="flex-1">
-                      </div>
+                      <div className="flex-1"></div>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Sezione caricamento foto per ospiti con call-to-action accattivante */}
-              {activeTab === 'guests' && (
+              {activeTab === "guests" && (
                 <div className="mb-8">
                   {/* Call-to-action accattivante */}
                   <div className="bg-gradient-to-r from-sage/5 to-blue-gray/5 border border-sage/20 rounded-xl p-6 mb-4">
                     <div className="text-center">
                       <div className="flex justify-center mb-4">
                         <div className="bg-sage/10 p-4 rounded-full">
-                          <svg className="w-8 h-8 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <svg
+                            className="w-8 h-8 text-sage"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
                           </svg>
                         </div>
                       </div>
@@ -1052,7 +1293,8 @@ export default function Gallery() {
                         🎉 Condividi i tuoi ricordi speciali!
                       </h3>
                       <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
-                        Hai catturato momenti magici? Carica le tue foto e aiuta a completare la storia di questo giorno indimenticabile!
+                        Hai catturato momenti magici? Carica le tue foto e aiuta
+                        a completare la storia di questo giorno indimenticabile!
                       </p>
 
                       <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -1070,11 +1312,12 @@ export default function Gallery() {
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className="text-sm">
-                              <p>Aggiungi le tue foto personali alla galleria degli ospiti</p>
+                              <p>
+                                Aggiungi le tue foto personali alla galleria
+                                degli ospiti
+                              </p>
                             </TooltipContent>
                           </Tooltip>
-
-
                         </TooltipProvider>
                       </div>
                     </div>
@@ -1083,26 +1326,34 @@ export default function Gallery() {
                   {/* Statistiche rapide */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
                     <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-gray-100">
-                      <div className="text-lg font-bold text-sage">{guestPhotos.length}</div>
+                      <div className="text-lg font-bold text-sage">
+                        {guestPhotos.length}
+                      </div>
                       <div className="text-xs text-gray-600">Foto caricate</div>
                     </div>
                     <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-gray-100">
                       <div className="text-lg font-bold text-sage">
-                        {new Set(guestPhotos.map(p => p.uploaderEmail || '')).size}
-
+                        {
+                          new Set(guestPhotos.map((p) => p.uploaderEmail || ""))
+                            .size
+                        }
                       </div>
-                      <div className="text-xs text-gray-600">Ospiti partecipanti</div>
+                      <div className="text-xs text-gray-600">
+                        Ospiti partecipanti
+                      </div>
                     </div>
                     <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-gray-100 col-span-2 sm:col-span-1">
                       <div className="text-lg font-bold text-sage">📸</div>
-                      <div className="text-xs text-gray-600">Ogni ricordo conta</div>
+                      <div className="text-xs text-gray-600">
+                        Ogni ricordo conta
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Azioni per tab vocali segreti */}
-              {activeTab === 'voice-memos' && (
+              {activeTab === "voice-memos" && (
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
                   <TooltipProvider>
                     <Tooltip>
@@ -1115,45 +1366,50 @@ export default function Gallery() {
                             userName={userInfo.displayName}
                             onUploadComplete={() => {
                               // Trigger refresh of voice memos list
-                              setRefreshTrigger(prev => prev + 1);
+                              setRefreshTrigger((prev) => prev + 1);
                             }}
                           />
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="text-sm">
-                        <p>Registra un messaggio vocale privato per gli sposi</p>
+                        <p>
+                          Registra un messaggio vocale privato per gli sposi
+                        </p>
                       </TooltipContent>
                     </Tooltip>
-
-
                   </TooltipProvider>
                 </div>
               )}
 
               {/* Azioni per tab storia - Solo Admin */}
-              {activeTab === 'story' && isAdmin && coupleStory && !showStoryUpload && (
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={() => setShowStoryUpload(true)}
-                          className="bg-terracotta-600 hover:bg-terracotta-700 text-white"
-                        >
-                          <BookOpen className="h-4 w-4 mr-2" />
-                          Aggiorna Storia
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-sm">
-                        <p>Carica una nuova versione della storia della coppia</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              )}
+              {activeTab === "story" &&
+                isAdmin &&
+                coupleStory &&
+                !showStoryUpload && (
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={() => setShowStoryUpload(true)}
+                            className="bg-terracotta-600 hover:bg-terracotta-700 text-white"
+                          >
+                            <BookOpen className="h-4 w-4 mr-2" />
+                            Aggiorna Storia
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>
+                            Carica una nuova versione della storia della coppia
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                )}
 
               {/* Contenuto del tab selezionato */}
-              {activeTab === 'photographer' && (
+              {activeTab === "photographer" && (
                 <div>
                   {/* Discrete registration link for non-authenticated users - only show when not logged in */}
                   {!isAuthenticated && (
@@ -1163,19 +1419,41 @@ export default function Gallery() {
                           <TooltipTrigger asChild>
                             <button
                               onClick={() => {
-                                const registrationSection = document.getElementById('registration-section');
-                                registrationSection?.scrollIntoView({ behavior: 'smooth' });
+                                const registrationSection =
+                                  document.getElementById(
+                                    "registration-section",
+                                  );
+                                registrationSection?.scrollIntoView({
+                                  behavior: "smooth",
+                                });
                               }}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sage-100 to-blue-gray-100 hover:from-sage-200 hover:to-blue-gray-200 text-sage-800 rounded-full border border-sage-300 transition-all duration-300 hover:shadow-md text-sm font-medium"
                             >
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                                />
                               </svg>
-                              🎁 Sblocca tutte le funzionalità - Scopri i vantaggi
+                              🎁 Sblocca tutte le funzionalità - Scopri i
+                              vantaggi
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom" className="text-sm max-w-xs">
-                            <p>Registrati per commentare, mettere "mi piace" e accedere a tutte le funzionalità della galleria</p>
+                          <TooltipContent
+                            side="bottom"
+                            className="text-sm max-w-xs"
+                          >
+                            <p>
+                              Registrati per commentare, mettere "mi piace" e
+                              accedere a tutte le funzionalità della galleria
+                            </p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -1186,22 +1464,30 @@ export default function Gallery() {
                     <div className="text-center py-12">
                       <div className="flex flex-col items-center">
                         <h3 className="text-xl font-playfair text-blue-gray mb-2">
-                          {showOnlySelected ? 'Nessuna foto selezionata' : areFiltersActive ? 'Nessuna foto corrisponde ai filtri selezionati' : 'Nessuna foto del fotografo'}
+                          {showOnlySelected
+                            ? "Nessuna foto selezionata"
+                            : areFiltersActive
+                              ? "Nessuna foto corrisponde ai filtri selezionati"
+                              : "Nessuna foto del fotografo"}
                         </h3>
                         <p className="text-gray-500">
-                          {showOnlySelected ? 'Inizia a selezionare le tue foto preferite!' : areFiltersActive ? 'Prova a modificare i criteri di filtro per visualizzare più foto.' : 'Non ci sono ancora foto del fotografo in questa galleria.'}
+                          {showOnlySelected
+                            ? "Inizia a selezionare le tue foto preferite!"
+                            : areFiltersActive
+                              ? "Prova a modificare i criteri di filtro per visualizzare più foto."
+                              : "Non ci sono ancora foto del fotografo in questa galleria."}
                         </p>
                       </div>
                     </div>
                   ) : (
                     <div>
                       {/* Selection Mode Banner (Task 13 + Tooltip/Info Guide) - nascosto quando completata */}
-                      {isSelectionMode && selectionStatus !== 'completed' && (
+                      {isSelectionMode && selectionStatus !== "completed" && (
                         <div className="mb-6 bg-gradient-to-r from-sage/20 to-blue-gray/20 border-2 border-sage rounded-lg p-6 text-center relative">
                           {/* Info Icon Button - Top Right */}
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <button 
+                              <button
                                 className="absolute top-4 right-4 w-8 h-8 rounded-full bg-sage/80 hover:bg-sage text-white flex items-center justify-center transition-all shadow-md hover:shadow-lg"
                                 data-testid="button-selection-help"
                               >
@@ -1216,37 +1502,101 @@ export default function Gallery() {
                                 </AlertDialogTitle>
                                 <AlertDialogDescription className="text-left space-y-3 text-base">
                                   <div className="bg-sage/10 p-3 rounded-lg border border-sage/30">
-                                    <p className="font-semibold text-sage mb-1">🎯 Obiettivo</p>
-                                    <p className="text-gray-700">Devi selezionare esattamente <strong>{requiredPhotoCount} foto</strong> per il tuo album personalizzato.</p>
+                                    <p className="font-semibold text-sage mb-1">
+                                      🎯 Obiettivo
+                                    </p>
+                                    <p className="text-gray-700">
+                                      Devi selezionare esattamente{" "}
+                                      <strong>{requiredPhotoCount} foto</strong>{" "}
+                                      per il tuo album personalizzato.
+                                    </p>
                                   </div>
-                                  
+
                                   <div>
-                                    <p className="font-semibold text-gray-800 mb-2">📝 Come funziona:</p>
+                                    <p className="font-semibold text-gray-800 mb-2">
+                                      📝 Come funziona:
+                                    </p>
                                     <ol className="space-y-2 text-gray-700 list-decimal list-inside">
-                                      <li><strong>Scorri le foto</strong> della galleria</li>
-                                      <li><strong>Clicca sulla foto</strong> che vuoi selezionare</li>
-                                      <li>Vedrai un <strong>✓ checkbox verde</strong> nell'angolo e la scritta <strong>"SELEZIONATA"</strong></li>
-                                      <li><strong>Clicca di nuovo</strong> sulla foto per deselezionarla</li>
-                                      <li>Il <strong>counter</strong> ti mostra il progresso ({selectedPhotoIds.length}/{requiredPhotoCount})</li>
-                                      <li>Quando raggiungi <strong>{requiredPhotoCount}/{requiredPhotoCount}</strong>, scorri in fondo e clicca <strong>"Conferma Selezione"</strong></li>
+                                      <li>
+                                        <strong>Scorri le foto</strong> della
+                                        galleria
+                                      </li>
+                                      <li>
+                                        <strong>Clicca sulla foto</strong> che
+                                        vuoi selezionare
+                                      </li>
+                                      <li>
+                                        Vedrai un{" "}
+                                        <strong>✓ checkbox verde</strong>{" "}
+                                        nell'angolo e la scritta{" "}
+                                        <strong>"SELEZIONATA"</strong>
+                                      </li>
+                                      <li>
+                                        <strong>Clicca di nuovo</strong> sulla
+                                        foto per deselezionarla
+                                      </li>
+                                      <li>
+                                        Il <strong>counter</strong> ti mostra il
+                                        progresso ({selectedPhotoIds.length}/
+                                        {requiredPhotoCount})
+                                      </li>
+                                      <li>
+                                        Quando raggiungi{" "}
+                                        <strong>
+                                          {requiredPhotoCount}/
+                                          {requiredPhotoCount}
+                                        </strong>
+                                        , scorri in fondo e clicca{" "}
+                                        <strong>"Conferma Selezione"</strong>
+                                      </li>
                                     </ol>
                                   </div>
-                                  
+
                                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                                    <p className="font-semibold text-blue-800 mb-1">💡 Suggerimenti</p>
+                                    <p className="font-semibold text-blue-800 mb-1">
+                                      💡 Suggerimenti
+                                    </p>
                                     <ul className="text-gray-700 space-y-1 text-sm">
-                                      <li>• Prenditi il tempo necessario per scegliere le tue foto preferite</li>
-                                      <li>• Puoi cambiare idea quante volte vuoi prima di confermare</li>
-                                      <li>• Le foto selezionate hanno un <strong>bordo verde spesso</strong> e la scritta "SELEZIONATA"</li>
-                                      <li>• Dopo aver confermato, la selezione sarà <strong>definitiva</strong> e visibile allo studio</li>
-                                      {selectionDeadline && <li>• Ricorda la scadenza: <strong>{convertFirestoreTimestamp(selectionDeadline)?.toLocaleDateString('it-IT')}</strong></li>}
+                                      <li>
+                                        • Prenditi il tempo necessario per
+                                        scegliere le tue foto preferite
+                                      </li>
+                                      <li>
+                                        • Puoi cambiare idea quante volte vuoi
+                                        prima di confermare
+                                      </li>
+                                      <li>
+                                        • Le foto selezionate hanno un{" "}
+                                        <strong>bordo verde spesso</strong> e la
+                                        scritta "SELEZIONATA"
+                                      </li>
+                                      <li>
+                                        • Dopo aver confermato, la selezione
+                                        sarà <strong>definitiva</strong> e
+                                        visibile allo studio
+                                      </li>
+                                      {selectionDeadline && (
+                                        <li>
+                                          • Ricorda la scadenza:{" "}
+                                          <strong>
+                                            {convertFirestoreTimestamp(
+                                              selectionDeadline,
+                                            )?.toLocaleDateString("it-IT")}
+                                          </strong>
+                                        </li>
+                                      )}
                                     </ul>
                                   </div>
-                                  
+
                                   {isDeadlinePassed && (
                                     <div className="bg-red-50 p-3 rounded-lg border border-red-200">
-                                      <p className="font-semibold text-red-700">⚠️ La scadenza è superata!</p>
-                                      <p className="text-sm text-gray-700 mt-1">Contatta lo studio per ricevere assistenza.</p>
+                                      <p className="font-semibold text-red-700">
+                                        ⚠️ La scadenza è superata!
+                                      </p>
+                                      <p className="text-sm text-gray-700 mt-1">
+                                        Contatta lo studio per ricevere
+                                        assistenza.
+                                      </p>
                                     </div>
                                   )}
                                 </AlertDialogDescription>
@@ -1258,45 +1608,82 @@ export default function Gallery() {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                          
+
                           <h3 className="text-2xl font-playfair text-blue-gray mb-3">
                             ✨ Modalità Selezione Foto ✨
                           </h3>
                           <p className="text-lg text-gray-700 mb-4">
-                            Seleziona le tue <strong className="text-sage">{requiredPhotoCount} foto preferite</strong> per il tuo album personalizzato!
+                            Seleziona le tue{" "}
+                            <strong className="text-sage">
+                              {requiredPhotoCount} foto preferite
+                            </strong>{" "}
+                            per il tuo album personalizzato!
                           </p>
-                          
+
                           {/* Istruzioni chiare */}
                           <div className="bg-white/60 rounded-lg p-4 mb-4 border border-sage/30">
-                            <p className="font-semibold text-sage mb-2">📋 Come selezionare:</p>
+                            <p className="font-semibold text-sage mb-2">
+                              📋 Come selezionare:
+                            </p>
                             <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
-                              <li><strong>Clicca sulla foto</strong> che vuoi selezionare</li>
-                              <li>Vedrai un <strong>✓ checkbox verde</strong> e la scritta "SELEZIONATA"</li>
-                              <li>Clicca di nuovo per <strong>deselezionare</strong></li>
-                              <li>Il counter mostra il progresso: <strong>{selectedPhotoIds.length}/{requiredPhotoCount}</strong></li>
-                              <li>Quando hai selezionato tutte le {requiredPhotoCount} foto, clicca <strong>"Conferma Selezione"</strong> in fondo alla pagina</li>
+                              <li>
+                                <strong>Clicca sulla foto</strong> che vuoi
+                                selezionare
+                              </li>
+                              <li>
+                                Vedrai un <strong>✓ checkbox verde</strong> e la
+                                scritta "SELEZIONATA"
+                              </li>
+                              <li>
+                                Clicca di nuovo per{" "}
+                                <strong>deselezionare</strong>
+                              </li>
+                              <li>
+                                Il counter mostra il progresso:{" "}
+                                <strong>
+                                  {selectedPhotoIds.length}/{requiredPhotoCount}
+                                </strong>
+                              </li>
+                              <li>
+                                Quando hai selezionato tutte le{" "}
+                                {requiredPhotoCount} foto, clicca{" "}
+                                <strong>"Conferma Selezione"</strong> in fondo
+                                alla pagina
+                              </li>
                             </ol>
                           </div>
-                          
+
                           {/* 🎨 UX Enhancement #4: Progress Bar */}
                           <div className="mb-4">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-700">Progresso</span>
-                              <span className="text-sm font-bold text-sage">{selectedPhotoIds.length}/{requiredPhotoCount}</span>
+                              <span className="text-sm font-medium text-gray-700">
+                                Progresso
+                              </span>
+                              <span className="text-sm font-bold text-sage">
+                                {selectedPhotoIds.length}/{requiredPhotoCount}
+                              </span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                              <div 
+                              <div
                                 className="h-full bg-gradient-to-r from-sage to-green-500 transition-all duration-500 ease-out rounded-full"
-                                style={{ width: `${Math.min((selectedPhotoIds.length / requiredPhotoCount) * 100, 100)}%` }}
+                                style={{
+                                  width: `${Math.min((selectedPhotoIds.length / requiredPhotoCount) * 100, 100)}%`,
+                                }}
                               />
                             </div>
                           </div>
 
                           {/* 🎨 UX Enhancement #6: Smart Message */}
                           {smartMessage && (
-                            <div className={`mb-4 p-3 rounded-lg bg-white/80 border-2 ${smartMessage.color === 'text-sage' ? 'border-sage' : smartMessage.color === 'text-red-600' ? 'border-red-300' : 'border-blue-300'}`}>
-                              <p className={`text-center font-semibold ${smartMessage.color}`}>
-                                <span className="text-2xl mr-2">{smartMessage.emoji}</span>
+                            <div
+                              className={`mb-4 p-3 rounded-lg bg-white/80 border-2 ${smartMessage.color === "text-sage" ? "border-sage" : smartMessage.color === "text-red-600" ? "border-red-300" : "border-blue-300"}`}
+                            >
+                              <p
+                                className={`text-center font-semibold ${smartMessage.color}`}
+                              >
+                                <span className="text-2xl mr-2">
+                                  {smartMessage.emoji}
+                                </span>
                                 {smartMessage.text}
                               </p>
                             </div>
@@ -1307,15 +1694,24 @@ export default function Gallery() {
                             <Button
                               variant={showOnlySelected ? "default" : "outline"}
                               size="sm"
-                              onClick={() => setShowOnlySelected(!showOnlySelected)}
+                              onClick={() =>
+                                setShowOnlySelected(!showOnlySelected)
+                              }
                               disabled={selectedPhotoIds.length === 0}
-                              className={showOnlySelected ? "bg-sage hover:bg-sage/90" : ""}
+                              className={
+                                showOnlySelected
+                                  ? "bg-sage hover:bg-sage/90"
+                                  : ""
+                              }
                               data-testid="button-toggle-selected-only"
                             >
-                              {showOnlySelected ? '✓ Solo Selezionate' : '👁️ Tutte le Foto'}
-                              {selectedPhotoIds.length > 0 && ` (${selectedPhotoIds.length})`}
+                              {showOnlySelected
+                                ? "✓ Solo Selezionate"
+                                : "👁️ Tutte le Foto"}
+                              {selectedPhotoIds.length > 0 &&
+                                ` (${selectedPhotoIds.length})`}
                             </Button>
-                            
+
                             <Button
                               variant="outline"
                               size="sm"
@@ -1323,18 +1719,27 @@ export default function Gallery() {
                               disabled={selectedPhotoIds.length === 0}
                               data-testid="button-toggle-sidebar"
                             >
-                              {showSidebar ? '✕ Nascondi' : '🖼️ Anteprima'} {selectedPhotoIds.length > 0 && `(${selectedPhotoIds.length})`}
+                              {showSidebar ? "✕ Nascondi" : "🖼️ Anteprima"}{" "}
+                              {selectedPhotoIds.length > 0 &&
+                                `(${selectedPhotoIds.length})`}
                             </Button>
                           </div>
                           {selectionDeadline && (
                             <p className="text-sm text-gray-500">
-                              ⏰ Scadenza: <strong>{convertFirestoreTimestamp(selectionDeadline)?.toLocaleDateString('it-IT') || 'Data non disponibile'}</strong>
+                              ⏰ Scadenza:{" "}
+                              <strong>
+                                {convertFirestoreTimestamp(
+                                  selectionDeadline,
+                                )?.toLocaleDateString("it-IT") ||
+                                  "Data non disponibile"}
+                              </strong>
                             </p>
                           )}
                           {isDeadlinePassed && (
                             <div className="mt-4 bg-red-100 border-2 border-red-300 rounded-lg p-3">
                               <p className="text-red-700 font-semibold">
-                                ⚠️ La scadenza è superata! Contatta lo studio per assistenza.
+                                ⚠️ La scadenza è superata! Contatta lo studio
+                                per assistenza.
                               </p>
                             </div>
                           )}
@@ -1342,38 +1747,47 @@ export default function Gallery() {
                       )}
 
                       {/* 🎨 UX Enhancement #5: Sidebar con miniature selezionate */}
-                      {isSelectionMode && selectionStatus !== 'completed' && (
+                      {isSelectionMode && selectionStatus !== "completed" && (
                         <Sheet open={showSidebar} onOpenChange={setShowSidebar}>
-                          <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto">
+                          <SheetContent
+                            side="right"
+                            className="w-[400px] sm:w-[540px] overflow-y-auto"
+                          >
                             <SheetHeader>
                               <SheetTitle className="font-playfair text-2xl text-sage">
                                 🖼️ Foto Selezionate
                               </SheetTitle>
                               <SheetDescription>
-                                {selectedPhotoIds.length === 0 
-                                  ? 'Nessuna foto selezionata ancora'
-                                  : `${selectedPhotoIds.length} di ${requiredPhotoCount} foto selezionate`
-                                }
+                                {selectedPhotoIds.length === 0
+                                  ? "Nessuna foto selezionata ancora"
+                                  : `${selectedPhotoIds.length} di ${requiredPhotoCount} foto selezionate`}
                               </SheetDescription>
                             </SheetHeader>
-                            
+
                             <div className="mt-6 space-y-4">
                               {selectedPhotoIds.length === 0 ? (
                                 <div className="text-center py-12 text-gray-500">
                                   <p className="text-4xl mb-4">📷</p>
-                                  <p>Inizia a selezionare le tue foto preferite!</p>
+                                  <p>
+                                    Inizia a selezionare le tue foto preferite!
+                                  </p>
                                 </div>
                               ) : (
                                 <div className="grid grid-cols-2 gap-3">
                                   {selectedPhotoIds.map((photoId, idx) => {
-                                    const photo = displayPhotos.find(p => p.id === photoId);
+                                    const photo = displayPhotos.find(
+                                      (p) => p.id === photoId,
+                                    );
                                     if (!photo) return null;
-                                    
+
                                     return (
-                                      <div key={photoId} className="relative group">
+                                      <div
+                                        key={photoId}
+                                        className="relative group"
+                                      >
                                         <div className="aspect-square overflow-hidden rounded-lg border-2 border-sage/30">
-                                          <img 
-                                            src={photo.url} 
+                                          <img
+                                            src={photo.url}
                                             alt={`Selezionata ${idx + 1}`}
                                             className="w-full h-full object-cover"
                                           />
@@ -1382,7 +1796,9 @@ export default function Gallery() {
                                           {idx + 1}
                                         </div>
                                         <button
-                                          onClick={() => handleTogglePhotoSelection(photoId)}
+                                          onClick={() =>
+                                            handleTogglePhotoSelection(photoId)
+                                          }
                                           className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
                                           title="Rimuovi selezione"
                                         >
@@ -1404,15 +1820,21 @@ export default function Gallery() {
                             <div className="masonry-item">
                               <div
                                 className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg transition-all duration-300 ${
-                                  isSelectionMode && selectionStatus !== 'completed' && selectedPhotoIds.includes(photo.id) 
-                                    ? 'ring-6 ring-sage shadow-[0_0_20px_rgba(134,168,137,0.5)] scale-[1.02]' 
-                                    : isSelectionMode && selectionStatus !== 'completed'
-                                    ? 'shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50' 
-                                    : 'shadow-md hover:shadow-lg'
+                                  isSelectionMode &&
+                                  selectionStatus !== "completed" &&
+                                  selectedPhotoIds.includes(photo.id)
+                                    ? "ring-6 ring-sage shadow-[0_0_20px_rgba(134,168,137,0.5)] scale-[1.02]"
+                                    : isSelectionMode &&
+                                        selectionStatus !== "completed"
+                                      ? "shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50"
+                                      : "shadow-md hover:shadow-lg"
                                 }`}
                                 onClick={() => {
                                   // In modalità selezione: click foto = seleziona/deseleziona
-                                  if (isSelectionMode && selectionStatus !== 'completed') {
+                                  if (
+                                    isSelectionMode &&
+                                    selectionStatus !== "completed"
+                                  ) {
                                     handleTogglePhotoSelection(photo.id);
                                   } else {
                                     // Altrimenti apre lightbox
@@ -1424,60 +1846,99 @@ export default function Gallery() {
                                   src={photo.url}
                                   alt={photo.name || `Foto ${index + 1}`}
                                   className={`w-full h-auto object-cover transition-all duration-300 opacity-0 ${
-                                    isSelectionMode && selectionStatus !== 'completed' && selectedPhotoIds.includes(photo.id) ? 'brightness-100' : 'hover:opacity-95'
+                                    isSelectionMode &&
+                                    selectionStatus !== "completed" &&
+                                    selectedPhotoIds.includes(photo.id)
+                                      ? "brightness-100"
+                                      : "hover:opacity-95"
                                   }`}
                                   loading="lazy"
                                   onLoad={(e) => {
-                                    (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                                    (
+                                      e.target as HTMLImageElement
+                                    ).classList.replace(
+                                      "opacity-0",
+                                      "opacity-100",
+                                    );
                                   }}
-                                  title={photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}
+                                  title={
+                                    photo.createdAt
+                                      ? new Date(
+                                          photo.createdAt,
+                                        ).toLocaleString("it-IT")
+                                      : ""
+                                  }
                                 />
-                                
+
                                 {/* 👁️ UX Enhancement: Bottone Espandi/Zoom in modalità selezione */}
-                                {isSelectionMode && selectionStatus !== 'completed' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // Previene trigger del click sulla foto
-                                      openLightbox(index);
-                                    }}
-                                    className="absolute top-3 left-3 z-20 bg-blue-gray/90 hover:bg-blue-gray text-white rounded-full w-9 h-9 flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                                    title="Visualizza a schermo intero"
-                                    data-testid="button-expand-photo"
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                                    </svg>
-                                  </button>
-                                )}
-                                
+                                {isSelectionMode &&
+                                  selectionStatus !== "completed" && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation(); // Previene trigger del click sulla foto
+                                        openLightbox(index);
+                                      }}
+                                      className="absolute top-3 left-3 z-20 bg-blue-gray/90 hover:bg-blue-gray text-white rounded-full w-9 h-9 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                      title="Visualizza a schermo intero"
+                                      data-testid="button-expand-photo"
+                                    >
+                                      <svg
+                                        className="w-5 h-5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
+                                        />
+                                      </svg>
+                                    </button>
+                                  )}
+
                                 {/* Selection Mode Checkbox Badge - nascosto quando completata */}
-                                {isSelectionMode && selectionStatus !== 'completed' && (
-                                  <>
-                                    {/* Checkbox Top Right */}
-                                    <div className="absolute top-3 right-3 z-10">
-                                      <div className={`w-8 h-8 rounded-md flex items-center justify-center transition-all border-2 ${
-                                        selectedPhotoIds.includes(photo.id)
-                                          ? 'bg-sage border-sage text-white scale-110 shadow-lg'
-                                          : 'bg-white border-gray-300 hover:border-sage hover:bg-sage/10'
-                                      }`}>
-                                        {selectedPhotoIds.includes(photo.id) ? (
-                                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                                          </svg>
-                                        ) : (
-                                          <div className="w-4 h-4 rounded-sm border border-gray-400"></div>
-                                        )}
+                                {isSelectionMode &&
+                                  selectionStatus !== "completed" && (
+                                    <>
+                                      {/* Checkbox Top Right */}
+                                      <div className="absolute top-3 right-3 z-10">
+                                        <div
+                                          className={`w-8 h-8 rounded-md flex items-center justify-center transition-all border-2 ${
+                                            selectedPhotoIds.includes(photo.id)
+                                              ? "bg-sage border-sage text-white scale-110 shadow-lg"
+                                              : "bg-white border-gray-300 hover:border-sage hover:bg-sage/10"
+                                          }`}
+                                        >
+                                          {selectedPhotoIds.includes(
+                                            photo.id,
+                                          ) ? (
+                                            <svg
+                                              className="w-5 h-5"
+                                              fill="currentColor"
+                                              viewBox="0 0 20 20"
+                                            >
+                                              <path
+                                                fillRule="evenodd"
+                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                                clipRule="evenodd"
+                                              />
+                                            </svg>
+                                          ) : (
+                                            <div className="w-4 h-4 rounded-sm border border-gray-400"></div>
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
-                                    
-                                    {/* Badge "SELEZIONA" / "SELEZIONATA" */}
-                                    {selectedPhotoIds.includes(photo.id) && (
-                                      <div className="absolute bottom-0 left-0 right-0 bg-sage text-white text-center py-2 font-semibold text-sm">
-                                        ✓ SELEZIONATA
-                                      </div>
-                                    )}
-                                  </>
-                                )}
+
+                                      {/* Badge "SELEZIONA" / "SELEZIONATA" */}
+                                      {selectedPhotoIds.includes(photo.id) && (
+                                        <div className="absolute bottom-0 left-0 right-0 bg-sage text-white text-center py-2 font-semibold text-sm">
+                                          ✓ SELEZIONATA
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
                               </div>
 
                               {/* Interaction panel below photo */}
@@ -1493,15 +1954,19 @@ export default function Gallery() {
                             </div>
 
                             {/* Mostra prompt iscrizione ogni 20 foto - full width per non sovrapporsi */}
-                            {showSubscriptionPrompt && index === 19 && galleryData && (
-                              <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-4">
-                                <SubscriptionPrompt
-                                  galleryId={galleryData.id}
-                                  galleryName={galleryData.name}
-                                  onDismiss={() => setShowSubscriptionPrompt(false)}
-                                />
-                              </div>
-                            )}
+                            {showSubscriptionPrompt &&
+                              index === 19 &&
+                              galleryData && (
+                                <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-4">
+                                  <SubscriptionPrompt
+                                    galleryId={galleryData.id}
+                                    galleryName={galleryData.name}
+                                    onDismiss={() =>
+                                      setShowSubscriptionPrompt(false)
+                                    }
+                                  />
+                                </div>
+                              )}
                           </React.Fragment>
                         ))}
                       </div>
@@ -1516,7 +1981,7 @@ export default function Gallery() {
                       )}
 
                       {/* Conferma Selezione Button (Task 14) */}
-                      {isSelectionMode && selectionStatus !== 'completed' && (
+                      {isSelectionMode && selectionStatus !== "completed" && (
                         <div className="mt-8 mb-6 text-center">
                           <div className="bg-white rounded-lg border-2 border-sage p-6 shadow-lg max-w-2xl mx-auto">
                             <h4 className="text-xl font-playfair text-blue-gray mb-4">
@@ -1528,20 +1993,25 @@ export default function Gallery() {
                               </div>
                               <p className="text-sm text-gray-600">
                                 {selectedPhotoIds.length === requiredPhotoCount
-                                  ? '✅ Perfetto! Puoi confermare la tua selezione.'
+                                  ? "✅ Perfetto! Puoi confermare la tua selezione."
                                   : `Seleziona ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
                               </p>
                             </div>
 
                             {/* 📝 Campo Note Aggiuntive */}
                             <div className="mb-6 text-left">
-                              <label htmlFor="selection-notes" className="block text-sm font-semibold text-blue-gray mb-2">
+                              <label
+                                htmlFor="selection-notes"
+                                className="block text-sm font-semibold text-blue-gray mb-2"
+                              >
                                 💬 Note aggiuntive (opzionale)
                               </label>
                               <Textarea
                                 id="selection-notes"
                                 value={selectionNotes}
-                                onChange={(e) => setSelectionNotes(e.target.value)}
+                                onChange={(e) =>
+                                  setSelectionNotes(e.target.value)
+                                }
                                 placeholder="Es: vorrei più foto del taglio torta, preferisco foto luminose, ecc..."
                                 className="w-full min-h-[100px] resize-none border-sage/30 focus:border-sage focus:ring-sage"
                                 maxLength={500}
@@ -1554,7 +2024,12 @@ export default function Gallery() {
 
                             <Button
                               onClick={handleConfirmSelection}
-                              disabled={selectedPhotoIds.length !== requiredPhotoCount || isSubmittingSelection || isDeadlinePassed}
+                              disabled={
+                                selectedPhotoIds.length !==
+                                  requiredPhotoCount ||
+                                isSubmittingSelection ||
+                                isDeadlinePassed
+                              }
                               className="bg-sage hover:bg-sage/90 text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                               data-testid="button-confirm-selection"
                             >
@@ -1564,9 +2039,7 @@ export default function Gallery() {
                                   Conferma in corso...
                                 </>
                               ) : (
-                                <>
-                                  ✨ Conferma Selezione
-                                </>
+                                <>✨ Conferma Selezione</>
                               )}
                             </Button>
                             {isDeadlinePassed && (
@@ -1579,7 +2052,7 @@ export default function Gallery() {
                       )}
 
                       {/* Selezione Completata Message - Migliorato */}
-                      {isSelectionMode && selectionStatus === 'completed' && (
+                      {isSelectionMode && selectionStatus === "completed" && (
                         <div className="mt-8 mb-6 text-center">
                           <div className="bg-gradient-to-br from-green-50 to-sage/10 border-2 border-green-300 rounded-lg p-8 shadow-xl max-w-3xl mx-auto">
                             <div className="mb-6">
@@ -1588,7 +2061,11 @@ export default function Gallery() {
                                 Selezione Confermata!
                               </h4>
                               <p className="text-lg text-gray-700 mb-2">
-                                Hai confermato la tua selezione di <strong className="text-sage">{requiredPhotoCount} foto</strong> per il tuo album personalizzato.
+                                Hai confermato la tua selezione di{" "}
+                                <strong className="text-sage">
+                                  {requiredPhotoCount} foto
+                                </strong>{" "}
+                                per il tuo album personalizzato.
                               </p>
                               <p className="text-sm text-gray-600">
                                 Riceverai presto il tuo album! 🎉
@@ -1615,20 +2092,24 @@ export default function Gallery() {
                               >
                                 {isRequestingModification ? (
                                   <>
-                                    <span className="animate-spin mr-2">⏳</span>
+                                    <span className="animate-spin mr-2">
+                                      ⏳
+                                    </span>
                                     Invio richiesta...
                                   </>
                                 ) : (
-                                  <>
-                                    ✏️ Richiedi Modifica
-                                  </>
+                                  <>✏️ Richiedi Modifica</>
                                 )}
                               </Button>
                             </div>
 
                             <div className="mt-6 bg-white/60 rounded-lg p-4 border border-sage/30">
                               <p className="text-sm text-gray-600">
-                                💡 <strong>Nota:</strong> Puoi continuare a sfogliare e goderti la galleria normalmente. Se hai bisogno di modificare la selezione, clicca su "Richiedi Modifica" e lo studio ti contatterà.
+                                💡 <strong>Nota:</strong> Puoi continuare a
+                                sfogliare e goderti la galleria normalmente. Se
+                                hai bisogno di modificare la selezione, clicca
+                                su "Richiedi Modifica" e lo studio ti
+                                contatterà.
                               </p>
                             </div>
                           </div>
@@ -1639,7 +2120,7 @@ export default function Gallery() {
                 </div>
               )}
 
-              {activeTab === 'guests' && (
+              {activeTab === "guests" && (
                 <div>
                   {guestPhotos.length === 0 ? (
                     <div className="text-center py-12">
@@ -1648,7 +2129,8 @@ export default function Gallery() {
                           Nessuna foto degli ospiti
                         </h3>
                         <p className="text-gray-500">
-                          Gli ospiti non hanno ancora caricato foto. Usa il pulsante "Carica foto" sopra per aggiungerne.
+                          Gli ospiti non hanno ancora caricato foto. Usa il
+                          pulsante "Carica foto" sopra per aggiungerne.
                         </p>
                       </div>
                     </div>
@@ -1666,12 +2148,14 @@ export default function Gallery() {
                               className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
                               loading="lazy"
                               onLoad={(e) => {
-                                (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                                (
+                                  e.target as HTMLImageElement
+                                ).classList.replace("opacity-0", "opacity-100");
                               }}
                               style={{
-                                backgroundColor: '#f3f4f6',
+                                backgroundColor: "transparent",
                               }}
-                              title={`Caricata da: ${photo.uploaderName || 'Ospite'} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString('it-IT') : ''}`}
+                              title={`Caricata da: ${photo.uploaderName || "Ospite"} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString("it-IT") : ""}`}
                             />
                             {/* Badge per indicare che è una foto ospite */}
                             <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
@@ -1691,7 +2175,7 @@ export default function Gallery() {
                 </div>
               )}
 
-              {activeTab === 'voice-memos' && (
+              {activeTab === "voice-memos" && (
                 <VoiceMemosList
                   galleryId={galleryData.id}
                   isAdmin={isAdmin}
@@ -1699,7 +2183,7 @@ export default function Gallery() {
                 />
               )}
 
-              {activeTab === 'story' && (
+              {activeTab === "story" && (
                 <div className="space-y-6">
                   {storyLoading ? (
                     <div className="flex items-center justify-center py-12">
@@ -1711,10 +2195,13 @@ export default function Gallery() {
                   ) : showStoryUpload || (!coupleStory && isAdmin) ? (
                     <StoryUploadForm
                       galleryId={id!}
-                      galleryName={galleryData?.name || ''}
+                      galleryName={galleryData?.name || ""}
                       existingStory={coupleStory}
                       onStoryUploaded={(story) => {
-                        console.log('✅ Storia caricata tramite upload:', story);
+                        console.log(
+                          "✅ Storia caricata tramite upload:",
+                          story,
+                        );
                         setCoupleStory(story);
                         setShowStoryUpload(false);
                         setStoryChecked(true);
@@ -1727,7 +2214,9 @@ export default function Gallery() {
                       galleryName={galleryData.name}
                       galleryDate={galleryData.date}
                       galleryLocation={galleryData.location}
-                      onEdit={isAdmin ? () => setShowStoryUpload(true) : undefined}
+                      onEdit={
+                        isAdmin ? () => setShowStoryUpload(true) : undefined
+                      }
                       onDelete={isAdmin ? handleDeleteStory : undefined}
                     />
                   ) : (
@@ -1739,11 +2228,11 @@ export default function Gallery() {
                         Nessuna Storia Disponibile
                       </h3>
                       <p className="text-sage-600 mb-6 max-w-md mx-auto">
-                        La storia d'amore di questa coppia non è ancora stata caricata.
+                        La storia d'amore di questa coppia non è ancora stata
+                        caricata.
                         {isAdmin
-                          ? ' Carica il JSON generato da ChatGPT per creare il libro digitale.'
-                          : ' Chiedi agli organizzatori di caricare la storia.'
-                        }
+                          ? " Carica il JSON generato da ChatGPT per creare il libro digitale."
+                          : " Chiedi agli organizzatori di caricare la storia."}
                       </p>
                       {isAdmin && (
                         <Button
@@ -1791,7 +2280,9 @@ export default function Gallery() {
                   className="w-full"
                   onPhotoClick={(photoId) => {
                     // Find photo index in allPhotos array
-                    const photoIndex = allPhotos.findIndex(photo => photo.id === photoId);
+                    const photoIndex = allPhotos.findIndex(
+                      (photo) => photo.id === photoId,
+                    );
                     if (photoIndex !== -1) {
                       setCurrentPhotoIndex(photoIndex);
                       setLightboxOpen(true);
@@ -1811,13 +2302,18 @@ export default function Gallery() {
       <ImageLightbox
         isOpen={lightboxOpen}
         onClose={closeLightbox}
-        photos={(activeTab === 'photographer' && isSelectionMode && selectionStatus !== 'completed' ? displayPhotos : allPhotos).map(photo => ({
+        photos={(activeTab === "photographer" &&
+        isSelectionMode &&
+        selectionStatus !== "completed"
+          ? displayPhotos
+          : allPhotos
+        ).map((photo) => ({
           id: photo.id,
           name: photo.name,
           url: photo.url,
           size: photo.size || 0,
           contentType: photo.contentType,
-          createdAt: photo.createdAt || new Date()
+          createdAt: photo.createdAt || new Date(),
         }))}
         initialIndex={currentPhotoIndex}
       />
@@ -1839,7 +2335,7 @@ export default function Gallery() {
             coverImageDesktop: galleryData.coverImageDesktop || "",
             youtubeUrl: galleryData.youtubeUrl || "",
             photoCount: photos.length,
-            password: "" // Aggiungi password field mancante
+            password: "", // Aggiungi password field mancante
           }}
         />
       )}
