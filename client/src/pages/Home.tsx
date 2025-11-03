@@ -89,7 +89,8 @@ export default function Home() {
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         // Salta le special gallery - hanno una schermata dedicata con PIN
-        if (data.specialTheme) {
+        // Escludi se ha specialTheme valorizzato (non null, undefined, stringa vuota o "none")
+        if (data.specialTheme && data.specialTheme !== '' && data.specialTheme !== 'none') {
           return;
         }
         
