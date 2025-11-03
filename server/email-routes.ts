@@ -1316,46 +1316,39 @@ export function createOrderSaldoPendenteEmailHTML(
   
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">Ordine Completato - Saldo Pendente</h2>
+      <h2 style="color: #28a745; text-align: center;">Pagamento Completato</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
           Siamo felici di informarti che il tuo ordine per <strong style="color: #8b5a3c;">${prodottoNome}</strong> 
-          è stato <strong>completato</strong> e le tue foto sono pronte!
+          è stato <strong>completato</strong> e il pagamento è stato ricevuto con successo!
         </p>
         
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <h3 style="color: #0056b3; margin-top: 0; margin-bottom: 15px;">💰 Saldo Rimanente</h3>
-          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 10px 0;">
-            <p style="margin: 0; font-size: 18px; font-weight: bold; color: #856404;">
-              Importo da saldare: ${formatCurrency(saldoAmount)}
+          <h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px;">✅ Pagamento Completato</h3>
+          <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 10px 0;">
+            <p style="margin: 0 0 10px 0; font-size: 18px; font-weight: bold; color: #155724;">
+              Importo pagato: ${formatCurrency(saldoAmount)}
+            </p>
+            <p style="margin: 0; font-size: 16px; color: #155724;">
+              Saldo rimanente: €0,00
             </p>
           </div>
-        </div>
-
-        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
-          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">💳 Metodi di Pagamento Accettati</h4>
-          <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
-            <li>Contante (in sede)</li>
-            <li>Carta di credito/debito (in sede)</li>
-            <li>Bonifico bancario</li>
-            <li>PayPal</li>
-          </ul>
         </div>
 
         <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
           <h4 style="color: #0c5460; margin-top: 0; margin-bottom: 10px;">📸 Prossimi Passi</h4>
           <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
-            <li>Contattaci per concordare modalità e data di pagamento saldo</li>
-            <li>Una volta ricevuto il saldo, procederemo con la consegna finale</li>
+            <li>Il tuo ordine è ora completamente pagato</li>
+            <li>Procederemo con la preparazione e consegna finale</li>
             <li>Riceverai le tue foto nel formato concordato</li>
           </ol>
         </div>
 
         <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Non vediamo l'ora di consegnarti i tuoi ricordi! ❤️
+          Grazie per aver scelto i nostri servizi! ❤️
         </p>
       </div>
       
