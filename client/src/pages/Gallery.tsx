@@ -36,7 +36,10 @@ import GalleryHeader from "@/components/gallery/GalleryHeader";
 import YouTubeEmbed from "@/components/gallery/YouTubeEmbed";
 import LoadMoreButton from "@/components/gallery/LoadMoreButton";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
-import { useGalleryData, PhotoData } from "@/hooks/use-gallery-data";
+import { PhotoData } from "@/hooks/use-gallery-data";
+import { useQuery } from "@tanstack/react-query";
+import GalleryService from "@/lib/galleries";
+import { queryClient } from "@/lib/queryClient";
 import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
 import GalleryFilter, {
   FilterCriteria,
@@ -117,15 +120,6 @@ export default function Gallery() {
     refreshInteractions,
   } = useGalleryRefresh(id);
 
-  // Funzione di refresh che combina entrambi i sistemi
-  const handleRefreshPhotos = useCallback(async () => {
-    // Usa il refresh diretto del hook
-    await refreshPhotos();
-
-    // Fallback con evento personalizzato
-    refreshPhotos();
-  }, [refreshPhotos]);
-
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -136,22 +130,117 @@ export default function Gallery() {
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(true);
 
   // Stati per gestire la storia della coppia
-  const [coupleStory, setCoupleStory] = useState<CoupleStory | null>(null);
-  const [storyLoading, setStoryLoading] = useState(false);
   const [showStoryUpload, setShowStoryUpload] = useState(false);
-  const [storyChecked, setStoryChecked] = useState(false);
 
-  // Carica dati galleria usando il custom hook (MOVED HERE - Fix "used before declaration")
+  // 🔧 React Query: Carica galleria per code con fallback a ID
   const {
-    gallery: galleryData, // Renamed to galleryData to avoid conflict
-    photos,
-    guestPhotos,
-    isLoading: isLoadingPhotos, // Renamed to isLoadingPhotos
-    hasMorePhotos,
-    loadingMorePhotos,
-    loadMorePhotos,
-    refreshPhotos: refreshGalleryPhotosHook,
-  } = useGalleryData(id || "");
+    data: galleryData,
+    isLoading: isLoadingGallery,
+    error: galleryError
+  } = useQuery({
+    queryKey: ['gallery', id],
+    queryFn: () => GalleryService.getGalleryByCodeWithFallback(id || ''),
+    enabled: !!id,
+    retry: 2,
+    staleTime: 30000 // Cache 30 secondi
+  });
+
+  // 🔧 React Query: Carica foto fotografo (enabled solo quando galleryData esiste)
+  const {
+    data: photos = [],
+    isLoading: isLoadingPhotos,
+    error: photosError
+  } = useQuery({
+    queryKey: ['photos', galleryData?.id],
+    queryFn: () => GalleryService.getPhotosByGalleryId(galleryData!.id),
+    enabled: !!galleryData?.id,
+    retry: 2,
+    staleTime: 30000
+  });
+
+  // 🔧 React Query: Carica foto ospiti (enabled solo quando galleryData esiste)
+  const {
+    data: guestPhotos = [],
+    isLoading: isLoadingGuestPhotos,
+    error: guestPhotosError
+  } = useQuery({
+    queryKey: ['guestPhotos', galleryData?.id],
+    queryFn: () => GalleryService.getGuestPhotosByGalleryId(galleryData!.id),
+    enabled: !!galleryData?.id,
+    retry: 2,
+    staleTime: 30000
+  });
+
+  // Stati derivati
+  const hasMorePhotos = false; // Semplificato: carica tutto in una volta
+  const loadingMorePhotos = false;
+  const loadMorePhotos = useCallback(async () => {
+    // Placeholder: paginazione rimossa per semplicità
+  }, []);
+
+  // 🔧 React Query: Carica storia coppia (enabled solo quando id esiste)
+  const {
+    data: coupleStory,
+    isLoading: storyLoading,
+    error: storyError
+  } = useQuery({
+    queryKey: ['coupleStory', id],
+    queryFn: () => StoryService.getStoryByGalleryId(id!),
+    enabled: !!id,
+    retry: 1, // Riprova solo 1 volta (storia può non esistere)
+    staleTime: 60000 // Cache 60 secondi (storia cambia raramente)
+  });
+
+  // Funzione di refresh che invalida la cache React Query (MOVED dopo galleryData declaration)
+  const handleRefreshPhotos = useCallback(async () => {
+    if (!galleryData?.id) return;
+    
+    // Invalida cache React Query per ricaricare foto
+    await queryClient.invalidateQueries({ queryKey: ['photos', galleryData.id] });
+    await queryClient.invalidateQueries({ queryKey: ['guestPhotos', galleryData.id] });
+    
+    // Fallback con evento personalizzato per compatibilità
+    refreshPhotos();
+  }, [galleryData?.id, refreshPhotos]);
+
+  // 🔧 Error handling React Query
+  useEffect(() => {
+    if (galleryError) {
+      console.error('Errore caricamento galleria:', galleryError);
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore nel caricamento della galleria.",
+        variant: "destructive",
+      });
+    }
+    if (photosError) {
+      console.error('Errore caricamento foto:', photosError);
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore nel caricamento delle foto.",
+        variant: "destructive",
+      });
+    }
+    if (guestPhotosError) {
+      console.error('Errore caricamento foto ospiti:', guestPhotosError);
+      // Non mostriamo errore per foto ospiti - non è critico
+    }
+  }, [galleryError, photosError, guestPhotosError, toast]);
+
+  // 🔧 Gestione galleria non trovata
+  useEffect(() => {
+    if (!isLoadingGallery && !galleryError && !galleryData && id) {
+      toast({
+        title: "Galleria non trovata",
+        description: "La galleria richiesta non esiste o non è più disponibile.",
+        variant: "destructive",
+      });
+      // Redirect dopo 2 secondi
+      setTimeout(() => {
+        navigate(createUrl('/'));
+      }, 2000);
+    }
+  }, [isLoadingGallery, galleryError, galleryData, id, toast, navigate]);
 
   // Stati per gestire la selezione foto (Tasks 12-15)
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
@@ -574,8 +663,9 @@ export default function Gallery() {
 
     try {
       await StoryService.deleteStory(id);
-      setCoupleStory(null);
-      setStoryChecked(false);
+      
+      // Invalida cache React Query per ricaricare storia
+      await queryClient.invalidateQueries({ queryKey: ['coupleStory', id] });
 
       toast({
         title: "Storia eliminata",
@@ -625,75 +715,9 @@ export default function Gallery() {
     }));
   }, [photos.length, guestPhotos.length, galleryData]);
 
-  // 🔧 FIX: Carica la storia della coppia - ELIMINA LOOP INFINITO
-  useEffect(() => {
-    // ✅ LOGICA CORRETTA: Carica SOLO al primo accesso o cambio galleria
-    const shouldLoadStory = id && !storyLoading && !storyChecked;
+  // 🔧 Storia caricata tramite React Query (vedi useQuery sopra) - vecchio useEffect rimosso
 
-    if (shouldLoadStory) {
-      console.log(
-        "%c🔄 [ONCE] Caricamento iniziale storia per galleryId:",
-        "background: blue; color: white; font-weight: bold",
-        id,
-      );
-      setStoryLoading(true);
-      StoryService.getStoryByGalleryId(id)
-        .then((story) => {
-          console.log(
-            "%c📖 [ONCE] Storia caricata da Firebase:",
-            "background: green; color: white; font-weight: bold",
-            story ? "TROVATA" : "NON TROVATA",
-            { galleryId: id },
-          );
-          if (story) {
-            console.log(
-              "%c✅ [ONCE] Storia impostata nel state React:",
-              "background: green; color: white; font-weight: bold",
-              {
-                titolo: story.metadata?.titolo,
-                galleryId: story.galleryId,
-                storyId: story.id,
-              },
-            );
-            setCoupleStory(story);
-          } else {
-            console.log(
-              "%c❌ [ONCE] Nessuna storia trovata - set null:",
-              "background: red; color: white; font-weight: bold",
-              id,
-            );
-            setCoupleStory(null);
-          }
-        })
-        .catch((error) => {
-          console.error(
-            "%c💥 [ONCE] Errore caricamento storia:",
-            "background: red; color: white; font-weight: bold",
-            error,
-          );
-          setCoupleStory(null);
-        })
-        .finally(() => {
-          setStoryLoading(false);
-          setStoryChecked(true); // ✅ Segna sempre come verificato
-        });
-    } else {
-      console.log(
-        "%c🚫 [SKIP] Load story skipped:",
-        "background: orange; color: white",
-        {
-          hasId: !!id,
-          storyLoading,
-          storyChecked,
-          shouldLoad: shouldLoadStory,
-        },
-      );
-    }
-  }, [id, storyLoading, storyChecked]); // 🔧 RIMOSSE dipendenze problematiche
-
-  // Verifica autenticazione - SOLO reset se cambia galleria (non al reload)
-  const [lastGalleryId, setLastGalleryId] = useState<string | null>(null);
-
+  // Verifica autenticazione
   useEffect(() => {
     const checkAuth = () => {
       const isAuth = localStorage.getItem(`gallery_auth_${id}`);
@@ -706,36 +730,8 @@ export default function Gallery() {
 
     if (id) {
       checkAuth();
-
-      // 🔧 FIX: Reset storia SOLO se cambia galleria (non al reload della stessa)
-      if (lastGalleryId && lastGalleryId !== id) {
-        console.log(
-          "%c📋 [RESET] Cambio galleria - reset stato storia:",
-          "background: red; color: white; font-weight: bold",
-          {
-            lastGalleryId,
-            newId: id,
-          },
-        );
-        setCoupleStory(null);
-        setStoryChecked(false);
-        setStoryLoading(false);
-        setShowStoryUpload(false);
-      } else {
-        console.log(
-          "%c🔄 [NO-RESET] Stessa galleria - mantieni stato storia:",
-          "background: green; color: white",
-          {
-            lastGalleryId,
-            currentId: id,
-            storyLoaded: !!coupleStory,
-          },
-        );
-      }
-
-      setLastGalleryId(id);
     }
-  }, [id, isAdmin, navigate, lastGalleryId]);
+  }, [id, isAdmin, navigate]);
 
   // Scroll infinito come fallback
   useEffect(() => {
@@ -2182,9 +2178,9 @@ export default function Gallery() {
                           "✅ Storia caricata tramite upload:",
                           story,
                         );
-                        setCoupleStory(story);
+                        // Invalida cache React Query per ricaricare storia
+                        queryClient.invalidateQueries({ queryKey: ['coupleStory', id] });
                         setShowStoryUpload(false);
-                        setStoryChecked(true);
                       }}
                       onCancel={() => setShowStoryUpload(false)}
                     />

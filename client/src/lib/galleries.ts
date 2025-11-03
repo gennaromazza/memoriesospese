@@ -29,7 +29,10 @@ export interface Gallery {
   location: string;
   description?: string;
   coverImageUrl?: string;
+  coverImageMobile?: string; // Cover image per mobile (9:16)
+  coverImageDesktop?: string; // Cover image per desktop (16:9)
   youtubeUrl?: string;
+  youtubeUrls?: string[]; // Multiple YouTube URLs
   photoCount: number;
   active: boolean;
   userId?: string;
@@ -343,6 +346,218 @@ export class GalleryService {
       console.error('Errore subscription gallerie:', error);
       callback([]);
     });
+  }
+
+  /**
+   * 🔧 Ottieni galleria per codice con fallback a ID Firestore (backward compatibility)
+   * Gestisce anche check admin per gallerie disattivate
+   */
+  static async getGalleryByCodeWithFallback(code: string): Promise<Gallery | null> {
+    try {
+      const galleriesRef = collection(db, 'galleries');
+      
+      // Cerca prima per "code" (gallerie nuove)
+      let q = query(galleriesRef, where('code', '==', code));
+      let querySnapshot = await getDocs(q);
+      
+      let galleryDoc;
+      let galleryData;
+      
+      // Se non trova per code, cerca per ID Firestore (gallerie vecchie)
+      if (querySnapshot.empty) {
+        const docRef = doc(db, 'galleries', code);
+        const docSnapshot = await getDoc(docRef);
+        
+        if (!docSnapshot.exists()) {
+          return null;
+        }
+        
+        galleryDoc = docSnapshot;
+        galleryData = docSnapshot.data();
+      } else {
+        galleryDoc = querySnapshot.docs[0];
+        galleryData = galleryDoc.data();
+      }
+      
+      // Check if gallery is active (default to true for backward compatibility)
+      const isActive = galleryData.active !== undefined ? galleryData.active : true;
+      
+      // Check if user is admin
+      const isAdmin = localStorage.getItem('isAdmin') === 'true';
+      
+      // Non-admin non possono vedere gallerie disattivate
+      if (!isActive && !isAdmin) {
+        return null;
+      }
+      
+      return {
+        id: galleryDoc.id,
+        name: galleryData.name,
+        code: galleryData.code || code,
+        date: galleryData.date,
+        location: galleryData.location,
+        description: galleryData.description || '',
+        coverImageUrl: galleryData.coverImageUrl || '',
+        coverImageMobile: galleryData.coverImageMobile || '',
+        coverImageDesktop: galleryData.coverImageDesktop || '',
+        youtubeUrl: galleryData.youtubeUrl || '',
+        youtubeUrls: galleryData.youtubeUrls || [],
+        photoCount: galleryData.photoCount || 0,
+        active: isActive,
+        userId: galleryData.userId,
+        createdAt: galleryData.createdAt,
+        updatedAt: galleryData.updatedAt,
+        requiresSecurityQuestion: galleryData.requiresSecurityQuestion,
+        securityQuestionType: galleryData.securityQuestionType,
+        securityQuestionCustom: galleryData.securityQuestionCustom,
+        securityAnswer: galleryData.securityAnswer,
+        specialTheme: galleryData.specialTheme,
+        specialPin: galleryData.specialPin,
+        selectionEnabled: galleryData.selectionEnabled || false,
+        requiredPhotoCount: galleryData.requiredPhotoCount,
+        selectionStatus: galleryData.selectionStatus || 'pending',
+        selectedPhotoIds: galleryData.selectedPhotoIds || [],
+        selectionDeadline: galleryData.selectionDeadline,
+        selectionDeadlineEnforced: galleryData.selectionDeadlineEnforced !== false,
+        selectionNotes: galleryData.selectionNotes,
+        bookingId: galleryData.bookingId,
+        password: galleryData.password
+      } as Gallery;
+    } catch (error) {
+      console.error('Errore recupero galleria con fallback:', error);
+      throw error; // Lancia errore per React Query error handling
+    }
+  }
+
+  /**
+   * 🔧 Ottieni foto del fotografo per galleria (esclude foto ospiti)
+   */
+  static async getPhotosByGalleryId(galleryId: string): Promise<any[]> {
+    try {
+      const photosRef = collection(db, 'photos');
+      const q = query(
+        photosRef,
+        where('galleryId', '==', galleryId),
+        orderBy('createdAt', 'desc')
+      );
+
+      const querySnapshot = await getDocs(q);
+      const photosList: any[] = [];
+      const uniquePhotoNames = new Set<string>();
+
+      querySnapshot.forEach((doc) => {
+        const photoData = doc.data();
+        const photoName = photoData.name || '';
+
+        // Evita duplicati e filtra solo foto non-ospiti
+        if (!uniquePhotoNames.has(photoName) && photoData.uploadedBy !== 'guest') {
+          uniquePhotoNames.add(photoName);
+
+          photosList.push({
+            id: doc.id,
+            name: photoData.name || '',
+            url: photoData.url || '',
+            contentType: photoData.contentType || 'image/jpeg',
+            size: photoData.size || 0,
+            createdAt: photoData.createdAt,
+            galleryId: photoData.galleryId,
+            uploadedBy: photoData.uploadedBy || 'admin',
+            uploaderName: photoData.uploaderName,
+            uploaderRole: photoData.uploaderRole,
+            uploaderEmail: photoData.uploaderEmail,
+            uploaderUid: photoData.uploaderUid
+          });
+        }
+      });
+
+      return photosList;
+    } catch (error) {
+      console.error('Errore recupero foto galleria:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🔧 Ottieni foto ospiti per galleria
+   */
+  static async getGuestPhotosByGalleryId(galleryId: string): Promise<any[]> {
+    try {
+      const guestPhotosList: any[] = [];
+      const uniquePhotoNames = new Set<string>();
+
+      // 1. Carica foto ospiti dalla collezione moderna `photos`
+      const photosRef = collection(db, 'photos');
+      const q = query(
+        photosRef,
+        where('galleryId', '==', galleryId),
+        where('uploadedBy', '==', 'guest'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      querySnapshot.forEach((doc) => {
+        const photoData = doc.data();
+        const photoName = photoData.name || '';
+
+        if (!uniquePhotoNames.has(photoName)) {
+          uniquePhotoNames.add(photoName);
+
+          guestPhotosList.push({
+            id: doc.id,
+            name: photoData.name || '',
+            url: photoData.url || '',
+            contentType: photoData.contentType || 'image/jpeg',
+            size: photoData.size || 0,
+            createdAt: photoData.createdAt,
+            galleryId: photoData.galleryId,
+            uploadedBy: 'guest',
+            uploaderName: photoData.uploaderName,
+            uploaderRole: photoData.uploaderRole,
+            uploaderEmail: photoData.uploaderEmail,
+            uploaderUid: photoData.uploaderUid
+          });
+        }
+      });
+
+      // 2. Carica anche foto dalla collezione legacy `galleries/{galleryId}/photos`
+      try {
+        const oldGuestPhotosRef = collection(db, 'galleries', galleryId, 'photos');
+        const oldGuestPhotosSnapshot = await getDocs(oldGuestPhotosRef);
+
+        oldGuestPhotosSnapshot.docs.forEach((doc) => {
+          const photoData = doc.data();
+          const photoName = photoData.name || '';
+
+          if (!uniquePhotoNames.has(photoName)) {
+            uniquePhotoNames.add(photoName);
+
+            guestPhotosList.push({
+              id: doc.id,
+              name: photoData.name || '',
+              url: photoData.url || '',
+              contentType: photoData.contentType || 'image/jpeg',
+              size: photoData.size || 0,
+              createdAt: photoData.createdAt,
+              galleryId: galleryId,
+              uploadedBy: 'guest',
+              uploaderName: photoData.uploaderName || 'Ospite',
+              uploaderRole: 'guest',
+              uploaderEmail: photoData.uploaderEmail,
+              uploaderUid: photoData.uploaderUid
+            });
+          }
+        });
+      } catch (legacyError) {
+        console.warn('⚠️ Errore caricamento foto ospiti legacy:', legacyError);
+        // Continua comunque con le foto moderne
+      }
+
+      return guestPhotosList;
+    } catch (error) {
+      console.error('Errore recupero foto ospiti:', error);
+      throw error;
+    }
   }
 
   /**
