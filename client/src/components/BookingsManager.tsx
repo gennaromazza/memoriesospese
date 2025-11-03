@@ -584,6 +584,48 @@ export default function BookingsManager() {
                       </div>
                     )}
 
+                    {/* Gallerie Collegate */}
+                    {(() => {
+                      const galleries = getGalleriesByBookingId(booking.id);
+                      if (galleries.length === 0) return null;
+                      
+                      return (
+                        <div className="bg-purple-50 border border-purple-200 p-3 rounded-lg space-y-2">
+                          <p className="text-sm font-semibold text-purple-900 flex items-center gap-2">
+                            <ImageIcon className="w-4 h-4" />
+                            Gallerie Collegate ({galleries.length})
+                          </p>
+                          <div className="space-y-1.5">
+                            {galleries.map((gallery) => (
+                              <div key={gallery.id} className="flex items-center justify-between gap-2 bg-white p-2 rounded border border-purple-100">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <a 
+                                      href={`/gallery/${gallery.code}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline truncate"
+                                      data-testid={`link-gallery-${gallery.code}`}
+                                    >
+                                      {gallery.name}
+                                    </a>
+                                    {gallery.selectionStatus === 'completed' && (
+                                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs shrink-0">
+                                        ✓ Selezione OK
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 font-mono">
+                                    Codice: {gallery.code}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Email status */}
                     <div className="flex gap-2">
                       {booking.emailRicevutaInviata && (
@@ -832,71 +874,6 @@ export default function BookingsManager() {
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* Gallerie Collegate */}
-              <div className="space-y-3 border-t pt-4">
-                <h4 className="font-semibold text-blue-gray flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-purple-600" />
-                  Gallerie Collegate
-                </h4>
-                {(() => {
-                  const galleries = getGalleriesByBookingId(selectedBooking.id);
-                  
-                  if (galleries.length === 0) {
-                    return (
-                      <Alert className="bg-gray-50 border-gray-200">
-                        <AlertCircle className="w-4 h-4 text-gray-600" />
-                        <AlertDescription className="text-gray-700">
-                          Nessuna galleria ancora creata per questa prenotazione.
-                        </AlertDescription>
-                      </Alert>
-                    );
-                  }
-
-                  return (
-                    <div className="space-y-2">
-                      {galleries.map((gallery) => (
-                        <Card key={gallery.id} className="border border-purple-200 bg-purple-50/30">
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 space-y-2">
-                                <div className="flex items-center gap-2">
-                                  <h5 className="font-semibold text-sm">{gallery.name}</h5>
-                                  {gallery.selectionStatus === 'completed' && (
-                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
-                                      ✓ Selezione Completata
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-4 text-xs text-gray-600">
-                                  <span className="font-mono bg-white px-2 py-1 rounded border">
-                                    Codice: {gallery.code}
-                                  </span>
-                                  {gallery.date && (
-                                    <span>📅 {format(new Date(gallery.date), 'dd/MM/yyyy', { locale: it })}</span>
-                                  )}
-                                </div>
-                              </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  window.location.href = `/admin/gallery/${gallery.id}/manage`;
-                                }}
-                                className="border-purple-500 text-purple-500 hover:bg-purple-500 hover:text-white shrink-0"
-                                data-testid={`button-open-gallery-${gallery.id}`}
-                              >
-                                <ImageIcon className="w-4 h-4 mr-1" />
-                                Apri Galleria
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  );
-                })()}
               </div>
 
               {/* Azioni rapide */}
