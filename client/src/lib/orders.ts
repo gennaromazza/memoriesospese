@@ -366,14 +366,14 @@ export async function recordSaldoPayment(
     throw new Error("Non c'è saldo da pagare per questo ordine");
   }
 
-  // 3. Crea nuova transaction per saldo
+  // 3. Crea nuova transaction per saldo (ometti 'note' se vuoto per evitare undefined in Firestore)
   const newTransaction: Transaction = {
     tipo: "saldo",
     importo: saldo,
     metodo,
     data: Timestamp.fromDate(data),
-    note: note?.trim() || undefined,
     emailInviata: false, // Sarà settato a true dopo invio email
+    ...(note?.trim() && { note: note.trim() }), // Ometti campo se vuoto
   };
 
   // 4. Append transaction all'array
@@ -484,14 +484,14 @@ export async function addAccontoPayment(
     throw new Error("L'importo dell'acconto deve essere maggiore di zero");
   }
 
-  // 4. Crea nuova transaction
+  // 4. Crea nuova transaction (ometti 'note' se vuoto per evitare undefined in Firestore)
   const newTransaction: Transaction = {
     tipo: "acconto",
     importo,
     metodo,
     data: Timestamp.fromDate(data),
-    note: note?.trim() || undefined,
     emailInviata: false, // Sarà settato a true dopo invio email
+    ...(note?.trim() && { note: note.trim() }), // Ometti campo se vuoto
   };
 
   // 5. Append transaction all'array
