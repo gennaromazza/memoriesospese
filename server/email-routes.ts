@@ -2308,7 +2308,7 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
     const theme = specialTheme ? themeInfo[specialTheme] || { emoji: "✨", name: "Speciale" } : { emoji: "✨", name: "Speciale" };
 
     // Recupera info studio
-    const studioInfo = await getStudioInfo();
+    const studioInfo = await getStudioContactInfo();
 
     // URL di accesso diretto
     const accessUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://wedding-gallery-397b6.web.app'}/special-gallery`;

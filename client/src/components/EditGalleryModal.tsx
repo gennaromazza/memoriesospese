@@ -876,7 +876,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               description: `Email con PIN inviata a ${clientEmail}`,
             });
           } else {
-            console.error('❌ Errore invio email PIN');
+            const errorData = await emailResponse.json().catch(() => ({}));
+            console.error('❌ Errore invio email PIN', {
+              status: emailResponse.status,
+              statusText: emailResponse.statusText,
+              error: errorData
+            });
             toast({
               title: "Galleria aggiornata",
               description: "Galleria salvata, ma l'invio email ha avuto problemi",
