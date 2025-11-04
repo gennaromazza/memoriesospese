@@ -30,6 +30,7 @@ async function getFirebaseAdmin() {
 
 /**
  * Helper: Crea HTML email per notifica aggiornamento ordine
+ * Template allineato con gli altri email del sistema
  */
 function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
   const { 
@@ -42,30 +43,19 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
     note 
   } = orderData;
 
-  const studioNome = studioInfo?.nome || 'Image Studio Fotografico';
-  const studioEmail = studioInfo?.email || 'image.studio.fotografico@gmail.com';
-  const studioTelefono = studioInfo?.telefono || '327 465 6179';
-  const studioIndirizzo = studioInfo?.indirizzo || 'Via Example 123, Città';
+  const studio = studioInfo || {
+    nome: 'Memorie Sospese',
+    email: 'memoriesospese@gennaromazzacane.it',
+    telefono: '+39 334 7103142',
+    indirizzo: ''
+  };
 
-  const prodottiHTML = prodotti.map((p: any) => `
-    <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-        <strong>${p.prodottoNome}</strong>
-        ${!p.prodottoId ? '<span style="background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Custom</span>' : ''}
-        <br/>
-        <span style="color: #6b7280; font-size: 13px;">${p.prodottoNumeroFoto} foto</span>
-      </td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">
-        ${p.quantita}
-      </td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">
-        €${p.prodottoPrezzo.toFixed(2)}
-      </td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;">
-        €${(p.prodottoPrezzo * p.quantita).toFixed(2)}
-      </td>
-    </tr>
-  `).join('');
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
 
   const statoLabel = {
     'bozza': 'Bozza',
@@ -76,162 +66,99 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
 
   const statoColor = {
     'bozza': '#f59e0b',
-    'in_lavorazione': '#3b82f6',
-    'completato': '#10b981',
-    'annullato': '#ef4444'
-  }[stato] || '#6b7280';
+    'in_lavorazione': '#0056b3',
+    'completato': '#28a745',
+    'annullato': '#dc3545'
+  }[stato] || '#6c757d';
 
   return `
-<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ordine Aggiornato</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
-    <tr>
-      <td align="center" style="padding: 40px 0;">
-        <table role="presentation" style="width: 600px; max-width: 100%; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          
-          <!-- Header -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #8b5a3c 0%, #6d4428 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">
-                📦 Ordine Aggiornato
-              </h1>
-              <p style="margin: 10px 0 0 0; color: #f9f7f4; font-size: 16px;">
-                ${studioNome}
-              </p>
-            </td>
-          </tr>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">📦 Ordine Aggiornato</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${nomeCliente}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Il tuo ordine è stato aggiornato. Ecco il riepilogo delle modifiche:
+        </p>
 
-          <!-- Saluto -->
-          <tr>
-            <td style="padding: 30px;">
-              <p style="margin: 0 0 20px 0; font-size: 16px; color: #374151;">
-                Ciao <strong>${nomeCliente}</strong>,
-              </p>
-              <p style="margin: 0 0 20px 0; font-size: 16px; color: #374151; line-height: 1.6;">
-                Il tuo ordine è stato aggiornato. Ecco il riepilogo delle modifiche:
-              </p>
-            </td>
-          </tr>
+        <!-- Stato -->
+        <div style="background: ${statoColor}15; border-left: 4px solid ${statoColor}; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #666;">Stato Ordine:</p>
+          <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: bold; color: ${statoColor};">
+            ${statoLabel}
+          </p>
+        </div>
+        
+        <!-- Prodotti -->
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Dettagli Ordine</h3>
+          <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
+            ${prodotti.map((p: any) => `
+              <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px 0;">
+                  ${p.prodottoNome} (x${p.quantita})
+                  ${!p.prodottoId ? '<span style="background: #dbeafe; color: #1e40af; padding: 1px 6px; border-radius: 3px; font-size: 10px; margin-left: 5px;">Custom</span>' : ''}
+                  ${p.prodottoNumeroFoto > 0 ? `<br/><span style="color: #999; font-size: 12px;">${p.prodottoNumeroFoto} foto</span>` : ''}
+                </td>
+                <td style="padding: 8px 0; text-align: right;">${formatCurrency(p.prodottoPrezzo * p.quantita)}</td>
+              </tr>
+            `).join('')}
+            <tr style="border-top: 2px solid #8b5a3c; font-weight: bold;">
+              <td style="padding: 12px 0;">Totale:</td>
+              <td style="padding: 12px 0; text-align: right; color: #8b5a3c; font-size: 18px;">${formatCurrency(totale)}</td>
+            </tr>
+          </table>
+        </div>
 
-          <!-- Stato Ordine -->
-          <tr>
-            <td style="padding: 0 30px 20px 30px;">
-              <div style="background-color: #f9fafb; border-left: 4px solid ${statoColor}; padding: 16px; border-radius: 4px;">
-                <p style="margin: 0; font-size: 14px; color: #6b7280;">Stato:</p>
-                <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 600; color: ${statoColor};">
-                  ${statoLabel}
-                </p>
-              </div>
-            </td>
-          </tr>
+        <!-- Pagamenti -->
+        ${acconto > 0 || saldo > 0 ? `
+        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Situazione Pagamenti</h4>
+          <table style="width: 100%; font-size: 14px; color: #333;">
+            ${acconto > 0 ? `
+            <tr>
+              <td>Acconto ricevuto:</td>
+              <td style="text-align: right; font-weight: bold; color: #28a745;">${formatCurrency(acconto)}</td>
+            </tr>
+            ` : ''}
+            ${saldo > 0 ? `
+            <tr>
+              <td>Saldo rimanente:</td>
+              <td style="text-align: right; font-weight: bold; color: #f59e0b;">${formatCurrency(saldo)}</td>
+            </tr>
+            ` : saldo === 0 && acconto > 0 ? `
+            <tr>
+              <td>Saldo:</td>
+              <td style="text-align: right; font-weight: bold; color: #28a745;">${formatCurrency(0)} ✓ Saldato</td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        ` : ''}
 
-          <!-- Prodotti -->
-          <tr>
-            <td style="padding: 0 30px 30px 30px;">
-              <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                <thead>
-                  <tr style="background-color: #f9fafb;">
-                    <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Prodotto</th>
-                    <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Qtà</th>
-                    <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Prezzo</th>
-                    <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Totale</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${prodottiHTML}
-                </tbody>
-              </table>
-            </td>
-          </tr>
+        <!-- Note -->
+        ${note ? `
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">📝 Note</h4>
+          <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.5;">
+            ${note}
+          </p>
+        </div>
+        ` : ''}
 
-          <!-- Totali -->
-          <tr>
-            <td style="padding: 0 30px 30px 30px;">
-              <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 8px 0; text-align: right; font-size: 16px; color: #6b7280;">
-                    Totale:
-                  </td>
-                  <td style="padding: 8px 0; text-align: right; font-size: 18px; font-weight: 600; width: 120px;">
-                    €${totale.toFixed(2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; text-align: right; font-size: 16px; color: #6b7280;">
-                    Acconto:
-                  </td>
-                  <td style="padding: 8px 0; text-align: right; font-size: 16px; font-weight: 600; color: #10b981;">
-                    €${acconto.toFixed(2)}
-                  </td>
-                </tr>
-                <tr style="border-top: 2px solid #e5e7eb;">
-                  <td style="padding: 12px 0 0 0; text-align: right; font-size: 18px; font-weight: 700; color: #111827;">
-                    Saldo:
-                  </td>
-                  <td style="padding: 12px 0 0 0; text-align: right; font-size: 22px; font-weight: 700; color: ${saldo > 0 ? '#f59e0b' : '#10b981'};">
-                    €${saldo.toFixed(2)}
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          ${note ? `
-          <!-- Note -->
-          <tr>
-            <td style="padding: 0 30px 30px 30px;">
-              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 4px;">
-                <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #92400e;">📝 Note:</p>
-                <p style="margin: 0; font-size: 14px; color: #78350f; line-height: 1.5;">
-                  ${note}
-                </p>
-              </div>
-            </td>
-          </tr>
-          ` : ''}
-
-          <!-- Contatti Studio -->
-          <tr>
-            <td style="padding: 30px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
-              <h3 style="margin: 0 0 15px 0; font-size: 16px; font-weight: 600; color: #111827;">
-                📞 Contattaci
-              </h3>
-              <p style="margin: 0 0 8px 0; font-size: 14px; color: #6b7280;">
-                <strong>Email:</strong> ${studioEmail}
-              </p>
-              <p style="margin: 0 0 8px 0; font-size: 14px; color: #6b7280;">
-                <strong>Telefono:</strong> ${studioTelefono}
-              </p>
-              <p style="margin: 0; font-size: 14px; color: #6b7280;">
-                <strong>Indirizzo:</strong> ${studioIndirizzo}
-              </p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-              <p style="margin: 0; font-size: 12px; color: #9ca3af;">
-                Questa è una email automatica, per favore non rispondere direttamente.
-              </p>
-              <p style="margin: 8px 0 0 0; font-size: 12px; color: #9ca3af;">
-                © ${new Date().getFullYear()} ${studioNome}. Tutti i diritti riservati.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Per qualsiasi domanda, contattaci via email o telefono!
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.nome}</p>
+        ${studio.indirizzo ? `<p style="margin: 5px 0;">${studio.indirizzo}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.telefono}</p>
+      </div>
+    </div>
   `;
 }
 
