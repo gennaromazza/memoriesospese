@@ -115,20 +115,42 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
               return req;
             });
             
+            // Conta gallerie con selezioni attive da resettare (multi-prodotto + legacy)
+            let galleriesWithSelections = 0;
+            galleriesSnapshot.docs.forEach(galleryDoc => {
+              const galleryData = galleryDoc.data();
+              const hasMultiProductSelections = galleryData.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0;
+              const hasLegacySelections = galleryData.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0;
+              
+              if (hasMultiProductSelections || hasLegacySelections) {
+                galleriesWithSelections++;
+              }
+            });
+            
             // Aggiorna tutte le gallerie trovate
+            // IMPORTANTE: Reset completo delle selezioni per evitare indici orfani
             const updatePromises = galleriesSnapshot.docs.map(galleryDoc =>
               updateDoc(doc(db, 'galleries', galleryDoc.id), {
-                productRequirements: newProductRequirements
+                productRequirements: newProductRequirements,
+                photoAssignments: {}, // Reset assegnazioni multi-prodotto
+                selectedPhotoIds: [], // Reset legacy single-product
+                selectionStatus: 'pending' // Reset stato selezione
               })
             );
             
             await Promise.all(updatePromises);
             
             console.log(`✅ ${galleriesSnapshot.size} galleria/e aggiornata/e con nuovi productRequirements`);
+            if (galleriesWithSelections > 0) {
+              console.log(`⚠️ ${galleriesWithSelections} galleria/e con selezioni resettate per evitare corruzione dati`);
+            }
             
             toast({
               title: '✅ Ordine aggiornato',
-              description: `Modifiche salvate. ${galleriesSnapshot.size} galleria/e aggiornata/e automaticamente.`,
+              description: galleriesWithSelections > 0
+                ? `Modifiche salvate. ${galleriesSnapshot.size} galleria/e aggiornata/e. ⚠️ ${galleriesWithSelections} selezioni cliente resettate.`
+                : `Modifiche salvate. ${galleriesSnapshot.size} galleria/e aggiornata/e automaticamente.`,
+              variant: galleriesWithSelections > 0 ? 'default' : 'default',
             });
           } else {
             toast({
