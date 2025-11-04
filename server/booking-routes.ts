@@ -181,7 +181,9 @@ router.post('/create', async (req, res) => {
       prodottoNome,
       note,
       workingHours,
-      durataMinuti
+      durataMinuti,
+      isManual,
+      createdByAdmin
     } = req.body;
 
     // Validazione parametri base
@@ -191,8 +193,12 @@ router.post('/create', async (req, res) => {
       });
     }
 
-    // Validazione cliente
-    if (!cliente.nome?.trim() || !cliente.cognome?.trim() || !cliente.email?.trim() || !cliente.whatsapp?.trim()) {
+    // Validazione cliente (whatsapp opzionale per prenotazioni manuali)
+    const requiredFields = isManual 
+      ? (!cliente.nome?.trim() || !cliente.cognome?.trim() || !cliente.email?.trim())
+      : (!cliente.nome?.trim() || !cliente.cognome?.trim() || !cliente.email?.trim() || !cliente.whatsapp?.trim());
+    
+    if (requiredFields) {
       return res.status(400).json({ 
         error: 'Dati cliente incompleti' 
       });
@@ -285,13 +291,13 @@ router.post('/create', async (req, res) => {
 
     // 3. Solo DOPO evento creato, salva su Firestore (db già inizializzato sopra)
     
-    const bookingRef = await db.collection('bookings').add({
+    const bookingData: any = {
       campaignId,
       cliente: {
         nome: cliente.nome.trim(),
         cognome: cliente.cognome.trim(),
         email: cliente.email.trim().toLowerCase(),
-        whatsapp: cliente.whatsapp.trim(),
+        whatsapp: cliente.whatsapp?.trim() || '',
       },
       dataShootingInizio: admin.firestore.Timestamp.fromDate(slotStart),
       dataShootingFine: admin.firestore.Timestamp.fromDate(slotEnd),
@@ -304,7 +310,16 @@ router.post('/create', async (req, res) => {
       googleCalendarEventId: calendarEvent.id || null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+
+    // Aggiungi flag prenotazione manuale se presente
+    if (isManual) {
+      bookingData.isManual = true;
+      bookingData.createdByAdmin = createdByAdmin || 'admin';
+      console.log(`📝 Creazione prenotazione manuale da admin: ${createdByAdmin}`);
+    }
+
+    const bookingRef = await db.collection('bookings').add(bookingData);
 
     // 4. Invia email automatica "Prenotazione Ricevuta" (chiamata diretta alla funzione)
     try {
