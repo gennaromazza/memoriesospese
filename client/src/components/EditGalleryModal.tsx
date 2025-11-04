@@ -1132,32 +1132,33 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   placeholder="Luogo dell'evento"
                 />
               </div>
-              <div>
-                <Label htmlFor="password">Password {specialTheme !== 'none' && <span className="text-xs text-muted-foreground">(disabilitata - tema speciale attivo)</span>}</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={handlePasswordChange}
-                    placeholder="Password di accesso"
-                    className="pr-10"
-                    disabled={specialTheme !== 'none'}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-                    disabled={specialTheme !== 'none'}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
+              {/* Password Field - Hidden if special theme is selected */}
+              {specialTheme === 'none' && (
+                <div>
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={handlePasswordChange}
+                      placeholder="Password di accesso"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div>
@@ -1171,11 +1172,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               />
             </div>
 
-            {/* Special Theme Section */}
-            <div className="border-t pt-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="specialTheme">Tema Stagionale {password.trim() && <span className="text-xs text-muted-foreground">(password impostata - rimuovi per abilitare)</span>}</Label>
-                <Select value={specialTheme} onValueChange={handleSpecialThemeChange} disabled={password.trim() !== ''}>
+            {/* Special Theme Section - Hidden if password is set */}
+            {!password.trim() && (
+              <div className="border-t pt-4 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="specialTheme">Tema Stagionale</Label>
+                  <Select value={specialTheme} onValueChange={handleSpecialThemeChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleziona tema (opzionale)" />
                   </SelectTrigger>
@@ -1266,7 +1268,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   </div>
                 </>
               )}
-            </div>
+              </div>
+            )}
 
             {/* Booking Link Info (Read-only) */}
             {(gallery as any)?.bookingId && (
