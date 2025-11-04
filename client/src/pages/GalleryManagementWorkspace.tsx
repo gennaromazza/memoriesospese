@@ -126,9 +126,10 @@ export default function GalleryManagementWorkspace() {
   });
 
   // Filter selected photos
-  const selectedPhotos = allPhotos.filter(photo => 
-    gallery?.selectedPhotoIds?.includes(photo.id)
-  );
+  // Multi-product mode: use photoAssignments, Legacy mode: use selectedPhotoIds
+  const selectedPhotos = gallery?.productRequirements
+    ? allPhotos.filter(photo => gallery.photoAssignments && gallery.photoAssignments[photo.id])
+    : allPhotos.filter(photo => gallery?.selectedPhotoIds?.includes(photo.id));
 
   // Generate filename list for Lightroom
   const filenameList = selectedPhotos.map(p => p.name).join('\n');
@@ -334,7 +335,10 @@ export default function GalleryManagementWorkspace() {
                     <div>
                       <p className="text-gray-600">Foto Selezionate</p>
                       <p className="text-2xl font-bold text-sage" data-testid="text-selected-count">
-                        {selectedPhotos.length} / {gallery?.requiredPhotoCount || 0}
+                        {gallery.productRequirements 
+                          ? `${Object.keys(gallery.photoAssignments || {}).length} foto assegnate`
+                          : `${selectedPhotos.length} / ${gallery?.requiredPhotoCount || 0}`
+                        }
                       </p>
                     </div>
                     {gallery?.selectionDeadline && (
@@ -347,6 +351,47 @@ export default function GalleryManagementWorkspace() {
                     )}
                   </div>
                 </div>
+
+                {/* Multi-Product Statistics */}
+                {gallery.productRequirements && gallery.productRequirements.length > 0 && (
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-gray mb-3">📊 Statistiche per Prodotto</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {gallery.productRequirements.map((prod, idx) => {
+                        const assignedCount = Object.entries(gallery.photoAssignments || {}).filter(
+                          ([photoId, assignments]) => assignments.includes(String(idx))
+                        ).length;
+                        const isComplete = assignedCount >= prod.prodottoNumeroFoto;
+                        
+                        return (
+                          <div 
+                            key={idx}
+                            className={`p-3 rounded border-2 ${
+                              isComplete 
+                                ? 'bg-green-50 border-green-300' 
+                                : assignedCount > 0
+                                  ? 'bg-yellow-50 border-yellow-300'
+                                  : 'bg-gray-50 border-gray-300'
+                            }`}
+                            data-testid={`admin-product-stats-${idx}`}
+                          >
+                            <div className="flex items-start justify-between mb-1">
+                              <p className="text-xs font-semibold text-gray-700">{prod.prodottoNome}</p>
+                              {isComplete && <span className="text-green-600 text-sm">✓</span>}
+                            </div>
+                            <p className="text-lg font-bold">{assignedCount}/{prod.prodottoNumeroFoto}</p>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                              <div 
+                                className={`h-full ${isComplete ? 'bg-green-500' : assignedCount > 0 ? 'bg-yellow-500' : 'bg-gray-400'}`}
+                                style={{ width: `${Math.min((assignedCount / prod.prodottoNumeroFoto) * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* 📝 Note del Cliente */}
                 {gallery?.selectionNotes && (
@@ -366,19 +411,55 @@ export default function GalleryManagementWorkspace() {
                   <div className="space-y-4">
                     <h4 className="font-semibold text-blue-gray">Miniature Foto Selezionate</h4>
                     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {selectedPhotos.map((photo) => (
-                        <div
-                          key={photo.id}
-                          className="relative aspect-square rounded-lg overflow-hidden border-2 border-sage shadow-md hover:shadow-lg transition-shadow"
-                          data-testid={`img-selected-${photo.id}`}
-                        >
-                          <img
-                            src={photo.url}
-                            alt={photo.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ))}
+                      {selectedPhotos.map((photo) => {
+                        const assignedProductIndices = gallery.photoAssignments?.[photo.id] || [];
+                        
+                        return (
+                          <div
+                            key={photo.id}
+                            className="relative aspect-square rounded-lg overflow-hidden border-2 border-sage shadow-md hover:shadow-lg transition-shadow group"
+                            data-testid={`img-selected-${photo.id}`}
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.name}
+                              className="w-full h-full object-cover"
+                            />
+                            
+                            {/* Product Assignment Badges */}
+                            {gallery.productRequirements && assignedProductIndices.length > 0 && (
+                              <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
+                                {assignedProductIndices.map((prodIdx) => {
+                                  const prodIndex = parseInt(prodIdx);
+                                  const product = gallery.productRequirements[prodIndex];
+                                  if (!product) return null;
+                                  
+                                  const colors = [
+                                    'bg-blue-500 text-white',
+                                    'bg-green-500 text-white',
+                                    'bg-purple-500 text-white',
+                                    'bg-orange-500 text-white',
+                                    'bg-pink-500 text-white',
+                                    'bg-teal-500 text-white',
+                                  ];
+                                  const colorClass = colors[prodIndex % colors.length];
+                                  
+                                  return (
+                                    <span
+                                      key={prodIdx}
+                                      className={`px-2 py-0.5 rounded text-xs font-medium ${colorClass}`}
+                                      title={product.prodottoNome}
+                                      data-testid={`badge-product-${prodIdx}-photo-${photo.id}`}
+                                    >
+                                      {product.prodottoNome.substring(0, 12)}{product.prodottoNome.length > 12 ? '...' : ''}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
