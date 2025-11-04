@@ -1156,6 +1156,16 @@ export default function BookingsManager() {
           <OrdersManager filterBookingId={filterBookingId} />
         </>
       )}
+
+      {/* Manual Booking Modal */}
+      <ManualBookingModal
+        isOpen={showManualBookingModal}
+        onClose={() => setShowManualBookingModal(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['bookings'] });
+          refetch();
+        }}
+      />
     </div>
   );
 }
@@ -1423,15 +1433,5 @@ function CreateOrderDialog({ booking, products, onClose, onSubmit, isPending }: 
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
-    {/* Manual Booking Modal */}
-    <ManualBookingModal
-      isOpen={showManualBookingModal}
-      onClose={() => setShowManualBookingModal(false)}
-      onSuccess={() => {
-        queryClient.invalidateQueries({ queryKey: ['bookings'] });
-        refetch();
-      }}
-    />
   );
 }
