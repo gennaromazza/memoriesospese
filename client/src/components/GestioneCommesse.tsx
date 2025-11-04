@@ -51,6 +51,16 @@ interface Commessa {
   galleryId?: string;
 }
 
+// Type per tab validi
+type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes';
+
+// Props interface
+interface GestioneCommesseProps {
+  onNavigateToTab: (tab: ValidTab) => void;
+  onEditGallery: (gallery: Gallery) => void;
+  onCreateGallery: () => void;
+}
+
 // Helper: Mappa stato a badge
 function getStatoBadge(stato?: WorkflowState) {
   if (!stato) return null;
@@ -73,7 +83,11 @@ function getStatoBadge(stato?: WorkflowState) {
   );
 }
 
-export default function GestioneCommesse() {
+export default function GestioneCommesse({ 
+  onNavigateToTab, 
+  onEditGallery, 
+  onCreateGallery 
+}: GestioneCommesseProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [filtroStato, setFiltroStato] = useState<WorkflowState | 'all'>('all');
@@ -101,7 +115,7 @@ export default function GestioneCommesse() {
   bookings.forEach((booking) => {
     const linkedOrder = orders.find(o => o.bookingId === booking.id);
     const linkedGallery = galleries.find(g => 
-      g.bookingId === booking.id || g.orderId === linkedOrder?.id
+      g.bookingId === booking.id
     );
 
     commesse.push({
@@ -128,7 +142,10 @@ export default function GestioneCommesse() {
     const hasBooking = bookings.some(b => b.id === order.bookingId);
     if (hasBooking) return; // Già gestito sopra
 
-    const linkedGallery = galleries.find(g => g.orderId === order.id);
+    // Per ordini con bookingId, cerca galleria via booking
+    const linkedGallery = order.bookingId 
+      ? galleries.find(g => g.bookingId === order.bookingId)
+      : undefined;
 
     commesse.push({
       id: order.id,

@@ -203,7 +203,7 @@ export default function AdminDashboard() {
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes'>('galleries');
 
   // Detect if admin came from a specific gallery
   const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
@@ -1473,7 +1473,11 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Gestione Commesse */}
             <TabsContent value="commesse">
               <div className="bg-white shadow sm:rounded-lg p-5">
-                <GestioneCommesse />
+                <GestioneCommesse 
+                  onNavigateToTab={setActiveTab}
+                  onEditGallery={openEditModal}
+                  onCreateGallery={openModal}
+                />
               </div>
             </TabsContent>
 
