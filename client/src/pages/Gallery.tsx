@@ -225,7 +225,7 @@ export default function Gallery() {
       console.error('Errore caricamento foto ospiti:', guestPhotosError);
       // Non mostriamo errore per foto ospiti - non è critico
     }
-  }, [galleryError, photosError, guestPhotosError, toast]);
+  }, [galleryError, photosError, guestPhotosError]);
 
   // 🔧 Gestione galleria non trovata
   useEffect(() => {
@@ -240,7 +240,7 @@ export default function Gallery() {
         navigate(createUrl('/'));
       }, 2000);
     }
-  }, [isLoadingGallery, galleryError, galleryData, id, toast, navigate]);
+  }, [isLoadingGallery, galleryError, galleryData, id, navigate]);
 
   // Stati per gestire la selezione foto (Tasks 12-15)
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
