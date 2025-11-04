@@ -782,45 +782,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Funzione per generare una password casuale
-  const generateRandomPassword = (length = 8) => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  };
-
-  // Funzione per cambiare rapidamente la password di una galleria
-  const changeGalleryPassword = async (galleryId: string, newPassword: string) => {
-    const galleryRef = doc(db, "galleries", galleryId);
-
-    try {
-      await updateDoc(galleryRef, {
-        password: newPassword
-      });
-
-      toast({
-        title: "Password aggiornata",
-        description: "La password della galleria è stata aggiornata con successo."
-      });
-
-      // Update local state via React Query
-      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
-
-      return true;
-    } catch (error) {
-
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'aggiornamento della password.",
-        variant: "destructive"
-      });
-
-      return false;
-    }
-  };
 
   // Filtra le gallerie in base alla query di ricerca E tipo (generiche/special)
   const filteredGalleries = galleries.filter(gallery => {
@@ -1217,41 +1178,6 @@ export default function AdminDashboard() {
                                     <HelpCircle className="h-4 w-4 text-purple-600" />
                                   </Button>
                                 </Link>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      title="Cambia password"
-                                    >
-                                      <Key className="h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-80">
-                                    <div className="space-y-4">
-                                      <h4 className="font-medium">Cambia password per {gallery.name}</h4>
-                                      <div className="flex space-x-2">
-                                        <Input
-                                          id={`new-password-${gallery.id}`}
-                                          type="text"
-                                          placeholder="Nuova password"
-                                          defaultValue={generateRandomPassword()}
-                                        />
-                                        <Button
-                                          onClick={() => {
-                                            const input = document.getElementById(`new-password-${gallery.id}`) as HTMLInputElement;
-                                            if (input && input.value) {
-                                              changeGalleryPassword(gallery.id, input.value);
-                                            }
-                                          }}
-                                        >
-                                          Salva
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </PopoverContent>
-                                </Popover>
                                 <Button
                                   variant="destructive"
                                   size="icon"
