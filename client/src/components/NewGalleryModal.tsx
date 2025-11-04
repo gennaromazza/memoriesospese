@@ -31,6 +31,8 @@ interface NewGalleryModalProps {
     specialPin?: string;
     bookingId?: string; // Link to booking (for integration)
     prodottoId?: string; // Product ID to fetch data and auto-populate selection settings
+    prodottoNome?: string; // Custom product name (se prodotto non in catalogo)
+    prodottoNumeroFoto?: number; // Custom product photo count (se prodotto non in catalogo)
     clienteEmail?: string; // Client email for sending gallery ready notification
     clienteNome?: string; // Client nome per email personalizzata
   };
@@ -53,14 +55,41 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCustomProduct, setIsCustomProduct] = useState(false);
   
   const availableThemes = getAllThemes();
   
-  // Fetch product data when prodottoId is provided
+  // Fetch product data when prodottoId is provided OR use custom product data
   useEffect(() => {
     const fetchProduct = async () => {
+      // Caso 1: Prodotto custom (senza ID catalogo ma con dati diretti)
+      if (!prePopulate?.prodottoId && prePopulate?.prodottoNome) {
+        console.log('📦 Prodotto custom rilevato:', prePopulate.prodottoNome);
+        setIsCustomProduct(true);
+        
+        // Validazione numero foto: deve essere valido (> 0) o fallback a 0
+        const numeroFoto = (prePopulate.prodottoNumeroFoto && prePopulate.prodottoNumeroFoto > 0)
+          ? prePopulate.prodottoNumeroFoto
+          : 0;
+        
+        setProduct({
+          id: 'custom',
+          nome: prePopulate.prodottoNome,
+          numeroFoto,
+        } as Product);
+        
+        // Auto-populate selection settings from custom product solo se numero foto valido
+        if (numeroFoto > 0) {
+          setSelectionEnabled(true);
+          setRequiredPhotoCount(numeroFoto);
+        }
+        return;
+      }
+      
+      // Caso 2: Prodotto dal catalogo (con ID)
       if (prePopulate?.prodottoId) {
         setIsLoadingProduct(true);
+        setIsCustomProduct(false);
         try {
           const productData = await getProductById(prePopulate.prodottoId);
           if (productData) {
@@ -80,7 +109,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
     };
     
     fetchProduct();
-  }, [prePopulate?.prodottoId]);
+  }, [prePopulate?.prodottoId, prePopulate?.prodottoNome, prePopulate?.prodottoNumeroFoto]);
   
   // Initialize form with pre-populated values
   useEffect(() => {
@@ -532,7 +561,18 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
                   <div className="flex items-start gap-2">
                     <Info className="w-5 h-5 text-sage mt-0.5" />
                     <div className="flex-1">
-                      <h4 className="font-semibold text-sage-dark">📦 Prodotto Prenotato</h4>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold text-sage-dark">📦 Prodotto Prenotato</h4>
+                        {isCustomProduct ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                            Custom
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                            Catalogo
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-700 mt-1">
                         <strong>{product.nome}</strong>
                       </p>
@@ -542,6 +582,11 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
                       {prePopulate?.specialTheme && (
                         <p className="text-sm text-gray-600">
                           🎨 Tema: {availableThemes.find(t => t.id === prePopulate.specialTheme)?.name || 'Standard'}
+                        </p>
+                      )}
+                      {isCustomProduct && (
+                        <p className="text-xs text-gray-500 mt-2 italic">
+                          ℹ️ Prodotto personalizzato creato per questo ordine
                         </p>
                       )}
                     </div>

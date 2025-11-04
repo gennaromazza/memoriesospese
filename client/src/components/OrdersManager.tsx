@@ -565,10 +565,17 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
                         <p className="text-sm text-muted-foreground">
                           {getClienteEmail(order)}
                         </p>
-                        <p className="text-sm text-muted-foreground">
-                          {order.prodotti.length} prodott{order.prodotti.length === 1 ? 'o' : 'i'}
-                          {order.galleryId && ` • Galleria: ${order.galleryId.substring(0, 12)}...`}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm text-muted-foreground">
+                            {order.prodotti.length} prodott{order.prodotti.length === 1 ? 'o' : 'i'}
+                            {order.galleryId && ` • Galleria: ${order.galleryId.substring(0, 12)}...`}
+                          </p>
+                          {order.prodotti.some(p => !p.prodottoId) && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                              Custom
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -742,7 +749,14 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
                   {selectedOrder.prodotti.map((prodotto, index) => (
                     <Card key={index} className="p-3">
                       <div className="space-y-1 text-sm">
-                        <p><strong>{prodotto.prodottoNome}</strong></p>
+                        <div className="flex items-center gap-2">
+                          <p><strong>{prodotto.prodottoNome}</strong></p>
+                          {!prodotto.prodottoId && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                              Custom
+                            </span>
+                          )}
+                        </div>
                         <p>Prezzo: {formatCurrency(prodotto.prodottoPrezzo)} × {prodotto.quantita}</p>
                         <p>Numero Foto: {prodotto.prodottoNumeroFoto}</p>
                         <p className="font-semibold">

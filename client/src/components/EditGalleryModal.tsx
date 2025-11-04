@@ -87,6 +87,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [selectionStatus, setSelectionStatus] = useState<'pending' | 'completed'>('pending');
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   
+  // Stati per prodotto associato (da booking/ordine)
+  const [associatedProduct, setAssociatedProduct] = useState<{ nome: string; numeroFoto: number; isCustom: boolean } | null>(null);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
+  
   const availableThemes = getAllThemes();
   const [activeTab, setActiveTab] = useState<string>("details");
   const [photos, setPhotos] = useState<PhotoData[]>([]);
@@ -407,6 +411,76 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       };
 
       fetchSecrets();
+
+      // Fetch prodotto associato da ordine se esiste bookingId
+      const fetchAssociatedProduct = async () => {
+        const bookingId = (gallery as any).bookingId;
+        if (!bookingId) {
+          setAssociatedProduct(null);
+          return;
+        }
+
+        setIsLoadingProduct(true);
+        try {
+          console.log('📦 Caricamento prodotto associato per booking:', bookingId);
+          
+          // Cerca ordine per bookingId
+          const { collection: firestoreCollection, query: firestoreQuery, where: firestoreWhere, getDocs: firestoreGetDocs } = await import('firebase/firestore');
+          const ordersQuery = firestoreQuery(
+            firestoreCollection(db, 'orders'),
+            firestoreWhere('bookingId', '==', bookingId)
+          );
+          const ordersSnapshot = await firestoreGetDocs(ordersQuery);
+          
+          if (!ordersSnapshot.empty) {
+            const orderData = ordersSnapshot.docs[0].data();
+            const prodotti = orderData.prodotti || [];
+            
+            if (prodotti.length > 0) {
+              const firstProduct = prodotti[0];
+              setAssociatedProduct({
+                nome: firstProduct.prodottoNome || 'Prodotto Sconosciuto',
+                numeroFoto: firstProduct.prodottoNumeroFoto || 0,
+                isCustom: !firstProduct.prodottoId || firstProduct.prodottoId === ''
+              });
+              console.log('✅ Prodotto associato caricato:', firstProduct.prodottoNome);
+            } else {
+              setAssociatedProduct(null);
+            }
+          } else {
+            // Nessun ordine trovato, prova a prendere dal booking
+            const bookingsQuery = firestoreQuery(
+              firestoreCollection(db, 'bookings'),
+              firestoreWhere('__name__', '==', bookingId)
+            );
+            const bookingsSnapshot = await firestoreGetDocs(bookingsQuery);
+            
+            if (!bookingsSnapshot.empty) {
+              const bookingData = bookingsSnapshot.docs[0].data();
+              if (bookingData.prodottoId) {
+                // Fetch prodotto dal catalogo
+                const { getProductById } = await import('@/lib/products');
+                const product = await getProductById(bookingData.prodottoId);
+                if (product) {
+                  setAssociatedProduct({
+                    nome: product.nome,
+                    numeroFoto: product.numeroFoto,
+                    isCustom: false
+                  });
+                  console.log('✅ Prodotto catalogo caricato da booking');
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('❌ Errore caricamento prodotto associato:', error);
+          setAssociatedProduct(null);
+        } finally {
+          setIsLoadingProduct(false);
+        }
+      };
+
+      fetchAssociatedProduct();
 
       // Reset loading state quando cambia la galleria
       setIsLoading(false);
@@ -1171,6 +1245,50 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 rows={3}
               />
             </div>
+
+            {/* Prodotto Associato Section */}
+            {(associatedProduct || isLoadingProduct) && (
+              <div className="border-t pt-4">
+                <div className="bg-sage/10 border border-sage/30 rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-5 h-5 text-sage mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold text-sage-dark">📦 Prodotto Associato</h4>
+                        {isLoadingProduct ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                            Caricamento...
+                          </span>
+                        ) : associatedProduct?.isCustom ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                            Custom
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                            Catalogo
+                          </span>
+                        )}
+                      </div>
+                      {associatedProduct && (
+                        <>
+                          <p className="text-sm text-gray-700 mt-1">
+                            <strong>{associatedProduct.nome}</strong>
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            🎯 <strong>{associatedProduct.numeroFoto} foto</strong> richieste per questo prodotto
+                          </p>
+                          {associatedProduct.isCustom && (
+                            <p className="text-xs text-gray-500 mt-2 italic">
+                              ℹ️ Prodotto personalizzato creato per questo ordine
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Special Theme Section - Hidden if password is set */}
             {!password.trim() && (
