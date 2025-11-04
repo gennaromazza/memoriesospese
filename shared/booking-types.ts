@@ -6,6 +6,15 @@
 import { Timestamp } from 'firebase/firestore';
 
 /**
+ * WORKFLOW STATE - Stati del workflow operativo
+ */
+export type WorkflowState = 
+  | 'shooting_da_svolgere'  // Prenotazione confermata, shooting futuro
+  | 'shooting_svolto'       // Shooting completato, in attesa caricamento foto o creazione ordine
+  | 'inizio_lavorazione'    // Foto caricate, selezione completata, pronto per produzione
+  | 'pronto_consegna';      // Album/stampe pronte per il ritiro
+
+/**
  * PRODUCTS - Catalogo prodotti fotografici
  */
 export interface Product {
@@ -97,6 +106,9 @@ export interface Booking {
   
   // Stato prenotazione
   stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata';
+  
+  // Stato workflow operativo (gestione commesse)
+  statoWorkflow?: WorkflowState; // Stato nel workflow operativo
   
   // Tracking email/calendar
   emailRicevutaInviata: boolean; // Email "Prenotazione Ricevuta" (automatica dopo creazione)
@@ -194,6 +206,9 @@ export interface Order {
   
   // Stato
   stato: 'bozza' | 'in_lavorazione' | 'completato' | 'annullato';
+  
+  // Stato workflow operativo (gestione commesse) - sincronizzato con booking
+  statoWorkflow?: WorkflowState; // Stato nel workflow operativo
   
   // Notifiche
   emailSaldoInviata: boolean;
