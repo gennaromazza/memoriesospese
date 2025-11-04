@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Calendar, Package, Image, CheckCircle, Clock, Truck, Box, Edit2, Plus, ExternalLink, Mail, MessageCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Calendar, Package, Image, CheckCircle, Clock, Truck, Box, Edit2, Plus, ExternalLink, Mail, MessageCircle, Search, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 
@@ -60,6 +60,9 @@ interface GestioneCommesseProps {
   onNavigateToTab: (tab: ValidTab) => void;
   onEditGallery: (gallery: Gallery) => void;
   onCreateGallery: () => void;
+  onOpenBooking?: (bookingId: string) => void;
+  onOpenOrder?: (orderId: string) => void;
+  onOpenPhotoSelection?: (gallery: Gallery) => void;
 }
 
 // Helper: Mappa stato a badge
@@ -87,7 +90,10 @@ function getStatoBadge(stato?: WorkflowState) {
 export default function GestioneCommesse({ 
   onNavigateToTab, 
   onEditGallery, 
-  onCreateGallery 
+  onCreateGallery,
+  onOpenBooking,
+  onOpenOrder,
+  onOpenPhotoSelection
 }: GestioneCommesseProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -479,18 +485,62 @@ export default function GestioneCommesse({
 
                   {/* Azioni Rapide */}
                   <div className="md:col-span-3 flex flex-wrap gap-2">
-                    {/* Azioni Galleria */}
-                    {commessa.hasGallery && commessa.gallery ? (
+                    {/* Bottone Booking */}
+                    {commessa.booking && onOpenBooking && (
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs px-2"
-                        onClick={() => onEditGallery(commessa.gallery!)}
-                        title="Modifica Galleria"
+                        onClick={() => onOpenBooking(commessa.booking!.id)}
+                        title="Apri dettaglio prenotazione"
                       >
-                        <Edit2 className="w-3 h-3 mr-1" />
-                        Galleria
+                        <Calendar className="w-3 h-3 mr-1" />
+                        Booking
                       </Button>
+                    )}
+
+                    {/* Bottone Ordine */}
+                    {commessa.hasOrder && commessa.order && onOpenOrder && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => onOpenOrder(commessa.order!.id)}
+                        title="Apri dettaglio ordine"
+                      >
+                        <Package className="w-3 h-3 mr-1" />
+                        Ordine
+                      </Button>
+                    )}
+
+                    {/* Azioni Galleria */}
+                    {commessa.hasGallery && commessa.gallery ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2"
+                          onClick={() => onEditGallery(commessa.gallery!)}
+                          title="Modifica Galleria"
+                        >
+                          <Edit2 className="w-3 h-3 mr-1" />
+                          Galleria
+                        </Button>
+                        
+                        {/* Bottone Gestisci Selezioni - solo se enablePhotoSelection */}
+                        {commessa.gallery.enablePhotoSelection && onOpenPhotoSelection && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            onClick={() => onOpenPhotoSelection(commessa.gallery!)}
+                            title="Gestisci selezioni foto"
+                          >
+                            <Heart className="w-3 h-3 mr-1" />
+                            Selezioni
+                          </Button>
+                        )}
+                      </>
                     ) : (
                       <Button
                         size="sm"
