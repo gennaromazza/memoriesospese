@@ -49,13 +49,21 @@ export interface Gallery {
   specialTheme?: string; // ID del tema stagionale (es. 'natale2024')
   specialPin?: string; // PIN specifico per galleria speciale
   
-  // Photo Selection Mode
+  // Photo Selection Mode (Legacy - Single Product)
   selectionEnabled?: boolean; // Modalità selezione foto - permette ai clienti di selezionare foto preferite (default: false per backward compatibility)
-  requiredPhotoCount?: number; // Numero di foto che il cliente deve selezionare (es. 50 per album)
+  requiredPhotoCount?: number; // LEGACY: Numero di foto che il cliente deve selezionare (es. 50 per album) - usato solo per gallerie mono-prodotto
   selectionStatus?: 'pending' | 'completed'; // Stato selezione cliente
-  selectedPhotoIds?: string[]; // Array IDs foto selezionate dal cliente
+  selectedPhotoIds?: string[]; // LEGACY: Array IDs foto selezionate dal cliente (mono-prodotto) - per multi-prodotto usa photoAssignments
   selectionDeadline?: any; // Firebase Timestamp - Scadenza per completare selezione (opzionale)
   selectionDeadlineEnforced?: boolean; // Se true, blocca selezione dopo deadline (admin può sbloccare)
+  
+  // Multi-Product Selection Mode (NEW)
+  productRequirements?: Array<{
+    prodottoId?: string; // ID prodotto dal catalogo (opzionale per custom products)
+    prodottoNome: string; // Nome prodotto
+    prodottoNumeroFoto: number; // Numero foto richieste per questo prodotto
+  }>; // Array prodotti richiesti per questa galleria (per ordini multi-prodotto)
+  photoAssignments?: Record<string, string[]>; // Mapping {photoId: [prodottoId1, prodottoId2, ...]} - permette riutilizzo foto tra prodotti
   
   // Booking Integration
   bookingId?: string; // Link a booking se galleria creata da BookingsManager
