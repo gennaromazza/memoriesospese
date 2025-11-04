@@ -416,7 +416,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
         }
       }
       // Send email notification if selection enabled
-      else if (selectionEnabled && requiredPhotoCount > 0 && prePopulate?.clienteEmail) {
+      else if (selectionEnabled && prePopulate?.clienteEmail) {
         try {
           const galleryUrl = `${window.location.origin}/gallery/${code}`;
           const deadlineFormatted = selectionDeadline 
@@ -428,6 +428,17 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
               })
             : undefined;
 
+          // Build product requirements for email if multi-product mode
+          const productReqs = (prePopulate.availableProducts && selectedProductIndices.length > 0)
+            ? selectedProductIndices.map(index => {
+                const prod = prePopulate.availableProducts![index];
+                return {
+                  prodottoNome: prod.prodottoNome,
+                  prodottoNumeroFoto: prod.prodottoNumeroFoto || 0
+                };
+              })
+            : undefined;
+
           const emailResponse = await fetch('/api/email/gallery-ready', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -436,9 +447,10 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
               clienteNome: prePopulate.clienteNome || 'Cliente',
               galleryName: name.trim(),
               galleryUrl,
-              requiredPhotoCount,
+              requiredPhotoCount: requiredPhotoCount || 0,
               selectionDeadline: deadlineFormatted,
-              photoCount: 0 // Always 0 on creation
+              photoCount: 0, // Always 0 on creation
+              productRequirements: productReqs // NEW: multi-product support
             })
           });
 

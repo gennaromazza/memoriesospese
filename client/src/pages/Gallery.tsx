@@ -647,6 +647,19 @@ export default function Gallery() {
         // Get Firebase ID token for authentication
         const token = await user.getIdToken();
 
+        // Build product assignments for email if multi-product mode
+        const productAssignments = galleryData.productRequirements?.map((prod, idx) => {
+          const assignedCount = Object.values(photoAssignments).filter(
+            assignments => assignments.includes(String(idx))
+          ).length;
+          
+          return {
+            prodottoNome: prod.prodottoNome,
+            assignedCount,
+            requiredCount: prod.prodottoNumeroFoto
+          };
+        });
+
         await fetch("/api/email/selection-completed", {
           method: "POST",
           headers: {
@@ -659,6 +672,7 @@ export default function Gallery() {
             clienteName: user.displayName || user.email || "Cliente",
             photoCount: selectedPhotoIds.length,
             workspaceUrl: `${window.location.origin}/admin/gallery/${id}/manage`,
+            productAssignments // NEW: multi-product support
           }),
         });
       } catch (emailError) {

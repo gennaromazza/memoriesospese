@@ -1344,7 +1344,8 @@ export function createGalleryReadyEmailHTML(
   requiredPhotoCount: number,
   selectionDeadline?: string,
   photoCount?: number,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  productRequirements?: Array<{ prodottoNome: string; prodottoNumeroFoto: number }>
 ): string {
   const studio = studioInfo || { 
     name: "Memorie Sospese", 
@@ -1388,23 +1389,41 @@ export function createGalleryReadyEmailHTML(
             Fantastico! 🎉 Le foto del tuo shooting "<strong style="color: #8b5a3c;">${galleryName}</strong>" sono online!
           </p>
           
+          ${productRequirements && productRequirements.length > 0 ? `
+          <!-- Multi-Product Mode -->
           <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
-            <h3 style="color: #0056b3; margin-top: 0; margin-bottom: 15px;">📸 Seleziona le tue foto preferite!</h3>
+            <h3 style="color: #0056b3; margin-top: 0; margin-bottom: 15px;">📸 Seleziona le foto per i tuoi prodotti!</h3>
             <p style="margin: 8px 0; font-size: 14px; color: #0c5460;">
-              Abbiamo caricato tutte le foto del tuo shooting. Ora è il momento di scegliere le tue preferite!
+              <strong>📋 Prodotti da completare:</strong>
             </p>
-            <div style="background: white; padding: 15px; border-radius: 5px; margin: 15px 0;">
-              <p style="margin: 0; font-size: 18px; font-weight: bold; color: #0056b3; text-align: center;">
-                🎯 Seleziona <span style="font-size: 24px; color: #8b5a3c;">${requiredPhotoCount} foto</span> per il tuo album
-              </p>
-            </div>
+            <ul style="margin: 10px 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
+              ${productRequirements.map(prod => 
+                `<li><strong>${prod.prodottoNome}:</strong> ${prod.prodottoNumeroFoto} foto</li>`
+              ).join('')}
+            </ul>
+            <p style="margin: 8px 0; font-size: 14px; color: #0c5460;">
+              💡 <strong>Nota:</strong> Puoi riutilizzare la stessa foto per più prodotti! Ad esempio, una foto può andare sia nell'album che nelle stampe.
+            </p>
             ${selectionDeadline ? `
-              <p style="margin: 8px 0; font-size: 14px; color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">
-                ⏰ <strong>Scadenza selezione:</strong> ${selectionDeadline}<br>
-                <span style="font-size: 12px;">Ti invieremo un reminder 1 giorno prima della scadenza!</span>
+              <p style="margin: 8px 0; font-size: 14px; color: #dc3545;">
+                ⏰ <strong>Scadenza:</strong> ${selectionDeadline}
               </p>
             ` : ''}
           </div>
+          ` : `
+          <!-- Legacy Single-Product Mode -->
+          <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #0056b3; margin-top: 0; margin-bottom: 15px;">📸 Seleziona le tue foto preferite!</h3>
+            <p style="margin: 8px 0; font-size: 14px; color: #0c5460;">
+              🎯 <strong>Obiettivo:</strong> Seleziona <span style="font-size: 18px; color: #0056b3;"><strong>${requiredPhotoCount} foto</strong></span> per il tuo album
+            </p>
+            ${selectionDeadline ? `
+              <p style="margin: 8px 0; font-size: 14px; color: #dc3545;">
+                ⏰ <strong>Scadenza:</strong> ${selectionDeadline}
+              </p>
+            ` : ''}
+          </div>
+          `}
 
           <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
             <h4 style="color: #0c5460; margin-top: 0; margin-bottom: 10px;">💡 Come funziona?</h4>
@@ -1453,7 +1472,8 @@ router.post("/gallery-ready", async (req, res) => {
       galleryUrl,
       requiredPhotoCount,
       selectionDeadline,
-      photoCount
+      photoCount,
+      productRequirements
     } = req.body;
 
     // Validazioni
@@ -1473,7 +1493,8 @@ router.post("/gallery-ready", async (req, res) => {
       requiredPhotoCount,
       selectionDeadline,
       photoCount || 0,
-      studioInfo
+      studioInfo,
+      productRequirements
     );
 
     const subject = `La tua galleria è pronta - Seleziona le ${requiredPhotoCount} foto!`;
@@ -1506,7 +1527,8 @@ export function createSelectionCompletedEmailHTML(
   clienteName: string,
   photoCount: number,
   workspaceUrl: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  productAssignments?: Array<{ prodottoNome: string; assignedCount: number; requiredCount: number }>
 ): string {
   const studio = studioInfo || { 
     name: "Memorie Sospese", 
@@ -1525,6 +1547,32 @@ export function createSelectionCompletedEmailHTML(
           </p>
         </div>
         
+        ${productAssignments && productAssignments.length > 0 ? `
+        <!-- Multi-Product Assignments -->
+        <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Galleria:</strong> ${galleryName}
+          </p>
+          <p style="margin: 10px 0; font-size: 14px;">
+            <strong>Cliente:</strong> ${clienteName}
+          </p>
+          <p style="margin: 15px 0 10px 0; font-size: 14px; font-weight: bold; color: #8b5a3c;">
+            📊 Assegnazioni per Prodotto:
+          </p>
+          <ul style="margin: 10px 0; padding-left: 20px; font-size: 14px;">
+            ${productAssignments.map(prod => {
+              const isComplete = prod.assignedCount >= prod.requiredCount;
+              return `<li style="margin: 5px 0;">
+                ${isComplete ? '✓' : '⚠️'} <strong>${prod.prodottoNome}:</strong> 
+                <span style="color: ${isComplete ? '#28a745' : '#ffc107'}; font-weight: bold;">
+                  ${prod.assignedCount}/${prod.requiredCount} foto
+                </span>
+              </li>`;
+            }).join('')}
+          </ul>
+        </div>
+        ` : `
+        <!-- Legacy Single-Product -->
         <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0;">
           <p style="margin: 10px 0; font-size: 14px;">
             <strong>Galleria:</strong> ${galleryName}
@@ -1536,6 +1584,7 @@ export function createSelectionCompletedEmailHTML(
             <strong>Foto selezionate:</strong> <span style="color: #8b5a3c; font-size: 18px; font-weight: bold;">${photoCount} foto</span>
           </p>
         </div>
+        `}
 
         <p style="font-size: 16px; margin-bottom: 20px;">
           Il cliente ha confermato la selezione delle foto per il suo album. 
@@ -1577,7 +1626,8 @@ router.post("/selection-completed", async (req, res) => {
       galleryName,
       clienteName,
       photoCount,
-      workspaceUrl
+      workspaceUrl,
+      productAssignments
     } = req.body;
 
     // Validazioni
@@ -1598,7 +1648,8 @@ router.post("/selection-completed", async (req, res) => {
       clienteName,
       photoCount,
       workspaceUrl,
-      studioInfo
+      studioInfo,
+      productAssignments
     );
 
     const subject = `Selezione Completata - ${galleryName} (${clienteName})`;
