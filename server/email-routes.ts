@@ -3177,29 +3177,29 @@ function createOrderReadyEmailHTML(
   
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #4caf50; text-align: center;">Il tuo ordine è pronto! 🎉</h2>
+      <h2 style="color: #4caf50; text-align: center;">Il tuo ordine è pronto</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
         </p>
         <p style="font-size: 18px; margin-bottom: 20px; font-weight: 600; color: #4caf50;">
-          Fantastica notizia! 🌟
+          Fantastica notizia!
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
           Il tuo ordine <strong style="color: #8b5a3c;">${prodottoNome}</strong> è stato completato 
-          ed è pronto per il ritiro! Non vediamo l'ora di mostrartelo! 🎁
+          ed è pronto per il ritiro! Non vediamo l'ora di mostrartelo!
         </p>
         
         <div style="background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #1b5e20;">
-            <strong>✅ Ordine Completato</strong><br>
+            <strong>Ordine Completato</strong><br>
             Abbiamo curato ogni dettaglio per garantire che il risultato finale sia esattamente 
             come lo immaginavi. Il tuo lavoro ti sta aspettando!
           </p>
         </div>
 
         <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0; border: 2px solid #4caf50;">
-          <h4 style="color: #4caf50; margin-top: 0; text-align: center;">📍 Come Ritirare il tuo Ordine</h4>
+          <h4 style="color: #4caf50; margin-top: 0; text-align: center;">Come Ritirare il tuo Ordine</h4>
           <p style="margin: 10px 0; font-size: 14px; color: #333; text-align: center;">
             <strong>Contattaci per concordare l'orario di ritiro:</strong>
           </p>
@@ -3207,19 +3207,19 @@ function createOrderReadyEmailHTML(
             <a href="tel:${studio.phone.replace(/\s/g, '')}" 
                style="display: inline-block; background: #4caf50; color: white; padding: 12px 25px; 
                       text-decoration: none; border-radius: 5px; font-weight: bold; margin: 5px;">
-              📞 ${studio.phone}
+              ${studio.phone}
             </a>
             <a href="mailto:${studio.email}" 
                style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 25px; 
                       text-decoration: none; border-radius: 5px; font-weight: bold; margin: 5px;">
-              ✉️ Email
+              Email
             </a>
           </div>
         </div>
 
         <div style="background: #fff9c4; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <p style="margin: 0; font-size: 13px; color: #f57f17; text-align: center;">
-            💡 <strong>Suggerimento:</strong> Contattaci in anticipo per evitare attese e garantire 
+            <strong>Suggerimento:</strong> Contattaci in anticipo per evitare attese e garantire 
             la disponibilità del nostro staff per mostrarti il lavoro nel dettaglio!
           </p>
         </div>
