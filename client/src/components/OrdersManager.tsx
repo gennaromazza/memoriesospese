@@ -12,7 +12,9 @@ import {
   markTransactionEmailSent,
 } from '@/lib/orders';
 import { getAllBookings } from '@/lib/bookings';
-import type { Order, Booking, InsertOrder } from '@shared/booking-types';
+import { getActiveProducts } from '@/lib/products';
+import type { Order, Booking, InsertOrder, Product } from '@shared/booking-types';
+import EditOrderModal from '@/components/EditOrderModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -54,6 +56,7 @@ import {
   XCircle,
   Clock,
   FileText,
+  Edit,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -74,6 +77,7 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<OrderWithBooking | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [paymentDialog, setPaymentDialog] = useState<{
     orderId: string;
     tipo: 'acconto' | 'saldo';
@@ -92,6 +96,12 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
   const { data: bookings = [] } = useQuery({
     queryKey: ['bookings'],
     queryFn: getAllBookings,
+  });
+
+  // Query: Carica prodotti per EditOrderModal
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ['products'],
+    queryFn: getActiveProducts,
   });
 
   // Arricchisci ordini con dati booking
@@ -612,15 +622,27 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
 
                   {/* Azioni */}
                   <div className="flex flex-col gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedOrder(order)}
-                      data-testid={`button-view-order-${order.id}`}
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Dettagli
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedOrder(order)}
+                        data-testid={`button-view-order-${order.id}`}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Dettagli
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditOrder(order)}
+                        data-testid={`button-edit-order-${order.id}`}
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Modifica
+                      </Button>
+                    </div>
 
                     {/* Pulsanti pagamento */}
                     {/* Mostra "Aggiungi Acconto" se c'è ancora saldo da pagare e non è stato pagato il saldo finale */}
@@ -931,6 +953,13 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* EditOrderModal: Modifica ordine con email automatica */}
+      <EditOrderModal
+        order={editOrder}
+        products={products}
+        onClose={() => setEditOrder(null)}
+      />
     </div>
   );
 }
