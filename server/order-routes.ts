@@ -43,11 +43,11 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
     note 
   } = orderData;
 
-  const studio = studioInfo || {
-    nome: 'Memorie Sospese',
-    email: 'memoriesospese@gennaromazzacane.it',
-    telefono: '+39 334 7103142',
-    indirizzo: ''
+  const studio = {
+    name: studioInfo?.name || 'Memorie Sospese',
+    email: studioInfo?.email || 'memoriesospese@gennaromazzacane.it',
+    phone: studioInfo?.phone || '+39 334 7103142',
+    address: studioInfo?.address || ''
   };
 
   const formatCurrency = (amount: number) => {
@@ -153,10 +153,10 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
       </div>
       
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studio.nome}</p>
-        ${studio.indirizzo ? `<p style="margin: 5px 0;">${studio.indirizzo}</p>` : ''}
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
-        <p style="margin: 5px 0;">Tel: ${studio.telefono}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
     </div>
   `;
