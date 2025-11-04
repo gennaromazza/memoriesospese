@@ -81,12 +81,8 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
   // Mutation per update ordine
   const updateOrderMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest(`/api/orders/${order!.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      return response;
+      const response = await apiRequest('PATCH', `/api/orders/${order!.id}`, data);
+      return response.json();
     },
     onSuccess: () => {
       toast({
