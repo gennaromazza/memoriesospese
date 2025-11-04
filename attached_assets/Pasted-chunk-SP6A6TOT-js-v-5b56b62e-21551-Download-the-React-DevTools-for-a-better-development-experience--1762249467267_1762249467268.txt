@@ -1,0 +1,323 @@
+chunk-SP6A6TOT.js?v=5b56b62e:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+firebase.ts:31 Using fallback Firebase configuration. Set environment variables for production.
+(anonymous) @ firebase.ts:31
+firebase.ts:50 🚀 Firebase: connessione diretta ai servizi produzione
+firebase.ts:51 📋 Questionari e token validation: produzione Firebase
+AdminDashboard.tsx:310 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+EditGalleryModal.tsx:325 🔄 Caricamento dati galleria nel modal: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:370 🔐 Caricamento secrets da server per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:419 🔄 Modal aperto - caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:152 🔄 Inizio caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:153 🔄 Stato photos prima del caricamento: 0
+EditGalleryModal.tsx:419 🔄 Modal aperto - caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:152 🔄 Inizio caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:153 🔄 Stato photos prima del caricamento: 0
+chunk-CEYKNUXH.js?v=5b56b62e:340 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ chunk-CEYKNUXH.js?v=5b56b62e:340
+chunk-CEYKNUXH.js?v=5b56b62e:340 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ chunk-CEYKNUXH.js?v=5b56b62e:340
+EditGalleryModal.tsx:163 📷 Foto nuove trovate: 0
+EditGalleryModal.tsx:163 📷 Foto nuove trovate: 0
+EditGalleryModal.tsx:226 📸 Foto ospiti legacy caricate: 0
+EditGalleryModal.tsx:226 📸 Foto ospiti legacy caricate: 0
+EditGalleryModal.tsx:393 ✅ Secrets caricati: Object
+EditGalleryModal.tsx:269 📸 Foto da Firebase Storage caricate: 0
+EditGalleryModal.tsx:295 📸 Totale foto caricate: 0
+EditGalleryModal.tsx:296 📊 Breakdown foto: Object
+EditGalleryModal.tsx:303 ✅ Foto settate nello stato, lunghezza: 0
+EditGalleryModal.tsx:307 🔍 Verifica stato photos dopo setPhotos: 0
+EditGalleryModal.tsx:269 📸 Foto da Firebase Storage caricate: 0
+EditGalleryModal.tsx:295 📸 Totale foto caricate: 0
+EditGalleryModal.tsx:296 📊 Breakdown foto: Object
+EditGalleryModal.tsx:303 ✅ Foto settate nello stato, lunghezza: 0
+EditGalleryModal.tsx:307 🔍 Verifica stato photos dopo setPhotos: 0
+client:536 WebSocket connection to 'wss://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/?token=Omy1lKZo3ABZ' failed: 
+setupWebSocket @ client:536
+client:560 [vite] server connection lost. Polling for restart...
+EditGalleryModal.tsx:753 💾 Avvio salvataggio galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:759 🔍 Verifica unicità PIN...
+EditGalleryModal.tsx:785 ✅ PIN unico, procedo con il salvataggio
+EditGalleryModal.tsx:788 📝 Aggiornamento documento galleria...
+EditGalleryModal.tsx:844 🔒 Salvando galleria speciale con PIN, password rimossa
+EditGalleryModal.tsx:855 ✅ Galleria salvata con successo
+EditGalleryModal.tsx:859 📧 Invio email PIN al cliente...
+/api/email/special-gallery-pin-notification:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+EditGalleryModal.tsx:879 ❌ Errore invio email PIN
+(anonymous) @ EditGalleryModal.tsx:879
+EditGalleryModal.tsx:913 🔄 Concluso salvataggio galleria, reset loading...
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:755
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:755
+EditGalleryModal.tsx:325 🔄 Caricamento dati galleria nel modal: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:370 🔐 Caricamento secrets da server per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:419 🔄 Modal aperto - caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:152 🔄 Inizio caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:153 🔄 Stato photos prima del caricamento: 0
+EditGalleryModal.tsx:419 🔄 Modal aperto - caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:152 🔄 Inizio caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:153 🔄 Stato photos prima del caricamento: 0
+chunk-CEYKNUXH.js?v=5b56b62e:340 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ chunk-CEYKNUXH.js?v=5b56b62e:340
+commitHookEffectListMount @ chunk-SP6A6TOT.js?v=5b56b62e:16915
+commitPassiveMountOnFiber @ chunk-SP6A6TOT.js?v=5b56b62e:18156
+commitPassiveMountEffects_complete @ chunk-SP6A6TOT.js?v=5b56b62e:18129
+commitPassiveMountEffects_begin @ chunk-SP6A6TOT.js?v=5b56b62e:18119
+commitPassiveMountEffects @ chunk-SP6A6TOT.js?v=5b56b62e:18109
+flushPassiveEffectsImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19490
+flushPassiveEffects @ chunk-SP6A6TOT.js?v=5b56b62e:19447
+commitRootImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19416
+commitRoot @ chunk-SP6A6TOT.js?v=5b56b62e:19277
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=5b56b62e:18895
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=5b56b62e:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=5b56b62e:18627
+chunk-CEYKNUXH.js?v=5b56b62e:340 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ chunk-CEYKNUXH.js?v=5b56b62e:340
+commitHookEffectListMount @ chunk-SP6A6TOT.js?v=5b56b62e:16915
+invokePassiveEffectMountInDEV @ chunk-SP6A6TOT.js?v=5b56b62e:18324
+invokeEffectsInDev @ chunk-SP6A6TOT.js?v=5b56b62e:19701
+commitDoubleInvokeEffectsInDEV @ chunk-SP6A6TOT.js?v=5b56b62e:19686
+flushPassiveEffectsImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19503
+flushPassiveEffects @ chunk-SP6A6TOT.js?v=5b56b62e:19447
+commitRootImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19416
+commitRoot @ chunk-SP6A6TOT.js?v=5b56b62e:19277
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=5b56b62e:18895
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=5b56b62e:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=5b56b62e:18627
+EditGalleryModal.tsx:163 📷 Foto nuove trovate: 0
+EditGalleryModal.tsx:163 📷 Foto nuove trovate: 0
+EditGalleryModal.tsx:226 📸 Foto ospiti legacy caricate: 0
+EditGalleryModal.tsx:226 📸 Foto ospiti legacy caricate: 0
+EditGalleryModal.tsx:269 📸 Foto da Firebase Storage caricate: 0
+EditGalleryModal.tsx:295 📸 Totale foto caricate: 0
+EditGalleryModal.tsx:296 📊 Breakdown foto: {nuove: 0, legacy: 0, storage: 0}
+EditGalleryModal.tsx:303 ✅ Foto settate nello stato, lunghezza: 0
+EditGalleryModal.tsx:307 🔍 Verifica stato photos dopo setPhotos: 0
+EditGalleryModal.tsx:269 📸 Foto da Firebase Storage caricate: 0
+EditGalleryModal.tsx:295 📸 Totale foto caricate: 0
+EditGalleryModal.tsx:296 📊 Breakdown foto: {nuove: 0, legacy: 0, storage: 0}
+EditGalleryModal.tsx:303 ✅ Foto settate nello stato, lunghezza: 0
+EditGalleryModal.tsx:307 🔍 Verifica stato photos dopo setPhotos: 0
+EditGalleryModal.tsx:393 ✅ Secrets caricati: {hasPassword: false, hasPin: true}
+EditGalleryModal.tsx:753 💾 Avvio salvataggio galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:759 🔍 Verifica unicità PIN...
+EditGalleryModal.tsx:785 ✅ PIN unico, procedo con il salvataggio
+EditGalleryModal.tsx:788 📝 Aggiornamento documento galleria...
+EditGalleryModal.tsx:844 🔒 Salvando galleria speciale con PIN, password rimossa
+EditGalleryModal.tsx:855 ✅ Galleria salvata con successo
+EditGalleryModal.tsx:859 📧 Invio email PIN al cliente...
+EditGalleryModal.tsx:873 ✅ Email PIN inviata con successo
+EditGalleryModal.tsx:913 🔄 Concluso salvataggio galleria, reset loading...
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:755
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:755
+EditGalleryModal.tsx:325 🔄 Caricamento dati galleria nel modal: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:370 🔐 Caricamento secrets da server per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:419 🔄 Modal aperto - caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:152 🔄 Inizio caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:153 🔄 Stato photos prima del caricamento: 0
+EditGalleryModal.tsx:419 🔄 Modal aperto - caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:152 🔄 Inizio caricamento foto per galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:153 🔄 Stato photos prima del caricamento: 0
+chunk-CEYKNUXH.js?v=5b56b62e:340 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ chunk-CEYKNUXH.js?v=5b56b62e:340
+commitHookEffectListMount @ chunk-SP6A6TOT.js?v=5b56b62e:16915
+commitPassiveMountOnFiber @ chunk-SP6A6TOT.js?v=5b56b62e:18156
+commitPassiveMountEffects_complete @ chunk-SP6A6TOT.js?v=5b56b62e:18129
+commitPassiveMountEffects_begin @ chunk-SP6A6TOT.js?v=5b56b62e:18119
+commitPassiveMountEffects @ chunk-SP6A6TOT.js?v=5b56b62e:18109
+flushPassiveEffectsImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19490
+flushPassiveEffects @ chunk-SP6A6TOT.js?v=5b56b62e:19447
+commitRootImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19416
+commitRoot @ chunk-SP6A6TOT.js?v=5b56b62e:19277
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=5b56b62e:18895
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=5b56b62e:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=5b56b62e:18627
+chunk-CEYKNUXH.js?v=5b56b62e:340 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ chunk-CEYKNUXH.js?v=5b56b62e:340
+commitHookEffectListMount @ chunk-SP6A6TOT.js?v=5b56b62e:16915
+invokePassiveEffectMountInDEV @ chunk-SP6A6TOT.js?v=5b56b62e:18324
+invokeEffectsInDev @ chunk-SP6A6TOT.js?v=5b56b62e:19701
+commitDoubleInvokeEffectsInDEV @ chunk-SP6A6TOT.js?v=5b56b62e:19686
+flushPassiveEffectsImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19503
+flushPassiveEffects @ chunk-SP6A6TOT.js?v=5b56b62e:19447
+commitRootImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19416
+commitRoot @ chunk-SP6A6TOT.js?v=5b56b62e:19277
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=5b56b62e:18895
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=5b56b62e:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=5b56b62e:18627
+EditGalleryModal.tsx:163 📷 Foto nuove trovate: 0
+EditGalleryModal.tsx:163 📷 Foto nuove trovate: 0
+EditGalleryModal.tsx:226 📸 Foto ospiti legacy caricate: 0
+EditGalleryModal.tsx:226 📸 Foto ospiti legacy caricate: 0
+EditGalleryModal.tsx:269 📸 Foto da Firebase Storage caricate: 0
+EditGalleryModal.tsx:295 📸 Totale foto caricate: 0
+EditGalleryModal.tsx:296 📊 Breakdown foto: {nuove: 0, legacy: 0, storage: 0}
+EditGalleryModal.tsx:303 ✅ Foto settate nello stato, lunghezza: 0
+EditGalleryModal.tsx:307 🔍 Verifica stato photos dopo setPhotos: 0
+EditGalleryModal.tsx:269 📸 Foto da Firebase Storage caricate: 0
+EditGalleryModal.tsx:295 📸 Totale foto caricate: 0
+EditGalleryModal.tsx:296 📊 Breakdown foto: {nuove: 0, legacy: 0, storage: 0}
+EditGalleryModal.tsx:303 ✅ Foto settate nello stato, lunghezza: 0
+EditGalleryModal.tsx:307 🔍 Verifica stato photos dopo setPhotos: 0
+EditGalleryModal.tsx:393 ✅ Secrets caricati: {hasPassword: false, hasPin: true}
+EditGalleryModal.tsx:753 💾 Avvio salvataggio galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:759 🔍 Verifica unicità PIN...
+EditGalleryModal.tsx:913 🔄 Concluso salvataggio galleria, reset loading...
+EditGalleryModal.tsx:753 💾 Avvio salvataggio galleria: jxzmi79c9Gd1iFLbBgFH
+EditGalleryModal.tsx:759 🔍 Verifica unicità PIN...
+EditGalleryModal.tsx:785 ✅ PIN unico, procedo con il salvataggio
+EditGalleryModal.tsx:788 📝 Aggiornamento documento galleria...
+EditGalleryModal.tsx:844 🔒 Salvando galleria speciale con PIN, password rimossa
+EditGalleryModal.tsx:855 ✅ Galleria salvata con successo
+EditGalleryModal.tsx:859 📧 Invio email PIN al cliente...
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:755
+EditGalleryModal.tsx:873 ✅ Email PIN inviata con successo
+EditGalleryModal.tsx:913 🔄 Concluso salvataggio galleria, reset loading...
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:755
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:755
+@radix-ui_react-select.js?v=1581caed:878 Uncaught Error: A <Select.Item /> must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+    at @radix-ui_react-select.js?v=1581caed:878:13
+    at renderWithHooks (chunk-SP6A6TOT.js?v=5b56b62e:11548:26)
+    at updateForwardRef (chunk-SP6A6TOT.js?v=5b56b62e:14325:28)
+    at beginWork (chunk-SP6A6TOT.js?v=5b56b62e:15946:22)
+    at HTMLUnknownElement.callCallback2 (chunk-SP6A6TOT.js?v=5b56b62e:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-SP6A6TOT.js?v=5b56b62e:3699:24)
+    at invokeGuardedCallback (chunk-SP6A6TOT.js?v=5b56b62e:3733:39)
+    at beginWork$1 (chunk-SP6A6TOT.js?v=5b56b62e:19765:15)
+    at performUnitOfWork (chunk-SP6A6TOT.js?v=5b56b62e:19198:20)
+    at workLoopSync (chunk-SP6A6TOT.js?v=5b56b62e:19137:13)
+(anonymous) @ @radix-ui_react-select.js?v=1581caed:878
+renderWithHooks @ chunk-SP6A6TOT.js?v=5b56b62e:11548
+updateForwardRef @ chunk-SP6A6TOT.js?v=5b56b62e:14325
+beginWork @ chunk-SP6A6TOT.js?v=5b56b62e:15946
+callCallback2 @ chunk-SP6A6TOT.js?v=5b56b62e:3674
+invokeGuardedCallbackDev @ chunk-SP6A6TOT.js?v=5b56b62e:3699
+invokeGuardedCallback @ chunk-SP6A6TOT.js?v=5b56b62e:3733
+beginWork$1 @ chunk-SP6A6TOT.js?v=5b56b62e:19765
+performUnitOfWork @ chunk-SP6A6TOT.js?v=5b56b62e:19198
+workLoopSync @ chunk-SP6A6TOT.js?v=5b56b62e:19137
+renderRootSync @ chunk-SP6A6TOT.js?v=5b56b62e:19116
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=5b56b62e:18874
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=5b56b62e:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=5b56b62e:18627
+@radix-ui_react-select.js?v=1581caed:878 Uncaught Error: A <Select.Item /> must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+    at @radix-ui_react-select.js?v=1581caed:878:13
+    at renderWithHooks (chunk-SP6A6TOT.js?v=5b56b62e:11548:26)
+    at updateForwardRef (chunk-SP6A6TOT.js?v=5b56b62e:14325:28)
+    at beginWork (chunk-SP6A6TOT.js?v=5b56b62e:15946:22)
+    at HTMLUnknownElement.callCallback2 (chunk-SP6A6TOT.js?v=5b56b62e:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-SP6A6TOT.js?v=5b56b62e:3699:24)
+    at invokeGuardedCallback (chunk-SP6A6TOT.js?v=5b56b62e:3733:39)
+    at beginWork$1 (chunk-SP6A6TOT.js?v=5b56b62e:19765:15)
+    at performUnitOfWork (chunk-SP6A6TOT.js?v=5b56b62e:19198:20)
+    at workLoopSync (chunk-SP6A6TOT.js?v=5b56b62e:19137:13)
+(anonymous) @ @radix-ui_react-select.js?v=1581caed:878
+renderWithHooks @ chunk-SP6A6TOT.js?v=5b56b62e:11548
+updateForwardRef @ chunk-SP6A6TOT.js?v=5b56b62e:14325
+beginWork @ chunk-SP6A6TOT.js?v=5b56b62e:15946
+callCallback2 @ chunk-SP6A6TOT.js?v=5b56b62e:3674
+invokeGuardedCallbackDev @ chunk-SP6A6TOT.js?v=5b56b62e:3699
+invokeGuardedCallback @ chunk-SP6A6TOT.js?v=5b56b62e:3733
+beginWork$1 @ chunk-SP6A6TOT.js?v=5b56b62e:19765
+performUnitOfWork @ chunk-SP6A6TOT.js?v=5b56b62e:19198
+workLoopSync @ chunk-SP6A6TOT.js?v=5b56b62e:19137
+renderRootSync @ chunk-SP6A6TOT.js?v=5b56b62e:19116
+recoverFromConcurrentError @ chunk-SP6A6TOT.js?v=5b56b62e:18736
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=5b56b62e:18879
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=5b56b62e:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=5b56b62e:18627
+chunk-SP6A6TOT.js?v=5b56b62e:14032 The above error occurred in the <SelectItem> component:
+
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-select.js?v=1581caed:851:7
+    at _c1 (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ui/select.tsx:196:12)
+    at div
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GZUAGCTQ.js?v=5b56b62e:43:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GQY5XVJM.js?v=5b56b62e:79:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GQY5XVJM.js?v=5b56b62e:56:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-MA7KMHS6.js?v=5b56b62e:41:15
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-select.js?v=1581caed:762:13
+    at div
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GQY5XVJM.js?v=5b56b62e:79:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GQY5XVJM.js?v=5b56b62e:56:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-MA7KMHS6.js?v=5b56b62e:41:15
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=5b56b62e:38:15)
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-select.js?v=1581caed:305:58
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GQY5XVJM.js?v=5b56b62e:79:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GQY5XVJM.js?v=5b56b62e:56:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GZUAGCTQ.js?v=5b56b62e:43:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-SRPYIZWQ.js?v=5b56b62e:262:22
+    at SelectPortal
+    at _c7 (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ui/select.tsx:117:12)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=5b56b62e:38:15)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=5b56b62e:38:15)
+    at CollectionProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-MA7KMHS6.js?v=5b56b62e:31:13)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=5b56b62e:38:15)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=5b56b62e:38:15)
+    at Popper (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KM2BOHT3.js?v=5b56b62e:1955:11)
+    at Select (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-select.js?v=1581caed:91:5)
+    at div
+    at form
+    at div
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GZUAGCTQ.js?v=5b56b62e:43:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-SRPYIZWQ.js?v=5b56b62e:63:7
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GQY5XVJM.js?v=5b56b62e:79:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GQY5XVJM.js?v=5b56b62e:56:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-GZUAGCTQ.js?v=5b56b62e:43:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-WMVD32Y7.js?v=5b56b62e:34:5
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-CEYKNUXH.js?v=5b56b62e:236:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-CEYKNUXH.js?v=5b56b62e:159:58
+    at Presence (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-4S2XISTD.js?v=5b56b62e:24:11)
+    at h
+logCapturedError @ chunk-SP6A6TOT.js?v=5b56b62e:14032
+callback @ chunk-SP6A6TOT.js?v=5b56b62e:14078
+callCallback @ chunk-SP6A6TOT.js?v=5b56b62e:11248
+commitUpdateQueue @ chunk-SP6A6TOT.js?v=5b56b62e:11265
+commitLayoutEffectOnFiber @ chunk-SP6A6TOT.js?v=5b56b62e:17075
+commitLayoutMountEffects_complete @ chunk-SP6A6TOT.js?v=5b56b62e:17980
+commitLayoutEffects_begin @ chunk-SP6A6TOT.js?v=5b56b62e:17969
+commitLayoutEffects @ chunk-SP6A6TOT.js?v=5b56b62e:17920
+commitRootImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19353
+commitRoot @ chunk-SP6A6TOT.js?v=5b56b62e:19277
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=5b56b62e:18895
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=5b56b62e:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=5b56b62e:18627
+logger.ts:88 [2025-11-04T09:44:11.954Z] [ERROR] [ErrorBoundary] React Error Boundary catturato errore Error: A <Select.Item /> must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+    at @radix-ui_react-select.js?v=1581caed:878:13
+    at renderWithHooks (chunk-SP6A6TOT.js?v=5b56b62e:11548:26)
+    at updateForwardRef (chunk-SP6A6TOT.js?v=5b56b62e:14325:28)
+    at beginWork (chunk-SP6A6TOT.js?v=5b56b62e:15946:22)
+    at beginWork$1 (chunk-SP6A6TOT.js?v=5b56b62e:19753:22)
+    at performUnitOfWork (chunk-SP6A6TOT.js?v=5b56b62e:19198:20)
+    at workLoopSync (chunk-SP6A6TOT.js?v=5b56b62e:19137:13)
+    at renderRootSync (chunk-SP6A6TOT.js?v=5b56b62e:19116:15)
+    at recoverFromConcurrentError (chunk-SP6A6TOT.js?v=5b56b62e:18736:28)
+    at performSyncWorkOnRoot (chunk-SP6A6TOT.js?v=5b56b62e:18879:28)
+clientLog @ logger.ts:88
+log @ logger.ts:79
+error @ logger.ts:133
+componentDidCatch @ ErrorBoundary.tsx:49
+callback @ chunk-SP6A6TOT.js?v=5b56b62e:14084
+callCallback @ chunk-SP6A6TOT.js?v=5b56b62e:11248
+commitUpdateQueue @ chunk-SP6A6TOT.js?v=5b56b62e:11265
+commitLayoutEffectOnFiber @ chunk-SP6A6TOT.js?v=5b56b62e:17075
+commitLayoutMountEffects_complete @ chunk-SP6A6TOT.js?v=5b56b62e:17980
+commitLayoutEffects_begin @ chunk-SP6A6TOT.js?v=5b56b62e:17969
+commitLayoutEffects @ chunk-SP6A6TOT.js?v=5b56b62e:17920
+commitRootImpl @ chunk-SP6A6TOT.js?v=5b56b62e:19353
+commitRoot @ chunk-SP6A6TOT.js?v=5b56b62e:19277
+performSyncWorkOnRoot @ chunk-SP6A6TOT.js?v=5b56b62e:18895
+flushSyncCallbacks @ chunk-SP6A6TOT.js?v=5b56b62e:9119
+(anonymous) @ chunk-SP6A6TOT.js?v=5b56b62e:18627

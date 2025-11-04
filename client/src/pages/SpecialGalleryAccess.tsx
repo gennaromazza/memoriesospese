@@ -18,11 +18,14 @@ export default function SpecialGalleryAccess() {
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(''); // Reset errore
 
     if (!pin.trim()) {
+      setError('Inserisci un PIN');
       toast.error('Inserisci un PIN');
       return;
     }
@@ -53,6 +56,7 @@ export default function SpecialGalleryAccess() {
       const data = await response.json();
 
       if (!response.ok || !data.result?.valid) {
+        setError('PIN non valido. Riprova.');
         toast.error('PIN non valido. Riprova.');
         setPin('');
         return;
@@ -82,6 +86,7 @@ export default function SpecialGalleryAccess() {
       setLocation(`/view/${galleryCode || galleryId}`);
     } catch (error) {
       console.error('Errore accesso PIN:', error);
+      setError('Errore durante l\'accesso. Riprova.');
       toast.error('Errore durante l\'accesso. Riprova.');
     } finally {
       setIsLoading(false);
@@ -136,9 +141,16 @@ export default function SpecialGalleryAccess() {
                   id="pin"
                   type={showPin ? "text" : "password"}
                   value={pin}
-                  onChange={(e) => setPin(e.target.value)}
+                  onChange={(e) => {
+                    setPin(e.target.value);
+                    setError(''); // Reset errore quando l'utente digita
+                  }}
                   placeholder="Inserisci il PIN"
-                  className="text-center text-lg tracking-widest font-mono border-sage/30 dark:border-sage/40 focus:border-sage dark:focus:border-sage pr-10"
+                  className={`text-center text-lg tracking-widest font-mono pr-10 transition-all ${
+                    error 
+                      ? 'border-red-500 dark:border-red-400 focus:border-red-500 dark:focus:border-red-400 animate-shake' 
+                      : 'border-sage/30 dark:border-sage/40 focus:border-sage dark:focus:border-sage'
+                  }`}
                   autoFocus
                   disabled={isLoading}
                   data-testid="input-special-pin"
@@ -156,6 +168,14 @@ export default function SpecialGalleryAccess() {
                   )}
                 </button>
               </div>
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 animate-in fade-in slide-in-from-top-2 duration-300" data-testid="error-message">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span className="font-medium">{error}</span>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground dark:text-gray-400 text-center">
                 Il PIN ti è stato fornito dagli organizzatori
               </p>
