@@ -8,7 +8,7 @@ import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { getActiveProducts } from '@/lib/products';
 import { getAvailableSlots } from '@/lib/bookings';
-import type { BookingCampaign, Product } from '@shared/booking-types';
+import type { BookingCampaign, Product, OrderItem } from '@shared/booking-types';
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Calendar, Clock, User } from 'lucide-react';
+import { Loader2, Calendar, Clock, User, Plus, Trash2, Package, ShoppingCart } from 'lucide-react';
 import { format, addMinutes, parseISO, setHours, setMinutes, startOfDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -51,7 +51,10 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   const [whatsapp, setWhatsapp] = useState('');
   const [dataShootingDate, setDataShootingDate] = useState<string>('');
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
-  const [prodottoId, setProdottoId] = useState<string>('');
+  const [selectedProducts, setSelectedProducts] = useState<Array<{
+    prodottoId: string;
+    quantita: number;
+  }>>([]);
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,6 +99,37 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     enabled: !!dataShootingDate && !!selectedCampaign,
   });
 
+  // Helper: Aggiungi prodotto vuoto
+  const addProduct = () => {
+    setSelectedProducts([...selectedProducts, { prodottoId: '', quantita: 1 }]);
+  };
+
+  // Helper: Rimuovi prodotto
+  const removeProduct = (index: number) => {
+    setSelectedProducts(selectedProducts.filter((_, i) => i !== index));
+  };
+
+  // Helper: Aggiorna prodotto
+  const updateProduct = (index: number, field: 'prodottoId' | 'quantita', value: string | number) => {
+    const updated = [...selectedProducts];
+    updated[index] = { ...updated[index], [field]: value };
+    setSelectedProducts(updated);
+  };
+
+  // Helper: Calcola subtotale per prodotto
+  const getProductSubtotal = (prodottoId: string, quantita: number): number => {
+    const product = products.find(p => p.id === prodottoId);
+    if (!product) return 0;
+    return product.prezzoFinale * quantita;
+  };
+
+  // Helper: Calcola totale prenotazione
+  const calculateTotale = (): number => {
+    return selectedProducts.reduce((sum, item) => {
+      return sum + getProductSubtotal(item.prodottoId, item.quantita);
+    }, 0);
+  };
+
   // Reset form quando modal si apre
   useEffect(() => {
     if (isOpen) {
@@ -106,7 +140,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       setWhatsapp('');
       setDataShootingDate('');
       setSelectedSlot(null);
-      setProdottoId('');
+      setSelectedProducts([]);
       setNote('');
     }
   }, [isOpen]);
@@ -116,10 +150,11 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     setSelectedSlot(null);
   }, [dataShootingDate]);
 
-  // Reset slot e data quando cambia campagna (previene slot stale)
+  // Reset slot, data, e prodotti quando cambia campagna (previene dati stale)
   useEffect(() => {
     setSelectedSlot(null);
     setDataShootingDate('');
+    setSelectedProducts([]); // CRITICAL: Reset prodotti per evitare prodotti non disponibili
   }, [campaignId]);
 
   // Auto-seleziona prima campagna attiva
@@ -162,6 +197,31 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       return;
     }
 
+    // Validazione prodotti multi-prodotto (opzionale)
+    if (selectedProducts.length > 0) {
+      // Se ci sono prodotti, verifica che siano tutti completati
+      if (selectedProducts.some(p => !p.prodottoId || p.quantita <= 0)) {
+        toast({
+          title: 'Prodotti incompleti',
+          description: 'Completa tutti i prodotti con quantità valida o rimuovili',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // CRITICAL: Verifica che tutti i prodotti appartengano alla campagna corrente
+      const availableProductIds = availableProducts.map(p => p.id);
+      const invalidProducts = selectedProducts.filter(p => !availableProductIds.includes(p.prodottoId));
+      if (invalidProducts.length > 0) {
+        toast({
+          title: 'Prodotti non validi',
+          description: 'Alcuni prodotti selezionati non sono disponibili per questa campagna. Rimuovili prima di continuare.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
 
@@ -169,9 +229,24 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       const dataInizioDate = new Date(selectedSlot.start);
       const dataFineDate = new Date(selectedSlot.end);
 
-      // Trova prodotto selezionato (ignora "none")
-      const actualProdottoId = prodottoId === 'none' ? undefined : prodottoId;
-      const selectedProduct = actualProdottoId ? products.find(p => p.id === actualProdottoId) : undefined;
+      // Costruisci array OrderItem (se presenti) con snapshot completo
+      let prodottiOrderItems: OrderItem[] | undefined = undefined;
+      if (selectedProducts.length > 0) {
+        prodottiOrderItems = selectedProducts.map(item => {
+          const product = products.find(p => p.id === item.prodottoId)!;
+          return {
+            prodottoId: product.id,
+            prodottoNome: product.nome,
+            prodottoPrezzo: product.prezzoFinale,
+            prodottoNumeroFoto: product.numeroFoto,
+            quantita: item.quantita,
+          };
+        });
+      }
+
+      // Legacy support: usa primo prodotto se disponibile
+      const firstProductId = selectedProducts.length > 0 ? selectedProducts[0].prodottoId : undefined;
+      const firstProduct = firstProductId ? products.find(p => p.id === firstProductId) : undefined;
 
       // Payload prenotazione (include workingHours e durataMinuti dalla campagna)
       const bookingPayload = {
@@ -184,8 +259,9 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         },
         dataShootingInizio: dataInizioDate.toISOString(),
         dataShootingFine: dataFineDate.toISOString(),
-        prodottoId: actualProdottoId,
-        prodottoNome: selectedProduct?.nome,
+        prodottoId: firstProductId,
+        prodottoNome: firstProduct?.nome,
+        prodotti: prodottiOrderItems, // Nuovo campo multi-prodotto
         note: note.trim(),
         workingHours: {
           apertura: selectedCampaign.orarioApertura,
@@ -395,22 +471,97 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
             </div>
           )}
 
-          {/* Prodotto */}
-          <div className="space-y-2">
-            <Label htmlFor="product">Prodotto (opzionale)</Label>
-            <Select value={prodottoId} onValueChange={setProdottoId}>
-              <SelectTrigger data-testid="select-product">
-                <SelectValue placeholder="Da decidere in sede" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Da decidere in sede</SelectItem>
-                {availableProducts.map((product) => (
-                  <SelectItem key={product.id} value={product.id}>
-                    {product.nome} - €{product.prezzoFinale}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Prodotti Multi-Prodotto */}
+          <div className="space-y-4 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold flex items-center gap-2">
+                <ShoppingCart className="w-4 h-4" />
+                Prodotti (opzionale)
+              </Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={addProduct}
+                className="border-sage text-sage hover:bg-sage hover:text-white"
+                data-testid="button-add-product"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Aggiungi Prodotto
+              </Button>
+            </div>
+
+            {selectedProducts.length === 0 ? (
+              <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-dashed">
+                <Package className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">Nessun prodotto aggiunto</p>
+                <p className="text-xs mt-1">I prodotti possono essere aggiunti ora o in sede</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {selectedProducts.map((item, index) => {
+                    const product = availableProducts.find(p => p.id === item.prodottoId);
+                    const subtotale = getProductSubtotal(item.prodottoId, item.quantita);
+
+                    return (
+                      <div key={index} className="flex items-center gap-3 p-3 border rounded-lg bg-white">
+                        <div className="flex-1">
+                          <Select
+                            value={item.prodottoId}
+                            onValueChange={(value) => updateProduct(index, 'prodottoId', value)}
+                          >
+                            <SelectTrigger data-testid={`select-product-${index}`}>
+                              <SelectValue placeholder="Seleziona prodotto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableProducts.map(p => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.nome} - €{p.prezzoFinale.toFixed(2)} ({p.numeroFoto} foto)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="w-20">
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantita}
+                            onChange={(e) => updateProduct(index, 'quantita', parseInt(e.target.value) || 1)}
+                            placeholder="Qtà"
+                            data-testid={`input-quantity-${index}`}
+                          />
+                        </div>
+
+                        <div className="w-24 text-right font-medium">
+                          €{subtotale.toFixed(2)}
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeProduct(index)}
+                          data-testid={`button-remove-product-${index}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Riepilogo Totale */}
+                <div className="bg-sage/10 p-3 rounded-lg border border-sage/20">
+                  <div className="flex justify-between items-center font-bold">
+                    <span>Totale Preventivo:</span>
+                    <span className="text-sage text-lg">€{calculateTotale().toFixed(2)}</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Note */}
