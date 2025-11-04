@@ -2957,8 +2957,8 @@ export default function Gallery() {
                 </div>
               )}
 
-              {/* Registration CTA section - only show when user is not logged in */}
-              {!isAuthenticated && (
+              {/* Registration CTA section - only show when user is not logged in AND not in selection mode */}
+              {!isAuthenticated && !isSelectionMode && (
                 <div id="registration-section" className="mt-12 mb-8">
                   <RegistrationCTA
                     galleryId={galleryData.id}
