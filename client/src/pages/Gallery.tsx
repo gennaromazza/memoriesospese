@@ -2171,6 +2171,18 @@ export default function Gallery() {
                                             // Use string index as unique identifier (aligns with Firestore schema)
                                             const productIdStr = String(idx);
                                             const isAssigned = photoAssignments[photo.id]?.includes(productIdStr);
+                                            
+                                            // Colori distintivi per ogni prodotto (rotazione)
+                                            const productColors = [
+                                              { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600' },
+                                              { bg: 'bg-green-500', hover: 'hover:bg-green-600', text: 'text-green-600' },
+                                              { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', text: 'text-purple-600' },
+                                              { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', text: 'text-orange-600' },
+                                              { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', text: 'text-pink-600' },
+                                              { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600' },
+                                            ];
+                                            const color = productColors[idx % productColors.length];
+                                            
                                             return (
                                               <button
                                                 key={idx}
@@ -2180,8 +2192,8 @@ export default function Gallery() {
                                                 }}
                                                 className={`px-2 py-1 rounded text-xs font-medium transition-all ${
                                                   isAssigned 
-                                                    ? 'bg-green-500 text-white shadow-md' 
-                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                    ? `${color.bg} text-white shadow-md ${color.hover}` 
+                                                    : `bg-gray-200 ${color.text} hover:bg-gray-300`
                                                 }`}
                                                 title={`${isAssigned ? 'Rimuovi da' : 'Assegna a'} ${prod.prodottoNome}`}
                                                 data-testid={`chip-product-${idx}-photo-${photo.id}`}
