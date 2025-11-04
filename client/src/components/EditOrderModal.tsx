@@ -628,13 +628,30 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
                   <TableBody>
                     {order.transactions
                       .sort((a, b) => {
-                        // Ordina per data (più recenti prima)
-                        const dateA = a.data?.toDate ? a.data.toDate() : new Date();
-                        const dateB = b.data?.toDate ? b.data.toDate() : new Date();
+                        // Helper per convertire timestamp in Date - gestisce Firestore Timestamp, ISO string, e millisecondi
+                        const parseTransactionDate = (data: any): Date => {
+                          if (!data) return new Date(0); // Fallback per sort
+                          if (data.toDate && typeof data.toDate === 'function') return data.toDate(); // Firestore Timestamp
+                          if (typeof data === 'string') return new Date(data); // ISO string
+                          if (typeof data === 'number') return new Date(data); // Milliseconds
+                          return new Date(0); // Fallback sicuro
+                        };
+                        
+                        const dateA = parseTransactionDate(a.data);
+                        const dateB = parseTransactionDate(b.data);
                         return dateB.getTime() - dateA.getTime();
                       })
                       .map((transaction, index) => {
-                        const date = transaction.data?.toDate ? transaction.data.toDate() : new Date();
+                        // Helper per convertire timestamp in Date - gestisce Firestore Timestamp, ISO string, e millisecondi
+                        const parseTransactionDate = (data: any): Date => {
+                          if (!data) return new Date(); // Fallback per visualizzazione
+                          if (data.toDate && typeof data.toDate === 'function') return data.toDate(); // Firestore Timestamp
+                          if (typeof data === 'string') return new Date(data); // ISO string
+                          if (typeof data === 'number') return new Date(data); // Milliseconds
+                          return new Date(); // Fallback sicuro
+                        };
+                        
+                        const date = parseTransactionDate(transaction.data);
                         
                         return (
                           <TableRow key={index}>

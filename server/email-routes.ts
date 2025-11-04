@@ -1251,7 +1251,22 @@ export function createOrderAccontoRicevutoEmailHTML(
             </thead>
             <tbody>
               ${transactions.map((t, index) => {
-                const date = t.data?.toDate ? t.data.toDate() : (t.data instanceof Date ? t.data : new Date(t.data));
+                // Helper robusto per parsing date - gestisce Firestore Timestamp, ISO string, millisecondi
+                let date: Date;
+                if (!t.data) {
+                  date = new Date(); // Fallback
+                } else if (t.data.toDate && typeof t.data.toDate === 'function') {
+                  date = t.data.toDate(); // Firestore Timestamp
+                } else if (typeof t.data === 'string') {
+                  date = new Date(t.data); // ISO string
+                } else if (typeof t.data === 'number') {
+                  date = new Date(t.data); // Milliseconds
+                } else if (t.data instanceof Date) {
+                  date = t.data; // Already a Date
+                } else {
+                  date = new Date(); // Fallback sicuro
+                }
+                
                 const dateStr = date.toLocaleDateString('it-IT', { 
                   day: '2-digit', 
                   month: 'long', 
@@ -1386,7 +1401,22 @@ export function createOrderSaldoPendenteEmailHTML(
             </thead>
             <tbody>
               ${transactions.map((t, index) => {
-                const date = t.data?.toDate ? t.data.toDate() : (t.data instanceof Date ? t.data : new Date(t.data));
+                // Helper robusto per parsing date - gestisce Firestore Timestamp, ISO string, millisecondi
+                let date: Date;
+                if (!t.data) {
+                  date = new Date(); // Fallback
+                } else if (t.data.toDate && typeof t.data.toDate === 'function') {
+                  date = t.data.toDate(); // Firestore Timestamp
+                } else if (typeof t.data === 'string') {
+                  date = new Date(t.data); // ISO string
+                } else if (typeof t.data === 'number') {
+                  date = new Date(t.data); // Milliseconds
+                } else if (t.data instanceof Date) {
+                  date = t.data; // Already a Date
+                } else {
+                  date = new Date(); // Fallback sicuro
+                }
+                
                 const dateStr = date.toLocaleDateString('it-IT', { 
                   day: '2-digit', 
                   month: 'long', 
