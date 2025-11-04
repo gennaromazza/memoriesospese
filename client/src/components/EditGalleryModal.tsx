@@ -88,8 +88,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [selectionStatus, setSelectionStatus] = useState<'pending' | 'completed'>('pending');
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   
-  // Stati per prodotto associato (da booking/ordine)
-  const [associatedProduct, setAssociatedProduct] = useState<{ nome: string; numeroFoto: number; isCustom: boolean } | null>(null);
+  // Stati per prodotti associati (da booking/ordine) - MULTI-PRODUCT SUPPORT
+  const [associatedProducts, setAssociatedProducts] = useState<Array<{ nome: string; numeroFoto: number; isCustom: boolean }>>([]);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   
   const availableThemes = getAllThemes();
@@ -413,17 +413,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       fetchSecrets();
 
-      // Fetch prodotto associato da ordine se esiste bookingId
+      // Fetch prodotti associati da ordine se esiste bookingId (MULTI-PRODUCT)
       const fetchAssociatedProduct = async () => {
         const bookingId = (gallery as any).bookingId;
         if (!bookingId) {
-          setAssociatedProduct(null);
+          setAssociatedProducts([]);
           return;
         }
 
         setIsLoadingProduct(true);
         try {
-          console.log('📦 Caricamento prodotto associato per booking:', bookingId);
+          console.log('📦 Caricamento prodotti associati per booking:', bookingId);
           
           // Cerca ordine per bookingId
           const { collection: firestoreCollection, query: firestoreQuery, where: firestoreWhere, getDocs: firestoreGetDocs } = await import('firebase/firestore');
@@ -438,18 +438,19 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             const prodotti = orderData.prodotti || [];
             
             if (prodotti.length > 0) {
-              const firstProduct = prodotti[0];
-              setAssociatedProduct({
-                nome: firstProduct.prodottoNome || 'Prodotto Sconosciuto',
-                numeroFoto: firstProduct.prodottoNumeroFoto || 0,
-                isCustom: !firstProduct.prodottoId || firstProduct.prodottoId === ''
-              });
-              console.log('✅ Prodotto associato caricato:', firstProduct.prodottoNome);
+              // CARICA TUTTI I PRODOTTI (non solo il primo)
+              const allProducts = prodotti.map((prod: any) => ({
+                nome: prod.prodottoNome || 'Prodotto Sconosciuto',
+                numeroFoto: prod.prodottoNumeroFoto || 0,
+                isCustom: !prod.prodottoId || prod.prodottoId === ''
+              }));
+              setAssociatedProducts(allProducts);
+              console.log(`✅ ${allProducts.length} prodotti associati caricati dall'ordine`);
             } else {
-              setAssociatedProduct(null);
+              setAssociatedProducts([]);
             }
           } else {
-            // Nessun ordine trovato, prova a prendere dal booking
+            // Nessun ordine trovato, prova a prendere dal booking (legacy single product)
             const bookingsQuery = firestoreQuery(
               firestoreCollection(db, 'bookings'),
               firestoreWhere('__name__', '==', bookingId)
@@ -463,19 +464,19 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 const { getProductById } = await import('@/lib/products');
                 const product = await getProductById(bookingData.prodottoId);
                 if (product) {
-                  setAssociatedProduct({
+                  setAssociatedProducts([{
                     nome: product.nome,
                     numeroFoto: product.numeroFoto,
                     isCustom: false
-                  });
-                  console.log('✅ Prodotto catalogo caricato da booking');
+                  }]);
+                  console.log('✅ Prodotto catalogo caricato da booking (legacy)');
                 }
               }
             }
           }
         } catch (error) {
-          console.error('❌ Errore caricamento prodotto associato:', error);
-          setAssociatedProduct(null);
+          console.error('❌ Errore caricamento prodotti associati:', error);
+          setAssociatedProducts([]);
         } finally {
           setIsLoadingProduct(false);
         }
@@ -1247,43 +1248,61 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               />
             </div>
 
-            {/* Prodotto Associato Section */}
-            {(associatedProduct || isLoadingProduct) && (
+            {/* Prodotti Associati Section - MULTI-PRODUCT SUPPORT */}
+            {(associatedProducts.length > 0 || isLoadingProduct) && (
               <div className="border-t pt-4">
                 <div className="bg-sage/10 border border-sage/30 rounded-lg p-4">
                   <div className="flex items-start gap-2">
                     <Info className="w-5 h-5 text-sage mt-0.5" />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold text-sage-dark">📦 Prodotto Associato</h4>
-                        {isLoadingProduct ? (
+                      <div className="flex items-center gap-2 mb-3">
+                        <h4 className="font-semibold text-sage-dark">
+                          📦 Prodotti Associati {associatedProducts.length > 0 && `(${associatedProducts.length})`}
+                        </h4>
+                        {isLoadingProduct && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
                             Caricamento...
                           </span>
-                        ) : associatedProduct?.isCustom ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                            Custom
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                            Catalogo
-                          </span>
                         )}
                       </div>
-                      {associatedProduct && (
-                        <>
-                          <p className="text-sm text-gray-700 mt-1">
-                            <strong>{associatedProduct.nome}</strong>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            🎯 <strong>{associatedProduct.numeroFoto} foto</strong> richieste per questo prodotto
-                          </p>
-                          {associatedProduct.isCustom && (
-                            <p className="text-xs text-gray-500 mt-2 italic">
-                              ℹ️ Prodotto personalizzato creato per questo ordine
-                            </p>
-                          )}
-                        </>
+                      
+                      {associatedProducts.length > 0 ? (
+                        <div className="space-y-2">
+                          {associatedProducts.map((product, idx) => (
+                            <div key={idx} className="bg-white border border-sage/20 rounded-lg p-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-sm font-semibold text-gray-800">
+                                      {product.nome}
+                                    </p>
+                                    {product.isCustom ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                                        Custom
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                                        Catalogo
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-600">
+                                    🎯 <strong>{product.numeroFoto} foto</strong> richieste per questo prodotto
+                                  </p>
+                                  {product.isCustom && (
+                                    <p className="text-xs text-gray-500 mt-1 italic">
+                                      ℹ️ Prodotto personalizzato creato per questo ordine
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        !isLoadingProduct && (
+                          <p className="text-sm text-gray-600">Nessun prodotto associato</p>
+                        )
                       )}
                     </div>
                   </div>
