@@ -2418,6 +2418,80 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
 });
 
 /**
+ * GET /api/email/get-gallery-secrets/:galleryId
+ * Recupera password e PIN per una galleria (ADMIN ONLY)
+ * Usato da EditGalleryModal per caricare i secrets quando si apre il modal
+ * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)
+ */
+router.get("/get-gallery-secrets/:galleryId", authenticateFirebase, async (req: any, res) => {
+  try {
+    const { galleryId } = req.params;
+
+    if (!galleryId) {
+      return res.status(400).json({
+        error: { code: "invalid-argument", message: "Missing galleryId" }
+      });
+    }
+
+    // CONTROLLO ADMIN: Solo admin possono accedere ai secrets
+    const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+    const isAdmin = ADMIN_EMAILS.includes(req.user.email || "");
+
+    if (!isAdmin) {
+      console.log(`❌ Utente ${req.user.email} non autorizzato a leggere secrets`);
+      return res.status(403).json({
+        error: {
+          code: "permission-denied",
+          message: "Admin access required"
+        }
+      });
+    }
+
+    console.log(`🔍 Recupero secrets per galleria: ${galleryId} (utente admin: ${req.user.email})`);
+
+    // Inizializza Firebase Admin
+    const admin = await import('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+      if (!serviceAccountBase64) {
+        throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
+      }
+      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    }
+
+    const db = admin.firestore();
+
+    // Leggi secrets dalla collection protetta
+    const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+
+    if (!secretsDoc.exists) {
+      // Nessun secrets salvato per questa galleria
+      return res.status(200).json({
+        password: null,
+        specialPin: null
+      });
+    }
+
+    const secretsData = secretsDoc.data();
+
+    res.status(200).json({
+      password: secretsData?.password || null,
+      specialPin: secretsData?.specialPin || null
+    });
+
+  } catch (error) {
+    console.error("❌ Errore recupero gallery secrets:", error);
+    res.status(500).json({
+      error: { code: "internal", message: "Errore recupero secrets" }
+    });
+  }
+});
+
+/**
  * POST /api/email/verify-special-pin
  * Verifica PIN galleria speciale SERVER-SIDE senza esporlo al client
  * SICURO: legge PIN da collection protetta `gallerySecrets` (admin-only)

@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
 import { Progress } from "./ui/progress";
 import imageCompression from 'browser-image-compression';
+import { queryClient } from "../lib/queryClient";
 
 interface PhotoData {
   id: string;
@@ -76,6 +77,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [coverImageMobileUrl, setCoverImageMobileUrl] = useState("");
   const [coverImageDesktopUrl, setCoverImageDesktopUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingPin, setIsCheckingPin] = useState(false); // Loading state per validazione PIN
   
   // Stati per Photo Selection Workflow (Task 2)
   const [selectionEnabled, setSelectionEnabled] = useState(false);
@@ -327,9 +329,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setDate(gallery.date || "");
       setLocation(gallery.location || "");
       setDescription(gallery.description || "");
-      setPassword(gallery.password || "");
       setSpecialTheme(gallery.specialTheme || "none");
-      setSpecialPin(gallery.specialPin || "");
       setClientEmail((gallery as any).clientEmail || "");
       setClientName((gallery as any).clientName || "");
       
@@ -362,6 +362,51 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       } else {
         setSelectionDeadline("");
       }
+
+      // FETCH PASSWORD E PIN DA GALLERYSECRETS (server-side sicuro con autenticazione)
+      // Non li leggiamo più da gallery.password/gallery.specialPin perché non esistono nel doc pubblico
+      const fetchSecrets = async () => {
+        try {
+          console.log('🔐 Caricamento secrets da server per galleria:', gallery.id);
+          
+          // Ottieni Firebase ID token per autenticazione
+          const { auth } = await import("../lib/firebase");
+          const currentUser = auth.currentUser;
+
+          if (!currentUser) {
+            console.error('❌ Utente non autenticato');
+            setPassword("");
+            setSpecialPin("");
+            return;
+          }
+
+          const idToken = await currentUser.getIdToken();
+
+          const response = await fetch(`/api/email/get-gallery-secrets/${gallery.id}`, {
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+          });
+          
+          if (response.ok) {
+            const secrets = await response.json();
+            console.log('✅ Secrets caricati:', { hasPassword: !!secrets.password, hasPin: !!secrets.specialPin });
+            setPassword(secrets.password || "");
+            setSpecialPin(secrets.specialPin || "");
+          } else {
+            console.error('❌ Errore caricamento secrets:', response.status);
+            // Fallback a valori vuoti
+            setPassword("");
+            setSpecialPin("");
+          }
+        } catch (error) {
+          console.error('❌ Eccezione caricamento secrets:', error);
+          setPassword("");
+          setSpecialPin("");
+        }
+      };
+
+      fetchSecrets();
 
       // Reset loading state quando cambia la galleria
       setIsLoading(false);
@@ -712,6 +757,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // VALIDAZIONE: Verifica unicità PIN se impostato
       if (specialTheme !== 'none' && specialPin.trim()) {
         console.log('🔍 Verifica unicità PIN...');
+        setIsCheckingPin(true); // Attiva loading indicator
         
         const checkResponse = await fetch('/api/email/check-pin-unique', {
           method: 'POST',
@@ -723,6 +769,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         });
 
         const checkResult = await checkResponse.json();
+        setIsCheckingPin(false); // Disattiva loading indicator
         
         if (!checkResult.unique) {
           toast({
@@ -851,12 +898,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         });
       }
 
-      onClose();
+      // Invalida cache React Query per aggiornare UI senza reload
+      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
       
-      // Forza il reload completo della pagina per aggiornare tutti i dati
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      onClose();
     } catch (error) {
       console.error('❌ Errore salvataggio galleria:', error);
       toast({
@@ -1155,11 +1200,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                         onChange={(e) => setSpecialPin(e.target.value)}
                         placeholder="Es. 2024"
                         className="pr-10"
+                        disabled={isCheckingPin}
                       />
                       <button
                         type="button"
                         onClick={() => setShowSpecialPin(!showSpecialPin)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                        disabled={isCheckingPin}
                       >
                         {showSpecialPin ? (
                           <EyeOff className="w-4 h-4" />
@@ -1168,9 +1215,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                         )}
                       </button>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      PIN univoco per accedere a questa galleria speciale
-                    </p>
+                    {isCheckingPin && (
+                      <p className="text-sm text-blue-600 flex items-center gap-2">
+                        <span className="animate-spin">⏳</span>
+                        Verifica unicità PIN in corso...
+                      </p>
+                    )}
+                    {!isCheckingPin && (
+                      <p className="text-sm text-muted-foreground">
+                        PIN univoco per accedere a questa galleria speciale
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-4 border-t pt-4">
