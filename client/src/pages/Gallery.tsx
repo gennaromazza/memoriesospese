@@ -344,7 +344,7 @@ export default function Gallery() {
         const ordersSnapshot = await firestoreGetDocs(ordersQuery);
         
         if (!ordersSnapshot.empty) {
-          const orderData = { id: ordersSnapshot.docs[0].id, ...ordersSnapshot.docs[0].data() };
+          const orderData = { id: ordersSnapshot.docs[0].id, ...ordersSnapshot.docs[0].data() } as any;
           setAssociatedOrder(orderData);
           console.log('📦 Ordine associato caricato:', orderData.id, 'Status:', orderData.status);
         } else {
@@ -1241,8 +1241,8 @@ export default function Gallery() {
           galleryCode={galleryData.code}
         />
 
-        {/* Countdown dell'evento */}
-        {eventDate && (
+        {/* Countdown dell'evento - Nascosto in modalità selezione */}
+        {eventDate && !isSelectionMode && (
           <div className="container mx-auto px-4 py-6">
             <PrettyCountdown
               targetDate={eventDate}
@@ -1318,64 +1318,70 @@ export default function Gallery() {
                       </TooltipContent>
                     </Tooltip>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => setActiveTab("guests")}
-                          className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
-                            activeTab === "guests"
-                              ? "bg-white shadow-sm text-blue-gray"
-                              : "text-gray-600 hover:text-blue-gray"
-                          }`}
-                        >
-                          <span className="hidden sm:inline">
-                            Foto degli ospiti
-                          </span>
-                          <span className="sm:hidden">Ospiti</span>
-                          <span className="ml-1">({guestPhotos.length})</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-sm">
-                        <p>Guarda le foto caricate dagli ospiti dell'evento</p>
-                      </TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => setActiveTab("voice-memos")}
-                          className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
-                            activeTab === "voice-memos"
-                              ? "bg-gradient-to-r from-sage-100 to-blue-gray-100 shadow-lg text-sage-800 border border-sage-200"
-                              : "text-gray-600 hover:text-sage-700 hover:bg-sage-50"
-                          }`}
-                        >
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                    {/* Tab Ospiti - Nascosto in modalità selezione */}
+                    {!isSelectionMode && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setActiveTab("guests")}
+                            className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base ${
+                              activeTab === "guests"
+                                ? "bg-white shadow-sm text-blue-gray"
+                                : "text-gray-600 hover:text-blue-gray"
+                            }`}
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                            />
-                          </svg>
-                          <span className="hidden sm:inline">
-                            Vocali Segreti
-                          </span>
-                          <span className="sm:hidden">Vocali</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-sm">
-                        <p>
-                          Ascolta i messaggi vocali privati lasciati dagli
-                          ospiti
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
+                            <span className="hidden sm:inline">
+                              Foto degli ospiti
+                            </span>
+                            <span className="sm:hidden">Ospiti</span>
+                            <span className="ml-1">({guestPhotos.length})</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>Guarda le foto caricate dagli ospiti dell'evento</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+
+                    {/* Tab Vocali - Nascosto in modalità selezione */}
+                    {!isSelectionMode && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setActiveTab("voice-memos")}
+                            className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
+                              activeTab === "voice-memos"
+                                ? "bg-gradient-to-r from-sage-100 to-blue-gray-100 shadow-lg text-sage-800 border border-sage-200"
+                                : "text-gray-600 hover:text-sage-700 hover:bg-sage-50"
+                            }`}
+                          >
+                            <svg
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                              />
+                            </svg>
+                            <span className="hidden sm:inline">
+                              Vocali Segreti
+                            </span>
+                            <span className="sm:hidden">Vocali</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-sm">
+                          <p>
+                            Ascolta i messaggi vocali privati lasciati dagli
+                            ospiti
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
 
                     {/* Tab Storia - Mostra solo se esiste una storia o se l'admin sta caricando */}
                     {(coupleStory ||
@@ -1637,8 +1643,8 @@ export default function Gallery() {
               {/* Contenuto del tab selezionato */}
               {activeTab === "photographer" && (
                 <div>
-                  {/* Discrete registration link for non-authenticated users - only show when not logged in */}
-                  {!isAuthenticated && (
+                  {/* Discrete registration link for non-authenticated users - only show when not logged in and not in selection mode */}
+                  {!isAuthenticated && !isSelectionMode && (
                     <div className="mb-6 text-center">
                       <TooltipProvider>
                         <Tooltip>
@@ -2120,7 +2126,7 @@ export default function Gallery() {
                       {false && isSelectionMode && 
                        selectionStatus !== "completed" && 
                        galleryData?.productRequirements && 
-                       galleryData?.productRequirements.length > 0 && (
+                       (galleryData?.productRequirements?.length ?? 0) > 0 && (
                         <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-5 mb-6 shadow-md">
                           <div className="flex items-start gap-4">
                             <div className="flex-shrink-0 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl">
@@ -2150,7 +2156,7 @@ export default function Gallery() {
                       {isSelectionMode && 
                        selectionStatus !== "completed" && 
                        galleryData?.productRequirements && 
-                       galleryData?.productRequirements.length > 0 && (
+                       (galleryData?.productRequirements?.length ?? 0) > 0 && (
                         <div className="sticky top-16 z-30 bg-gradient-to-r from-sage/10 to-blue-gray/10 backdrop-blur-md border-b-2 border-sage/30 shadow-lg mb-6 rounded-lg overflow-hidden">
                           <div className="px-4 py-3">
                             <div className="flex items-center justify-between gap-2 mb-3">
@@ -2206,7 +2212,7 @@ export default function Gallery() {
                       {isSelectionMode && 
                        selectionStatus !== "completed" && 
                        galleryData?.productRequirements && 
-                       galleryData?.productRequirements.length > 0 && (
+                       (galleryData?.productRequirements?.length ?? 0) > 0 && (
                         <Sheet open={showProductSummary} onOpenChange={setShowProductSummary}>
                           <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
                             <SheetHeader>
