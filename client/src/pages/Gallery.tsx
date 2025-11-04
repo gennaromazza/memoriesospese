@@ -255,6 +255,10 @@ export default function Gallery() {
   const [showSidebar, setShowSidebar] = useState(false); // Sidebar miniature
   const [showProductSummary, setShowProductSummary] = useState(false); // Sheet riepilogo prodotti
   const [filterByProduct, setFilterByProduct] = useState<number | null>(null); // Filtro per prodotto specifico
+  
+  // 📱 Mobile Product Assignment Dialog
+  const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
+  const [selectedPhotoForMobileAssignment, setSelectedPhotoForMobileAssignment] = useState<string | null>(null);
 
   // Ref per scrollare alla griglia
   const galleryGridRef = useRef<HTMLDivElement>(null);
@@ -1115,9 +1119,17 @@ export default function Gallery() {
   }, [galleryData?.productRequirements, photoAssignments]);
 
   // 🎨 UX Enhancement #6: Messaggi smart basati sul progresso
+  // IMPORTANTE: Nascosto in modalità multi-prodotto perché il progresso è già mostrato nelle card colorate
   const smartMessage = useMemo(() => {
     if (!isSelectionMode || selectionStatus === "completed") return null;
+    
+    // 🔥 FIX: In multi-prodotto mode, non mostrare questo messaggio legacy
+    // Il progresso è già visualizzato nelle card colorate dei prodotti
+    if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
+      return null;
+    }
 
+    // Logica legacy per modalità single-product
     const count = selectedPhotoIds.length;
     const required = requiredPhotoCount;
     const percentage = required > 0 ? Math.round((count / required) * 100) : 0;
@@ -1170,6 +1182,7 @@ export default function Gallery() {
     selectionStatus,
     selectedPhotoIds.length,
     requiredPhotoCount,
+    galleryData?.productRequirements,
   ]);
 
   const handleSignOut = () => {
@@ -2329,6 +2342,90 @@ export default function Gallery() {
                         </Sheet>
                       )}
 
+                      {/* 📱 Mobile Product Assignment Dialog */}
+                      <Sheet open={showMobileProductDialog} onOpenChange={setShowMobileProductDialog}>
+                        <SheetContent side="bottom" className="h-[70vh]">
+                          <SheetHeader>
+                            <SheetTitle className="text-xl font-playfair text-blue-gray">
+                              🏷️ Assegna Foto ai Prodotti
+                            </SheetTitle>
+                            <SheetDescription>
+                              Seleziona uno o più prodotti per questa foto
+                            </SheetDescription>
+                          </SheetHeader>
+                          
+                          <div className="mt-6 space-y-3">
+                            {galleryData?.productRequirements?.map((prod, idx) => {
+                              const productIdStr = String(idx);
+                              const isAssigned = selectedPhotoForMobileAssignment 
+                                ? photoAssignments[selectedPhotoForMobileAssignment]?.includes(productIdStr)
+                                : false;
+                              
+                              const productColors = [
+                                { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-500' },
+                                { bg: 'bg-green-500', hover: 'hover:bg-green-600', text: 'text-green-600', ring: 'ring-green-500' },
+                                { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', text: 'text-purple-600', ring: 'ring-purple-500' },
+                                { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', text: 'text-orange-600', ring: 'ring-orange-500' },
+                                { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', text: 'text-pink-600', ring: 'ring-pink-500' },
+                                { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600', ring: 'ring-teal-500' },
+                              ];
+                              const color = productColors[idx % productColors.length];
+                              
+                              // Calcola progresso prodotto
+                              const assignedCount = Object.values(photoAssignments).filter(
+                                assignments => assignments.includes(productIdStr)
+                              ).length;
+                              
+                              return (
+                                <button
+                                  key={idx}
+                                  onClick={() => {
+                                    if (selectedPhotoForMobileAssignment) {
+                                      handleToggleProductAssignment(selectedPhotoForMobileAssignment, productIdStr);
+                                    }
+                                  }}
+                                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                                    isAssigned 
+                                      ? `${color.bg} text-white border-transparent shadow-lg ring-2 ${color.ring}` 
+                                      : `bg-white ${color.text} border-gray-200 hover:border-gray-300`
+                                  }`}
+                                  data-testid={`mobile-chip-product-${idx}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <div className="font-semibold text-lg mb-1">
+                                        {isAssigned && '✓ '}
+                                        {prod.prodottoNome}
+                                      </div>
+                                      <div className={`text-sm ${isAssigned ? 'text-white/90' : 'text-gray-600'}`}>
+                                        {assignedCount}/{prod.prodottoNumeroFoto} foto assegnate
+                                      </div>
+                                    </div>
+                                    {isAssigned && (
+                                      <div className="ml-3">
+                                        <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          
+                          <div className="mt-6">
+                            <Button
+                              onClick={() => setShowMobileProductDialog(false)}
+                              className="w-full"
+                              variant="outline"
+                            >
+                              ✓ Fatto
+                            </Button>
+                          </div>
+                        </SheetContent>
+                      </Sheet>
+
                       <div ref={galleryGridRef} className="masonry-grid">
                         {displayPhotos.map((photo, index) => (
                           <React.Fragment key={photo.id}>
@@ -2447,9 +2544,27 @@ export default function Gallery() {
                                         </div>
                                       )}
 
-                                      {/* Product Assignment Chips - SEMPRE VISIBILI quando multi-prodotto attivo */}
+                                      {/* 📱 Mobile: Bottone Flottante per Assegnazione Prodotto - VISIBILE solo su mobile (<768px) */}
                                       {galleryData.productRequirements && (
-                                        <div className="absolute bottom-0 left-0 right-0 flex flex-wrap gap-1 bg-white/95 p-2 rounded-b-lg border-t border-sage/20">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedPhotoForMobileAssignment(photo.id);
+                                            setShowMobileProductDialog(true);
+                                          }}
+                                          className="md:hidden absolute bottom-3 right-3 z-20 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-12 h-12 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                          title="Assegna a prodotti"
+                                          data-testid={`button-mobile-assign-${photo.id}`}
+                                        >
+                                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                          </svg>
+                                        </button>
+                                      )}
+                                      
+                                      {/* Product Assignment Chips - NASCOSTI su mobile (<768px), visibili su desktop */}
+                                      {galleryData.productRequirements && (
+                                        <div className="absolute bottom-0 left-0 right-0 hidden md:flex flex-wrap gap-1 bg-white/95 p-2 rounded-b-lg border-t border-sage/20">
                                           {galleryData.productRequirements.map((prod, idx) => {
                                             // Use string index as unique identifier (aligns with Firestore schema)
                                             const productIdStr = String(idx);
