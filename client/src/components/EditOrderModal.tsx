@@ -87,12 +87,66 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
       const response = await apiRequest('PATCH', `/api/orders/${orderId}`, data);
       return response.json();
     },
-    onSuccess: () => {
-      toast({
-        title: '✅ Ordine aggiornato',
-        description: 'Le modifiche sono state salvate e il cliente ha ricevuto una email di conferma.',
-      });
+    onSuccess: async (updatedOrder) => {
+      // Aggiorna le gallerie associate con i nuovi productRequirements
+      if (order?.bookingId) {
+        try {
+          const { collection, query: firestoreQuery, where, getDocs, updateDoc, doc } = await import('firebase/firestore');
+          const { db } = await import('@/lib/firebase');
+          
+          // Trova tutte le gallerie con questo bookingId
+          const galleriesQuery = firestoreQuery(
+            collection(db, 'galleries'),
+            where('bookingId', '==', order.bookingId)
+          );
+          const galleriesSnapshot = await getDocs(galleriesQuery);
+          
+          if (!galleriesSnapshot.empty) {
+            // Costruisci il nuovo array productRequirements dai prodotti aggiornati
+            const newProductRequirements = selectedProdotti.map(p => ({
+              prodottoId: p.prodottoId || undefined,
+              prodottoNome: p.prodottoNome,
+              prodottoNumeroFoto: p.prodottoNumeroFoto || 0,
+            }));
+            
+            // Aggiorna tutte le gallerie trovate
+            const updatePromises = galleriesSnapshot.docs.map(galleryDoc =>
+              updateDoc(doc(db, 'galleries', galleryDoc.id), {
+                productRequirements: newProductRequirements
+              })
+            );
+            
+            await Promise.all(updatePromises);
+            
+            console.log(`✅ ${galleriesSnapshot.size} galleria/e aggiornata/e con nuovi productRequirements`);
+            
+            toast({
+              title: '✅ Ordine aggiornato',
+              description: `Modifiche salvate. ${galleriesSnapshot.size} galleria/e aggiornata/e automaticamente.`,
+            });
+          } else {
+            toast({
+              title: '✅ Ordine aggiornato',
+              description: 'Le modifiche sono state salvate e il cliente ha ricevuto una email di conferma.',
+            });
+          }
+        } catch (error) {
+          console.error('❌ Errore aggiornamento gallerie:', error);
+          toast({
+            title: '⚠️ Ordine aggiornato',
+            description: 'Ordine salvato ma errore nell\'aggiornamento delle gallerie associate.',
+            variant: 'destructive',
+          });
+        }
+      } else {
+        toast({
+          title: '✅ Ordine aggiornato',
+          description: 'Le modifiche sono state salvate e il cliente ha ricevuto una email di conferma.',
+        });
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['galleries'] });
       onClose();
     },
     onError: (error: any) => {
