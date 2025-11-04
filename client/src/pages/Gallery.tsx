@@ -261,7 +261,16 @@ export default function Gallery() {
 
   // Check se gallery è in selection mode
   const isSelectionMode = galleryData?.selectionEnabled || false;
-  const requiredPhotoCount = galleryData?.requiredPhotoCount || 0;
+  
+  // Calculate total required photos: Multi-product mode (sum from productRequirements) OR legacy single-product mode
+  const requiredPhotoCount = useMemo(() => {
+    if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
+      return galleryData.productRequirements.reduce((sum, p) => sum + (p.prodottoNumeroFoto || 0), 0);
+    }
+    return galleryData?.requiredPhotoCount || 0;
+  }, [galleryData?.productRequirements, galleryData?.requiredPhotoCount]);
+  
+  const productRequirements = galleryData?.productRequirements;
   const selectionDeadline = galleryData?.selectionDeadline;
   const selectionStatus = galleryData?.selectionStatus || "pending";
 
