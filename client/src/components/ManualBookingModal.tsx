@@ -139,8 +139,9 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       // Calcola dataShootingFine basandosi su durataShootingMinuti
       const dataFineDate = addMinutes(dataInizioDate, selectedCampaign.durataShootingMinuti);
 
-      // Trova prodotto selezionato
-      const selectedProduct = products.find(p => p.id === prodottoId);
+      // Trova prodotto selezionato (ignora "none")
+      const actualProdottoId = prodottoId === 'none' ? undefined : prodottoId;
+      const selectedProduct = actualProdottoId ? products.find(p => p.id === actualProdottoId) : undefined;
 
       // Payload prenotazione (include workingHours e durataMinuti dalla campagna)
       const bookingPayload = {
@@ -153,7 +154,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         },
         dataShootingInizio: dataInizioDate.toISOString(),
         dataShootingFine: dataFineDate.toISOString(),
-        prodottoId: prodottoId || undefined,
+        prodottoId: actualProdottoId,
         prodottoNome: selectedProduct?.nome,
         note: note.trim(),
         workingHours: {
@@ -345,7 +346,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
                 <SelectValue placeholder="Da decidere in sede" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Da decidere in sede</SelectItem>
+                <SelectItem value="none">Da decidere in sede</SelectItem>
                 {availableProducts.map((product) => (
                   <SelectItem key={product.id} value={product.id}>
                     {product.nome} - €{product.prezzoFinale}
