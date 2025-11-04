@@ -58,6 +58,14 @@ export interface Gallery {
   selectionDeadlineEnforced?: boolean;
   selectionNotes?: string; // Note cliente durante selezione foto
   
+  // Multi-Product Photo Selection
+  productRequirements?: Array<{
+    prodottoId?: string;
+    prodottoNome: string;
+    prodottoNumeroFoto: number;
+  }>;
+  photoAssignments?: Record<string, string[]>; // photoId -> array of product indices
+  
   // Booking Integration
   bookingId?: string;
 }

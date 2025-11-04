@@ -2046,6 +2046,53 @@ export default function Gallery() {
                         </Sheet>
                       )}
 
+                      {/* Sticky Counter Progress Bar - Multi-Product Mode */}
+                      {isSelectionMode && 
+                       selectionStatus !== "completed" && 
+                       galleryData.productRequirements && 
+                       galleryData.productRequirements.length > 0 && (
+                        <div className="sticky top-16 z-30 bg-gradient-to-r from-sage/10 to-blue-gray/10 backdrop-blur-md border-b-2 border-sage/30 shadow-lg mb-6 rounded-lg overflow-hidden">
+                          <div className="px-4 py-3">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-sm font-bold text-sage">📊 Progresso Selezione</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {calculateProductProgress.map((prog, idx) => {
+                                // Colori distintivi prodotto (stesso array dei chip)
+                                const productColors = [
+                                  { bg: 'bg-blue-500', ring: 'ring-blue-200' },
+                                  { bg: 'bg-green-500', ring: 'ring-green-200' },
+                                  { bg: 'bg-purple-500', ring: 'ring-purple-200' },
+                                  { bg: 'bg-orange-500', ring: 'ring-orange-200' },
+                                  { bg: 'bg-pink-500', ring: 'ring-pink-200' },
+                                  { bg: 'bg-teal-500', ring: 'ring-teal-200' },
+                                ];
+                                const color = productColors[idx % productColors.length];
+                                
+                                return (
+                                  <div key={idx} className={`bg-white/90 rounded-lg p-3 ring-2 ${color.ring}`}>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-semibold text-gray-700 truncate" title={prog.prodottoNome}>
+                                        {prog.prodottoNome}
+                                      </span>
+                                      <span className={`text-xs font-bold ${prog.percentage === 100 ? 'text-green-600' : 'text-gray-600'}`}>
+                                        {prog.count}/{prog.required}
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                      <div 
+                                        className={`h-full ${color.bg} rounded-full transition-all duration-300`}
+                                        style={{ width: `${Math.min(prog.percentage, 100)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div ref={galleryGridRef} className="masonry-grid">
                         {displayPhotos.map((photo, index) => (
                           <React.Fragment key={photo.id}>
@@ -2305,7 +2352,8 @@ export default function Gallery() {
                                             const assignedCount = Object.values(photoAssignments).filter(
                                               assignments => assignments.includes(String(idx))
                                             ).length;
-                                            return assignedCount >= prod.prodottoNumeroFoto;
+                                            const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+                                            return assignedCount >= requiredCount;
                                           })
                                         : // Legacy: check selectedPhotoIds count
                                           selectedPhotoIds.length !== requiredPhotoCount
@@ -2327,7 +2375,7 @@ export default function Gallery() {
                                 <TooltipContent>
                                   {galleryData?.productRequirements ? (
                                     <div className="text-sm">
-                                      {galleryData.productRequirements.map((prod, idx) => {
+                                      {galleryData.productRequirements.map((prod: { prodottoNumeroFoto: string | number | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined; prodottoNome: string | number | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | null | undefined; }, idx: React.Key | null | undefined) => {
                                         const assignedCount = Object.values(photoAssignments).filter(
                                           assignments => assignments.includes(String(idx))
                                         ).length;
