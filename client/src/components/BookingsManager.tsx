@@ -584,13 +584,61 @@ export default function BookingsManager() {
                           {booking.cliente.whatsapp}
                         </a>
                       </div>
-                      {booking.prodottoNome && (
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <Package className="w-4 h-4 text-sage" />
-                          <span>{booking.prodottoNome}</span>
-                        </div>
-                      )}
                     </div>
+                    
+                    {/* Prodotti (Multi-product o singolo) */}
+                    {(() => {
+                      const associatedOrder = getOrderByBookingId(booking.id);
+                      
+                      // Se esiste un ordine con prodotti multipli
+                      if (associatedOrder && associatedOrder.prodotti && associatedOrder.prodotti.length > 0) {
+                        return (
+                          <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg space-y-2">
+                            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                              <Package className="w-4 h-4" />
+                              Prodotti ({associatedOrder.prodotti.length})
+                            </p>
+                            <div className="space-y-1.5">
+                              {associatedOrder.prodotti.map((prodotto, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-2 bg-white p-2 rounded border border-blue-100 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-gray-800">{prodotto.prodottoNome}</span>
+                                    {!prodotto.prodottoId && (
+                                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                                        Custom
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                                    {prodotto.prodottoNumeroFoto && (
+                                      <span className="flex items-center gap-1">
+                                        <ImageIcon className="w-3 h-3" />
+                                        {prodotto.prodottoNumeroFoto} foto
+                                      </span>
+                                    )}
+                                    <span className="font-semibold text-sage">
+                                      €{prodotto.prodottoPrezzo.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // Fallback: prodotto singolo legacy
+                      if (booking.prodottoNome) {
+                        return (
+                          <div className="flex items-center gap-2 text-gray-700 text-sm">
+                            <Package className="w-4 h-4 text-sage" />
+                            <span>{booking.prodottoNome}</span>
+                          </div>
+                        );
+                      }
+                      
+                      return null;
+                    })()}
 
                     {/* Note */}
                     {booking.note && (
@@ -878,12 +926,61 @@ export default function BookingsManager() {
                       {formatTime(selectedBooking.dataShootingInizio)} - {formatTime(selectedBooking.dataShootingFine)}
                     </p>
                   </div>
-                  {selectedBooking.prodottoNome && (
-                    <div>
-                      <span className="text-gray-600">Prodotto:</span>
-                      <p className="font-medium">{selectedBooking.prodottoNome}</p>
-                    </div>
-                  )}
+                  
+                  {/* Prodotti (Multi-product o singolo) */}
+                  {(() => {
+                    const associatedOrder = getOrderByBookingId(selectedBooking.id);
+                    
+                    // Se esiste un ordine con prodotti multipli
+                    if (associatedOrder && associatedOrder.prodotti && associatedOrder.prodotti.length > 0) {
+                      return (
+                        <div>
+                          <span className="text-gray-600 mb-2 block">Prodotti ({associatedOrder.prodotti.length}):</span>
+                          <div className="space-y-2 mt-2">
+                            {associatedOrder.prodotti.map((prodotto, idx) => (
+                              <div key={idx} className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <Package className="w-4 h-4 text-sage" />
+                                    <span className="font-medium text-gray-800">{prodotto.prodottoNome}</span>
+                                    {!prodotto.prodottoId && (
+                                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                                        Custom
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                                    {prodotto.prodottoNumeroFoto && (
+                                      <span className="flex items-center gap-1">
+                                        <ImageIcon className="w-3 h-3" />
+                                        {prodotto.prodottoNumeroFoto} foto
+                                      </span>
+                                    )}
+                                    <span className="font-semibold text-sage">
+                                      €{prodotto.prodottoPrezzo.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Fallback: prodotto singolo legacy
+                    if (selectedBooking.prodottoNome) {
+                      return (
+                        <div>
+                          <span className="text-gray-600">Prodotto:</span>
+                          <p className="font-medium">{selectedBooking.prodottoNome}</p>
+                        </div>
+                      );
+                    }
+                    
+                    return null;
+                  })()}
+                  
                   {selectedBooking.note && (
                     <div>
                       <span className="text-gray-600">Note:</span>
