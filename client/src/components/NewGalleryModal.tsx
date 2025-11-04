@@ -62,15 +62,16 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
   const [isLoading, setIsLoading] = useState(false);
   const [isCustomProduct, setIsCustomProduct] = useState(false);
   
-  // Multi-product selection support
-  const [selectedProductIndex, setSelectedProductIndex] = useState<number>(0);
+  // Multi-product selection support (NEW: array for multiple products)
+  const [selectedProductIndices, setSelectedProductIndices] = useState<number[]>([]);
   const hasMultipleProducts = (prePopulate?.availableProducts && prePopulate.availableProducts.length > 1) || false;
+  const hasSingleProduct = (prePopulate?.availableProducts && prePopulate.availableProducts.length === 1) || false;
   
   const availableThemes = getAllThemes();
   
-  // CRITICAL: Reset selectedProductIndex AND selection state when booking changes
+  // CRITICAL: Reset selectedProductIndices AND selection state when booking changes
   useEffect(() => {
-    setSelectedProductIndex(0);
+    setSelectedProductIndices([]);
     setIsCustomProduct(false);
     setSelectionEnabled(false);
     setRequiredPhotoCount(0);
@@ -78,71 +79,22 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
     console.log('🔄 Reset completo stato per nuovo booking');
   }, [prePopulate?.bookingId]);
   
-  // Fetch product data when prodottoId is provided OR use custom product data
+  // Calculate total required photos from selected products
+  const calculateTotalPhotos = () => {
+    if (!prePopulate?.availableProducts || selectedProductIndices.length === 0) return 0;
+    
+    return selectedProductIndices.reduce((total, index) => {
+      const product = prePopulate.availableProducts![index];
+      return total + (product.prodottoNumeroFoto || 0);
+    }, 0);
+  };
+  
+  // Fetch product data when prodottoId is provided OR use custom product data (LEGACY - single product)
   useEffect(() => {
     const fetchProduct = async () => {
-      // Caso 0: Prodotti multipli disponibili - usa il prodotto selezionato dall'array
+      // NEW: Skip legacy single-product fetch if using multi-product mode
       if (prePopulate?.availableProducts && prePopulate.availableProducts.length > 0) {
-        const selectedProduct = prePopulate.availableProducts[selectedProductIndex];
-        if (!selectedProduct) return;
-        
-        // Prodotto custom (senza ID catalogo)
-        if (!selectedProduct.prodottoId) {
-          console.log('📦 Prodotto custom selezionato:', selectedProduct.prodottoNome);
-          setIsCustomProduct(true);
-          
-          const numeroFoto = (selectedProduct.prodottoNumeroFoto && selectedProduct.prodottoNumeroFoto > 0)
-            ? selectedProduct.prodottoNumeroFoto
-            : 0;
-          
-          setProduct({
-            id: 'custom',
-            nome: selectedProduct.prodottoNome,
-            numeroFoto,
-          } as Product);
-          
-          // CRITICAL: Gestisci esplicitamente sia numeroFoto > 0 che numeroFoto = 0
-          if (numeroFoto > 0) {
-            setSelectionEnabled(true);
-            setRequiredPhotoCount(numeroFoto);
-          } else {
-            // Prodotto senza foto richieste - disabilita selezione
-            setSelectionEnabled(false);
-            setRequiredPhotoCount(0);
-          }
-          return;
-        }
-        
-        // Prodotto dal catalogo
-        setIsLoadingProduct(true);
-        setIsCustomProduct(false);
-        try {
-          const productData = await getProductById(selectedProduct.prodottoId);
-          if (productData) {
-            setProduct(productData);
-            // CRITICAL: Gestisci esplicitamente sia numeroFoto > 0 che numeroFoto = 0
-            if (productData.numeroFoto > 0) {
-              setSelectionEnabled(true);
-              setRequiredPhotoCount(productData.numeroFoto);
-            } else {
-              setSelectionEnabled(false);
-              setRequiredPhotoCount(0);
-            }
-          } else {
-            // CRITICAL: Product lookup returned undefined - pulisci stato selection
-            setProduct(null);
-            setSelectionEnabled(false);
-            setRequiredPhotoCount(0);
-          }
-        } catch (error) {
-          console.error('Errore fetch prodotto:', error);
-          // CRITICAL: Fetch failed - pulisci stato selection per evitare stale data
-          setProduct(null);
-          setSelectionEnabled(false);
-          setRequiredPhotoCount(0);
-        } finally {
-          setIsLoadingProduct(false);
-        }
+        // Multi-product mode: don't fetch single product, just return
         return;
       }
       
@@ -342,12 +294,34 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
       }
       
       // Add photo selection fields if selection is enabled
-      if (selectionEnabled && requiredPhotoCount > 0) {
-        galleryData.requiredPhotoCount = requiredPhotoCount;
-        galleryData.selectionStatus = 'pending';
-        galleryData.selectedPhotoIds = [];
+      if (selectionEnabled) {
+        // Multi-Product Mode: Save productRequirements array
+        if (prePopulate?.availableProducts && selectedProductIndices.length > 0) {
+          const productReqs = selectedProductIndices.map(index => {
+            const prod = prePopulate.availableProducts![index];
+            return {
+              prodottoId: prod.prodottoId || undefined,
+              prodottoNome: prod.prodottoNome,
+              prodottoNumeroFoto: prod.prodottoNumeroFoto || 0
+            };
+          });
+          
+          galleryData.productRequirements = productReqs;
+          galleryData.photoAssignments = {}; // Empty initially - client will populate during selection
+          galleryData.selectionStatus = 'pending';
+          galleryData.selectedPhotoIds = []; // Legacy field - mantieni per compatibility
+          
+          console.log('💾 Salvando galleria multi-prodotto con productRequirements:', productReqs);
+        }
+        // Legacy Single-Product Mode: Save requiredPhotoCount
+        else if (requiredPhotoCount > 0) {
+          galleryData.requiredPhotoCount = requiredPhotoCount;
+          galleryData.selectionStatus = 'pending';
+          galleryData.selectedPhotoIds = [];
+        }
+        
+        // Deadline applies to both modes
         if (selectionDeadline) {
-          // Convert date string to Firestore Timestamp
           const { Timestamp } = await import('firebase/firestore');
           galleryData.selectionDeadline = Timestamp.fromDate(new Date(selectionDeadline));
           galleryData.selectionDeadlineEnforced = true;
@@ -653,34 +627,80 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
               </div>
             )}
 
-            {/* Product Selection Dropdown (when multiple products available) */}
-            {hasMultipleProducts && prePopulate?.availableProducts && (
-              <div className="border-t pt-4 space-y-2">
-                <Label htmlFor="product-select">Seleziona Prodotto</Label>
-                <Select
-                  value={selectedProductIndex.toString()}
-                  onValueChange={(value) => setSelectedProductIndex(parseInt(value))}
-                >
-                  <SelectTrigger id="product-select" data-testid="select-product">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {prePopulate.availableProducts.map((prod, index) => (
-                      <SelectItem key={index} value={index.toString()}>
-                        {prod.prodottoNome} {prod.prodottoNumeroFoto ? `(${prod.prodottoNumeroFoto} foto)` : ''}
-                        {!prod.prodottoId && ' - Custom'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  Questo ordine contiene {prePopulate.availableProducts.length} prodotti. Seleziona quale prodotto usare per questa galleria.
-                </p>
+            {/* Product Multi-Selection (when multiple products available) */}
+            {(hasMultipleProducts || hasSingleProduct) && prePopulate?.availableProducts && (
+              <div className="border-t pt-4 space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-base font-semibold">📦 Prodotti Ordine</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {hasMultipleProducts 
+                      ? `Questo ordine contiene ${prePopulate.availableProducts.length} prodotti. Seleziona quali includere nella galleria.`
+                      : 'Prodotto associato a questo ordine:'
+                    }
+                  </p>
+                </div>
+                
+                <div className="space-y-2 bg-sage/5 border border-sage/20 rounded-lg p-4">
+                  {prePopulate.availableProducts.map((prod, index) => {
+                    const isSelected = selectedProductIndices.includes(index);
+                    const toggleProduct = () => {
+                      if (isSelected) {
+                        setSelectedProductIndices(prev => prev.filter(i => i !== index));
+                      } else {
+                        setSelectedProductIndices(prev => [...prev, index]);
+                      }
+                    };
+                    
+                    return (
+                      <div key={index} className="flex items-start space-x-3 p-3 bg-white border border-gray-200 rounded-lg hover:border-sage transition-colors">
+                        <Checkbox
+                          id={`product-${index}`}
+                          checked={isSelected}
+                          onCheckedChange={toggleProduct}
+                          data-testid={`checkbox-product-${index}`}
+                        />
+                        <div className="flex-1 cursor-pointer" onClick={toggleProduct}>
+                          <div className="flex items-center gap-2">
+                            <Label 
+                              htmlFor={`product-${index}`} 
+                              className="font-medium cursor-pointer"
+                            >
+                              {prod.prodottoNome}
+                            </Label>
+                            {!prod.prodottoId && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                                Custom
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            {prod.prodottoNumeroFoto && prod.prodottoNumeroFoto > 0 
+                              ? `🎯 ${prod.prodottoNumeroFoto} foto richieste`
+                              : '📎 Nessuna foto richiesta'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Total Photo Count Summary */}
+                {selectedProductIndices.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm font-semibold text-blue-900">
+                      📊 Totale foto richieste: <span className="text-lg">{calculateTotalPhotos()}</span>
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      {selectedProductIndices.length} {selectedProductIndices.length === 1 ? 'prodotto selezionato' : 'prodotti selezionati'}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Product Snapshot & Photo Selection Section */}
-            {product && (
+            {/* Product Snapshot & Photo Selection Section (LEGACY - only for single product mode) */}
+            {product && !prePopulate?.availableProducts && (
               <div className="border-t pt-4 space-y-3">
                 <div className="bg-sage/10 border border-sage/30 rounded-lg p-4 space-y-2">
                   <div className="flex items-start gap-2">
@@ -730,11 +750,14 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
                   data-testid="checkbox-selection-enabled"
                 />
                 <Label htmlFor="selectionEnabled" className="font-medium cursor-pointer">
-                  Abilita Selezione Foto {product && `(${product.numeroFoto} foto)`}
+                  Abilita Selezione Foto
+                  {selectedProductIndices.length > 0 && ` (${calculateTotalPhotos()} foto totali)`}
+                  {product && !prePopulate?.availableProducts && ` (${product.numeroFoto} foto)`}
                 </Label>
               </div>
               <p className="text-sm text-muted-foreground ml-6">
                 Permetti al cliente di selezionare le foto preferite dalla galleria
+                {selectedProductIndices.length > 0 && ' e assegnarle ai prodotti'}
               </p>
               
               {selectionEnabled && (
