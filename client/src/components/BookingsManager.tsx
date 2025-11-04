@@ -1103,6 +1103,35 @@ export default function BookingsManager() {
       {/* Dialog creazione galleria da booking */}
       {selectedBookingForGallery && (() => {
         const campaign = campaigns.find(c => c.id === selectedBookingForGallery.campaignId);
+        const associatedOrder = getOrderByBookingId(selectedBookingForGallery.id);
+        
+        // Se esiste un ordine con multipli prodotti, usa availableProducts
+        // Altrimenti usa il vecchio comportamento (prodottoId singolo)
+        const prePopulateData: any = {
+          name: campaign
+            ? `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome} - ${campaign.nome}`
+            : `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`,
+          date: formatDateForInput(selectedBookingForGallery.dataShootingInizio),
+          specialTheme: campaign?.temaStagionale || undefined,
+          bookingId: selectedBookingForGallery.id,
+          clienteEmail: selectedBookingForGallery.cliente.email,
+          clienteNome: `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`,
+        };
+        
+        if (associatedOrder && associatedOrder.prodotti && associatedOrder.prodotti.length > 0) {
+          // Ordine con multipli prodotti - usa availableProducts
+          prePopulateData.availableProducts = associatedOrder.prodotti.map(p => ({
+            prodottoId: p.prodottoId || undefined,
+            prodottoNome: p.prodottoNome,
+            prodottoNumeroFoto: p.prodottoNumeroFoto || undefined,
+          }));
+          console.log(`📦 Ordine trovato con ${associatedOrder.prodotti.length} prodotti per booking ${selectedBookingForGallery.id}`);
+        } else {
+          // Nessun ordine o ordine senza prodotti - fallback al prodotto del booking
+          prePopulateData.prodottoId = selectedBookingForGallery.prodottoId;
+          console.log(`📦 Nessun ordine trovato, usando prodotto dal booking: ${selectedBookingForGallery.prodottoId}`);
+        }
+        
         return (
           <NewGalleryModal
             isOpen={true}
@@ -1115,17 +1144,7 @@ export default function BookingsManager() {
                 description: 'La galleria è stata creata con successo',
               });
             }}
-            prePopulate={{
-              name: campaign
-                ? `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome} - ${campaign.nome}`
-                : `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`,
-              date: formatDateForInput(selectedBookingForGallery.dataShootingInizio),
-              specialTheme: campaign?.temaStagionale || undefined,
-              bookingId: selectedBookingForGallery.id, // Link galleria a booking
-              prodottoId: selectedBookingForGallery.prodottoId, // Fetch product data per auto-populate selection
-              clienteEmail: selectedBookingForGallery.cliente.email, // Email for gallery ready notification
-              clienteNome: `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`, // Nome completo per email
-            }}
+            prePopulate={prePopulateData}
           />
         );
       })()}

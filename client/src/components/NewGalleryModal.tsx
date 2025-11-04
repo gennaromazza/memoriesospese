@@ -30,11 +30,16 @@ interface NewGalleryModalProps {
     specialTheme?: string; // Auto-populated from campaign.temaStagionale
     specialPin?: string;
     bookingId?: string; // Link to booking (for integration)
-    prodottoId?: string; // Product ID to fetch data and auto-populate selection settings
+    prodottoId?: string; // Product ID to fetch data and auto-populate selection settings (legacy single product)
     prodottoNome?: string; // Custom product name (se prodotto non in catalogo)
     prodottoNumeroFoto?: number; // Custom product photo count (se prodotto non in catalogo)
     clienteEmail?: string; // Client email for sending gallery ready notification
     clienteNome?: string; // Client nome per email personalizzata
+    availableProducts?: Array<{ // Multiple products available for selection (from order)
+      prodottoId?: string;
+      prodottoNome: string;
+      prodottoNumeroFoto?: number;
+    }>;
   };
 }
 
@@ -57,12 +62,91 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
   const [isLoading, setIsLoading] = useState(false);
   const [isCustomProduct, setIsCustomProduct] = useState(false);
   
+  // Multi-product selection support
+  const [selectedProductIndex, setSelectedProductIndex] = useState<number>(0);
+  const hasMultipleProducts = (prePopulate?.availableProducts && prePopulate.availableProducts.length > 1) || false;
+  
   const availableThemes = getAllThemes();
+  
+  // CRITICAL: Reset selectedProductIndex AND selection state when booking changes
+  useEffect(() => {
+    setSelectedProductIndex(0);
+    setIsCustomProduct(false);
+    setSelectionEnabled(false);
+    setRequiredPhotoCount(0);
+    setProduct(null);
+    console.log('🔄 Reset completo stato per nuovo booking');
+  }, [prePopulate?.bookingId]);
   
   // Fetch product data when prodottoId is provided OR use custom product data
   useEffect(() => {
     const fetchProduct = async () => {
-      // Caso 1: Prodotto custom (senza ID catalogo ma con dati diretti)
+      // Caso 0: Prodotti multipli disponibili - usa il prodotto selezionato dall'array
+      if (prePopulate?.availableProducts && prePopulate.availableProducts.length > 0) {
+        const selectedProduct = prePopulate.availableProducts[selectedProductIndex];
+        if (!selectedProduct) return;
+        
+        // Prodotto custom (senza ID catalogo)
+        if (!selectedProduct.prodottoId) {
+          console.log('📦 Prodotto custom selezionato:', selectedProduct.prodottoNome);
+          setIsCustomProduct(true);
+          
+          const numeroFoto = (selectedProduct.prodottoNumeroFoto && selectedProduct.prodottoNumeroFoto > 0)
+            ? selectedProduct.prodottoNumeroFoto
+            : 0;
+          
+          setProduct({
+            id: 'custom',
+            nome: selectedProduct.prodottoNome,
+            numeroFoto,
+          } as Product);
+          
+          // CRITICAL: Gestisci esplicitamente sia numeroFoto > 0 che numeroFoto = 0
+          if (numeroFoto > 0) {
+            setSelectionEnabled(true);
+            setRequiredPhotoCount(numeroFoto);
+          } else {
+            // Prodotto senza foto richieste - disabilita selezione
+            setSelectionEnabled(false);
+            setRequiredPhotoCount(0);
+          }
+          return;
+        }
+        
+        // Prodotto dal catalogo
+        setIsLoadingProduct(true);
+        setIsCustomProduct(false);
+        try {
+          const productData = await getProductById(selectedProduct.prodottoId);
+          if (productData) {
+            setProduct(productData);
+            // CRITICAL: Gestisci esplicitamente sia numeroFoto > 0 che numeroFoto = 0
+            if (productData.numeroFoto > 0) {
+              setSelectionEnabled(true);
+              setRequiredPhotoCount(productData.numeroFoto);
+            } else {
+              setSelectionEnabled(false);
+              setRequiredPhotoCount(0);
+            }
+          } else {
+            // CRITICAL: Product lookup returned undefined - pulisci stato selection
+            setProduct(null);
+            setSelectionEnabled(false);
+            setRequiredPhotoCount(0);
+          }
+        } catch (error) {
+          console.error('Errore fetch prodotto:', error);
+          // CRITICAL: Fetch failed - pulisci stato selection per evitare stale data
+          setProduct(null);
+          setSelectionEnabled(false);
+          setRequiredPhotoCount(0);
+        } finally {
+          setIsLoadingProduct(false);
+        }
+        return;
+      }
+      
+      // Caso 1: Prodotto custom (senza ID catalogo ma con dati diretti) - legacy
       if (!prePopulate?.prodottoId && prePopulate?.prodottoNome) {
         console.log('📦 Prodotto custom rilevato:', prePopulate.prodottoNome);
         setIsCustomProduct(true);
@@ -78,15 +162,18 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
           numeroFoto,
         } as Product);
         
-        // Auto-populate selection settings from custom product solo se numero foto valido
+        // CRITICAL: Gestisci esplicitamente sia numeroFoto > 0 che numeroFoto = 0
         if (numeroFoto > 0) {
           setSelectionEnabled(true);
           setRequiredPhotoCount(numeroFoto);
+        } else {
+          setSelectionEnabled(false);
+          setRequiredPhotoCount(0);
         }
         return;
       }
       
-      // Caso 2: Prodotto dal catalogo (con ID)
+      // Caso 2: Prodotto dal catalogo (con ID) - legacy
       if (prePopulate?.prodottoId) {
         setIsLoadingProduct(true);
         setIsCustomProduct(false);
@@ -94,14 +181,26 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
           const productData = await getProductById(prePopulate.prodottoId);
           if (productData) {
             setProduct(productData);
-            // Auto-populate selection settings from product
+            // CRITICAL: Gestisci esplicitamente sia numeroFoto > 0 che numeroFoto = 0
             if (productData.numeroFoto > 0) {
               setSelectionEnabled(true);
               setRequiredPhotoCount(productData.numeroFoto);
+            } else {
+              setSelectionEnabled(false);
+              setRequiredPhotoCount(0);
             }
+          } else {
+            // CRITICAL: Product lookup returned undefined - pulisci stato selection
+            setProduct(null);
+            setSelectionEnabled(false);
+            setRequiredPhotoCount(0);
           }
         } catch (error) {
           console.error('Errore fetch prodotto:', error);
+          // CRITICAL: Fetch failed - pulisci stato selection per evitare stale data
+          setProduct(null);
+          setSelectionEnabled(false);
+          setRequiredPhotoCount(0);
         } finally {
           setIsLoadingProduct(false);
         }
@@ -109,7 +208,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
     };
     
     fetchProduct();
-  }, [prePopulate?.prodottoId, prePopulate?.prodottoNome, prePopulate?.prodottoNumeroFoto]);
+  }, [prePopulate?.prodottoId, prePopulate?.prodottoNome, prePopulate?.prodottoNumeroFoto, prePopulate?.availableProducts, selectedProductIndex]);
   
   // Initialize form with pre-populated values
   useEffect(() => {
@@ -554,6 +653,32 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
               </div>
             )}
 
+            {/* Product Selection Dropdown (when multiple products available) */}
+            {hasMultipleProducts && prePopulate?.availableProducts && (
+              <div className="border-t pt-4 space-y-2">
+                <Label htmlFor="product-select">Seleziona Prodotto</Label>
+                <Select
+                  value={selectedProductIndex.toString()}
+                  onValueChange={(value) => setSelectedProductIndex(parseInt(value))}
+                >
+                  <SelectTrigger id="product-select" data-testid="select-product">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {prePopulate.availableProducts.map((prod, index) => (
+                      <SelectItem key={index} value={index.toString()}>
+                        {prod.prodottoNome} {prod.prodottoNumeroFoto ? `(${prod.prodottoNumeroFoto} foto)` : ''}
+                        {!prod.prodottoId && ' - Custom'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Questo ordine contiene {prePopulate.availableProducts.length} prodotti. Seleziona quale prodotto usare per questa galleria.
+                </p>
+              </div>
+            )}
+
             {/* Product Snapshot & Photo Selection Section */}
             {product && (
               <div className="border-t pt-4 space-y-3">
@@ -562,7 +687,7 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
                     <Info className="w-5 h-5 text-sage mt-0.5" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold text-sage-dark">📦 Prodotto Prenotato</h4>
+                        <h4 className="font-semibold text-sage-dark">📦 Prodotto Selezionato</h4>
                         {isCustomProduct ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
                             Custom
