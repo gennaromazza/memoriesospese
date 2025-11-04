@@ -244,6 +244,7 @@ export default function Gallery() {
 
   // Stati per gestire la selezione foto (Tasks 12-15)
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
+  const [photoAssignments, setPhotoAssignments] = useState<Record<string, string[]>>({});
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
   const [isRequestingModification, setIsRequestingModification] =
     useState(false);
@@ -337,7 +338,16 @@ export default function Gallery() {
       setSelectedPhotoIds(galleryData.selectedPhotoIds);
       setHasInitializedSelection(true);
     }
-  }, [galleryData?.selectedPhotoIds, hasInitializedSelection]);
+
+    // Sync photoAssignments from galleryData for multi-product mode
+    if (galleryData?.photoAssignments) {
+      console.log(
+        "🔄 Sync iniziale photoAssignments da galleryData:",
+        Object.keys(galleryData.photoAssignments).length,
+      );
+      setPhotoAssignments(galleryData.photoAssignments as Record<string, string[]>);
+    }
+  }, [galleryData?.selectedPhotoIds, galleryData?.photoAssignments, hasInitializedSelection]);
 
   // 💾 Auto-save selezioni in localStorage (UX Enhancement #2)
   useEffect(() => {
@@ -427,7 +437,73 @@ export default function Gallery() {
     }
   }, [galleryData?.id, hasInitializedSelection, selectionStatus, toast]);
 
-  // Toggle photo selection
+  // Toggle product assignment for multi-product mode
+  const handleToggleProductAssignment = useCallback(
+    (photoId: string, productIndex: string) => {
+      if (isDeadlinePassed && selectionStatus !== "completed") {
+        toast({
+          title: "⏰ Scadenza superata",
+          description:
+            "Il termine per la selezione è scaduto. Contatta lo studio per assistenza.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (selectionStatus === "completed") {
+        toast({
+          title: "✅ Selezione già completata",
+          description: "Hai già confermato la tua selezione.",
+        });
+        return;
+      }
+
+      setPhotoAssignments((prev) => {
+        const currentAssignments = prev[photoId] || [];
+        const isAssigned = currentAssignments.includes(productIndex);
+
+        let newAssignments: string[];
+        if (isAssigned) {
+          // Remove product from this photo
+          newAssignments = currentAssignments.filter((idx) => idx !== productIndex);
+        } else {
+          // Add product to this photo
+          newAssignments = [...currentAssignments, productIndex];
+        }
+
+        const updatedPhotoAssignments = { ...prev };
+        if (newAssignments.length === 0) {
+          // Remove photo entirely if no products assigned
+          delete updatedPhotoAssignments[photoId];
+          
+          // Also remove from selectedPhotoIds
+          setSelectedPhotoIds((prevIds) => prevIds.filter((id) => id !== photoId));
+        } else {
+          updatedPhotoAssignments[photoId] = newAssignments;
+          
+          // Ensure photo is in selectedPhotoIds
+          setSelectedPhotoIds((prevIds) => {
+            if (!prevIds.includes(photoId)) {
+              return [...prevIds, photoId];
+            }
+            return prevIds;
+          });
+        }
+
+        console.log(
+          `🏷️ Toggle product ${productIndex} for photo ${photoId}:`,
+          isAssigned ? 'removed' : 'added',
+          'New assignments:',
+          updatedPhotoAssignments[photoId] || []
+        );
+
+        return updatedPhotoAssignments;
+      });
+    },
+    [isDeadlinePassed, selectionStatus, toast],
+  );
+
+  // Toggle photo selection (legacy mode or when clicking photo directly)
   const handleTogglePhotoSelection = useCallback(
     (photoId: string) => {
       if (isDeadlinePassed && selectionStatus !== "completed") {
@@ -444,6 +520,15 @@ export default function Gallery() {
         toast({
           title: "✅ Selezione già completata",
           description: "Hai già confermato la tua selezione.",
+        });
+        return;
+      }
+
+      // In multi-product mode, don't allow direct photo selection
+      if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
+        toast({
+          title: "💡 Modalità Multi-Prodotto",
+          description: "Clicca sui chip dei prodotti sotto la foto per assegnarla.",
         });
         return;
       }
@@ -479,7 +564,7 @@ export default function Gallery() {
         }
       });
     },
-    [isDeadlinePassed, selectionStatus, requiredPhotoCount, toast],
+    [isDeadlinePassed, selectionStatus, requiredPhotoCount, galleryData?.productRequirements, toast],
   );
 
   // Confirm selection
@@ -514,7 +599,8 @@ export default function Gallery() {
       }
 
       await GalleryService.updateGallery(galleryData.id, {
-        selectedPhotoIds,
+        photoAssignments: galleryData.productRequirements ? photoAssignments : undefined,
+        selectedPhotoIds, // Legacy fallback
         selectionStatus: "completed",
         selectionNotes: selectionNotes.trim(), // 📝 Salva sempre note cliente (anche se vuote per permettere cancellazione)
       });
@@ -1907,10 +1993,40 @@ export default function Gallery() {
                                         </div>
                                       </div>
 
-                                      {/* Badge "SELEZIONA" / "SELEZIONATA" */}
-                                      {selectedPhotoIds.includes(photo.id) && (
+                                      {/* Badge "SELEZIONA" / "SELEZIONATA" - solo se NON multi-prodotto */}
+                                      {!galleryData.productRequirements && selectedPhotoIds.includes(photo.id) && (
                                         <div className="absolute bottom-0 left-0 right-0 bg-sage text-white text-center py-2 font-semibold text-sm">
                                           ✓ SELEZIONATA
+                                        </div>
+                                      )}
+
+                                      {/* Product Assignment Chips - solo se multi-prodotto */}
+                                      {galleryData.productRequirements && selectedPhotoIds.includes(photo.id) && (
+                                        <div className="absolute bottom-0 left-0 right-0 flex flex-wrap gap-1 bg-white/95 p-2 rounded-b-lg border-t border-sage/20">
+                                          {galleryData.productRequirements.map((prod, idx) => {
+                                            // Use string index as unique identifier (aligns with Firestore schema)
+                                            const productIdStr = String(idx);
+                                            const isAssigned = photoAssignments[photo.id]?.includes(productIdStr);
+                                            return (
+                                              <button
+                                                key={idx}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleToggleProductAssignment(photo.id, productIdStr);
+                                                }}
+                                                className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                                                  isAssigned 
+                                                    ? 'bg-green-500 text-white shadow-md' 
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }`}
+                                                title={`${isAssigned ? 'Rimuovi da' : 'Assegna a'} ${prod.prodottoNome}`}
+                                                data-testid={`chip-product-${idx}-photo-${photo.id}`}
+                                              >
+                                                {isAssigned && '✓ '}
+                                                {prod.prodottoNome}
+                                              </button>
+                                            );
+                                          })}
                                         </div>
                                       )}
                                     </>
