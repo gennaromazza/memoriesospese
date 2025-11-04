@@ -578,13 +578,50 @@ export default function Gallery() {
       return;
     }
 
-    if (selectedPhotoIds.length !== requiredPhotoCount) {
-      toast({
-        title: "⚠️ Selezione incompleta",
-        description: `Devi selezionare esattamente ${requiredPhotoCount} foto (${selectedPhotoIds.length}/${requiredPhotoCount} selezionate).`,
-        variant: "destructive",
+    // Multi-Product Validation
+    if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
+      // Calcola progresso per ogni prodotto
+      const productProgress = galleryData.productRequirements.map((prod, idx) => {
+        const assignedCount = Object.values(photoAssignments).filter(
+          assignments => assignments.includes(String(idx))
+        ).length;
+        
+        return {
+          prodottoNome: prod.prodottoNome,
+          assignedCount,
+          requiredCount: prod.prodottoNumeroFoto,
+          isMissing: assignedCount < prod.prodottoNumeroFoto
+        };
       });
-      return;
+      
+      // Trova prodotti mancanti
+      const missingProducts = productProgress.filter(p => p.isMissing);
+      
+      if (missingProducts.length > 0) {
+        const errorMessage = missingProducts.map(p => 
+          `• ${p.prodottoNome}: ${p.assignedCount}/${p.requiredCount} foto`
+        ).join('\n');
+        
+        toast({
+          title: "⚠️ Selezione incompleta",
+          description: `Alcuni prodotti non hanno abbastanza foto assegnate:\n\n${errorMessage}\n\nAssegna le foto mancanti prima di confermare.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log('✅ Validazione multi-prodotto superata - tutti i prodotti hanno le foto richieste');
+    }
+    // Legacy Single-Product Validation
+    else if (requiredPhotoCount > 0) {
+      if (selectedPhotoIds.length !== requiredPhotoCount) {
+        toast({
+          title: "⚠️ Selezione incompleta",
+          description: `Devi selezionare esattamente ${requiredPhotoCount} foto (${selectedPhotoIds.length}/${requiredPhotoCount} selezionate).`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {
@@ -2214,26 +2251,60 @@ export default function Gallery() {
                               </p>
                             </div>
 
-                            <Button
-                              onClick={handleConfirmSelection}
-                              disabled={
-                                selectedPhotoIds.length !==
-                                  requiredPhotoCount ||
-                                isSubmittingSelection ||
-                                isDeadlinePassed
-                              }
-                              className="bg-sage hover:bg-sage/90 text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                              data-testid="button-confirm-selection"
-                            >
-                              {isSubmittingSelection ? (
-                                <>
-                                  <span className="animate-spin mr-2">⏳</span>
-                                  Conferma in corso...
-                                </>
-                              ) : (
-                                <>✨ Conferma Selezione</>
-                              )}
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    onClick={handleConfirmSelection}
+                                    disabled={
+                                      isSubmittingSelection ||
+                                      isDeadlinePassed ||
+                                      (galleryData?.productRequirements 
+                                        ? // Multi-product: check all products have required photos
+                                          !galleryData.productRequirements.every((prod, idx) => {
+                                            const assignedCount = Object.values(photoAssignments).filter(
+                                              assignments => assignments.includes(String(idx))
+                                            ).length;
+                                            return assignedCount >= prod.prodottoNumeroFoto;
+                                          })
+                                        : // Legacy: check selectedPhotoIds count
+                                          selectedPhotoIds.length !== requiredPhotoCount
+                                      )
+                                    }
+                                    className="bg-sage hover:bg-sage/90 text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    data-testid="button-confirm-selection"
+                                  >
+                                    {isSubmittingSelection ? (
+                                      <>
+                                        <span className="animate-spin mr-2">⏳</span>
+                                        Conferma in corso...
+                                      </>
+                                    ) : (
+                                      <>✨ Conferma Selezione</>
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {galleryData?.productRequirements ? (
+                                    <div className="text-sm">
+                                      {galleryData.productRequirements.map((prod, idx) => {
+                                        const assignedCount = Object.values(photoAssignments).filter(
+                                          assignments => assignments.includes(String(idx))
+                                        ).length;
+                                        const isComplete = assignedCount >= prod.prodottoNumeroFoto;
+                                        return (
+                                          <div key={idx} className={isComplete ? 'text-green-600' : 'text-red-600'}>
+                                            {isComplete ? '✓' : '✗'} {prod.prodottoNome}: {assignedCount}/{prod.prodottoNumeroFoto}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    `${selectedPhotoIds.length}/${requiredPhotoCount} foto selezionate`
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                             {isDeadlinePassed && (
                               <p className="mt-3 text-sm text-red-600 font-medium">
                                 ⚠️ Scadenza superata - contatta lo studio
