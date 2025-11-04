@@ -2552,8 +2552,9 @@ export default function Gallery() {
                               )}
                             </div>
 
-                            {/* Mostra prompt iscrizione ogni 20 foto - full width per non sovrapporsi */}
+                            {/* Mostra prompt iscrizione ogni 20 foto - full width per non sovrapporsi - NASCOSTO in modalità selezione */}
                             {showSubscriptionPrompt &&
+                              !isSelectionMode &&
                               index === 19 &&
                               galleryData && (
                                 <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-4">
