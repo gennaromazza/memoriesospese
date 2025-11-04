@@ -170,7 +170,9 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
               : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
             : "Ordine";
 
-          // Invia email notifica acconto al cliente con cronologia completa
+          // Invia email notifica acconto al cliente con cronologia completa (include transaction appena creata)
+          const updatedTransactions = [...(order.transactions || []), transaction];
+          
           await fetch('/api/email/acconto-received', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -184,7 +186,7 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
               metodo: variables.metodo,
               note: variables.note,
               totaleOrdine: totale, // Totale ordine
-              transactions: order.transactions || [] // Cronologia completa pagamenti
+              transactions: updatedTransactions // Cronologia completa pagamenti inclusa ultima transaction
             })
           });
           
@@ -246,7 +248,9 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
               : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
             : "Ordine";
 
-          // Invia email notifica saldo al cliente con cronologia completa
+          // Invia email notifica saldo al cliente con cronologia completa (include transaction appena creata)
+          const updatedTransactions = [...(order.transactions || []), transaction];
+          
           await fetch('/api/email/saldo-received', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -256,7 +260,7 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
               prodottoNome,
               saldoAmount,
               totaleOrdine: order.totale || 0, // Totale ordine
-              transactions: order.transactions || [] // Cronologia completa pagamenti
+              transactions: updatedTransactions // Cronologia completa pagamenti inclusa ultima transaction
             })
           });
           
