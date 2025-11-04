@@ -21,6 +21,7 @@ import { GalleryService, type Gallery } from '@/lib/galleries';
 import type { Booking, BookingCampaign, Order, Product, OrderItem } from '@shared/booking-types';
 import NewGalleryModal from '@/components/NewGalleryModal';
 import { OrdersManager } from '@/components/OrdersManager';
+import ManualBookingModal from '@/components/ManualBookingModal';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -108,6 +109,7 @@ export default function BookingsManager() {
   const [selectedBookingForGallery, setSelectedBookingForGallery] = useState<Booking | null>(null);
   const [filterBookingId, setFilterBookingId] = useState<string | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
+  const [showManualBookingModal, setShowManualBookingModal] = useState(false);
   
   // State form modifica prenotazione
   const [editNome, setEditNome] = useState('');
@@ -491,6 +493,16 @@ export default function BookingsManager() {
               >
                 Aggiorna
               </Button>
+              <Button
+                variant="default"
+                size="default"
+                onClick={() => setShowManualBookingModal(true)}
+                className="bg-sage hover:bg-dark-sage"
+                data-testid="button-new-manual-booking"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nuova Prenotazione
+              </Button>
             </div>
 
             {/* Contatore risultati */}
@@ -533,8 +545,13 @@ export default function BookingsManager() {
                     {/* Intestazione */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-lg font-bold font-playfair text-blue-gray">
+                        <h3 className="text-lg font-bold font-playfair text-blue-gray flex items-center gap-2">
                           {booking.cliente.nome} {booking.cliente.cognome}
+                          {booking.isManual && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                              👤 Walk-in
+                            </Badge>
+                          )}
                         </h3>
                         <p className="text-sm text-gray-600">
                           {getCampaignName(booking.campaignId)}
@@ -1406,5 +1423,15 @@ function CreateOrderDialog({ booking, products, onClose, onSubmit, isPending }: 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Manual Booking Modal */}
+    <ManualBookingModal
+      isOpen={showManualBookingModal}
+      onClose={() => setShowManualBookingModal(false)}
+      onSuccess={() => {
+        queryClient.invalidateQueries({ queryKey: ['bookings'] });
+        refetch();
+      }}
+    />
   );
 }
