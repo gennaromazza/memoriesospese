@@ -142,7 +142,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       // Trova prodotto selezionato
       const selectedProduct = products.find(p => p.id === prodottoId);
 
-      // Payload prenotazione
+      // Payload prenotazione (include workingHours e durataMinuti dalla campagna)
       const bookingPayload = {
         campaignId,
         cliente: {
@@ -156,6 +156,13 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         prodottoId: prodottoId || undefined,
         prodottoNome: selectedProduct?.nome,
         note: note.trim(),
+        workingHours: {
+          apertura: selectedCampaign.orarioApertura,
+          pausaInizio: selectedCampaign.orarioPausaInizio,
+          pausaFine: selectedCampaign.orarioPausaFine,
+          chiusura: selectedCampaign.orarioChiusura,
+        },
+        durataMinuti: selectedCampaign.durataShootingMinuti,
         isManual: true,
         createdByAdmin: user?.email || 'admin',
       };
