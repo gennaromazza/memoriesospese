@@ -2313,71 +2313,61 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
     // URL di accesso diretto
     const accessUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://wedding-gallery-397b6.web.app'}/special-gallery`;
 
-    // Componi email HTML
+    // Componi email HTML con stile coerente con resto app
     const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-          .pin-box { background: white; border: 3px dashed #667eea; padding: 20px; margin: 20px 0; text-align: center; border-radius: 8px; }
-          .pin-code { font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 8px; font-family: 'Courier New', monospace; }
-          .btn { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
-          .instructions { background: white; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 4px; }
-          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1 style="margin: 0; font-size: 28px;">${theme.emoji} Galleria Speciale ${theme.name}</h1>
-          <p style="margin: 10px 0 0 0; opacity: 0.9;">Accesso Privato</p>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">${theme.emoji} Accesso Galleria Speciale ${theme.name}</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao${clientName ? ` <strong>${clientName}</strong>` : ''},
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          La tua galleria speciale <strong style="color: #8b5a3c;">${galleryName}</strong> è pronta!
+        </p>
+        
+        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+          <h3 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Come accedere:</h3>
+          <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460; line-height: 1.8;">
+            <li>Clicca sul pulsante "Accedi alla Galleria" qui sotto</li>
+            <li>Inserisci il PIN di accesso quando richiesto</li>
+            <li>Goditi la tua galleria speciale!</li>
+          </ol>
         </div>
         
-        <div class="content">
-          <p>Ciao${clientName ? ` ${clientName}` : ''},</p>
-          
-          <p>La tua <strong>Galleria Speciale ${theme.name}</strong> è pronta!</p>
-          
-          <p><strong>Nome Galleria:</strong> ${galleryName}</p>
-          
-          <div class="instructions">
-            <h3 style="margin-top: 0; color: #667eea;">📱 Come accedere:</h3>
-            <ol>
-              <li>Visita il link sottostante</li>
-              <li>Inserisci il PIN di accesso</li>
-              <li>Goditi la tua galleria speciale!</li>
-            </ol>
-          </div>
-          
-          <div class="pin-box">
-            <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">Il tuo PIN di accesso:</p>
-            <div class="pin-code">${pin}</div>
-            <p style="margin: 15px 0 0 0; font-size: 12px; color: #999;">Conserva questo PIN in modo sicuro</p>
-          </div>
-          
-          <div style="text-align: center;">
-            <a href="${accessUrl}" class="btn">🔓 Accedi alla Galleria</a>
-          </div>
-          
-          <p style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;">
-            <strong>💡 Nota:</strong> Il PIN è personale e ti permette di accedere in qualsiasi momento alla tua galleria speciale.
+        <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center; border: 2px solid #8b5a3c;">
+          <p style="font-size: 14px; color: #666; margin-bottom: 10px;">Il tuo PIN di accesso:</p>
+          <p style="font-size: 28px; font-weight: bold; color: #8b5a3c; margin: 10px 0; letter-spacing: 4px; font-family: 'Courier New', monospace;">
+            ${pin}
+          </p>
+          <p style="font-size: 12px; color: #999; margin-top: 10px;">Conserva questo PIN in modo sicuro</p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${accessUrl}" 
+             style="background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            Accedi alla Galleria
+          </a>
+        </div>
+        
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #856404;">
+            <strong>Nota:</strong> Il PIN è personale e ti permette di accedere in qualsiasi momento alla tua galleria speciale.
           </p>
         </div>
-        
-        <div class="footer">
-          <p><strong>${studioInfo.name}</strong></p>
-          <p>${studioInfo.email} • ${studioInfo.phone}</p>
-          <p style="margin-top: 10px; color: #999;">Questa è una email automatica, per favore non rispondere.</p>
-        </div>
-      </body>
-      </html>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studioInfo.name}</p>
+        ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studioInfo.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studioInfo.phone}</p>
+      </div>
+    </div>
     `;
 
-    // Invia email tramite funzione sendGmailEmail già disponibile
-    const subject = `${theme.emoji} Accesso alla Galleria Speciale ${theme.name} - ${galleryName}`;
+    // Invia email tramite funzione sendGmailEmail già disponibile (SENZA emoji nel subject)
+    const subject = `Accesso alla Galleria Speciale ${theme.name} - ${galleryName}`;
     await sendGmailEmail(clientEmail, subject, htmlContent);
 
     console.log(`✅ Email PIN inviata con successo a: ${clientEmail}`);
