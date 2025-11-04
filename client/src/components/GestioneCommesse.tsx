@@ -479,33 +479,6 @@ export default function GestioneCommesse({
 
                   {/* Azioni Rapide */}
                   <div className="md:col-span-3 flex flex-wrap gap-2">
-                    {/* Link Booking/Ordine */}
-                    {commessa.hasOrder && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        onClick={() => onNavigateToTab('bookings')}
-                        title="Vai a Ordini"
-                      >
-                        <Package className="w-3 h-3 mr-1" />
-                        Ordine
-                      </Button>
-                    )}
-                    
-                    {commessa.booking && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        onClick={() => onNavigateToTab('bookings')}
-                        title="Vai a Prenotazioni"
-                      >
-                        <Calendar className="w-3 h-3 mr-1" />
-                        Booking
-                      </Button>
-                    )}
-
                     {/* Azioni Galleria */}
                     {commessa.hasGallery && commessa.gallery ? (
                       <Button
