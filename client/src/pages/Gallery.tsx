@@ -458,6 +458,10 @@ export default function Gallery() {
         return;
       }
 
+      // Get product name for feedback
+      const prodIndex = parseInt(productIndex);
+      const productName = galleryData?.productRequirements?.[prodIndex]?.prodottoNome || 'Prodotto';
+
       setPhotoAssignments((prev) => {
         const currentAssignments = prev[photoId] || [];
         const isAssigned = currentAssignments.includes(productIndex);
@@ -466,9 +470,23 @@ export default function Gallery() {
         if (isAssigned) {
           // Remove product from this photo
           newAssignments = currentAssignments.filter((idx) => idx !== productIndex);
+          
+          // Toast feedback for removal
+          toast({
+            title: `📤 Foto rimossa`,
+            description: `Rimossa da ${productName}`,
+            duration: 2000,
+          });
         } else {
           // Add product to this photo
           newAssignments = [...currentAssignments, productIndex];
+          
+          // Toast feedback for assignment
+          toast({
+            title: `✨ Foto aggiunta`,
+            description: `Assegnata a ${productName}`,
+            duration: 2000,
+          });
         }
 
         const updatedPhotoAssignments = { ...prev };
@@ -500,7 +518,7 @@ export default function Gallery() {
         return updatedPhotoAssignments;
       });
     },
-    [isDeadlinePassed, selectionStatus, toast],
+    [isDeadlinePassed, selectionStatus, toast, galleryData?.productRequirements],
   );
 
   // Toggle photo selection (legacy mode or when clicking photo directly)
