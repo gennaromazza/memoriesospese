@@ -21,8 +21,9 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Calendar, Package, Image, CheckCircle, Clock, Truck, Box, Edit2, Plus, ExternalLink, Mail, MessageCircle } from 'lucide-react';
+import { Loader2, Calendar, Package, Image, CheckCircle, Clock, Truck, Box, Edit2, Plus, ExternalLink, Mail, MessageCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
 
 // Tipo per commessa unificata
 interface Commessa {
@@ -91,6 +92,9 @@ export default function GestioneCommesse({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [filtroStato, setFiltroStato] = useState<WorkflowState | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   // Query dati
   const { data: bookings = [], isLoading: loadingBookings } = useQuery({
@@ -166,9 +170,18 @@ export default function GestioneCommesse({
   });
 
   // Filtra per stato
-  const commesseFiltrate = filtroStato === 'all' 
+  let commesseFiltrate = filtroStato === 'all' 
     ? commesse 
     : commesse.filter(c => c.statoWorkflow === filtroStato);
+
+  // Filtra per ricerca (nome cliente o email)
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase();
+    commesseFiltrate = commesseFiltrate.filter(c => 
+      c.clienteNome.toLowerCase().includes(query) ||
+      c.clienteEmail.toLowerCase().includes(query)
+    );
+  }
 
   // Ordina per data servizio (più recenti prima)
   commesseFiltrate.sort((a, b) => {
@@ -176,6 +189,15 @@ export default function GestioneCommesse({
     if (!b.dataServizio) return -1;
     return b.dataServizio.getTime() - a.dataServizio.getTime();
   });
+
+  // Paginazione
+  const totalPages = Math.ceil(commesseFiltrate.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const commessePaginate = commesseFiltrate.slice(startIndex, endIndex);
+
+  // Reset pagina quando cambiano filtri
+  const resetPage = () => setCurrentPage(1);
 
   const isLoading = loadingBookings || loadingOrders || loadingGalleries;
 
@@ -247,27 +269,50 @@ export default function GestioneCommesse({
 
   return (
     <div className="space-y-6">
-      {/* Header e Filtri */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-playfair font-bold text-dark-sage">Gestione Commesse</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Vista unificata di prenotazioni, ordini e gallerie con workflow completo
-          </p>
+      {/* Header */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-playfair font-bold text-dark-sage">Gestione Commesse</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Vista unificata di prenotazioni, ordini e gallerie con workflow completo
+            </p>
+          </div>
+
+          {/* Barra Ricerca */}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Cerca per nome o email..."
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                resetPage();
+              }}
+            />
+          </div>
         </div>
 
-        <div className="flex gap-2">
+        {/* Filtri Stato */}
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={filtroStato === 'all' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setFiltroStato('all')}
+            onClick={() => {
+              setFiltroStato('all');
+              resetPage();
+            }}
           >
             Tutte ({commesse.length})
           </Button>
           <Button
             variant={filtroStato === 'shooting_da_svolgere' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setFiltroStato('shooting_da_svolgere')}
+            onClick={() => {
+              setFiltroStato('shooting_da_svolgere');
+              resetPage();
+            }}
             className="flex items-center gap-1"
           >
             <Calendar className="w-3 h-3" />
@@ -276,7 +321,10 @@ export default function GestioneCommesse({
           <Button
             variant={filtroStato === 'shooting_svolto' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setFiltroStato('shooting_svolto')}
+            onClick={() => {
+              setFiltroStato('shooting_svolto');
+              resetPage();
+            }}
             className="flex items-center gap-1"
           >
             <CheckCircle className="w-3 h-3" />
@@ -285,7 +333,10 @@ export default function GestioneCommesse({
           <Button
             variant={filtroStato === 'inizio_lavorazione' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setFiltroStato('inizio_lavorazione')}
+            onClick={() => {
+              setFiltroStato('inizio_lavorazione');
+              resetPage();
+            }}
             className="flex items-center gap-1"
           >
             <Clock className="w-3 h-3" />
@@ -294,7 +345,10 @@ export default function GestioneCommesse({
           <Button
             variant={filtroStato === 'pronto_consegna' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setFiltroStato('pronto_consegna')}
+            onClick={() => {
+              setFiltroStato('pronto_consegna');
+              resetPage();
+            }}
             className="flex items-center gap-1"
           >
             <Truck className="w-3 h-3" />
@@ -316,8 +370,9 @@ export default function GestioneCommesse({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {commesseFiltrate.map((commessa) => (
+        <>
+          <div className="space-y-4">
+            {commessePaginate.map((commessa) => (
             <Card key={commessa.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
@@ -500,8 +555,54 @@ export default function GestioneCommesse({
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+
+          {/* Paginazione */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <p className="text-sm text-gray-600">
+                Mostrando {startIndex + 1}-{Math.min(endIndex, commesseFiltrate.length)} di {commesseFiltrate.length} commesse
+              </p>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Precedente
+                </Button>
+                
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Successiva
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
