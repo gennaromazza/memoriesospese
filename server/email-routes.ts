@@ -2060,7 +2060,9 @@ router.post("/acconto-received", async (req, res) => {
       accontoTotale,
       saldoRimanente,
       metodo,
-      note
+      note,
+      totaleOrdine,
+      transactions
     } = req.body;
 
     // Validazioni
@@ -2081,7 +2083,9 @@ router.post("/acconto-received", async (req, res) => {
       saldoRimanente,
       metodo,
       note,
-      studioInfo
+      studioInfo,
+      totaleOrdine,
+      transactions
     );
 
     const subject = `Acconto Ricevuto - ${prodottoNome}`;
@@ -2405,7 +2409,9 @@ router.post("/saldo-received", async (req, res) => {
       recipientEmail,
       clienteName,
       prodottoNome,
-      saldoAmount
+      saldoAmount,
+      totaleOrdine,
+      transactions
     } = req.body;
 
     // Validazioni
@@ -2422,7 +2428,9 @@ router.post("/saldo-received", async (req, res) => {
       clienteName,
       prodottoNome,
       saldoAmount,
-      studioInfo
+      studioInfo,
+      totaleOrdine,
+      transactions
     );
 
     const subject = `Saldo Completato - ${prodottoNome}`;

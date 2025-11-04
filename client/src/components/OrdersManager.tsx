@@ -170,7 +170,7 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
               : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
             : "Ordine";
 
-          // Invia email notifica acconto al cliente
+          // Invia email notifica acconto al cliente con cronologia completa
           await fetch('/api/email/acconto-received', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -182,7 +182,9 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
               accontoTotale: nuovoAccontoTotale,
               saldoRimanente: nuovoSaldo,
               metodo: variables.metodo,
-              note: variables.note
+              note: variables.note,
+              totaleOrdine: totale, // Totale ordine
+              transactions: order.transactions || [] // Cronologia completa pagamenti
             })
           });
           
@@ -244,7 +246,7 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
               : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
             : "Ordine";
 
-          // Invia email notifica saldo al cliente
+          // Invia email notifica saldo al cliente con cronologia completa
           await fetch('/api/email/saldo-received', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -252,7 +254,9 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
               recipientEmail: order.emailCliente,
               clienteName: order.nomeCliente,
               prodottoNome,
-              saldoAmount
+              saldoAmount,
+              totaleOrdine: order.totale || 0, // Totale ordine
+              transactions: order.transactions || [] // Cronologia completa pagamenti
             })
           });
           
