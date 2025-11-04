@@ -2611,16 +2611,18 @@ export default function Gallery() {
                                   )}
                               </div>
 
-                              {/* Interaction panel below photo */}
-                              <div className="mt-2">
-                                <InteractionPanel
-                                  itemId={photo.id}
-                                  itemType="photo"
-                                  galleryId={galleryData.id}
-                                  isAdmin={isAdmin}
-                                  variant="default"
-                                />
-                              </div>
+                              {/* Interaction panel below photo - nascosto in modalità selezione */}
+                              {!isSelectionMode && (
+                                <div className="mt-2">
+                                  <InteractionPanel
+                                    itemId={photo.id}
+                                    itemType="photo"
+                                    galleryId={galleryData.id}
+                                    isAdmin={isAdmin}
+                                    variant="default"
+                                  />
+                                </div>
+                              )}
                             </div>
 
                             {/* Mostra prompt iscrizione ogni 20 foto - full width per non sovrapporsi */}
@@ -2980,23 +2982,25 @@ export default function Gallery() {
                 </div>
               )}
 
-              {/* Social Activity Panel */}
-              <div className="mt-12 mb-8">
-                <SocialActivityPanel
-                  galleryId={galleryData.id}
-                  className="w-full"
-                  onPhotoClick={(photoId) => {
-                    // Find photo index in allPhotos array
-                    const photoIndex = allPhotos.findIndex(
-                      (photo) => photo.id === photoId,
-                    );
-                    if (photoIndex !== -1) {
-                      setCurrentPhotoIndex(photoIndex);
-                      setLightboxOpen(true);
-                    }
-                  }}
-                />
-              </div>
+              {/* Social Activity Panel - nascosto in modalità selezione */}
+              {!isSelectionMode && (
+                <div className="mt-12 mb-8">
+                  <SocialActivityPanel
+                    galleryId={galleryData.id}
+                    className="w-full"
+                    onPhotoClick={(photoId) => {
+                      // Find photo index in allPhotos array
+                      const photoIndex = allPhotos.findIndex(
+                        (photo) => photo.id === photoId,
+                      );
+                      if (photoIndex !== -1) {
+                        setCurrentPhotoIndex(photoIndex);
+                        setLightboxOpen(true);
+                      }
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </main>
