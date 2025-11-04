@@ -7,9 +7,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllBookings, updateWorkflowState } from '@/lib/bookings';
 import { getAllOrders } from '@/lib/orders';
-import { getAllGalleries } from '@/lib/galleries';
+import { GalleryService, type Gallery } from '@/lib/galleries';
 import type { Booking, Order, WorkflowState } from '@shared/booking-types';
-import type { Gallery } from '@/lib/types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -92,7 +91,7 @@ export default function GestioneCommesse() {
 
   const { data: galleries = [], isLoading: loadingGalleries } = useQuery({
     queryKey: ['galleries', 'admin'],
-    queryFn: () => getAllGalleries(true),
+    queryFn: GalleryService.getAllGalleriesForAdmin,
   });
 
   // Combina dati in commesse unificate
