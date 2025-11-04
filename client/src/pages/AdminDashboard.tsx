@@ -508,6 +508,23 @@ export default function AdminDashboard() {
     queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
   };
 
+  // Handler: Apri booking specifico (per ora solo cambia tab)
+  const handleOpenBooking = (bookingId: string) => {
+    setActiveTab('bookings');
+    // TODO: Implementare apertura automatica dettaglio booking quando refactoring BookingsManager
+  };
+
+  // Handler: Apri ordine specifico (per ora solo cambia tab)
+  const handleOpenOrder = (orderId: string) => {
+    setActiveTab('bookings'); // OrdersManager è dentro BookingsManager
+    // TODO: Implementare apertura automatica dettaglio ordine quando refactoring OrdersManager
+  };
+
+  // Handler: Apri gestione selezioni foto
+  const handleOpenPhotoSelection = (gallery: Gallery) => {
+    navigate(`/admin/gallery/${gallery.id}/manage`);
+  };
+
   // Verifica se l'utente corrente è admin
   const getCurrentUser = () => auth.currentUser;
   const isCurrentUserAdmin = () => {
@@ -1477,6 +1494,9 @@ export default function AdminDashboard() {
                   onNavigateToTab={setActiveTab}
                   onEditGallery={openEditModal}
                   onCreateGallery={openModal}
+                  onOpenBooking={handleOpenBooking}
+                  onOpenOrder={handleOpenOrder}
+                  onOpenPhotoSelection={handleOpenPhotoSelection}
                 />
               </div>
             </TabsContent>

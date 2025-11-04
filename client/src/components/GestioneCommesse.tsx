@@ -527,8 +527,8 @@ export default function GestioneCommesse({
                           Galleria
                         </Button>
                         
-                        {/* Bottone Gestisci Selezioni - solo se enablePhotoSelection */}
-                        {commessa.gallery.enablePhotoSelection && onOpenPhotoSelection && (
+                        {/* Bottone Gestisci Selezioni - solo se selectionEnabled */}
+                        {commessa.gallery.selectionEnabled && onOpenPhotoSelection && (
                           <Button
                             size="sm"
                             variant="outline"
