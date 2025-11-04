@@ -2614,20 +2614,7 @@ export default function Gallery() {
         <EditGalleryModal
           isOpen={isEditGalleryOpen}
           onClose={() => setIsEditGalleryOpen(false)}
-          gallery={{
-            id: galleryData.id,
-            name: galleryData.name || "",
-            code: galleryData.code || id || "",
-            date: galleryData.date || "",
-            location: galleryData.location || "",
-            description: galleryData.description || "",
-            coverImageUrl: galleryData.coverImageUrl || "",
-            coverImageMobile: galleryData.coverImageMobile || "",
-            coverImageDesktop: galleryData.coverImageDesktop || "",
-            youtubeUrl: galleryData.youtubeUrl || "",
-            photoCount: photos.length,
-            password: "", // Aggiungi password field mancante
-          }}
+          gallery={galleryData}
         />
       )}
     </div>
