@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Calendar, Package, Image, CheckCircle, Clock, Truck, Box } from 'lucide-react';
+import { Loader2, Calendar, Package, Image, CheckCircle, Clock, Truck, Box, Edit2, Plus, ExternalLink, Mail, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // Tipo per commessa unificata
@@ -320,11 +320,11 @@ export default function GestioneCommesse({
           {commesseFiltrate.map((commessa) => (
             <Card key={commessa.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                   {/* Cliente */}
-                  <div className="md:col-span-3">
-                    <p className="font-semibold text-dark-sage">{commessa.clienteNome}</p>
-                    <p className="text-xs text-gray-500">{commessa.clienteEmail}</p>
+                  <div className="md:col-span-2">
+                    <p className="font-semibold text-dark-sage text-sm">{commessa.clienteNome}</p>
+                    <p className="text-xs text-gray-500 truncate">{commessa.clienteEmail}</p>
                     {commessa.clienteWhatsapp && (
                       <p className="text-xs text-gray-500">📱 {commessa.clienteWhatsapp}</p>
                     )}
@@ -347,37 +347,40 @@ export default function GestioneCommesse({
                   </div>
 
                   {/* Prodotti */}
-                  <div className="md:col-span-3">
+                  <div className="md:col-span-2">
                     {commessa.prodottiNomi.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
-                        {commessa.prodottiNomi.map((nome, idx) => (
+                        {commessa.prodottiNomi.slice(0, 2).map((nome, idx) => (
                           <Badge key={idx} variant="outline" className="text-xs">
                             {nome}
                           </Badge>
                         ))}
+                        {commessa.prodottiNomi.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{commessa.prodottiNomi.length - 2}
+                          </Badge>
+                        )}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-400">Nessun prodotto</p>
+                      <p className="text-sm text-gray-400">N/A</p>
                     )}
                   </div>
 
                   {/* Collegamenti */}
-                  <div className="md:col-span-2 flex gap-2">
+                  <div className="md:col-span-1 flex flex-col gap-1">
                     {commessa.hasOrder && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Package className="w-3 h-3 mr-1" />
-                        Ordine
-                      </Badge>
+                      <span title="Ha ordine">
+                        <Package className="w-4 h-4 text-sage" />
+                      </span>
                     )}
                     {commessa.hasGallery && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Image className="w-3 h-3 mr-1" />
-                        Galleria
-                      </Badge>
+                      <span title="Ha galleria">
+                        <Image className="w-4 h-4 text-sage" />
+                      </span>
                     )}
                   </div>
 
-                  {/* Stato Workflow + Cambio Stato */}
+                  {/* Stato Workflow */}
                   <div className="md:col-span-2">
                     {getStatoBadge(commessa.statoWorkflow)}
                     <Select
@@ -389,27 +392,93 @@ export default function GestioneCommesse({
                       }}
                       disabled={cambioStatoMutation.isPending}
                     >
-                      <SelectTrigger className="mt-2 h-8 text-xs">
-                        <SelectValue placeholder="Cambia stato" />
+                      <SelectTrigger className="mt-2 h-7 text-xs">
+                        <SelectValue placeholder="Cambia" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none" disabled>
-                          Seleziona stato
-                        </SelectItem>
-                        <SelectItem value="shooting_da_svolgere">
-                          📅 Shooting da Svolgere
-                        </SelectItem>
-                        <SelectItem value="shooting_svolto">
-                          ✅ Shooting Svolto
-                        </SelectItem>
-                        <SelectItem value="inizio_lavorazione">
-                          ⏳ Inizio Lavorazione
-                        </SelectItem>
-                        <SelectItem value="pronto_consegna">
-                          🎁 Pronto Consegna
-                        </SelectItem>
+                        <SelectItem value="none" disabled>Seleziona stato</SelectItem>
+                        <SelectItem value="shooting_da_svolgere">📅 Da Svolgere</SelectItem>
+                        <SelectItem value="shooting_svolto">✅ Svolto</SelectItem>
+                        <SelectItem value="inizio_lavorazione">⏳ Lavorazione</SelectItem>
+                        <SelectItem value="pronto_consegna">🎁 Pronto</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Azioni Rapide */}
+                  <div className="md:col-span-3 flex flex-wrap gap-2">
+                    {/* Link Booking/Ordine */}
+                    {commessa.hasOrder && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => onNavigateToTab('bookings')}
+                        title="Vai a Ordini"
+                      >
+                        <Package className="w-3 h-3 mr-1" />
+                        Ordine
+                      </Button>
+                    )}
+                    
+                    {commessa.booking && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => onNavigateToTab('bookings')}
+                        title="Vai a Prenotazioni"
+                      >
+                        <Calendar className="w-3 h-3 mr-1" />
+                        Booking
+                      </Button>
+                    )}
+
+                    {/* Azioni Galleria */}
+                    {commessa.hasGallery && commessa.gallery ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => onEditGallery(commessa.gallery!)}
+                        title="Modifica Galleria"
+                      >
+                        <Edit2 className="w-3 h-3 mr-1" />
+                        Galleria
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => onCreateGallery()}
+                        title="Crea Galleria"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Galleria
+                      </Button>
+                    )}
+
+                    {/* Link Cliente */}
+                    <a
+                      href={`mailto:${commessa.clienteEmail}`}
+                      className="inline-flex items-center justify-center h-7 px-2 text-xs border rounded hover:bg-gray-50"
+                      title="Invia Email"
+                    >
+                      <Mail className="w-3 h-3" />
+                    </a>
+
+                    {commessa.clienteWhatsapp && (
+                      <a
+                        href={`https://wa.me/${commessa.clienteWhatsapp.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center h-7 px-2 text-xs border rounded hover:bg-gray-50"
+                        title="Apri WhatsApp"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
                 </div>
               </CardContent>
