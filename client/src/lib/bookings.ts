@@ -17,7 +17,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Booking } from '@shared/booking-types';
+import type { Booking, WorkflowState } from '@shared/booking-types';
 
 const COLLECTION = 'bookings';
 
@@ -418,4 +418,149 @@ export async function deleteBookingCascade(bookingId: string): Promise<void> {
   }
 
   console.log(`✅ Cancellazione a cascata completata: ${orderIds.length} ordini, ${galleryIds.length} gallerie`);
+}
+
+/**
+ * Aggiorna stato workflow per booking e order collegato + invia email automatica
+ * @param id - ID booking o order
+ * @param tipo - 'booking' o 'order' per determinare come cercare
+ * @param nuovoStato - Nuovo stato workflow
+ * @param datiEmail - Dati per email (clienteNome, clienteEmail, prodottoNome, campaignName, bookingDate)
+ */
+export async function updateWorkflowState(
+  id: string,
+  tipo: 'booking' | 'order',
+  nuovoStato: WorkflowState,
+  datiEmail?: {
+    clienteNome: string;
+    clienteEmail: string;
+    prodottoNome?: string;
+    campaignName?: string;
+    bookingDate?: string;
+  }
+): Promise<void> {
+  console.log(`🔄 Aggiornamento stato workflow per ${tipo} ${id} → ${nuovoStato}`);
+
+  try {
+    // 1. Trova booking e order collegati
+    let booking: any = null;
+    let order: any = null;
+
+    if (tipo === 'booking') {
+      // Recupera booking
+      const bookingSnap = await getDoc(doc(db, 'bookings', id));
+      if (bookingSnap.exists()) {
+        booking = { id: bookingSnap.id, ...bookingSnap.data() };
+      }
+
+      // Cerca order collegato
+      const ordersQuery = query(collection(db, 'orders'), where('bookingId', '==', id));
+      const ordersSnap = await getDocs(ordersQuery);
+      if (!ordersSnap.empty) {
+        order = { id: ordersSnap.docs[0].id, ...ordersSnap.docs[0].data() };
+      }
+    } else {
+      // Recupera order
+      const orderSnap = await getDoc(doc(db, 'orders', id));
+      if (orderSnap.exists()) {
+        order = { id: orderSnap.id, ...orderSnap.data() };
+        
+        // Cerca booking collegato
+        if (order.bookingId) {
+          const bookingSnap = await getDoc(doc(db, 'bookings', order.bookingId));
+          if (bookingSnap.exists()) {
+            booking = { id: bookingSnap.id, ...bookingSnap.data() };
+          }
+        }
+      }
+    }
+
+    // 2. Aggiorna stato in booking (se esiste)
+    if (booking) {
+      await updateDoc(doc(db, 'bookings', booking.id), {
+        statoWorkflow: nuovoStato,
+        updatedAt: serverTimestamp(),
+      });
+      console.log(`✅ Stato booking ${booking.id} aggiornato a ${nuovoStato}`);
+    }
+
+    // 3. Aggiorna stato in order (se esiste)
+    if (order) {
+      await updateDoc(doc(db, 'orders', order.id), {
+        statoWorkflow: nuovoStato,
+        updatedAt: serverTimestamp(),
+      });
+      console.log(`✅ Stato order ${order.id} aggiornato a ${nuovoStato}`);
+    }
+
+    // 4. Invia email automatica in base al nuovo stato
+    if (datiEmail && datiEmail.clienteEmail) {
+      await sendWorkflowStateEmail(nuovoStato, datiEmail);
+    }
+
+  } catch (error) {
+    console.error('❌ Errore aggiornamento stato workflow:', error);
+    throw error;
+  }
+}
+
+/**
+ * Invia email automatica in base al nuovo stato workflow
+ */
+async function sendWorkflowStateEmail(
+  stato: WorkflowState,
+  dati: {
+    clienteNome: string;
+    clienteEmail: string;
+    prodottoNome?: string;
+    campaignName?: string;
+    bookingDate?: string;
+  }
+): Promise<void> {
+  try {
+    let endpoint = '';
+    let payload: any = {
+      recipientEmail: dati.clienteEmail,
+      clienteName: dati.clienteNome,
+    };
+
+    switch (stato) {
+      case 'shooting_svolto':
+        endpoint = '/api/email/shooting-completed';
+        payload.campaignName = dati.campaignName || 'Shooting';
+        payload.bookingDate = dati.bookingDate || new Date().toLocaleDateString('it-IT');
+        break;
+
+      case 'inizio_lavorazione':
+        endpoint = '/api/email/order-processing';
+        payload.prodottoNome = dati.prodottoNome || 'Il tuo ordine';
+        break;
+
+      case 'pronto_consegna':
+        endpoint = '/api/email/order-ready';
+        payload.prodottoNome = dati.prodottoNome || 'Il tuo ordine';
+        break;
+
+      default:
+        // shooting_da_svolgere non invia email (già gestita da booking-confirmed)
+        console.log(`ℹ️ Stato ${stato} non richiede email automatica`);
+        return;
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(`Errore invio email: ${errorData.error || response.statusText}`);
+    }
+
+    console.log(`✅ Email workflow inviata per stato ${stato} a ${dati.clienteEmail}`);
+  } catch (error: any) {
+    console.error('⚠️ Errore invio email workflow (non bloccante):', error);
+    // Non lanciamo l'errore per non bloccare il cambio stato
+  }
 }

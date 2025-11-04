@@ -32,6 +32,7 @@ import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
 import { OrdersManager } from "@/components/OrdersManager";
 import CashDashboard from "@/components/CashDashboard";
+import GestioneCommesse from "@/components/GestioneCommesse";
 import { getAllThemes } from "@shared/special-themes";
 
 // Componente di paginazione riutilizzabile
@@ -950,6 +951,13 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Book</span>
               </TabsTrigger>
 
+              {/* Workflow Management: Gestione Commesse */}
+              <TabsTrigger value="commesse" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <FolderOpen className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Gestione Commesse</span>
+                <span className="sm:hidden">Comm.</span>
+              </TabsTrigger>
+
               {/* Financial Management: Cassa */}
               <TabsTrigger value="cassa" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <Wallet className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -1460,6 +1468,13 @@ export default function AdminDashboard() {
                   <OrdersManager />
                 </TabsContent>
               </Tabs>
+            </TabsContent>
+
+            {/* Contenuto Tab Gestione Commesse */}
+            <TabsContent value="commesse">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <GestioneCommesse />
+              </div>
             </TabsContent>
 
             {/* Contenuto Tab Cassa */}
