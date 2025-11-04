@@ -103,11 +103,17 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
           
           if (!galleriesSnapshot.empty) {
             // Costruisci il nuovo array productRequirements dai prodotti aggiornati
-            const newProductRequirements = selectedProdotti.map(p => ({
-              prodottoId: p.prodottoId || undefined,
-              prodottoNome: p.prodottoNome,
-              prodottoNumeroFoto: p.prodottoNumeroFoto || 0,
-            }));
+            const newProductRequirements = selectedProdotti.map(p => {
+              const req: any = {
+                prodottoNome: p.prodottoNome,
+                prodottoNumeroFoto: p.prodottoNumeroFoto || 0,
+              };
+              // Solo aggiungi prodottoId se esiste (Firestore non accetta undefined)
+              if (p.prodottoId && p.prodottoId.trim() && !p.prodottoId.startsWith('custom_')) {
+                req.prodottoId = p.prodottoId;
+              }
+              return req;
+            });
             
             // Aggiorna tutte le gallerie trovate
             const updatePromises = galleriesSnapshot.docs.map(galleryDoc =>

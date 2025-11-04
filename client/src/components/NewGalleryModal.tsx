@@ -353,11 +353,15 @@ export default function NewGalleryModal({
         ) {
           const productReqs = selectedProductIndices.map((index) => {
             const prod = prePopulate.availableProducts![index];
-            return {
-              prodottoId: prod.prodottoId || undefined,
+            const req: any = {
               prodottoNome: prod.prodottoNome,
               prodottoNumeroFoto: prod.prodottoNumeroFoto || 0,
             };
+            // Solo aggiungi prodottoId se esiste (Firestore non accetta undefined)
+            if (prod.prodottoId) {
+              req.prodottoId = prod.prodottoId;
+            }
+            return req;
           });
 
           galleryData.productRequirements = productReqs;
