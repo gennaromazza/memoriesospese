@@ -2046,6 +2046,36 @@ export default function Gallery() {
                         </Sheet>
                       )}
 
+                      {/* Banner Istruzioni Multi-Prodotto */}
+                      {isSelectionMode && 
+                       selectionStatus !== "completed" && 
+                       galleryData.productRequirements && 
+                       galleryData.productRequirements.length > 0 && (
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-5 mb-6 shadow-md">
+                          <div className="flex items-start gap-4">
+                            <div className="flex-shrink-0 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl">
+                              ℹ️
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-blue-gray text-lg mb-2">
+                                💡 Come funziona la selezione multi-prodotto
+                              </h4>
+                              <div className="text-sm text-gray-700 space-y-2">
+                                <p>
+                                  <strong>1.</strong> Clicca sui <span className="font-semibold text-blue-600">chip colorati</span> sotto ogni foto per assegnarla ai prodotti
+                                </p>
+                                <p>
+                                  <strong>2.</strong> Puoi <span className="font-semibold text-purple-600">riutilizzare</span> la stessa foto per più prodotti (es: Album + Stampe)
+                                </p>
+                                <p>
+                                  <strong>3.</strong> I colori ti aiutano a identificare ogni prodotto - guarda il <span className="font-semibold text-sage">progresso</span> in tempo reale qui sotto!
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Sticky Counter Progress Bar - Multi-Product Mode */}
                       {isSelectionMode && 
                        selectionStatus !== "completed" && 
