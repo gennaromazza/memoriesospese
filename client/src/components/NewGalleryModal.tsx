@@ -45,6 +45,8 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
   const [password, setPassword] = useState('');
   const [specialTheme, setSpecialTheme] = useState<string>('none');
   const [specialPin, setSpecialPin] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientName, setClientName] = useState('');
   const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(0);
   const [selectionDeadline, setSelectionDeadline] = useState<string>('');
@@ -89,8 +91,37 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
       setDescription(prePopulate.description || '');
       setSpecialTheme(prePopulate.specialTheme || 'none');
       setSpecialPin(prePopulate.specialPin || '');
+      setClientEmail(prePopulate.clienteEmail || '');
+      setClientName(prePopulate.clienteNome || '');
     }
   }, [prePopulate]);
+
+  // MUTUA ESCLUSIVITÀ: Password e PIN non possono coesistere
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+    
+    // Se viene impostata una password, rimuovi tema e PIN
+    if (newPassword.trim()) {
+      if (specialTheme !== 'none') {
+        console.log('🔄 Password impostata - rimozione tema e PIN');
+        setSpecialTheme('none');
+        setSpecialPin('');
+        toast.info('Modalità cambiata: galleria con password. Tema speciale e PIN rimossi.');
+      }
+    }
+  };
+
+  const handleSpecialThemeChange = (newTheme: string) => {
+    setSpecialTheme(newTheme);
+    
+    // Se viene selezionato un tema (diverso da 'none'), rimuovi la password
+    if (newTheme !== 'none' && password.trim()) {
+      console.log('🔄 Tema speciale selezionato - rimozione password');
+      setPassword('');
+      toast.info('Modalità cambiata: galleria speciale con PIN. Password rimossa.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,6 +144,34 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
 
     setIsLoading(true);
     try {
+      // CHECK PIN UNIVOCITÀ: Verifica che il PIN non sia già usato da altre gallerie
+      if (specialTheme !== 'none' && specialPin.trim()) {
+        console.log('🔍 Verifica unicità PIN...');
+        const checkResponse = await fetch('/api/email/check-pin-unique', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pin: specialPin.trim(),
+            currentGalleryId: null // Nuova galleria, nessun ID ancora
+          })
+        });
+
+        if (!checkResponse.ok) {
+          throw new Error('Errore verifica unicità PIN');
+        }
+
+        const checkResult = await checkResponse.json();
+        
+        if (!checkResult.unique) {
+          toast.error(`PIN già in uso dalla galleria "${checkResult.usedByGalleryName}". Scegli un PIN diverso.`, {
+            duration: 5000
+          });
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('✅ PIN unico, procedo con la creazione');
+      }
       // Check gallery limit
       const galleriesQuery = query(
         collection(db, 'galleries'),
@@ -125,14 +184,14 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
       // Generate unique code
       const code = nanoid(8);
 
-      // Create gallery
+      // Create gallery (SENZA password e specialPin - ora in gallerySecrets)
       const galleryData: any = {
         name: name.trim(),
         code,
         date,
         location: location.trim(),
         description: description.trim(),
-        password: password.trim(),
+        hasPassword: !!password.trim(), // Solo flag boolean
         userId: user.uid,
         photoCount: 0,
         active: true,
@@ -141,10 +200,17 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
         updatedAt: serverTimestamp(),
       };
 
-      // Add special theme fields if theme is selected
+      // Add special theme fields if theme is selected (solo ID tema, NO PIN)
       if (specialTheme !== 'none') {
         galleryData.specialTheme = specialTheme;
-        galleryData.specialPin = specialPin.trim();
+      }
+      
+      // Aggiungi client info per invio email PIN (opzionale)
+      if (clientEmail.trim()) {
+        galleryData.clientEmail = clientEmail.trim();
+      }
+      if (clientName.trim()) {
+        galleryData.clientName = clientName.trim();
       }
       
       // Add photo selection fields if selection is enabled
@@ -168,6 +234,30 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
       // Use GalleryService instead of direct Firestore write
       const { GalleryService } = await import('@/lib/galleries');
       const newGalleryId = await GalleryService.createGallery(galleryData);
+
+      // SALVA PASSWORD E SPECIAL PIN in collection protetta `gallerySecrets`
+      // IMPORTANTE: Password e PIN sono MUTUAMENTE ESCLUSIVI
+      const { doc: firestoreDoc, setDoc } = await import('firebase/firestore');
+      const secretsRef = firestoreDoc(db, 'gallerySecrets', newGalleryId);
+      const secretsData: any = {
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      if (specialTheme !== 'none') {
+        // GALLERIA SPECIALE: Solo PIN, NO password
+        secretsData.specialPin = specialPin.trim() || null;
+        secretsData.password = null;
+        console.log('🔒 Salvando galleria speciale con PIN in gallerySecrets');
+      } else {
+        // GALLERIA NORMALE: Solo password, NO PIN
+        secretsData.password = password.trim() || null;
+        secretsData.specialPin = null;
+        console.log('🔒 Salvando galleria normale con password in gallerySecrets');
+      }
+      
+      await setDoc(secretsRef, secretsData);
+      console.log('✅ Secrets salvati in gallerySecrets collection');
 
       // Auto-Link Ordine: Se esiste un ordine per il booking, aggiornalo con il galleryId
       if (prePopulate?.bookingId) {
@@ -195,8 +285,36 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
         }
       }
 
+      // INVIO EMAIL AUTOMATICO: Se galleria speciale con PIN e email cliente fornita
+      if (specialTheme !== 'none' && specialPin.trim() && clientEmail.trim()) {
+        console.log('📧 Invio email PIN al cliente...');
+        
+        try {
+          const emailResponse = await fetch('/api/email/special-gallery-pin-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              galleryId: newGalleryId,
+              clientEmail: clientEmail.trim(),
+              clientName: clientName.trim() || undefined
+            })
+          });
+
+          if (emailResponse.ok) {
+            console.log('✅ Email PIN inviata con successo');
+            toast.success(`Galleria creata e email PIN inviata a ${clientEmail}`);
+          } else {
+            const errorData = await emailResponse.json().catch(() => ({}));
+            console.error('❌ Errore invio email PIN', errorData);
+            toast.success('Galleria creata, ma invio email PIN non riuscito');
+          }
+        } catch (emailError) {
+          console.error('❌ Eccezione invio email PIN:', emailError);
+          toast.success('Galleria creata, ma invio email PIN non riuscito');
+        }
+      }
       // Send email notification if selection enabled
-      if (selectionEnabled && requiredPhotoCount > 0 && prePopulate?.clienteEmail) {
+      else if (selectionEnabled && requiredPhotoCount > 0 && prePopulate?.clienteEmail) {
         try {
           const galleryUrl = `${window.location.origin}/gallery/${code}`;
           const deadlineFormatted = selectionDeadline 
@@ -224,16 +342,18 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
 
           if (emailResponse.ok) {
             console.log('✅ Email "Galleria Pronta" inviata al cliente');
+            toast.success('Galleria creata con successo!');
           } else {
             console.error('⚠️ Email non inviata:', await emailResponse.text());
+            toast.success('Galleria creata, ma invio email non riuscito');
           }
         } catch (emailError) {
           console.error('⚠️ Errore invio email galleria:', emailError);
-          // Non bloccare il flusso se email fallisce
+          toast.success('Galleria creata, ma invio email non riuscito');
         }
+      } else {
+        toast.success('Galleria creata con successo!');
       }
-
-      toast.success('Galleria creata con successo!');
 
       // Reset form
       setName('');
@@ -314,25 +434,29 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password Accesso</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password per accedere alla galleria"
-              />
-              <p className="text-sm text-muted-foreground">
-                Lascia vuoto per accesso libero
-              </p>
-            </div>
-
-            {/* Special Theme Section */}
-            <div className="border-t pt-4 space-y-4">
+            {/* Password Field - Hidden if special theme is selected */}
+            {specialTheme === 'none' && (
               <div className="space-y-2">
-                <Label htmlFor="specialTheme">Tema Stagionale</Label>
-                <Select value={specialTheme} onValueChange={setSpecialTheme}>
+                <Label htmlFor="password">Password Accesso</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={handlePasswordChange}
+                  placeholder="Password per accedere alla galleria"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Lascia vuoto per accesso libero
+                </p>
+              </div>
+            )}
+
+            {/* Special Theme Section - Hidden if password is set */}
+            {!password.trim() && (
+              <div className="border-t pt-4 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="specialTheme">Tema Stagionale</Label>
+                  <Select value={specialTheme} onValueChange={handleSpecialThemeChange}>
                   <SelectTrigger data-testid="select-special-theme">
                     <SelectValue placeholder="Seleziona tema (opzionale)" />
                   </SelectTrigger>
@@ -350,24 +474,56 @@ export default function NewGalleryModal({ isOpen, onClose, onGalleryCreated, pre
                 </p>
               </div>
 
-              {specialTheme !== 'none' && (
-                <div className="space-y-2">
-                  <Label htmlFor="specialPin">PIN Galleria Speciale *</Label>
-                  <Input
-                    id="specialPin"
-                    type="text"
-                    value={specialPin}
-                    onChange={(e) => setSpecialPin(e.target.value)}
-                    placeholder="Es. 2024"
-                    required={specialTheme !== 'none'}
-                    data-testid="input-special-pin"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    PIN univoco per accedere a questa galleria speciale
-                  </p>
-                </div>
-              )}
-            </div>
+                {specialTheme !== 'none' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="specialPin">PIN Galleria Speciale *</Label>
+                      <Input
+                        id="specialPin"
+                        type="text"
+                        value={specialPin}
+                        onChange={(e) => setSpecialPin(e.target.value)}
+                        placeholder="Es. 2024"
+                        required={specialTheme !== 'none'}
+                        data-testid="input-special-pin"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        PIN univoco per accedere a questa galleria speciale
+                      </p>
+                    </div>
+
+                    {/* Client Contact Info for PIN Notification */}
+                    <div className="space-y-2">
+                      <Label htmlFor="clientEmail">Email Cliente (per invio PIN)</Label>
+                      <Input
+                        id="clientEmail"
+                        type="email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        placeholder="cliente@esempio.it"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Opzionale: se fornita, il cliente riceverà automaticamente una email con il PIN di accesso
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="clientName">Nome Cliente</Label>
+                      <Input
+                        id="clientName"
+                        type="text"
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        placeholder="Mario Rossi"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Opzionale: per personalizzare l'email
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Product Snapshot & Photo Selection Section */}
             {product && (
