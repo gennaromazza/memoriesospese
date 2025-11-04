@@ -76,7 +76,10 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
     return sum + (item.prodottoPrezzo * item.quantita);
   }, 0);
   
-  const saldo = totale - acconto;
+  // Calcola totale pagato dalle transactions (unica fonte di verità)
+  const totalePagato = (order?.transactions || []).reduce((sum, t) => sum + t.importo, 0);
+  
+  const saldo = totale - totalePagato;
   
   // Mutation per update ordine
   const updateOrderMutation = useMutation({
@@ -218,14 +221,7 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
       return;
     }
     
-    if (acconto > totale) {
-      toast({
-        title: '❌ Errore',
-        description: 'L\'acconto non può superare il totale',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Rimuovo validazione acconto perché è ora read-only
     
     updateOrderMutation.mutate({
       orderId: order.id,
@@ -236,7 +232,7 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
         whatsappCliente: whatsappCliente || null,
         note: note || null,
         stato,
-        acconto,
+        // NON inviamo più acconto - gestito solo via transactions array
       }
     });
   };
@@ -481,22 +477,37 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
                 <span className="text-muted-foreground">Totale:</span>
                 <span className="font-semibold text-lg">€{totale.toFixed(2)}</span>
               </div>
-              <div className="flex items-center gap-4">
-                <Label htmlFor="acconto" className="min-w-[80px]">Acconto:</Label>
-                <Input
-                  id="acconto"
-                  type="number"
-                  min="0"
-                  max={totale}
-                  step="0.01"
-                  value={acconto}
-                  onChange={(e) => setAcconto(parseFloat(e.target.value) || 0)}
-                  className="w-32"
-                />
-                <span className="text-muted-foreground">€</span>
+              
+              {/* Totale Pagato (read-only, calcolato da transactions) */}
+              <div className="flex justify-between items-center">
+                <Label className="min-w-[120px] text-muted-foreground">Totale Pagato:</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    value={`€${totalePagato.toFixed(2)}`}
+                    disabled
+                    className="w-32 bg-gray-50 text-gray-700 font-semibold text-right cursor-not-allowed"
+                  />
+                  {(order?.transactions || []).length > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      {(order?.transactions || []).length} {(order?.transactions || []).length === 1 ? 'pagamento' : 'pagamenti'}
+                    </Badge>
+                  )}
+                </div>
               </div>
-              <div className="flex justify-between text-lg">
-                <span className="font-semibold">Saldo:</span>
+              
+              {/* Messaggio informativo */}
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+                <p className="font-medium mb-1">ℹ️ Gestione Pagamenti</p>
+                <p className="text-xs">
+                  Per registrare acconti o saldo, chiudi questa finestra e usa i pulsanti 
+                  <strong> "Aggiungi Acconto" </strong> o <strong> "Registra Saldo" </strong> 
+                  dalla lista ordini. Questo garantisce tracciamento completo dei pagamenti.
+                </p>
+              </div>
+              
+              <div className="flex justify-between text-lg pt-2">
+                <span className="font-semibold">Saldo Residuo:</span>
                 <span className={`font-bold ${saldo > 0 ? 'text-orange-600' : 'text-green-600'}`}>
                   €{saldo.toFixed(2)}
                 </span>

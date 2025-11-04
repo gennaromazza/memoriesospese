@@ -57,29 +57,66 @@ function ensureProdottiArray(orderData: any): any {
   // Backward compatibility: inizializza transactions array se mancante
   if (!Array.isArray(result.transactions)) {
     result.transactions = [];
-
-    // Ricostruisci transactions da legacy fields se esistono
-    if (result.acconto > 0 && result.dataAcconto) {
+  }
+  
+  // Migration automatica: verifica coerenza tra campi legacy e transactions
+  // Questo previene bug dove acconto/saldo sono impostati ma transactions è vuoto
+  const hasPagamenti = result.acconto > 0 || result.dataSaldo;
+  const hasTransactions = result.transactions.length > 0;
+  
+  if (hasPagamenti && !hasTransactions) {
+    console.warn(`🔄 Migration ordine ${result.id || 'unknown'}: trovato acconto/saldo senza transactions, ricostruisco...`);
+    
+    // Ricostruisci transactions da legacy fields
+    if (result.acconto > 0) {
       result.transactions.push({
         tipo: "acconto",
         importo: result.acconto,
         metodo: result.metodoPagamentoAcconto || "contante",
-        data: result.dataAcconto,
-        note: "Migrato da ordine legacy",
+        data: result.dataAcconto || result.createdAt || Timestamp.now(),
+        note: "Migrato automaticamente da ordine legacy",
         emailInviata: false, // Unknown per ordini legacy
       });
     }
 
     if (result.dataSaldo) {
+      // ✅ CRITICO: result.saldo legacy è il RESIDUO, non l'importo pagato!
+      // Calcola importo saldo pagato = totale - acconti già registrati
+      const accontoGiaRegistrato = result.transactions
+        .filter((t: any) => t.tipo === 'acconto')
+        .reduce((sum: number, t: any) => sum + t.importo, 0);
+      
+      const importoSaldo = (result.totale || 0) - accontoGiaRegistrato;
+      
       result.transactions.push({
         tipo: "saldo",
-        importo: result.saldo || 0,
+        importo: importoSaldo,
         metodo: result.metodoPagamentoSaldo || "contante",
         data: result.dataSaldo,
-        note: "Migrato da ordine legacy",
+        note: "Migrato automaticamente da ordine legacy",
         emailInviata: result.emailSaldoInviata || false,
       });
     }
+    
+    console.log(`✅ Migration completata: ${result.transactions.length} transactions create`);
+  }
+  
+  // Verifica coerenza: ricalcola acconto/saldo da transactions per correggere eventuali discrepanze
+  if (result.transactions.length > 0) {
+    const accontoCalcolato = result.transactions
+      .filter((t: any) => t.tipo === 'acconto')
+      .reduce((sum: number, t: any) => sum + t.importo, 0);
+    
+    const saldoPagato = result.transactions
+      .filter((t: any) => t.tipo === 'saldo')
+      .reduce((sum: number, t: any) => sum + t.importo, 0);
+    
+    const totalePagato = accontoCalcolato + saldoPagato;
+    
+    // ✅ CRITICO: acconto = SOLO somma acconti, non totalePagato
+    // Questo mantiene il contratto esistente dove acconto rappresenta deposito
+    result.acconto = accontoCalcolato;
+    result.saldo = (result.totale || 0) - totalePagato;
   }
 
   return result;
@@ -275,8 +312,21 @@ export async function createOrder(data: InsertOrder): Promise<string> {
   const saldo = totale - acconto;
   console.log("🧾 Saldo calcolato:", saldo);
 
-  // Inizializza transactions array (vuoto per nuovi ordini)
+  // Inizializza transactions array
+  // Se acconto > 0, crea transaction iniziale per tracciamento corretto
   const transactions: Transaction[] = [];
+  
+  if (acconto > 0) {
+    transactions.push({
+      tipo: "acconto",
+      importo: acconto,
+      metodo: data.metodoPagamentoAcconto || "contante",
+      data: Timestamp.now(),
+      note: "Acconto iniziale registrato alla creazione ordine",
+      emailInviata: false, // L'email verrà inviata separatamente se necessario
+    });
+    console.log("💳 Transaction acconto iniziale creata:", transactions[0]);
+  }
 
   // Normalizza campi opzionali per evitare undefined in Firestore
   const normalizedData = {
