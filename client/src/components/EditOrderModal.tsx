@@ -75,7 +75,7 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
       setNomeCliente(order.nomeCliente || '');
       setEmailCliente(order.emailCliente || '');
       setWhatsappCliente(order.whatsappCliente || '');
-      setNote(order.note || '');
+      setNote(''); // Note non salvate nell'ordine, solo nelle transazioni
       setStato(order.stato || 'bozza');
       setAcconto(order.acconto || 0);
     }
@@ -629,12 +629,12 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
                     {order.transactions
                       .sort((a, b) => {
                         // Ordina per data (più recenti prima)
-                        const dateA = a.data?.toDate?.() || new Date(a.data);
-                        const dateB = b.data?.toDate?.() || new Date(b.data);
+                        const dateA = a.data?.toDate ? a.data.toDate() : new Date();
+                        const dateB = b.data?.toDate ? b.data.toDate() : new Date();
                         return dateB.getTime() - dateA.getTime();
                       })
                       .map((transaction, index) => {
-                        const date = transaction.data?.toDate?.() || new Date(transaction.data);
+                        const date = transaction.data?.toDate ? transaction.data.toDate() : new Date();
                         
                         return (
                           <TableRow key={index}>

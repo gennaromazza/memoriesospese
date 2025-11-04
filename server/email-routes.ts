@@ -1164,7 +1164,9 @@ export function createOrderAccontoRicevutoEmailHTML(
   saldoRimanente: number,
   metodo: string,
   note?: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  totaleOrdine?: number,
+  transactions?: Array<{ tipo: 'acconto' | 'saldo'; importo: number; metodo: string; data: any; note?: string }>
 ): string {
   const studio = studioInfo || { 
     name: "Memorie Sospese", 
@@ -1218,9 +1220,15 @@ export function createOrderAccontoRicevutoEmailHTML(
         <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
           <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">💰 Riepilogo Ordine</h4>
           <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
+            ${totaleOrdine ? `
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 8px 0; font-weight: bold;">Costo totale servizio:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 16px; color: #8b5a3c;">${formatCurrency(totaleOrdine)}</td>
+            </tr>
+            ` : ''}
             <tr style="border-bottom: 1px solid #ddd;">
               <td style="padding: 8px 0;">Acconto totale versato:</td>
-              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${formatCurrency(accontoTotale)}</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #28a745;">${formatCurrency(accontoTotale)}</td>
             </tr>
             <tr style="border-bottom: 1px solid #ddd;">
               <td style="padding: 8px 0;">Saldo rimanente:</td>
@@ -1228,6 +1236,54 @@ export function createOrderAccontoRicevutoEmailHTML(
             </tr>
           </table>
         </div>
+
+        ${transactions && transactions.length > 0 ? `
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
+          <h4 style="color: #333; margin-top: 0; margin-bottom: 15px;">📋 Cronologia Pagamenti</h4>
+          <table style="width: 100%; font-size: 13px; color: #333; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <th style="padding: 10px; text-align: left;">Data</th>
+                <th style="padding: 10px; text-align: left;">Tipo</th>
+                <th style="padding: 10px; text-align: right;">Importo</th>
+                <th style="padding: 10px; text-align: left;">Metodo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${transactions.map((t, index) => {
+                const date = t.data?.toDate ? t.data.toDate() : (t.data instanceof Date ? t.data : new Date(t.data));
+                const dateStr = date.toLocaleDateString('it-IT', { 
+                  day: '2-digit', 
+                  month: 'long', 
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                
+                return `
+                  <tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 10px; font-size: 12px;">${dateStr}</td>
+                    <td style="padding: 10px;">
+                      <span style="background: ${t.tipo === 'acconto' ? '#cfe2ff' : '#d1e7dd'}; color: ${t.tipo === 'acconto' ? '#084298' : '#0f5132'}; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;">
+                        ${t.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
+                      </span>
+                    </td>
+                    <td style="padding: 10px; text-align: right; font-weight: bold; color: #28a745;">${formatCurrency(t.importo)}</td>
+                    <td style="padding: 10px; font-size: 12px;">${formatMethod(t.metodo)}</td>
+                  </tr>
+                  ${t.note ? `
+                  <tr>
+                    <td colspan="4" style="padding: 5px 10px; font-size: 11px; color: #666; font-style: italic; border-bottom: 1px solid #e0e0e0;">
+                      Note: ${t.note}
+                    </td>
+                  </tr>
+                  ` : ''}
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
 
         ${saldoRimanente > 0 ? `
         <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
@@ -1269,7 +1325,9 @@ export function createOrderSaldoPendenteEmailHTML(
   clienteName: string,
   prodottoNome: string,
   saldoAmount: number,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  totaleOrdine?: number,
+  transactions?: Array<{ tipo: 'acconto' | 'saldo'; importo: number; metodo: string; data: any; note?: string }>
 ): string {
   const studio = studioInfo || { 
     name: "Memorie Sospese", 
@@ -1301,13 +1359,76 @@ export function createOrderSaldoPendenteEmailHTML(
           <h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px;">✅ Pagamento Completato</h3>
           <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 10px 0;">
             <p style="margin: 0 0 10px 0; font-size: 18px; font-weight: bold; color: #155724;">
-              Importo pagato: ${formatCurrency(saldoAmount)}
+              Saldo finale pagato: ${formatCurrency(saldoAmount)}
             </p>
-            <p style="margin: 0; font-size: 16px; color: #155724;">
-              Saldo rimanente: €0,00
+            ${totaleOrdine ? `
+            <p style="margin: 10px 0 0 0; font-size: 14px; color: #155724;">
+              Costo totale servizio: ${formatCurrency(totaleOrdine)}
+            </p>
+            ` : ''}
+            <p style="margin: 10px 0 0 0; font-size: 16px; color: #155724; font-weight: bold;">
+              Saldo rimanente: €0,00 🎉
             </p>
           </div>
         </div>
+
+        ${transactions && transactions.length > 0 ? `
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
+          <h4 style="color: #333; margin-top: 0; margin-bottom: 15px;">📋 Cronologia Completa Pagamenti</h4>
+          <table style="width: 100%; font-size: 13px; color: #333; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <th style="padding: 10px; text-align: left;">Data</th>
+                <th style="padding: 10px; text-align: left;">Tipo</th>
+                <th style="padding: 10px; text-align: right;">Importo</th>
+                <th style="padding: 10px; text-align: left;">Metodo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${transactions.map((t, index) => {
+                const date = t.data?.toDate ? t.data.toDate() : (t.data instanceof Date ? t.data : new Date(t.data));
+                const dateStr = date.toLocaleDateString('it-IT', { 
+                  day: '2-digit', 
+                  month: 'long', 
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                
+                const formatMethod = (method: string) => {
+                  const methods: Record<string, string> = {
+                    'contante': 'Contante',
+                    'carta': 'Carta',
+                    'bonifico': 'Bonifico',
+                    'paypal': 'PayPal'
+                  };
+                  return methods[method.toLowerCase()] || method;
+                };
+                
+                return `
+                  <tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 10px; font-size: 12px;">${dateStr}</td>
+                    <td style="padding: 10px;">
+                      <span style="background: ${t.tipo === 'acconto' ? '#cfe2ff' : '#d1e7dd'}; color: ${t.tipo === 'acconto' ? '#084298' : '#0f5132'}; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;">
+                        ${t.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
+                      </span>
+                    </td>
+                    <td style="padding: 10px; text-align: right; font-weight: bold; color: #28a745;">${formatCurrency(t.importo)}</td>
+                    <td style="padding: 10px; font-size: 12px;">${formatMethod(t.metodo)}</td>
+                  </tr>
+                  ${t.note ? `
+                  <tr>
+                    <td colspan="4" style="padding: 5px 10px; font-size: 11px; color: #666; font-style: italic; border-bottom: 1px solid #e0e0e0;">
+                      Note: ${t.note}
+                    </td>
+                  </tr>
+                  ` : ''}
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
 
         <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
           <h4 style="color: #0c5460; margin-top: 0; margin-bottom: 10px;">📸 Prossimi Passi</h4>
