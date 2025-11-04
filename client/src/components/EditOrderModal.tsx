@@ -27,8 +27,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, Plus, Save, ShoppingCart, Package } from 'lucide-react';
+import { Trash2, Plus, Save, ShoppingCart, Package, Clock } from 'lucide-react';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 
 interface EditOrderModalProps {
   order: Order | null;
@@ -596,6 +606,77 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
               </div>
             </div>
           </div>
+          
+          {/* Cronologia Pagamenti */}
+          {order.transactions && order.transactions.length > 0 && (
+            <div className="space-y-3 border-b pb-4">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                📋 Cronologia Pagamenti
+              </h3>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data e Ora</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-right">Importo</TableHead>
+                      <TableHead>Metodo</TableHead>
+                      <TableHead>Note</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {order.transactions
+                      .sort((a, b) => {
+                        // Ordina per data (più recenti prima)
+                        const dateA = a.data?.toDate?.() || new Date(a.data);
+                        const dateB = b.data?.toDate?.() || new Date(b.data);
+                        return dateB.getTime() - dateA.getTime();
+                      })
+                      .map((transaction, index) => {
+                        const date = transaction.data?.toDate?.() || new Date(transaction.data);
+                        
+                        return (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">
+                              {format(date, "dd MMMM yyyy 'alle' HH:mm", { locale: it })}
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={transaction.tipo === 'acconto' ? 'default' : 'secondary'}
+                                className={transaction.tipo === 'acconto' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}
+                              >
+                                {transaction.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-semibold text-green-600">
+                              +€{transaction.importo.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="capitalize">
+                              {transaction.metodo === 'contante' && '💵 Contante'}
+                              {transaction.metodo === 'carta' && '💳 Carta'}
+                              {transaction.metodo === 'bonifico' && '🏦 Bonifico'}
+                              {transaction.metodo === 'paypal' && '📱 PayPal'}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600">
+                              {transaction.note || '-'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Riepilogo totale pagamenti */}
+              <div className="bg-gray-50 rounded-md p-3 flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">Totale Versato:</span>
+                <span className="text-lg font-bold text-green-600">
+                  €{totalePagato.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
           
           {/* Note */}
           <div className="space-y-2">
