@@ -366,17 +366,34 @@ export default function GestioneCommesse({
                     )}
                   </div>
 
-                  {/* Collegamenti */}
+                  {/* Info Pagamenti & Foto */}
                   <div className="md:col-span-1 flex flex-col gap-1">
-                    {commessa.hasOrder && (
-                      <span title="Ha ordine">
-                        <Package className="w-4 h-4 text-sage" />
-                      </span>
+                    {/* Badge Pagamento Ordine */}
+                    {commessa.order && (
+                      <div title={`Totale: €${commessa.order.totale} | Acconto: €${commessa.order.acconto} | Saldo: €${commessa.order.saldo}`}>
+                        {commessa.order.saldo === 0 ? (
+                          <Badge className="bg-green-100 text-green-800 text-xs px-1 py-0">
+                            Saldato
+                          </Badge>
+                        ) : commessa.order.acconto > 0 ? (
+                          <Badge className="bg-yellow-100 text-yellow-800 text-xs px-1 py-0">
+                            Acconto
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-800 text-xs px-1 py-0">
+                            Da pagare
+                          </Badge>
+                        )}
+                      </div>
                     )}
-                    {commessa.hasGallery && (
-                      <span title="Ha galleria">
-                        <Image className="w-4 h-4 text-sage" />
-                      </span>
+                    
+                    {/* Counter Foto Galleria */}
+                    {commessa.gallery && (
+                      <div title={`${commessa.gallery.photoCount || 0} foto caricate`}>
+                        <Badge variant="outline" className="text-xs px-1 py-0">
+                          {commessa.gallery.photoCount || 0} 📸
+                        </Badge>
+                      </div>
                     )}
                   </div>
 
