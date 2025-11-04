@@ -305,3 +305,117 @@ export async function deleteBooking(bookingId: string): Promise<void> {
   // Cancella la prenotazione da Firestore
   await deleteDoc(docRef);
 }
+
+/**
+ * Conta ordini e gallerie associate a una prenotazione
+ * Utile per mostrare conferma cancellazione a cascata
+ */
+export async function countRelatedEntities(bookingId: string): Promise<{
+  ordersCount: number;
+  galleriesCount: number;
+  orderIds: string[];
+  galleryIds: string[];
+}> {
+  // 1. Trova tutti gli ordini per questo booking
+  const ordersQuery = query(
+    collection(db, 'orders'),
+    where('bookingId', '==', bookingId)
+  );
+  const ordersSnapshot = await getDocs(ordersQuery);
+  const orderIds = ordersSnapshot.docs.map(doc => doc.id);
+
+  // 2. Per ogni ordine, trova le gallerie associate
+  const galleryIds: string[] = [];
+  for (const orderId of orderIds) {
+    const galleriesQuery = query(
+      collection(db, 'galleries'),
+      where('orderId', '==', orderId)
+    );
+    const galleriesSnapshot = await getDocs(galleriesQuery);
+    galleryIds.push(...galleriesSnapshot.docs.map(doc => doc.id));
+  }
+
+  // 3. Trova anche gallerie collegate direttamente al booking (senza ordine)
+  const directGalleriesQuery = query(
+    collection(db, 'galleries'),
+    where('bookingId', '==', bookingId)
+  );
+  const directGalleriesSnapshot = await getDocs(directGalleriesQuery);
+  const directGalleryIds = directGalleriesSnapshot.docs.map(doc => doc.id);
+  
+  // Unisci e rimuovi duplicati
+  const allGalleryIds = [...new Set([...galleryIds, ...directGalleryIds])];
+
+  return {
+    ordersCount: orderIds.length,
+    galleriesCount: allGalleryIds.length,
+    orderIds,
+    galleryIds: allGalleryIds,
+  };
+}
+
+/**
+ * Cancella prenotazione con cascata su ordini e gallerie (admin only)
+ * ATTENZIONE: Operazione irreversibile!
+ */
+export async function deleteBookingCascade(bookingId: string): Promise<void> {
+  console.log(`🗑️ Inizio cancellazione a cascata per booking ${bookingId}`);
+
+  // 1. Conta e trova tutti gli elementi correlati
+  const { orderIds, galleryIds } = await countRelatedEntities(bookingId);
+
+  // Colleziona errori per report finale
+  const errors: Array<{ type: string; id: string; error: any }> = [];
+
+  // 2. Cancella tutte le gallerie associate
+  for (const galleryId of galleryIds) {
+    try {
+      // Soft delete (setta active = false)
+      await updateDoc(doc(db, 'galleries', galleryId), {
+        active: false,
+        updatedAt: serverTimestamp(),
+      });
+      console.log(`✅ Galleria ${galleryId} disattivata`);
+    } catch (error) {
+      console.error(`❌ Errore disattivazione galleria ${galleryId}:`, error);
+      errors.push({ type: 'gallery', id: galleryId, error });
+    }
+  }
+
+  // 3. Cancella tutti gli ordini associati
+  for (const orderId of orderIds) {
+    try {
+      await deleteDoc(doc(db, 'orders', orderId));
+      console.log(`✅ Ordine ${orderId} cancellato`);
+    } catch (error) {
+      console.error(`❌ Errore cancellazione ordine ${orderId}:`, error);
+      errors.push({ type: 'order', id: orderId, error });
+    }
+  }
+
+  // 4. Cancella la prenotazione (con Google Calendar event)
+  try {
+    await deleteBooking(bookingId);
+  } catch (error) {
+    console.error(`❌ Errore cancellazione booking ${bookingId}:`, error);
+    errors.push({ type: 'booking', id: bookingId, error });
+  }
+
+  // 5. Se ci sono errori, lancia eccezione con dettagli
+  if (errors.length > 0) {
+    const failedGalleries = errors.filter(e => e.type === 'gallery').map(e => e.id);
+    const failedOrders = errors.filter(e => e.type === 'order').map(e => e.id);
+    const failedBooking = errors.some(e => e.type === 'booking');
+
+    const errorMessage = [
+      'Cancellazione parzialmente fallita:',
+      failedGalleries.length > 0 && `${failedGalleries.length} galleria/e non disattivata/e (${failedGalleries.join(', ')})`,
+      failedOrders.length > 0 && `${failedOrders.length} ordine/i non cancellato/i (${failedOrders.join(', ')})`,
+      failedBooking && `Prenotazione ${bookingId} non cancellata`,
+    ].filter(Boolean).join('; ');
+
+    throw new Error(errorMessage);
+  }
+
+  console.log(`✅ Cancellazione a cascata completata: ${orderIds.length} ordini, ${galleryIds.length} gallerie`);
+}

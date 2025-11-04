@@ -13,6 +13,8 @@ import {
   deleteBooking,
   markBookingAsViewed,
   updateBooking,
+  countRelatedEntities,
+  deleteBookingCascade,
 } from '@/lib/bookings';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { getAllOrders, createOrder } from '@/lib/orders';
@@ -85,6 +87,16 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const STATI_BOOKING = [
   { value: 'all', label: 'Tutti', icon: FileText },
@@ -125,6 +137,13 @@ export default function BookingsManager() {
   const [selectedGalleryForEdit, setSelectedGalleryForEdit] = useState<Gallery | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
+  
+  // State per cancellazione a cascata
+  const [deleteBookingCascadeId, setDeleteBookingCascadeId] = useState<string | null>(null);
+  const [cascadeDeleteCounts, setCascadeDeleteCounts] = useState<{
+    ordersCount: number;
+    galleriesCount: number;
+  } | null>(null);
   
   // State form modifica prenotazione
   const [editNome, setEditNome] = useState('');
@@ -299,6 +318,33 @@ export default function BookingsManager() {
     },
   });
 
+  // Mutation: Cancellazione a cascata prenotazione → ordini → gallerie
+  const deleteBookingCascadeMutation = useMutation({
+    mutationFn: deleteBookingCascade,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['galleries'] });
+      
+      toast({
+        title: 'Prenotazione eliminata',
+        description: 'La prenotazione e tutti i dati associati (ordini, gallerie) sono stati rimossi con successo',
+      });
+      
+      setDeleteBookingCascadeId(null);
+      setCascadeDeleteCounts(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore eliminazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+      setDeleteBookingCascadeId(null);
+      setCascadeDeleteCounts(null);
+    },
+  });
+
   // Mutation: Aggiorna prenotazione
   const updateBookingMutation = useMutation({
     mutationFn: ({ 
@@ -346,13 +392,77 @@ export default function BookingsManager() {
   // Mutation: Crea ordine da booking
   const createOrderMutation = useMutation({
     mutationFn: createOrder,
-    onSuccess: () => {
+    onSuccess: async (orderId: string, orderData: any) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      toast({
-        title: 'Ordine creato',
-        description: 'L\'ordine è stato creato con successo',
-      });
+      
+      // Invia email automatica al cliente (non bloccante)
+      let emailSent = false;
+      if (orderData.emailCliente && orderData.emailCliente.trim()) {
+        try {
+          // Prepara nome prodotto per l'email
+          const prodottoNome = orderData.prodotti.length === 1
+            ? orderData.prodotti[0].prodottoNome
+            : `Ordine Multi-prodotto (${orderData.prodotti.length} prodotti)`;
+
+          // Calcola totale dalla somma prodotti
+          const totale = orderData.prodotti.reduce((sum: number, p: any) => 
+            sum + (p.prodottoPrezzo * p.quantita), 0
+          );
+          const acconto = orderData.acconto || 0;
+          const saldo = totale - acconto;
+
+          // Mappa prodotti per template email
+          const prodottiEmail = orderData.prodotti.map((p: any) => ({
+            nome: p.prodottoNome,
+            prezzo: p.prodottoPrezzo,
+            quantita: p.quantita,
+          }));
+
+          // Chiama endpoint email
+          const emailResponse = await fetch('/api/email/order-created', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipientEmail: orderData.emailCliente,
+              clienteName: orderData.nomeCliente,
+              prodottoNome,
+              totale,
+              acconto,
+              saldo,
+              prodotti: prodottiEmail,
+            }),
+          });
+
+          // CRITICAL: Controlla se l'email è stata inviata con successo
+          if (!emailResponse.ok) {
+            const errorData = await emailResponse.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(`Errore invio email: ${errorData.error || emailResponse.statusText}`);
+          }
+
+          emailSent = true;
+          console.log(`✅ Email "Ordine Creato" inviata a ${orderData.emailCliente}`);
+        } catch (emailError: any) {
+          console.error('⚠️ Errore invio email (ordine comunque creato):', emailError);
+          // Mostra toast warning per fallimento email
+          toast({
+            title: 'Ordine creato, email non inviata',
+            description: `L'ordine è stato creato ma l'email al cliente ha fallito: ${emailError.message}`,
+            variant: 'destructive',
+          });
+        }
+      }
+
+      // Toast success solo se email OK o nessuna email richiesta
+      if (!orderData.emailCliente || emailSent) {
+        toast({
+          title: 'Ordine creato',
+          description: emailSent
+            ? 'L\'ordine è stato creato e il cliente ha ricevuto una email di conferma'
+            : 'L\'ordine è stato creato con successo',
+        });
+      }
+      
       setSelectedBookingForOrder(null);
     },
     onError: (error: Error) => {
@@ -422,6 +532,28 @@ export default function BookingsManager() {
       },
       oldEmail: editBooking.cliente.email, // Per rilevare cambio email
     });
+  };
+
+  // Handler: Richiesta cancellazione a cascata
+  const handleRequestCascadeDelete = async (bookingId: string) => {
+    try {
+      // Conta elementi associati prima di mostrare dialog
+      const counts = await countRelatedEntities(bookingId);
+      setCascadeDeleteCounts(counts);
+      setDeleteBookingCascadeId(bookingId);
+    } catch (error: any) {
+      toast({
+        title: 'Errore',
+        description: `Impossibile contare elementi associati: ${error.message}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Handler: Conferma cancellazione a cascata
+  const handleConfirmCascadeDelete = () => {
+    if (!deleteBookingCascadeId) return;
+    deleteBookingCascadeMutation.mutate(deleteBookingCascadeId);
   };
 
   // Helper: Formatta data/ora
@@ -872,9 +1004,9 @@ export default function BookingsManager() {
 
                         <DropdownMenuSeparator />
 
-                        {/* Elimina */}
+                        {/* Elimina con cascata */}
                         <DropdownMenuItem
-                          onClick={() => setDeleteConfirmId(booking.id)}
+                          onClick={() => handleRequestCascadeDelete(booking.id)}
                           className="text-red-600 focus:text-red-600"
                           data-testid={`menu-delete-${booking.id}`}
                         >
@@ -1434,6 +1566,72 @@ export default function BookingsManager() {
           }}
         />
       )}
+
+      {/* AlertDialog Cancellazione a Cascata */}
+      <AlertDialog 
+        open={!!deleteBookingCascadeId} 
+        onOpenChange={() => {
+          setDeleteBookingCascadeId(null);
+          setCascadeDeleteCounts(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="w-5 h-5" />
+              Conferma Eliminazione Prenotazione
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="font-medium">
+                Stai per eliminare questa prenotazione e <strong>tutti i dati associati</strong>:
+              </p>
+              
+              {cascadeDeleteCounts && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">Ordini associati:</span>
+                    <span className="font-bold text-red-600">{cascadeDeleteCounts.ordersCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">Gallerie associate:</span>
+                    <span className="font-bold text-red-600">{cascadeDeleteCounts.galleriesCount}</span>
+                  </div>
+                </div>
+              )}
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800 font-medium">
+                  ⚠️ Questa azione è <strong>irreversibile</strong>. Tutti i dati saranno eliminati permanentemente.
+                </p>
+              </div>
+              
+              <p className="text-sm text-gray-600">
+                Vuoi davvero procedere con l'eliminazione?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmCascadeDelete}
+              disabled={deleteBookingCascadeMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {deleteBookingCascadeMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Eliminazione...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Elimina Tutto
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
