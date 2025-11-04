@@ -58,7 +58,7 @@ service cloud.firestore {
         // Utenti anonimi possono aggiornare SOLO selezione foto quando abilitata
         (resource.data.selectionEnabled == true && 
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['selectedPhotoIds', 'photoAssignments', 'selectionStatus', 'selectionNotes']));
+           .hasOnly(['selectedPhotoIds', 'photoAssignments', 'selectionStatus', 'selectionNotes', 'updatedAt']));
       allow delete: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());
 
