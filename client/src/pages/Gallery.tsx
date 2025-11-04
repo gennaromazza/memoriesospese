@@ -2151,8 +2151,8 @@ export default function Gallery() {
                         </Sheet>
                       )}
 
-                      {/* Banner Istruzioni Multi-Prodotto */}
-                      {isSelectionMode && 
+                      {/* Banner Istruzioni Multi-Prodotto - NASCOSTO per UX pulita */}
+                      {false && isSelectionMode && 
                        selectionStatus !== "completed" && 
                        galleryData.productRequirements && 
                        galleryData.productRequirements.length > 0 && (
