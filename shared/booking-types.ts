@@ -107,6 +107,10 @@ export interface Booking {
   // Tracking visualizzazione admin
   dataVisualizzazione?: Timestamp; // Timestamp prima volta che admin vede prenotazione
   
+  // Prenotazione manuale (walk-in)
+  isManual?: boolean; // true se creata da admin, false/undefined se da form pubblico
+  createdByAdmin?: string; // Email admin che ha creato prenotazione manuale
+  
   createdAt: Timestamp;
   updatedAt: Timestamp;
   confermataDa?: string; // UID admin che ha confermato
@@ -126,6 +130,8 @@ export interface InsertBooking {
   prodottoId?: string;
   prodottoNome?: string;
   note: string;
+  isManual?: boolean; // Flag per prenotazioni manuali (walk-in)
+  createdByAdmin?: string; // Email admin per prenotazioni manuali
 }
 
 /**
