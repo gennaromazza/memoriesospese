@@ -476,28 +476,108 @@ export default function GalleryManagementWorkspace() {
 
                 {/* Filename Export for Lightroom */}
                 {selectedPhotos.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-blue-gray">📋 Nomi File per Lightroom</h4>
-                    <p className="text-sm text-gray-600">
-                      Copia e incolla questi nomi in Lightroom per filtrare/selezionare le foto:
-                    </p>
-                    <textarea
-                      readOnly
-                      value={filenameList}
-                      className="w-full h-64 p-3 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50 resize-none"
-                      data-testid="textarea-filename-list"
-                      onClick={(e) => {
-                        e.currentTarget.select();
-                        navigator.clipboard.writeText(filenameList);
-                        toast({
-                          title: '📋 Copiato!',
-                          description: 'Nomi file copiati negli appunti.',
-                        });
-                      }}
-                    />
-                    <p className="text-xs text-gray-500">
-                      💡 Clicca sul box per copiare automaticamente tutti i nomi file.
-                    </p>
+                  <div className="space-y-6">
+                    <h4 className="font-semibold text-blue-gray text-lg">📋 Nomi File per Lightroom</h4>
+                    
+                    {/* Box: Tutte le foto selezionate */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-medium text-blue-gray">🎯 Tutte le Foto Selezionate</h5>
+                        <span className="text-sm text-gray-500">({selectedPhotos.length} foto)</span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Copia e incolla questi nomi in Lightroom per filtrare/selezionare tutte le foto:
+                      </p>
+                      <textarea
+                        readOnly
+                        value={filenameList}
+                        className="w-full h-48 p-3 border-2 border-sage/30 rounded-lg font-mono text-sm bg-white resize-none focus:outline-none focus:border-sage"
+                        data-testid="textarea-filename-list"
+                        onClick={(e) => {
+                          e.currentTarget.select();
+                          navigator.clipboard.writeText(filenameList);
+                          toast({
+                            title: '📋 Copiato!',
+                            description: 'Tutti i nomi file copiati negli appunti.',
+                          });
+                        }}
+                      />
+                      <p className="text-xs text-gray-500">
+                        💡 Clicca sul box per copiare automaticamente tutti i nomi file.
+                      </p>
+                    </div>
+
+                    {/* Box separati per ogni prodotto (solo se multi-prodotto) */}
+                    {gallery?.productRequirements && gallery.productRequirements.length > 0 && (
+                      <div className="space-y-4 pt-4 border-t border-gray-200">
+                        <h5 className="font-medium text-blue-gray">📦 Foto per Prodotto</h5>
+                        <p className="text-sm text-gray-600 mb-4">
+                          Ogni prodotto ha il suo elenco di foto assegnate:
+                        </p>
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {gallery.productRequirements.map((product, productIndex) => {
+                            // Filter photos assigned to this product
+                            const productPhotos = allPhotos.filter(photo => {
+                              const assignments = gallery.photoAssignments?.[photo.id] || [];
+                              return assignments.includes(String(productIndex));
+                            });
+                            
+                            const productFilenameList = productPhotos.map(p => p.name).join('\n');
+                            
+                            // Product colors (same as Gallery.tsx)
+                            const productColors = [
+                              { bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-blue-700' },
+                              { bg: 'bg-green-500', border: 'border-green-500', text: 'text-green-700' },
+                              { bg: 'bg-purple-500', border: 'border-purple-500', text: 'text-purple-700' },
+                              { bg: 'bg-orange-500', border: 'border-orange-500', text: 'text-orange-700' },
+                              { bg: 'bg-pink-500', border: 'border-pink-500', text: 'text-pink-700' },
+                              { bg: 'bg-teal-500', border: 'border-teal-500', text: 'text-teal-700' },
+                            ];
+                            const colorClass = productColors[productIndex % productColors.length];
+                            
+                            return (
+                              <div key={productIndex} className={`space-y-2 p-4 rounded-lg border-2 ${colorClass.border} bg-white`}>
+                                <div className="flex items-center justify-between">
+                                  <h6 className={`font-semibold ${colorClass.text}`}>
+                                    {product.prodottoNome}
+                                  </h6>
+                                  <span className={`text-sm font-medium ${colorClass.text}`}>
+                                    {productPhotos.length} / {product.prodottoNumeroFoto} foto
+                                  </span>
+                                </div>
+                                
+                                {productPhotos.length > 0 ? (
+                                  <>
+                                    <textarea
+                                      readOnly
+                                      value={productFilenameList}
+                                      className={`w-full h-32 p-2 border ${colorClass.border} rounded font-mono text-xs bg-gray-50 resize-none focus:outline-none`}
+                                      data-testid={`textarea-product-${productIndex}`}
+                                      onClick={(e) => {
+                                        e.currentTarget.select();
+                                        navigator.clipboard.writeText(productFilenameList);
+                                        toast({
+                                          title: '📋 Copiato!',
+                                          description: `Nomi file per "${product.prodottoNome}" copiati.`,
+                                        });
+                                      }}
+                                    />
+                                    <p className="text-xs text-gray-500">
+                                      💡 Clicca per copiare i nomi di questo prodotto
+                                    </p>
+                                  </>
+                                ) : (
+                                  <p className="text-sm text-gray-500 italic py-4 text-center">
+                                    Nessuna foto assegnata a questo prodotto
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>

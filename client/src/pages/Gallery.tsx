@@ -741,6 +741,11 @@ export default function Gallery() {
 
       // Refresh gallery data
       await refreshGallery();
+      
+      // Auto-reload page to show updated state
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500); // Delay to show toast message
     } catch (error) {
       console.error("Errore conferma selezione:", error);
       toast({

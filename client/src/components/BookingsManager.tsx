@@ -20,6 +20,7 @@ import { getActiveProducts } from '@/lib/products';
 import { GalleryService, type Gallery } from '@/lib/galleries';
 import type { Booking, BookingCampaign, Order, Product, OrderItem } from '@shared/booking-types';
 import NewGalleryModal from '@/components/NewGalleryModal';
+import EditGalleryModal from '@/components/EditGalleryModal';
 import { OrdersManager } from '@/components/OrdersManager';
 import ManualBookingModal from '@/components/ManualBookingModal';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,13 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
   Calendar,
   Clock,
   User,
@@ -67,7 +75,11 @@ import {
   ShoppingCart,
   Plus,
   Image as ImageIcon,
-  Receipt
+  Receipt,
+  MoreVertical,
+  Edit,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -110,6 +122,9 @@ export default function BookingsManager() {
   const [filterBookingId, setFilterBookingId] = useState<string | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
+  const [selectedGalleryForEdit, setSelectedGalleryForEdit] = useState<Gallery | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   
   // State form modifica prenotazione
   const [editNome, setEditNome] = useState('');
@@ -206,6 +221,18 @@ export default function BookingsManager() {
 
     return filtered;
   }, [allBookings, selectedStato, searchQuery, campaigns]);
+
+  // Paginazione
+  const totalPages = Math.ceil(bookings.length / ITEMS_PER_PAGE);
+  const paginatedBookings = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return bookings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [bookings, currentPage]);
+
+  // Reset currentPage quando cambiano filtri
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStato, searchQuery]);
 
   // Mutation: Approva prenotazione
   const approveMutation = useMutation({
@@ -536,8 +563,21 @@ export default function BookingsManager() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {bookings.map((booking) => (
-            <Card key={booking.id} className="hover:shadow-lg transition-shadow">
+          {paginatedBookings.map((booking, index) => {
+            // Colori rotativi per ogni card
+            const cardColors = [
+              { border: 'border-l-4 border-l-blue-500', bg: 'bg-blue-50/30' },
+              { border: 'border-l-4 border-l-green-500', bg: 'bg-green-50/30' },
+              { border: 'border-l-4 border-l-purple-500', bg: 'bg-purple-50/30' },
+              { border: 'border-l-4 border-l-orange-500', bg: 'bg-orange-50/30' },
+              { border: 'border-l-4 border-l-pink-500', bg: 'bg-pink-50/30' },
+              { border: 'border-l-4 border-l-teal-500', bg: 'bg-teal-50/30' },
+            ];
+            const colorClass = cardColors[((currentPage - 1) * ITEMS_PER_PAGE + index) % cardColors.length];
+            const isApproved = booking.stato === 'confermata' || booking.stato === 'completata';
+
+            return (
+            <Card key={booking.id} className={`hover:shadow-lg transition-shadow ${colorClass.border} ${colorClass.bg}`}>
               <CardContent className="p-6">
                 <div className="flex justify-between items-start gap-6">
                   {/* Info prenotazione */}
@@ -707,32 +747,31 @@ export default function BookingsManager() {
                   </div>
 
                   {/* Azioni */}
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 min-w-[180px]">
                     {/* Badge NUOVA se non ancora visualizzata */}
                     {!booking.dataVisualizzazione && (
-                      <Badge className="bg-red-500 text-white hover:bg-red-600 animate-pulse">
+                      <Badge className="bg-red-500 text-white hover:bg-red-600 animate-pulse justify-center">
                         🔔 NUOVA
                       </Badge>
                     )}
 
-                    {/* Badge Ordine Creato */}
-                    {getOrderByBookingId(booking.id) && (
+                    {/* Badge Ordine/Galleria Creati - SOLO SE APPROVATA */}
+                    {isApproved && getOrderByBookingId(booking.id) && (
                       <Badge className="bg-green-50 text-green-700 border-green-200" variant="outline">
                         <ShoppingCart className="w-3 h-3 mr-1" />
                         Ordine Creato
                       </Badge>
                     )}
 
-                    {/* Badge Galleria Creata */}
-                    {getGalleryByBookingId(booking.id) && (
+                    {isApproved && getGalleryByBookingId(booking.id) && (
                       <Badge className="bg-purple-50 text-purple-700 border-purple-200" variant="outline">
                         <ImageIcon className="w-3 h-3 mr-1" />
                         Galleria Creata
                       </Badge>
                     )}
 
-                    {/* Badge Selezione Completata */}
-                    {(() => {
+                    {/* Badge Selezione Completata - SOLO SE APPROVATA */}
+                    {isApproved && (() => {
                       const gallery = getGalleryByBookingId(booking.id);
                       return gallery && gallery.selectionStatus === 'completed' && (
                         <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold" variant="outline">
@@ -741,80 +780,117 @@ export default function BookingsManager() {
                       );
                     })()}
                     
+                    {/* Pulsante Dettagli - Sempre Visibile */}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenDetails(booking)}
                       data-testid={`button-view-${booking.id}`}
+                      className="w-full"
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Dettagli
                     </Button>
 
-                    {/* Pulsante + Ordine (solo se non esiste già) */}
-                    {!getOrderByBookingId(booking.id) ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedBookingForOrder(booking)}
-                        className="border-sage text-sage hover:bg-sage hover:text-white"
-                        data-testid={`button-create-order-${booking.id}`}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Ordine
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setFilterBookingId(booking.id);
-                          setActiveTab('orders');
-                        }}
-                        className="border-green-500 text-green-500 hover:bg-green-500 hover:text-white"
-                        data-testid={`button-manage-order-${booking.id}`}
-                      >
-                        <Receipt className="w-4 h-4 mr-1" />
-                        Gestisci Ordine
-                      </Button>
-                    )}
+                    {/* Dropdown Menu Azioni - Disabilitato se NON approvata */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!isApproved}
+                          className="w-full"
+                          data-testid={`button-actions-${booking.id}`}
+                        >
+                          <MoreVertical className="w-4 h-4 mr-1" />
+                          Azioni
+                          {!isApproved && <span className="ml-1 text-xs text-gray-400">(🔒)</span>}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        {/* Crea/Gestisci Ordine */}
+                        {!getOrderByBookingId(booking.id) ? (
+                          <DropdownMenuItem
+                            onClick={() => setSelectedBookingForOrder(booking)}
+                            data-testid={`menu-create-order-${booking.id}`}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Crea Ordine
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setFilterBookingId(booking.id);
+                              setActiveTab('orders');
+                            }}
+                            data-testid={`menu-manage-order-${booking.id}`}
+                          >
+                            <Receipt className="w-4 h-4 mr-2" />
+                            Gestisci Ordine
+                          </DropdownMenuItem>
+                        )}
 
-                    {/* Pulsante + Galleria (solo se non esiste già) */}
-                    {!getGalleryByBookingId(booking.id) ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedBookingForGallery(booking)}
-                        className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"
-                        data-testid={`button-create-gallery-${booking.id}`}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Galleria
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const gallery = getGalleryByBookingId(booking.id);
-                          if (gallery) {
-                            window.location.href = `/admin/gallery/${gallery.id}/manage`;
-                          }
-                        }}
-                        className="border-purple-500 text-purple-500 hover:bg-purple-500 hover:text-white"
-                        data-testid={`button-manage-gallery-${booking.id}`}
-                      >
-                        <ImageIcon className="w-4 h-4 mr-1" />
-                        Gestisci Galleria
-                      </Button>
-                    )}
+                        <DropdownMenuSeparator />
 
+                        {/* Crea/Gestisci Galleria */}
+                        {!getGalleryByBookingId(booking.id) ? (
+                          <DropdownMenuItem
+                            onClick={() => setSelectedBookingForGallery(booking)}
+                            data-testid={`menu-create-gallery-${booking.id}`}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Crea Galleria
+                          </DropdownMenuItem>
+                        ) : (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                const gallery = getGalleryByBookingId(booking.id);
+                                if (gallery) {
+                                  window.location.href = `/admin/gallery/${gallery.id}/manage`;
+                                }
+                              }}
+                              data-testid={`menu-manage-selections-${booking.id}`}
+                            >
+                              <ImageIcon className="w-4 h-4 mr-2" />
+                              Gestisci Selezioni
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                const gallery = getGalleryByBookingId(booking.id);
+                                if (gallery) {
+                                  setSelectedGalleryForEdit(gallery);
+                                }
+                              }}
+                              data-testid={`menu-edit-gallery-${booking.id}`}
+                            >
+                              <Edit className="w-4 h-4 mr-2" />
+                              Modifica Galleria
+                            </DropdownMenuItem>
+                          </>
+                        )}
+
+                        <DropdownMenuSeparator />
+
+                        {/* Elimina */}
+                        <DropdownMenuItem
+                          onClick={() => setDeleteConfirmId(booking.id)}
+                          className="text-red-600 focus:text-red-600"
+                          data-testid={`menu-delete-${booking.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Pulsante Approva - Solo se in_attesa */}
                     {booking.stato === 'in_attesa' && (
                       <Button
                         size="sm"
                         onClick={() => approveMutation.mutate(booking.id)}
                         disabled={approveMutation.isPending}
-                        className="bg-sage hover:bg-dark-sage"
+                        className="bg-sage hover:bg-dark-sage w-full"
                         data-testid={`button-approve-${booking.id}`}
                       >
                         {approveMutation.isPending ? (
@@ -825,22 +901,81 @@ export default function BookingsManager() {
                         Approva
                       </Button>
                     )}
-
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setDeleteConfirmId(booking.id)}
-                      data-testid={`button-delete-${booking.id}`}
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Elimina
-                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          ))}
+          );
+          })}
         </div>
+      )}
+
+      {/* Controlli Paginazione */}
+      {!isLoading && bookings.length > 0 && totalPages > 1 && (
+        <Card className="mt-4">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Pagina <strong>{currentPage}</strong> di <strong>{totalPages}</strong>
+                <span className="ml-2 text-gray-500">
+                  ({paginatedBookings.length} di {bookings.length} prenotazioni)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  data-testid="button-prev-page"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Precedente
+                </Button>
+                
+                {/* Page numbers */}
+                <div className="flex gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={currentPage === pageNum ? "bg-sage hover:bg-dark-sage" : ""}
+                        data-testid={`button-page-${pageNum}`}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  data-testid="button-next-page"
+                >
+                  Successiva
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Dialog dettagli prenotazione */}
@@ -1282,6 +1417,23 @@ export default function BookingsManager() {
           refetch();
         }}
       />
+
+      {/* Edit Gallery Modal */}
+      {selectedGalleryForEdit && (
+        <EditGalleryModal
+          isOpen={true}
+          onClose={() => setSelectedGalleryForEdit(null)}
+          gallery={selectedGalleryForEdit}
+          onGalleryUpdated={() => {
+            queryClient.invalidateQueries({ queryKey: ['galleries'] });
+            setSelectedGalleryForEdit(null);
+            toast({
+              title: '✅ Galleria Aggiornata',
+              description: 'Le modifiche sono state salvate con successo.',
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
