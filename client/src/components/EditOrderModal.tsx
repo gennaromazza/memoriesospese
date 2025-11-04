@@ -80,8 +80,8 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
   
   // Mutation per update ordine
   const updateOrderMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest('PATCH', `/api/orders/${order!.id}`, data);
+    mutationFn: async ({ orderId, data }: { orderId: string; data: any }) => {
+      const response = await apiRequest('PATCH', `/api/orders/${orderId}`, data);
       return response.json();
     },
     onSuccess: () => {
@@ -207,6 +207,8 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
   
   // Salva modifiche ordine
   const handleSave = () => {
+    if (!order) return;
+    
     if (selectedProdotti.length === 0) {
       toast({
         title: '❌ Errore',
@@ -226,13 +228,16 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
     }
     
     updateOrderMutation.mutate({
-      prodotti: selectedProdotti,
-      nomeCliente,
-      emailCliente,
-      whatsappCliente: whatsappCliente || null,
-      note: note || null,
-      stato,
-      acconto,
+      orderId: order.id,
+      data: {
+        prodotti: selectedProdotti,
+        nomeCliente,
+        emailCliente,
+        whatsappCliente: whatsappCliente || null,
+        note: note || null,
+        stato,
+        acconto,
+      }
     });
   };
   
