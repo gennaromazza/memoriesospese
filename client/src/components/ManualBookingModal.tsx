@@ -171,7 +171,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       console.log('📝 Creazione prenotazione manuale:', bookingPayload);
 
       // Chiamata API
-      const response = await fetch('/api/bookings/create', {
+      const response = await fetch('/api/booking/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bookingPayload),
