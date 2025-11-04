@@ -3022,7 +3022,7 @@ router.post("/order-ready", async (req, res) => {
       studioInfo
     );
 
-    const subject = `Il tuo ordine è pronto! - ${prodottoNome}`;
+    const subject = `Il tuo ordine è pronto - ${prodottoNome}`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 

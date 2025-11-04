@@ -214,6 +214,21 @@ router.patch('/:id', async (req: Request, res: Response) => {
     await orderRef.update(finalUpdateData);
     console.log(`✅ Ordine ${id} aggiornato in Firestore`);
 
+    // 4.1 Se lo status dell'ordine cambia, aggiorna anche la galleria associata
+    if (updateData.status && currentOrder.galleryId) {
+      try {
+        const galleryRef = db.collection('galleries').doc(currentOrder.galleryId);
+        await galleryRef.update({
+          orderStatus: updateData.status,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log(`✅ Galleria ${currentOrder.galleryId} aggiornata con orderStatus: ${updateData.status}`);
+      } catch (galleryError: any) {
+        console.error(`⚠️ Errore aggiornamento galleria ${currentOrder.galleryId}:`, galleryError.message);
+        // Non blocca l'operazione, è solo un sync
+      }
+    }
+
     // 5. Fetch ordine aggiornato per email
     const updatedOrderDoc = await orderRef.get();
     const updatedOrder = { id: updatedOrderDoc.id, ...updatedOrderDoc.data() };

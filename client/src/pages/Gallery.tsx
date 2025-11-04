@@ -132,9 +132,6 @@ export default function Gallery() {
   // Stati per gestire la storia della coppia
   const [showStoryUpload, setShowStoryUpload] = useState(false);
 
-  // Stato per l'ordine associato (per verificare se status = "Pronto")
-  const [associatedOrder, setAssociatedOrder] = useState<any>(null);
-
   // 🔧 React Query: Carica galleria per code con fallback a ID
   const {
     data: galleryData,
@@ -322,41 +319,6 @@ export default function Gallery() {
         );
       }
     }
-  }, [galleryData, isSelectionMode]);
-
-  // 📦 Carica ordine associato per verificare lo status
-  useEffect(() => {
-    const fetchAssociatedOrder = async () => {
-      const bookingId = (galleryData as any)?.bookingId;
-      if (!bookingId || !isSelectionMode) {
-        setAssociatedOrder(null);
-        return;
-      }
-
-      try {
-        const { collection: firestoreCollection, query: firestoreQuery, where: firestoreWhere, getDocs: firestoreGetDocs } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-        
-        const ordersQuery = firestoreQuery(
-          firestoreCollection(db, 'orders'),
-          firestoreWhere('bookingId', '==', bookingId)
-        );
-        const ordersSnapshot = await firestoreGetDocs(ordersQuery);
-        
-        if (!ordersSnapshot.empty) {
-          const orderData = { id: ordersSnapshot.docs[0].id, ...ordersSnapshot.docs[0].data() } as any;
-          setAssociatedOrder(orderData);
-          console.log('📦 Ordine associato caricato:', orderData.id, 'Status:', orderData.status);
-        } else {
-          setAssociatedOrder(null);
-        }
-      } catch (error) {
-        console.error('❌ Errore caricamento ordine associato:', error);
-        setAssociatedOrder(null);
-      }
-    };
-
-    fetchAssociatedOrder();
   }, [galleryData, isSelectionMode]);
 
   // Check deadline enforcement
@@ -2402,7 +2364,7 @@ export default function Gallery() {
                       </Sheet>
 
                       {/* Selezione Completata Message - Mostrato PRIMA della griglia (nascosto se ordine Pronto) */}
-                      {isSelectionMode && selectionStatus === "completed" && associatedOrder?.status !== "Pronto" && (
+                      {isSelectionMode && selectionStatus === "completed" && galleryData?.orderStatus !== "Pronto" && (
                         <div className="mt-8 mb-6 text-center">
                           <div className="bg-gradient-to-br from-green-50 to-sage/10 border-2 border-green-300 rounded-lg p-8 shadow-xl max-w-3xl mx-auto">
                             <div className="mb-6">

@@ -57,6 +57,7 @@ export interface Gallery {
   selectionDeadline?: any;
   selectionDeadlineEnforced?: boolean;
   selectionNotes?: string; // Note cliente durante selezione foto
+  orderStatus?: string; // Status dell'ordine associato (sync da orders collection)
   
   // Multi-Product Photo Selection
   productRequirements?: Array<{
