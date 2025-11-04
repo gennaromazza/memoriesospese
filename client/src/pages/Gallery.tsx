@@ -2164,8 +2164,8 @@ export default function Gallery() {
                                         </div>
                                       )}
 
-                                      {/* Product Assignment Chips - solo se multi-prodotto */}
-                                      {galleryData.productRequirements && selectedPhotoIds.includes(photo.id) && (
+                                      {/* Product Assignment Chips - SEMPRE VISIBILI quando multi-prodotto attivo */}
+                                      {galleryData.productRequirements && (
                                         <div className="absolute bottom-0 left-0 right-0 flex flex-wrap gap-1 bg-white/95 p-2 rounded-b-lg border-t border-sage/20">
                                           {galleryData.productRequirements.map((prod, idx) => {
                                             // Use string index as unique identifier (aligns with Firestore schema)
