@@ -3,10 +3,30 @@
  */
 
 import { Router, Request, Response } from 'express';
-import admin from 'firebase-admin';
 import { sendGmailEmail } from './email-routes.js';
 
 const router = Router();
+
+/**
+ * Helper: Inizializza Firebase Admin SDK se necessario
+ */
+async function getFirebaseAdmin() {
+  const admin = await import('firebase-admin');
+  
+  if (!admin.apps.length) {
+    const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+    if (!serviceAccountBase64) {
+      throw new Error('FIREBASE_ADMIN_CREDENTIALS non configurato');
+    }
+    const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+    const serviceAccount = JSON.parse(serviceAccountJson);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+  }
+  
+  return admin;
+}
 
 /**
  * Helper: Crea HTML email per notifica aggiornamento ordine
@@ -225,6 +245,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     console.log(`📝 Update ordine ${id}:`, updateData);
 
+    // Inizializza Firebase Admin
+    const admin = await getFirebaseAdmin();
     const db = admin.firestore();
 
     // 1. Fetch ordine corrente
