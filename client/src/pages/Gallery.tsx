@@ -938,6 +938,30 @@ export default function Gallery() {
     selectedPhotoIds,
   ]);
 
+  // 📊 Multi-Product Progress Calculation
+  const calculateProductProgress = useMemo(() => {
+    if (!galleryData?.productRequirements || !photoAssignments) {
+      return null;
+    }
+    
+    return galleryData.productRequirements.map((prod, idx) => {
+      // Conta quante foto hanno questo prodotto assegnato
+      const assignedCount = Object.values(photoAssignments).filter(
+        assignments => assignments.includes(String(idx))
+      ).length;
+      
+      return {
+        prodottoNome: prod.prodottoNome,
+        assignedCount,
+        requiredCount: prod.prodottoNumeroFoto,
+        isComplete: assignedCount >= prod.prodottoNumeroFoto,
+        percentage: prod.prodottoNumeroFoto > 0 
+          ? Math.round((assignedCount / prod.prodottoNumeroFoto) * 100) 
+          : 100
+      };
+    });
+  }, [galleryData?.productRequirements, photoAssignments]);
+
   // 🎨 UX Enhancement #6: Messaggi smart basati sul progresso
   const smartMessage = useMemo(() => {
     if (!isSelectionMode || selectionStatus === "completed") return null;
@@ -1721,21 +1745,97 @@ export default function Gallery() {
                             </ol>
                           </div>
 
+                          {/* 📊 Multi-Product Progress Cards */}
+                          {calculateProductProgress && (
+                            <div className="mb-6 bg-white/80 rounded-lg p-4 border-2 border-sage/30">
+                              <h4 className="font-semibold text-sage mb-3 text-center">📊 Progresso per Prodotto</h4>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                                {calculateProductProgress.map((progress, idx) => (
+                                  <div 
+                                    key={idx}
+                                    className={`p-3 rounded-lg border-2 transition-all ${
+                                      progress.isComplete 
+                                        ? 'bg-green-50 border-green-300' 
+                                        : progress.assignedCount > 0
+                                          ? 'bg-yellow-50 border-yellow-300'
+                                          : 'bg-gray-50 border-gray-300'
+                                    }`}
+                                    data-testid={`product-progress-${idx}`}
+                                  >
+                                    <div className="flex items-start justify-between mb-2">
+                                      <p className="text-xs font-semibold text-gray-700 line-clamp-2">
+                                        {progress.prodottoNome}
+                                      </p>
+                                      {progress.isComplete && (
+                                        <span className="text-green-600">✓</span>
+                                      )}
+                                    </div>
+                                    <p className="text-lg font-bold text-gray-900 mb-1">
+                                      {progress.assignedCount}/{progress.requiredCount}
+                                    </p>
+                                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                      <div 
+                                        className={`h-full transition-all ${
+                                          progress.isComplete 
+                                            ? 'bg-green-500' 
+                                            : progress.assignedCount > 0 
+                                              ? 'bg-yellow-500' 
+                                              : 'bg-gray-400'
+                                        }`}
+                                        style={{ width: `${progress.percentage}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {/* 🎨 UX Enhancement #4: Progress Bar */}
                           <div className="mb-4">
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-sm font-medium text-gray-700">
-                                Progresso
+                                Progresso {calculateProductProgress ? "Totale" : ""}
                               </span>
                               <span className="text-sm font-bold text-sage">
-                                {selectedPhotoIds.length}/{requiredPhotoCount}
+                                {calculateProductProgress ? (
+                                  (() => {
+                                    const totalAssigned = calculateProductProgress.reduce(
+                                      (sum, p) => sum + p.assignedCount,
+                                      0
+                                    );
+                                    const totalRequired = calculateProductProgress.reduce(
+                                      (sum, p) => sum + p.requiredCount,
+                                      0
+                                    );
+                                    return `${totalAssigned}/${totalRequired}`;
+                                  })()
+                                ) : (
+                                  `${selectedPhotoIds.length}/${requiredPhotoCount}`
+                                )}
                               </span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                               <div
                                 className="h-full bg-gradient-to-r from-sage to-green-500 transition-all duration-500 ease-out rounded-full"
                                 style={{
-                                  width: `${Math.min((selectedPhotoIds.length / requiredPhotoCount) * 100, 100)}%`,
+                                  width: calculateProductProgress
+                                    ? `${Math.min(
+                                        (calculateProductProgress.reduce(
+                                          (sum, p) => sum + p.assignedCount,
+                                          0
+                                        ) /
+                                          Math.max(
+                                            calculateProductProgress.reduce(
+                                              (sum, p) => sum + p.requiredCount,
+                                              0
+                                            ),
+                                            1
+                                          )) *
+                                          100,
+                                        100
+                                      )}%`
+                                    : `${Math.min((selectedPhotoIds.length / requiredPhotoCount) * 100, 100)}%`,
                                 }}
                               />
                             </div>
