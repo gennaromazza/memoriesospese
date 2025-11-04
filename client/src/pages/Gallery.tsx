@@ -630,10 +630,10 @@ export default function Gallery() {
 
   // Confirm selection
   const handleConfirmSelection = useCallback(async () => {
-    if (!id || !user) {
+    if (!id) {
       toast({
         title: "❌ Errore",
-        description: "Devi essere autenticato per confermare la selezione.",
+        description: "ID galleria non trovato.",
         variant: "destructive",
       });
       return;
@@ -733,46 +733,50 @@ export default function Gallery() {
 
       await GalleryService.updateGallery(galleryData.id, updateData);
 
-      // Send email notification to admin (Task 17)
-      try {
-        // Get Firebase ID token for authentication
-        const token = await user.getIdToken();
+      // Send email notification to admin (Task 17) - solo se user autenticato
+      if (user) {
+        try {
+          // Get Firebase ID token for authentication
+          const token = await user.getIdToken();
 
-        // Build product assignments for email if multi-product mode
-        const productAssignments = galleryData.productRequirements?.map((prod, idx) => {
-          const assignedCount = Object.values(photoAssignments).filter(
-            assignments => assignments.includes(String(idx))
-          ).length;
-          
-          return {
-            prodottoNome: prod.prodottoNome,
-            assignedCount,
-            requiredCount: prod.prodottoNumeroFoto
-          };
-        });
+          // Build product assignments for email if multi-product mode
+          const productAssignments = galleryData.productRequirements?.map((prod, idx) => {
+            const assignedCount = Object.values(photoAssignments).filter(
+              assignments => assignments.includes(String(idx))
+            ).length;
+            
+            return {
+              prodottoNome: prod.prodottoNome,
+              assignedCount,
+              requiredCount: prod.prodottoNumeroFoto
+            };
+          });
 
-        await fetch("/api/email/selection-completed", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            galleryId: id,
-            galleryName: galleryData?.name || "Galleria",
-            clienteName: user.displayName || user.email || "Cliente",
-            photoCount: selectedPhotoIds.length,
-            workspaceUrl: `${window.location.origin}/admin/gallery/${id}/manage`,
-            productAssignments // NEW: multi-product support
-          }),
-        });
-      } catch (emailError) {
-        console.error("⚠️ Errore invio email admin:", emailError);
+          await fetch("/api/email/selection-completed", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              galleryId: id,
+              galleryName: galleryData?.name || "Galleria",
+              clienteName: user.displayName || user.email || "Cliente",
+              photoCount: selectedPhotoIds.length,
+              workspaceUrl: `${window.location.origin}/admin/gallery/${id}/manage`,
+              productAssignments // NEW: multi-product support
+            }),
+          });
+        } catch (emailError) {
+          console.error("⚠️ Errore invio email admin:", emailError);
+        }
       }
 
       toast({
         title: "✅ Selezione confermata!",
-        description: `Le tue ${requiredPhotoCount} foto sono state confermate. Riceverai presto il tuo album!`,
+        description: galleryData.productRequirements 
+          ? "Le tue foto sono state assegnate ai prodotti. Riceverai presto il tuo album!"
+          : `Le tue ${requiredPhotoCount} foto sono state confermate. Riceverai presto il tuo album!`,
       });
 
       // Refresh gallery data
