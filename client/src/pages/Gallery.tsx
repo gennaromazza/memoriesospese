@@ -253,6 +253,8 @@ export default function Gallery() {
   // 🎨 UX Enhancement States
   const [showOnlySelected, setShowOnlySelected] = useState(false); // Filtro solo foto selezionate
   const [showSidebar, setShowSidebar] = useState(false); // Sidebar miniature
+  const [showProductSummary, setShowProductSummary] = useState(false); // Sheet riepilogo prodotti
+  const [filterByProduct, setFilterByProduct] = useState<number | null>(null); // Filtro per prodotto specifico
 
   // Ref per scrollare alla griglia
   const galleryGridRef = useRef<HTMLDivElement>(null);
@@ -1003,7 +1005,14 @@ export default function Gallery() {
 
   // 🎨 UX Enhancement #1: Filtra per mostrare solo foto selezionate (se attivo)
   const displayPhotos = useMemo(() => {
-    const basePhotos = areFiltersActive ? filteredPhotos : photos;
+    let basePhotos = areFiltersActive ? filteredPhotos : photos;
+
+    // Filtro per prodotto specifico (Task 8)
+    if (filterByProduct !== null && photoAssignments) {
+      basePhotos = basePhotos.filter((photo) => 
+        photoAssignments[photo.id]?.includes(String(filterByProduct))
+      );
+    }
 
     // Se il filtro "solo selezionate" è attivo, mostra solo quelle
     if (showOnlySelected && isSelectionMode && selectedPhotoIds.length > 0) {
@@ -1018,6 +1027,8 @@ export default function Gallery() {
     showOnlySelected,
     isSelectionMode,
     selectedPhotoIds,
+    filterByProduct,
+    photoAssignments,
   ]);
 
   // 📊 Multi-Product Progress Calculation
@@ -2101,11 +2112,20 @@ export default function Gallery() {
                        galleryData.productRequirements.length > 0 && (
                         <div className="sticky top-16 z-30 bg-gradient-to-r from-sage/10 to-blue-gray/10 backdrop-blur-md border-b-2 border-sage/30 shadow-lg mb-6 rounded-lg overflow-hidden">
                           <div className="px-4 py-3">
-                            <div className="flex items-center gap-2 mb-3">
+                            <div className="flex items-center justify-between gap-2 mb-3">
                               <span className="text-sm font-bold text-sage">📊 Progresso Selezione</span>
+                              <Button
+                                onClick={() => setShowProductSummary(true)}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs bg-white/90 hover:bg-white"
+                                data-testid="button-open-product-summary"
+                              >
+                                📋 Riepilogo
+                              </Button>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {calculateProductProgress.map((prog, idx) => {
+                              {calculateProductProgress?.map((prog, idx) => {
                                 // Colori distintivi prodotto (stesso array dei chip)
                                 const productColors = [
                                   { bg: 'bg-blue-500', ring: 'ring-blue-200' },
@@ -2124,7 +2144,7 @@ export default function Gallery() {
                                         {prog.prodottoNome}
                                       </span>
                                       <span className={`text-xs font-bold ${prog.percentage === 100 ? 'text-green-600' : 'text-gray-600'}`}>
-                                        {prog.count}/{prog.required}
+                                        {prog.assignedCount}/{prog.requiredCount}
                                       </span>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -2139,6 +2159,115 @@ export default function Gallery() {
                             </div>
                           </div>
                         </div>
+                      )}
+
+                      {/* Sheet Riepilogo Prodotti */}
+                      {isSelectionMode && 
+                       selectionStatus !== "completed" && 
+                       galleryData.productRequirements && 
+                       galleryData.productRequirements.length > 0 && (
+                        <Sheet open={showProductSummary} onOpenChange={setShowProductSummary}>
+                          <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+                            <SheetHeader>
+                              <SheetTitle className="text-xl font-playfair text-blue-gray">
+                                📋 Riepilogo Prodotti
+                              </SheetTitle>
+                              <SheetDescription>
+                                Visualizza il progresso per ogni prodotto e filtra le foto
+                              </SheetDescription>
+                            </SheetHeader>
+                            
+                            <div className="mt-6 space-y-4">
+                              {calculateProductProgress?.map((prog, idx) => {
+                                const productColors = [
+                                  { bg: 'bg-blue-500', text: 'text-blue-500', border: 'border-blue-500' },
+                                  { bg: 'bg-green-500', text: 'text-green-500', border: 'border-green-500' },
+                                  { bg: 'bg-purple-500', text: 'text-purple-500', border: 'border-purple-500' },
+                                  { bg: 'bg-orange-500', text: 'text-orange-500', border: 'border-orange-500' },
+                                  { bg: 'bg-pink-500', text: 'text-pink-500', border: 'border-pink-500' },
+                                  { bg: 'bg-teal-500', text: 'text-teal-500', border: 'border-teal-500' },
+                                ];
+                                const color = productColors[idx % productColors.length];
+                                const isFiltered = filterByProduct === idx;
+                                
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    className={`bg-white rounded-lg border-2 ${isFiltered ? color.border + ' shadow-lg' : 'border-gray-200'} p-4 transition-all`}
+                                  >
+                                    <div className="flex items-start justify-between mb-3">
+                                      <div className="flex-1">
+                                        <h4 className="font-semibold text-gray-800 mb-1">
+                                          {prog.prodottoNome}
+                                        </h4>
+                                        <div className="flex items-center gap-2">
+                                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${color.bg} text-white`}>
+                                            {prog.assignedCount}/{prog.requiredCount}
+                                          </span>
+                                          {prog.isComplete && (
+                                            <span className="text-green-600 text-sm">✓ Completo</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                                      <div 
+                                        className={`h-full ${color.bg} rounded-full transition-all duration-300`}
+                                        style={{ width: `${Math.min(prog.percentage, 100)}%` }}
+                                      />
+                                    </div>
+                                    
+                                    <Button
+                                      onClick={() => {
+                                        if (isFiltered) {
+                                          setFilterByProduct(null);
+                                          toast({
+                                            title: "🔄 Filtro rimosso",
+                                            description: "Mostro tutte le foto",
+                                            duration: 2000,
+                                          });
+                                        } else {
+                                          setFilterByProduct(idx);
+                                          setShowProductSummary(false);
+                                          toast({
+                                            title: `🔍 Filtrando per ${prog.prodottoNome}`,
+                                            description: `Mostro solo le ${prog.assignedCount} foto assegnate`,
+                                            duration: 2000,
+                                          });
+                                        }
+                                      }}
+                                      variant={isFiltered ? "default" : "outline"}
+                                      size="sm"
+                                      className={`w-full ${isFiltered ? color.bg + ' hover:opacity-90' : ''}`}
+                                      data-testid={`button-filter-product-${idx}`}
+                                    >
+                                      {isFiltered ? '✓ Filtrando' : '🔍 Filtra'}
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                              
+                              {filterByProduct !== null && (
+                                <Button
+                                  onClick={() => {
+                                    setFilterByProduct(null);
+                                    toast({
+                                      title: "🔄 Filtro rimosso",
+                                      description: "Mostro tutte le foto",
+                                      duration: 2000,
+                                    });
+                                  }}
+                                  variant="outline"
+                                  className="w-full mt-4"
+                                  data-testid="button-clear-filter"
+                                >
+                                  ✕ Rimuovi Filtro
+                                </Button>
+                              )}
+                            </div>
+                          </SheetContent>
+                        </Sheet>
                       )}
 
                       <div ref={galleryGridRef} className="masonry-grid">
@@ -2423,14 +2552,15 @@ export default function Gallery() {
                                 <TooltipContent>
                                   {galleryData?.productRequirements ? (
                                     <div className="text-sm">
-                                      {galleryData.productRequirements.map((prod: { prodottoNumeroFoto: string | number | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined; prodottoNome: string | number | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | null | undefined; }, idx: React.Key | null | undefined) => {
+                                      {galleryData.productRequirements.map((prod, idx) => {
                                         const assignedCount = Object.values(photoAssignments).filter(
                                           assignments => assignments.includes(String(idx))
                                         ).length;
-                                        const isComplete = assignedCount >= prod.prodottoNumeroFoto;
+                                        const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+                                        const isComplete = assignedCount >= requiredCount;
                                         return (
                                           <div key={idx} className={isComplete ? 'text-green-600' : 'text-red-600'}>
-                                            {isComplete ? '✓' : '✗'} {prod.prodottoNome}: {assignedCount}/{prod.prodottoNumeroFoto}
+                                            {isComplete ? '✓' : '✗'} {prod.prodottoNome}: {assignedCount}/{requiredCount}
                                           </div>
                                         );
                                       })}
