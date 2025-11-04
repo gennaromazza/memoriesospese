@@ -2376,30 +2376,9 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
       </html>
     `;
 
-    // Invia email via Gmail API
-    const gmail = google.gmail({ version: "v1", auth: await getOAuth2Client() });
-
-    const rawMessage = [
-      `To: ${clientEmail}`,
-      `Subject: ${theme.emoji} Accesso alla Galleria Speciale ${theme.name} - ${galleryName}`,
-      "MIME-Version: 1.0",
-      "Content-Type: text/html; charset=utf-8",
-      "",
-      htmlContent
-    ].join("\n");
-
-    const encodedMessage = Buffer.from(rawMessage)
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
-    await gmail.users.messages.send({
-      userId: "me",
-      requestBody: {
-        raw: encodedMessage
-      }
-    });
+    // Invia email tramite funzione sendGmailEmail già disponibile
+    const subject = `${theme.emoji} Accesso alla Galleria Speciale ${theme.name} - ${galleryName}`;
+    await sendGmailEmail(clientEmail, subject, htmlContent);
 
     console.log(`✅ Email PIN inviata con successo a: ${clientEmail}`);
 
