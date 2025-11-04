@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { getActiveProducts } from '@/lib/products';
+import { getAvailableSlots } from '@/lib/bookings';
 import type { BookingCampaign, Product } from '@shared/booking-types';
 import {
   Dialog,
@@ -29,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Calendar, Clock, User } from 'lucide-react';
-import { format, addMinutes, parseISO, setHours, setMinutes } from 'date-fns';
+import { format, addMinutes, parseISO, setHours, setMinutes, startOfDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 
 interface ManualBookingModalProps {
@@ -49,7 +50,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   const [email, setEmail] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [dataShootingDate, setDataShootingDate] = useState<string>('');
-  const [dataShootingTime, setDataShootingTime] = useState<string>('09:00');
+  const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
   const [prodottoId, setProdottoId] = useState<string>('');
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,6 +75,27 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     ? products.filter(p => selectedCampaign.prodottiDisponibili.includes(p.id))
     : [];
 
+  // Query slot disponibili per data selezionata
+  const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
+    queryKey: ['manual-booking-slots', dataShootingDate, campaignId],
+    queryFn: async () => {
+      if (!dataShootingDate || !selectedCampaign) return [];
+      
+      return await getAvailableSlots(
+        dataShootingDate,
+        {
+          apertura: selectedCampaign.orarioApertura,
+          pausaInizio: selectedCampaign.orarioPausaInizio,
+          pausaFine: selectedCampaign.orarioPausaFine,
+          chiusura: selectedCampaign.orarioChiusura,
+        },
+        selectedCampaign.durataShootingMinuti,
+        selectedCampaign.excludedDays
+      );
+    },
+    enabled: !!dataShootingDate && !!selectedCampaign,
+  });
+
   // Reset form quando modal si apre
   useEffect(() => {
     if (isOpen) {
@@ -83,11 +105,22 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       setEmail('');
       setWhatsapp('');
       setDataShootingDate('');
-      setDataShootingTime('09:00');
+      setSelectedSlot(null);
       setProdottoId('');
       setNote('');
     }
   }, [isOpen]);
+
+  // Reset slot quando cambia data
+  useEffect(() => {
+    setSelectedSlot(null);
+  }, [dataShootingDate]);
+
+  // Reset slot e data quando cambia campagna (previene slot stale)
+  useEffect(() => {
+    setSelectedSlot(null);
+    setDataShootingDate('');
+  }, [campaignId]);
 
   // Auto-seleziona prima campagna attiva
   useEffect(() => {
@@ -120,10 +153,10 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       return;
     }
 
-    if (!dataShootingDate || !dataShootingTime) {
+    if (!dataShootingDate || !selectedSlot) {
       toast({
         title: 'Data e ora mancanti',
-        description: 'Seleziona data e ora dello shooting',
+        description: 'Seleziona data e orario dello shooting',
         variant: 'destructive',
       });
       return;
@@ -132,12 +165,9 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     try {
       setIsSubmitting(true);
 
-      // Costruisci dataShootingInizio
-      const [hours, minutes] = dataShootingTime.split(':').map(Number);
-      const dataInizioDate = setMinutes(setHours(parseISO(dataShootingDate), hours), minutes);
-      
-      // Calcola dataShootingFine basandosi su durataShootingMinuti
-      const dataFineDate = addMinutes(dataInizioDate, selectedCampaign.durataShootingMinuti);
+      // Usa lo slot selezionato dal sistema
+      const dataInizioDate = new Date(selectedSlot.start);
+      const dataFineDate = new Date(selectedSlot.end);
 
       // Trova prodotto selezionato (ignora "none")
       const actualProdottoId = prodottoId === 'none' ? undefined : prodottoId;
@@ -289,51 +319,78 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
             />
           </div>
 
-          {/* Data e Ora Shooting */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="date">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                Data Shooting *
-              </Label>
-              <Input
-                id="date"
-                data-testid="input-date"
-                type="date"
-                value={dataShootingDate}
-                onChange={(e) => setDataShootingDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="time">
-                <Clock className="w-4 h-4 inline mr-1" />
-                Ora Inizio *
-              </Label>
-              <Input
-                id="time"
-                data-testid="input-time"
-                type="time"
-                value={dataShootingTime}
-                onChange={(e) => setDataShootingTime(e.target.value)}
-                required
-              />
-            </div>
+          {/* Data Shooting */}
+          <div className="space-y-2">
+            <Label htmlFor="date">
+              <Calendar className="w-4 h-4 inline mr-1" />
+              Data Shooting *
+            </Label>
+            <Input
+              id="date"
+              data-testid="input-date"
+              type="date"
+              value={dataShootingDate}
+              onChange={(e) => setDataShootingDate(e.target.value)}
+              min={format(new Date(), 'yyyy-MM-dd')}
+              required
+            />
           </div>
 
-          {/* Durata calcolata */}
-          {selectedCampaign && dataShootingDate && dataShootingTime && (
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-800">
+          {/* Slot Disponibili (da Google Calendar) */}
+          {dataShootingDate && (
+            <div className="space-y-2">
+              <Label htmlFor="slot">
+                <Clock className="w-4 h-4 inline mr-1" />
+                Orario *
+              </Label>
+              
+              {loadingSlots ? (
+                <div className="flex items-center justify-center py-4 border rounded-md bg-muted/50">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
+                  <span className="text-sm text-muted-foreground">Caricamento slot disponibili...</span>
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="py-4 text-center border rounded-md bg-amber-50 border-amber-200">
+                  <Clock className="h-8 w-8 mx-auto mb-2 text-amber-500" />
+                  <p className="text-sm text-amber-800 font-medium">Nessuno slot disponibile</p>
+                  <p className="text-xs text-amber-600 mt-1">Seleziona un'altra data</p>
+                </div>
+              ) : (
+                <>
+                  <Select 
+                    value={selectedSlot ? `${selectedSlot.startTime}-${selectedSlot.endTime}` : ''} 
+                    onValueChange={(value) => {
+                      const slot = availableSlots.find(s => `${s.startTime}-${s.endTime}` === value);
+                      setSelectedSlot(slot || null);
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-slot">
+                      <SelectValue placeholder="Seleziona orario disponibile" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSlots.map((slot, index) => (
+                        <SelectItem key={index} value={`${slot.startTime}-${slot.endTime}`}>
+                          {slot.startTime} - {slot.endTime}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ✅ {availableSlots.length} slot liberi su Google Calendar
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Info Durata */}
+          {selectedSlot && selectedCampaign && (
+            <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+              <p className="text-sm text-green-800">
+                ✅ Slot confermato: <strong>{selectedSlot.startTime} - {selectedSlot.endTime}</strong>
+                <br />
                 ⏱️ Durata: {selectedCampaign.durataShootingMinuti} minuti
-                {' - '}
-                Fine prevista: {format(
-                  addMinutes(
-                    setMinutes(setHours(parseISO(dataShootingDate), parseInt(dataShootingTime.split(':')[0])), parseInt(dataShootingTime.split(':')[1])),
-                    selectedCampaign.durataShootingMinuti
-                  ),
-                  'HH:mm'
-                )}
               </p>
             </div>
           )}

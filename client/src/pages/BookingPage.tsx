@@ -136,7 +136,7 @@ export default function BookingPage() {
     campaign?.prodottiDisponibili.includes(p.id)
   );
 
-  // Genera date disponibili (da oggi fino a dataFine campagna)
+  // Genera date disponibili (solo da oggi in poi fino a dataFine campagna)
   const availableDates: Date[] = [];
   if (campaign) {
     const today = startOfDay(new Date());
@@ -146,7 +146,10 @@ export default function BookingPage() {
       : today;
 
     while (currentDate <= endDate) {
-      availableDates.push(new Date(currentDate));
+      // Doppia verifica: aggiungi solo se >= oggi (previene bug timezone)
+      if (currentDate >= today) {
+        availableDates.push(new Date(currentDate));
+      }
       currentDate = addDays(currentDate, 1);
     }
   }
