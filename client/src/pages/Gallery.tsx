@@ -482,9 +482,10 @@ export default function Gallery() {
         return;
       }
 
-      // Get product name for feedback
+      // Get product name and limit for validation
       const prodIndex = parseInt(productIndex);
       const productName = galleryData?.productRequirements?.[prodIndex]?.prodottoNome || 'Prodotto';
+      const productLimit = galleryData?.productRequirements?.[prodIndex]?.prodottoNumeroFoto || 0;
 
       setPhotoAssignments((prev) => {
         const currentAssignments = prev[photoId] || [];
@@ -502,13 +503,27 @@ export default function Gallery() {
             duration: 2000,
           });
         } else {
+          // VALIDATION: Check if product limit is reached before adding
+          const currentProductCount = Object.values(prev).filter(
+            assignments => assignments.includes(productIndex)
+          ).length;
+
+          if (currentProductCount >= productLimit) {
+            toast({
+              title: `⚠️ Limite raggiunto`,
+              description: `${productName} può avere massimo ${productLimit} foto. Ne hai già ${currentProductCount} assegnate.`,
+              variant: 'destructive',
+            });
+            return prev; // Don't add, return unchanged state
+          }
+
           // Add product to this photo
           newAssignments = [...currentAssignments, productIndex];
           
           // Toast feedback for assignment
           toast({
             title: `✨ Foto aggiunta`,
-            description: `Assegnata a ${productName}`,
+            description: `Assegnata a ${productName} (${currentProductCount + 1}/${productLimit})`,
             duration: 2000,
           });
         }
@@ -632,9 +647,26 @@ export default function Gallery() {
           prodottoNome: prod.prodottoNome,
           assignedCount,
           requiredCount: prod.prodottoNumeroFoto,
-          isMissing: assignedCount < prod.prodottoNumeroFoto
+          isMissing: assignedCount < prod.prodottoNumeroFoto,
+          isExceeded: assignedCount > prod.prodottoNumeroFoto
         };
       });
+      
+      // Trova prodotti con troppe foto
+      const exceededProducts = productProgress.filter(p => p.isExceeded);
+      
+      if (exceededProducts.length > 0) {
+        const errorMessage = exceededProducts.map(p => 
+          `• ${p.prodottoNome}: ${p.assignedCount}/${p.requiredCount} foto (${p.assignedCount - p.requiredCount} in eccesso)`
+        ).join('\n');
+        
+        toast({
+          title: "⚠️ Troppe foto assegnate",
+          description: `Alcuni prodotti hanno più foto del necessario:\n\n${errorMessage}\n\nRimuovi le foto in eccesso prima di confermare.`,
+          variant: "destructive",
+        });
+        return;
+      }
       
       // Trova prodotti mancanti
       const missingProducts = productProgress.filter(p => p.isMissing);

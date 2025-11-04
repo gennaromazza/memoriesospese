@@ -131,8 +131,15 @@ export default function GalleryManagementWorkspace() {
     ? allPhotos.filter(photo => gallery.photoAssignments && gallery.photoAssignments[photo.id])
     : allPhotos.filter(photo => gallery?.selectedPhotoIds?.includes(photo.id));
 
-  // Generate filename list for Lightroom
-  const filenameList = selectedPhotos.map(p => p.name).join('\n');
+  // Helper to remove timestamp prefix from filename for Lightroom export
+  // Transforms: "1762272139996-DSCF4065.jpg" → "DSCF4065.jpg"
+  const cleanFilenameForExport = (filename: string): string => {
+    const match = filename.match(/^\d+-(.+)$/);
+    return match ? match[1] : filename;
+  };
+
+  // Generate filename list for Lightroom (clean names without timestamp)
+  const filenameList = selectedPhotos.map(p => cleanFilenameForExport(p.name)).join('\n');
 
   // Check deadline status (Task 20)
   const deadlineDate = gallery?.selectionDeadline ? convertFirestoreTimestamp(gallery.selectionDeadline) : null;
@@ -523,7 +530,7 @@ export default function GalleryManagementWorkspace() {
                               return assignments.includes(String(productIndex));
                             });
                             
-                            const productFilenameList = productPhotos.map(p => p.name).join('\n');
+                            const productFilenameList = productPhotos.map(p => cleanFilenameForExport(p.name)).join('\n');
                             
                             // Product colors (same as Gallery.tsx)
                             const productColors = [
