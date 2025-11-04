@@ -276,6 +276,8 @@ export default function Gallery() {
       console.log("✅ selectionEnabled:", galleryData.selectionEnabled);
       console.log("✅ isSelectionMode:", isSelectionMode);
       console.log("📊 requiredPhotoCount:", galleryData.requiredPhotoCount);
+      console.log("📦 productRequirements:", galleryData.productRequirements);
+      console.log("🎯 photoAssignments:", galleryData.photoAssignments);
       console.log("📋 selectionStatus:", galleryData.selectionStatus);
       console.log("⏰ selectionDeadline:", galleryData.selectionDeadline);
       console.log(
@@ -286,6 +288,17 @@ export default function Gallery() {
         "💚 selectedPhotoIds count:",
         galleryData.selectedPhotoIds?.length || 0,
       );
+      
+      // Multi-Product Debug
+      if (galleryData.productRequirements && galleryData.productRequirements.length > 0) {
+        const totalRequired = galleryData.productRequirements.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
+        console.log("🎨 MULTI-PRODUCT MODE ATTIVO");
+        console.log(`📊 Totale foto richieste: ${totalRequired} (da ${galleryData.productRequirements.length} prodotti)`);
+        galleryData.productRequirements.forEach((p, idx) => {
+          console.log(`  ${idx + 1}. ${p.prodottoNome}: ${p.prodottoNumeroFoto} foto`);
+        });
+      }
+      
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
       if (!galleryData.selectionEnabled) {

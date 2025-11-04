@@ -417,6 +417,8 @@ export class GalleryService {
         selectionDeadline: galleryData.selectionDeadline,
         selectionDeadlineEnforced: galleryData.selectionDeadlineEnforced !== false,
         selectionNotes: galleryData.selectionNotes,
+        productRequirements: galleryData.productRequirements,
+        photoAssignments: galleryData.photoAssignments,
         bookingId: galleryData.bookingId,
         password: galleryData.password
       } as Gallery;
