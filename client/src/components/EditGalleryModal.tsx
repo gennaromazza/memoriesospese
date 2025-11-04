@@ -20,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
 import { Progress } from "./ui/progress";
 import imageCompression from 'browser-image-compression';
 import { queryClient } from "../lib/queryClient";
+import { Info } from 'lucide-react';
 
 interface PhotoData {
   id: string;

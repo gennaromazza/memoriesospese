@@ -635,12 +635,25 @@ export default function Gallery() {
         throw new Error("Gallery ID non disponibile");
       }
 
-      await GalleryService.updateGallery(galleryData.id, {
-        photoAssignments: galleryData.productRequirements ? photoAssignments : undefined,
+      // Converti photoAssignments in formato JSON puro per Firestore
+      const photoAssignmentsData = galleryData.productRequirements 
+        ? Object.fromEntries(
+            Object.entries(photoAssignments).filter(([_, value]) => value && value.length > 0)
+          )
+        : null;
+
+      const updateData: any = {
         selectedPhotoIds, // Legacy fallback
         selectionStatus: "completed",
         selectionNotes: selectionNotes.trim(), // 📝 Salva sempre note cliente (anche se vuote per permettere cancellazione)
-      });
+      };
+
+      // Aggiungi photoAssignments solo se esiste e non è vuoto
+      if (photoAssignmentsData && Object.keys(photoAssignmentsData).length > 0) {
+        updateData.photoAssignments = photoAssignmentsData;
+      }
+
+      await GalleryService.updateGallery(galleryData.id, updateData);
 
       // Send email notification to admin (Task 17)
       try {
@@ -2274,6 +2287,7 @@ export default function Gallery() {
                                       isSubmittingSelection ||
                                       isDeadlinePassed ||
                                       (galleryData?.productRequirements 
+
                                         ? // Multi-product: check all products have required photos
                                           !galleryData.productRequirements.every((prod, idx) => {
                                             const assignedCount = Object.values(photoAssignments).filter(
