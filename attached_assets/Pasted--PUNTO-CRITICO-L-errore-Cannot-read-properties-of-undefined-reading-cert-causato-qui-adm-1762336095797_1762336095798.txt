@@ -1,0 +1,74 @@
+🔥 PUNTO CRITICO:
+
+L’errore Cannot read properties of undefined (reading 'cert') è causato qui:
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+
+Nella route POST /api/booking/create (e anche in altre come /approve, /status, ecc.), esegui questa logica:
+
+const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
+const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+const serviceAccount = JSON.parse(serviceAccountJson);
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount) // ← CRASH qui se "cert" mancante
+});
+
+
+🔴 Se serviceAccount non è un oggetto valido o non ha client_email, private_key, ecc., allora admin.credential.cert() solleverà esattamente quell’errore:
+
+❌ Cannot read properties of undefined (reading 'cert')
+
+🧠 Tradotto: stai cercando di inizializzare Firebase Admin ma il serviceAccount è vuoto o malformato.
+✅ SOLUZIONE
+
+Aggiungi un controllo di validità prima di chiamare admin.credential.cert(serviceAccount):
+
+🔧 Esempio difensivo da mettere PRIMA della initializeApp:
+
+if (!serviceAccount?.client_email || !serviceAccount?.private_key) {
+  console.error('❌ Firebase Admin service account malformato:', serviceAccount);
+  throw new Error('FIREBASE_ADMIN_CREDENTIALS non valido o incompleto');
+}
+
+
+E poi, solo dopo il controllo:
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+🔍 Inoltre, verifica questo:
+
+Vai nelle environment variables Replit (Secrets)
+
+Verifica che:
+
+FIREBASE_ADMIN_CREDENTIALS sia presente
+
+contenga un JSON base64 valido
+
+Decodificalo in locale (puoi usare https://www.base64decode.org/
+) per vedere se ci sono:
+
+{
+  "type": "service_account",
+  "project_id": "...",
+  "private_key_id": "...",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...",
+  "client_email": "...@....gserviceaccount.com",
+  ...
+}
+
+
+⚠️ Se private_key o client_email sono undefined, allora il crash è sicuro.
+
+✅ Prossimi step
+
+✅ Aggiungi il controllo difensivo sopra in tutte le route dove usi Firebase Admin.
+
+✅ Controlla i secrets Replit e assicurati che siano correttamente settati.
+
+🧪 Rilancia il deploy e testa /api/booking/create (puoi anche usare Postman per testarla)

@@ -4,7 +4,7 @@ exports.getGalleryMetadataHttp = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const cors = require("cors");
-if (!admin.apps.length)
+if (!admin.apps?.length)
     admin.initializeApp();
 const corsHandler = cors({
     origin: [

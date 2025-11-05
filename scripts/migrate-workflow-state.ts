@@ -16,7 +16,7 @@ import * as admin from 'firebase-admin';
 import { WorkflowState } from '../shared/booking-types';
 
 // Inizializza Firebase Admin (se non già inizializzato)
-if (!admin.apps.length) {
+if (!admin.apps?.length) {
   admin.initializeApp({
     credential: admin.credential.applicationDefault(),
   });

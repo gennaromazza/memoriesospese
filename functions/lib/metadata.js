@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getGalleryMetadata = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-if (!admin.apps.length)
+if (!admin.apps?.length)
     admin.initializeApp();
 // ✅ CORS Configuration - v1 Setup
 const allowedOrigins = new Set([

@@ -7,7 +7,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin if not already done
-if (!admin.apps.length) {
+if (!admin.apps?.length) {
   admin.initializeApp();
 }
 
@@ -29,7 +29,7 @@ export const sendNewPhotosNotificationCall = functions
   try {
     functions.logger.info('📧 sendNewPhotosNotificationCall invoked with data:', JSON.stringify(data));
 
-    const { galleryId, galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
+    const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
 
     // Validazioni dettagliate
     if (!galleryName) {

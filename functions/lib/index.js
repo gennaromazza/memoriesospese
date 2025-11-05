@@ -4,11 +4,11 @@
  * Gestisce invio email tramite Gmail API con Replit Integration
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendGalleryPasswordV2 = exports.sendNewPhotosNotificationPublic = exports.sendNewPhotosNotificationCall = exports.getGalleryMetadata = void 0;
+exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendBookingConfirmedEmail = exports.sendBookingReceivedEmail = exports.sendGalleryPasswordV2 = exports.sendNewPhotosNotificationPublic = exports.sendNewPhotosNotificationCall = exports.getGalleryMetadata = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 // Initialize Firebase Admin if not already done
-if (!admin.apps.length) {
+if (!admin.apps?.length) {
     admin.initializeApp();
 }
 // Re-export della funzione isolata (no heavy dependencies)
@@ -26,27 +26,54 @@ exports.sendNewPhotosNotificationCall = functions
     .runWith({ secrets: ['REPL_IDENTITY'] })
     .https.onCall(async (data, context) => {
     try {
+        functions.logger.info('📧 sendNewPhotosNotificationCall invoked with data:', JSON.stringify(data));
         const { galleryName, newPhotosCount, uploaderName, galleryUrl, recipients } = data;
-        if (!recipients || recipients.length === 0) {
-            throw new functions.https.HttpsError('invalid-argument', 'Recipients list is required');
+        // Validazioni dettagliate
+        if (!galleryName) {
+            throw new functions.https.HttpsError('invalid-argument', 'galleryName is required');
         }
+        if (!galleryUrl) {
+            throw new functions.https.HttpsError('invalid-argument', 'galleryUrl is required');
+        }
+        if (!recipients || !Array.isArray(recipients)) {
+            throw new functions.https.HttpsError('invalid-argument', 'recipients must be an array');
+        }
+        if (recipients.length === 0) {
+            functions.logger.warn('⚠️ No recipients provided, skipping email');
+            return { success: true, message: 'No recipients to notify', notified: 0 };
+        }
+        functions.logger.info(`📨 Preparing to send notification to ${recipients.length} recipient(s)`);
         const { sendGmailEmail, createNewPhotosEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
-        const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
-        const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
+        const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName || 'Un ospite', newPhotosCount || 1, galleryUrl);
+        const subject = `${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? 'e' : ''} foto in "${galleryName}"`;
+        functions.logger.info(`📧 Sending email with subject: "${subject}"`);
         await sendGmailEmail(recipients, subject, htmlContent);
-        functions.logger.info(`New photos notification sent to ${recipients.length} recipients via Gmail API`);
-        return { success: true, message: 'Notification sent successfully' };
+        functions.logger.info(`✅ New photos notification sent to ${recipients.length} recipients via Gmail API`);
+        return {
+            success: true,
+            message: 'Notification sent successfully',
+            notified: recipients.length
+        };
     }
     catch (error) {
-        functions.logger.error('Error sending new photos notification:', error);
-        throw new functions.https.HttpsError('internal', 'Failed to send notification email');
+        functions.logger.error('❌ Error sending new photos notification:', {
+            error: error?.message || error,
+            stack: error?.stack,
+            code: error?.code
+        });
+        // Ritorna errore più dettagliato
+        const errorMessage = error?.message || 'Failed to send notification email';
+        throw new functions.https.HttpsError('internal', errorMessage, {
+            originalError: error?.message,
+            code: error?.code
+        });
     }
 });
 /**
- * Function per invio notifiche nuove foto - HTTP PUBLIC (funzione principale)
- * CORS gestito manualmente, identico a sendGalleryPasswordV2
- * AUTENTICAZIONE richiesta via Firebase Bearer token
- * SECRETS: REPL_IDENTITY per accesso Gmail API
+ * ✅ VERSIONE PUBBLICA HTTP (CORS-enabled)
+ * Endpoint HTTP pubblico per notifiche email nuove foto
+ * Supporta CORS da qualsiasi origine (anche Replit)
+ * DEPLOYED: questo endpoint è attivo e accessibile via HTTPS
  */
 exports.sendNewPhotosNotificationPublic = functions
     .runWith({ secrets: ['REPL_IDENTITY'] })
@@ -243,6 +270,184 @@ exports.sendGalleryPasswordV2 = functions
     }
 });
 /**
+ * Cloud Function per invio email "Prenotazione Ricevuta"
+ * Inviata automaticamente dopo che il cliente crea una booking
+ */
+exports.sendBookingReceivedEmail = functions
+    .runWith({ secrets: ['REPL_IDENTITY'] })
+    .https.onRequest(async (req, res) => {
+    // CORS
+    const allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://gennaromazzacane.it',
+        'https://www.gennaromazzacane.it'
+    ];
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+        origin.includes('.replit.dev') ||
+        origin.includes('replit.app');
+    if (isAllowedOrigin) {
+        res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({
+            error: { code: 'method-not-allowed', message: 'Only POST allowed' }
+        });
+        return;
+    }
+    try {
+        // AUTENTICAZIONE Firebase (opzionale per booking - guest users)
+        const authHeader = req.headers.authorization || '';
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const idToken = authHeader.replace('Bearer ', '').trim();
+            try {
+                const decoded = await admin.auth().verifyIdToken(idToken);
+                functions.logger.info(`🔐 sendBookingReceivedEmail called by uid=${decoded.uid}`);
+            }
+            catch (authError) {
+                // Log ma non bloccare (guest booking)
+                functions.logger.warn('Auth token provided but invalid:', authError);
+            }
+        }
+        // LETTURA DATI DAL BODY
+        const data = req.body.data || req.body;
+        const { recipientEmail, clienteNome, clienteCognome, campaignNome, dataShootingInizio, dataShootingFine, prodottoNome, note } = data || {};
+        // VALIDAZIONI
+        if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !dataShootingInizio || !dataShootingFine) {
+            res.status(400).json({
+                error: { code: 'invalid-argument', message: 'Missing required booking details' }
+            });
+            return;
+        }
+        // INVIO EMAIL
+        const { sendGmailEmail, createBookingReceivedEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const htmlContent = createBookingReceivedEmailHTML({
+            clienteNome,
+            clienteCognome,
+            campaignNome,
+            dataShootingInizio,
+            dataShootingFine,
+            prodottoNome,
+            note: note || ''
+        });
+        const subject = `Prenotazione Ricevuta - ${campaignNome}`;
+        await sendGmailEmail(recipientEmail, subject, htmlContent);
+        functions.logger.info(`✉️ Email "Prenotazione Ricevuta" inviata a ${recipientEmail} per campagna ${campaignNome}`);
+        res.status(200).json({
+            result: {
+                success: true,
+                message: 'Booking received email sent successfully',
+                recipientEmail
+            }
+        });
+    }
+    catch (error) {
+        functions.logger.error('❌ Error sendBookingReceivedEmail:', error);
+        res.status(500).json({
+            error: { code: 'internal', message: 'Failed to send booking received email' }
+        });
+    }
+});
+/**
+ * Cloud Function per invio email "Prenotazione Confermata"
+ * Inviata dopo che l'admin approva la booking
+ */
+exports.sendBookingConfirmedEmail = functions
+    .runWith({ secrets: ['REPL_IDENTITY'] })
+    .https.onRequest(async (req, res) => {
+    // CORS
+    const allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://gennaromazzacane.it',
+        'https://www.gennaromazzacane.it'
+    ];
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+        origin.includes('.replit.dev') ||
+        origin.includes('replit.app');
+    if (isAllowedOrigin) {
+        res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({
+            error: { code: 'method-not-allowed', message: 'Only POST allowed' }
+        });
+        return;
+    }
+    try {
+        // AUTENTICAZIONE Firebase (opzionale - chiamata server-side da Express)
+        const authHeader = req.headers.authorization || '';
+        let uid = 'server';
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const idToken = authHeader.replace('Bearer ', '').trim();
+            try {
+                const decoded = await admin.auth().verifyIdToken(idToken);
+                uid = decoded.uid;
+                functions.logger.info(`🔐 sendBookingConfirmedEmail called by uid=${uid}`);
+            }
+            catch (authError) {
+                // Log ma non bloccare (chiamata server-side)
+                functions.logger.warn('Auth token provided but invalid:', authError);
+            }
+        }
+        // LETTURA DATI DAL BODY
+        const data = req.body.data || req.body;
+        const { recipientEmail, clienteNome, clienteCognome, campaignNome, dataShootingInizio, dataShootingFine, prodottoNome, note } = data || {};
+        // VALIDAZIONI
+        if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !dataShootingInizio || !dataShootingFine) {
+            res.status(400).json({
+                error: { code: 'invalid-argument', message: 'Missing required booking details' }
+            });
+            return;
+        }
+        // INVIO EMAIL
+        const { sendGmailEmail, createBookingConfirmedEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const htmlContent = createBookingConfirmedEmailHTML({
+            clienteNome,
+            clienteCognome,
+            campaignNome,
+            dataShootingInizio,
+            dataShootingFine,
+            prodottoNome,
+            note: note || ''
+        });
+        const subject = `✅ Prenotazione Confermata - ${campaignNome}`;
+        await sendGmailEmail(recipientEmail, subject, htmlContent);
+        functions.logger.info(`✉️ Email "Prenotazione Confermata" inviata a ${recipientEmail} per campagna ${campaignNome} da admin uid=${uid}`);
+        res.status(200).json({
+            result: {
+                success: true,
+                message: 'Booking confirmed email sent successfully',
+                recipientEmail
+            }
+        });
+    }
+    catch (error) {
+        functions.logger.error('❌ Error sendBookingConfirmedEmail:', error);
+        res.status(500).json({
+            error: { code: 'internal', message: 'Failed to send booking confirmed email' }
+        });
+    }
+});
+/**
  * Function per test configurazione email
  */
 exports.testEmailConfiguration = functions.https.onCall(async (data, context) => {
@@ -292,3 +497,4 @@ exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
 // import { exportGalleryAccessCSV } from './csv-export';
 // Export functions
 // export { exportGalleryAccessCSV };
+//# sourceMappingURL=index.js.map
