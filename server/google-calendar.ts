@@ -338,7 +338,47 @@ export async function getAvailableSlots(
   const dayStart = createEuropeRomeDate(dateStr, '00:00');
   const dayEnd = createEuropeRomeDate(dateStr, '23:59');
 
-  // Ottieni periodi occupati da Google Calendar
+  // CONTROLLO EVENTI ALL-DAY: Se esiste almeno un evento "tutto il giorno", blocca tutti gli slot
+  try {
+    console.log(`[Available Slots] Controllo eventi all-day per ${dateStr} su calendario ${calendarId}`);
+    
+    const events = await getEvents(calendarId, dayStart, dayEnd);
+    const allDayEvents = events.filter(event => {
+      // Eventi all-day hanno 'date' invece di 'dateTime'
+      const hasDateStart = event.start?.date && !event.start?.dateTime;
+      const hasDateEnd = event.end?.date && !event.end?.dateTime;
+      
+      if (hasDateStart || hasDateEnd) {
+        // Verifica che l'evento copra la data richiesta
+        const eventStartDate = event.start?.date || '';
+        const eventEndDate = event.end?.date || '';
+        
+        // Gli eventi all-day hanno end date = giorno dopo (es. evento 20/12 ha end = 21/12)
+        // Quindi controlliamo se dateStr è >= start E < end
+        return dateStr >= eventStartDate && dateStr < eventEndDate;
+      }
+      
+      return false;
+    });
+    
+    if (allDayEvents.length > 0) {
+      console.log(`[Available Slots] 🚫 Trovati ${allDayEvents.length} eventi all-day per ${dateStr}:`);
+      allDayEvents.forEach(event => {
+        console.log(`  - "${event.summary}" (${event.start?.date} → ${event.end?.date})`);
+      });
+      console.log(`[Available Slots] ❌ GIORNO BLOCCATO - Nessuno slot disponibile`);
+      
+      // Ritorna array vuoto = nessuno slot disponibile
+      return [];
+    }
+    
+    console.log(`[Available Slots] ✅ Nessun evento all-day trovato per ${dateStr}, procedo con calcolo slot normali`);
+  } catch (error) {
+    console.error('[Available Slots] ⚠️ Errore controllo eventi all-day, procedo comunque:', error);
+    // Se il controllo all-day fallisce, continua con la logica normale
+  }
+
+  // Ottieni periodi occupati da Google Calendar (eventi con orari specifici)
   const busyPeriods = await checkFreeBusy(calendarId, dayStart, dayEnd);
 
   // Converti orari lavorativi in Date usando Europe/Rome timezone
