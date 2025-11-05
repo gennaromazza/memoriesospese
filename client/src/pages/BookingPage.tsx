@@ -17,6 +17,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -24,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, Clock, Package, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Package, AlertCircle, CheckCircle2, Loader2, ZoomIn, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { format, addDays, isBefore, isAfter, startOfDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -46,6 +52,12 @@ export default function BookingPage() {
     note: '',
   });
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  
+  // Stati lightbox immagini
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxProductName, setLightboxProductName] = useState('');
 
   // Query campaign
   const { data: campaign, isLoading, error } = useQuery<BookingCampaign | null>({
@@ -163,6 +175,22 @@ export default function BookingPage() {
       currentDate = addDays(currentDate, 1);
     }
   }
+
+  // Funzioni lightbox
+  const openLightbox = (images: string[], productName: string, startIndex = 0) => {
+    setLightboxImages(images);
+    setLightboxProductName(productName);
+    setLightboxIndex(startIndex);
+    setLightboxOpen(true);
+  };
+
+  const nextImage = () => {
+    setLightboxIndex((prev) => (prev + 1) % lightboxImages.length);
+  };
+
+  const prevImage = () => {
+    setLightboxIndex((prev) => (prev - 1 + lightboxImages.length) % lightboxImages.length);
+  };
 
   // Validazione form
   const handleSubmit = (e: React.FormEvent) => {
@@ -575,23 +603,51 @@ export default function BookingPage() {
                             <CardContent className="p-0">
                               {/* Immagine prodotto */}
                               {product.immagini && product.immagini.length > 0 ? (
-                                <div className="relative w-full h-40 bg-muted overflow-hidden rounded-t-lg">
+                                <div className="relative w-full h-48 sm:h-52 bg-muted overflow-hidden rounded-t-lg group">
                                   <img 
                                     src={product.immagini[0]} 
                                     alt={product.nome}
                                     className="w-full h-full object-cover"
                                   />
+                                  
+                                  {/* Overlay zoom - appare solo su hover (desktop) o sempre (mobile) */}
+                                  <div 
+                                    className="absolute inset-0 bg-black/40 opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openLightbox(product.immagini!, product.nome);
+                                    }}
+                                  >
+                                    <div className="bg-white/90 dark:bg-gray-800/90 rounded-full p-3">
+                                      <ZoomIn className="h-6 w-6 text-gray-900 dark:text-white" />
+                                    </div>
+                                  </div>
+
+                                  {/* Icona zoom sempre visibile su mobile */}
+                                  <button
+                                    type="button"
+                                    className="absolute top-2 left-2 bg-white/90 dark:bg-gray-800/90 rounded-full p-2 sm:hidden shadow-lg active:scale-95 transition-transform"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openLightbox(product.immagini!, product.nome);
+                                    }}
+                                    aria-label="Vedi immagine grande"
+                                  >
+                                    <ZoomIn className="h-4 w-4 text-gray-900 dark:text-white" />
+                                  </button>
+                                  
+                                  {/* Badge selezione */}
                                   {formData.prodottoId === product.id && (
-                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1.5">
                                       <CheckCircle2 className="h-5 w-5" />
                                     </div>
                                   )}
                                 </div>
                               ) : (
-                                <div className="relative w-full h-40 bg-muted flex items-center justify-center rounded-t-lg">
+                                <div className="relative w-full h-48 sm:h-52 bg-muted flex items-center justify-center rounded-t-lg">
                                   <Package className="h-12 w-12 text-muted-foreground" />
                                   {formData.prodottoId === product.id && (
-                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1.5">
                                       <CheckCircle2 className="h-5 w-5" />
                                     </div>
                                   )}
@@ -599,34 +655,42 @@ export default function BookingPage() {
                               )}
 
                               {/* Info prodotto */}
-                              <div className="p-4">
-                                <h3 className="font-semibold mb-2 line-clamp-1">{product.nome}</h3>
+                              <div className="p-4 space-y-3">
+                                <h3 className="font-semibold text-base sm:text-lg line-clamp-1">{product.nome}</h3>
+                                
+                                {/* Descrizione prodotto */}
+                                {product.descrizione && (
+                                  <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                                    {product.descrizione}
+                                  </p>
+                                )}
                                 
                                 {/* Prezzi */}
-                                <div className="flex items-baseline gap-2">
+                                <div className="flex items-baseline gap-2 flex-wrap">
                                   {product.sconto > 0 ? (
                                     <>
-                                      <span className="text-lg font-bold text-primary">
+                                      <span className="text-xl sm:text-2xl font-bold text-primary">
                                         €{product.prezzoFinale.toFixed(2)}
                                       </span>
                                       <span className="text-sm text-muted-foreground line-through">
                                         €{product.prezzo.toFixed(2)}
                                       </span>
-                                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
                                         -{product.sconto}%
                                       </span>
                                     </>
                                   ) : (
-                                    <span className="text-lg font-bold text-primary">
+                                    <span className="text-xl sm:text-2xl font-bold text-primary">
                                       €{product.prezzoFinale.toFixed(2)}
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Info aggiuntive */}
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  {product.numeroFoto} foto incluse
-                                </p>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Package className="h-4 w-4" />
+                                  <span>{product.numeroFoto} foto incluse</span>
+                                </div>
                               </div>
                             </CardContent>
                           </Card>
