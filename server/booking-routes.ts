@@ -6,52 +6,10 @@
 
 import express from 'express';
 import { getAvailableSlots, type WorkingHours } from './google-calendar.js';
-import * as admin from 'firebase-admin';
+import { db, FieldValue } from './firebase-admin.js';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const router = express.Router();
-
-/**
- * Helper: Inizializza Firebase Admin SDK con validazione robusta
- * SICURO: Valida serviceAccount prima di usare admin.credential.cert()
- */
-function initializeFirebaseAdmin() {
-  if (!admin.apps?.length) {
-    const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
-    
-    if (!serviceAccountBase64) {
-      console.error('❌ FIREBASE_ADMIN_CREDENTIALS environment variable non configurato');
-      throw new Error('FIREBASE_ADMIN_CREDENTIALS non configurato');
-    }
-
-    try {
-      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
-      const serviceAccount = JSON.parse(serviceAccountJson);
-
-      // 🔒 VALIDAZIONE ROBUSTA: Verifica campi obbligatori PRIMA di usare .cert()
-      if (!serviceAccount?.client_email || !serviceAccount?.private_key || !serviceAccount?.project_id) {
-        console.error('❌ Firebase Admin service account malformato:', {
-          hasClientEmail: !!serviceAccount?.client_email,
-          hasPrivateKey: !!serviceAccount?.private_key,
-          hasProjectId: !!serviceAccount?.project_id
-        });
-        throw new Error('FIREBASE_ADMIN_CREDENTIALS non valido: mancano client_email, private_key o project_id');
-      }
-
-      console.log('✅ Inizializzazione Firebase Admin SDK per progetto:', serviceAccount.project_id);
-      
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      
-      console.log('✅ Firebase Admin SDK inizializzato correttamente');
-    } catch (error: any) {
-      console.error('❌ Errore inizializzazione Firebase Admin:', error.message);
-      throw new Error(`Errore inizializzazione Firebase Admin: ${error.message}`);
-    }
-  }
-  
-  return admin;
-}
 
 /**
  * POST /api/booking/available-slots
@@ -259,8 +217,6 @@ router.post('/create', async (req, res) => {
     }
 
     // SECURITY: Verifica che il giorno non sia escluso dalla campagna
-    const firebaseAdmin = initializeFirebaseAdmin();
-    const db = firebaseAdmin.firestore();
     const campaignDoc = await db.collection('booking_campaigns').doc(campaignId).get();
     
     if (!campaignDoc.exists) {
@@ -331,8 +287,8 @@ router.post('/create', async (req, res) => {
         email: cliente.email.trim().toLowerCase(),
         whatsapp: cliente.whatsapp?.trim() || '',
       },
-      dataShootingInizio: admin.firestore.Timestamp.fromDate(slotStart),
-      dataShootingFine: admin.firestore.Timestamp.fromDate(slotEnd),
+      dataShootingInizio: Timestamp.fromDate(slotStart),
+      dataShootingFine: Timestamp.fromDate(slotEnd),
       prodottoId: prodottoId || null,
       prodottoNome: prodottoNome || null,
       note: note || '',
@@ -340,8 +296,8 @@ router.post('/create', async (req, res) => {
       emailRicevutaInviata: false,
       emailConfermataInviata: false,
       googleCalendarEventId: calendarEvent.id || null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     // Aggiungi flag prenotazione manuale se presente
@@ -486,9 +442,7 @@ router.patch('/:id/approve', async (req, res) => {
     }
 
     // Inizializza Firebase Admin
-    initializeFirebaseAdmin();
 
-    const db = admin.firestore();
     const bookingRef = db.collection('bookings').doc(id);
     const bookingDoc = await bookingRef.get();
 
@@ -514,8 +468,8 @@ router.patch('/:id/approve', async (req, res) => {
     await bookingRef.update({
       stato: 'confermata',
       confermataDa: adminUid || 'admin',
-      confermatail: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      confermatail: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     // Invia email "Prenotazione Confermata" (chiamata diretta alla funzione)
@@ -704,9 +658,7 @@ router.patch('/:id/status', async (req, res) => {
     }
 
     // Inizializza Firebase Admin
-    initializeFirebaseAdmin();
 
-    const db = admin.firestore();
     const bookingRef = db.collection('bookings').doc(id);
     const bookingDoc = await bookingRef.get();
 
@@ -725,7 +677,7 @@ router.patch('/:id/status', async (req, res) => {
     // Aggiorna stato
     await bookingRef.update({
       stato,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     console.log(`✅ Stato prenotazione ${id} cambiato da "${oldStato}" a "${stato}"`);
@@ -856,9 +808,7 @@ router.patch('/:id/update', async (req, res) => {
     }
 
     // Inizializza Firebase Admin
-    initializeFirebaseAdmin();
 
-    const db = admin.firestore();
     const bookingRef = db.collection('bookings').doc(id);
     const bookingDoc = await bookingRef.get();
 
@@ -874,7 +824,7 @@ router.patch('/:id/update', async (req, res) => {
 
     // Prepara update data
     const updateData: any = {
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     // Aggiorna dati cliente se forniti
