@@ -107,6 +107,16 @@ async function getAccessToken(): Promise<string> {
   // 2. Leggi credenziali da environment Replit
   const hostname =
     process.env.REPLIT_CONNECTORS_HOSTNAME || "connectors.replit.com";
+  const hasReplIdentity = !!process.env.REPL_IDENTITY;
+  const hasWebRenewal = !!process.env.WEB_REPL_RENEWAL;
+  
+  console.log(`🔐 Gmail Auth - Environment:`, {
+    hostname,
+    hasReplIdentity,
+    hasWebRenewal,
+    mode: hasReplIdentity ? 'DEVELOPMENT' : hasWebRenewal ? 'PRODUCTION' : 'UNKNOWN'
+  });
+  
   const xReplitToken = process.env.REPL_IDENTITY
     ? "repl " + process.env.REPL_IDENTITY
     : process.env.WEB_REPL_RENEWAL
@@ -114,33 +124,46 @@ async function getAccessToken(): Promise<string> {
       : null;
 
   if (!xReplitToken) {
+    console.error('❌ Gmail - No token available:', { hasReplIdentity, hasWebRenewal });
     throw new Error("Missing REPL_IDENTITY or WEB_REPL_RENEWAL");
   }
 
   console.log(
-    "🔐 Fetching fresh Gmail access token from Replit Connectors API",
+    "📞 Fetching Gmail connection from Replit Connectors API",
   );
 
   // 3. Fetch connection settings da Replit Connectors API
   try {
-    const response = await fetch(
-      `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-mail`,
-      {
-        headers: {
-          Accept: "application/json",
-          X_REPLIT_TOKEN: xReplitToken,
-        },
+    const connectorUrl = `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-mail`;
+    console.log('📞 Fetching Gmail connection from:', connectorUrl);
+    
+    const response = await fetch(connectorUrl, {
+      headers: {
+        Accept: "application/json",
+        X_REPLIT_TOKEN: xReplitToken,
       },
-    );
+    });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch Gmail credentials: ${response.status}`);
+      console.error('❌ Gmail connector fetch failed:', {
+        status: response.status,
+        statusText: response.statusText
+      });
+      throw new Error(`Gmail connector API returned ${response.status}: ${response.statusText}`);
     }
 
     const data: any = await response.json();
     const connection = data.items?.[0];
+    
+    console.log('📦 Gmail connection response:', {
+      hasItems: !!data.items,
+      itemsLength: data.items?.length || 0,
+      hasSettings: !!connection?.settings,
+      hasAccessToken: !!connection?.settings?.access_token
+    });
 
     if (!connection || !connection.settings) {
+      console.error('❌ Gmail not connected or missing settings');
       throw new Error("Gmail not connected in Replit Integration");
     }
 
