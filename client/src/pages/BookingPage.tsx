@@ -583,7 +583,7 @@ export default function BookingPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                         {/* Opzione "Da decidere" */}
                         <Card 
-                          className={`cursor-pointer transition-all hover:shadow-md active:scale-98 ${
+                          className={`cursor-pointer transition-all hover:shadow-md active:scale-[0.98] ${
                             formData.prodottoId === '' 
                               ? 'ring-2 ring-primary shadow-lg' 
                               : 'hover:border-primary/50'
@@ -604,7 +604,7 @@ export default function BookingPage() {
                         {availableProducts.map(product => (
                           <Card 
                             key={product.id}
-                            className={`cursor-pointer transition-all hover:shadow-md active:scale-98 ${
+                            className={`cursor-pointer transition-all hover:shadow-md active:scale-[0.98] ${
                               formData.prodottoId === product.id 
                                 ? 'ring-2 ring-primary shadow-lg' 
                                 : 'hover:border-primary/50'
@@ -665,20 +665,18 @@ export default function BookingPage() {
                                 {product.descrizione && (
                                   <div className="space-y-1">
                                     <p className={`text-sm text-muted-foreground leading-relaxed ${
-                                      expandedDescriptions[product.id] ? '' : 'line-clamp-2'
+                                      expandedDescriptions[product.id] ? '' : 'line-clamp-3'
                                     }`}>
                                       {product.descrizione}
                                     </p>
-                                    {/* Mostra "Vedi di più" solo se il testo è lungo (>100 caratteri) */}
-                                    {product.descrizione.length > 100 && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => toggleDescription(product.id, e)}
-                                        className="text-xs text-primary hover:underline font-medium"
-                                      >
-                                        {expandedDescriptions[product.id] ? 'Vedi meno' : 'Vedi di più'}
-                                      </button>
-                                    )}
+                                    {/* Mostra sempre il toggle per permettere espansione/compressione */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => toggleDescription(product.id, e)}
+                                      className="text-xs text-primary hover:underline font-medium inline-block"
+                                    >
+                                      {expandedDescriptions[product.id] ? 'Vedi meno' : 'Vedi di più'}
+                                    </button>
                                   </div>
                                 )}
                                 
