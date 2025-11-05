@@ -13,7 +13,7 @@ const router = Router();
 async function getFirebaseAdmin() {
   const admin = await import('firebase-admin');
   
-  if (!admin.apps.length) {
+  if (!admin.apps?.length) {
     const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
     if (!serviceAccountBase64) {
       throw new Error('FIREBASE_ADMIN_CREDENTIALS non configurato');

@@ -2497,7 +2497,7 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
 
     // Inizializza Firebase Admin per recuperare dati galleria
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
@@ -2654,7 +2654,7 @@ router.get("/get-gallery-secrets/:galleryId", authenticateFirebase, async (req: 
 
     // Inizializza Firebase Admin
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
@@ -2715,7 +2715,7 @@ router.post("/verify-special-pin", async (req, res) => {
 
     // Inizializza Firebase Admin
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
@@ -2804,7 +2804,7 @@ router.post("/check-pin-unique", async (req, res) => {
 
     // Inizializza Firebase Admin
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
