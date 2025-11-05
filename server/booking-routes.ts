@@ -216,7 +216,7 @@ router.post('/create', async (req, res) => {
 
     // SECURITY: Verifica che il giorno non sia escluso dalla campagna
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
@@ -455,7 +455,7 @@ router.patch('/:id/approve', async (req, res) => {
 
     // Inizializza Firebase Admin
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
@@ -585,7 +585,7 @@ router.get('/calendar/:id', async (req, res) => {
     
     // Inizializza Firebase Admin
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
@@ -695,7 +695,7 @@ router.patch('/:id/status', async (req, res) => {
 
     // Inizializza Firebase Admin
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
@@ -858,7 +858,7 @@ router.patch('/:id/update', async (req, res) => {
 
     // Inizializza Firebase Admin
     const admin = await import('firebase-admin');
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
       if (!serviceAccountBase64) {
         throw new Error('FIREBASE_ADMIN_CREDENTIALS secret non configurato');
