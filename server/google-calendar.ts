@@ -78,11 +78,12 @@ async function getAccessToken(): Promise<string> {
     throw error;
   }
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+  const accessToken = connectionSettings?.settings?.access_token ?? connectionSettings?.settings?.oauth?.credentials?.access_token;
 
-  if (!connectionSettings || !accessToken) {
+  if (!connectionSettings?.settings || !accessToken) {
     console.error('❌ Google Calendar not connected or missing access token:', {
       hasConnectionSettings: !!connectionSettings,
+      hasSettings: !!connectionSettings?.settings,
       hasAccessToken: !!accessToken
     });
     throw new Error('Google Calendar not connected');

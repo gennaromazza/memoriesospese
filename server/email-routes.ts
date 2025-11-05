@@ -169,10 +169,11 @@ async function getAccessToken(): Promise<string> {
 
     // 4. Estrai access token
     const accessToken =
-      connection.settings?.access_token ||
-      connection.settings?.oauth?.credentials?.access_token;
+      connection?.settings?.access_token ??
+      connection?.settings?.oauth?.credentials?.access_token;
 
     if (!accessToken) {
+      console.error('❌ Gmail access token not found in connection settings');
       throw new Error("Gmail access token not found");
     }
 
