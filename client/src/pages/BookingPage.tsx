@@ -164,9 +164,9 @@ export default function BookingPage() {
   const availableProducts = products
     .filter(p => campaign?.prodottiDisponibili.includes(p.id))
     .sort((a, b) => {
-      // Usa prezzo scontato se presente, altrimenti prezzo normale
-      const priceA = a.sconto > 0 ? a.prezzoScontato : a.prezzo;
-      const priceB = b.sconto > 0 ? b.prezzoScontato : b.prezzo;
+      // Usa prezzoFinale se esiste, altrimenti prezzo base
+      const priceA = a.prezzoFinale ?? a.prezzo;
+      const priceB = b.prezzoFinale ?? b.prezzo;
       return priceA - priceB; // Dal più basso al più alto
     });
 
