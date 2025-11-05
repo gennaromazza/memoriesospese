@@ -94,7 +94,7 @@ router.post('/available-slots', async (req, res) => {
     }
 
     // Calcola slot disponibili usando Google Calendar
-    const slots = await getAvailableSlots(
+    const slotsFromCalendar = await getAvailableSlots(
       calendarId || 'primary',
       new Date(date),
       {
@@ -105,6 +105,36 @@ router.post('/available-slots', async (req, res) => {
       } as WorkingHours,
       durataMinuti
     );
+
+    // FILTRO FIRESTORE: Escludi slot occupati da prenotazioni in_attesa o confermata
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const existingBookingsSnapshot = await db.collection('bookings')
+      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
+
+    // Filtra slot che non si sovrappongono con prenotazioni esistenti
+    const slots = slotsFromCalendar.filter(slot => {
+      const slotStart = slot.start;
+      const slotEnd = slot.end;
+      
+      // Verifica che lo slot NON si sovrapponga con nessuna prenotazione
+      const hasOverlap = existingBookingsSnapshot.docs.some(doc => {
+        const booking = doc.data();
+        const bookingStart = booking.dataShootingInizio.toDate();
+        const bookingEnd = booking.dataShootingFine.toDate();
+        
+        // Due intervalli si sovrappongono se: (slotStart < bookingEnd) E (slotEnd > bookingStart)
+        return (slotStart < bookingEnd) && (slotEnd > bookingStart);
+      });
+      
+      return !hasOverlap; // Mantieni solo slot senza overlap
+    });
 
     // Formatta slot per risposta JSON
     const formattedSlots = slots.map(slot => ({
@@ -683,10 +713,6 @@ router.patch('/:id/reject', async (req, res) => {
 
     console.log(`[Booking API] Rifiuto prenotazione ${id} da admin ${adminUid}`);
 
-    // Inizializza Firebase Admin
-    initializeFirebaseAdmin();
-    const db = admin.firestore();
-
     // Recupera booking da Firestore
     const bookingRef = db.collection('bookings').doc(id);
     const bookingDoc = await bookingRef.get();
@@ -708,12 +734,22 @@ router.patch('/:id/reject', async (req, res) => {
       });
     }
 
+    // Prepara update data
+    let updateData: any = {
+      stato: 'annullata',
+      rifiutataDa: adminUid || 'admin',
+      rifiutataIl: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
     // Se era confermata, cancella evento Google Calendar
     if (bookingData.stato === 'confermata' && bookingData.googleCalendarEventId) {
       try {
         const { deleteEvent } = await import('./google-calendar.js');
         await deleteEvent('primary', bookingData.googleCalendarEventId);
         console.log(`✅ Evento Google Calendar cancellato: ${bookingData.googleCalendarEventId}`);
+        // Rimuovi googleCalendarEventId dopo la cancellazione
+        updateData.googleCalendarEventId = null;
       } catch (calendarError) {
         console.error('⚠️ Errore cancellazione evento Google Calendar:', calendarError);
         // Non bloccare il rifiuto se cancellazione Calendar fallisce
@@ -721,12 +757,7 @@ router.patch('/:id/reject', async (req, res) => {
     }
 
     // Aggiorna stato a "annullata" (rifiutata)
-    await bookingRef.update({
-      stato: 'annullata',
-      rifiutataDa: adminUid || 'admin',
-      rifiutataIl: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    await bookingRef.update(updateData);
 
     // Invia email "Prenotazione Rifiutata" con link per nuova prenotazione
     try {
@@ -823,10 +854,6 @@ router.patch('/:id/reject', async (req, res) => {
 router.get('/calendar/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Inizializza Firebase Admin
-    initializeFirebaseAdmin();
-    const db = admin.firestore();
     
     // Recupera booking da Firestore
     const bookingRef = db.collection('bookings').doc(id);
@@ -940,11 +967,27 @@ router.patch('/:id/status', async (req, res) => {
     
     const oldStato = bookingData.stato;
 
-    // Aggiorna stato
-    await bookingRef.update({
+    // Se la prenotazione viene annullata e ha un evento Google Calendar, cancellalo
+    let updateData: any = {
       stato,
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (stato === 'annullata' && bookingData.googleCalendarEventId) {
+      try {
+        const { deleteEvent } = await import('./google-calendar.js');
+        await deleteEvent('primary', bookingData.googleCalendarEventId);
+        console.log(`✅ Evento Google Calendar cancellato: ${bookingData.googleCalendarEventId}`);
+        // Rimuovi googleCalendarEventId dopo la cancellazione
+        updateData.googleCalendarEventId = null;
+      } catch (calendarError) {
+        console.error('⚠️ Errore cancellazione evento Google Calendar:', calendarError);
+        // Non bloccare l'annullamento se cancellazione Calendar fallisce
+      }
+    }
+
+    // Aggiorna stato
+    await bookingRef.update(updateData);
 
     console.log(`✅ Stato prenotazione ${id} cambiato da "${oldStato}" a "${stato}"`);
 
