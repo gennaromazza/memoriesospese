@@ -87,6 +87,9 @@ export default function BookingPage() {
     Record<string, number>
   >({});
 
+  // Stato per navigazione settimanale calendario
+  const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
+
   // Query campaign
   const {
     data: campaign,
@@ -186,6 +189,13 @@ export default function BookingPage() {
       }
     }
   }, [availableSlots, selectedSlot]);
+
+  // Reset week index quando campaign cambia per evitare settimane vuote
+  useEffect(() => {
+    if (campaign) {
+      setCurrentWeekIndex(0);
+    }
+  }, [campaign?.id]);
 
   // Meta tag Open Graph per preview social/WhatsApp
   useEffect(() => {
@@ -702,65 +712,106 @@ export default function BookingPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {availableDates.map((date) => {
-                      const isHoliday = isSundayOrHoliday(date);
-                      const isSelected =
-                        selectedDate?.toDateString() === date.toDateString();
+                  <>
+                    {/* Navigazione settimane */}
+                    <div className="flex items-center justify-between mb-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentWeekIndex(Math.max(0, currentWeekIndex - 1))}
+                        disabled={currentWeekIndex === 0}
+                        data-testid="prev-week"
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Settimana prec.
+                      </Button>
+                      
+                      <span className="text-sm text-muted-foreground font-medium">
+                        {(() => {
+                          const weekStart = availableDates[currentWeekIndex * 7];
+                          const weekEnd = availableDates[Math.min((currentWeekIndex + 1) * 7 - 1, availableDates.length - 1)];
+                          if (!weekStart || !weekEnd) return "";
+                          return `${format(weekStart, "d MMM", { locale: it })} - ${format(weekEnd, "d MMM yyyy", { locale: it })}`;
+                        })()}
+                      </span>
 
-                      return (
-                        <Button
-                          key={date.toISOString()}
-                          type="button"
-                          variant={isSelected ? "default" : "outline"}
-                          className={`h-auto py-3 flex flex-col items-center ${
-                            isHoliday && !isSelected
-                              ? "border-red-500/50 hover:border-red-500"
-                              : ""
-                          }`}
-                          onClick={() => {
-                            setSelectedDate(date);
-                            setSelectedSlot(null);
-                          }}
-                          data-testid={`date-${format(date, "yyyy-MM-dd")}`}
-                        >
-                          <span
-                            className={`text-xs ${
-                              isSelected
-                                ? "text-primary-foreground"
-                                : isHoliday
-                                  ? "text-red-500"
-                                  : "text-muted-foreground"
-                            }`}
-                          >
-                            {format(date, "EEE", { locale: it })}
-                          </span>
-                          <span
-                            className={`text-2xl font-bold ${
-                              isSelected
-                                ? "text-primary-foreground"
-                                : isHoliday
-                                  ? "text-red-500"
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentWeekIndex(currentWeekIndex + 1)}
+                        disabled={(currentWeekIndex + 1) * 7 >= availableDates.length}
+                        data-testid="next-week"
+                      >
+                        Settimana succ.
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+
+                    {/* Griglia settimana corrente */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                      {availableDates
+                        .slice(currentWeekIndex * 7, (currentWeekIndex + 1) * 7)
+                        .map((date) => {
+                          const isHoliday = isSundayOrHoliday(date);
+                          const isSelected =
+                            selectedDate?.toDateString() === date.toDateString();
+
+                          return (
+                            <Button
+                              key={date.toISOString()}
+                              type="button"
+                              variant={isSelected ? "default" : "outline"}
+                              className={`h-auto py-4 flex flex-col items-center ${
+                                isHoliday && !isSelected
+                                  ? "border-red-500/50 hover:border-red-500"
                                   : ""
-                            }`}
-                          >
-                            {format(date, "dd", { locale: it })}
-                          </span>
-                          <span
-                            className={`text-xs ${
-                              isSelected
-                                ? "text-primary-foreground"
-                                : isHoliday
-                                  ? "text-red-500"
-                                  : ""
-                            }`}
-                          >
-                            {format(date, "MMM", { locale: it })}
-                          </span>
-                        </Button>
-                      );
-                    })}
-                  </div>
+                              }`}
+                              onClick={() => {
+                                setSelectedDate(date);
+                                setSelectedSlot(null);
+                              }}
+                              data-testid={`date-${format(date, "yyyy-MM-dd")}`}
+                            >
+                              <span
+                                className={`text-xs font-medium mb-1 ${
+                                  isSelected
+                                    ? "text-primary-foreground"
+                                    : isHoliday
+                                      ? "text-red-500"
+                                      : "text-muted-foreground"
+                                }`}
+                              >
+                                {format(date, "EEE", { locale: it })}
+                              </span>
+                              <span
+                                className={`text-3xl font-bold mb-1 ${
+                                  isSelected
+                                    ? "text-primary-foreground"
+                                    : isHoliday
+                                      ? "text-red-500"
+                                      : ""
+                                }`}
+                              >
+                                {format(date, "dd", { locale: it })}
+                              </span>
+                              <span
+                                className={`text-xs ${
+                                  isSelected
+                                    ? "text-primary-foreground/80"
+                                    : isHoliday
+                                      ? "text-red-500/80"
+                                      : "text-muted-foreground"
+                                }`}
+                              >
+                                {format(date, "MMM", { locale: it })}
+                              </span>
+                            </Button>
+                          );
+                        })}
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
