@@ -155,7 +155,10 @@ export function usePasswordRequest() {
           errorData = { error: { message: `HTTP ${response.status}: ${response.statusText}` } };
         }
         console.error('❌ Errore risposta HTTP:', errorData);
-        throw new Error(errorData.error?.message || `HTTP error ${response.status}`);
+        
+        // Estrai messaggio di errore user-friendly
+        const errorMessage = errorData.error?.message || `HTTP error ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();

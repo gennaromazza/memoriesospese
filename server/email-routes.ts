@@ -670,8 +670,11 @@ router.post("/send-gallery-password", async (req, res) => {
 
     if (!password) {
       console.error(`❌ Password non configurata per galleria ${galleryId}`);
-      return res.status(500).json({
-        error: { code: "internal", message: "Gallery password not configured" },
+      return res.status(400).json({
+        error: { 
+          code: "failed-precondition", 
+          message: "Questa galleria non richiede password. Puoi accedere direttamente usando il codice galleria." 
+        },
       });
     }
 

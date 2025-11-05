@@ -3,7 +3,7 @@
  * URL: /prenota/:code
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getCampaignByCode } from '@/lib/booking-campaigns';
@@ -131,6 +131,16 @@ export default function BookingPage() {
     },
   });
 
+  // Reset slot selezionato se non è più disponibile
+  useEffect(() => {
+    if (selectedSlot && availableSlots.length > 0) {
+      const stillAvailable = availableSlots.some(slot => slot.start === selectedSlot.start);
+      if (!stillAvailable) {
+        setSelectedSlot(null);
+      }
+    }
+  }, [availableSlots, selectedSlot]);
+
   // Filtra prodotti disponibili per questa campagna
   const availableProducts = products.filter(p => 
     campaign?.prodottiDisponibili.includes(p.id)
@@ -194,6 +204,19 @@ export default function BookingPage() {
         description: 'Seleziona data e orario',
         variant: 'destructive',
       });
+      return;
+    }
+
+    // Validazione: verifica che lo slot selezionato non sia nel passato
+    const now = new Date();
+    const slotDate = new Date(selectedSlot.start);
+    if (isBefore(slotDate, now)) {
+      toast({
+        title: 'Slot non disponibile',
+        description: 'Lo slot selezionato è ormai passato. Seleziona un altro orario.',
+        variant: 'destructive',
+      });
+      setSelectedSlot(null); // Reset selezione
       return;
     }
 

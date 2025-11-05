@@ -296,13 +296,9 @@ export default function BookingsManager({
     // Assicura che la tab corretta sia attiva
     setActiveTab('bookings');
     
-    // Reset filtri per assicurarsi che il booking sia visibile
-    setSelectedStato('all');
-    setSearchQuery('');
-    
-    // Calcola la pagina dove si trova il booking
-    // Prima applica i filtri (in questo caso, tutti i booking perché filtri sono reset)
-    const filteredBookings = [...allBookings].sort((a, b) => {
+    // Calcola la pagina dove si trova il booking PRIMA di resettare i filtri
+    // Usa allBookings direttamente (equivalente a filtri='all', search='')
+    const sortedAllBookings = [...allBookings].sort((a, b) => {
       const getTime = (timestamp: any): number => {
         if (!timestamp) return 0;
         if (timestamp.toDate) return timestamp.toDate().getTime();
@@ -312,14 +308,18 @@ export default function BookingsManager({
       return getTime(b.dataShootingInizio) - getTime(a.dataShootingInizio);
     });
     
-    const bookingIndex = filteredBookings.findIndex(b => b.id === highlightBookingId);
+    const bookingIndex = sortedAllBookings.findIndex(b => b.id === highlightBookingId);
     if (bookingIndex === -1) {
-      console.warn(`Booking ${highlightBookingId} non trovato dopo filtri`);
+      console.warn(`Booking ${highlightBookingId} non trovato nella lista ordinata`);
       onHighlightComplete?.();
       return;
     }
     
     const targetPage = Math.floor(bookingIndex / ITEMS_PER_PAGE) + 1;
+    
+    // Reset filtri e paginazione in modo sincrono
+    setSelectedStato('all');
+    setSearchQuery('');
     setCurrentPage(targetPage);
     
     // Timeout per assicurarsi che il DOM sia renderizzato dopo cambio pagina
