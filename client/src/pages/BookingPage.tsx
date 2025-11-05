@@ -603,42 +603,30 @@ export default function BookingPage() {
                             <CardContent className="p-0">
                               {/* Immagine prodotto */}
                               {product.immagini && product.immagini.length > 0 ? (
-                                <div className="relative w-full h-48 sm:h-52 bg-muted overflow-hidden rounded-t-lg group">
+                                <div className="relative w-full h-48 sm:h-52 bg-muted overflow-hidden rounded-t-lg">
                                   <img 
                                     src={product.immagini[0]} 
                                     alt={product.nome}
                                     className="w-full h-full object-cover"
                                   />
                                   
-                                  {/* Overlay zoom - appare solo su hover (desktop) o sempre (mobile) */}
-                                  <div 
-                                    className="absolute inset-0 bg-black/40 opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openLightbox(product.immagini!, product.nome);
-                                    }}
-                                  >
-                                    <div className="bg-white/90 dark:bg-gray-800/90 rounded-full p-3">
-                                      <ZoomIn className="h-6 w-6 text-gray-900 dark:text-white" />
-                                    </div>
-                                  </div>
-
-                                  {/* Icona zoom sempre visibile su mobile */}
+                                  {/* Bottone zoom */}
                                   <button
                                     type="button"
-                                    className="absolute top-2 left-2 bg-white/90 dark:bg-gray-800/90 rounded-full p-2 sm:hidden shadow-lg active:scale-95 transition-transform"
+                                    className="absolute top-2 left-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full p-2 shadow-lg hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all z-10"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openLightbox(product.immagini!, product.nome);
                                     }}
                                     aria-label="Vedi immagine grande"
+                                    data-testid={`zoom-${product.id}`}
                                   >
                                     <ZoomIn className="h-4 w-4 text-gray-900 dark:text-white" />
                                   </button>
                                   
                                   {/* Badge selezione */}
                                   {formData.prodottoId === product.id && (
-                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1.5">
+                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1.5 shadow-lg z-10">
                                       <CheckCircle2 className="h-5 w-5" />
                                     </div>
                                   )}
@@ -753,6 +741,79 @@ export default function BookingPage() {
           )}
         </form>
       </div>
+
+      {/* Lightbox per immagini prodotto */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-4xl w-full p-0 overflow-hidden">
+          <DialogHeader className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent p-4">
+            <DialogTitle className="text-white text-lg font-semibold">
+              {lightboxProductName}
+            </DialogTitle>
+            {lightboxImages.length > 1 && (
+              <p className="text-white/80 text-sm">
+                Immagine {lightboxIndex + 1} di {lightboxImages.length}
+              </p>
+            )}
+          </DialogHeader>
+          
+          <div className="relative w-full h-[60vh] sm:h-[70vh] bg-black flex items-center justify-center">
+            {/* Immagine corrente */}
+            <img
+              src={lightboxImages[lightboxIndex]}
+              alt={`${lightboxProductName} - Immagine ${lightboxIndex + 1}`}
+              className="max-w-full max-h-full object-contain"
+            />
+
+            {/* Navigazione - solo se ci sono multiple immagini */}
+            {lightboxImages.length > 1 && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full h-12 w-12"
+                  onClick={prevImage}
+                  aria-label="Immagine precedente"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full h-12 w-12"
+                  onClick={nextImage}
+                  aria-label="Immagine successiva"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Miniature - solo se ci sono multiple immagini */}
+          {lightboxImages.length > 1 && (
+            <div className="flex gap-2 p-4 overflow-x-auto bg-black/90">
+              {lightboxImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setLightboxIndex(idx)}
+                  className={`flex-shrink-0 w-16 h-16 rounded overflow-hidden border-2 transition-all ${
+                    idx === lightboxIndex 
+                      ? 'border-primary ring-2 ring-primary/50' 
+                      : 'border-transparent hover:border-white/50'
+                  }`}
+                >
+                  <img
+                    src={img}
+                    alt={`Miniatura ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
