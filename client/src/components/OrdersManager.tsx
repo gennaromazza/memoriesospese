@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import {
@@ -67,9 +67,15 @@ type OrderWithBooking = Order & {
 
 interface OrdersManagerProps {
   filterBookingId?: string | null;
+  highlightOrderId?: string | null;
+  onHighlightComplete?: () => void;
 }
 
-export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
+export function OrdersManager({ 
+  filterBookingId,
+  highlightOrderId,
+  onHighlightComplete
+}: OrdersManagerProps = {}) {
   const { toast } = useToast();
   
   // State: Filtri e ricerca
@@ -85,6 +91,10 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
   const [paymentMethod, setPaymentMethod] = useState<'contante' | 'carta' | 'bonifico' | 'paypal'>('contante');
   const [paymentAmount, setPaymentAmount] = useState<string>(''); // String per input controlled
   const [paymentNote, setPaymentNote] = useState<string>(''); // Note opzionali
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const orderRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Query: Carica ordini
   const { data: orders = [], isLoading } = useQuery({
@@ -439,6 +449,92 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
     });
   }, [ordersWithBookings, statoFilter, searchQuery, filterBookingId]);
 
+  // Scroll e highlight ordine quando richiesto da GestioneCommesse
+  useEffect(() => {
+    // Cleanup dei timeout precedenti
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    if (clearHighlightTimeoutRef.current) {
+      clearTimeout(clearHighlightTimeoutRef.current);
+      clearHighlightTimeoutRef.current = null;
+    }
+
+    if (!highlightOrderId) return;
+
+    // Attendi il caricamento dei dati prima di procedere
+    if (isLoading) {
+      return;
+    }
+
+    // Cerca l'ordine nel dataset completo
+    const targetOrder = orders.find(o => o.id === highlightOrderId);
+    
+    if (!targetOrder) {
+      console.warn(`Ordine ${highlightOrderId} non trovato nel dataset`);
+      onHighlightComplete?.();
+      return;
+    }
+
+    // Calcola dove si trova l'ordine PRIMA di resettare i filtri
+    // Usa orders direttamente (equivalente a filtri='tutti', search='')
+    const sortedAllOrders = [...ordersWithBookings].sort((a, b) => {
+      const dateA = a.createdAt?.toDate?.() || new Date(0);
+      const dateB = b.createdAt?.toDate?.() || new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    const orderIndex = sortedAllOrders.findIndex(o => o.id === highlightOrderId);
+    if (orderIndex === -1) {
+      console.warn(`Ordine ${highlightOrderId} non trovato nella lista ordinata`);
+      onHighlightComplete?.();
+      return;
+    }
+    
+    // Reset filtri (ordini non ha paginazione, quindi non serve calcolare la pagina)
+    setStatoFilter('tutti');
+    setSearchQuery('');
+    
+    // Timeout per assicurarsi che il DOM sia renderizzato dopo reset filtri
+    highlightTimeoutRef.current = setTimeout(() => {
+      const element = orderRefs.current[highlightOrderId];
+      if (element) {
+        // Scroll smooth alla card
+        element.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Aggiungi highlight temporaneo
+        setHighlightedId(highlightOrderId);
+        
+        // Rimuovi highlight dopo 3 secondi
+        clearHighlightTimeoutRef.current = setTimeout(() => {
+          setHighlightedId(null);
+          onHighlightComplete?.();
+          clearHighlightTimeoutRef.current = null;
+        }, 3000);
+      } else {
+        console.warn(`Elemento DOM per ordine ${highlightOrderId} non trovato`);
+        onHighlightComplete?.();
+      }
+      highlightTimeoutRef.current = null;
+    }, 300);
+
+    // Cleanup on unmount
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = null;
+      }
+      if (clearHighlightTimeoutRef.current) {
+        clearTimeout(clearHighlightTimeoutRef.current);
+        clearHighlightTimeoutRef.current = null;
+      }
+    };
+  }, [highlightOrderId, orders, ordersWithBookings, isLoading, onHighlightComplete]);
+
   // Helper: Badge stato
   const getStatoBadge = (stato: Order['stato']) => {
     const config = {
@@ -556,9 +652,15 @@ export function OrdersManager({ filterBookingId }: OrdersManagerProps = {}) {
           {filteredOrders.map((order) => {
             const isPagamentoCompleto = order.dataAcconto && order.dataSaldo;
             const isSaldoPendente = order.dataAcconto && !order.dataSaldo;
+            const isHighlighted = highlightedId === order.id;
 
             return (
-              <Card key={order.id} className="p-4" data-testid={`card-order-${order.id}`}>
+              <Card 
+                key={order.id} 
+                ref={(el) => { orderRefs.current[order.id] = el; }}
+                className={`p-4 transition-all ${isHighlighted ? 'ring-4 ring-blue-500 ring-offset-2 shadow-2xl' : ''}`}
+                data-testid={`card-order-${order.id}`}
+              >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   {/* Info ordine */}
                   <div className="flex-1 space-y-3">

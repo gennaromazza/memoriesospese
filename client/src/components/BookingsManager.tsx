@@ -124,11 +124,15 @@ function getStatoBadge(stato: string) {
 interface BookingsManagerProps {
   highlightBookingId?: string | null;
   onHighlightComplete?: () => void;
+  highlightOrderId?: string | null;
+  onOrderHighlightComplete?: () => void;
 }
 
 export default function BookingsManager({ 
   highlightBookingId, 
-  onHighlightComplete 
+  onHighlightComplete,
+  highlightOrderId,
+  onOrderHighlightComplete
 }: BookingsManagerProps = {}) {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
@@ -1650,7 +1654,11 @@ export default function BookingsManager({
               </Button>
             </div>
           )}
-          <OrdersManager filterBookingId={filterBookingId} />
+          <OrdersManager 
+            filterBookingId={filterBookingId} 
+            highlightOrderId={highlightOrderId}
+            onHighlightComplete={onOrderHighlightComplete}
+          />
         </>
       )}
 

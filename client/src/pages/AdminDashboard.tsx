@@ -205,6 +205,7 @@ export default function AdminDashboard() {
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes'>('galleries');
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
+  const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
   // Detect if admin came from a specific gallery
   const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
@@ -515,10 +516,10 @@ export default function AdminDashboard() {
     setActiveTab('bookings');
   };
 
-  // Handler: Apri ordine specifico (per ora solo cambia tab)
+  // Handler: Apri ordine specifico e scroll + highlight
   const handleOpenOrder = (orderId: string) => {
+    setHighlightOrderId(orderId);
     setActiveTab('bookings'); // OrdersManager è dentro BookingsManager
-    // TODO: Implementare apertura automatica dettaglio ordine quando refactoring OrdersManager
   };
 
   // Handler: Apri gestione selezioni foto
@@ -1474,6 +1475,8 @@ export default function AdminDashboard() {
                   <BookingsManager 
                     highlightBookingId={highlightBookingId}
                     onHighlightComplete={() => setHighlightBookingId(null)}
+                    highlightOrderId={highlightOrderId}
+                    onOrderHighlightComplete={() => setHighlightOrderId(null)}
                   />
                 </TabsContent>
 
