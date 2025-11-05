@@ -56,6 +56,9 @@ export interface BookingCampaign {
   dataInizio: Date;
   dataFine: Date;
   
+  // Anticipo slider homepage (opzionale)
+  giorniAnticipoSlider?: number; // Giorni prima di dataInizio in cui lo slider appare in homepage (default: 0)
+  
   // Tema associato (null se nessun tema)
   temaStagionale: string | null; // 'natale' | 'carnevale' | 'san-valentino' | 'pasqua' | 'halloween' | null
   

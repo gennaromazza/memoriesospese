@@ -389,6 +389,10 @@ export default function BookingPage() {
     );
   }
 
+  // Verifica se le prenotazioni sono aperte (oggi >= dataInizio)
+  const now = new Date();
+  const bookingsOpen = now >= startOfDay(campaign.dataInizio);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-sage-50 to-cream-50 dark:from-gray-900 dark:to-gray-800 py-12 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -445,8 +449,34 @@ export default function BookingPage() {
           </CardContent>
         </Card>
 
+        {/* Banner Prenotazioni Non Aperte */}
+        {!bookingsOpen && (
+          <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <AlertCircle className="h-6 w-6 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    Le prenotazioni non sono ancora aperte
+                  </h3>
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    Potrai prenotare il tuo shooting a partire dal{' '}
+                    <strong>
+                      {format(campaign.dataInizio, 'dd MMMM yyyy', { locale: it })}
+                    </strong>
+                    . Torna a visitare questa pagina quando le prenotazioni saranno attive!
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Form Prenotazione */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {bookingsOpen && (
+          <form onSubmit={handleSubmit} className="space-y-6">
           {/* Selezione Data */}
           <Card>
             <CardHeader>
@@ -866,6 +896,7 @@ export default function BookingPage() {
             </>
           )}
         </form>
+        )}
       </div>
 
       {/* Lightbox per immagini prodotto */}

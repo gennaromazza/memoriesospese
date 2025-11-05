@@ -75,6 +75,7 @@ interface CampaignFormData {
   code: string;
   dataInizio: string;
   dataFine: string;
+  giorniAnticipoSlider?: number; // Giorni anticipo slider homepage (0-30)
   temaStagionale: string;
   orarioApertura: string;
   orarioPausaInizio: string;
@@ -92,6 +93,7 @@ const defaultFormData: CampaignFormData = {
   code: '',
   dataInizio: '',
   dataFine: '',
+  giorniAnticipoSlider: 0,
   temaStagionale: 'none',
   orarioApertura: '09:00',
   orarioPausaInizio: '13:00',
@@ -132,6 +134,7 @@ export default function CampaignsManager() {
         code: data.code,
         dataInizio: new Date(data.dataInizio),
         dataFine: new Date(data.dataFine),
+        giorniAnticipoSlider: data.giorniAnticipoSlider || 0,
         temaStagionale: data.temaStagionale === 'none' ? null : data.temaStagionale,
         orarioApertura: data.orarioApertura,
         orarioPausaInizio: data.orarioPausaInizio,
@@ -258,6 +261,7 @@ export default function CampaignsManager() {
       code: campaign.code,
       dataInizio: format(campaign.dataInizio, 'yyyy-MM-dd'),
       dataFine: format(campaign.dataFine, 'yyyy-MM-dd'),
+      giorniAnticipoSlider: campaign.giorniAnticipoSlider || 0,
       temaStagionale: campaign.temaStagionale || 'none',
       orarioApertura: campaign.orarioApertura,
       orarioPausaInizio: campaign.orarioPausaInizio,
@@ -447,6 +451,28 @@ export default function CampaignsManager() {
                     data-testid="input-campaign-end-date"
                   />
                 </div>
+              </div>
+
+              {/* Anticipo Slider Homepage */}
+              <div className="space-y-2">
+                <Label htmlFor="giorniAnticipoSlider">Anticipo Slider Homepage (giorni)</Label>
+                <Input
+                  id="giorniAnticipoSlider"
+                  type="number"
+                  min="0"
+                  max="30"
+                  value={formData.giorniAnticipoSlider || 0}
+                  onChange={e => {
+                    const value = parseInt(e.target.value) || 0;
+                    const clampedValue = Math.max(0, Math.min(30, value));
+                    setFormData({ ...formData, giorniAnticipoSlider: clampedValue });
+                  }}
+                  data-testid="input-slider-advance-days"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Lo slider apparirà in homepage X giorni prima della data di inizio (0-30 giorni). 
+                  Le prenotazioni si apriranno comunque solo dalla data di inizio effettiva.
+                </p>
               </div>
 
               {/* Tema Stagionale */}

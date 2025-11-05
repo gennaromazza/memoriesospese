@@ -91,6 +91,7 @@ export async function getCampaignByCode(code: string): Promise<BookingCampaign |
 
 /**
  * Ottiene campagne attive (dataInizio <= oggi <= dataFine)
+ * Considera giorniAnticipoSlider per mostrare lo slider in homepage prima dell'apertura prenotazioni
  */
 export async function getActiveCampaigns(): Promise<BookingCampaign[]> {
   const now = new Date();
@@ -112,9 +113,17 @@ export async function getActiveCampaigns(): Promise<BookingCampaign[]> {
     createdAt: doc.data().createdAt?.toDate?.() || new Date(),
   })) as BookingCampaign[];
   
-  // Filtra campagne nel range attivo e ordina per dataInizio (desc)
+  // Filtra campagne considerando anticipo slider e ordina per dataInizio (desc)
   return campaigns
-    .filter(c => c.dataInizio <= now && c.dataFine >= now)
+    .filter(c => {
+      // Calcola data inizio slider (considera anticipo se presente)
+      const giorniAnticipo = c.giorniAnticipoSlider || 0;
+      const dataInizioSlider = new Date(c.dataInizio);
+      dataInizioSlider.setDate(dataInizioSlider.getDate() - giorniAnticipo);
+      
+      // Slider visibile da: (dataInizio - anticipo) fino a dataFine
+      return dataInizioSlider <= now && c.dataFine >= now;
+    })
     .sort((a, b) => b.dataInizio.getTime() - a.dataInizio.getTime());
 }
 
