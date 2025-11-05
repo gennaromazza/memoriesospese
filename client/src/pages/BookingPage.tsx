@@ -535,41 +535,35 @@ export default function BookingPage() {
             )}
             
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-sage/5 border border-sage/10">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sage/10 flex items-center justify-center">
-                  <Calendar className="h-5 w-5 text-sage" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="text-center p-6 rounded-lg bg-gradient-to-br from-sage/5 to-sage/10 border border-sage/20">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sage/20 mb-3">
+                  <Calendar className="h-6 w-6 text-sage" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 mb-1">Periodo</p>
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    {format(campaign.dataInizio, 'dd MMM', { locale: it })} - {format(campaign.dataFine, 'dd MMM yyyy', { locale: it })}
-                  </p>
-                </div>
+                <p className="text-xs font-medium text-sage uppercase tracking-wider mb-2">Periodo</p>
+                <p className="text-base font-semibold text-gray-900">
+                  {format(campaign.dataInizio, 'dd MMM', { locale: it })} - {format(campaign.dataFine, 'dd MMM yyyy', { locale: it })}
+                </p>
               </div>
               
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Clock className="h-5 w-5 text-blue-600" />
+              <div className="text-center p-6 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/50">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 mb-3">
+                  <Clock className="h-6 w-6 text-blue-600" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 mb-1">Durata shooting</p>
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    {campaign.durataShootingMinuti} minuti
-                  </p>
-                </div>
+                <p className="text-xs font-medium text-blue-600 uppercase tracking-wider mb-2">Durata shooting</p>
+                <p className="text-base font-semibold text-gray-900">
+                  {campaign.durataShootingMinuti} minuti
+                </p>
               </div>
               
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50 border border-purple-100">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Package className="h-5 w-5 text-purple-600" />
+              <div className="text-center p-6 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200/50">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-100 mb-3">
+                  <Package className="h-6 w-6 text-purple-600" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 mb-1">Prodotti disponibili</p>
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    {availableProducts.length} {availableProducts.length === 1 ? 'opzione' : 'opzioni'}
-                  </p>
-                </div>
+                <p className="text-xs font-medium text-purple-600 uppercase tracking-wider mb-2">Prodotti disponibili</p>
+                <p className="text-base font-semibold text-gray-900">
+                  {availableProducts.length} {availableProducts.length === 1 ? 'opzione' : 'opzioni'}
+                </p>
               </div>
             </div>
 
