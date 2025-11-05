@@ -276,15 +276,17 @@ export async function markBookingAsViewed(bookingId: string): Promise<void> {
 /**
  * Elimina prenotazione (admin only)
  * Cancella anche l'evento da Google Calendar se presente
+ * Invia email al cliente se la prenotazione era confermata
  */
 export async function deleteBooking(bookingId: string): Promise<void> {
-  // Prima recupera la prenotazione per ottenere googleCalendarEventId
+  // Prima recupera la prenotazione per ottenere googleCalendarEventId e dati cliente
   const docRef = doc(db, COLLECTION, bookingId);
   const bookingSnap = await getDoc(docRef);
   
   if (bookingSnap.exists()) {
     const bookingData = bookingSnap.data();
     const googleCalendarEventId = bookingData.googleCalendarEventId;
+    const statoBooking = bookingData.stato;
     
     // Se esiste un evento Google Calendar, cancellalo prima
     if (googleCalendarEventId) {
@@ -298,6 +300,46 @@ export async function deleteBooking(bookingId: string): Promise<void> {
       } catch (error) {
         console.error('❌ Errore cancellazione evento Google Calendar:', error);
         // Continua comunque con la cancellazione della prenotazione
+      }
+    }
+
+    // Se il booking era confermato, invia email di cancellazione al cliente
+    if (statoBooking === 'confermata' && bookingData.cliente?.email && bookingData.campaignId) {
+      try {
+        // Recupera dati campagna per email
+        const campaignRef = doc(db, 'booking_campaigns', bookingData.campaignId);
+        const campaignSnap = await getDoc(campaignRef);
+        const campaignNome = campaignSnap.exists() ? campaignSnap.data().nome : 'Shooting';
+
+        // Formatta data per email
+        const dataShootingInizio = bookingData.dataShootingInizio?.toDate?.() || new Date(bookingData.dataShootingInizio);
+        const bookingDate = dataShootingInizio.toLocaleDateString('it-IT', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+
+        const response = await fetch('/api/email/send-booking-cancelled', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientEmail: bookingData.cliente.email,
+            clienteNome: bookingData.cliente.nome,
+            clienteCognome: bookingData.cliente.cognome,
+            campaignNome,
+            bookingDate
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(`Errore HTTP ${response.status}: ${errorData.error || response.statusText}`);
+        }
+
+        console.log('✅ Email cancellazione inviata al cliente');
+      } catch (emailError) {
+        console.error('❌ Errore invio email cancellazione (non bloccante):', emailError);
+        // Non blocchiamo la cancellazione se l'email fallisce
       }
     }
   }

@@ -931,6 +931,60 @@ router.post("/send-booking-confirmed", async (req, res) => {
 });
 
 /**
+ * POST /api/email/send-booking-cancelled
+ * Invia email "Prenotazione Annullata" quando admin cancella una prenotazione confermata
+ */
+router.post("/send-booking-cancelled", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteNome,
+      clienteCognome,
+      campaignNome,
+      bookingDate
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !bookingDate) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio email prenotazione annullata"
+      });
+    }
+
+    const clienteName = `${clienteNome} ${clienteCognome}`;
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createBookingCancelledEmailHTML(
+      clienteName,
+      campaignNome,
+      bookingDate,
+      studioInfo
+    );
+
+    const subject = `Prenotazione Annullata - ${campaignNome}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Prenotazione Annullata" inviata a ${recipientEmail} per campagna ${campaignNome}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Booking cancelled email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore send-booking-cancelled:", error);
+    res.status(500).json({
+      error: "Errore invio email prenotazione annullata"
+    });
+  }
+});
+
+/**
  * Template HTML per email prenotazione confermata (approvata da admin)
  */
 export function createBookingConfirmedEmailHTML(
