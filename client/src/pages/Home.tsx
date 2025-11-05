@@ -343,18 +343,18 @@ export default function Home() {
                   return (
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                       <div className="bg-gradient-to-br from-white via-cream/30 to-white rounded-3xl shadow-xl border border-sage/10 overflow-hidden backdrop-blur-sm">
+                        {/* Campaign Image (full width if present) */}
+                        {campaign.immagineSlider && (
+                          <div className="w-full">
+                            <img
+                              src={campaign.immagineSlider}
+                              alt={campaign.nome}
+                              className="w-full h-64 md:h-96 object-cover"
+                            />
+                          </div>
+                        )}
+                        
                         <div className="flex flex-col md:flex-row items-center gap-12 p-8 sm:p-12 lg:p-16">
-                          {/* Campaign Image (if present) */}
-                          {campaign.immagineSlider && (
-                            <div className="flex-shrink-0 w-full md:w-1/2">
-                              <img
-                                src={campaign.immagineSlider}
-                                alt={campaign.nome}
-                                className="w-full h-full object-cover rounded-2xl shadow-lg max-h-96"
-                              />
-                            </div>
-                          )}
-                          
                           {/* Left side - Info */}
                           <div className="flex-1 text-center md:text-left space-y-6">
                             <div className="inline-flex items-center gap-2 bg-sage/5 px-5 py-2 rounded-full border border-sage/20">
@@ -364,12 +364,25 @@ export default function Home() {
                               </span>
                             </div>
 
-                            <div>
-                              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
-                                {campaign.nome}
-                              </h2>
-                              <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
-                            </div>
+                            {/* Mostra titolo e descrizione solo se NON c'è immagine */}
+                            {!campaign.immagineSlider && (
+                              <>
+                                <div>
+                                  <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
+                                    {campaign.nome}
+                                  </h2>
+                                  <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
+                                </div>
+
+                                {campaign.descrizione && (
+                                  <div className="bg-gradient-to-br from-sage/5 to-transparent p-6 rounded-2xl border border-sage/10">
+                                    <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto md:mx-0">
+                                      {campaign.descrizione}
+                                    </p>
+                                  </div>
+                                )}
+                              </>
+                            )}
 
                             <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4 text-base">
                               <div className="flex items-center gap-2 bg-sage/5 px-5 py-3 rounded-xl border border-sage/10">
@@ -389,14 +402,6 @@ export default function Home() {
                                 </span>
                               </div>
                             </div>
-
-                            {campaign.descrizione && (
-                              <div className="bg-gradient-to-br from-sage/5 to-transparent p-6 rounded-2xl border border-sage/10">
-                                <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto md:mx-0">
-                                  {campaign.descrizione}
-                                </p>
-                              </div>
-                            )}
                           </div>
 
                           {/* Right side - CTA */}
@@ -464,26 +469,39 @@ export default function Home() {
                           className="flex-[0_0_100%] min-w-0 px-4"
                         >
                           <div className="bg-gradient-to-br from-white via-cream/30 to-white rounded-3xl shadow-xl border border-sage/10 overflow-hidden backdrop-blur-sm">
+                            {/* Campaign Image (full width if present) */}
+                            {campaign.immagineSlider && (
+                              <div className="w-full">
+                                <img
+                                  src={campaign.immagineSlider}
+                                  alt={campaign.nome}
+                                  className="w-full h-56 md:h-80 object-cover"
+                                />
+                              </div>
+                            )}
+                            
                             <div className="flex flex-col md:flex-row items-center gap-10 p-8 sm:p-12 lg:p-14">
-                              {/* Campaign Image (if present) */}
-                              {campaign.immagineSlider && (
-                                <div className="flex-shrink-0 w-full md:w-1/2">
-                                  <img
-                                    src={campaign.immagineSlider}
-                                    alt={campaign.nome}
-                                    className="w-full h-full object-cover rounded-2xl shadow-lg max-h-80"
-                                  />
-                                </div>
-                              )}
-                              
                               {/* Campaign Info */}
                               <div className="flex-1 text-center md:text-left space-y-5">
-                                <div>
-                                  <h3 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
-                                    {campaign.nome}
-                                  </h3>
-                                  <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
-                                </div>
+                                {/* Mostra titolo e descrizione solo se NON c'è immagine */}
+                                {!campaign.immagineSlider && (
+                                  <>
+                                    <div>
+                                      <h3 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
+                                        {campaign.nome}
+                                      </h3>
+                                      <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
+                                    </div>
+
+                                    {campaign.descrizione && (
+                                      <div className="bg-gradient-to-br from-sage/5 to-transparent p-5 rounded-2xl border border-sage/10">
+                                        <p className="text-base text-gray-600 leading-relaxed max-w-xl mx-auto md:mx-0">
+                                          {campaign.descrizione}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
 
                                 <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 text-sm">
                                   <div className="flex items-center gap-2 bg-sage/5 px-4 py-2.5 rounded-xl border border-sage/10">
@@ -503,14 +521,6 @@ export default function Home() {
                                     </span>
                                   </div>
                                 </div>
-
-                                {campaign.descrizione && (
-                                  <div className="bg-gradient-to-br from-sage/5 to-transparent p-5 rounded-2xl border border-sage/10">
-                                    <p className="text-base text-gray-600 leading-relaxed max-w-xl mx-auto md:mx-0">
-                                      {campaign.descrizione}
-                                    </p>
-                                  </div>
-                                )}
                               </div>
 
                               {/* CTA Button */}

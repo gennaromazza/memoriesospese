@@ -512,30 +512,23 @@ export default function BookingPage() {
               alt={campaign.nome}
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
-              <h1 className="text-3xl md:text-5xl font-bold text-white font-playfair drop-shadow-lg">
-                {campaign.nome}
-              </h1>
-              {campaign.descrizione && (
-                <p className="text-white/90 mt-2 text-lg drop-shadow-md max-w-2xl">
-                  {campaign.descrizione}
-                </p>
-              )}
-            </div>
           </div>
         )}
         
         {/* Header Campagna */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-3xl">{campaign.nome}</CardTitle>
-            {campaign.descrizione && (
-              <CardDescription className="text-base mt-2">
-                {campaign.descrizione}
-              </CardDescription>
-            )}
-          </CardHeader>
+          {/* Mostra titolo e descrizione solo se NON c'è immagine */}
+          {!campaign.immaginePaginaBooking && (
+            <CardHeader>
+              <CardTitle className="text-3xl">{campaign.nome}</CardTitle>
+              {campaign.descrizione && (
+                <CardDescription className="text-base mt-2">
+                  {campaign.descrizione}
+                </CardDescription>
+              )}
+            </CardHeader>
+          )}
+          
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex items-center gap-3">
