@@ -78,12 +78,9 @@ export const getPathDebugInfo = () => {
   return {
     basePath: getBasePath(),
     viteBase: import.meta.env.VITE_BASE_PATH,
-    appUrl: import.meta.env.VITE_APP_URL,
     isSubdirectory: isInSubdirectory(),
     isProduction: import.meta.env.PROD,
     isDev: import.meta.env.DEV,
-    origin: import.meta.env.PROD
-      ? import.meta.env.VITE_APP_URL
-      : window.location.origin,
+    origin: window.location.origin,
   };
 };
