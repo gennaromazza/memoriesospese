@@ -20,7 +20,11 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "0.0.0.0",
       port: 5000,
-      allowedHosts: [".spock.replit.dev"],
+      allowedHosts: [
+        ".spock.replit.dev",
+        "memoriesospese.replit.app",
+        ".replit.app",
+      ],
     },
     plugins,
     resolve: {
