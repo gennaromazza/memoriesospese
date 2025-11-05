@@ -389,9 +389,13 @@ export default function BookingPage() {
     );
   }
 
-  // Verifica se le prenotazioni sono aperte (oggi >= dataInizio)
+  // Verifica se le prenotazioni sono aperte
+  // Se bloccaPrenotazioniPrimaInizio è true, blocca fino a dataInizio
+  // Se false o undefined, le prenotazioni sono sempre aperte
   const now = new Date();
-  const bookingsOpen = now >= startOfDay(campaign.dataInizio);
+  const bookingsOpen = campaign.bloccaPrenotazioniPrimaInizio 
+    ? now >= startOfDay(campaign.dataInizio)
+    : true;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sage-50 to-cream-50 dark:from-gray-900 dark:to-gray-800 py-12 px-4">

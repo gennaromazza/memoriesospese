@@ -931,14 +931,28 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       console.log('✅ Galleria salvata con successo');
       
+      // SALVA clientEmail e clientName nella galleria per notifiche future
+      if (specialTheme !== 'none' && (clientEmail.trim() || clientName.trim())) {
+        await updateDoc(galleryRef, {
+          clientEmail: clientEmail.trim() || null,
+          clientName: clientName.trim() || null
+        });
+      }
+
       // INVIO EMAIL AUTOMATICO: Se galleria speciale con PIN e email cliente fornita
       if (specialTheme !== 'none' && specialPin.trim() && clientEmail.trim()) {
         console.log('📧 Invio email PIN al cliente...');
+        console.log('📧 Email destinatario:', clientEmail.trim());
+        console.log('📧 Gallery ID:', gallery.id);
         
         try {
           // Costruisce URL completo galleria speciale
           const galleryUrl = createAbsoluteUrl("/special-gallery");
           
+          // ATTENDI 500ms per assicurare che Firestore abbia propagato il salvataggio
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          console.log('📧 Invio richiesta email...');
           const emailResponse = await fetch('/api/email/special-gallery-pin-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -949,6 +963,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               galleryUrl: galleryUrl
             })
           });
+
+          console.log('📧 Risposta server:', emailResponse.status, emailResponse.statusText);
 
           if (emailResponse.ok) {
             console.log('✅ Email PIN inviata con successo');
@@ -965,7 +981,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             });
             toast({
               title: "Galleria aggiornata",
-              description: "Galleria salvata, ma l'invio email ha avuto problemi",
+              description: `Galleria salvata, ma l'invio email ha avuto problemi: ${errorData.error || 'Errore sconosciuto'}`,
               variant: "destructive"
             });
           }
@@ -973,7 +989,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           console.error('❌ Eccezione invio email:', emailError);
           toast({
             title: "Galleria aggiornata",
-            description: "Galleria salvata, ma l'invio email non è riuscito",
+            description: `Galleria salvata, ma l'invio email non è riuscito: ${emailError instanceof Error ? emailError.message : 'Errore sconosciuto'}`,
             variant: "destructive"
           });
         }

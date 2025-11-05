@@ -76,6 +76,7 @@ interface CampaignFormData {
   dataInizio: string;
   dataFine: string;
   giorniAnticipoSlider?: number; // Giorni anticipo slider homepage (0-30)
+  bloccaPrenotazioniPrimaInizio?: boolean; // Blocca prenotazioni prima di dataInizio
   temaStagionale: string;
   orarioApertura: string;
   orarioPausaInizio: string;
@@ -94,6 +95,7 @@ const defaultFormData: CampaignFormData = {
   dataInizio: '',
   dataFine: '',
   giorniAnticipoSlider: 0,
+  bloccaPrenotazioniPrimaInizio: false,
   temaStagionale: 'none',
   orarioApertura: '09:00',
   orarioPausaInizio: '13:00',
@@ -134,7 +136,8 @@ export default function CampaignsManager() {
         code: data.code,
         dataInizio: new Date(data.dataInizio),
         dataFine: new Date(data.dataFine),
-        giorniAnticipoSlider: data.giorniAnticipoSlider || 0,
+        giorniAnticipoSlider: data.giorniAnticipoSlider ?? 0,
+        bloccaPrenotazioniPrimaInizio: data.bloccaPrenotazioniPrimaInizio ?? false,
         temaStagionale: data.temaStagionale === 'none' ? null : data.temaStagionale,
         orarioApertura: data.orarioApertura,
         orarioPausaInizio: data.orarioPausaInizio,
@@ -187,6 +190,13 @@ export default function CampaignsManager() {
           // Usa deleteField() di Firestore per rimuovere completamente il campo
           updateData.excludedDays = deleteField();
         }
+      }
+      // Assicura che i booleani vengano sempre salvati esplicitamente
+      if (data.giorniAnticipoSlider !== undefined) {
+        updateData.giorniAnticipoSlider = data.giorniAnticipoSlider ?? 0;
+      }
+      if (data.bloccaPrenotazioniPrimaInizio !== undefined) {
+        updateData.bloccaPrenotazioniPrimaInizio = data.bloccaPrenotazioniPrimaInizio ?? false;
       }
       
       return await updateCampaign(id, updateData);
@@ -262,6 +272,7 @@ export default function CampaignsManager() {
       dataInizio: format(campaign.dataInizio, 'yyyy-MM-dd'),
       dataFine: format(campaign.dataFine, 'yyyy-MM-dd'),
       giorniAnticipoSlider: campaign.giorniAnticipoSlider || 0,
+      bloccaPrenotazioniPrimaInizio: campaign.bloccaPrenotazioniPrimaInizio || false,
       temaStagionale: campaign.temaStagionale || 'none',
       orarioApertura: campaign.orarioApertura,
       orarioPausaInizio: campaign.orarioPausaInizio,
@@ -454,25 +465,46 @@ export default function CampaignsManager() {
               </div>
 
               {/* Anticipo Slider Homepage */}
-              <div className="space-y-2">
-                <Label htmlFor="giorniAnticipoSlider">Anticipo Slider Homepage (giorni)</Label>
-                <Input
-                  id="giorniAnticipoSlider"
-                  type="number"
-                  min="0"
-                  max="30"
-                  value={formData.giorniAnticipoSlider || 0}
-                  onChange={e => {
-                    const value = parseInt(e.target.value) || 0;
-                    const clampedValue = Math.max(0, Math.min(30, value));
-                    setFormData({ ...formData, giorniAnticipoSlider: clampedValue });
-                  }}
-                  data-testid="input-slider-advance-days"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Lo slider apparirà in homepage X giorni prima della data di inizio (0-30 giorni). 
-                  Le prenotazioni si apriranno comunque solo dalla data di inizio effettiva.
-                </p>
+              <div className="space-y-3 pt-3 border-t">
+                <Label className="text-base font-semibold">Configurazione Slider Homepage</Label>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="giorniAnticipoSlider">Anticipo Slider (giorni)</Label>
+                  <Input
+                    id="giorniAnticipoSlider"
+                    type="number"
+                    min="0"
+                    max="30"
+                    value={formData.giorniAnticipoSlider || 0}
+                    onChange={e => {
+                      const value = parseInt(e.target.value) || 0;
+                      const clampedValue = Math.max(0, Math.min(30, value));
+                      setFormData({ ...formData, giorniAnticipoSlider: clampedValue });
+                    }}
+                    data-testid="input-slider-advance-days"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Lo slider apparirà in homepage X giorni prima della data di inizio (0-30 giorni).
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between space-x-2 p-3 bg-muted/50 rounded-lg">
+                  <div className="flex-1">
+                    <Label htmlFor="bloccaPrenotazioni" className="font-medium">
+                      Blocca prenotazioni prima della data di inizio
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Se attivo, anche con lo slider visibile, le prenotazioni si apriranno solo dalla data di inizio. 
+                      Se disattivo, gli utenti potranno prenotare anche prima della data di inizio.
+                    </p>
+                  </div>
+                  <Switch
+                    id="bloccaPrenotazioni"
+                    checked={formData.bloccaPrenotazioniPrimaInizio || false}
+                    onCheckedChange={checked => setFormData({ ...formData, bloccaPrenotazioniPrimaInizio: checked })}
+                    data-testid="switch-block-bookings"
+                  />
+                </div>
               </div>
 
               {/* Tema Stagionale */}

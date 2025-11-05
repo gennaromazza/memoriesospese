@@ -58,6 +58,7 @@ export interface BookingCampaign {
   
   // Anticipo slider homepage (opzionale)
   giorniAnticipoSlider?: number; // Giorni prima di dataInizio in cui lo slider appare in homepage (default: 0)
+  bloccaPrenotazioniPrimaInizio?: boolean; // Se true, blocca prenotazioni prima di dataInizio anche se slider visibile (default: false)
   
   // Tema associato (null se nessun tema)
   temaStagionale: string | null; // 'natale' | 'carnevale' | 'san-valentino' | 'pasqua' | 'halloween' | null
