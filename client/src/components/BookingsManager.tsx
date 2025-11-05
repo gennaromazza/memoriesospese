@@ -1627,8 +1627,8 @@ export default function BookingsManager({
                 title: 'Galleria creata',
                 description: 'Reindirizzamento alla schermata di caricamento foto...',
               });
-              // Navigate to edit gallery page
-              navigate(`/edit-gallery/${galleryId}`);
+              // Navigate to gallery management page
+              navigate(`/admin/gallery/${galleryId}/manage`);
             }}
             prePopulate={prePopulateData}
           />

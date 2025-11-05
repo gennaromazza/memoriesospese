@@ -1774,8 +1774,8 @@ export default function AdminDashboard() {
         onGalleryCreated={(galleryId, galleryCode) => {
           // Ricarichiamo le gallerie dopo la creazione via React Query
           queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
-          // Navigate to edit gallery page for photo upload
-          navigate(`/edit-gallery/${galleryId}`);
+          // Navigate to gallery management page for photo upload
+          navigate(`/admin/gallery/${galleryId}/manage`);
         }}
       />
 
