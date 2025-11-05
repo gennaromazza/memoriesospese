@@ -262,22 +262,45 @@ router.post('/create', async (req, res) => {
       });
     }
 
-    // 2. Crea evento Google Calendar (riserva lo slot atomicamente)
-    const { createEvent } = await import('./google-calendar.js');
-    
-    const calendarEvent = await createEvent(
-      'primary',
-      {
-        summary: `Shooting: ${cliente.nome} ${cliente.cognome}`,
-        description: `Prenotazione shooting\n\nCliente: ${cliente.nome} ${cliente.cognome}\nEmail: ${cliente.email}\nWhatsApp: ${cliente.whatsapp}\n${prodottoNome ? `Prodotto: ${prodottoNome}\n` : ''}${note ? `Note: ${note}` : ''}`,
-        start: slotStart,
-        end: slotEnd,
-        location: 'Studio fotografico',
-        attendees: [cliente.email],
-      }
-    );
+    // 2. Verifica anche booking esistenti in Firestore con overlap check (prevenzione race condition)
+    // NOTA: Firestore non supporta range queries su più campi, quindi recuperiamo tutti i booking del giorno e filtriamo in memoria
+    const dayStart = new Date(slotStart);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(slotStart);
+    dayEnd.setHours(23, 59, 59, 999);
 
-    // 3. Solo DOPO evento creato, salva su Firestore (db già inizializzato sopra)
+    const existingBookingsSnapshot = await db.collection('bookings')
+      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
+
+    // Controllo overlap in memoria
+    const hasOverlap = existingBookingsSnapshot.docs.some(doc => {
+      const booking = doc.data();
+      const existingStart = booking.dataShootingInizio.toDate();
+      const existingEnd = booking.dataShootingFine.toDate();
+      
+      // Verifica sovrapposizione: due intervalli si sovrappongono se:
+      // (slotStart < existingEnd) E (slotEnd > existingStart)
+      const overlaps = (slotStart < existingEnd) && (slotEnd > existingStart);
+      
+      if (overlaps) {
+        console.log(`⚠️ Overlap detected: New slot ${slotStart.toISOString()}-${slotEnd.toISOString()} overlaps with existing ${existingStart.toISOString()}-${existingEnd.toISOString()}`);
+      }
+      
+      return overlaps;
+    });
+
+    if (hasOverlap) {
+      return res.status(409).json({ 
+        error: 'Slot non più disponibile',
+        message: 'Lo slot selezionato si sovrappone con una prenotazione esistente. Scegli un altro orario.'
+      });
+    }
+
+    // 3. NON creare evento Google Calendar qui - verrà creato solo all'approvazione admin
+    // Questo previene che prenotazioni non confermate appaiano sul calendario
     
     const bookingData: any = {
       campaignId,
@@ -295,7 +318,7 @@ router.post('/create', async (req, res) => {
       stato: 'in_attesa',
       emailRicevutaInviata: false,
       emailConfermataInviata: false,
-      googleCalendarEventId: calendarEvent.id || null,
+      googleCalendarEventId: null, // Evento Calendar sarà creato solo all'approvazione
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -402,8 +425,7 @@ router.post('/create', async (req, res) => {
     return res.status(201).json({
       success: true,
       bookingId: bookingRef.id,
-      calendarEventId: calendarEvent.id,
-      message: 'Prenotazione creata con successo'
+      message: 'Prenotazione creata con successo - in attesa di approvazione admin'
     });
 
   } catch (error) {
@@ -464,13 +486,111 @@ router.patch('/:id/approve', async (req, res) => {
       });
     }
 
-    // Aggiorna stato a "confermata"
-    await bookingRef.update({
-      stato: 'confermata',
-      confermataDa: adminUid || 'admin',
-      confermatail: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+    // RIVALIDAZIONE: Verifica che lo slot sia ancora disponibile prima di creare evento
+    const slotStart = bookingData.dataShootingInizio.toDate();
+    const slotEnd = bookingData.dataShootingFine.toDate();
+
+    // Verifica disponibilità su Google Calendar
+    const { checkFreeBusy } = await import('./google-calendar.js');
+    const busyPeriods = await checkFreeBusy('primary', slotStart, slotEnd);
+    
+    const hasCalendarConflict = busyPeriods.some((busy: any) => {
+      const busyStart = new Date(busy.start);
+      const busyEnd = new Date(busy.end);
+      return (slotStart < busyEnd) && (slotEnd > busyStart);
     });
+
+    if (hasCalendarConflict) {
+      console.log(`⚠️ Conflict detected on Calendar during approval for slot ${slotStart.toISOString()}`);
+      return res.status(409).json({ 
+        error: 'Conflitto calendario',
+        message: 'È stato aggiunto un evento sul calendario che si sovrappone con questa prenotazione. Impossibile confermare.'
+      });
+    }
+
+    // Verifica overlap con altri booking in Firestore (escluso questo)
+    const dayStart = new Date(slotStart);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(slotStart);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const otherBookingsSnapshot = await db.collection('bookings')
+      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
+
+    const hasBookingConflict = otherBookingsSnapshot.docs.some(doc => {
+      if (doc.id === id) return false; // Salta questo stesso booking
+      
+      const otherBooking = doc.data();
+      const otherStart = otherBooking.dataShootingInizio.toDate();
+      const otherEnd = otherBooking.dataShootingFine.toDate();
+      
+      return (slotStart < otherEnd) && (slotEnd > otherStart);
+    });
+
+    if (hasBookingConflict) {
+      console.log(`⚠️ Overlap with other booking during approval for slot ${slotStart.toISOString()}`);
+      return res.status(409).json({ 
+        error: 'Prenotazione sovrapposta',
+        message: 'C\'è un\'altra prenotazione che si sovrappone con questa. Impossibile confermare.'
+      });
+    }
+
+    // Crea evento Google Calendar con compensating transaction
+    let calendarEventId = null;
+    try {
+      const { createEvent } = await import('./google-calendar.js');
+      
+      const calendarEvent = await createEvent(
+        'primary',
+        {
+          summary: `Shooting: ${bookingData.cliente.nome} ${bookingData.cliente.cognome}`,
+          description: `Prenotazione shooting CONFERMATA\n\nCliente: ${bookingData.cliente.nome} ${bookingData.cliente.cognome}\nEmail: ${bookingData.cliente.email}\nWhatsApp: ${bookingData.cliente.whatsapp}\n${bookingData.prodottoNome ? `Prodotto: ${bookingData.prodottoNome}\n` : ''}${bookingData.note ? `Note: ${bookingData.note}` : ''}`,
+          start: slotStart,
+          end: slotEnd,
+          location: 'Studio fotografico',
+          attendees: [bookingData.cliente.email],
+        }
+      );
+
+      calendarEventId = calendarEvent.id;
+      console.log(`✅ Evento Google Calendar creato: ${calendarEventId}`);
+    } catch (calendarError) {
+      console.error('❌ Errore creazione evento Google Calendar:', calendarError);
+      return res.status(503).json({ 
+        error: 'Errore Google Calendar',
+        message: 'Impossibile creare l\'evento sul calendario. Riprova più tardi.',
+        details: calendarError instanceof Error ? calendarError.message : 'Errore sconosciuto'
+      });
+    }
+
+    // Aggiorna stato a "confermata" con ID evento Calendar - con rollback su errore
+    try {
+      await bookingRef.update({
+        stato: 'confermata',
+        googleCalendarEventId: calendarEventId,
+        confermataDa: adminUid || 'admin',
+        confermatail: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (firestoreError) {
+      // Rollback: cancella evento Calendar se update Firestore fallisce
+      console.error('❌ Errore update Firestore - eseguo rollback Calendar event', firestoreError);
+      try {
+        const { deleteEvent } = await import('./google-calendar.js');
+        await deleteEvent('primary', calendarEventId!);
+        console.log(`✅ Rollback completato - evento Calendar cancellato: ${calendarEventId}`);
+      } catch (rollbackError) {
+        console.error('❌ ERRORE CRITICO: Fallito rollback Calendar event', rollbackError);
+      }
+      
+      return res.status(500).json({ 
+        error: 'Errore salvataggio',
+        message: 'Impossibile salvare la conferma. L\'evento Calendar è stato cancellato automaticamente.'
+      });
+    }
 
     // Invia email "Prenotazione Confermata" (chiamata diretta alla funzione)
     try {
