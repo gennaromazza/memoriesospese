@@ -33,6 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Calendar, Clock, Package, AlertCircle, CheckCircle2, Loader2, ZoomIn, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { format, addDays, isBefore, isAfter, startOfDay } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { isSundayOrHoliday } from '@/lib/italian-holidays';
 
 export default function BookingPage() {
   const params = useParams<{ code: string }>();
@@ -61,6 +62,9 @@ export default function BookingPage() {
   
   // Stati per descrizioni espanse (key = productId, value = boolean)
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
+  
+  // Stati per indici immagini carousel (key = productId, value = currentIndex)
+  const [productImageIndexes, setProductImageIndexes] = useState<Record<string, number>>({});
 
   // Query campaign
   const { data: campaign, isLoading, error } = useQuery<BookingCampaign | null>({
@@ -201,6 +205,33 @@ export default function BookingPage() {
     setExpandedDescriptions(prev => ({
       ...prev,
       [productId]: !prev[productId]
+    }));
+  };
+
+  // Funzioni carousel prodotti
+  const getProductImageIndex = (productId: string) => productImageIndexes[productId] || 0;
+  
+  const nextProductImage = (productId: string, totalImages: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Previeni selezione prodotto
+    setProductImageIndexes(prev => ({
+      ...prev,
+      [productId]: (prev[productId] || 0) + 1 >= totalImages ? 0 : (prev[productId] || 0) + 1
+    }));
+  };
+  
+  const prevProductImage = (productId: string, totalImages: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Previeni selezione prodotto
+    setProductImageIndexes(prev => ({
+      ...prev,
+      [productId]: (prev[productId] || 0) - 1 < 0 ? totalImages - 1 : (prev[productId] || 0) - 1
+    }));
+  };
+  
+  const setProductImageIndex = (productId: string, index: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Previeni selezione prodotto
+    setProductImageIndexes(prev => ({
+      ...prev,
+      [productId]: index
     }));
   };
 
@@ -430,29 +461,42 @@ export default function BookingPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {availableDates.map(date => (
-                  <Button
-                    key={date.toISOString()}
-                    type="button"
-                    variant={selectedDate?.toDateString() === date.toDateString() ? 'default' : 'outline'}
-                    className="h-auto py-3 flex flex-col items-center"
-                    onClick={() => {
-                      setSelectedDate(date);
-                      setSelectedSlot(null);
-                    }}
-                    data-testid={`date-${format(date, 'yyyy-MM-dd')}`}
-                  >
-                    <span className="text-xs text-muted-foreground">
-                      {format(date, 'EEE', { locale: it })}
-                    </span>
-                    <span className="text-2xl font-bold">
-                      {format(date, 'dd', { locale: it })}
-                    </span>
-                    <span className="text-xs">
-                      {format(date, 'MMM', { locale: it })}
-                    </span>
-                  </Button>
-                ))}
+                  {availableDates.map(date => {
+                    const isHoliday = isSundayOrHoliday(date);
+                    const isSelected = selectedDate?.toDateString() === date.toDateString();
+                    
+                    return (
+                      <Button
+                        key={date.toISOString()}
+                        type="button"
+                        variant={isSelected ? 'default' : 'outline'}
+                        className={`h-auto py-3 flex flex-col items-center ${
+                          isHoliday && !isSelected ? 'border-red-500/50 hover:border-red-500' : ''
+                        }`}
+                        onClick={() => {
+                          setSelectedDate(date);
+                          setSelectedSlot(null);
+                        }}
+                        data-testid={`date-${format(date, 'yyyy-MM-dd')}`}
+                      >
+                        <span className={`text-xs ${
+                          isSelected ? 'text-primary-foreground' : isHoliday ? 'text-red-500' : 'text-muted-foreground'
+                        }`}>
+                          {format(date, 'EEE', { locale: it })}
+                        </span>
+                        <span className={`text-2xl font-bold ${
+                          isSelected ? 'text-primary-foreground' : isHoliday ? 'text-red-500' : ''
+                        }`}>
+                          {format(date, 'dd', { locale: it })}
+                        </span>
+                        <span className={`text-xs ${
+                          isSelected ? 'text-primary-foreground' : isHoliday ? 'text-red-500' : ''
+                        }`}>
+                          {format(date, 'MMM', { locale: it })}
+                        </span>
+                      </Button>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -613,14 +657,38 @@ export default function BookingPage() {
                             data-testid={`product-${product.id}`}
                           >
                             <CardContent className="p-0">
-                              {/* Immagine prodotto */}
+                              {/* Immagine prodotto con carousel */}
                               {product.immagini && product.immagini.length > 0 ? (
-                                <div className="relative w-full h-48 sm:h-52 bg-muted overflow-hidden rounded-t-lg">
+                                <div className="relative w-full h-48 sm:h-52 bg-muted overflow-hidden rounded-t-lg group">
                                   <img 
-                                    src={product.immagini[0]} 
-                                    alt={product.nome}
+                                    src={product.immagini[getProductImageIndex(product.id)]} 
+                                    alt={`${product.nome} - ${getProductImageIndex(product.id) + 1}`}
                                     className="w-full h-full object-cover"
                                   />
+                                  
+                                  {/* Frecce navigazione carousel - visibili solo se più immagini */}
+                                  {product.immagini.length > 1 && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full p-2 shadow-lg hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all z-10 opacity-0 group-hover:opacity-100 min-w-[40px] min-h-[40px] flex items-center justify-center"
+                                        onClick={(e) => prevProductImage(product.id, product.immagini!.length, e)}
+                                        aria-label="Immagine precedente"
+                                        data-testid={`prev-${product.id}`}
+                                      >
+                                        <ChevronLeft className="h-5 w-5 text-gray-900 dark:text-white" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full p-2 shadow-lg hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all z-10 opacity-0 group-hover:opacity-100 min-w-[40px] min-h-[40px] flex items-center justify-center"
+                                        onClick={(e) => nextProductImage(product.id, product.immagini!.length, e)}
+                                        aria-label="Immagine successiva"
+                                        data-testid={`next-${product.id}`}
+                                      >
+                                        <ChevronRight className="h-5 w-5 text-gray-900 dark:text-white" />
+                                      </button>
+                                    </>
+                                  )}
                                   
                                   {/* Bottone zoom - touch target 44x44px */}
                                   <button
@@ -628,7 +696,7 @@ export default function BookingPage() {
                                     className="absolute top-2 left-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full p-3 shadow-lg hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      openLightbox(product.immagini!, product.nome);
+                                      openLightbox(product.immagini!, product.nome, getProductImageIndex(product.id));
                                     }}
                                     aria-label="Vedi immagine grande"
                                     data-testid={`zoom-${product.id}`}
@@ -640,6 +708,32 @@ export default function BookingPage() {
                                   {formData.prodottoId === product.id && (
                                     <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1.5 shadow-lg z-10">
                                       <CheckCircle2 className="h-5 w-5" />
+                                    </div>
+                                  )}
+                                  
+                                  {/* Indicatori carousel - solo se più immagini */}
+                                  {product.immagini.length > 1 && (
+                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                                      {product.immagini.map((_, index) => (
+                                        <button
+                                          key={index}
+                                          type="button"
+                                          className={`rounded-full transition-all min-w-[24px] min-h-[24px] flex items-center justify-center ${
+                                            index === getProductImageIndex(product.id)
+                                              ? 'bg-white/90'
+                                              : 'bg-white/40 hover:bg-white/60'
+                                          }`}
+                                          onClick={(e) => setProductImageIndex(product.id, index, e)}
+                                          aria-label={`Vai all'immagine ${index + 1}`}
+                                          data-testid={`indicator-${product.id}-${index}`}
+                                        >
+                                          <span className={`rounded-full ${
+                                            index === getProductImageIndex(product.id)
+                                              ? 'bg-white w-2 h-2'
+                                              : 'bg-white w-1.5 h-1.5'
+                                          }`} />
+                                        </button>
+                                      ))}
                                     </div>
                                   )}
                                 </div>
