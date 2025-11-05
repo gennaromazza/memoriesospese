@@ -961,6 +961,22 @@ export default function BookingPage() {
                     {availableProducts.length > 0 && (
                       <div className="space-y-3">
                         <Label>Pacchetto Fotografico (opzionale)</Label>
+                        
+                        {/* Banner informativo se non hanno selezionato data/orario */}
+                        {(!selectedDate || !selectedSlot) && (
+                          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-start gap-3">
+                            <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                                Per visualizzare i pacchetti fotografici e i prezzi disponibili
+                              </p>
+                              <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                                Seleziona prima la <strong>data</strong> e l'<strong>orario</strong> del tuo shooting nelle sezioni qui sopra
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                           {/* Opzione "Da decidere" */}
                           <Card
