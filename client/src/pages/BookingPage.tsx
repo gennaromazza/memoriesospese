@@ -58,6 +58,9 @@ export default function BookingPage() {
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxProductName, setLightboxProductName] = useState('');
+  
+  // Stati per descrizioni espanse (key = productId, value = boolean)
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
 
   // Query campaign
   const { data: campaign, isLoading, error } = useQuery<BookingCampaign | null>({
@@ -190,6 +193,15 @@ export default function BookingPage() {
 
   const prevImage = () => {
     setLightboxIndex((prev) => (prev - 1 + lightboxImages.length) % lightboxImages.length);
+  };
+
+  // Toggle descrizione espansa
+  const toggleDescription = (productId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Previeni selezione prodotto quando clicchi "Vedi di più"
+    setExpandedDescriptions(prev => ({
+      ...prev,
+      [productId]: !prev[productId]
+    }));
   };
 
   // Validazione form
@@ -568,21 +580,21 @@ export default function BookingPage() {
                   {availableProducts.length > 0 && (
                     <div className="space-y-3">
                       <Label>Pacchetto Fotografico (opzionale)</Label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                         {/* Opzione "Da decidere" */}
                         <Card 
-                          className={`cursor-pointer transition-all hover:shadow-md ${
+                          className={`cursor-pointer transition-all hover:shadow-md active:scale-98 ${
                             formData.prodottoId === '' 
-                              ? 'ring-2 ring-primary' 
+                              ? 'ring-2 ring-primary shadow-lg' 
                               : 'hover:border-primary/50'
                           }`}
                           onClick={() => setFormData({ ...formData, prodottoId: '' })}
                           data-testid="product-none"
                         >
-                          <CardContent className="p-4 flex flex-col items-center justify-center min-h-[200px]">
-                            <Package className="h-12 w-12 text-muted-foreground mb-3" />
-                            <h3 className="font-semibold text-center mb-2">Da Decidere</h3>
-                            <p className="text-sm text-muted-foreground text-center">
+                          <CardContent className="p-6 flex flex-col items-center justify-center min-h-[220px]">
+                            <Package className="h-14 w-14 text-muted-foreground mb-4" />
+                            <h3 className="font-semibold text-base text-center mb-2">Da Decidere</h3>
+                            <p className="text-sm text-muted-foreground text-center leading-relaxed">
                               Sceglierò il pacchetto in sede
                             </p>
                           </CardContent>
@@ -592,9 +604,9 @@ export default function BookingPage() {
                         {availableProducts.map(product => (
                           <Card 
                             key={product.id}
-                            className={`cursor-pointer transition-all hover:shadow-md ${
+                            className={`cursor-pointer transition-all hover:shadow-md active:scale-98 ${
                               formData.prodottoId === product.id 
-                                ? 'ring-2 ring-primary' 
+                                ? 'ring-2 ring-primary shadow-lg' 
                                 : 'hover:border-primary/50'
                             }`}
                             onClick={() => setFormData({ ...formData, prodottoId: product.id })}
@@ -610,10 +622,10 @@ export default function BookingPage() {
                                     className="w-full h-full object-cover"
                                   />
                                   
-                                  {/* Bottone zoom */}
+                                  {/* Bottone zoom - touch target 44x44px */}
                                   <button
                                     type="button"
-                                    className="absolute top-2 left-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full p-2 shadow-lg hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all z-10"
+                                    className="absolute top-2 left-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full p-3 shadow-lg hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openLightbox(product.immagini!, product.nome);
@@ -621,7 +633,7 @@ export default function BookingPage() {
                                     aria-label="Vedi immagine grande"
                                     data-testid={`zoom-${product.id}`}
                                   >
-                                    <ZoomIn className="h-4 w-4 text-gray-900 dark:text-white" />
+                                    <ZoomIn className="h-5 w-5 text-gray-900 dark:text-white" />
                                   </button>
                                   
                                   {/* Badge selezione */}
@@ -643,18 +655,35 @@ export default function BookingPage() {
                               )}
 
                               {/* Info prodotto */}
-                              <div className="p-4 space-y-3">
-                                <h3 className="font-semibold text-base sm:text-lg line-clamp-1">{product.nome}</h3>
+                              <div className="p-5 sm:p-6 space-y-3">
+                                {/* Nome prodotto - sempre completo */}
+                                <h3 className="font-semibold text-base sm:text-lg leading-tight">
+                                  {product.nome}
+                                </h3>
                                 
-                                {/* Descrizione prodotto */}
+                                {/* Descrizione prodotto espandibile */}
                                 {product.descrizione && (
-                                  <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                                    {product.descrizione}
-                                  </p>
+                                  <div className="space-y-1">
+                                    <p className={`text-sm text-muted-foreground leading-relaxed ${
+                                      expandedDescriptions[product.id] ? '' : 'line-clamp-2'
+                                    }`}>
+                                      {product.descrizione}
+                                    </p>
+                                    {/* Mostra "Vedi di più" solo se il testo è lungo (>100 caratteri) */}
+                                    {product.descrizione.length > 100 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => toggleDescription(product.id, e)}
+                                        className="text-xs text-primary hover:underline font-medium"
+                                      >
+                                        {expandedDescriptions[product.id] ? 'Vedi meno' : 'Vedi di più'}
+                                      </button>
+                                    )}
+                                  </div>
                                 )}
                                 
                                 {/* Prezzi */}
-                                <div className="flex items-baseline gap-2 flex-wrap">
+                                <div className="flex items-baseline gap-2 flex-wrap pt-1">
                                   {product.sconto > 0 ? (
                                     <>
                                       <span className="text-xl sm:text-2xl font-bold text-primary">
