@@ -417,23 +417,34 @@ export default function BookingPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {availableSlots.map((slot, index) => (
-                      <Button
-                        key={index}
-                        type="button"
-                        variant={selectedSlot?.start === slot.start ? 'default' : 'outline'}
-                        className="h-auto py-3"
-                        onClick={() => setSelectedSlot(slot)}
-                        data-testid={`slot-${slot.startTime}`}
-                      >
-                        <div className="text-center">
-                          <div className="font-bold">{slot.startTime}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {slot.endTime}
+                    {availableSlots.map((slot, index) => {
+                      // Verifica se lo slot è nel passato
+                      const now = new Date();
+                      const slotDate = new Date(slot.start);
+                      const isPast = isBefore(slotDate, now);
+
+                      return (
+                        <Button
+                          key={index}
+                          type="button"
+                          variant={selectedSlot?.start === slot.start ? 'default' : 'outline'}
+                          className="h-auto py-3"
+                          onClick={() => !isPast && setSelectedSlot(slot)}
+                          disabled={isPast}
+                          data-testid={`slot-${slot.startTime}`}
+                        >
+                          <div className="text-center">
+                            <div className="font-bold">{slot.startTime}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {slot.endTime}
+                            </div>
+                            {isPast && (
+                              <div className="text-xs text-red-500 mt-1">Non disponibile</div>
+                            )}
                           </div>
-                        </div>
-                      </Button>
-                    ))}
+                        </Button>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

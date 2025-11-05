@@ -2,7 +2,7 @@
  * Bookings Manager - Gestione prenotazioni booking per admin
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import {
@@ -121,7 +121,15 @@ function getStatoBadge(stato: string) {
   }
 }
 
-export default function BookingsManager() {
+interface BookingsManagerProps {
+  highlightBookingId?: string | null;
+  onHighlightComplete?: () => void;
+}
+
+export default function BookingsManager({ 
+  highlightBookingId, 
+  onHighlightComplete 
+}: BookingsManagerProps = {}) {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
   const [activeTab, setActiveTab] = useState<'bookings' | 'orders'>('bookings');
@@ -137,6 +145,10 @@ export default function BookingsManager() {
   const [selectedGalleryForEdit, setSelectedGalleryForEdit] = useState<Gallery | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const bookingRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // State per cancellazione a cascata
   const [deleteBookingCascadeId, setDeleteBookingCascadeId] = useState<string | null>(null);
@@ -252,6 +264,102 @@ export default function BookingsManager() {
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedStato, searchQuery]);
+
+  // Scroll e highlight booking quando richiesto da GestioneCommesse
+  useEffect(() => {
+    // Cleanup dei timeout precedenti
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    if (clearHighlightTimeoutRef.current) {
+      clearTimeout(clearHighlightTimeoutRef.current);
+      clearHighlightTimeoutRef.current = null;
+    }
+
+    if (!highlightBookingId) return;
+
+    // Attendi il caricamento dei dati prima di procedere
+    if (isLoading) {
+      return; // Non chiamare onHighlightComplete - l'effect riproverà quando isLoading diventa false
+    }
+
+    // Cerca il booking nel dataset completo
+    const targetBooking = allBookings.find(b => b.id === highlightBookingId);
+    
+    if (!targetBooking) {
+      console.warn(`Booking ${highlightBookingId} non trovato nel dataset`);
+      onHighlightComplete?.();
+      return;
+    }
+
+    // Assicura che la tab corretta sia attiva
+    setActiveTab('bookings');
+    
+    // Reset filtri per assicurarsi che il booking sia visibile
+    setSelectedStato('all');
+    setSearchQuery('');
+    
+    // Calcola la pagina dove si trova il booking
+    // Prima applica i filtri (in questo caso, tutti i booking perché filtri sono reset)
+    const filteredBookings = [...allBookings].sort((a, b) => {
+      const getTime = (timestamp: any): number => {
+        if (!timestamp) return 0;
+        if (timestamp.toDate) return timestamp.toDate().getTime();
+        if (timestamp instanceof Date) return timestamp.getTime();
+        return new Date(timestamp).getTime();
+      };
+      return getTime(b.dataShootingInizio) - getTime(a.dataShootingInizio);
+    });
+    
+    const bookingIndex = filteredBookings.findIndex(b => b.id === highlightBookingId);
+    if (bookingIndex === -1) {
+      console.warn(`Booking ${highlightBookingId} non trovato dopo filtri`);
+      onHighlightComplete?.();
+      return;
+    }
+    
+    const targetPage = Math.floor(bookingIndex / ITEMS_PER_PAGE) + 1;
+    setCurrentPage(targetPage);
+    
+    // Timeout per assicurarsi che il DOM sia renderizzato dopo cambio pagina
+    highlightTimeoutRef.current = setTimeout(() => {
+      const element = bookingRefs.current[highlightBookingId];
+      if (element) {
+        // Scroll smooth alla card
+        element.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Aggiungi highlight temporaneo
+        setHighlightedId(highlightBookingId);
+        
+        // Rimuovi highlight dopo 3 secondi
+        clearHighlightTimeoutRef.current = setTimeout(() => {
+          setHighlightedId(null);
+          onHighlightComplete?.();
+          clearHighlightTimeoutRef.current = null;
+        }, 3000);
+      } else {
+        console.warn(`Elemento DOM per booking ${highlightBookingId} non trovato`);
+        onHighlightComplete?.();
+      }
+      highlightTimeoutRef.current = null;
+    }, 300);
+
+    // Cleanup on unmount
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = null;
+      }
+      if (clearHighlightTimeoutRef.current) {
+        clearTimeout(clearHighlightTimeoutRef.current);
+        clearHighlightTimeoutRef.current = null;
+      }
+    };
+  }, [highlightBookingId, allBookings, isLoading, onHighlightComplete]);
 
   // Mutation: Approva prenotazione
   const approveMutation = useMutation({
@@ -708,8 +816,14 @@ export default function BookingsManager() {
             const colorClass = cardColors[((currentPage - 1) * ITEMS_PER_PAGE + index) % cardColors.length];
             const isApproved = booking.stato === 'confermata' || booking.stato === 'completata';
 
+            const isHighlighted = highlightedId === booking.id;
+
             return (
-            <Card key={booking.id} className={`hover:shadow-lg transition-shadow ${colorClass.border} ${colorClass.bg}`}>
+            <Card 
+              key={booking.id} 
+              ref={(el) => { bookingRefs.current[booking.id] = el; }}
+              className={`hover:shadow-lg transition-all ${colorClass.border} ${colorClass.bg} ${isHighlighted ? 'ring-4 ring-blue-500 ring-offset-2 shadow-2xl' : ''}`}
+            >
               <CardContent className="p-6">
                 <div className="flex justify-between items-start gap-6">
                   {/* Info prenotazione */}

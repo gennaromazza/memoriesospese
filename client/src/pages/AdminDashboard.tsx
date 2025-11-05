@@ -204,6 +204,7 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes'>('galleries');
+  const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
 
   // Detect if admin came from a specific gallery
   const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
@@ -508,10 +509,10 @@ export default function AdminDashboard() {
     queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
   };
 
-  // Handler: Apri booking specifico (per ora solo cambia tab)
+  // Handler: Apri booking specifico e scroll + highlight
   const handleOpenBooking = (bookingId: string) => {
+    setHighlightBookingId(bookingId);
     setActiveTab('bookings');
-    // TODO: Implementare apertura automatica dettaglio booking quando refactoring BookingsManager
   };
 
   // Handler: Apri ordine specifico (per ora solo cambia tab)
@@ -1470,7 +1471,10 @@ export default function AdminDashboard() {
                 </TabsList>
 
                 <TabsContent value="bookings-list">
-                  <BookingsManager />
+                  <BookingsManager 
+                    highlightBookingId={highlightBookingId}
+                    onHighlightComplete={() => setHighlightBookingId(null)}
+                  />
                 </TabsContent>
 
                 <TabsContent value="campaigns">
