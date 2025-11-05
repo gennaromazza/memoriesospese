@@ -15,6 +15,7 @@ const router = express.Router();
  * SICURO: Valida serviceAccount prima di usare admin.credential.cert()
  */
 function initializeFirebaseAdmin() {
+  console.log('🔥🔥🔥 NUOVO CODICE FIREBASE ADMIN CARICATO - IMPORT STATICO 🔥🔥🔥');
   if (!admin.apps?.length) {
     const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
     
