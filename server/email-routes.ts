@@ -664,16 +664,29 @@ router.post("/send-gallery-password", async (req, res) => {
       });
     }
 
-    // RECUPERA PASSWORD da collection protetta `gallerySecrets` (admin-only access)
-    const secretDoc = await getFirestoreDocument(`gallerySecrets/${galleryId}`);
-    const password = secretDoc?.fields?.password?.stringValue;
+    // RECUPERA PASSWORD da collection protetta `gallerySecrets` usando Firebase Admin SDK
+    // (getFirestoreDocument usa REST API senza auth e non può accedere a collezioni protette)
+    const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+    
+    if (!secretsDoc.exists) {
+      console.error(`❌ Documento gallerySecrets non trovato per galleria ${galleryId}`);
+      return res.status(500).json({
+        error: { 
+          code: "internal", 
+          message: "Configurazione password non trovata. Contatta l'amministratore." 
+        },
+      });
+    }
+
+    const secretData = secretsDoc.data();
+    const password = secretData?.password;
 
     if (!password) {
       console.error(`❌ Password non configurata per galleria ${galleryId}`);
-      return res.status(400).json({
+      return res.status(500).json({
         error: { 
-          code: "failed-precondition", 
-          message: "Questa galleria non richiede password. Puoi accedere direttamente usando il codice galleria." 
+          code: "internal", 
+          message: "Password non configurata. Contatta l'amministratore." 
         },
       });
     }
