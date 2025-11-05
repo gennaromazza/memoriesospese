@@ -160,10 +160,15 @@ export default function BookingPage() {
     }
   }, [availableSlots, selectedSlot]);
 
-  // Filtra prodotti disponibili per questa campagna
-  const availableProducts = products.filter(p => 
-    campaign?.prodottiDisponibili.includes(p.id)
-  );
+  // Filtra prodotti disponibili per questa campagna e ordina per prezzo crescente
+  const availableProducts = products
+    .filter(p => campaign?.prodottiDisponibili.includes(p.id))
+    .sort((a, b) => {
+      // Usa prezzo scontato se presente, altrimenti prezzo normale
+      const priceA = a.sconto > 0 ? a.prezzoScontato : a.prezzo;
+      const priceB = b.sconto > 0 ? b.prezzoScontato : b.prezzo;
+      return priceA - priceB; // Dal più basso al più alto
+    });
 
   // Genera date disponibili (solo da oggi in poi fino a dataFine campagna)
   const availableDates: Date[] = [];
