@@ -467,8 +467,8 @@ export default function NewGalleryModal({
         console.log("📧 Invio email PIN al cliente...");
 
         try {
-          // Costruisce URL completo alla galleria specifica (non pagina generica)
-          const galleryUrl = createAbsoluteUrl(`/view/${code}`);
+          // Costruisce URL completo alla pagina di accesso speciale
+          const galleryUrl = createAbsoluteUrl('/special-gallery');
           
           const emailResponse = await fetch(
             "/api/email/special-gallery-pin-notification",
