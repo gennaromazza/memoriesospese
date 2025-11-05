@@ -4,59 +4,9 @@
 
 import { Router, Request, Response } from 'express';
 import { sendGmailEmail } from './email-routes.js';
-import * as admin from 'firebase-admin';
+import { db, FieldValue } from './firebase-admin.js';
 
 const router = Router();
-
-/**
- * Helper: Inizializza Firebase Admin SDK con validazione robusta
- * SICURO: Valida serviceAccount prima di usare admin.credential.cert()
- */
-function initializeFirebaseAdmin() {
-  if (!admin.apps?.length) {
-    const serviceAccountBase64 = process.env.FIREBASE_ADMIN_CREDENTIALS;
-    
-    if (!serviceAccountBase64) {
-      console.error('❌ FIREBASE_ADMIN_CREDENTIALS environment variable non configurato');
-      throw new Error('FIREBASE_ADMIN_CREDENTIALS non configurato');
-    }
-
-    try {
-      const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
-      const serviceAccount = JSON.parse(serviceAccountJson);
-
-      // 🔒 VALIDAZIONE ROBUSTA: Verifica campi obbligatori PRIMA di usare .cert()
-      if (!serviceAccount?.client_email || !serviceAccount?.private_key || !serviceAccount?.project_id) {
-        console.error('❌ Firebase Admin service account malformato:', {
-          hasClientEmail: !!serviceAccount?.client_email,
-          hasPrivateKey: !!serviceAccount?.private_key,
-          hasProjectId: !!serviceAccount?.project_id
-        });
-        throw new Error('FIREBASE_ADMIN_CREDENTIALS non valido: mancano client_email, private_key o project_id');
-      }
-
-      console.log('✅ Inizializzazione Firebase Admin SDK per progetto:', serviceAccount.project_id);
-      
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      
-      console.log('✅ Firebase Admin SDK inizializzato correttamente');
-    } catch (error: any) {
-      console.error('❌ Errore inizializzazione Firebase Admin:', error.message);
-      throw new Error(`Errore inizializzazione Firebase Admin: ${error.message}`);
-    }
-  }
-  
-  return admin;
-}
-
-/**
- * Helper: Ottiene Firebase Admin SDK (wrapper per compatibilità)
- */
-async function getFirebaseAdmin() {
-  return initializeFirebaseAdmin();
-}
 
 /**
  * Helper: Crea HTML email per notifica aggiornamento ordine
@@ -202,10 +152,6 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     console.log(`📝 Update ordine ${id}:`, updateData);
 
-    // Inizializza Firebase Admin
-    const admin = await getFirebaseAdmin();
-    const db = admin.firestore();
-
     // 1. Fetch ordine corrente
     const orderRef = db.collection('orders').doc(id);
     const orderDoc = await orderRef.get();
@@ -237,7 +183,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       ...updateData,
       totale,
       saldo,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     // 4. Update Firestore
@@ -250,7 +196,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
         const galleryRef = db.collection('galleries').doc(currentOrder.galleryId);
         await galleryRef.update({
           orderStatus: updateData.status,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: FieldValue.serverTimestamp()
         });
         console.log(`✅ Galleria ${currentOrder.galleryId} aggiornata con orderStatus: ${updateData.status}`);
       } catch (galleryError: any) {
