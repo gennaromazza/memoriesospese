@@ -2522,15 +2522,16 @@ router.post("/saldo-received", async (req, res) => {
  */
 router.post("/special-gallery-pin-notification", async (req, res) => {
   try {
-    const { galleryId, clientEmail, clientName } = req.body;
+    const { galleryId, clientEmail, clientName, galleryUrl } = req.body;
 
-    if (!galleryId || !clientEmail) {
+    if (!galleryId || !clientEmail || !galleryUrl) {
       return res.status(400).json({
-        error: "Missing required fields: galleryId, clientEmail"
+        error: "Missing required fields: galleryId, clientEmail, galleryUrl"
       });
     }
 
     console.log(`📧 Invio notifica PIN galleria speciale a: ${clientEmail}`);
+    console.log(`🔗 URL galleria: ${galleryUrl}`);
 
     // Inizializza Firebase Admin per recuperare dati galleria
 
@@ -2568,9 +2569,6 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
     // Recupera info studio
     const studioInfo = await getStudioContactInfo();
 
-    // URL di accesso diretto
-    const accessUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://wedding-gallery-397b6.web.app'}/special-gallery`;
-
     // Componi email HTML con stile coerente con resto app
     const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -2601,7 +2599,7 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
         </div>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${accessUrl}" 
+          <a href="${galleryUrl}" 
              style="background: #8b5a3c; color: white; padding: 15px 30px; 
                     text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             Accedi alla Galleria

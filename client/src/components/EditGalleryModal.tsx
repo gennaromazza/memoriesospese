@@ -21,6 +21,7 @@ import { Progress } from "./ui/progress";
 import imageCompression from 'browser-image-compression';
 import { queryClient } from "../lib/queryClient";
 import { Info } from 'lucide-react';
+import { createAbsoluteUrl } from "../lib/basePath";
 
 interface PhotoData {
   id: string;
@@ -935,13 +936,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         console.log('📧 Invio email PIN al cliente...');
         
         try {
+          // Costruisce URL completo galleria speciale
+          const galleryUrl = createAbsoluteUrl("/special-gallery");
+          
           const emailResponse = await fetch('/api/email/special-gallery-pin-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               galleryId: gallery.id,
               clientEmail: clientEmail.trim(),
-              clientName: clientName.trim() || undefined
+              clientName: clientName.trim() || undefined,
+              galleryUrl: galleryUrl
             })
           });
 
