@@ -610,43 +610,49 @@ export default function BookingPage() {
 
             {/* Info riepilogo */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
-              <div className="text-center p-6 rounded-lg bg-gradient-to-br from-sage/5 to-sage/10 border border-sage/20">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sage/20 mb-3">
-                  <Calendar className="h-6 w-6 text-sage" />
-                </div>
-                <p className="text-xs font-medium text-sage uppercase tracking-wider mb-2">
-                  Periodo
-                </p>
-                <p className="text-base font-semibold text-gray-900">
-                  {format(campaign.dataInizio, "dd MMM", { locale: it })} –{" "}
-                  {format(campaign.dataFine, "dd MMM yyyy", { locale: it })}
-                </p>
-              </div>
+              <Card className="border-border/60 bg-card/50">
+                <CardContent className="pt-6 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-3">
+                    <Calendar className="h-6 w-6 text-primary" />
+                  </div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    Periodo
+                  </p>
+                  <p className="text-base font-semibold text-foreground">
+                    {format(campaign.dataInizio, "dd MMM", { locale: it })} –{" "}
+                    {format(campaign.dataFine, "dd MMM yyyy", { locale: it })}
+                  </p>
+                </CardContent>
+              </Card>
 
-              <div className="text-center p-6 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/50">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 mb-3">
-                  <Clock className="h-6 w-6 text-blue-600" />
-                </div>
-                <p className="text-xs font-medium text-blue-600 uppercase tracking-wider mb-2">
-                  Durata shooting
-                </p>
-                <p className="text-base font-semibold text-gray-900">
-                  {campaign.durataShootingMinuti} minuti
-                </p>
-              </div>
+              <Card className="border-border/60 bg-card/50">
+                <CardContent className="pt-6 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-3">
+                    <Clock className="h-6 w-6 text-primary" />
+                  </div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    Durata shooting
+                  </p>
+                  <p className="text-base font-semibold text-foreground">
+                    {campaign.durataShootingMinuti} minuti
+                  </p>
+                </CardContent>
+              </Card>
 
-              <div className="text-center p-6 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200/50">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-100 mb-3">
-                  <Package className="h-6 w-6 text-purple-600" />
-                </div>
-                <p className="text-xs font-medium text-purple-600 uppercase tracking-wider mb-2">
-                  Prodotti disponibili
-                </p>
-                <p className="text-base font-semibold text-gray-900">
-                  {availableProducts.length}{" "}
-                  {availableProducts.length === 1 ? "opzione" : "opzioni"}
-                </p>
-              </div>
+              <Card className="border-border/60 bg-card/50">
+                <CardContent className="pt-6 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-3">
+                    <Package className="h-6 w-6 text-primary" />
+                  </div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    Prodotti disponibili
+                  </p>
+                  <p className="text-base font-semibold text-foreground">
+                    {availableProducts.length}{" "}
+                    {availableProducts.length === 1 ? "opzione" : "opzioni"}
+                  </p>
+                </CardContent>
+              </Card>
             </div>
 
             {campaign.temaStagionale && (
@@ -695,31 +701,31 @@ export default function BookingPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Banner Guida: appare se non hanno ancora completato selezione data/orario */}
             {(!selectedDate || !selectedSlot) && (
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-2 border-blue-300 dark:border-blue-700 rounded-xl p-5 shadow-sm">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 mt-0.5">
-                    <div className="bg-blue-500 dark:bg-blue-600 rounded-full p-2">
-                      <AlertCircle className="h-6 w-6 text-white" />
+              <Card className="border-primary/30 bg-primary/5 dark:bg-primary/10">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                      <AlertCircle className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-foreground mb-3">
+                        📸 Come procedere con la prenotazione
+                      </h3>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <p>
+                          <strong className="text-foreground">1.</strong> Seleziona la <strong className="text-foreground">DATA</strong> del tuo shooting qui sotto
+                        </p>
+                        <p>
+                          <strong className="text-foreground">2.</strong> Scegli l'<strong className="text-foreground">ORARIO</strong> che preferisci
+                        </p>
+                        <p>
+                          <strong className="text-foreground">3.</strong> Vedrai i <strong className="text-foreground">pacchetti fotografici e i prezzi</strong> disponibili
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg text-blue-900 dark:text-blue-100 mb-2">
-                      📸 Come procedere con la prenotazione
-                    </h3>
-                    <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
-                      <p>
-                        <strong>1.</strong> Seleziona la <strong className="text-blue-900 dark:text-blue-100">DATA</strong> del tuo shooting qui sotto
-                      </p>
-                      <p>
-                        <strong>2.</strong> Scegli l'<strong className="text-blue-900 dark:text-blue-100">ORARIO</strong> che preferisci
-                      </p>
-                      <p>
-                        <strong>3.</strong> Vedrai i <strong className="text-blue-900 dark:text-blue-100">pacchetti fotografici e i prezzi</strong> disponibili
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Selezione Data */}
