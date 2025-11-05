@@ -517,19 +517,24 @@ export default function BookingPage() {
         
         {/* Header Campagna */}
         <Card>
-          {/* Mostra titolo e descrizione solo se NON c'è immagine */}
+          {/* Mostra titolo solo se NON c'è immagine */}
           {!campaign.immaginePaginaBooking && (
             <CardHeader>
               <CardTitle className="text-3xl">{campaign.nome}</CardTitle>
-              {campaign.descrizione && (
-                <CardDescription className="text-base mt-2">
-                  {campaign.descrizione}
-                </CardDescription>
-              )}
             </CardHeader>
           )}
           
           <CardContent className="space-y-4">
+            {/* Descrizione sempre visibile */}
+            {campaign.descrizione && (
+              <div className="bg-sage/5 rounded-lg p-4 border border-sage/10 -mt-2 mb-4">
+                <p className="text-base text-gray-600 leading-relaxed">
+                  {campaign.descrizione}
+                </p>
+              </div>
+            )}
+            
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex items-center gap-3">
                 <Calendar className="h-5 w-5 text-primary" />

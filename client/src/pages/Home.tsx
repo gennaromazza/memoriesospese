@@ -364,24 +364,14 @@ export default function Home() {
                               </span>
                             </div>
 
-                            {/* Mostra titolo e descrizione solo se NON c'è immagine */}
+                            {/* Mostra titolo solo se NON c'è immagine */}
                             {!campaign.immagineSlider && (
-                              <>
-                                <div>
-                                  <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
-                                    {campaign.nome}
-                                  </h2>
-                                  <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
-                                </div>
-
-                                {campaign.descrizione && (
-                                  <div className="bg-gradient-to-br from-sage/5 to-transparent p-6 rounded-2xl border border-sage/10">
-                                    <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto md:mx-0">
-                                      {campaign.descrizione}
-                                    </p>
-                                  </div>
-                                )}
-                              </>
+                              <div>
+                                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
+                                  {campaign.nome}
+                                </h2>
+                                <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
+                              </div>
                             )}
 
                             <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4 text-base">
@@ -402,6 +392,15 @@ export default function Home() {
                                 </span>
                               </div>
                             </div>
+
+                            {/* Descrizione sempre visibile */}
+                            {campaign.descrizione && (
+                              <div className="bg-gradient-to-br from-sage/5 to-transparent p-6 rounded-2xl border border-sage/10">
+                                <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto md:mx-0">
+                                  {campaign.descrizione}
+                                </p>
+                              </div>
+                            )}
                           </div>
 
                           {/* Right side - CTA */}
@@ -483,24 +482,14 @@ export default function Home() {
                             <div className="flex flex-col md:flex-row items-center gap-10 p-8 sm:p-12 lg:p-14">
                               {/* Campaign Info */}
                               <div className="flex-1 text-center md:text-left space-y-5">
-                                {/* Mostra titolo e descrizione solo se NON c'è immagine */}
+                                {/* Mostra titolo solo se NON c'è immagine */}
                                 {!campaign.immagineSlider && (
-                                  <>
-                                    <div>
-                                      <h3 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
-                                        {campaign.nome}
-                                      </h3>
-                                      <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
-                                    </div>
-
-                                    {campaign.descrizione && (
-                                      <div className="bg-gradient-to-br from-sage/5 to-transparent p-5 rounded-2xl border border-sage/10">
-                                        <p className="text-base text-gray-600 leading-relaxed max-w-xl mx-auto md:mx-0">
-                                          {campaign.descrizione}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </>
+                                  <div>
+                                    <h3 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-playfair mb-3 text-blue-gray leading-tight">
+                                      {campaign.nome}
+                                    </h3>
+                                    <div className="w-24 h-0.5 bg-gradient-to-r from-sage via-gold to-transparent mx-auto md:mx-0"></div>
+                                  </div>
                                 )}
 
                                 <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 text-sm">
@@ -521,6 +510,15 @@ export default function Home() {
                                     </span>
                                   </div>
                                 </div>
+
+                                {/* Descrizione sempre visibile */}
+                                {campaign.descrizione && (
+                                  <div className="bg-gradient-to-br from-sage/5 to-transparent p-5 rounded-2xl border border-sage/10">
+                                    <p className="text-base text-gray-600 leading-relaxed max-w-xl mx-auto md:mx-0">
+                                      {campaign.descrizione}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
 
                               {/* CTA Button */}
