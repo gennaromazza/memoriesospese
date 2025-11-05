@@ -946,9 +946,6 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         console.log('📧 Gallery ID:', gallery.id);
         
         try {
-          // Costruisce URL completo alla pagina di accesso speciale
-          const galleryUrl = createAbsoluteUrl('/special-gallery');
-          
           // ATTENDI 500ms per assicurare che Firestore abbia propagato il salvataggio
           await new Promise(resolve => setTimeout(resolve, 500));
           
@@ -959,8 +956,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             body: JSON.stringify({
               galleryId: gallery.id,
               clientEmail: clientEmail.trim(),
-              clientName: clientName.trim() || undefined,
-              galleryUrl: galleryUrl
+              clientName: clientName.trim() || undefined
             })
           });
 

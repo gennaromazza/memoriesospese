@@ -2522,16 +2522,22 @@ router.post("/saldo-received", async (req, res) => {
  */
 router.post("/special-gallery-pin-notification", async (req, res) => {
   try {
-    const { galleryId, clientEmail, clientName, galleryUrl } = req.body;
+    const { galleryId, clientEmail, clientName } = req.body;
 
-    if (!galleryId || !clientEmail || !galleryUrl) {
+    if (!galleryId || !clientEmail) {
       return res.status(400).json({
-        error: "Missing required fields: galleryId, clientEmail, galleryUrl"
+        error: "Missing required fields: galleryId, clientEmail"
       });
     }
 
     console.log(`📧 Invio notifica PIN galleria speciale a: ${clientEmail}`);
-    console.log(`🔗 URL galleria: ${galleryUrl}`);
+    
+    // Costruisci URL assoluto direttamente sul server per evitare problemi con Gmail
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const host = req.get('x-forwarded-host') || req.get('host') || 'memoriesospese.replit.app';
+    const galleryUrl = `${protocol}://${host}/special-gallery`;
+    
+    console.log(`🔗 URL galleria costruito sul server: ${galleryUrl}`);
 
     // Inizializza Firebase Admin per recuperare dati galleria
 
