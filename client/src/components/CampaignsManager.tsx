@@ -54,10 +54,16 @@ import {
   ExternalLink,
   Copy,
   Clock,
-  Package
+  Package,
+  Upload,
+  X,
+  Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
 
 // Temi stagionali disponibili
 const TEMI_STAGIONALI = [
@@ -85,6 +91,8 @@ interface CampaignFormData {
   durataShootingMinuti: number;
   prodottiDisponibili: string[];
   excludedDays: number[]; // Giorni esclusi (0=Domenica, 1=Lunedì, ..., 6=Sabato)
+  immagineSlider?: string; // URL immagine slider homepage
+  immaginePaginaBooking?: string; // URL immagine pagina booking
   attiva: boolean;
 }
 
@@ -104,6 +112,8 @@ const defaultFormData: CampaignFormData = {
   durataShootingMinuti: 120,
   prodottiDisponibili: [],
   excludedDays: [], // Nessun giorno escluso di default
+  immagineSlider: undefined,
+  immaginePaginaBooking: undefined,
   attiva: true,
 };
 
@@ -113,6 +123,8 @@ export default function CampaignsManager() {
   const [editingCampaign, setEditingCampaign] = useState<BookingCampaign | null>(null);
   const [formData, setFormData] = useState<CampaignFormData>(defaultFormData);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [uploadingSlider, setUploadingSlider] = useState(false);
+  const [uploadingBooking, setUploadingBooking] = useState(false);
 
   // Query campaigns
   const { data: campaigns = [], isLoading: loadingCampaigns } = useQuery<BookingCampaign[]>({
@@ -147,6 +159,8 @@ export default function CampaignsManager() {
         prodottiDisponibili: data.prodottiDisponibili,
         attiva: data.attiva,
         ...(data.excludedDays.length > 0 && { excludedDays: data.excludedDays }),
+        ...(data.immagineSlider && { immagineSlider: data.immagineSlider }),
+        ...(data.immaginePaginaBooking && { immaginePaginaBooking: data.immaginePaginaBooking }),
       };
       
       return await createCampaign(campaignData);
@@ -198,6 +212,13 @@ export default function CampaignsManager() {
       if (data.bloccaPrenotazioniPrimaInizio !== undefined) {
         updateData.bloccaPrenotazioniPrimaInizio = data.bloccaPrenotazioniPrimaInizio ?? false;
       }
+      // Gestione immagini (opzionali)
+      if (data.immagineSlider !== undefined) {
+        updateData.immagineSlider = data.immagineSlider || deleteField();
+      }
+      if (data.immaginePaginaBooking !== undefined) {
+        updateData.immaginePaginaBooking = data.immaginePaginaBooking || deleteField();
+      }
       
       return await updateCampaign(id, updateData);
     },
@@ -236,6 +257,122 @@ export default function CampaignsManager() {
       });
     },
   });
+
+  // Upload immagine slider homepage
+  const handleUploadSlider = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Errore',
+        description: 'Il file deve essere un\'immagine',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setUploadingSlider(true);
+
+      // Comprimi immagine
+      const compressedFile = await imageCompression(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      });
+
+      // Upload a Firebase Storage
+      const timestamp = Date.now();
+      const campaignId = editingCampaign?.id || 'temp';
+      const fileName = `slider_${timestamp}.jpg`;
+      const storagePath = `campaigns/${campaignId}/${fileName}`;
+      const storageRef = ref(storage, storagePath);
+
+      await uploadBytes(storageRef, compressedFile);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      setFormData({ ...formData, immagineSlider: downloadURL });
+
+      toast({
+        title: 'Successo',
+        description: 'Immagine slider caricata',
+      });
+    } catch (error) {
+      console.error('Errore upload immagine slider:', error);
+      toast({
+        title: 'Errore',
+        description: 'Errore durante l\'upload dell\'immagine',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingSlider(false);
+    }
+  };
+
+  // Upload immagine pagina booking
+  const handleUploadBooking = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Errore',
+        description: 'Il file deve essere un\'immagine',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setUploadingBooking(true);
+
+      // Comprimi immagine
+      const compressedFile = await imageCompression(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      });
+
+      // Upload a Firebase Storage
+      const timestamp = Date.now();
+      const campaignId = editingCampaign?.id || 'temp';
+      const fileName = `booking_${timestamp}.jpg`;
+      const storagePath = `campaigns/${campaignId}/${fileName}`;
+      const storageRef = ref(storage, storagePath);
+
+      await uploadBytes(storageRef, compressedFile);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      setFormData({ ...formData, immaginePaginaBooking: downloadURL });
+
+      toast({
+        title: 'Successo',
+        description: 'Immagine pagina booking caricata',
+      });
+    } catch (error) {
+      console.error('Errore upload immagine booking:', error);
+      toast({
+        title: 'Errore',
+        description: 'Errore durante l\'upload dell\'immagine',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingBooking(false);
+    }
+  };
+
+  // Rimuovi immagine slider
+  const handleRemoveSlider = () => {
+    setFormData({ ...formData, immagineSlider: undefined });
+  };
+
+  // Rimuovi immagine booking
+  const handleRemoveBooking = () => {
+    setFormData({ ...formData, immaginePaginaBooking: undefined });
+  };
 
   // Genera codice univoco per nuova campagna
   const handleGenerateCode = async () => {
@@ -281,6 +418,8 @@ export default function CampaignsManager() {
       durataShootingMinuti: campaign.durataShootingMinuti,
       prodottiDisponibili: campaign.prodottiDisponibili,
       excludedDays: campaign.excludedDays || [],
+      immagineSlider: campaign.immagineSlider,
+      immaginePaginaBooking: campaign.immaginePaginaBooking,
       attiva: campaign.attiva,
     });
     setSelectedProducts(campaign.prodottiDisponibili);
@@ -438,6 +577,121 @@ export default function CampaignsManager() {
                   rows={3}
                   data-testid="textarea-campaign-description"
                 />
+              </div>
+
+              {/* Immagini */}
+              <div className="space-y-4 pt-3 border-t">
+                <Label className="text-base font-semibold">Immagini Campagna</Label>
+                
+                {/* Immagine Slider Homepage */}
+                <div className="space-y-2">
+                  <Label>Immagine Slider Homepage (Opzionale)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Immagine mostrata nello slider della homepage quando la campagna è attiva
+                  </p>
+                  {formData.immagineSlider ? (
+                    <div className="relative">
+                      <img
+                        src={formData.immagineSlider}
+                        alt="Preview slider"
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={handleRemoveSlider}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                      <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                      <Label htmlFor="upload-slider" className="cursor-pointer">
+                        <div className="text-sm text-muted-foreground mb-2">
+                          Clicca per caricare un'immagine
+                        </div>
+                        <Button type="button" variant="outline" disabled={uploadingSlider} asChild>
+                          <span>
+                            {uploadingSlider ? (
+                              <>Caricamento...</>
+                            ) : (
+                              <>
+                                <Upload className="h-4 w-4 mr-2" />
+                                Carica Immagine Slider
+                              </>
+                            )}
+                          </span>
+                        </Button>
+                      </Label>
+                      <input
+                        id="upload-slider"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleUploadSlider}
+                        disabled={uploadingSlider}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Immagine Pagina Booking */}
+                <div className="space-y-2">
+                  <Label>Immagine Pagina Booking (Opzionale)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Immagine hero della pagina di prenotazione pubblica (per preview WhatsApp/social)
+                  </p>
+                  {formData.immaginePaginaBooking ? (
+                    <div className="relative">
+                      <img
+                        src={formData.immaginePaginaBooking}
+                        alt="Preview booking"
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={handleRemoveBooking}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                      <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                      <Label htmlFor="upload-booking" className="cursor-pointer">
+                        <div className="text-sm text-muted-foreground mb-2">
+                          Clicca per caricare un'immagine
+                        </div>
+                        <Button type="button" variant="outline" disabled={uploadingBooking} asChild>
+                          <span>
+                            {uploadingBooking ? (
+                              <>Caricamento...</>
+                            ) : (
+                              <>
+                                <Upload className="h-4 w-4 mr-2" />
+                                Carica Immagine Booking
+                              </>
+                            )}
+                          </span>
+                        </Button>
+                      </Label>
+                      <input
+                        id="upload-booking"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleUploadBooking}
+                        disabled={uploadingBooking}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Date */}

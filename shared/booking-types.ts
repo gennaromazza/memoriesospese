@@ -78,6 +78,10 @@ export interface BookingCampaign {
   // Prodotti disponibili per questa campagna
   prodottiDisponibili: string[]; // Array di productId
   
+  // Immagini personalizzate (opzionali)
+  immagineSlider?: string; // URL immagine per slider homepage (opzionale)
+  immaginePaginaBooking?: string; // URL immagine hero pagina booking pubblica (per preview WhatsApp/social)
+  
   attiva: boolean; // Femminile: "campagna attiva"
   createdAt: Date;
 }
