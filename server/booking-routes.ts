@@ -13,18 +13,19 @@ const router = express.Router();
 
 /**
  * POST /api/booking/available-slots
- * Ottiene slot disponibili da Google Calendar
+ * Ottiene slot disponibili da Google Calendar con filtro Firestore
  * 
  * Body: {
  *   date: "YYYY-MM-DD",
  *   workingHours: { apertura, pausaInizio, pausaFine, chiusura },
  *   durataMinuti: number,
- *   calendarId?: string (opzionale, default 'primary')
+ *   calendarId?: string (opzionale, default 'primary'),
+ *   campaignId?: string (opzionale, per filtro prenotazioni specifiche)
  * }
  */
 router.post('/available-slots', async (req, res) => {
   try {
-    const { date, workingHours, durataMinuti, calendarId, excludedDays } = req.body;
+    const { date, workingHours, durataMinuti, calendarId, excludedDays, campaignId } = req.body;
 
     // Validazione parametri
     if (!date || typeof date !== 'string') {
@@ -107,34 +108,78 @@ router.post('/available-slots', async (req, res) => {
     );
 
     // FILTRO FIRESTORE: Escludi slot occupati da prenotazioni in_attesa o confermata
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const existingBookingsSnapshot = await db.collection('bookings')
-      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
-      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
-      .where('stato', 'in', ['in_attesa', 'confermata'])
-      .get();
-
-    // Filtra slot che non si sovrappongono con prenotazioni esistenti
-    const slots = slotsFromCalendar.filter(slot => {
-      const slotStart = slot.start;
-      const slotEnd = slot.end;
+    let slots = slotsFromCalendar;
+    
+    try {
+      // Estendi l'intervallo di ricerca per catturare prenotazioni che iniziano il giorno prima
+      // ma potrebbero ancora occupare slot del giorno richiesto
+      const dayStart = new Date(date);
+      dayStart.setHours(0, 0, 0, 0);
+      dayStart.setDate(dayStart.getDate() - 1); // Inizia dal giorno precedente
       
-      // Verifica che lo slot NON si sovrapponga con nessuna prenotazione
-      const hasOverlap = existingBookingsSnapshot.docs.some(doc => {
-        const booking = doc.data();
-        const bookingStart = booking.dataShootingInizio.toDate();
-        const bookingEnd = booking.dataShootingFine.toDate();
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      console.log(`[Available Slots] Controllo prenotazioni esistenti per campagna ${campaignId} tra ${dayStart.toISOString()} e ${dayEnd.toISOString()}`);
+
+      // Query Firestore per prenotazioni esistenti (richiede indice composito)
+      let query = db.collection('bookings')
+        .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+        .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+        .where('stato', 'in', ['in_attesa', 'confermata']);
+      
+      // Aggiungi filtro campaignId per performance migliori
+      if (campaignId) {
+        query = query.where('campaignId', '==', campaignId);
+      }
+      
+      const existingBookingsSnapshot = await query.get();
+      
+      console.log(`[Available Slots] Trovate ${existingBookingsSnapshot.size} prenotazioni esistenti da filtrare`);
+
+      // Filtra slot che non si sovrappongono con prenotazioni esistenti
+      slots = slotsFromCalendar.filter(slot => {
+        const slotStart = slot.start;
+        const slotEnd = slot.end;
         
-        // Due intervalli si sovrappongono se: (slotStart < bookingEnd) E (slotEnd > bookingStart)
-        return (slotStart < bookingEnd) && (slotEnd > bookingStart);
+        // Verifica che lo slot NON si sovrapponga con nessuna prenotazione
+        const hasOverlap = existingBookingsSnapshot.docs.some(doc => {
+          const booking = doc.data();
+          const bookingStart = booking.dataShootingInizio.toDate();
+          const bookingEnd = booking.dataShootingFine.toDate();
+          
+          // Due intervalli si sovrappongono se: (slotStart < bookingEnd) E (slotEnd > bookingStart)
+          return (slotStart < bookingEnd) && (slotEnd > bookingStart);
+        });
+        
+        return !hasOverlap; // Mantieni solo slot senza overlap
       });
+
+      console.log(`[Available Slots] Dopo filtro Firestore: ${slots.length}/${slotsFromCalendar.length} slot disponibili`);
       
-      return !hasOverlap; // Mantieni solo slot senza overlap
-    });
+    } catch (firestoreError: any) {
+      // Se la query Firestore fallisce (es. indice mancante), usa fallback graceful
+      console.error('⚠️⚠️⚠️ ERRORE QUERY FIRESTORE - INDICE MANCANTE ⚠️⚠️⚠️');
+      console.error('Messaggio:', firestoreError?.message || firestoreError);
+      
+      // Firestore include il link per creare l'indice nell'errore
+      if (firestoreError?.message?.includes('index')) {
+        console.error('');
+        console.error('════════════════════════════════════════════════════════════════');
+        console.error('🔗 CREA L\'INDICE FIRESTORE CLICCANDO SUL LINK NELL\'ERRORE SOPRA');
+        console.error('════════════════════════════════════════════════════════════════');
+        console.error('');
+        console.error('Errore completo Firestore:');
+        console.error(JSON.stringify(firestoreError, null, 2));
+        console.error('');
+        console.error('FALLBACK: Usando solo controllo Google Calendar (senza filtro Firestore)');
+        console.error('');
+      }
+      
+      // Fallback: usa tutti gli slot da Google Calendar senza filtro Firestore
+      slots = slotsFromCalendar;
+      console.log(`[Available Slots] Fallback attivo: ${slots.length} slot da Google Calendar`);
+    }
 
     // Formatta slot per risposta JSON
     const formattedSlots = slots.map(slot => ({
