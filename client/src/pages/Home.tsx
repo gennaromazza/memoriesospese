@@ -344,6 +344,17 @@ export default function Home() {
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                       <div className="bg-gradient-to-br from-white via-cream/30 to-white rounded-3xl shadow-xl border border-sage/10 overflow-hidden backdrop-blur-sm">
                         <div className="flex flex-col md:flex-row items-center gap-12 p-8 sm:p-12 lg:p-16">
+                          {/* Campaign Image (if present) */}
+                          {campaign.immagineSlider && (
+                            <div className="flex-shrink-0 w-full md:w-1/2">
+                              <img
+                                src={campaign.immagineSlider}
+                                alt={campaign.nome}
+                                className="w-full h-full object-cover rounded-2xl shadow-lg max-h-96"
+                              />
+                            </div>
+                          )}
+                          
                           {/* Left side - Info */}
                           <div className="flex-1 text-center md:text-left space-y-6">
                             <div className="inline-flex items-center gap-2 bg-sage/5 px-5 py-2 rounded-full border border-sage/20">
@@ -454,6 +465,17 @@ export default function Home() {
                         >
                           <div className="bg-gradient-to-br from-white via-cream/30 to-white rounded-3xl shadow-xl border border-sage/10 overflow-hidden backdrop-blur-sm">
                             <div className="flex flex-col md:flex-row items-center gap-10 p-8 sm:p-12 lg:p-14">
+                              {/* Campaign Image (if present) */}
+                              {campaign.immagineSlider && (
+                                <div className="flex-shrink-0 w-full md:w-1/2">
+                                  <img
+                                    src={campaign.immagineSlider}
+                                    alt={campaign.nome}
+                                    className="w-full h-full object-cover rounded-2xl shadow-lg max-h-80"
+                                  />
+                                </div>
+                              )}
+                              
                               {/* Campaign Info */}
                               <div className="flex-1 text-center md:text-left space-y-5">
                                 <div>

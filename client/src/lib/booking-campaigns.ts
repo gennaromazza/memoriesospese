@@ -128,17 +128,32 @@ export async function getActiveCampaigns(): Promise<BookingCampaign[]> {
 }
 
 /**
+ * Rimuove campi undefined da un oggetto (Firestore non li accetta)
+ */
+function removeUndefinedFields<T extends Record<string, any>>(obj: T): Partial<T> {
+  const result: any = {};
+  Object.keys(obj).forEach(key => {
+    if (obj[key] !== undefined) {
+      result[key] = obj[key];
+    }
+  });
+  return result;
+}
+
+/**
  * Crea nuova campagna
  */
 export async function createCampaign(
   data: Omit<BookingCampaign, 'id' | 'createdAt'>
 ): Promise<string> {
-  const docRef = await addDoc(collection(db, COLLECTION), {
+  const cleanData = removeUndefinedFields({
     ...data,
     dataInizio: Timestamp.fromDate(data.dataInizio),
     dataFine: Timestamp.fromDate(data.dataFine),
     createdAt: serverTimestamp(),
   });
+  
+  const docRef = await addDoc(collection(db, COLLECTION), cleanData);
   
   return docRef.id;
 }
@@ -162,7 +177,10 @@ export async function updateCampaign(
     updateData.dataFine = Timestamp.fromDate(data.dataFine);
   }
   
-  await updateDoc(docRef, updateData);
+  // Rimuovi campi undefined prima di salvare
+  const cleanData = removeUndefinedFields(updateData);
+  
+  await updateDoc(docRef, cleanData);
 }
 
 /**
