@@ -671,6 +671,152 @@ router.patch('/:id/approve', async (req, res) => {
 });
 
 /**
+ * PATCH /api/booking/:id/reject
+ * Rifiuta prenotazione e invia email con link per prenotare altro giorno
+ * 
+ * Body: { adminUid: string }
+ */
+router.patch('/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminUid } = req.body;
+
+    console.log(`[Booking API] Rifiuto prenotazione ${id} da admin ${adminUid}`);
+
+    // Inizializza Firebase Admin
+    initializeFirebaseAdmin();
+    const db = admin.firestore();
+
+    // Recupera booking da Firestore
+    const bookingRef = db.collection('bookings').doc(id);
+    const bookingDoc = await bookingRef.get();
+
+    if (!bookingDoc.exists) {
+      return res.status(404).json({ error: 'Prenotazione non trovata' });
+    }
+
+    const bookingData = bookingDoc.data();
+    if (!bookingData) {
+      return res.status(404).json({ error: 'Dati prenotazione non validi' });
+    }
+
+    // Verifica stato attuale
+    if (bookingData.stato === 'annullata') {
+      return res.status(400).json({ 
+        error: 'Prenotazione già annullata',
+        message: 'Questa prenotazione è già stata annullata' 
+      });
+    }
+
+    // Se era confermata, cancella evento Google Calendar
+    if (bookingData.stato === 'confermata' && bookingData.googleCalendarEventId) {
+      try {
+        const { deleteEvent } = await import('./google-calendar.js');
+        await deleteEvent('primary', bookingData.googleCalendarEventId);
+        console.log(`✅ Evento Google Calendar cancellato: ${bookingData.googleCalendarEventId}`);
+      } catch (calendarError) {
+        console.error('⚠️ Errore cancellazione evento Google Calendar:', calendarError);
+        // Non bloccare il rifiuto se cancellazione Calendar fallisce
+      }
+    }
+
+    // Aggiorna stato a "annullata" (rifiutata)
+    await bookingRef.update({
+      stato: 'annullata',
+      rifiutataDa: adminUid || 'admin',
+      rifiutataIl: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // Invia email "Prenotazione Rifiutata" con link per nuova prenotazione
+    try {
+      // Recupera nome campagna
+      const campaignDoc = await db.collection('booking_campaigns').doc(bookingData.campaignId).get();
+      const campaignData = campaignDoc.data();
+      const campaignName = campaignData?.nome || 'Shooting Fotografico';
+
+      // Formatta data
+      const slotStart = bookingData.dataShootingInizio.toDate();
+      const bookingDate = slotStart.toLocaleDateString('it-IT', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+
+      // Crea URL assoluto per booking page della campagna
+      let baseUrl = 'https://memoriesospese.gennaromazzacane.it';
+      if (process.env.REPLIT_DOMAINS) {
+        try {
+          let primaryDomain: string;
+          
+          // REPLIT_DOMAINS può essere JSON array (es. '["abc.replit.dev"]') o CSV (es. 'abc.com,backup.com')
+          if (process.env.REPLIT_DOMAINS.trim().startsWith('[')) {
+            // Parse JSON array
+            const domains = JSON.parse(process.env.REPLIT_DOMAINS);
+            primaryDomain = Array.isArray(domains) && domains.length > 0 ? domains[0] : '';
+          } else {
+            // Parse CSV
+            const domains = process.env.REPLIT_DOMAINS.split(',');
+            primaryDomain = domains[0].trim();
+          }
+          
+          // Valida e usa il dominio se non vuoto
+          if (primaryDomain && primaryDomain.length > 0) {
+            baseUrl = `https://${primaryDomain}`;
+          }
+        } catch (error) {
+          console.warn('⚠️ Errore parsing REPLIT_DOMAINS, uso fallback:', error);
+          // Usa fallback di default
+        }
+      }
+      const bookingUrl = `${baseUrl}/booking/${bookingData.campaignId}`;
+
+      // Import diretto delle funzioni email
+      const { sendGmailEmail, createBookingRejectedEmailHTML, getStudioContactInfo } = await import('./email-routes.js');
+
+      // Recupera dati contatto studio
+      const studioInfo = await getStudioContactInfo();
+
+      const clienteName = `${bookingData.cliente.nome} ${bookingData.cliente.cognome}`;
+      const emailHTML = createBookingRejectedEmailHTML(
+        clienteName,
+        campaignName,
+        bookingDate,
+        bookingUrl,
+        studioInfo
+      );
+
+      await sendGmailEmail(
+        bookingData.cliente.email,
+        `Prenotazione Non Disponibile - ${campaignName}`,
+        emailHTML
+      );
+
+      // Aggiorna flag email rifiuto inviata
+      await bookingRef.update({ emailRifiutoInviata: true });
+      console.log(`✅ Email "Prenotazione Rifiutata" inviata a ${bookingData.cliente.email}`);
+    } catch (emailError) {
+      console.error('⚠️ Errore invio email rifiuto:', emailError);
+      // Non bloccare il rifiuto se email fallisce
+    }
+
+    return res.json({
+      success: true,
+      message: 'Prenotazione rifiutata con successo',
+      bookingId: id
+    });
+
+  } catch (error) {
+    console.error('[Booking API] Errore rifiuto prenotazione:', error);
+    return res.status(500).json({ 
+      error: 'Errore interno del server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto' 
+    });
+  }
+});
+
+/**
  * GET /api/booking/calendar/:id
  * Genera e serve file .ics per aggiungere al calendario
  */

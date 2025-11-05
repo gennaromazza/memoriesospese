@@ -210,6 +210,24 @@ export async function approveBooking(bookingId: string, adminUid: string): Promi
 }
 
 /**
+ * Rifiuta prenotazione (admin only) - chiama API server e invia email con link nuova prenotazione
+ */
+export async function rejectBooking(bookingId: string, adminUid: string): Promise<void> {
+  const response = await fetch(`/api/booking/${bookingId}/reject`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ adminUid }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || error.error || 'Errore rifiuto prenotazione');
+  }
+}
+
+/**
  * Aggiorna stato prenotazione (admin only) - chiama API server per inviare email
  */
 export async function updateBookingStatus(

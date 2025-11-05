@@ -10,6 +10,7 @@ import {
   getAllBookings,
   getBookingsByStatus,
   approveBooking,
+  rejectBooking,
   updateBookingStatus,
   deleteBooking,
   markBookingAsViewed,
@@ -384,6 +385,29 @@ export default function BookingsManager({
     onError: (error: Error) => {
       toast({
         title: 'Errore approvazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation: Rifiuta prenotazione
+  const rejectMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const adminUid = user?.uid || 'admin';
+      await rejectBooking(bookingId, adminUid);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      toast({
+        title: 'Prenotazione rifiutata',
+        description: 'Email inviata al cliente con link per nuova prenotazione',
+      });
+      setSelectedBooking(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore rifiuto',
         description: error.message,
         variant: 'destructive',
       });
@@ -1136,22 +1160,39 @@ export default function BookingsManager({
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* Pulsante Approva - Solo se in_attesa */}
+                    {/* Pulsanti Approva/Rifiuta - Solo se in_attesa */}
                     {booking.stato === 'in_attesa' && (
-                      <Button
-                        size="sm"
-                        onClick={() => approveMutation.mutate(booking.id)}
-                        disabled={approveMutation.isPending}
-                        className="bg-sage hover:bg-dark-sage w-full"
-                        data-testid={`button-approve-${booking.id}`}
-                      >
-                        {approveMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                        ) : (
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                        )}
-                        Approva
-                      </Button>
+                      <div className="grid grid-cols-2 gap-2 w-full">
+                        <Button
+                          size="sm"
+                          onClick={() => approveMutation.mutate(booking.id)}
+                          disabled={approveMutation.isPending || rejectMutation.isPending}
+                          className="bg-sage hover:bg-dark-sage"
+                          data-testid={`button-approve-${booking.id}`}
+                        >
+                          {approveMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                          )}
+                          Approva
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => rejectMutation.mutate(booking.id)}
+                          disabled={approveMutation.isPending || rejectMutation.isPending}
+                          className="border-red-200 text-red-600 hover:bg-red-50"
+                          data-testid={`button-reject-${booking.id}`}
+                        >
+                          {rejectMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <XCircle className="w-4 h-4 mr-1" />
+                          )}
+                          Rifiuta
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1403,23 +1444,44 @@ export default function BookingsManager({
               ✏️ Modifica Dati
             </Button>
             {selectedBooking?.stato === 'in_attesa' && (
-              <Button
-                onClick={() => approveMutation.mutate(selectedBooking.id)}
-                disabled={approveMutation.isPending}
-                className="bg-sage hover:bg-dark-sage"
-              >
-                {approveMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Approvazione...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Approva Ora
-                  </>
-                )}
-              </Button>
+              <>
+                <Button
+                  onClick={() => approveMutation.mutate(selectedBooking.id)}
+                  disabled={approveMutation.isPending || rejectMutation.isPending}
+                  className="bg-sage hover:bg-dark-sage"
+                >
+                  {approveMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Approvazione...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Approva Ora
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => rejectMutation.mutate(selectedBooking.id)}
+                  disabled={approveMutation.isPending || rejectMutation.isPending}
+                  className="border-red-200 text-red-600 hover:bg-red-50"
+                  data-testid="button-reject-booking-detail"
+                >
+                  {rejectMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Rifiuto...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Rifiuta
+                    </>
+                  )}
+                </Button>
+              </>
             )}
             <Button variant="outline" onClick={() => setSelectedBooking(null)}>
               Chiudi

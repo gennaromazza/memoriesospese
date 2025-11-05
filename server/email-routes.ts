@@ -1268,6 +1268,78 @@ export function createBookingCancelledEmailHTML(
 }
 
 /**
+ * Template HTML per email RIFIUTO prenotazione
+ * ESPORTATA per uso in booking-routes.ts
+ */
+export function createBookingRejectedEmailHTML(
+  clienteName: string,
+  campaignName: string,
+  bookingDate: string,
+  bookingUrl: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #dc3545; text-align: center;">Prenotazione Non Disponibile</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ci dispiace informarti che <strong>non è possibile eseguire lo shooting</strong> 
+          per <strong style="color: #8b5a3c;">${campaignName}</strong> nella data che hai richiesto.
+        </p>
+        
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 8px 0;"><strong>📅 Data richiesta:</strong> ${bookingDate}</p>
+          <p style="margin: 8px 0;"><strong>❌ Stato:</strong> Non disponibile</p>
+        </div>
+
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0; font-size: 14px; color: #856404;">
+            <strong>💡 Prenota per un altro giorno</strong>
+          </p>
+          <p style="margin: 0 0 15px 0; font-size: 14px; color: #856404;">
+            Abbiamo molte altre date disponibili! Puoi scegliere un altro giorno che fa per te.
+          </p>
+          <div style="text-align: center;">
+            <a href="${bookingUrl}" 
+               style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+              📅 Prenota un altro giorno
+            </a>
+          </div>
+        </div>
+
+        <div style="background: #e7f3ff; border-left: 4px solid #0dcaf0; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #055160;">
+            <strong>Hai domande?</strong><br>
+            Contattaci via email o WhatsApp. Siamo qui per aiutarti a trovare la data perfetta per il tuo shooting!
+          </p>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Ti aspettiamo! ❤️
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">WhatsApp: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Template HTML per email conferma acconto ricevuto
  * ESPORTATA per uso in order management (acconti multipli)
  */
