@@ -535,33 +535,39 @@ export default function BookingPage() {
             )}
             
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Periodo</p>
-                  <p className="text-sm text-muted-foreground">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-sage/5 border border-sage/10">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sage/10 flex items-center justify-center">
+                  <Calendar className="h-5 w-5 text-sage" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 mb-1">Periodo</p>
+                  <p className="text-sm text-gray-600 leading-relaxed">
                     {format(campaign.dataInizio, 'dd MMM', { locale: it })} - {format(campaign.dataFine, 'dd MMM yyyy', { locale: it })}
                   </p>
                 </div>
               </div>
               
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Durata shooting</p>
-                  <p className="text-sm text-muted-foreground">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 mb-1">Durata shooting</p>
+                  <p className="text-sm text-gray-600 leading-relaxed">
                     {campaign.durataShootingMinuti} minuti
                   </p>
                 </div>
               </div>
               
-              <div className="flex items-center gap-3">
-                <Package className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Prodotti disponibili</p>
-                  <p className="text-sm text-muted-foreground">
-                    {availableProducts.length} opzioni
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50 border border-purple-100">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                  <Package className="h-5 w-5 text-purple-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 mb-1">Prodotti disponibili</p>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    {availableProducts.length} {availableProducts.length === 1 ? 'opzione' : 'opzioni'}
                   </p>
                 </div>
               </div>
