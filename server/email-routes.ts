@@ -664,29 +664,49 @@ router.post("/send-gallery-password", async (req, res) => {
       });
     }
 
-    // RECUPERA PASSWORD da collection protetta `gallerySecrets` usando Firebase Admin SDK
-    // (getFirestoreDocument usa REST API senza auth e non può accedere a collezioni protette)
+    // RECUPERA PASSWORD con fallback automatico per backward compatibility
+    // 1. Prima prova con collection protetta `gallerySecrets` (Firebase Admin SDK)
+    // 2. Se non esiste, fallback a `galleries.password` (gallerie legacy)
+    // 3. Se trova password legacy, la migra automaticamente a gallerySecrets
+    let password: string | undefined;
+    
     const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
     
-    if (!secretsDoc.exists) {
-      console.error(`❌ Documento gallerySecrets non trovato per galleria ${galleryId}`);
+    if (secretsDoc.exists && secretsDoc.data()?.password) {
+      // Caso 1: Password trovata in gallerySecrets (nuova architettura)
+      password = secretsDoc.data()?.password;
+      console.log(`✅ Password recuperata da gallerySecrets per galleria ${galleryId}`);
+    } else {
+      // Caso 2: Fallback a galleries.password (gallerie legacy)
+      console.log(`⚠️ gallerySecrets non trovato, tentativo fallback a galleries.password per ${galleryId}`);
+      
+      const legacyPassword = galleryDoc.password;
+      
+      if (legacyPassword) {
+        password = legacyPassword;
+        console.log(`✅ Password recuperata da galleries.password (legacy) per galleria ${galleryId}`);
+        
+        // Migrazione automatica a gallerySecrets
+        try {
+          await db.collection('gallerySecrets').doc(galleryId).set({
+            password: legacyPassword,
+            migratedAt: new Date().toISOString(),
+            migratedFrom: 'galleries.password'
+          }, { merge: true });
+          console.log(`✅ Password migrata automaticamente a gallerySecrets per galleria ${galleryId}`);
+        } catch (migrationError) {
+          console.error(`⚠️ Errore migrazione automatica password per ${galleryId}:`, migrationError);
+          // Non bloccare l'invio email se la migrazione fallisce
+        }
+      }
+    }
+
+    if (!password) {
+      console.error(`❌ Password non trovata né in gallerySecrets né in galleries.password per galleria ${galleryId}`);
       return res.status(500).json({
         error: { 
           code: "internal", 
           message: "Configurazione password non trovata. Contatta l'amministratore." 
-        },
-      });
-    }
-
-    const secretData = secretsDoc.data();
-    const password = secretData?.password;
-
-    if (!password) {
-      console.error(`❌ Password non configurata per galleria ${galleryId}`);
-      return res.status(500).json({
-        error: { 
-          code: "internal", 
-          message: "Password non configurata. Contatta l'amministratore." 
         },
       });
     }

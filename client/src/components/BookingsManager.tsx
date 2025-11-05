@@ -5,6 +5,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
+import { useLocation } from 'wouter';
 import {
   getAllBookings,
   getBookingsByStatus,
@@ -136,6 +137,7 @@ export default function BookingsManager({
 }: BookingsManagerProps = {}) {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<'bookings' | 'orders'>('bookings');
   const [selectedStato, setSelectedStato] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -1618,13 +1620,15 @@ export default function BookingsManager({
           <NewGalleryModal
             isOpen={true}
             onClose={() => setSelectedBookingForGallery(null)}
-            onGalleryCreated={() => {
+            onGalleryCreated={(galleryId, galleryCode) => {
               queryClient.invalidateQueries({ queryKey: ['galleries'] });
               setSelectedBookingForGallery(null);
               toast({
                 title: 'Galleria creata',
-                description: 'La galleria è stata creata con successo',
+                description: 'Reindirizzamento alla schermata di caricamento foto...',
               });
+              // Navigate to edit gallery page
+              navigate(`/edit-gallery/${galleryId}`);
             }}
             prePopulate={prePopulateData}
           />

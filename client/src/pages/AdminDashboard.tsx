@@ -1771,9 +1771,11 @@ export default function AdminDashboard() {
       <NewGalleryModal
         isOpen={isModalOpen}
         onClose={closeModal}
-        onGalleryCreated={() => {
+        onGalleryCreated={(galleryId, galleryCode) => {
           // Ricarichiamo le gallerie dopo la creazione via React Query
           queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+          // Navigate to edit gallery page for photo upload
+          navigate(`/edit-gallery/${galleryId}`);
         }}
       />
 

@@ -7,6 +7,7 @@ import { formatDateString } from "../lib/dateFormatter";
 import { Input } from "./ui/input";
 import { Card, CardContent } from "./ui/card";
 import { Search } from "lucide-react";
+import { getSpecialThemeIds } from "@shared/special-themes";
 
 interface GallerySearchResult {
   id: string;
@@ -29,13 +30,22 @@ export default function GallerySearch() {
       const galleriesCollection = collection(db, "galleries");
       const snapshot = await getDocs(galleriesCollection);
 
+      // Lista degli ID dei temi speciali da escludere (centralizzata in @shared/special-themes)
+      const specialThemeIds = getSpecialThemeIds();
+
       // Trasformiamo i dati in un formato più semplice da utilizzare
       const galleries: GallerySearchResult[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
+        
         // Filtra solo le gallerie attive per gli utenti pubblici
         const isActive = data.active !== undefined ? data.active : true; // Default true per retrocompatibilità
-        if (isActive) {
+        
+        // Escludi special galleries (quelle con specialTheme definito)
+        // Le special gallery hanno una schermata dedicata con PIN
+        const hasSpecialTheme = data.specialTheme && specialThemeIds.includes(data.specialTheme);
+        
+        if (isActive && !hasSpecialTheme) {
           galleries.push({
             id: doc.id,
             name: data.name || "",

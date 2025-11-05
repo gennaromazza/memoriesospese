@@ -112,3 +112,10 @@ export const getAllThemes = (): (Omit<SpecialTheme, 'createdAt' | 'updatedAt' | 
     id: theme.name.toLowerCase().replace(/\s+/g, '-'),
   }));
 };
+
+// Helper per ottenere solo gli ID dei temi (per filtering)
+export const getSpecialThemeIds = (): string[] => {
+  return PREDEFINED_THEMES.map(theme => 
+    theme.name.toLowerCase().replace(/\s+/g, '-')
+  );
+};

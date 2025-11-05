@@ -355,8 +355,8 @@ export async function countRelatedEntities(bookingId: string): Promise<{
 }
 
 /**
- * Cancella prenotazione con cascata su ordini e gallerie (admin only)
- * ATTENZIONE: Operazione irreversibile!
+ * Cancella prenotazione con cascata completa su ordini, gallerie, foto, commenti e voice memo (admin only)
+ * ATTENZIONE: Operazione irreversibile! Cancella anche i file da Firebase Storage
  */
 export async function deleteBookingCascade(bookingId: string): Promise<void> {
   console.log(`🗑️ Inizio cancellazione a cascata per booking ${bookingId}`);
@@ -367,15 +367,132 @@ export async function deleteBookingCascade(bookingId: string): Promise<void> {
   // Colleziona errori per report finale
   const errors: Array<{ type: string; id: string; error: any }> = [];
 
-  // 2. Cancella tutte le gallerie associate
+  // 2. Per ogni galleria, cancella TUTTI i contenuti associati
   for (const galleryId of galleryIds) {
     try {
-      // Soft delete (setta active = false)
+      console.log(`🗑️ Cancellazione contenuti per galleria ${galleryId}...`);
+      
+      // 2a. Cancella tutte le foto dalla subcollection 'photos' + file Storage
+      try {
+        const photosQuery = query(collection(db, 'galleries', galleryId, 'photos'));
+        const photosSnapshot = await getDocs(photosQuery);
+        
+        for (const photoDoc of photosSnapshot.docs) {
+          try {
+            const photoData = photoDoc.data();
+            
+            // Cancella file da Firebase Storage se esiste URL
+            if (photoData.url) {
+              try {
+                const { ref, deleteObject } = await import('firebase/storage');
+                const { storage } = await import('./firebase');
+                
+                // Estrai path dall'URL Firebase Storage
+                const url = new URL(photoData.url);
+                const pathMatch = url.pathname.match(/\/o\/(.+?)(\?|$)/);
+                
+                if (pathMatch) {
+                  const fullPath = decodeURIComponent(pathMatch[1]);
+                  const storageRef = ref(storage, fullPath);
+                  await deleteObject(storageRef);
+                  console.log(`✅ File Storage cancellato: ${fullPath}`);
+                } else {
+                  console.warn(`⚠️ Impossibile estrarre path da URL: ${photoData.url}`);
+                  errors.push({ type: 'photo-storage', id: photoDoc.id, error: 'Invalid URL format' });
+                }
+              } catch (storageError) {
+                console.error(`⚠️ Errore cancellazione file Storage:`, storageError);
+                errors.push({ type: 'photo-storage', id: photoDoc.id, error: storageError });
+              }
+            }
+            
+            // Cancella documento Firestore
+            await deleteDoc(doc(db, 'galleries', galleryId, 'photos', photoDoc.id));
+          } catch (photoError) {
+            console.error(`⚠️ Errore cancellazione foto ${photoDoc.id}:`, photoError);
+            errors.push({ type: 'photo', id: photoDoc.id, error: photoError });
+          }
+        }
+        
+        console.log(`✅ ${photosSnapshot.docs.length} foto cancellate per galleria ${galleryId}`);
+      } catch (photosError) {
+        console.error(`❌ Errore cancellazione foto per galleria ${galleryId}:`, photosError);
+      }
+      
+      // 2b. Cancella tutti i commenti associati
+      try {
+        const commentsQuery = query(
+          collection(db, 'comments'),
+          where('galleryId', '==', galleryId)
+        );
+        const commentsSnapshot = await getDocs(commentsQuery);
+        
+        for (const commentDoc of commentsSnapshot.docs) {
+          await deleteDoc(doc(db, 'comments', commentDoc.id));
+        }
+        
+        console.log(`✅ ${commentsSnapshot.docs.length} commenti cancellati per galleria ${galleryId}`);
+      } catch (commentsError) {
+        console.error(`❌ Errore cancellazione commenti per galleria ${galleryId}:`, commentsError);
+      }
+      
+      // 2c. Cancella tutti i voice memo associati + file Storage
+      try {
+        const voiceMemosQuery = query(
+          collection(db, 'voiceMemos'),
+          where('galleryId', '==', galleryId)
+        );
+        const voiceMemosSnapshot = await getDocs(voiceMemosQuery);
+        
+        for (const memoDoc of voiceMemosSnapshot.docs) {
+          try {
+            const memoData = memoDoc.data();
+            
+            // Cancella file audio da Storage
+            if (memoData.audioUrl) {
+              try {
+                const { ref, deleteObject } = await import('firebase/storage');
+                const { storage } = await import('./firebase');
+                
+                // Estrai path dall'URL Firebase Storage
+                const url = new URL(memoData.audioUrl);
+                const pathMatch = url.pathname.match(/\/o\/(.+?)(\?|$)/);
+                
+                if (pathMatch) {
+                  const fullPath = decodeURIComponent(pathMatch[1]);
+                  const storageRef = ref(storage, fullPath);
+                  await deleteObject(storageRef);
+                  console.log(`✅ File audio cancellato: ${fullPath}`);
+                } else {
+                  console.warn(`⚠️ Impossibile estrarre path da URL: ${memoData.audioUrl}`);
+                  errors.push({ type: 'memo-storage', id: memoDoc.id, error: 'Invalid URL format' });
+                }
+              } catch (storageError) {
+                console.error(`⚠️ Errore cancellazione file audio:`, storageError);
+                errors.push({ type: 'memo-storage', id: memoDoc.id, error: storageError });
+              }
+            }
+            
+            // Cancella documento Firestore
+            await deleteDoc(doc(db, 'voiceMemos', memoDoc.id));
+          } catch (memoError) {
+            console.error(`⚠️ Errore cancellazione voice memo ${memoDoc.id}:`, memoError);
+            errors.push({ type: 'memo', id: memoDoc.id, error: memoError });
+          }
+        }
+        
+        console.log(`✅ ${voiceMemosSnapshot.docs.length} voice memo cancellati per galleria ${galleryId}`);
+      } catch (voiceMemosError) {
+        console.error(`❌ Errore cancellazione voice memo per galleria ${galleryId}:`, voiceMemosError);
+      }
+      
+      // 2d. Soft delete della galleria (setta active = false)
       await updateDoc(doc(db, 'galleries', galleryId), {
         active: false,
         updatedAt: serverTimestamp(),
       });
       console.log(`✅ Galleria ${galleryId} disattivata`);
+      
     } catch (error) {
       console.error(`❌ Errore disattivazione galleria ${galleryId}:`, error);
       errors.push({ type: 'gallery', id: galleryId, error });
@@ -417,7 +534,7 @@ export async function deleteBookingCascade(bookingId: string): Promise<void> {
     throw new Error(errorMessage);
   }
 
-  console.log(`✅ Cancellazione a cascata completata: ${orderIds.length} ordini, ${galleryIds.length} gallerie`);
+  console.log(`✅ Cancellazione a cascata completata: ${orderIds.length} ordini, ${galleryIds.length} gallerie con tutti i contenuti associati`);
 }
 
 /**

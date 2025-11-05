@@ -39,7 +39,7 @@ import { Info } from "lucide-react";
 interface NewGalleryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGalleryCreated?: () => void;
+  onGalleryCreated?: (galleryId: string, galleryCode: string) => void;
 
   // Pre-population fields (optional)
   prePopulate?: {
@@ -562,7 +562,7 @@ export default function NewGalleryModal({
       setSelectionDeadline("");
       setProduct(null);
 
-      onGalleryCreated?.();
+      onGalleryCreated?.(newGalleryId, code);
       onClose();
     } catch (error) {
       console.error("Errore creazione galleria:", error);
