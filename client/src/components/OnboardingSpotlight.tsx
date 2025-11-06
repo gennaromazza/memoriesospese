@@ -58,6 +58,7 @@ export function OnboardingSpotlight({
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [show, setShow] = useState(false);
+  const [isAboveTarget, setIsAboveTarget] = useState(true); // Tooltip sopra o sotto il target
 
   useEffect(() => {
     if (!isVisible) {
@@ -77,30 +78,42 @@ export function OnboardingSpotlight({
       const element = document.querySelector(targetSelector) as HTMLElement;
       if (element) {
         setTargetElement(element);
-        setTargetRect(element.getBoundingClientRect());
+        const rect = element.getBoundingClientRect();
+        setTargetRect(rect);
+        
+        // 🎯 Smart positioning: se target è nella metà superiore, tooltip sotto, altrimenti sopra
+        const isTopHalf = rect.top < window.innerHeight / 2;
+        setIsAboveTarget(!isTopHalf);
+        
         setShow(true);
       }
-    }, 500); // Delay to ensure photo grid is rendered
+    }, 100); // Ridotto delay perché ora il wrapper fa polling
 
     return () => clearTimeout(timer);
   }, [isVisible, storageKey, targetSelector]);
 
-  // Update position on scroll/resize
+  // 🔄 Riposizionamento dinamico su scroll/resize (migliorato)
   useEffect(() => {
-    if (!targetElement) return;
+    if (!targetElement || !show) return;
 
     const updatePosition = () => {
-      setTargetRect(targetElement.getBoundingClientRect());
+      const rect = targetElement.getBoundingClientRect();
+      setTargetRect(rect);
+      
+      // Ricalcola posizione sopra/sotto in base alla nuova posizione
+      const isTopHalf = rect.top < window.innerHeight / 2;
+      setIsAboveTarget(!isTopHalf);
     };
 
-    window.addEventListener("scroll", updatePosition);
+    // 📜 Listen su resize e scroll (con capture per elementi scrollabili)
     window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true); // true = capture phase
 
     return () => {
-      window.removeEventListener("scroll", updatePosition);
       window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [targetElement]);
+  }, [targetElement, show]);
 
   const handleDismiss = () => {
     localStorage.setItem(storageKey, "true");
@@ -110,13 +123,24 @@ export function OnboardingSpotlight({
 
   if (!show || !targetRect) return null;
 
-  // Calculate tooltip position (centered above target with padding)
-  const tooltipTop = targetRect.top - 180; // 180px above target
+  // 🎯 Smart tooltip positioning
+  const tooltipWidth = 300;
+  const tooltipHeight = 180; // Altezza stimata
+  const padding = 16; // Padding dai bordi
+  const gap = 12; // Gap tra target e tooltip
+
+  // Calcola posizione verticale (sopra o sotto il target)
+  const tooltipTop = isAboveTarget
+    ? targetRect.top - tooltipHeight - gap // Sopra il target
+    : targetRect.bottom + gap; // Sotto il target
+
+  // Calcola posizione orizzontale (centrato sul target, con limiti)
+  const targetCenter = targetRect.left + targetRect.width / 2;
   const tooltipLeft = Math.max(
-    16, // Min 16px from left edge
+    padding, // Min padding da sinistra
     Math.min(
-      window.innerWidth - 316, // Max 16px from right edge (300px width + padding)
-      targetRect.left + targetRect.width / 2 - 150 // Center on target
+      window.innerWidth - tooltipWidth - padding, // Max padding da destra
+      targetCenter - tooltipWidth / 2 // Centrato sul target
     )
   );
 
@@ -141,18 +165,20 @@ export function OnboardingSpotlight({
         {/* White glow pulse */}
         <div className="absolute inset-0 rounded-lg border-4 border-white shadow-[0_0_0_4px_rgba(255,255,255,0.3)] animate-spotlight-pulse" />
         
-        {/* Pointer arrow */}
+        {/* Pointer arrow - dinamica in base a posizione */}
         <div
-          className="absolute -top-12 left-1/2 -translate-x-1/2 text-white animate-bounce"
+          className={`absolute left-1/2 -translate-x-1/2 text-white animate-bounce ${
+            isAboveTarget ? '-bottom-12' : '-top-12'
+          }`}
           style={{ fontSize: "48px" }}
         >
-          ↓
+          {isAboveTarget ? '↑' : '↓'}
         </div>
       </div>
 
-      {/* Tooltip Card */}
+      {/* Tooltip Card - con transform per centratura perfetta */}
       <div
-        className="fixed z-[10000] w-[300px] bg-white rounded-lg shadow-2xl p-5 animate-fade-in"
+        className="fixed z-[10000] max-w-[280px] bg-white rounded-lg shadow-2xl p-5 animate-fade-in transition-all duration-200"
         style={{
           top: `${tooltipTop}px`,
           left: `${tooltipLeft}px`,
