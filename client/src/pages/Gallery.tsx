@@ -475,7 +475,7 @@ export default function Gallery() {
       galleryData.productRequirements.length > 0 &&
       selectionStatus !== "completed" &&
       !isDeadlinePassed &&
-      (adminPhotos?.length || 0) + (guestPhotos?.length || 0) > 0 // Ensure photos are loaded
+      (photos?.length || 0) + (guestPhotos?.length || 0) > 0 // Ensure photos are loaded
     ) {
       // Wait a bit for photo grid to render
       const timer = setTimeout(() => {
@@ -484,7 +484,7 @@ export default function Gallery() {
       
       return () => clearTimeout(timer);
     }
-  }, [isSelectionMode, galleryData?.productRequirements, selectionStatus, isDeadlinePassed, adminPhotos?.length, guestPhotos?.length]);
+  }, [isSelectionMode, galleryData?.productRequirements, selectionStatus, isDeadlinePassed, photos?.length, guestPhotos?.length]);
 
   // Toggle product assignment for multi-product mode
   const handleToggleProductAssignment = useCallback(
