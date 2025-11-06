@@ -164,6 +164,7 @@ export default function BookingsManager({
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
+  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'tomorrow' | 'next-week' | 'next-month'>('all');
   
   // State per cancellazione a cascata
   const [deleteBookingCascadeId, setDeleteBookingCascadeId] = useState<string | null>(null);
@@ -253,7 +254,53 @@ export default function BookingsManager({
       });
     }
 
-    // 3. Ordina per data e ora (più recenti prima)
+    // 3. Filtra per intervallo temporale
+    if (timeFilter !== 'all') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dayAfterTomorrow = new Date(tomorrow);
+      dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
+
+      filtered = filtered.filter(b => {
+        const getTime = (timestamp: any): number => {
+          if (!timestamp) return 0;
+          if (timestamp.toDate) return timestamp.toDate().getTime();
+          if (timestamp instanceof Date) return timestamp.getTime();
+          return new Date(timestamp).getTime();
+        };
+        
+        const bookingTime = getTime(b.dataShootingInizio);
+        
+        if (timeFilter === 'today') {
+          // Oggi: >= oggi 00:00 e < domani 00:00
+          return bookingTime >= today.getTime() && bookingTime < tomorrow.getTime();
+        } else if (timeFilter === 'tomorrow') {
+          // Domani: >= domani 00:00 e < dopodomani 00:00
+          return bookingTime >= tomorrow.getTime() && bookingTime < dayAfterTomorrow.getTime();
+        } else if (timeFilter === 'next-week') {
+          // Prossima settimana: dal prossimo lunedì alla prossima domenica
+          const nextMonday = new Date(today);
+          const daysUntilMonday = (8 - today.getDay()) % 7 || 7;
+          nextMonday.setDate(today.getDate() + daysUntilMonday);
+          const nextSunday = new Date(nextMonday);
+          nextSunday.setDate(nextMonday.getDate() + 7);
+          
+          return bookingTime >= nextMonday.getTime() && bookingTime < nextSunday.getTime();
+        } else if (timeFilter === 'next-month') {
+          // Prossimo mese: dal 1° giorno del prossimo mese all'ultimo
+          const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+          const monthAfter = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+          
+          return bookingTime >= nextMonth.getTime() && bookingTime < monthAfter.getTime();
+        }
+        
+        return true;
+      });
+    }
+
+    // 4. Ordina per data e ora (più vicine prima per filtri temporali, più recenti per 'all')
     filtered.sort((a, b) => {
       const getTime = (timestamp: any): number => {
         if (!timestamp) return 0;
@@ -262,11 +309,14 @@ export default function BookingsManager({
         return new Date(timestamp).getTime();
       };
       
-      return getTime(b.dataShootingInizio) - getTime(a.dataShootingInizio);
+      // Se filtro temporale attivo: ordine crescente (più vicine prima)
+      // Se 'all': ordine decrescente (più recenti prima)
+      const multiplier = timeFilter !== 'all' ? 1 : -1;
+      return multiplier * (getTime(a.dataShootingInizio) - getTime(b.dataShootingInizio));
     });
 
     return filtered;
-  }, [allBookings, selectedStato, searchQuery, campaigns]);
+  }, [allBookings, selectedStato, searchQuery, campaigns, timeFilter]);
 
   // Paginazione
   const totalPages = Math.ceil(bookings.length / ITEMS_PER_PAGE);
@@ -278,7 +328,7 @@ export default function BookingsManager({
   // Reset currentPage quando cambiano filtri
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedStato, searchQuery]);
+  }, [selectedStato, searchQuery, timeFilter]);
 
   // Scroll e highlight booking quando richiesto da GestioneCommesse
   useEffect(() => {
@@ -779,6 +829,20 @@ export default function BookingsManager({
                         {stato.label}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1">
+                <Select value={timeFilter} onValueChange={(value: any) => { setTimeFilter(value); resetPage(); }}>
+                  <SelectTrigger data-testid="select-time-filter">
+                    <SelectValue placeholder="Filtra per data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutte le date</SelectItem>
+                    <SelectItem value="today">Oggi</SelectItem>
+                    <SelectItem value="tomorrow">Domani</SelectItem>
+                    <SelectItem value="next-week">Prossima Settimana</SelectItem>
+                    <SelectItem value="next-month">Prossimo Mese</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

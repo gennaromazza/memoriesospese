@@ -101,6 +101,7 @@ export default function GestioneCommesse({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
+  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'tomorrow' | 'next-week' | 'next-month'>('all');
 
   // Query dati
   const { data: bookings = [], isLoading: loadingBookings } = useQuery({
@@ -189,11 +190,51 @@ export default function GestioneCommesse({
     );
   }
 
-  // Ordina per data servizio (più recenti prima)
+  // Filtra per intervallo temporale
+  if (timeFilter !== 'all') {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfterTomorrow = new Date(tomorrow);
+    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
+
+    commesseFiltrate = commesseFiltrate.filter(c => {
+      if (!c.dataServizio) return false;
+      const serviceTime = c.dataServizio.getTime();
+      
+      if (timeFilter === 'today') {
+        return serviceTime >= today.getTime() && serviceTime < tomorrow.getTime();
+      } else if (timeFilter === 'tomorrow') {
+        return serviceTime >= tomorrow.getTime() && serviceTime < dayAfterTomorrow.getTime();
+      } else if (timeFilter === 'next-week') {
+        const nextMonday = new Date(today);
+        const daysUntilMonday = (8 - today.getDay()) % 7 || 7;
+        nextMonday.setDate(today.getDate() + daysUntilMonday);
+        const nextSunday = new Date(nextMonday);
+        nextSunday.setDate(nextMonday.getDate() + 7);
+        
+        return serviceTime >= nextMonday.getTime() && serviceTime < nextSunday.getTime();
+      } else if (timeFilter === 'next-month') {
+        const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        const monthAfter = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+        
+        return serviceTime >= nextMonth.getTime() && serviceTime < monthAfter.getTime();
+      }
+      
+      return true;
+    });
+  }
+
+  // Ordina per data servizio (più vicine prima per filtri temporali, più recenti per 'all')
   commesseFiltrate.sort((a, b) => {
     if (!a.dataServizio) return 1;
     if (!b.dataServizio) return -1;
-    return b.dataServizio.getTime() - a.dataServizio.getTime();
+    
+    // Se filtro temporale attivo: ordine crescente (più vicine prima)
+    // Se 'all': ordine decrescente (più recenti prima)
+    const multiplier = timeFilter !== 'all' ? 1 : -1;
+    return multiplier * (a.dataServizio.getTime() - b.dataServizio.getTime());
   });
 
   // Paginazione
@@ -285,18 +326,32 @@ export default function GestioneCommesse({
             </p>
           </div>
 
-          {/* Barra Ricerca */}
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Cerca per nome o email..."
-              className="pl-9"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                resetPage();
-              }}
-            />
+          {/* Filtri temporali e Ricerca */}
+          <div className="flex gap-2 w-full md:w-auto">
+            <Select value={timeFilter} onValueChange={(value: any) => { setTimeFilter(value); resetPage(); }}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filtra per data" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le date</SelectItem>
+                <SelectItem value="today">Oggi</SelectItem>
+                <SelectItem value="tomorrow">Domani</SelectItem>
+                <SelectItem value="next-week">Prossima Settimana</SelectItem>
+                <SelectItem value="next-month">Prossimo Mese</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative flex-1 md:w-80">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Cerca per nome o email..."
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  resetPage();
+                }}
+              />
+            </div>
           </div>
         </div>
 
