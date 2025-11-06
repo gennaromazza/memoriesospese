@@ -53,7 +53,7 @@ export default function GalleryFooter({ studioSettings }: GalleryFooterProps) {
                 : '#'} 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="group relative flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm overflow-hidden"
+              className="group relative flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-sage to-terracotta text-white rounded-md hover:from-dark-sage hover:to-terracotta/90 transition-all shadow-sm overflow-hidden cta-pulse"
             >
               <span className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity">
                 <BackgroundDecoration />
