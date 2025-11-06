@@ -387,12 +387,15 @@ export default function Gallery() {
 
     const storageKey = `gallery-selection-${galleryData.id}`;
 
-    // Salva le selezioni correnti o rimuovi se vuoto
-    if (selectedPhotoIds.length > 0) {
+    // Salva ENTRAMBI selectedPhotoIds E photoAssignments per multi-product
+    const hasSelections = selectedPhotoIds.length > 0 || Object.keys(photoAssignments).length > 0;
+    
+    if (hasSelections) {
       localStorage.setItem(
         storageKey,
         JSON.stringify({
           photoIds: selectedPhotoIds,
+          photoAssignments: photoAssignments, // 🔥 FIX: Salva anche le assegnazioni prodotti
           timestamp: new Date().toISOString(),
           count: selectedPhotoIds.length,
         }),
@@ -400,7 +403,9 @@ export default function Gallery() {
       console.log(
         "💾 Auto-saved selection:",
         selectedPhotoIds.length,
-        "photos",
+        "photos +",
+        Object.keys(photoAssignments).length,
+        "assignments",
       );
     } else {
       // Rimuovi localStorage quando la selezione è vuota
@@ -409,6 +414,7 @@ export default function Gallery() {
     }
   }, [
     selectedPhotoIds,
+    photoAssignments, // 🔥 FIX: Ascolta anche le modifiche a photoAssignments
     galleryData?.id,
     selectionStatus,
     hasInitializedSelection,
@@ -428,23 +434,33 @@ export default function Gallery() {
 
     if (saved) {
       try {
-        const { photoIds, timestamp, count } = JSON.parse(saved);
+        const { photoIds, photoAssignments: savedAssignments, timestamp, count } = JSON.parse(saved);
         const savedDate = new Date(timestamp);
         const hoursSince =
           (new Date().getTime() - savedDate.getTime()) / (1000 * 60 * 60);
 
         // Ripristina solo se salvato nelle ultime 24 ore
-        if (hoursSince < 24 && photoIds && photoIds.length > 0) {
+        if (hoursSince < 24 && (photoIds?.length > 0 || Object.keys(savedAssignments || {}).length > 0)) {
           console.log(
             "🔄 Restored selection from localStorage:",
             count,
-            "photos",
+            "photos +",
+            Object.keys(savedAssignments || {}).length,
+            "assignments",
           );
-          setSelectedPhotoIds(photoIds);
+          
+          // 🔥 FIX: Ripristina ENTRAMBI selectedPhotoIds E photoAssignments
+          if (photoIds) setSelectedPhotoIds(photoIds);
+          if (savedAssignments) setPhotoAssignments(savedAssignments);
+          
           setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato
+          
+          const hasAssignments = savedAssignments && Object.keys(savedAssignments).length > 0;
           toast({
             title: "💾 Selezione ripristinata",
-            description: `Abbiamo recuperato le tue ${count} foto selezionate precedentemente.`,
+            description: hasAssignments 
+              ? `Abbiamo recuperato le tue ${count} foto selezionate${Object.keys(savedAssignments).length > 0 ? ' con le assegnazioni ai prodotti' : ''}.`
+              : `Abbiamo recuperato le tue ${count} foto selezionate precedentemente.`,
           });
           // Rimuovi entry per evitare restore multipli
           localStorage.removeItem(storageKey);
