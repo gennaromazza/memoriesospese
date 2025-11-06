@@ -244,7 +244,9 @@ export default function Gallery() {
   }, [isLoadingGallery, galleryError, galleryData, id, navigate]);
 
   // Stati per gestire la selezione foto (Tasks 12-15)
-  const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
+  // 🔥 CRITICAL FIX: In multi-product mode, photoAssignments è la SINGLE SOURCE OF TRUTH
+  // selectedPhotoIds viene derivato automaticamente da photoAssignments (vedere useMemo sotto)
+  const [selectedPhotoIdsLegacy, setSelectedPhotoIdsLegacy] = useState<string[]>([]); // Solo per modalità single-product legacy
   const [photoAssignments, setPhotoAssignments] = useState<Record<string, string[]>>({});
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
   const [selectionNotes, setSelectionNotes] = useState(""); // 📝 Note aggiuntive cliente
@@ -264,6 +266,22 @@ export default function Gallery() {
 
   // Check se gallery è in selection mode
   const isSelectionMode = galleryData?.selectionEnabled || false;
+  
+  // 🔥 CRITICAL FIX: Deriva selectedPhotoIds automaticamente da photoAssignments
+  // Questo elimina il rischio di desync tra i due stati
+  const isMultiProductMode = (galleryData?.productRequirements?.length ?? 0) > 0;
+  
+  const selectedPhotoIds = useMemo(() => {
+    if (isMultiProductMode) {
+      // Multi-product: deriva da photoAssignments (single source of truth)
+      return Object.keys(photoAssignments).filter(
+        photoId => photoAssignments[photoId] && photoAssignments[photoId].length > 0
+      );
+    } else {
+      // Legacy single-product: usa lo stato separato
+      return selectedPhotoIdsLegacy;
+    }
+  }, [isMultiProductMode, photoAssignments, selectedPhotoIdsLegacy]);
   
   // Calculate total required photos: Multi-product mode (sum from productRequirements) OR legacy single-product mode
   const requiredPhotoCount = useMemo(() => {
@@ -345,7 +363,8 @@ export default function Gallery() {
         from: lastGalleryIdForSelection,
         to: id,
       });
-      setSelectedPhotoIds([]);
+      setSelectedPhotoIdsLegacy([]);
+      setPhotoAssignments({});
       setHasInitializedSelection(false);
       setLastGalleryIdForSelection(id);
     }
@@ -353,28 +372,32 @@ export default function Gallery() {
 
   // Sync selectedPhotoIds from galleryData after reset (only once per gallery)
   useEffect(() => {
-    if (
-      !hasInitializedSelection &&
-      galleryData?.selectedPhotoIds &&
-      galleryData.selectedPhotoIds.length > 0
-    ) {
-      console.log(
-        "🔄 Sync iniziale selectedPhotoIds da galleryData:",
-        galleryData.selectedPhotoIds.length,
-      );
-      setSelectedPhotoIds(galleryData.selectedPhotoIds);
-      setHasInitializedSelection(true);
-    }
+    if (!hasInitializedSelection) {
+      // Legacy single-product mode
+      if (
+        !isMultiProductMode &&
+        galleryData?.selectedPhotoIds &&
+        galleryData.selectedPhotoIds.length > 0
+      ) {
+        console.log(
+          "🔄 Sync iniziale selectedPhotoIds da galleryData (legacy):",
+          galleryData.selectedPhotoIds.length,
+        );
+        setSelectedPhotoIdsLegacy(galleryData.selectedPhotoIds);
+        setHasInitializedSelection(true);
+      }
 
-    // Sync photoAssignments from galleryData for multi-product mode
-    if (galleryData?.photoAssignments) {
-      console.log(
-        "🔄 Sync iniziale photoAssignments da galleryData:",
-        Object.keys(galleryData.photoAssignments).length,
-      );
-      setPhotoAssignments(galleryData.photoAssignments as Record<string, string[]>);
+      // Multi-product mode: sync photoAssignments
+      if (galleryData?.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0) {
+        console.log(
+          "🔄 Sync iniziale photoAssignments da galleryData:",
+          Object.keys(galleryData.photoAssignments).length,
+        );
+        setPhotoAssignments(galleryData.photoAssignments as Record<string, string[]>);
+        setHasInitializedSelection(true);
+      }
     }
-  }, [galleryData?.selectedPhotoIds, galleryData?.photoAssignments, hasInitializedSelection]);
+  }, [galleryData?.selectedPhotoIds, galleryData?.photoAssignments, hasInitializedSelection, isMultiProductMode]);
 
   // 💾 Auto-save selezioni in localStorage (UX Enhancement #2)
   useEffect(() => {
@@ -450,8 +473,8 @@ export default function Gallery() {
           );
           
           // 🔥 FIX: Ripristina ENTRAMBI selectedPhotoIds E photoAssignments
-          if (photoIds) setSelectedPhotoIds(photoIds);
-          if (savedAssignments) setPhotoAssignments(savedAssignments);
+          if (photoIds && !isMultiProductMode) setSelectedPhotoIdsLegacy(photoIds); // Solo per legacy
+          if (savedAssignments) setPhotoAssignments(savedAssignments); // Multi-product: questo imposta automaticamente selectedPhotoIds via useMemo
           
           setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato
           
@@ -551,19 +574,10 @@ export default function Gallery() {
         if (newAssignments.length === 0) {
           // Remove photo entirely if no products assigned
           delete updatedPhotoAssignments[photoId];
-          
-          // Also remove from selectedPhotoIds
-          setSelectedPhotoIds((prevIds) => prevIds.filter((id) => id !== photoId));
+          // 🔥 FIX: selectedPhotoIds è derivato automaticamente da photoAssignments via useMemo
         } else {
           updatedPhotoAssignments[photoId] = newAssignments;
-          
-          // Ensure photo is in selectedPhotoIds
-          setSelectedPhotoIds((prevIds) => {
-            if (!prevIds.includes(photoId)) {
-              return [...prevIds, photoId];
-            }
-            return prevIds;
-          });
+          // 🔥 FIX: selectedPhotoIds è derivato automaticamente da photoAssignments via useMemo
         }
 
         console.log(
@@ -609,7 +623,8 @@ export default function Gallery() {
         return;
       }
 
-      setSelectedPhotoIds((prev) => {
+      // Legacy single-product mode
+      setSelectedPhotoIdsLegacy((prev: string[]) => {
         const isSelected = prev.includes(photoId);
         console.log(
           "❤️ Toggle photo:",
@@ -621,7 +636,7 @@ export default function Gallery() {
         );
 
         if (isSelected) {
-          const newSelection = prev.filter((id) => id !== photoId);
+          const newSelection = prev.filter((id: string) => id !== photoId);
           console.log("➖ Rimossa foto. Nuovo count:", newSelection.length);
           return newSelection;
         } else {
@@ -2455,14 +2470,18 @@ export default function Gallery() {
                                       : "shadow-md hover:shadow-lg"
                                 }`}
                                 onClick={() => {
-                                  // In modalità selezione: click foto = seleziona/deseleziona
-                                  if (
-                                    isSelectionMode &&
-                                    selectionStatus !== "completed"
-                                  ) {
+                                  // 🔥 FIX UX: In multi-product mode, click foto SEMPRE apre lightbox
+                                  // L'assegnazione ai prodotti avviene solo tramite badge (mobile) o chip (desktop)
+                                  const isMultiProduct = galleryData?.productRequirements && galleryData.productRequirements.length > 0;
+                                  
+                                  if (isMultiProduct) {
+                                    // Multi-product: sempre lightbox
+                                    openLightbox(index);
+                                  } else if (isSelectionMode && selectionStatus !== "completed") {
+                                    // Legacy single-product: toggle selezione
                                     handleTogglePhotoSelection(photo.id);
                                   } else {
-                                    // Altrimenti apre lightbox
+                                    // Modalità normale: lightbox
                                     openLightbox(index);
                                   }
                                 }}
