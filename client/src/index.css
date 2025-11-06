@@ -454,3 +454,32 @@
 .cta-pulse {
   animation: cta-pulse 3s infinite;
 }
+
+/* Onboarding Spotlight Animations */
+@keyframes spotlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3), 0 0 20px 8px rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6), 0 0 30px 12px rgba(255, 255, 255, 0.4);
+  }
+}
+
+.animate-spotlight-pulse {
+  animation: spotlight-pulse 2s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
