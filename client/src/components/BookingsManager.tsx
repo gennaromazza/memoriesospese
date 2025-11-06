@@ -378,6 +378,8 @@ export default function BookingsManager({
   const approveMutation = useMutation({
     mutationFn: async (bookingId: string) => {
       const adminUid = user?.uid || 'admin';
+      // Marca come vista prima di approvare (per far scomparire badge NUOVA)
+      await markBookingAsViewed(bookingId);
       await approveBooking(bookingId, adminUid);
     },
     onSuccess: () => {
@@ -401,6 +403,8 @@ export default function BookingsManager({
   const rejectMutation = useMutation({
     mutationFn: async (bookingId: string) => {
       const adminUid = user?.uid || 'admin';
+      // Marca come vista prima di rifiutare (per far scomparire badge NUOVA)
+      await markBookingAsViewed(bookingId);
       await rejectBooking(bookingId, adminUid);
     },
     onSuccess: () => {
