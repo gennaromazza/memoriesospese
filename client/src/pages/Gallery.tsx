@@ -2540,7 +2540,7 @@ export default function Gallery() {
                                         </div>
                                       )}
 
-                                      {/* 📱 Mobile: Bottone Flottante per Assegnazione Prodotto - VISIBILE solo su mobile (<768px) */}
+                                      {/* 📱 Mobile: Badge Assegnazione Prodotto - VISIBILE solo su mobile (<768px) */}
                                       {galleryData.productRequirements && (
                                         <button
                                           onClick={(e) => {
@@ -2548,13 +2548,14 @@ export default function Gallery() {
                                             setSelectedPhotoForMobileAssignment(photo.id);
                                             setShowMobileProductDialog(true);
                                           }}
-                                          className="md:hidden absolute bottom-3 right-3 z-20 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-12 h-12 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                                          className="md:hidden absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-r from-sage to-dark-sage text-white px-4 py-2.5 font-medium text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                                           title="Assegna a prodotti"
                                           data-testid={`button-mobile-assign-${photo.id}`}
                                         >
-                                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                                           </svg>
+                                          <span>Assegna ai prodotti</span>
                                         </button>
                                       )}
                                       
