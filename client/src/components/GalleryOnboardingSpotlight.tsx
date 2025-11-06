@@ -35,6 +35,12 @@ export function GalleryOnboardingSpotlight({
   const [showSpotlight, setShowSpotlight] = useState(false);
 
   useEffect(() => {
+    // 📱 Mobile-only tutorial: su desktop i chip sono già visibili e auto-esplicativi
+    const isMobile = window.innerWidth < 768;
+    if (!isMobile) {
+      return;
+    }
+
     // Guard: verifica che sia il momento giusto per mostrare il tutorial
     if (
       !isSelectionMode ||
