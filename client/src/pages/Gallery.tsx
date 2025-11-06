@@ -1846,38 +1846,66 @@ export default function Gallery() {
                             per il tuo album personalizzato!
                           </p>
 
-                          {/* Istruzioni chiare */}
-                          <div className="bg-white/60 rounded-lg p-4 mb-4 border border-sage/30">
-                            <p className="font-semibold text-sage mb-2">
-                              📋 Come selezionare:
-                            </p>
-                            <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
-                              <li>
-                                <strong>Clicca sulla foto</strong> che vuoi
-                                selezionare
-                              </li>
-                              <li>
-                                Vedrai un <strong>✓ checkbox verde</strong> e la
-                                scritta "SELEZIONATA"
-                              </li>
-                              <li>
-                                Clicca di nuovo per{" "}
-                                <strong>deselezionare</strong>
-                              </li>
-                              <li>
-                                Il counter mostra il progresso:{" "}
-                                <strong>
-                                  {selectedPhotoIds.length}/{requiredPhotoCount}
-                                </strong>
-                              </li>
-                              <li>
-                                Quando hai selezionato tutte le{" "}
-                                {requiredPhotoCount} foto, clicca{" "}
-                                <strong>"Conferma Selezione"</strong> in fondo
-                                alla pagina
-                              </li>
-                            </ol>
-                          </div>
+                          {/* Istruzioni chiare - diverse per single-product vs multi-product */}
+                          {!isMultiProductMode ? (
+                            // Single-product legacy: click sulla foto
+                            <div className="bg-white/60 rounded-lg p-4 mb-4 border border-sage/30">
+                              <p className="font-semibold text-sage mb-2">
+                                📋 Come selezionare:
+                              </p>
+                              <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                                <li>
+                                  <strong>Clicca sulla foto</strong> che vuoi
+                                  selezionare
+                                </li>
+                                <li>
+                                  Vedrai un <strong>✓ checkbox verde</strong> e la
+                                  scritta "SELEZIONATA"
+                                </li>
+                                <li>
+                                  Clicca di nuovo per{" "}
+                                  <strong>deselezionare</strong>
+                                </li>
+                                <li>
+                                  Il counter mostra il progresso:{" "}
+                                  <strong>
+                                    {selectedPhotoIds.length}/{requiredPhotoCount}
+                                  </strong>
+                                </li>
+                                <li>
+                                  Quando hai selezionato tutte le{" "}
+                                  {requiredPhotoCount} foto, clicca{" "}
+                                  <strong>"Conferma Selezione"</strong> in fondo
+                                  alla pagina
+                                </li>
+                              </ol>
+                            </div>
+                          ) : (
+                            // Multi-product: usa chip/badge
+                            <div className="bg-white/60 rounded-lg p-4 mb-4 border border-sage/30">
+                              <p className="font-semibold text-sage mb-2">
+                                📋 Come assegnare le foto ai prodotti:
+                              </p>
+                              <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                                <li>
+                                  <strong className="hidden md:inline">Desktop:</strong> Clicca sui <strong>chip colorati</strong> sotto ogni foto per assegnarla ai prodotti
+                                </li>
+                                <li>
+                                  <strong className="md:hidden">Mobile:</strong> Tocca il badge <strong>"🏷️ Assegna"</strong> sotto la foto per scegliere i prodotti
+                                </li>
+                                <li>
+                                  Puoi <strong>riutilizzare</strong> la stessa foto per più prodotti (es: Album + Stampe)
+                                </li>
+                                <li>
+                                  Il <strong>progresso</strong> per ogni prodotto è mostrato qui sotto in tempo reale
+                                </li>
+                                <li>
+                                  Quando hai assegnato tutte le foto richieste, clicca{" "}
+                                  <strong>"Conferma Selezione"</strong> in fondo alla pagina
+                                </li>
+                              </ol>
+                            </div>
+                          )}
 
                           {/* 📊 Multi-Product Progress Cards */}
                           {calculateProductProgress && (
@@ -2463,7 +2491,7 @@ export default function Gallery() {
                                   isSelectionMode &&
                                   selectionStatus !== "completed" &&
                                   selectedPhotoIds.includes(photo.id)
-                                    ? "ring-6 ring-sage shadow-[0_0_20px_rgba(134,168,137,0.5)] scale-[1.02]"
+                                    ? "ring-8 ring-sage shadow-[0_0_25px_rgba(134,168,137,0.6)] scale-[1.03]"
                                     : isSelectionMode &&
                                         selectionStatus !== "completed"
                                       ? "shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50"
