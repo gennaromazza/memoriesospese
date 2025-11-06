@@ -62,6 +62,12 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Calendar,
   Clock,
   User,
@@ -802,12 +808,20 @@ export default function BookingsManager({
               </Button>
             </div>
 
-            {/* Contatore risultati */}
-            {searchQuery.trim() && (
-              <div className="text-sm text-gray-600">
-                Trovate <strong>{bookings.length}</strong> prenotazioni
-              </div>
-            )}
+            {/* Contatore risultati - sempre visibile */}
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                <span className="font-semibold">{bookings.length}</span>
+                <span className="ml-1 text-muted-foreground">
+                  {bookings.length === 1 ? 'prenotazione' : 'prenotazioni'}
+                </span>
+              </Badge>
+              {(selectedStato !== 'all' || searchQuery.trim()) && (
+                <span className="text-xs text-muted-foreground">
+                  (filtrate)
+                </span>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1068,97 +1082,88 @@ export default function BookingsManager({
                       Dettagli
                     </Button>
 
-                    {/* Dropdown Menu Azioni - Disabilitato se NON approvata */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!isApproved}
-                          className="w-full"
-                          data-testid={`button-actions-${booking.id}`}
-                        >
-                          <MoreVertical className="w-4 h-4 mr-1" />
-                          Azioni
-                          {!isApproved && <span className="ml-1 text-xs text-gray-400">(🔒)</span>}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        {/* Crea/Gestisci Ordine */}
-                        {!getOrderByBookingId(booking.id) ? (
-                          <DropdownMenuItem
-                            onClick={() => setSelectedBookingForOrder(booking)}
-                            data-testid={`menu-create-order-${booking.id}`}
-                          >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Crea Ordine
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setFilterBookingId(booking.id);
-                              setActiveTab('orders');
-                            }}
-                            data-testid={`menu-manage-order-${booking.id}`}
-                          >
-                            <Receipt className="w-4 h-4 mr-2" />
-                            Gestisci Ordine
-                          </DropdownMenuItem>
-                        )}
+                    {/* Azioni con icone e tooltip */}
+                    <TooltipProvider>
+                      <div className="flex items-center gap-2 w-full">
+                        {/* Pulsante Ordine */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              disabled={!isApproved}
+                              onClick={() => {
+                                const order = getOrderByBookingId(booking.id);
+                                if (!order) {
+                                  setSelectedBookingForOrder(booking);
+                                } else {
+                                  setFilterBookingId(booking.id);
+                                  setActiveTab('orders');
+                                }
+                              }}
+                              data-testid={`button-order-${booking.id}`}
+                            >
+                              {!getOrderByBookingId(booking.id) ? (
+                                <Plus className="w-4 h-4" />
+                              ) : (
+                                <Receipt className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{!getOrderByBookingId(booking.id) ? 'Crea Ordine' : 'Gestisci Ordine'}</p>
+                          </TooltipContent>
+                        </Tooltip>
 
-                        <DropdownMenuSeparator />
-
-                        {/* Crea/Gestisci Galleria */}
-                        {!getGalleryByBookingId(booking.id) ? (
-                          <DropdownMenuItem
-                            onClick={() => setSelectedBookingForGallery(booking)}
-                            data-testid={`menu-create-gallery-${booking.id}`}
-                          >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Crea Galleria
-                          </DropdownMenuItem>
-                        ) : (
-                          <>
-                            <DropdownMenuItem
+                        {/* Pulsante Galleria */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              disabled={!isApproved}
                               onClick={() => {
                                 const gallery = getGalleryByBookingId(booking.id);
-                                if (gallery) {
+                                if (!gallery) {
+                                  setSelectedBookingForGallery(booking);
+                                } else {
                                   window.location.href = `/admin/gallery/${gallery.id}/manage`;
                                 }
                               }}
-                              data-testid={`menu-manage-selections-${booking.id}`}
+                              data-testid={`button-gallery-${booking.id}`}
                             >
-                              <ImageIcon className="w-4 h-4 mr-2" />
-                              Gestisci Selezioni
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const gallery = getGalleryByBookingId(booking.id);
-                                if (gallery) {
-                                  setSelectedGalleryForEdit(gallery);
-                                }
-                              }}
-                              data-testid={`menu-edit-gallery-${booking.id}`}
+                              {!getGalleryByBookingId(booking.id) ? (
+                                <Plus className="w-4 h-4" />
+                              ) : (
+                                <ImageIcon className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{!getGalleryByBookingId(booking.id) ? 'Crea Galleria' : 'Gestisci Galleria'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        {/* Pulsante Elimina */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              disabled={!isApproved}
+                              onClick={() => handleRequestCascadeDelete(booking.id)}
+                              className="text-destructive hover:bg-destructive/10"
+                              data-testid={`button-delete-${booking.id}`}
                             >
-                              <Edit className="w-4 h-4 mr-2" />
-                              Modifica Galleria
-                            </DropdownMenuItem>
-                          </>
-                        )}
-
-                        <DropdownMenuSeparator />
-
-                        {/* Elimina con cascata */}
-                        <DropdownMenuItem
-                          onClick={() => handleRequestCascadeDelete(booking.id)}
-                          className="text-red-600 focus:text-red-600"
-                          data-testid={`menu-delete-${booking.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Elimina
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Elimina Prenotazione</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TooltipProvider>
 
                     {/* Pulsanti Approva/Rifiuta - Solo se in_attesa */}
                     {booking.stato === 'in_attesa' && (
