@@ -833,7 +833,7 @@ export default function BookingsManager({
                 </Select>
               </div>
               <div className="flex-1">
-                <Select value={timeFilter} onValueChange={(value: any) => { setTimeFilter(value); resetPage(); }}>
+                <Select value={timeFilter} onValueChange={(value: any) => { setTimeFilter(value); setCurrentPage(1); }}>
                   <SelectTrigger data-testid="select-time-filter">
                     <SelectValue placeholder="Filtra per data" />
                   </SelectTrigger>
