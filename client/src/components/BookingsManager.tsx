@@ -153,6 +153,7 @@ export default function BookingsManager({
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<Booking | null>(null);
   const [selectedBookingForGallery, setSelectedBookingForGallery] = useState<Booking | null>(null);
   const [filterBookingId, setFilterBookingId] = useState<string | null>(null);
+  const [localHighlightOrderId, setLocalHighlightOrderId] = useState<string | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
   const [selectedGalleryForEdit, setSelectedGalleryForEdit] = useState<Gallery | null>(null);
@@ -1101,7 +1102,9 @@ export default function BookingsManager({
                                 if (!order) {
                                   setSelectedBookingForOrder(booking);
                                 } else {
-                                  setFilterBookingId(booking.id);
+                                  // Navigazione intelligente con scroll e highlight
+                                  setFilterBookingId(null); // Reset filtro
+                                  setLocalHighlightOrderId(order.id); // Imposta highlight per scroll automatico
                                   setActiveTab('orders');
                                 }
                               }}
@@ -1731,8 +1734,13 @@ export default function BookingsManager({
           )}
           <OrdersManager 
             filterBookingId={filterBookingId} 
-            highlightOrderId={highlightOrderId}
-            onHighlightComplete={onOrderHighlightComplete}
+            highlightOrderId={highlightOrderId || localHighlightOrderId}
+            onHighlightComplete={() => {
+              // Callback esterno se presente
+              onOrderHighlightComplete?.();
+              // Pulisci highlight locale
+              setLocalHighlightOrderId(null);
+            }}
           />
         </>
       )}
