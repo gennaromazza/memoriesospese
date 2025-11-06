@@ -76,7 +76,7 @@ import CoupleStoryBook from "@/components/CoupleStoryBook";
 import StoryUploadForm from "@/components/StoryUploadForm";
 import StoryService from "@/lib/storyService";
 import { CoupleStory } from "@shared/schema";
-import { OnboardingSpotlight } from "@/components/OnboardingSpotlight";
+import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotlight";
 
 export default function Gallery() {
   const { id } = useParams();
@@ -258,9 +258,6 @@ export default function Gallery() {
   // 📱 Mobile Product Assignment Dialog
   const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
   const [selectedPhotoForMobileAssignment, setSelectedPhotoForMobileAssignment] = useState<string | null>(null);
-
-  // 🎓 Onboarding Spotlight State
-  const [showOnboardingSpotlight, setShowOnboardingSpotlight] = useState(false);
 
   // Ref per scrollare alla griglia
   const galleryGridRef = useRef<HTMLDivElement>(null);
@@ -466,25 +463,6 @@ export default function Gallery() {
       setHasInitializedSelection(true);
     }
   }, [galleryData?.id, hasInitializedSelection, selectionStatus, toast]);
-
-  // 🎓 Trigger Onboarding Spotlight for Multi-Product Mode (first-time users)
-  useEffect(() => {
-    if (
-      isSelectionMode &&
-      galleryData?.productRequirements &&
-      galleryData.productRequirements.length > 0 &&
-      selectionStatus !== "completed" &&
-      !isDeadlinePassed &&
-      (photos?.length || 0) + (guestPhotos?.length || 0) > 0 // Ensure photos are loaded
-    ) {
-      // Wait a bit for photo grid to render
-      const timer = setTimeout(() => {
-        setShowOnboardingSpotlight(true);
-      }, 800);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isSelectionMode, galleryData?.productRequirements, selectionStatus, isDeadlinePassed, photos?.length, guestPhotos?.length]);
 
   // Toggle product assignment for multi-product mode
   const handleToggleProductAssignment = useCallback(
@@ -2990,17 +2968,12 @@ export default function Gallery() {
         />
       )}
 
-      {/* 🎓 Onboarding Spotlight - Tutorial Multi-Product Assignment */}
-      {galleryData?.productRequirements && galleryData.productRequirements.length > 0 && (
-        <OnboardingSpotlight
-          storageKey={`gallery-product-assignment-tutorial-${galleryData.id}`}
-          targetSelector={`[data-testid^="button-mobile-assign-"]`}
-          title="🏷️ Come assegnare le foto"
-          description="Clicca sul pulsante 'Assegna ai prodotti' sotto ogni foto per scegliere a quali prodotti assegnare l'immagine. Puoi assegnare la stessa foto a più prodotti!"
-          isVisible={showOnboardingSpotlight}
-          onDismiss={() => setShowOnboardingSpotlight(false)}
-        />
-      )}
+      {/* 🎓 Onboarding Tutorial - Gestito autonomamente dal componente wrapper */}
+      <GalleryOnboardingSpotlight
+        galleryData={galleryData}
+        isSelectionMode={isSelectionMode}
+        isDeadlinePassed={isDeadlinePassed}
+      />
     </div>
   );
 }
