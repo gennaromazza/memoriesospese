@@ -166,6 +166,9 @@ export default function BookingsManager({
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'tomorrow' | 'next-week' | 'next-month'>('all');
   
+  // Helper: Reset pagina a 1
+  const resetPage = () => setCurrentPage(1);
+  
   // State per cancellazione a cascata
   const [deleteBookingCascadeId, setDeleteBookingCascadeId] = useState<string | null>(null);
   const [cascadeDeleteCounts, setCascadeDeleteCounts] = useState<{

@@ -195,11 +195,11 @@ export default function Gallery() {
   // Funzione di refresh che invalida la cache React Query (MOVED dopo galleryData declaration)
   const handleRefreshPhotos = useCallback(async () => {
     if (!galleryData?.id) return;
-    
+
     // Invalida cache React Query per ricaricare foto
     await queryClient.invalidateQueries({ queryKey: ['photos', galleryData.id] });
     await queryClient.invalidateQueries({ queryKey: ['guestPhotos', galleryData.id] });
-    
+
     // Fallback con evento personalizzato per compatibilità
     refreshPhotos();
   }, [galleryData?.id, refreshPhotos]);
@@ -214,6 +214,9 @@ export default function Gallery() {
         variant: "destructive",
       });
     }
+  }, [galleryError, toast]);
+
+  useEffect(() => {
     if (photosError) {
       console.error('Errore caricamento foto:', photosError);
       toast({
@@ -222,11 +225,15 @@ export default function Gallery() {
         variant: "destructive",
       });
     }
+  }, [photosError, toast]);
+
+
+  useEffect(() => {
     if (guestPhotosError) {
       console.error('Errore caricamento foto ospiti:', guestPhotosError);
       // Non mostriamo errore per foto ospiti - non è critico
     }
-  }, [galleryError, photosError, guestPhotosError]);
+  }, [guestPhotosError, toast]);
 
   // 🔧 Gestione galleria non trovata
   useEffect(() => {
@@ -256,7 +263,7 @@ export default function Gallery() {
   const [showSidebar, setShowSidebar] = useState(false); // Sidebar miniature
   const [showProductSummary, setShowProductSummary] = useState(false); // Sheet riepilogo prodotti
   const [filterByProduct, setFilterByProduct] = useState<number | null>(null); // Filtro per prodotto specifico
-  
+
   // 📱 Mobile Product Assignment Dialog
   const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
   const [selectedPhotoForMobileAssignment, setSelectedPhotoForMobileAssignment] = useState<string | null>(null);
@@ -266,11 +273,11 @@ export default function Gallery() {
 
   // Check se gallery è in selection mode
   const isSelectionMode = galleryData?.selectionEnabled || false;
-  
+
   // 🔥 CRITICAL FIX: Deriva selectedPhotoIds automaticamente da photoAssignments
   // Questo elimina il rischio di desync tra i due stati
   const isMultiProductMode = (galleryData?.productRequirements?.length ?? 0) > 0;
-  
+
   const selectedPhotoIds = useMemo(() => {
     if (isMultiProductMode) {
       // Multi-product: deriva da photoAssignments (single source of truth)
@@ -282,7 +289,7 @@ export default function Gallery() {
       return selectedPhotoIdsLegacy;
     }
   }, [isMultiProductMode, photoAssignments, selectedPhotoIdsLegacy]);
-  
+
   // Calculate total required photos: Multi-product mode (sum from productRequirements) OR legacy single-product mode
   const requiredPhotoCount = useMemo(() => {
     if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
@@ -290,7 +297,7 @@ export default function Gallery() {
     }
     return galleryData?.requiredPhotoCount || 0;
   }, [galleryData?.productRequirements, galleryData?.requiredPhotoCount]);
-  
+
   const productRequirements = galleryData?.productRequirements;
   const selectionDeadline = galleryData?.selectionDeadline;
   const selectionStatus = galleryData?.selectionStatus || "pending";
@@ -307,7 +314,7 @@ export default function Gallery() {
       console.log("✅ isSelectionMode:", isSelectionMode);
       console.log("📊 requiredPhotoCount:", galleryData.requiredPhotoCount);
       console.log("📦 productRequirements:", galleryData.productRequirements);
-      console.log("🎯 photoAssignments:", galleryData.photoAssignments);
+      console.log("📋 photoAssignments:", galleryData.photoAssignments);
       console.log("📋 selectionStatus:", galleryData.selectionStatus);
       console.log("⏰ selectionDeadline:", galleryData.selectionDeadline);
       console.log(
@@ -318,7 +325,7 @@ export default function Gallery() {
         "💚 selectedPhotoIds count:",
         galleryData.selectedPhotoIds?.length || 0,
       );
-      
+
       // Multi-Product Debug
       if (galleryData.productRequirements && galleryData.productRequirements.length > 0) {
         const totalRequired = galleryData.productRequirements.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
@@ -328,7 +335,7 @@ export default function Gallery() {
           console.log(`  ${idx + 1}. ${p.prodottoNome}: ${p.prodottoNumeroFoto} foto`);
         });
       }
-      
+
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
       if (!galleryData.selectionEnabled) {
@@ -412,7 +419,7 @@ export default function Gallery() {
 
     // Salva ENTRAMBI selectedPhotoIds E photoAssignments per multi-product
     const hasSelections = selectedPhotoIds.length > 0 || Object.keys(photoAssignments).length > 0;
-    
+
     if (hasSelections) {
       localStorage.setItem(
         storageKey,
@@ -471,13 +478,13 @@ export default function Gallery() {
             Object.keys(savedAssignments || {}).length,
             "assignments",
           );
-          
+
           // 🔥 FIX: Ripristina ENTRAMBI selectedPhotoIds E photoAssignments
           if (photoIds && !isMultiProductMode) setSelectedPhotoIdsLegacy(photoIds); // Solo per legacy
           if (savedAssignments) setPhotoAssignments(savedAssignments); // Multi-product: questo imposta automaticamente selectedPhotoIds via useMemo
-          
+
           setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato
-          
+
           const hasAssignments = savedAssignments && Object.keys(savedAssignments).length > 0;
           toast({
             title: "💾 Selezione ripristinata",
@@ -537,7 +544,7 @@ export default function Gallery() {
         if (isAssigned) {
           // Remove product from this photo
           newAssignments = currentAssignments.filter((idx) => idx !== productIndex);
-          
+
           // Toast feedback for removal
           toast({
             title: `📤 Foto rimossa`,
@@ -561,7 +568,7 @@ export default function Gallery() {
 
           // Add product to this photo
           newAssignments = [...currentAssignments, productIndex];
-          
+
           // Toast feedback for assignment
           toast({
             title: `✨ Foto aggiunta`,
@@ -676,7 +683,7 @@ export default function Gallery() {
         const assignedCount = Object.values(photoAssignments).filter(
           assignments => assignments.includes(String(idx))
         ).length;
-        
+
         return {
           prodottoNome: prod.prodottoNome,
           assignedCount,
@@ -685,15 +692,15 @@ export default function Gallery() {
           isExceeded: assignedCount > prod.prodottoNumeroFoto
         };
       });
-      
+
       // Trova prodotti con troppe foto
       const exceededProducts = productProgress.filter(p => p.isExceeded);
-      
+
       if (exceededProducts.length > 0) {
         const errorMessage = exceededProducts.map(p => 
           `• ${p.prodottoNome}: ${p.assignedCount}/${p.requiredCount} foto (${p.assignedCount - p.requiredCount} in eccesso)`
         ).join('\n');
-        
+
         toast({
           title: "⚠️ Troppe foto assegnate",
           description: `Alcuni prodotti hanno più foto del necessario:\n\n${errorMessage}\n\nRimuovi le foto in eccesso prima di confermare.`,
@@ -701,15 +708,15 @@ export default function Gallery() {
         });
         return;
       }
-      
+
       // Trova prodotti mancanti
       const missingProducts = productProgress.filter(p => p.isMissing);
-      
+
       if (missingProducts.length > 0) {
         const errorMessage = missingProducts.map(p => 
           `• ${p.prodottoNome}: ${p.assignedCount}/${p.requiredCount} foto`
         ).join('\n');
-        
+
         toast({
           title: "⚠️ Selezione incompleta",
           description: `Alcuni prodotti non hanno abbastanza foto assegnate:\n\n${errorMessage}\n\nAssegna le foto mancanti prima di confermare.`,
@@ -717,7 +724,7 @@ export default function Gallery() {
         });
         return;
       }
-      
+
       console.log('✅ Validazione multi-prodotto superata - tutti i prodotti hanno le foto richieste');
     }
     // Legacy Single-Product Validation
@@ -774,7 +781,7 @@ export default function Gallery() {
             const assignedCount = Object.values(photoAssignments).filter(
               assignments => assignments.includes(String(idx))
             ).length;
-            
+
             return {
               prodottoNome: prod.prodottoNome,
               assignedCount,
@@ -811,7 +818,7 @@ export default function Gallery() {
 
       // Refresh gallery data
       await refreshGallery();
-      
+
       // Auto-reload page to show updated state
       setTimeout(() => {
         window.location.reload();
@@ -859,7 +866,7 @@ export default function Gallery() {
 
     try {
       await StoryService.deleteStory(id);
-      
+
       // Invalida cache React Query per ricaricare storia
       await queryClient.invalidateQueries({ queryKey: ['coupleStory', id] });
 
@@ -1062,13 +1069,13 @@ export default function Gallery() {
     if (!galleryData?.productRequirements || !photoAssignments) {
       return null;
     }
-    
+
     return galleryData.productRequirements.map((prod, idx) => {
       // Conta quante foto hanno questo prodotto assegnato
       const assignedCount = Object.values(photoAssignments).filter(
         assignments => assignments.includes(String(idx))
       ).length;
-      
+
       return {
         prodottoNome: prod.prodottoNome,
         assignedCount,
@@ -1085,7 +1092,7 @@ export default function Gallery() {
   // IMPORTANTE: Nascosto in modalità multi-prodotto perché il progresso è già mostrato nelle card colorate
   const smartMessage = useMemo(() => {
     if (!isSelectionMode || selectionStatus === "completed") return null;
-    
+
     // 🔥 FIX: In multi-prodotto mode, non mostrare questo messaggio legacy
     // Il progresso è già visualizzato nelle card colorate dei prodotti
     if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
@@ -1832,7 +1839,7 @@ export default function Gallery() {
                                   Ho capito!
                                 </AlertDialogAction>
                               </AlertDialogFooter>
-                            </AlertDialogContent>
+                            </AlertDialog>
                           </AlertDialog>
 
                           <h3 className="text-2xl font-playfair text-blue-gray mb-3">
@@ -2177,7 +2184,7 @@ export default function Gallery() {
                                   { bg: 'bg-teal-500', ring: 'ring-teal-200' },
                                 ];
                                 const color = productColors[idx % productColors.length];
-                                
+
                                 return (
                                   <div key={idx} className={`bg-white/90 rounded-lg p-3 ring-2 ${color.ring}`}>
                                     <div className="flex items-center justify-between mb-2">
@@ -2217,7 +2224,7 @@ export default function Gallery() {
                                 Visualizza il progresso per ogni prodotto e filtra le foto
                               </SheetDescription>
                             </SheetHeader>
-                            
+
                             <div className="mt-6 space-y-4">
                               {calculateProductProgress?.map((prog, idx) => {
                                 const productColors = [
@@ -2230,7 +2237,7 @@ export default function Gallery() {
                                 ];
                                 const color = productColors[idx % productColors.length];
                                 const isFiltered = filterByProduct === idx;
-                                
+
                                 return (
                                   <div 
                                     key={idx} 
@@ -2251,14 +2258,14 @@ export default function Gallery() {
                                         </div>
                                       </div>
                                     </div>
-                                    
+
                                     <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                                       <div 
                                         className={`h-full ${color.bg} rounded-full transition-all duration-300`}
                                         style={{ width: `${Math.min(prog.percentage, 100)}%` }}
                                       />
                                     </div>
-                                    
+
                                     <Button
                                       onClick={() => {
                                         if (isFiltered) {
@@ -2288,7 +2295,7 @@ export default function Gallery() {
                                   </div>
                                 );
                               })}
-                              
+
                               {filterByProduct !== null && (
                                 <Button
                                   onClick={() => {
@@ -2322,14 +2329,14 @@ export default function Gallery() {
                               Seleziona uno o più prodotti per questa foto
                             </SheetDescription>
                           </SheetHeader>
-                          
+
                           <div className="mt-6 space-y-3">
                             {galleryData?.productRequirements?.map((prod, idx) => {
                               const productIdStr = String(idx);
                               const isAssigned = selectedPhotoForMobileAssignment 
                                 ? photoAssignments[selectedPhotoForMobileAssignment]?.includes(productIdStr)
                                 : false;
-                              
+
                               const productColors = [
                                 { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-500' },
                                 { bg: 'bg-green-500', hover: 'hover:bg-green-600', text: 'text-green-600', ring: 'ring-green-500' },
@@ -2339,12 +2346,12 @@ export default function Gallery() {
                                 { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600', ring: 'ring-teal-500' },
                               ];
                               const color = productColors[idx % productColors.length];
-                              
+
                               // Calcola progresso prodotto
                               const assignedCount = Object.values(photoAssignments).filter(
                                 assignments => assignments.includes(productIdStr)
                               ).length;
-                              
+
                               return (
                                 <button
                                   key={idx}
@@ -2382,7 +2389,7 @@ export default function Gallery() {
                               );
                             })}
                           </div>
-                          
+
                           <div className="mt-6">
                             <Button
                               onClick={() => setShowMobileProductDialog(false)}
@@ -2473,7 +2480,7 @@ export default function Gallery() {
                                   // 🔥 FIX UX: In multi-product mode, click foto SEMPRE apre lightbox
                                   // L'assegnazione ai prodotti avviene solo tramite badge (mobile) o chip (desktop)
                                   const isMultiProduct = galleryData?.productRequirements && galleryData.productRequirements.length > 0;
-                                  
+
                                   if (isMultiProduct) {
                                     // Multi-product: sempre lightbox
                                     openLightbox(index);
@@ -2489,7 +2496,7 @@ export default function Gallery() {
                                 <img
                                   src={photo.url}
                                   alt={photo.name || `Foto ${index + 1}`}
-                                  className="w-full h-auto object-cover transition-all duration-300 opacity-0 hover:opacity-95"
+                                  className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
                                   loading="lazy"
                                   onLoad={(e) => {
                                     (
@@ -2544,7 +2551,9 @@ export default function Gallery() {
                                       <div className="absolute top-3 right-3 z-10">
                                         <div
                                           className={`w-8 h-8 rounded-md flex items-center justify-center transition-all border-2 ${
-                                            selectedPhotoIds.includes(photo.id)
+                                            selectedPhotoIds.includes(
+                                              photo.id,
+                                            )
                                               ? "bg-sage border-sage text-white scale-110 shadow-lg"
                                               : "bg-white border-gray-300 hover:border-sage hover:bg-sage/10"
                                           }`}
@@ -2594,7 +2603,7 @@ export default function Gallery() {
                                           <span>Assegna ai prodotti</span>
                                         </button>
                                       )}
-                                      
+
                                       {/* Product Assignment Chips - NASCOSTI su mobile (<768px), visibili su desktop */}
                                       {galleryData.productRequirements && (
                                         <div className="absolute bottom-0 left-0 right-0 hidden md:flex flex-wrap gap-1 bg-white/95 p-2 rounded-b-lg border-t border-sage/20">
@@ -2602,7 +2611,7 @@ export default function Gallery() {
                                             // Use string index as unique identifier (aligns with Firestore schema)
                                             const productIdStr = String(idx);
                                             const isAssigned = photoAssignments[photo.id]?.includes(productIdStr);
-                                            
+
                                             // Colori distintivi per ogni prodotto (rotazione)
                                             const productColors = [
                                               { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600' },
@@ -2613,7 +2622,7 @@ export default function Gallery() {
                                               { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600' },
                                             ];
                                             const color = productColors[idx % productColors.length];
-                                            
+
                                             return (
                                               <button
                                                 key={idx}
