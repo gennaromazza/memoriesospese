@@ -1759,16 +1759,11 @@ export default function BookingsManager({
       {selectedGalleryForEdit && (
         <EditGalleryModal
           isOpen={true}
-          onClose={() => setSelectedGalleryForEdit(null)}
-          gallery={selectedGalleryForEdit}
-          onGalleryUpdated={() => {
+          onClose={() => {
             queryClient.invalidateQueries({ queryKey: ['galleries'] });
             setSelectedGalleryForEdit(null);
-            toast({
-              title: '✅ Galleria Aggiornata',
-              description: 'Le modifiche sono state salvate con successo.',
-            });
           }}
+          gallery={selectedGalleryForEdit}
         />
       )}
 
