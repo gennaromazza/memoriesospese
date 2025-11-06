@@ -269,7 +269,7 @@ export default function Gallery() {
   
   // 🔥 CRITICAL FIX: Deriva selectedPhotoIds automaticamente da photoAssignments
   // Questo elimina il rischio di desync tra i due stati
-  const isMultiProductMode = (galleryData?.productRequirements?.length ?? 0) > 0;
+  const isMultiProductMode = (galleryData?.productRequirements?.length ?? 0) > 1;
   
   const selectedPhotoIds = useMemo(() => {
     if (isMultiProductMode) {
@@ -320,7 +320,7 @@ export default function Gallery() {
       );
       
       // Multi-Product Debug
-      if (galleryData.productRequirements && galleryData.productRequirements.length > 0) {
+      if (galleryData.productRequirements && galleryData.productRequirements.length > 1) {
         const totalRequired = galleryData.productRequirements.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
         console.log("🎨 MULTI-PRODUCT MODE ATTIVO");
         console.log(`📊 Totale foto richieste: ${totalRequired} (da ${galleryData.productRequirements.length} prodotti)`);
@@ -615,7 +615,7 @@ export default function Gallery() {
       }
 
       // In multi-product mode, don't allow direct photo selection
-      if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
+      if (galleryData?.productRequirements && galleryData.productRequirements.length > 1) {
         toast({
           title: "💡 Modalità Multi-Prodotto",
           description: "Clicca sui chip dei prodotti sotto la foto per assegnarla.",
@@ -670,7 +670,7 @@ export default function Gallery() {
     }
 
     // Multi-Product Validation
-    if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
+    if (galleryData?.productRequirements && galleryData.productRequirements.length > 1) {
       // Calcola progresso per ogni prodotto
       const productProgress = galleryData.productRequirements.map((prod, idx) => {
         const assignedCount = Object.values(photoAssignments).filter(
@@ -1088,7 +1088,7 @@ export default function Gallery() {
     
     // 🔥 FIX: In multi-prodotto mode, non mostrare questo messaggio legacy
     // Il progresso è già visualizzato nelle card colorate dei prodotti
-    if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
+    if (galleryData?.productRequirements && galleryData.productRequirements.length > 1) {
       return null;
     }
 
@@ -2148,7 +2148,7 @@ export default function Gallery() {
                       {false && isSelectionMode && 
                        selectionStatus !== "completed" && 
                        galleryData?.productRequirements && 
-                       (galleryData?.productRequirements?.length ?? 0) > 0 && (
+                       (galleryData?.productRequirements?.length ?? 0) > 1 && (
                         <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-5 mb-6 shadow-md">
                           <div className="flex items-start gap-4">
                             <div className="flex-shrink-0 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl">
@@ -2178,7 +2178,7 @@ export default function Gallery() {
                       {isSelectionMode && 
                        selectionStatus !== "completed" && 
                        galleryData?.productRequirements && 
-                       (galleryData?.productRequirements?.length ?? 0) > 0 && (
+                       (galleryData?.productRequirements?.length ?? 0) > 1 && (
                         <div className="sticky top-16 z-30 bg-gradient-to-r from-sage/10 to-blue-gray/10 backdrop-blur-md border-b-2 border-sage/30 shadow-lg mb-6 rounded-lg overflow-hidden">
                           <div className="px-4 py-3">
                             <div className="flex items-center justify-between gap-2 mb-3">
@@ -2234,7 +2234,7 @@ export default function Gallery() {
                       {isSelectionMode && 
                        selectionStatus !== "completed" && 
                        galleryData?.productRequirements && 
-                       (galleryData?.productRequirements?.length ?? 0) > 0 && (
+                       (galleryData?.productRequirements?.length ?? 0) > 1 && (
                         <Sheet open={showProductSummary} onOpenChange={setShowProductSummary}>
                           <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
                             <SheetHeader>
@@ -2500,7 +2500,7 @@ export default function Gallery() {
                                 onClick={() => {
                                   // 🔥 FIX UX: In multi-product mode, click foto SEMPRE apre lightbox
                                   // L'assegnazione ai prodotti avviene solo tramite badge (mobile) o chip (desktop)
-                                  const isMultiProduct = galleryData?.productRequirements && galleryData.productRequirements.length > 0;
+                                  const isMultiProduct = galleryData?.productRequirements && galleryData.productRequirements.length > 1;
                                   
                                   if (isMultiProduct) {
                                     // Multi-product: sempre lightbox
