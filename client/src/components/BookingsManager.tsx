@@ -163,6 +163,7 @@ export default function BookingsManager({
   const bookingRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   
   // State per cancellazione a cascata
   const [deleteBookingCascadeId, setDeleteBookingCascadeId] = useState<string | null>(null);
@@ -921,43 +922,59 @@ export default function BookingsManager({
                       </div>
                     </div>
                     
-                    {/* Prodotti (Multi-product o singolo) */}
+                    {/* Prodotti (Multi-product o singolo) - Versione Collapsabile */}
                     {(() => {
                       const associatedOrder = getOrderByBookingId(booking.id);
+                      const isExpanded = expandedProducts[booking.id] || false;
                       
                       // Se esiste un ordine con prodotti multipli
                       if (associatedOrder && associatedOrder.prodotti && associatedOrder.prodotti.length > 0) {
                         return (
-                          <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg space-y-2">
-                            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                              <Package className="w-4 h-4" />
-                              Prodotti ({associatedOrder.prodotti.length})
-                            </p>
-                            <div className="space-y-1.5">
-                              {associatedOrder.prodotti.map((prodotto, idx) => (
-                                <div key={idx} className="flex items-center justify-between gap-2 bg-white p-2 rounded border border-blue-100 text-sm">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-gray-800">{prodotto.prodottoNome}</span>
-                                    {!prodotto.prodottoId && (
-                                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
-                                        Custom
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-3 text-xs text-gray-600">
-                                    {prodotto.prodottoNumeroFoto && (
-                                      <span className="flex items-center gap-1">
-                                        <ImageIcon className="w-3 h-3" />
-                                        {prodotto.prodottoNumeroFoto} foto
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg overflow-hidden">
+                            <button
+                              onClick={() => setExpandedProducts(prev => ({ ...prev, [booking.id]: !prev[booking.id] }))}
+                              className="w-full p-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
+                            >
+                              <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                                <Package className="w-4 h-4" />
+                                Prodotti ({associatedOrder.prodotti.length})
+                              </p>
+                              <svg
+                                className={`w-5 h-5 text-blue-700 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            {isExpanded && (
+                              <div className="px-3 pb-3 space-y-1.5">
+                                {associatedOrder.prodotti.map((prodotto, idx) => (
+                                  <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-white p-2 rounded border border-blue-100 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-gray-800">{prodotto.prodottoNome}</span>
+                                      {!prodotto.prodottoId && (
+                                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                                          Custom
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-gray-600">
+                                      {prodotto.prodottoNumeroFoto && (
+                                        <span className="flex items-center gap-1">
+                                          <ImageIcon className="w-3 h-3" />
+                                          {prodotto.prodottoNumeroFoto} foto
+                                        </span>
+                                      )}
+                                      <span className="font-semibold text-sage">
+                                        €{prodotto.prodottoPrezzo.toFixed(2)}
                                       </span>
-                                    )}
-                                    <span className="font-semibold text-sage">
-                                      €{prodotto.prodottoPrezzo.toFixed(2)}
-                                    </span>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       }
@@ -1367,43 +1384,62 @@ export default function BookingsManager({
                     </p>
                   </div>
                   
-                  {/* Prodotti (Multi-product o singolo) */}
+                  {/* Prodotti (Multi-product o singolo) - Versione Collapsabile nel Dialog */}
                   {(() => {
                     const associatedOrder = getOrderByBookingId(selectedBooking.id);
+                    const isExpanded = expandedProducts[`dialog-${selectedBooking.id}`] || false;
                     
                     // Se esiste un ordine con prodotti multipli
                     if (associatedOrder && associatedOrder.prodotti && associatedOrder.prodotti.length > 0) {
                       return (
-                        <div>
-                          <span className="text-gray-600 mb-2 block">Prodotti ({associatedOrder.prodotti.length}):</span>
-                          <div className="space-y-2 mt-2">
-                            {associatedOrder.prodotti.map((prodotto, idx) => (
-                              <div key={idx} className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-2">
-                                    <Package className="w-4 h-4 text-sage" />
-                                    <span className="font-medium text-gray-800">{prodotto.prodottoNome}</span>
-                                    {!prodotto.prodottoId && (
-                                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
-                                        Custom
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-3 text-xs text-gray-600">
-                                    {prodotto.prodottoNumeroFoto && (
-                                      <span className="flex items-center gap-1">
-                                        <ImageIcon className="w-3 h-3" />
-                                        {prodotto.prodottoNumeroFoto} foto
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setExpandedProducts(prev => ({ ...prev, [`dialog-${selectedBooking.id}`]: !prev[`dialog-${selectedBooking.id}`] }))}
+                            className="w-full p-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
+                          >
+                            <span className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                              <Package className="w-4 h-4" />
+                              Prodotti ({associatedOrder.prodotti.length})
+                            </span>
+                            <svg
+                              className={`w-5 h-5 text-blue-700 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-3 pb-3 space-y-2">
+                              {associatedOrder.prodotti.map((prodotto, idx) => (
+                                <div key={idx} className="bg-white border border-blue-100 p-3 rounded-lg">
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <Package className="w-4 h-4 text-sage" />
+                                      <span className="font-medium text-gray-800">{prodotto.prodottoNome}</span>
+                                      {!prodotto.prodottoId && (
+                                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                                          Custom
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-gray-600">
+                                      {prodotto.prodottoNumeroFoto && (
+                                        <span className="flex items-center gap-1">
+                                          <ImageIcon className="w-3 h-3" />
+                                          {prodotto.prodottoNumeroFoto} foto
+                                        </span>
+                                      )}
+                                      <span className="font-semibold text-sage">
+                                        €{prodotto.prodottoPrezzo.toFixed(2)}
                                       </span>
-                                    )}
-                                    <span className="font-semibold text-sage">
-                                      €{prodotto.prodottoPrezzo.toFixed(2)}
-                                    </span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     }
