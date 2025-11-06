@@ -75,16 +75,12 @@ export default function GalleryFooter({ studioSettings }: GalleryFooterProps) {
               }
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative flex items-center space-x-2 px-6 py-3 
-                         bg-gradient-to-r from-sage to-dark-sage text-white rounded-md 
-                         hover:from-dark-sage hover:to-sage transition-all 
-                         shadow-md hover:shadow-lg overflow-hidden cta-pulse"
+              className="flex items-center space-x-2 px-6 py-3 
+                         bg-sage hover:bg-dark-sage text-white rounded-md 
+                         transition-colors shadow-md hover:shadow-lg"
             >
-              <span className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity">
-                <BackgroundDecoration />
-              </span>
               <svg
-                className="w-5 h-5 mr-2 relative z-10"
+                className="w-5 h-5 mr-2"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -94,7 +90,7 @@ export default function GalleryFooter({ studioSettings }: GalleryFooterProps) {
                 <circle cx="12" cy="12" r="3.2" />
                 <circle cx="17" cy="7" r="0.9" />
               </svg>
-              <span className="relative z-10 font-medium">
+              <span className="font-medium">
                 Seguici su Instagram
               </span>
             </a>
