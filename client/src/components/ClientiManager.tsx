@@ -12,6 +12,7 @@ import type { Cliente, InsertCliente, UpdateCliente, ClienteStats } from '@share
 import ClientiTable from '@/components/ClientiTable';
 import ClienteForm from '@/components/ClienteForm';
 import ClienteDetailDrawer from '@/components/ClienteDetailDrawer';
+import ClientiMigrationButton from '@/components/ClientiMigrationButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -26,7 +27,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, TrendingUp, Euro, AlertCircle } from 'lucide-react';
+import { Users, Plus, TrendingUp } from 'lucide-react';
 
 export function ClientiManager() {
   const { toast } = useToast();
@@ -194,19 +195,7 @@ export function ClientiManager() {
         title: 'Clienti Attivi',
         value: stats.clientiAttivi.toString(),
         icon: TrendingUp,
-        color: 'text-green-600',
-      },
-      {
-        title: 'Fatturato Totale',
-        value: `€${stats.totalRevenue.toFixed(2)}`,
-        icon: Euro,
         color: 'text-sage',
-      },
-      {
-        title: 'Saldo Pendente',
-        value: `€${stats.outstandingTotal.toFixed(2)}`,
-        icon: AlertCircle,
-        color: stats.outstandingTotal > 0 ? 'text-orange-600' : 'text-gray-400',
       },
     ];
   }, [stats]);
@@ -223,18 +212,23 @@ export function ClientiManager() {
             Gestione clienti dello studio fotografico
           </p>
         </div>
-        <Button
-          onClick={handleCreateCliente}
-          className="bg-sage hover:bg-sage/90"
-          data-testid="button-create-cliente"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nuovo Cliente
-        </Button>
+        <div className="flex gap-2">
+          {clienti.length === 0 && (
+            <ClientiMigrationButton />
+          )}
+          <Button
+            onClick={handleCreateCliente}
+            className="bg-sage hover:bg-sage/90"
+            data-testid="button-create-cliente"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nuovo Cliente
+          </Button>
+        </div>
       </div>
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {statsCards.map((stat, index) => (
           <Card key={index}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">

@@ -15,8 +15,10 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
-// Inizializza Firebase Admin
-initializeApp();
+// Inizializza Firebase Admin con project ID
+initializeApp({
+  projectId: 'wedding-gallery-397b6'
+});
 const db = getFirestore();
 
 interface ClienteSource {
