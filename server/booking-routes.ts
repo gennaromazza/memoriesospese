@@ -12,6 +12,188 @@ import { Timestamp } from 'firebase-admin/firestore';
 const router = express.Router();
 
 /**
+ * Helper: Normalizza email per matching
+ */
+function normalizeEmail(email: string): string {
+  return email.toLowerCase().trim();
+}
+
+/**
+ * Helper: Genera document ID deterministico da email
+ * Usa base64url encoding per garantire caratteri validi Firestore
+ */
+function generateClienteIdFromEmail(email: string): string {
+  const normalized = normalizeEmail(email);
+  return Buffer.from(normalized).toString('base64url');
+}
+
+/**
+ * Helper: Collega booking a cliente (server-side)
+ * BACKWARD COMPATIBLE: supporta sia ID hash (nuovi) che ID random (legacy)
+ */
+async function linkBookingToClienteServer(
+  bookingId: string,
+  clienteData: {
+    nome: string;
+    cognome: string;
+    email: string;
+    whatsapp?: string;
+  }
+): Promise<void> {
+  const normalizedEmail = normalizeEmail(clienteData.email);
+  const hashedId = generateClienteIdFromEmail(normalizedEmail);
+  
+  try {
+    // Step 1: Cerca cliente esistente (prima hash ID, poi query email per legacy)
+    const hashedDocRef = db.collection('clienti').doc(hashedId);
+    const hashedDocSnap = await hashedDocRef.get();
+    
+    let targetRef = hashedDocRef;
+    let isNewClient = false;
+    
+    if (!hashedDocSnap.exists) {
+      // Doc hash non esiste → cerca per email (legacy compatibility)
+      // NOTA: Firestore query è case-sensitive, quindi recuperiamo candidati
+      // e facciamo matching case-insensitive in memoria
+      const legacyQueryExact = await db.collection('clienti')
+        .where('email', '==', normalizedEmail)
+        .limit(1)
+        .get();
+      
+      if (!legacyQueryExact.empty) {
+        // Match esatto trovato (email già lowercase in DB)
+        targetRef = legacyQueryExact.docs[0].ref;
+        console.log(`[Link Booking] 🔄 Cliente legacy (exact) trovato: ${targetRef.id}`);
+      } else {
+        // Fallback: cerca email case-insensitive con paginazione COMPLETA
+        // Elimina limite arbitrario per garantire nessun cliente legacy venga perso
+        const firstCharLower = normalizedEmail.charAt(0).toLowerCase();
+        const firstCharUpper = normalizedEmail.charAt(0).toUpperCase();
+        
+        let caseInsensitiveMatch = null;
+        
+        // Helper per paginare attraverso TUTTI i risultati
+        const searchInRange = async (startChar: string): Promise<any> => {
+          let query = db.collection('clienti')
+            .where('email', '>=', startChar)
+            .where('email', '<=', startChar + '\uf8ff')
+            .orderBy('email') // Required per startAfter cursor
+            .limit(500); // Batch size ragionevole
+          
+          let hasMore = true;
+          let lastDoc = null;
+          
+          while (hasMore) {
+            const snapshot = lastDoc 
+              ? await query.startAfter(lastDoc).get()
+              : await query.get();
+            
+            if (snapshot.empty) {
+              hasMore = false;
+              break;
+            }
+            
+            // Cerca match in questo batch
+            const match = snapshot.docs.find(doc => {
+              const docEmail = doc.data()?.email;
+              return docEmail && normalizeEmail(docEmail) === normalizedEmail;
+            });
+            
+            if (match) {
+              return match; // Trovato!
+            }
+            
+            // Se batch < limit, siamo alla fine
+            if (snapshot.docs.length < 500) {
+              hasMore = false;
+            } else {
+              lastDoc = snapshot.docs[snapshot.docs.length - 1];
+            }
+          }
+          
+          return null;
+        };
+        
+        // Cerca in lowercase range
+        caseInsensitiveMatch = await searchInRange(firstCharLower);
+        
+        // Se non trovato e uppercase è diverso, cerca anche lì
+        if (!caseInsensitiveMatch && firstCharLower !== firstCharUpper) {
+          caseInsensitiveMatch = await searchInRange(firstCharUpper);
+        }
+        
+        if (caseInsensitiveMatch) {
+          targetRef = caseInsensitiveMatch.ref;
+          console.log(`[Link Booking] 🔄 Cliente legacy (paginated) trovato: ${targetRef.id}`);
+        } else {
+          // Nessun cliente esistente → crea nuovo con hash ID
+          isNewClient = true;
+          console.log(`[Link Booking] ➕ Nuovo cliente: ${hashedId}`);
+        }
+      }
+    } else {
+      console.log(`[Link Booking] ✅ Cliente hash trovato: ${hashedId}`);
+    }
+    
+    // Step 2: Transaction atomica per update/create (race-condition safe)
+    await db.runTransaction(async (transaction) => {
+      // SEMPRE fai get prima di set/update per evitare overwrites concorrenti
+      const clienteDoc = await transaction.get(targetRef);
+      
+      if (!clienteDoc.exists) {
+        // Cliente non esiste → crea nuovo
+        const now = Timestamp.now();
+        transaction.set(targetRef, {
+          nome: clienteData.nome,
+          cognome: clienteData.cognome,
+          email: normalizedEmail,
+          cellulare1: clienteData.whatsapp || undefined,
+          whatsapp: clienteData.whatsapp || undefined,
+          tags: [],
+          sourceRefs: {
+            bookingIds: [bookingId],
+            orderIds: [],
+            galleryIds: [],
+            passwordRequestIds: [],
+            userIds: [],
+          },
+          lifecycle: {
+            firstContactAt: now,
+            lastInteractionAt: now,
+            status: 'lead',
+          },
+          financials: {
+            totalRevenue: 0,
+            outstandingBalance: 0,
+            totalOrders: 0,
+          },
+          createdAt: now,
+          updatedAt: now,
+        });
+        console.log(`[Link Booking] ✅ Cliente creato con booking ${bookingId}`);
+      } else {
+        // Cliente esiste (creato da noi o da transaction concorrente) → aggiorna
+        const currentData = clienteDoc.data() as any;
+        const currentBookingIds = currentData?.sourceRefs?.bookingIds || [];
+        
+        if (!currentBookingIds.includes(bookingId)) {
+          transaction.update(targetRef, {
+            'sourceRefs.bookingIds': FieldValue.arrayUnion(bookingId),
+            'lifecycle.lastInteractionAt': Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+          console.log(`[Link Booking] ✅ Booking ${bookingId} aggiunto a ${targetRef.id}`);
+        } else {
+          console.log(`[Link Booking] ⚠️ Booking ${bookingId} già in ${targetRef.id}`);
+        }
+      }
+    });
+  } catch (error) {
+    console.error(`[Link Booking] ❌ Errore collegamento booking→cliente:`, error);
+  }
+}
+
+/**
  * POST /api/booking/available-slots
  * Ottiene slot disponibili da Google Calendar con filtro Firestore
  * 
@@ -496,6 +678,14 @@ router.post('/create', async (req, res) => {
       // Non bloccare la prenotazione se email fallisce
       console.error('⚠️ Errore invio email prenotazione ricevuta:', emailError);
     }
+
+    // 6. Collega booking al cliente (auto-linkage sourceRefs)
+    await linkBookingToClienteServer(bookingRef.id, {
+      nome: cliente.nome,
+      cognome: cliente.cognome,
+      email: cliente.email,
+      whatsapp: cliente.whatsapp,
+    });
 
     return res.status(201).json({
       success: true,
