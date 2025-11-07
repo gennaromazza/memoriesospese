@@ -7,56 +7,65 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1"
     />
-    <title>Image Studio - Il Tuo Studio Fotografico Digitale</title>
+
+    <title>Image Studio – Fotografia e Storytelling Digitale</title>
     <meta
       name="description"
-      content="Benvenuto in Image Studio. Prenota il tuo servizio fotografico, visualizza le tue gallerie private, seleziona le tue foto preferite e condividi i momenti più belli. Il luogo dove i ricordi prendono vita."
+      content="Benvenuto in Image Studio. Raccontiamo la tua storia con fotografia, video e gallerie digitali interattive. Scopri Memorie Sospese: il modo moderno di rivivere i tuoi ricordi."
     />
 
-    <!-- Preconnect per Firebase Storage - accelera caricamento immagini -->
-    <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
-    <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
+    <!-- SEO -->
+    <meta name="robots" content="index, follow" />
+    <meta
+      name="keywords"
+      content="Image Studio, fotografo Aversa, Memorie Sospese, galleria digitale matrimonio, fotografo matrimonio, servizi fotografici, storytelling fotografico, fotografia family, shooting eventi, album digitale"
+    />
+    <meta name="author" content="Image Studio – Gennaro Mazzacane" />
+    <meta name="theme-color" content="#8B9A8B" />
 
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="apple-touch-icon" href="favicon.png" />
-
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Image Studio" />
+    <meta property="og:locale" content="it_IT" />
+    <meta
+      property="og:title"
+      content="Image Studio – È tutta questione di IMAGE"
+    />
     <meta
       property="og:description"
-      content="Prenota servizi fotografici, accedi alle tue gallerie private, seleziona le tue foto preferite. Il luogo dove i ricordi prendono vita."
+      content="Fotografia, emozione e tecnologia. Da Image Studio nasce Memorie Sospese: il tuo racconto fotografico digitale."
     />
     <meta property="og:image" content="assets/og-image.jpg" />
     <meta property="og:url" content="https://imagestudiofotografico.com" />
     <meta property="og:site_name" content="Image Studio" />
-    <meta property="og:locale" content="it_IT" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:title"
-      content="Image Studio, fotografo matrimonio e eventi"
+      content="Image Studio – Fotografia e storytelling digitale"
     />
     <meta
       name="twitter:description"
-      content="Prenota servizi fotografici, accedi alle tue gallerie private, seleziona le tue foto preferite. Il luogo dove i ricordi prendono vita."
+      content="Dai matrimoni alle gallerie interattive di Memorie Sospese, ogni ricordo prende vita con Image Studio."
     />
     <meta name="twitter:image" content="assets/og-image.jpg" />
 
-    <!-- Keywords SEO -->
-    <meta
-      name="keywords"
-      content="studio fotografico, foto matrimonio, gallerie foto private, prenotazione fotografo, servizi fotografici, selezione foto, Image Studio, foto ricordi, fotografia professionale"
-    />
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
 
-    <!-- Author e brand -->
-    <meta name="author" content="Image Studio" />
-    <meta name="theme-color" content="#8B9A8B" />
+    <!-- Performance -->
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
+    <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
+    <link rel="preload" as="image" href="assets/og-image.jpg" />
+
+    <!-- Fonts (esempio) -->
+    <!-- <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap"> -->
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="src/main.tsx"></script>
-    <script src="https://replit.com/public/js/replit-dev-banner.js"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
