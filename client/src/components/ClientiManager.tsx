@@ -7,6 +7,9 @@ import {
   updateCliente,
   deleteCliente,
   getClienteStats,
+  detectDuplicates,
+  mergeClientes,
+  type DuplicateGroup,
 } from '@/lib/clienti';
 import type { Cliente, InsertCliente, UpdateCliente, ClienteStats } from '@shared/clienti-types';
 import ClientiTable from '@/components/ClientiTable';
@@ -26,7 +29,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, TrendingUp } from 'lucide-react';
+import { Users, Plus, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export function ClientiManager() {
   const { toast } = useToast();
@@ -47,6 +51,11 @@ export function ClientiManager() {
   const { data: stats } = useQuery({
     queryKey: ['/api/clienti/stats'],
     queryFn: getClienteStats,
+  });
+  
+  const { data: duplicates = [] } = useQuery({
+    queryKey: ['/api/clienti/duplicates'],
+    queryFn: detectDuplicates,
   });
   
   // Mutations
@@ -202,6 +211,13 @@ export function ClientiManager() {
     ];
   }, [stats]);
   
+  // Crea set di email duplicate per evidenziazione tabella
+  const duplicateEmails = useMemo(() => {
+    const emails = new Set<string>();
+    duplicates.forEach(dup => emails.add(dup.email.toLowerCase()));
+    return emails;
+  }, [duplicates]);
+  
   return (
     <div className="space-y-6" data-testid="clienti-manager">
       {/* Header con Stats */}
@@ -243,6 +259,18 @@ export function ClientiManager() {
         ))}
       </div>
       
+      {/* Duplicates Alert */}
+      {duplicates.length > 0 && (
+        <Alert variant="destructive" className="border-red-500 bg-red-50">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Email Duplicate Rilevate</AlertTitle>
+          <AlertDescription>
+            Trovati <strong>{duplicates.length}</strong> gruppi di email duplicate ({duplicates.reduce((sum, d) => sum + d.count, 0)} clienti totali).
+            Verifica la tabella sottostante per identificare e unire i duplicati.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Tabella Clienti */}
       <Card>
         <CardContent className="p-6">
@@ -250,6 +278,7 @@ export function ClientiManager() {
             clienti={clienti}
             onSelectCliente={handleSelectCliente}
             onActionCliente={handleAction}
+            duplicateEmails={duplicateEmails}
           />
         </CardContent>
       </Card>
