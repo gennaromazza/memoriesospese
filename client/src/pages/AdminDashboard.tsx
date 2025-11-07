@@ -350,7 +350,7 @@ export default function AdminDashboard() {
         setPasswordRequests(requestsList);
 
       } catch (error) {
-
+        console.error('Errore caricamento richieste password:', error);
       }
 
       // Carica impostazioni studio
@@ -377,10 +377,11 @@ export default function AdminDashboard() {
       }
     }
 
-    if (auth.currentUser) {
+    // Carica dati solo quando autenticazione è completata e user esiste
+    if (!authLoading && user) {
       loadAllData();
     }
-  }, []);
+  }, [authLoading, user]);
 
   // Funzione per gestire il cambio di valore nei campi delle impostazioni
   const handleSettingsChange = (
