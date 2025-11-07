@@ -28,6 +28,8 @@ interface ClientiTableProps {
   clienti: Cliente[];
   onSelectCliente: (cliente: Cliente) => void;
   onActionCliente: (cliente: Cliente, action: string) => void;
+  duplicateEmails?: Set<string>;
+  onShowDuplicates?: (email: string) => void;
 }
 
 type SortField = 'nome' | 'email' | 'lastInteraction';
@@ -36,7 +38,9 @@ type SortDirection = 'asc' | 'desc';
 export default function ClientiTable({ 
   clienti, 
   onSelectCliente, 
-  onActionCliente 
+  onActionCliente,
+  duplicateEmails = new Set(),
+  onShowDuplicates
 }: ClientiTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [cittaFilter, setCittaFilter] = useState<string>('tutte');
@@ -232,7 +236,22 @@ export default function ClientiTable({
                     {cliente.nome} {cliente.cognome}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {cliente.email}
+                    <div className="flex items-center gap-2">
+                      <span>{cliente.email}</span>
+                      {duplicateEmails.has(cliente.email.toLowerCase()) && (
+                        <Badge 
+                          variant="destructive" 
+                          className="text-xs cursor-pointer hover:bg-red-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onShowDuplicates?.(cliente.email);
+                          }}
+                          data-testid={`badge-duplicate-${cliente.id}`}
+                        >
+                          DUPLICATO - Clicca per unire
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-sm">
                     {getPrimoTelefono(cliente)}
@@ -275,11 +294,25 @@ export default function ClientiTable({
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="font-semibold">
                       {cliente.nome} {cliente.cognome}
                     </h3>
-                    <p className="text-sm text-muted-foreground">{cliente.email}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <p className="text-sm text-muted-foreground">{cliente.email}</p>
+                      {duplicateEmails.has(cliente.email.toLowerCase()) && (
+                        <Badge 
+                          variant="destructive" 
+                          className="text-xs cursor-pointer hover:bg-red-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onShowDuplicates?.(cliente.email);
+                          }}
+                        >
+                          DUPLICATO
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div onClick={(e) => e.stopPropagation()}>
                     <ClienteQuickActions

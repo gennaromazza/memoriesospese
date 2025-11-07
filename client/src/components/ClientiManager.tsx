@@ -15,6 +15,7 @@ import type { Cliente, InsertCliente, UpdateCliente, ClienteStats } from '@share
 import ClientiTable from '@/components/ClientiTable';
 import ClienteForm from '@/components/ClienteForm';
 import ClienteDetailDrawer from '@/components/ClienteDetailDrawer';
+import MergeDuplicatesDialog from '@/components/MergeDuplicatesDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -41,6 +42,8 @@ export function ClientiManager() {
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [selectedDuplicateGroup, setSelectedDuplicateGroup] = useState<DuplicateGroup | null>(null);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
   
   // Data fetching
   const { data: clienti = [], isLoading: isLoadingClienti } = useQuery({
@@ -128,6 +131,30 @@ export function ClientiManager() {
     },
   });
   
+  const mergeMutation = useMutation({
+    mutationFn: ({ primaryId, duplicateIds }: { primaryId: string; duplicateIds: string[] }) =>
+      mergeClientes(primaryId, duplicateIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+      toast({
+        title: '✅ Duplicati uniti',
+        description: 'I clienti duplicati sono stati consolidati con successo.',
+      });
+      setShowMergeDialog(false);
+      setSelectedDuplicateGroup(null);
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      toast({
+        title: '❌ Errore',
+        description: `Impossibile unire i duplicati: ${message}`,
+        variant: 'destructive',
+      });
+    },
+  });
+  
   // Handlers
   const handleCreateCliente = () => {
     setEditingCliente(null);
@@ -190,6 +217,15 @@ export function ClientiManager() {
     if (deleteConfirmId) {
       deleteMutation.mutate(deleteConfirmId);
     }
+  };
+  
+  const handleConfirmMerge = (primaryId: string, duplicateIds: string[]) => {
+    mergeMutation.mutate({ primaryId, duplicateIds });
+  };
+  
+  const handleOpenMergeDialog = (duplicateGroup: DuplicateGroup) => {
+    setSelectedDuplicateGroup(duplicateGroup);
+    setShowMergeDialog(true);
   };
   
   // Stats cards data
@@ -279,6 +315,10 @@ export function ClientiManager() {
             onSelectCliente={handleSelectCliente}
             onActionCliente={handleAction}
             duplicateEmails={duplicateEmails}
+            onShowDuplicates={(email) => {
+              const group = duplicates.find(d => d.email.toLowerCase() === email.toLowerCase());
+              if (group) handleOpenMergeDialog(group);
+            }}
           />
         </CardContent>
       </Card>
@@ -343,6 +383,15 @@ export function ClientiManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Merge Duplicates Dialog */}
+      <MergeDuplicatesDialog
+        duplicateGroup={selectedDuplicateGroup}
+        open={showMergeDialog}
+        onOpenChange={setShowMergeDialog}
+        onConfirmMerge={handleConfirmMerge}
+        isLoading={mergeMutation.isPending}
+      />
     </div>
   );
 }
