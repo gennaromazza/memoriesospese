@@ -14,7 +14,7 @@ import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import EditGalleryModal from "@/components/EditGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
-import UserManager from "@/components/UserManager";
+import ClientiManager from "@/components/ClientiManager";
 import EmailStatusPanel from "@/components/EmailStatusPanel";
 import ProductsManager from "@/components/ProductsManager";
 import { useToast } from "@/hooks/use-toast";
@@ -203,7 +203,7 @@ export default function AdminDashboard() {
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes'>('galleries');
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
@@ -997,11 +997,11 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Temi</span>
               </TabsTrigger>
 
-              {/* User Management */}
-              <TabsTrigger value="users" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+              {/* Client Management */}
+              <TabsTrigger value="clienti" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Utenti</span>
-                <span className="sm:hidden">User</span>
+                <span className="hidden sm:inline">Clienti</span>
+                <span className="sm:hidden">Cli</span>
               </TabsTrigger>
 
               {/* Media & Support */}
@@ -1234,20 +1234,9 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* Contenuto Tab Utenti */}
-            <TabsContent value="users">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Utenti Registrati</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Visualizza ed esporta tutti gli utenti che si sono registrati per caricare foto nelle gallerie.
-                    </p>
-                  </div>
-                </div>
-
-                <UserManager />
-              </div>
+            {/* Contenuto Tab Clienti */}
+            <TabsContent value="clienti">
+              <ClientiManager />
             </TabsContent>
 
 

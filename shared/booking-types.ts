@@ -93,6 +93,9 @@ export interface Booking {
   id: string;
   campaignId: string; // Riferimento a booking_campaigns
   
+  // Collegamenti
+  clienteId?: string; // NUOVO: Riferimento a collection clienti (opzionale per backward compatibility)
+  
   // Dati cliente
   cliente: {
     nome: string;
@@ -184,6 +187,7 @@ export interface Order {
   id: string;
   
   // Collegamenti
+  clienteId?: string; // NUOVO: Riferimento a collection clienti (opzionale per backward compatibility)
   bookingId?: string; // Opzionale - collegamento a prenotazione
   galleryId?: string; // Opzionale - collegamento a galleria (può essere null se ordine standalone)
   
