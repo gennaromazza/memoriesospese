@@ -35,6 +35,7 @@ import CashDashboard from "@/components/CashDashboard";
 import GestioneCommesse from "@/components/GestioneCommesse";
 import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
+import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -1494,9 +1495,37 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Lavori */}
             <TabsContent value="lavori">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <JobsManager />
-              </div>
+              <Tabs defaultValue="jobs-list" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3">
+                  <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
+                    Lista Lavori
+                  </TabsTrigger>
+                  <TabsTrigger value="contract-clauses" data-testid="subtab-contract-clauses">
+                    Clausole Contrattuali
+                  </TabsTrigger>
+                  <TabsTrigger value="quote-templates" data-testid="subtab-quote-templates" disabled>
+                    Template Preventivi
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="jobs-list">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <JobsManager />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="contract-clauses">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <ContractClausesManager />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="quote-templates">
+                  <div className="bg-white shadow sm:rounded-lg p-5 text-center text-muted-foreground">
+                    <p>Template Preventivi - Coming soon...</p>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </TabsContent>
 
             {/* Contenuto Tab Gestione Commesse */}
