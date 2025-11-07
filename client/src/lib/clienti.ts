@@ -302,16 +302,9 @@ async function autoCreateMissingClients(aggregatedClients: Map<string, any>): Pr
 }
 
 /**
- * Ottieni tutti i clienti con aggregazione automatica
+ * Ottieni tutti i clienti (veloce - solo dalla collection)
  */
 export async function getAllClienti(): Promise<Cliente[]> {
-  // 1. Aggrega clienti da tutte le fonti
-  const aggregatedClients = await aggregateClientsFromAllSources();
-  
-  // 2. Crea automaticamente clienti mancanti
-  await autoCreateMissingClients(aggregatedClients);
-  
-  // 3. Carica tutti i clienti dalla collection
   const q = query(
     collection(db, COLLECTION),
     orderBy("lifecycle.lastInteractionAt", "desc")
@@ -322,6 +315,118 @@ export async function getAllClienti(): Promise<Cliente[]> {
     id: doc.id,
     ...doc.data(),
   })) as Cliente[];
+}
+
+/**
+ * Sincronizza clienti con aggregazione completa da tutte le fonti (background)
+ */
+export async function syncClientiFromAllSources(): Promise<{
+  newClientiCreated: number;
+  clientiUpdated: number;
+}> {
+  const result = {
+    newClientiCreated: 0,
+    clientiUpdated: 0,
+  };
+
+  // 1. Aggrega clienti da tutte le fonti
+  const aggregatedClients = await aggregateClientsFromAllSources();
+  
+  // 2. Per ogni cliente aggregato, verifica se esiste o crealo
+  let batch = writeBatch(db);
+  let batchCount = 0;
+  const BATCH_LIMIT = 200;
+  
+  for (const [email, clientData] of aggregatedClients.entries()) {
+    const existing = await getClienteByEmail(email);
+    
+    if (!existing) {
+      // Crea nuovo cliente
+      const now = serverTimestamp();
+      const newClienteData: Omit<Cliente, 'id'> = {
+        nome: clientData.nome || 'N/D',
+        cognome: clientData.cognome || 'N/D',
+        email: email,
+        cellulare1: clientData.cellulare1 || undefined,
+        cellulare2: clientData.cellulare2 || undefined,
+        whatsapp: clientData.whatsapp || undefined,
+        via: clientData.via || undefined,
+        citta: clientData.citta || undefined,
+        cap: clientData.cap || undefined,
+        provincia: clientData.provincia || undefined,
+        note: clientData.note || undefined,
+        tags: clientData.tags || [],
+        sourceRefs: {
+          bookingIds: clientData.sourceRefs.bookingIds || [],
+          orderIds: clientData.sourceRefs.orderIds || [],
+          galleryIds: clientData.sourceRefs.galleryIds || [],
+          passwordRequestIds: clientData.sourceRefs.passwordRequestIds || [],
+          userIds: clientData.sourceRefs.userIds || [],
+        },
+        lifecycle: {
+          firstContactAt: now as Timestamp,
+          lastInteractionAt: now as Timestamp,
+          status: 'lead',
+        },
+        financials: {
+          totalRevenue: 0,
+          outstandingBalance: 0,
+          totalOrders: 0,
+        },
+        createdAt: now as Timestamp,
+        updatedAt: now as Timestamp,
+      };
+      
+      const newDocRef = doc(collection(db, COLLECTION));
+      batch.set(newDocRef, sanitizeData(newClienteData));
+      result.newClientiCreated++;
+      batchCount++;
+    } else {
+      // Aggiorna sourceRefs se necessario
+      const needsUpdate = 
+        (clientData.sourceRefs.bookingIds?.length > 0 && 
+         !clientData.sourceRefs.bookingIds.every(id => existing.sourceRefs.bookingIds.includes(id))) ||
+        (clientData.sourceRefs.orderIds?.length > 0 && 
+         !clientData.sourceRefs.orderIds.every(id => existing.sourceRefs.orderIds.includes(id))) ||
+        (clientData.sourceRefs.galleryIds?.length > 0 && 
+         !clientData.sourceRefs.galleryIds.every(id => existing.sourceRefs.galleryIds?.includes(id))) ||
+        (clientData.sourceRefs.passwordRequestIds?.length > 0 && 
+         !clientData.sourceRefs.passwordRequestIds.every(id => existing.sourceRefs.passwordRequestIds?.includes(id))) ||
+        (clientData.sourceRefs.userIds?.length > 0 && 
+         !clientData.sourceRefs.userIds.every(id => existing.sourceRefs.userIds?.includes(id)));
+      
+      if (needsUpdate) {
+        const mergedSourceRefs = {
+          bookingIds: [...new Set([...existing.sourceRefs.bookingIds, ...(clientData.sourceRefs.bookingIds || [])])],
+          orderIds: [...new Set([...existing.sourceRefs.orderIds, ...(clientData.sourceRefs.orderIds || [])])],
+          galleryIds: [...new Set([...(existing.sourceRefs.galleryIds || []), ...(clientData.sourceRefs.galleryIds || [])])],
+          passwordRequestIds: [...new Set([...(existing.sourceRefs.passwordRequestIds || []), ...(clientData.sourceRefs.passwordRequestIds || [])])],
+          userIds: [...new Set([...(existing.sourceRefs.userIds || []), ...(clientData.sourceRefs.userIds || [])])],
+        };
+        
+        batch.update(doc(db, COLLECTION, existing.id), {
+          sourceRefs: mergedSourceRefs,
+          updatedAt: serverTimestamp(),
+        });
+        result.clientiUpdated++;
+        batchCount++;
+      }
+    }
+    
+    // Commit batch se raggiungiamo il limite e reiniziailizza
+    if (batchCount >= BATCH_LIMIT) {
+      await batch.commit();
+      batch = writeBatch(db); // Reinizializza nuovo batch
+      batchCount = 0;
+    }
+  }
+  
+  // Commit finale
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+  
+  return result;
 }
 
 /**

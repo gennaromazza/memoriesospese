@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import {
   getAllClienti,
+  syncClientiFromAllSources,
   createCliente,
   updateCliente,
   deleteCliente,
@@ -15,6 +16,7 @@ import {
 } from '@/lib/clienti';
 import type { Cliente, InsertCliente, UpdateCliente, ClienteStats } from '@shared/clienti-types';
 import ClientiTable from '@/components/ClientiTable';
+import ClientiTableSkeleton from '@/components/ClientiTableSkeleton';
 import ClienteForm from '@/components/ClienteForm';
 import ClienteDetailDrawer from '@/components/ClienteDetailDrawer';
 import MergeDuplicatesDialog from '@/components/MergeDuplicatesDialog';
@@ -33,7 +35,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, TrendingUp, AlertTriangle, Upload, GitMerge } from 'lucide-react';
+import { Users, Plus, TrendingUp, AlertTriangle, Upload, GitMerge, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export function ClientiManager() {
@@ -209,6 +211,28 @@ export function ClientiManager() {
       setShowAutoMergeConfirm(false);
     },
   });
+
+  const syncMutation = useMutation({
+    mutationFn: syncClientiFromAllSources,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+      
+      toast({
+        title: '✅ Sincronizzazione completata',
+        description: `Creati ${result.newClientiCreated} nuovi clienti, aggiornati ${result.clientiUpdated} clienti.`,
+      });
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      toast({
+        title: '❌ Errore',
+        description: `Impossibile sincronizzare: ${message}`,
+        variant: 'destructive',
+      });
+    },
+  });
   
   // Handlers
   const handleCreateCliente = () => {
@@ -323,12 +347,22 @@ export function ClientiManager() {
         </div>
         <div className="flex gap-2">
           <Button
+            onClick={() => syncMutation.mutate()}
+            variant="outline"
+            disabled={syncMutation.isPending}
+            data-testid="button-sync-clienti"
+            title="Sincronizza clienti da booking, ordini, richieste password e utenti"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? 'Sincronizzazione...' : 'Sincronizza'}
+          </Button>
+          <Button
             onClick={() => setShowImportDialog(true)}
             variant="outline"
             data-testid="button-import-clienti"
           >
             <Upload className="w-4 h-4 mr-2" />
-            Importa Clienti
+            Importa CSV
           </Button>
           {duplicates.length > 0 && (
             <Button
@@ -338,7 +372,7 @@ export function ClientiManager() {
               data-testid="button-auto-merge-duplicates"
             >
               <GitMerge className="w-4 h-4 mr-2" />
-              Unisci Duplicati Email
+              Unisci Duplicati
             </Button>
           )}
           <Button
@@ -386,16 +420,20 @@ export function ClientiManager() {
       {/* Tabella Clienti */}
       <Card>
         <CardContent className="p-6">
-          <ClientiTable
-            clienti={clienti}
-            onSelectCliente={handleSelectCliente}
-            onActionCliente={handleAction}
-            duplicateEmails={duplicateEmails}
-            onShowDuplicates={(email) => {
-              const group = duplicates.find(d => d.email.toLowerCase() === email.toLowerCase());
-              if (group) handleOpenMergeDialog(group);
-            }}
-          />
+          {isLoadingClienti ? (
+            <ClientiTableSkeleton />
+          ) : (
+            <ClientiTable
+              clienti={clienti}
+              onSelectCliente={handleSelectCliente}
+              onActionCliente={handleAction}
+              duplicateEmails={duplicateEmails}
+              onShowDuplicates={(email) => {
+                const group = duplicates.find(d => d.email.toLowerCase() === email.toLowerCase());
+                if (group) handleOpenMergeDialog(group);
+              }}
+            />
+          )}
         </CardContent>
       </Card>
       
