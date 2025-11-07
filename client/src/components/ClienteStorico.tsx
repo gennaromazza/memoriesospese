@@ -7,25 +7,63 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Calendar, ShoppingCart, Image as ImageIcon, ExternalLink } from 'lucide-react';
+import { Calendar, ShoppingCart, Image as ImageIcon, ExternalLink, Lock, User } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+type PasswordRequest = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  requestDate: any;
+  galleryId?: string;
+};
+
+type UserRecord = {
+  id: string;
+  email: string;
+  displayName?: string;
+  createdAt: any;
+};
+
 type TimelineEvent = {
   id: string;
-  type: 'booking' | 'order' | 'gallery';
+  type: 'booking' | 'order' | 'gallery' | 'passwordRequest' | 'user';
   date: Date;
   title: string;
   description: string;
   status?: string;
   link?: string;
-  data: Booking | Order | Gallery;
+  data: Booking | Order | Gallery | PasswordRequest | UserRecord;
 };
 
 interface ClienteStoricoProps {
   cliente: Cliente;
+}
+
+function parseDate(value: any): Date | null {
+  if (!value) return null;
+  
+  // Firestore Timestamp
+  if (value.toDate && typeof value.toDate === 'function') {
+    return value.toDate();
+  }
+  
+  // ISO string or epoch number
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  
+  // Already a Date
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : value;
+  }
+  
+  return null;
 }
 
 async function loadBooking(id: string): Promise<Booking | null> {
@@ -49,6 +87,20 @@ async function loadGallery(id: string): Promise<Gallery | null> {
   return { id: docSnap.id, ...docSnap.data() } as Gallery;
 }
 
+async function loadPasswordRequest(id: string): Promise<PasswordRequest | null> {
+  const docRef = doc(db, 'passwordRequests', id);
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) return null;
+  return { id: docSnap.id, ...docSnap.data() } as PasswordRequest;
+}
+
+async function loadUser(id: string): Promise<UserRecord | null> {
+  const docRef = doc(db, 'users', id);
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) return null;
+  return { id: docSnap.id, ...docSnap.data() } as UserRecord;
+}
+
 export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
   const { data: events = [], isLoading, error } = useQuery<TimelineEvent[]>({
     queryKey: ['cliente-storico', cliente.id],
@@ -58,48 +110,88 @@ export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
       for (const bookingId of cliente.sourceRefs.bookingIds || []) {
         const booking = await loadBooking(bookingId);
         if (booking) {
-          const date = booking.dataShootingInizio?.toDate?.() || new Date(booking.dataShootingInizio);
-          allEvents.push({
-            id: bookingId,
-            type: 'booking',
-            date,
-            title: 'Prenotazione',
-            description: booking.prodottoNome || 'Servizio fotografico',
-            status: booking.stato,
-            data: booking,
-          });
+          const date = parseDate(booking.dataShootingInizio);
+          if (date) {
+            allEvents.push({
+              id: bookingId,
+              type: 'booking',
+              date,
+              title: 'Prenotazione',
+              description: booking.prodottoNome || 'Servizio fotografico',
+              status: booking.stato,
+              data: booking,
+            });
+          }
         }
       }
 
       for (const orderId of cliente.sourceRefs.orderIds || []) {
         const order = await loadOrder(orderId);
         if (order) {
-          const date = order.createdAt?.toDate?.() || new Date(order.createdAt);
-          allEvents.push({
-            id: orderId,
-            type: 'order',
-            date,
-            title: 'Ordine',
-            description: `€${order.totale?.toFixed(2) || '0.00'} - ${order.prodotti?.length || 0} prodotti`,
-            status: order.stato,
-            data: order,
-          });
+          const date = parseDate(order.createdAt);
+          if (date) {
+            allEvents.push({
+              id: orderId,
+              type: 'order',
+              date,
+              title: 'Ordine',
+              description: `€${order.totale?.toFixed(2) || '0.00'} - ${order.prodotti?.length || 0} prodotti`,
+              status: order.stato,
+              data: order,
+            });
+          }
         }
       }
 
       for (const galleryId of cliente.sourceRefs.galleryIds || []) {
         const gallery = await loadGallery(galleryId);
         if (gallery) {
-          const date = gallery.createdAt?.toDate?.() || new Date(gallery.createdAt);
-          allEvents.push({
-            id: galleryId,
-            type: 'gallery',
-            date,
-            title: 'Galleria',
-            description: `${gallery.name} - ${gallery.photoCount || 0} foto`,
-            link: `/gallery/${gallery.code}`,
-            data: gallery,
-          });
+          const date = parseDate(gallery.createdAt);
+          if (date) {
+            allEvents.push({
+              id: galleryId,
+              type: 'gallery',
+              date,
+              title: 'Galleria',
+              description: `${gallery.name} - ${gallery.photoCount || 0} foto`,
+              link: `/gallery/${gallery.code}`,
+              data: gallery,
+            });
+          }
+        }
+      }
+
+      for (const passwordRequestId of cliente.sourceRefs.passwordRequestIds || []) {
+        const passwordRequest = await loadPasswordRequest(passwordRequestId);
+        if (passwordRequest) {
+          const date = parseDate(passwordRequest.requestDate);
+          if (date) {
+            allEvents.push({
+              id: passwordRequestId,
+              type: 'passwordRequest',
+              date,
+              title: 'Richiesta Password',
+              description: `Richiesta accesso galleria da ${passwordRequest.firstName} ${passwordRequest.lastName}`,
+              data: passwordRequest,
+            });
+          }
+        }
+      }
+
+      for (const userId of cliente.sourceRefs.userIds || []) {
+        const user = await loadUser(userId);
+        if (user) {
+          const date = parseDate(user.createdAt);
+          if (date) {
+            allEvents.push({
+              id: userId,
+              type: 'user',
+              date,
+              title: 'Registrazione Utente',
+              description: `Account registrato: ${user.email}${user.displayName ? ` (${user.displayName})` : ''}`,
+              data: user,
+            });
+          }
         }
       }
 
@@ -144,7 +236,7 @@ export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
     );
   }
 
-  const getEventIcon = (type: 'booking' | 'order' | 'gallery') => {
+  const getEventIcon = (type: TimelineEvent['type']) => {
     switch (type) {
       case 'booking':
         return <Calendar className="h-5 w-5 text-[hsl(var(--blue-gray))]" />;
@@ -152,6 +244,10 @@ export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
         return <ShoppingCart className="h-5 w-5 text-[hsl(var(--terracotta))]" />;
       case 'gallery':
         return <ImageIcon className="h-5 w-5 text-[hsl(var(--sage))]" />;
+      case 'passwordRequest':
+        return <Lock className="h-5 w-5 text-orange-500" />;
+      case 'user':
+        return <User className="h-5 w-5 text-purple-500" />;
     }
   };
 

@@ -16,6 +16,7 @@ import ClientiTable from '@/components/ClientiTable';
 import ClienteForm from '@/components/ClienteForm';
 import ClienteDetailDrawer from '@/components/ClienteDetailDrawer';
 import MergeDuplicatesDialog from '@/components/MergeDuplicatesDialog';
+import ImportClientiDialog from '@/components/ImportClientiDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -30,7 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Users, Plus, TrendingUp, AlertTriangle, Upload } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export function ClientiManager() {
@@ -44,6 +45,7 @@ export function ClientiManager() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [selectedDuplicateGroup, setSelectedDuplicateGroup] = useState<DuplicateGroup | null>(null);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   
   // Data fetching
   const { data: clienti = [], isLoading: isLoadingClienti } = useQuery({
@@ -266,14 +268,24 @@ export function ClientiManager() {
             Gestione clienti dello studio fotografico
           </p>
         </div>
-        <Button
-          onClick={handleCreateCliente}
-          className="bg-sage hover:bg-sage/90"
-          data-testid="button-create-cliente"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nuovo Cliente
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowImportDialog(true)}
+            variant="outline"
+            data-testid="button-import-clienti"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Importa Clienti
+          </Button>
+          <Button
+            onClick={handleCreateCliente}
+            className="bg-sage hover:bg-sage/90"
+            data-testid="button-create-cliente"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nuovo Cliente
+          </Button>
+        </div>
       </div>
       
       {/* Stats Cards */}
@@ -391,6 +403,17 @@ export function ClientiManager() {
         onOpenChange={setShowMergeDialog}
         onConfirmMerge={handleConfirmMerge}
         isLoading={mergeMutation.isPending}
+      />
+      
+      {/* Import Clienti Dialog */}
+      <ImportClientiDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImportComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+        }}
       />
     </div>
   );

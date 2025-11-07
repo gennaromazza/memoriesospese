@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Cliente } from '@shared/clienti-types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ClienteQuickActions from './ClienteQuickActions';
 
@@ -35,6 +35,8 @@ interface ClientiTableProps {
 type SortField = 'nome' | 'email' | 'lastInteraction';
 type SortDirection = 'asc' | 'desc';
 
+const PAGE_SIZE = 50;
+
 export default function ClientiTable({ 
   clienti, 
   onSelectCliente, 
@@ -46,6 +48,7 @@ export default function ClientiTable({
   const [cittaFilter, setCittaFilter] = useState<string>('tutte');
   const [sortField, setSortField] = useState<SortField>('lastInteraction');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Funzione per ottenere il primo numero di telefono disponibile
   const getPrimoTelefono = (cliente: Cliente): string => {
@@ -107,6 +110,17 @@ export default function ClientiTable({
 
     return filtered;
   }, [clienti, searchQuery, cittaFilter, sortField, sortDirection]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, cittaFilter, sortField, sortDirection]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredAndSortedClienti.length / PAGE_SIZE);
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const endIndex = startIndex + PAGE_SIZE;
+  const paginatedClienti = filteredAndSortedClienti.slice(startIndex, endIndex);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -218,14 +232,14 @@ export default function ClientiTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredAndSortedClienti.length === 0 ? (
+            {paginatedClienti.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  Nessun cliente trovato
+                  {filteredAndSortedClienti.length === 0 ? 'Nessun cliente trovato' : 'Nessun cliente in questa pagina'}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredAndSortedClienti.map(cliente => (
+              paginatedClienti.map(cliente => (
                 <TableRow
                   key={cliente.id}
                   className="cursor-pointer hover:bg-muted/50"
@@ -278,14 +292,14 @@ export default function ClientiTable({
       </div>
 
       <div className="md:hidden space-y-4">
-        {filteredAndSortedClienti.length === 0 ? (
+        {paginatedClienti.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
-              Nessun cliente trovato
+              {filteredAndSortedClienti.length === 0 ? 'Nessun cliente trovato' : 'Nessun cliente in questa pagina'}
             </CardContent>
           </Card>
         ) : (
-          filteredAndSortedClienti.map(cliente => (
+          paginatedClienti.map(cliente => (
             <Card
               key={cliente.id}
               className="cursor-pointer hover:bg-muted/50"
@@ -345,6 +359,40 @@ export default function ClientiTable({
           ))
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t pt-4">
+          <div className="text-sm text-muted-foreground">
+            Mostrando {startIndex + 1}-{Math.min(endIndex, filteredAndSortedClienti.length)} di {filteredAndSortedClienti.length} clienti
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              data-testid="button-prev-page"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Precedente
+            </Button>
+            <div className="text-sm font-medium">
+              Pagina {currentPage} di {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              data-testid="button-next-page"
+            >
+              Successiva
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
