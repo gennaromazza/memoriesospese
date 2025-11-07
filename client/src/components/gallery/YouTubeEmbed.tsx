@@ -94,73 +94,108 @@ function YouTubeSlider({ videoUrls }: { videoUrls: string[] }) {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 mt-6">
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+    <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 mb-8 mt-6">
+      <div className="bg-white dark:bg-gray-800 p-3 sm:p-6 rounded-lg shadow-sm">
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
             Video
           </h3>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium">
               {selectedIndex + 1} / {videoUrls.length}
             </span>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={scrollPrev}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={scrollNext}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+          </div>
+        </div>
+
+        {/* Hint swipe su mobile */}
+        <div className="sm:hidden text-center mb-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-center gap-1">
+            <ChevronLeft className="h-3 w-3" />
+            <span>Scorri per vedere altri video</span>
+            <ChevronRight className="h-3 w-3" />
+          </span>
+        </div>
+
+        {/* Container video con controlli su desktop */}
+        <div className="relative">
+          {/* Freccia sinistra - Desktop only */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={scrollPrev}
+            className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/90 hover:bg-white shadow-lg"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+
+          {/* Slider video */}
+          <div className="overflow-hidden rounded-lg" ref={emblaRef}>
+            <div className="flex">
+              {videoUrls.map((url, index) => {
+                const videoId = getYouTubeVideoId(url);
+                return (
+                  <div key={index} className="flex-[0_0_100%] min-w-0 px-0">
+                    <div className="relative w-full pb-[56.25%]">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${videoId}`}
+                        title={`Video ${index + 1}`}
+                        className="absolute top-0 left-0 w-full h-full rounded-lg"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      ></iframe>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
+
+          {/* Freccia destra - Desktop only */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={scrollNext}
+            className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/90 hover:bg-white shadow-lg"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
         </div>
 
-        <div className="overflow-hidden" ref={emblaRef}>
-          <div className="flex">
-            {videoUrls.map((url, index) => {
-              const videoId = getYouTubeVideoId(url);
-              return (
-                <div key={index} className="flex-[0_0_100%] min-w-0">
-                  <div className="relative w-full pb-[56.25%]">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${videoId}`}
-                      title={`Video ${index + 1}`}
-                      className="absolute top-0 left-0 w-full h-full rounded-lg"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    ></iframe>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Indicatori */}
-        <div className="flex justify-center gap-2 mt-4">
+        {/* Indicatori più grandi e tappabili su mobile */}
+        <div className="flex justify-center gap-2 sm:gap-3 mt-4 sm:mt-5">
           {videoUrls.map((_, index) => (
             <button
               key={index}
               onClick={() => emblaApi?.scrollTo(index)}
-              className={`h-2 rounded-full transition-all ${
+              className={`h-2.5 sm:h-2 rounded-full transition-all touch-manipulation ${
                 index === selectedIndex
-                  ? "w-8 bg-terracotta-600"
-                  : "w-2 bg-gray-300 dark:bg-gray-600"
+                  ? "w-10 sm:w-8 bg-terracotta-600"
+                  : "w-2.5 sm:w-2 bg-gray-300 dark:bg-gray-600"
               }`}
               aria-label={`Vai al video ${index + 1}`}
             />
           ))}
+        </div>
+
+        {/* Controlli mobile - Frecce grandi sotto il video */}
+        <div className="flex sm:hidden justify-center gap-3 mt-4">
+          <Button
+            variant="outline"
+            onClick={scrollPrev}
+            className="h-12 w-12 rounded-full"
+            size="icon"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={scrollNext}
+            className="h-12 w-12 rounded-full"
+            size="icon"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </Button>
         </div>
       </div>
     </div>
