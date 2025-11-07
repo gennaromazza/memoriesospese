@@ -63,10 +63,11 @@ export function ClientiManager() {
       setShowFormDialog(false);
       setEditingCliente(null);
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       toast({
         title: '❌ Errore',
-        description: `Impossibile creare il cliente: ${error.message}`,
+        description: `Impossibile creare il cliente: ${message}`,
         variant: 'destructive',
       });
     },
@@ -84,10 +85,11 @@ export function ClientiManager() {
       setShowFormDialog(false);
       setEditingCliente(null);
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       toast({
         title: '❌ Errore',
-        description: `Impossibile aggiornare il cliente: ${error.message}`,
+        description: `Impossibile aggiornare il cliente: ${message}`,
         variant: 'destructive',
       });
     },
@@ -108,10 +110,11 @@ export function ClientiManager() {
         setShowDetailDrawer(false);
       }
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       toast({
         title: '❌ Errore',
-        description: `Impossibile eliminare il cliente: ${error.message}`,
+        description: `Impossibile eliminare il cliente: ${message}`,
         variant: 'destructive',
       });
     },
@@ -253,7 +256,6 @@ export function ClientiManager() {
             clienti={clienti}
             onSelectCliente={handleSelectCliente}
             onActionCliente={handleAction}
-            isLoading={isLoadingClienti}
           />
         </CardContent>
       </Card>
