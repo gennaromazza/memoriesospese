@@ -173,13 +173,13 @@ export default function ImportClientiDialog({
       if (result.success) {
         toast({
           title: 'Import completato',
-          description: `${result.imported} clienti importati, ${result.updated} aggiornati`,
+          description: `${result.imported} clienti importati, ${result.updated} aggiornati. Ricorda di cliccare su "Sincronizza" per aggregare le attività!`,
         });
         onImportComplete?.();
       } else {
         toast({
           title: 'Import parziale',
-          description: `${result.failed} righe non importate. Controlla i dettagli.`,
+          description: `${result.failed} righe non importate. Controlla i dettagli. Ricorda di cliccare su "Sincronizza" per aggregare le attività!`,
           variant: 'destructive',
         });
       }

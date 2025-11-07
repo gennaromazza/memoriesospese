@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { Cliente } from '@shared/clienti-types';
 import {
   Sheet,
@@ -41,7 +42,16 @@ export default function ClienteDetailDrawer({
   onClose,
   onAction 
 }: ClienteDetailDrawerProps) {
+  const storicoRef = useRef<HTMLElement>(null);
+
   if (!cliente) return null;
+
+  const scrollToStorico = () => {
+    storicoRef.current?.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'start' 
+    });
+  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'outline' | 'destructive'; label: string }> = {
@@ -177,7 +187,11 @@ export default function ClienteDetailDrawer({
             </h3>
             <div className="grid grid-cols-2 gap-3">
               {/* Gallerie */}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+              <div 
+                onClick={scrollToStorico}
+                className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 cursor-pointer hover:shadow-md transition-shadow"
+                data-testid="badge-gallerie"
+              >
                 <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/40">
                   <Image className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 </div>
@@ -192,7 +206,11 @@ export default function ClienteDetailDrawer({
               </div>
 
               {/* Prenotazioni */}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--sage-soft))] dark:bg-[hsl(var(--sage))]/10 border border-[hsl(var(--sage))]/30">
+              <div 
+                onClick={scrollToStorico}
+                className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--sage-soft))] dark:bg-[hsl(var(--sage))]/10 border border-[hsl(var(--sage))]/30 cursor-pointer hover:shadow-md transition-shadow"
+                data-testid="badge-prenotazioni"
+              >
                 <div className="p-2 rounded-full bg-[hsl(var(--sage))]/20">
                   <CalendarCheck className="h-4 w-4 text-[hsl(var(--sage))]" />
                 </div>
@@ -207,7 +225,11 @@ export default function ClienteDetailDrawer({
               </div>
 
               {/* Ordini */}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--terracotta-soft))] dark:bg-[hsl(var(--terracotta))]/10 border border-[hsl(var(--terracotta))]/30">
+              <div 
+                onClick={scrollToStorico}
+                className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--terracotta-soft))] dark:bg-[hsl(var(--terracotta))]/10 border border-[hsl(var(--terracotta))]/30 cursor-pointer hover:shadow-md transition-shadow"
+                data-testid="badge-ordini"
+              >
                 <div className="p-2 rounded-full bg-[hsl(var(--terracotta))]/20">
                   <Package className="h-4 w-4 text-[hsl(var(--terracotta))]" />
                 </div>
@@ -222,7 +244,11 @@ export default function ClienteDetailDrawer({
               </div>
 
               {/* Richieste Password */}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+              <div 
+                onClick={scrollToStorico}
+                className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 cursor-pointer hover:shadow-md transition-shadow"
+                data-testid="badge-richieste"
+              >
                 <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/40">
                   <Key className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 </div>
@@ -238,7 +264,11 @@ export default function ClienteDetailDrawer({
 
               {/* Account Registrati */}
               {(cliente.sourceRefs.userIds?.length || 0) > 0 && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 col-span-2">
+                <div 
+                  onClick={scrollToStorico}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 col-span-2 cursor-pointer hover:shadow-md transition-shadow"
+                  data-testid="badge-account"
+                >
                   <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/40">
                     <User className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                   </div>
@@ -300,7 +330,7 @@ export default function ClienteDetailDrawer({
 
           <Separator />
 
-          <section>
+          <section ref={storicoRef}>
             <h3 className="text-sm font-semibold text-muted-foreground mb-4">
               Storico Attività
             </h3>
