@@ -1,0 +1,506 @@
+/**
+ * QUOTE BUILDER
+ * Interfaccia admin per creare preventivi personalizzati
+ */
+
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { createQuote, getAllQuoteTemplates } from '@/lib/quotes';
+import { useAuth } from '@/contexts/FirebaseAuthContext';
+import { queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Plus,
+  Trash2,
+  FileText,
+  Palette,
+  Loader2,
+  Calendar,
+  Euro
+} from 'lucide-react';
+import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
+import type { JobType } from '@shared/jobs-types';
+import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
+
+const quoteSchema = z.object({
+  jobId: z.string().min(1),
+  clienteId: z.string().min(1),
+  type: z.enum(['fisso', 'variabile']),
+  templateId: z.string().optional(),
+  products: z.array(z.object({
+    nome: z.string().min(1, 'Nome prodotto obbligatorio'),
+    descrizione: z.string(),
+    prezzo: z.number().min(0),
+    selectable: z.boolean(),
+    numeroFoto: z.number().optional(),
+    categoria: z.string().optional()
+  })),
+  theme: z.object({
+    primaryColor: z.string(),
+    secondaryColor: z.string(),
+    footerText: z.string().optional()
+  }).optional(),
+  expiresAt: z.date().optional(),
+  noteInterne: z.string().optional()
+});
+
+type FormData = z.infer<typeof quoteSchema>;
+
+interface QuoteBuilderProps {
+  jobId: string;
+  clienteId: string;
+  jobType: JobType;
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function QuoteBuilder({
+  jobId,
+  clienteId,
+  jobType,
+  open,
+  onClose
+}: QuoteBuilderProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  
+  // Query templates
+  const { data: templates = [] } = useQuery({
+    queryKey: ['quote-templates'],
+    queryFn: getAllQuoteTemplates
+  });
+  
+  // Filtro templates per tipo job
+  const filteredTemplates = templates.filter(t => t.jobType === jobType && t.attivo);
+  
+  const form = useForm<FormData>({
+    resolver: zodResolver(quoteSchema),
+    defaultValues: {
+      jobId,
+      clienteId,
+      type: 'fisso',
+      products: [{
+        nome: '',
+        descrizione: '',
+        prezzo: 0,
+        selectable: false,
+        numeroFoto: 0,
+        categoria: ''
+      }],
+      theme: {
+        primaryColor: '#8B9A8B',
+        secondaryColor: '#C8B8A8',
+        footerText: 'Image Studio - Fotografia professionale'
+      },
+      noteInterne: ''
+    }
+  });
+  
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'products'
+  });
+  
+  // Calcola totale
+  const products = form.watch('products');
+  const totale = products.reduce((sum, p) => sum + (p.prezzo || 0), 0);
+  
+  // Load template
+  const handleLoadTemplate = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+    
+    setSelectedTemplateId(templateId);
+    form.setValue('type', template.type);
+    form.setValue('products', template.defaultProducts.map(p => ({
+      ...p,
+      selectable: template.type === 'variabile'
+    })));
+    form.setValue('theme', template.theme);
+  };
+  
+  // Mutation crea preventivo
+  const createMutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      // Prepara clausole dal jobType
+      const defaultClauses = DEFAULT_CLAUSES[jobType].map(c => ({
+        text: c.text,
+        required: c.required,
+        ordine: c.ordine
+      }));
+      
+      const quoteData = {
+        ...data,
+        templateId: selectedTemplateId || undefined,
+        contractClauses: defaultClauses
+      };
+      
+      return createQuote(quoteData, user!.uid);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-quotes', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+      toast({
+        title: 'Preventivo creato!',
+        description: 'Il preventivo è stato creato con successo.'
+      });
+      form.reset();
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  const onSubmit = (data: FormData) => {
+    createMutation.mutate(data);
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Crea Preventivo
+          </DialogTitle>
+          <DialogDescription>
+            Crea un preventivo personalizzato per il lavoro {jobType}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Template selector */}
+            {filteredTemplates.length > 0 && (
+              <Card className="bg-blue-50 border-blue-200">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Palette className="w-4 h-4" />
+                    Carica da Template
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Select value={selectedTemplateId} onValueChange={handleLoadTemplate}>
+                    <SelectTrigger data-testid="select-template">
+                      <SelectValue placeholder="Seleziona template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredTemplates.map(template => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.nome} ({template.type})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+            )}
+            
+            <div className="grid grid-cols-2 gap-4">
+              {/* Tipo preventivo */}
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo Preventivo *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-quote-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="fisso">Fisso (prezzo totale)</SelectItem>
+                        <SelectItem value="variabile">Variabile (cliente sceglie)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {field.value === 'fisso' 
+                        ? 'Il cliente vede solo il totale e firma'
+                        : 'Il cliente può selezionare i prodotti desiderati'}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              {/* Data scadenza */}
+              <FormField
+                control={form.control}
+                name="expiresAt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data Scadenza</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        value={field.value ? field.value.toISOString().split('T')[0] : ''}
+                        onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                        data-testid="input-expires-at"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Il link preventivo scadrà dopo questa data
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <Separator />
+            
+            {/* Prodotti */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Prodotti</h3>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => append({
+                    nome: '',
+                    descrizione: '',
+                    prezzo: 0,
+                    selectable: form.watch('type') === 'variabile',
+                    numeroFoto: 0,
+                    categoria: ''
+                  })}
+                  data-testid="button-add-product"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Aggiungi Prodotto
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
+                {fields.map((field, index) => (
+                  <Card key={field.id}>
+                    <CardContent className="pt-6">
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-start">
+                          <Badge variant="outline">Prodotto {index + 1}</Badge>
+                          {fields.length > 1 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => remove(index)}
+                              data-testid={`button-remove-product-${index}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name={`products.${index}.nome`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Nome *</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="es. Album 30x30"
+                                    {...field}
+                                    data-testid={`input-product-name-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name={`products.${index}.prezzo`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prezzo € *</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="0"
+                                    {...field}
+                                    onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                                    data-testid={`input-product-price-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        
+                        <FormField
+                          control={form.control}
+                          name={`products.${index}.descrizione`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Descrizione</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Descrizione dettagliata del prodotto..."
+                                  rows={2}
+                                  {...field}
+                                  data-testid={`textarea-product-description-${index}`}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name={`products.${index}.numeroFoto`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>N° Foto</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="0"
+                                    {...field}
+                                    value={field.value || ''}
+                                    onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                                    data-testid={`input-product-photos-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name={`products.${index}.categoria`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Categoria</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="es. Album, Video, Stampe"
+                                    {...field}
+                                    value={field.value || ''}
+                                    data-testid={`input-product-category-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+            
+            {/* Totale Preview */}
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Euro className="w-5 h-5 text-green-600" />
+                    <span className="text-lg font-semibold">Totale Preventivo</span>
+                  </div>
+                  <div className="text-3xl font-bold text-green-600" data-testid="text-total-quote">
+                    €{totale.toLocaleString()}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Note interne */}
+            <FormField
+              control={form.control}
+              name="noteInterne"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Note Interne</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Note visibili solo in admin..."
+                      rows={3}
+                      {...field}
+                      data-testid="textarea-notes"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={createMutation.isPending}
+                data-testid="button-cancel"
+              >
+                Annulla
+              </Button>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending}
+                className="bg-sage hover:bg-dark-sage"
+                data-testid="button-submit"
+              >
+                {createMutation.isPending && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                Crea Preventivo
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}

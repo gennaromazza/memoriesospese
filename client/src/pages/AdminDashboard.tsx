@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -34,6 +34,7 @@ import { OrdersManager } from "@/components/OrdersManager";
 import CashDashboard from "@/components/CashDashboard";
 import GestioneCommesse from "@/components/GestioneCommesse";
 import { getAllThemes } from "@shared/special-themes";
+import JobsManager from "@/components/jobs/JobsManager";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -203,7 +204,7 @@ export default function AdminDashboard() {
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori'>('galleries');
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
@@ -971,6 +972,13 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Book</span>
               </TabsTrigger>
 
+              {/* Jobs System: Lavori Fotografici */}
+              <TabsTrigger value="lavori" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Briefcase className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Lavori</span>
+                <span className="sm:hidden">Jobs</span>
+              </TabsTrigger>
+
               {/* Workflow Management: Gestione Commesse */}
               <TabsTrigger value="commesse" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <FolderOpen className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -1482,6 +1490,13 @@ export default function AdminDashboard() {
                   <OrdersManager />
                 </TabsContent>
               </Tabs>
+            </TabsContent>
+
+            {/* Contenuto Tab Lavori */}
+            <TabsContent value="lavori">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <JobsManager />
+              </div>
             </TabsContent>
 
             {/* Contenuto Tab Gestione Commesse */}
