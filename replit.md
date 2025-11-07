@@ -53,6 +53,7 @@ A platform for preserving wedding memories, revolutionizing the digital capture 
 - **Photo Selection Workflow:** Enterprise-grade system with selection mode, progress display, validation, deadline enforcement, automated email notifications, and admin review interface.
 - **Transaction & Payment Tracking System:** Advanced payment tracking with a `transactions` array for history (acconto/saldo). Automatic email notifications for payments received. Dedicated buttons for payment registration ensure proper tracking.
 - **Unified Client Management System:** Centralized `clienti` Firestore collection with comprehensive anagrafici, contacts, address, status, financial tracking, source refs, tags, and metadata. Backward compatibility with `clienteId`. Migration script available. Modular UI components (Form, Table, QuickActions, Storico, DetailDrawer, Manager). Integrated into AdminDashboard. Includes real-time statistics dashboard.
+- **Automatic Booking→Cliente Linkage:** Server-side automatic population of `sourceRefs.bookingIds` when bookings are created. Uses deterministic hash ID (base64url email) for new clients with full backward compatibility for legacy clients (random IDs + mixed-case emails). Implements Firestore transaction atomicity, paginated case-insensitive lookup with orderBy cursors, and arrayUnion deduplication. Prevents race conditions and duplicate cliente records. Production-ready implementation validated by architect.
 
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting
