@@ -1,21 +1,26 @@
-# Wedding Gallery App - Progetto
+# Image Studio - Piattaforma Completa per Fotografi Professionisti
 
 ## Overview
-A platform for preserving wedding memories, revolutionizing the digital capture and sharing of multimedia memories for couples and guests. The application provides an innovative and interactive solution to preserve and explore wedding moments.
+Image Studio è una piattaforma all-in-one per fotografi professionisti che rivoluziona la gestione dello studio fotografico. Non è solo un semplice sito di gallerie, ma un ecosistema completo che unisce fotografi e clienti in un'unica esperienza digitale integrata.
 
 **Key Capabilities:**
-- Secure, password-protected galleries with like/comment system and voice memos.
-- Photo upload with compression and watermarking (paid plans).
-- Email notifications for new photos.
-- Admin panel for gallery, user, and subscription management.
-- Stripe integration for subscription management (Free, Starter, Pro, Premium).
-- Questionnaire system for couples with secure access, multi-step forms, auto-save, and ChatGPT export.
-- Multiple YouTube video support and dual-device cover images.
-- Special Themed Galleries with PIN-based access.
-- Professional photography booking platform with product catalog, Google Calendar integration, client portal, and order/photo selection management.
-- Homepage Campaign Showcase with automatic banner/slider for active booking campaigns.
+- **Gestione Clienti Unificata:** Database centralizzato con anagrafica completa, storico attività, gestione finanziaria e tracciamento sorgenti.
+- **Sistema di Prenotazioni:** Campagne booking con Google Calendar integration, controllo slot disponibili, homepage banner automatico.
+- **Gallerie Fotografiche Avanzate:** Password-protected, like/comment system, voice memos, watermarking, multi-YouTube video, dual-device cover images.
+- **Selezione Foto Clienti:** Workflow enterprise con selezione multi-prodotto, deadline enforcement, notifiche email automatiche, admin review interface.
+- **Questionari per Sposi:** Accesso sicuro con crypto tokens, form multi-step con auto-save, export ChatGPT, localStorage backup.
+- **Gallerie Tematiche Speciali:** Accesso PIN-based, CSS modulari stagionali, email notification automatica.
+- **Gestione Ordini:** Multi-product orders, custom products, dynamic badging, transaction tracking con acconto/saldo.
+- **Email System Integrato:** Gmail API con template dinamici, notifiche automatiche per eventi (nuove foto, pagamenti, selezioni).
+- **Admin Dashboard Completo:** Gestione gallerie, utenti, ordini, clienti, subscription Stripe (Free/Starter/Pro/Premium).
+- **Sistema di Importazione:** CSV import clienti con sincronizzazione, duplicate detection, merge capabilities.
 
-**Vision:** To be a leading platform for digital wedding memory preservation, offering a seamless and engaging experience for all users.
+**Vision:** Essere il punto di riferimento per i fotografi professionisti, offrendo una piattaforma completa che gestisce ogni aspetto del business fotografico - dal primo contatto alla consegna finale.
+
+**Branding:**
+- Nome: Image Studio
+- Dominio: imagestudiofotografico.com
+- Posizionamento: Piattaforma all-in-one per fotografi professionisti, non un semplice sito di gallerie
 
 ## User Preferences
 - Language: Italian for UI and user messages.
