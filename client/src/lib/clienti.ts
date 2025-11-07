@@ -134,9 +134,181 @@ export async function getClienteByEmail(email: string): Promise<Cliente | null> 
 }
 
 /**
- * Ottieni tutti i clienti
+ * Aggrega clienti da tutte le fonti di interazione
+ */
+async function aggregateClientsFromAllSources(): Promise<Map<string, Partial<InsertCliente> & { sourceRefs: { bookingIds: string[], orderIds: string[], galleryIds: string[], passwordRequestIds: string[], userIds: string[] } }>> {
+  const clientsMap = new Map<string, any>();
+
+  // 1. Bookings
+  const bookingsSnapshot = await getDocs(collection(db, "bookings"));
+  bookingsSnapshot.docs.forEach(doc => {
+    const booking = doc.data() as Booking;
+    if (booking.cliente?.email) {
+      const normalizedEmail = normalizeEmail(booking.cliente.email);
+      if (!clientsMap.has(normalizedEmail)) {
+        clientsMap.set(normalizedEmail, {
+          nome: booking.cliente.nome || 'N/D',
+          cognome: booking.cliente.cognome || 'N/D',
+          email: normalizedEmail,
+          cellulare1: booking.cliente.whatsapp || undefined,
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [] },
+        });
+      }
+      const client = clientsMap.get(normalizedEmail);
+      if (!client.sourceRefs.bookingIds.includes(doc.id)) {
+        client.sourceRefs.bookingIds.push(doc.id);
+      }
+    }
+  });
+
+  // 2. Orders
+  const ordersSnapshot = await getDocs(collection(db, "orders"));
+  ordersSnapshot.docs.forEach(doc => {
+    const order = doc.data() as Order;
+    if (order.emailCliente) {
+      const normalizedEmail = normalizeEmail(order.emailCliente);
+      if (!clientsMap.has(normalizedEmail)) {
+        const nomeCompleto = order.nomeCliente || 'N/D N/D';
+        const [nome, ...cognomeParts] = nomeCompleto.split(' ');
+        clientsMap.set(normalizedEmail, {
+          nome: nome || 'N/D',
+          cognome: cognomeParts.join(' ') || 'N/D',
+          email: normalizedEmail,
+          cellulare1: order.whatsappCliente || undefined,
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [] },
+        });
+      }
+      const client = clientsMap.get(normalizedEmail);
+      if (!client.sourceRefs.orderIds.includes(doc.id)) {
+        client.sourceRefs.orderIds.push(doc.id);
+      }
+    }
+  });
+
+  // 3. Password Requests
+  const passwordRequestsSnapshot = await getDocs(collection(db, "passwordRequests"));
+  passwordRequestsSnapshot.docs.forEach(doc => {
+    const request = doc.data();
+    if (request.email) {
+      const normalizedEmail = normalizeEmail(request.email);
+      if (!clientsMap.has(normalizedEmail)) {
+        clientsMap.set(normalizedEmail, {
+          nome: request.firstName || 'N/D',
+          cognome: request.lastName || 'N/D',
+          email: normalizedEmail,
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [] },
+        });
+      }
+      const client = clientsMap.get(normalizedEmail);
+      if (!client.sourceRefs.passwordRequestIds) {
+        client.sourceRefs.passwordRequestIds = [];
+      }
+      if (!client.sourceRefs.passwordRequestIds.includes(doc.id)) {
+        client.sourceRefs.passwordRequestIds.push(doc.id);
+      }
+    }
+  });
+
+  // 4. Users (registrati Firebase Auth)
+  const usersSnapshot = await getDocs(collection(db, "users"));
+  usersSnapshot.docs.forEach(doc => {
+    const user = doc.data();
+    if (user.email) {
+      const normalizedEmail = normalizeEmail(user.email);
+      if (!clientsMap.has(normalizedEmail)) {
+        const displayName = user.displayName || '';
+        const [nome, ...cognomeParts] = displayName.split(' ');
+        clientsMap.set(normalizedEmail, {
+          nome: nome || 'N/D',
+          cognome: cognomeParts.join(' ') || 'N/D',
+          email: normalizedEmail,
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [] },
+        });
+      }
+      const client = clientsMap.get(normalizedEmail);
+      if (!client.sourceRefs.userIds) {
+        client.sourceRefs.userIds = [];
+      }
+      if (!client.sourceRefs.userIds.includes(doc.id)) {
+        client.sourceRefs.userIds.push(doc.id);
+      }
+    }
+  });
+
+  return clientsMap;
+}
+
+/**
+ * Crea automaticamente clienti mancanti
+ */
+async function autoCreateMissingClients(aggregatedClients: Map<string, any>): Promise<void> {
+  const batch = writeBatch(db);
+  let createCount = 0;
+
+  for (const [email, clientData] of aggregatedClients.entries()) {
+    // Verifica se cliente esiste già
+    const existing = await getClienteByEmail(email);
+    
+    if (!existing) {
+      // Crea nuovo cliente
+      const now = serverTimestamp();
+      const newClienteData: Omit<Cliente, 'id'> = {
+        nome: clientData.nome || 'N/D',
+        cognome: clientData.cognome || 'N/D',
+        email: email,
+        cellulare1: clientData.cellulare1 || undefined,
+        cellulare2: clientData.cellulare2 || undefined,
+        whatsapp: clientData.whatsapp || undefined,
+        via: clientData.via || undefined,
+        citta: clientData.citta || undefined,
+        cap: clientData.cap || undefined,
+        provincia: clientData.provincia || undefined,
+        note: clientData.note || undefined,
+        tags: clientData.tags || [],
+        sourceRefs: {
+          bookingIds: clientData.sourceRefs.bookingIds || [],
+          orderIds: clientData.sourceRefs.orderIds || [],
+          galleryIds: clientData.sourceRefs.galleryIds || [],
+          passwordRequestIds: clientData.sourceRefs.passwordRequestIds || [],
+          userIds: clientData.sourceRefs.userIds || [],
+        },
+        lifecycle: {
+          firstContactAt: now as Timestamp,
+          lastInteractionAt: now as Timestamp,
+          status: 'lead',
+        },
+        financials: {
+          totalRevenue: 0,
+          outstandingBalance: 0,
+          totalOrders: 0,
+        },
+        createdAt: now as Timestamp,
+        updatedAt: now as Timestamp,
+      };
+      
+      const newDocRef = doc(collection(db, COLLECTION));
+      batch.set(newDocRef, sanitizeData(newClienteData));
+      createCount++;
+    }
+  }
+
+  if (createCount > 0) {
+    await batch.commit();
+    console.log(`✅ Auto-creati ${createCount} nuovi clienti da fonti aggregate`);
+  }
+}
+
+/**
+ * Ottieni tutti i clienti con aggregazione automatica
  */
 export async function getAllClienti(): Promise<Cliente[]> {
+  // 1. Aggrega clienti da tutte le fonti
+  const aggregatedClients = await aggregateClientsFromAllSources();
+  
+  // 2. Crea automaticamente clienti mancanti
+  await autoCreateMissingClients(aggregatedClients);
+  
+  // 3. Carica tutti i clienti dalla collection
   const q = query(
     collection(db, COLLECTION),
     orderBy("lifecycle.lastInteractionAt", "desc")

@@ -34,6 +34,8 @@ export interface Cliente {
     bookingIds: string[]; // Array ID prenotazioni
     orderIds: string[]; // Array ID ordini
     galleryIds: string[]; // Array ID gallerie
+    passwordRequestIds?: string[]; // Array ID richieste password
+    userIds?: string[]; // Array ID utenti registrati (Firebase Auth)
   };
   
   // Analytics e lifecycle
