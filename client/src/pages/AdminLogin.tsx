@@ -55,6 +55,9 @@ export default function AdminLogin() {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
+      // 🔧 FIX: Aspetta che il token JWT sia completamente pronto
+      await user.getIdToken(true);
+
       // Controlla se l'utente è un admin (con controlli multipli)
       const isAdminUser = data.email === 'gennaro.mazzacane@gmail.com' ||
                          ['gennaro.mazzacane@gmail.com'].includes(data.email);
@@ -63,9 +66,19 @@ export default function AdminLogin() {
         // Salva informazione che l'utente è un amministratore
         localStorage.setItem("isAdmin", "true");
 
+        // 🔧 FIX: Piccolo delay per permettere al context di aggiornarsi
+        await new Promise(resolve => setTimeout(resolve, 300));
+
         // Usa createUrl per garantire il corretto basepath
         navigate(createUrl("/admin/dashboard"));
+        
+        toast({
+          title: "Accesso effettuato",
+          description: "Benvenuto nell'area amministrativa",
+        });
       } else {
+        // Logout se non è admin
+        await auth.signOut();
         throw new Error('Accesso negato: non sei un amministratore');
       }
     } catch (error: any) {
@@ -80,6 +93,8 @@ export default function AdminLogin() {
         errorMessage = "Email o password non validi.";
       } else if (error.code === "auth/too-many-requests") {
         errorMessage = "Troppi tentativi di accesso. Riprova più tardi.";
+      } else if (error.message?.includes('non sei un amministratore')) {
+        errorMessage = "Accesso negato: non sei autorizzato come amministratore.";
       }
 
       toast({
