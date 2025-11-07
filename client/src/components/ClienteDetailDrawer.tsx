@@ -101,42 +101,85 @@ export default function ClienteDetailDrawer({
         <div className="space-y-6">
           <section>
             <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-              Informazioni di Contatto
+              Dati Anagrafici
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Nome:</span>
+                <div className="font-medium mt-1" data-testid="text-nome">{cliente.nome || '-'}</div>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Cognome:</span>
+                <div className="font-medium mt-1" data-testid="text-cognome">{cliente.cognome || '-'}</div>
+              </div>
+              <div className="col-span-2">
+                <span className="text-muted-foreground">Email:</span>
+                <div className="font-medium mt-1" data-testid="text-email-full">{cliente.email}</div>
+              </div>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+              Recapiti
             </h3>
             <div className="space-y-3">
-              {cliente.cellulare1 && (
-                <div className="flex items-center gap-3" data-testid="text-cellulare1">
-                  <Phone className="h-4 w-4 text-[hsl(var(--sage))]" />
-                  <span className="text-sm">{cliente.cellulare1}</span>
+              <div className="flex items-center gap-3">
+                <Phone className="h-4 w-4 text-[hsl(var(--sage))]" />
+                <div className="flex-1">
+                  <span className="text-xs text-muted-foreground block">Cellulare 1:</span>
+                  <span className="text-sm font-medium" data-testid="text-cellulare1-full">
+                    {cliente.cellulare1 || '-'}
+                  </span>
                 </div>
-              )}
+              </div>
               {cliente.cellulare2 && (
-                <div className="flex items-center gap-3" data-testid="text-cellulare2">
+                <div className="flex items-center gap-3">
                   <Phone className="h-4 w-4 text-[hsl(var(--sage))]" />
-                  <span className="text-sm">{cliente.cellulare2}</span>
-                </div>
-              )}
-              {cliente.whatsapp && (
-                <div className="flex items-center gap-3" data-testid="text-whatsapp">
-                  <MessageCircle className="h-4 w-4 text-[hsl(var(--terracotta))]" />
-                  <span className="text-sm">{cliente.whatsapp}</span>
-                </div>
-              )}
-              {(cliente.via || cliente.citta) && (
-                <div className="flex items-start gap-3" data-testid="text-indirizzo">
-                  <MapPin className="h-4 w-4 text-[hsl(var(--blue-gray))] mt-0.5" />
-                  <div className="text-sm">
-                    {cliente.via && <div>{cliente.via}</div>}
-                    {(cliente.citta || cliente.cap || cliente.provincia) && (
-                      <div>
-                        {cliente.citta}
-                        {cliente.cap && `, ${cliente.cap}`}
-                        {cliente.provincia && ` (${cliente.provincia})`}
-                      </div>
-                    )}
+                  <div className="flex-1">
+                    <span className="text-xs text-muted-foreground block">Cellulare 2:</span>
+                    <span className="text-sm font-medium" data-testid="text-cellulare2-full">
+                      {cliente.cellulare2}
+                    </span>
                   </div>
                 </div>
               )}
+              {cliente.whatsapp && (
+                <div className="flex items-center gap-3">
+                  <MessageCircle className="h-4 w-4 text-[hsl(var(--terracotta))]" />
+                  <div className="flex-1">
+                    <span className="text-xs text-muted-foreground block">WhatsApp:</span>
+                    <span className="text-sm font-medium" data-testid="text-whatsapp-full">
+                      {cliente.whatsapp}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <Separator />
+
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+              Indirizzo
+            </h3>
+            <div className="space-y-3 text-sm">
+              <div className="flex items-start gap-3">
+                <MapPin className="h-4 w-4 text-[hsl(var(--blue-gray))] mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium" data-testid="text-via-full">
+                    {cliente.via || '-'}
+                  </div>
+                  <div className="text-muted-foreground mt-1" data-testid="text-citta-full">
+                    {cliente.citta || '-'}
+                    {cliente.cap && ` • ${cliente.cap}`}
+                    {cliente.provincia && ` • ${cliente.provincia}`}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
