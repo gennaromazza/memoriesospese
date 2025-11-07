@@ -30,7 +30,7 @@ interface ClientiTableProps {
   onActionCliente: (cliente: Cliente, action: string) => void;
 }
 
-type SortField = 'nome' | 'email' | 'fatturato' | 'lastInteraction';
+type SortField = 'nome' | 'email' | 'lastInteraction';
 type SortDirection = 'asc' | 'desc';
 
 export default function ClientiTable({ 
@@ -39,10 +39,17 @@ export default function ClientiTable({
   onActionCliente 
 }: ClientiTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('tutti');
   const [cittaFilter, setCittaFilter] = useState<string>('tutte');
   const [sortField, setSortField] = useState<SortField>('lastInteraction');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Funzione per ottenere il primo numero di telefono disponibile
+  const getPrimoTelefono = (cliente: Cliente): string => {
+    if (cliente.cellulare1 && cliente.cellulare1 !== 'N/D') return cliente.cellulare1;
+    if (cliente.whatsapp && cliente.whatsapp !== 'N/D') return cliente.whatsapp;
+    if (cliente.cellulare2 && cliente.cellulare2 !== 'N/D') return cliente.cellulare2;
+    return '-';
+  };
 
   const cittaUniche = useMemo(() => {
     const citta = clienti
@@ -59,15 +66,11 @@ export default function ClientiTable({
       filtered = filtered.filter(c => {
         const nomeCompleto = `${c.nome} ${c.cognome}`.toLowerCase();
         const email = c.email.toLowerCase();
-        const telefono = c.cellulare1?.toLowerCase() || '';
+        const telefono = getPrimoTelefono(c).toLowerCase();
         return nomeCompleto.includes(query) || 
                email.includes(query) || 
                telefono.includes(query);
       });
-    }
-
-    if (statusFilter !== 'tutti') {
-      filtered = filtered.filter(c => c.lifecycle.status === statusFilter);
     }
 
     if (cittaFilter && cittaFilter !== 'tutte') {
@@ -87,10 +90,6 @@ export default function ClientiTable({
           aValue = a.email.toLowerCase();
           bValue = b.email.toLowerCase();
           break;
-        case 'fatturato':
-          aValue = a.financials.totalRevenue || 0;
-          bValue = b.financials.totalRevenue || 0;
-          break;
         case 'lastInteraction':
           aValue = a.lifecycle.lastInteractionAt?.toMillis?.() || 0;
           bValue = b.lifecycle.lastInteractionAt?.toMillis?.() || 0;
@@ -103,7 +102,7 @@ export default function ClientiTable({
     });
 
     return filtered;
-  }, [clienti, searchQuery, statusFilter, cittaFilter, sortField, sortDirection]);
+  }, [clienti, searchQuery, cittaFilter, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -154,19 +153,6 @@ export default function ClientiTable({
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full md:w-48" data-testid="select-status-filter">
-            <SelectValue placeholder="Filtra per status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutti</SelectItem>
-            <SelectItem value="lead">Lead</SelectItem>
-            <SelectItem value="prospect">Prospect</SelectItem>
-            <SelectItem value="cliente_attivo">Cliente Attivo</SelectItem>
-            <SelectItem value="archiviato">Archiviato</SelectItem>
-          </SelectContent>
-        </Select>
-
         <Select value={cittaFilter} onValueChange={setCittaFilter}>
           <SelectTrigger className="w-full md:w-48" data-testid="select-citta-filter">
             <SelectValue placeholder="Filtra per città" />
@@ -212,19 +198,6 @@ export default function ClientiTable({
               </TableHead>
               <TableHead>Telefono</TableHead>
               <TableHead>Città</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleSort('fatturato')}
-                  className="flex items-center"
-                  data-testid="sort-fatturato"
-                >
-                  Fatturato
-                  {getSortIcon('fatturato')}
-                </Button>
-              </TableHead>
               <TableHead>
                 <Button
                   variant="ghost"
@@ -243,7 +216,7 @@ export default function ClientiTable({
           <TableBody>
             {filteredAndSortedClienti.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Nessun cliente trovato
                 </TableCell>
               </TableRow>
@@ -262,16 +235,10 @@ export default function ClientiTable({
                     {cliente.email}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {cliente.cellulare1 || '-'}
+                    {getPrimoTelefono(cliente)}
                   </TableCell>
                   <TableCell className="text-sm">
                     {cliente.citta || '-'}
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(cliente.lifecycle.status)}
-                  </TableCell>
-                  <TableCell className="font-semibold text-[hsl(var(--terracotta))]">
-                    €{cliente.financials.totalRevenue?.toFixed(2) || '0.00'}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {cliente.lifecycle.lastInteractionAt
@@ -322,22 +289,16 @@ export default function ClientiTable({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-muted-foreground">Telefono:</span>
-                    <p>{cliente.cellulare1 || '-'}</p>
+                    <p>{getPrimoTelefono(cliente)}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Città:</span>
                     <p>{cliente.citta || '-'}</p>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">Fatturato:</span>
-                    <p className="font-semibold text-[hsl(var(--terracotta))]">
-                      €{cliente.financials.totalRevenue?.toFixed(2) || '0.00'}
-                    </p>
-                  </div>
-                  <div>
+                  <div className="col-span-2">
                     <span className="text-muted-foreground">Ultimo Contatto:</span>
                     <p>
                       {cliente.lifecycle.lastInteractionAt
@@ -345,10 +306,6 @@ export default function ClientiTable({
                         : '-'}
                     </p>
                   </div>
-                </div>
-
-                <div>
-                  {getStatusBadge(cliente.lifecycle.status)}
                 </div>
               </CardContent>
             </Card>
