@@ -12,7 +12,6 @@ import type { Cliente, InsertCliente, UpdateCliente, ClienteStats } from '@share
 import ClientiTable from '@/components/ClientiTable';
 import ClienteForm from '@/components/ClienteForm';
 import ClienteDetailDrawer from '@/components/ClienteDetailDrawer';
-import ClientiMigrationButton from '@/components/ClientiMigrationButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -215,19 +214,14 @@ export function ClientiManager() {
             Gestione clienti dello studio fotografico
           </p>
         </div>
-        <div className="flex gap-2">
-          {clienti.length === 0 && (
-            <ClientiMigrationButton />
-          )}
-          <Button
-            onClick={handleCreateCliente}
-            className="bg-sage hover:bg-sage/90"
-            data-testid="button-create-cliente"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Nuovo Cliente
-          </Button>
-        </div>
+        <Button
+          onClick={handleCreateCliente}
+          className="bg-sage hover:bg-sage/90"
+          data-testid="button-create-cliente"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Nuovo Cliente
+        </Button>
       </div>
       
       {/* Stats Cards */}
