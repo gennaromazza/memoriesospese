@@ -350,6 +350,9 @@ export default function Home() {
                               src={campaign.immagineSlider}
                               alt={campaign.nome}
                               className="w-full h-64 md:h-96 object-cover"
+                              loading="eager"
+                              decoding="async"
+                              fetchPriority="high"
                             />
                           </div>
                         )}
@@ -475,6 +478,9 @@ export default function Home() {
                                   src={campaign.immagineSlider}
                                   alt={campaign.nome}
                                   className="w-full h-56 md:h-80 object-cover"
+                                  loading="eager"
+                                  decoding="async"
+                                  fetchPriority="high"
                                 />
                               </div>
                             )}

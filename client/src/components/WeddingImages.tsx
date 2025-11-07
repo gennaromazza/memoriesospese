@@ -36,6 +36,8 @@ export const WeddingImage: React.FC<WeddingImageProps> = ({ type, className = 'w
       alt={alt} 
       className={className} 
       style={{ objectFit: 'contain' }}
+      loading="lazy"
+      decoding="async"
     />
   );
 };
