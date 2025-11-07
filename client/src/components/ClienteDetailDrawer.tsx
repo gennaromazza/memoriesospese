@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/sheet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import ClienteQuickActions from './ClienteQuickActions';
 import ClienteStorico from './ClienteStorico';
@@ -24,7 +25,8 @@ import {
   CalendarCheck,
   Package,
   Key,
-  User
+  User,
+  Edit
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -78,7 +80,7 @@ export default function ClienteDetailDrawer({
         data-testid="drawer-cliente-detail"
       >
         <SheetHeader className="mb-6">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <SheetTitle className="text-2xl mb-2" data-testid="text-cliente-nome">
                 {cliente.nome} {cliente.cognome}
@@ -90,10 +92,21 @@ export default function ClienteDetailDrawer({
               {getStatusBadge(cliente.lifecycle.status)}
             </div>
             {onAction && (
-              <ClienteQuickActions
-                cliente={cliente}
-                onAction={onAction}
-              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => onAction('edit')}
+                  data-testid="button-edit-cliente"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Modifica
+                </Button>
+                <ClienteQuickActions
+                  cliente={cliente}
+                  onAction={onAction}
+                />
+              </div>
             )}
           </div>
         </SheetHeader>
