@@ -2520,7 +2520,6 @@ export default function Gallery() {
                                   className="w-full h-auto object-cover transition-all duration-300 opacity-0 hover:opacity-95"
                                   loading={index < 6 ? "eager" : "lazy"}
                                   decoding="async"
-                                  fetchPriority={index < 3 ? "high" : "auto"}
                                   onLoad={(e) => {
                                     (
                                       e.target as HTMLImageElement
@@ -2852,7 +2851,6 @@ export default function Gallery() {
                               className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
                               loading={index < 6 ? "eager" : "lazy"}
                               decoding="async"
-                              fetchPriority={index < 3 ? "high" : "auto"}
                               onLoad={(e) => {
                                 (
                                   e.target as HTMLImageElement

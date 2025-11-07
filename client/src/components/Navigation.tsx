@@ -191,7 +191,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 Home
               </Link>
               <Link to={createUrl("/prenota")} className="font-medium text-blue-gray hover:text-dark-sage transition">
-                Servizi Fotografici
+                Prenotazioni
               </Link>
               <a href="#about" className="font-medium text-blue-gray hover:text-dark-sage transition">Come Funziona</a>
               <a href="#contact" className="font-medium text-blue-gray hover:text-dark-sage transition">Contatti</a>
@@ -272,7 +272,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
             Home
           </Link>
           <Link to={createUrl("/prenota")} className="block px-3 py-2 text-base font-medium text-blue-gray">
-            Servizi Fotografici
+            Prenotazioni
           </Link>
           <a href="#about" className="block px-3 py-2 text-base font-medium text-blue-gray">Come Funziona</a>
           <a href="#contact" className="block px-3 py-2 text-base font-medium text-blue-gray">Contatti</a>
