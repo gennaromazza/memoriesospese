@@ -8,8 +8,9 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { nanoid } from 'nanoid';
 import { createQuote, getAllQuoteTemplates } from '@/lib/quotes';
-import { useAuth } from '@/contexts/FirebaseAuthContext';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -95,7 +96,7 @@ export default function QuoteBuilder({
   open,
   onClose
 }: QuoteBuilderProps) {
-  const { user } = useAuth();
+  const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   
@@ -159,6 +160,7 @@ export default function QuoteBuilder({
     mutationFn: async (data: FormData) => {
       // Prepara clausole dal jobType
       const defaultClauses = DEFAULT_CLAUSES[jobType].map(c => ({
+        id: nanoid(),
         text: c.text,
         required: c.required,
         ordine: c.ordine

@@ -8,7 +8,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { getJob, getJobTimeline, updateJobStatus, attachPDF } from '@/lib/jobs';
 import { getQuotesForJob } from '@/lib/quotes';
 import { getPaymentScheduleForJob } from '@/lib/payment-schedules';
-import { useAuth } from '@/contexts/FirebaseAuthContext';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -77,7 +77,7 @@ interface JobDetailDrawerProps {
 }
 
 export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps) {
-  const { user } = useAuth();
+  const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [uploadingPDF, setUploadingPDF] = useState(false);
   
@@ -106,8 +106,8 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
     queryKey: ['cliente', job?.clienteId],
     queryFn: async () => {
       if (!job?.clienteId) return null;
-      const { getCliente } = await import('@/lib/clienti');
-      return getCliente(job.clienteId);
+      const { getClienteById } = await import('@/lib/clienti');
+      return getClienteById(job.clienteId);
     },
     enabled: !!job?.clienteId
   });

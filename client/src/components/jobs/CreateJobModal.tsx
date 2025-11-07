@@ -10,7 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createJob } from '@/lib/jobs';
 import { getAllClienti } from '@/lib/clienti';
-import { useAuth } from '@/contexts/FirebaseAuthContext';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -102,7 +102,7 @@ interface CreateJobModalProps {
 }
 
 export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
-  const { user } = useAuth();
+  const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   
