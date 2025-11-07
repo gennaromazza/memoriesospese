@@ -104,6 +104,19 @@ export default function BookingIndex() {
                       {/* Header con tema stagionale */}
                       <div className={`h-2 ${campaign.temaStagionale && campaign.temaStagionale !== 'none' ? 'bg-gradient-to-r from-sage via-warm-white to-sage' : 'bg-sage'}`}></div>
                       
+                      {/* Immagine campagna */}
+                      {campaign.immagineSlider && (
+                        <div className="w-full h-48 overflow-hidden bg-gray-100">
+                          <img
+                            src={campaign.immagineSlider}
+                            alt={campaign.nome}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </div>
+                      )}
+
                       <CardHeader className="pb-4">
                         <div className="flex items-start justify-between gap-4 mb-2">
                           <CardTitle className="text-xl font-playfair text-blue-gray group-hover:text-sage transition-colors">
