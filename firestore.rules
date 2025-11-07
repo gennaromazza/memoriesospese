@@ -299,6 +299,14 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Only admin can delete orders
     }
     
+    // Clienti - Admin-only client management (November 2025)
+    match /clienti/{clienteId} {
+      allow read: if isAdmin(); // Only admin can see clients (sensitive data: emails, phones, addresses)
+      allow create: if isAdmin(); // Only admin can create clients
+      allow update: if isAdmin(); // Only admin can update clients
+      allow delete: if isAdmin(); // Only admin can delete clients
+    }
+    
     // Cash Movements - Admin-only financial management (November 2025)
     match /cashMovements/{movementId} {
       allow read: if isAdmin(); // Only admin can view cash movements

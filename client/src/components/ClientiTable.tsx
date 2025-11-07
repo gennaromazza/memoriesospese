@@ -40,7 +40,7 @@ export default function ClientiTable({
 }: ClientiTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('tutti');
-  const [cittaFilter, setCittaFilter] = useState<string>('');
+  const [cittaFilter, setCittaFilter] = useState<string>('tutte');
   const [sortField, setSortField] = useState<SortField>('lastInteraction');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -70,7 +70,7 @@ export default function ClientiTable({
       filtered = filtered.filter(c => c.lifecycle.status === statusFilter);
     }
 
-    if (cittaFilter) {
+    if (cittaFilter && cittaFilter !== 'tutte') {
       filtered = filtered.filter(c => c.citta === cittaFilter);
     }
 
@@ -172,7 +172,7 @@ export default function ClientiTable({
             <SelectValue placeholder="Filtra per città" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Tutte le città</SelectItem>
+            <SelectItem value="tutte">Tutte le città</SelectItem>
             {cittaUniche.map(citta => (
               <SelectItem key={citta} value={citta}>
                 {citta}
