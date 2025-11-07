@@ -5,7 +5,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { getAllCampaigns } from '@/lib/booking-campaigns';
+import { getActiveCampaigns } from '@/lib/booking-campaigns';
 import type { BookingCampaign } from '@shared/booking-types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,25 +20,13 @@ import { createUrl } from '@/lib/basePath';
 import { FloralDivider } from '@/components/WeddingIllustrations';
 
 export default function BookingIndex() {
-  // Query tutte le campagne
-  const { data: allCampaigns = [], isLoading } = useQuery<BookingCampaign[]>({
-    queryKey: ['booking-campaigns'],
-    queryFn: getAllCampaigns,
+  // Query campagne attive (considera giorniAnticipoSlider)
+  const { data: activeCampaigns = [], isLoading } = useQuery<BookingCampaign[]>({
+    queryKey: ['active-booking-campaigns'],
+    queryFn: getActiveCampaigns,
   });
 
-  // Filtra solo campagne attive
   const today = new Date();
-  const activeCampaigns = allCampaigns.filter((campaign) => {
-    if (!campaign.attiva) return false;
-
-    const startDate = campaign.dataInizio.toDate ? campaign.dataInizio.toDate() : new Date(campaign.dataInizio);
-    const endDate = campaign.dataFine.toDate ? campaign.dataFine.toDate() : new Date(campaign.dataFine);
-
-    return (
-      !isBefore(today, startOfDay(startDate)) &&
-      !isAfter(today, endOfDay(endDate))
-    );
-  });
 
   return (
     <div className="min-h-screen flex flex-col bg-cream">
