@@ -856,3 +856,92 @@ export async function importClienti(
     );
   }
 }
+
+/**
+ * AUTO-MERGE: Unisce automaticamente tutti i clienti con stessa email
+ */
+export interface AutoMergeResult {
+  success: boolean;
+  duplicatesFound: number;
+  groupsMerged: number;
+  clientiRemoved: number;
+  errors: string[];
+}
+
+export async function autoMergeDuplicatesByEmail(): Promise<AutoMergeResult> {
+  const result: AutoMergeResult = {
+    success: true,
+    duplicatesFound: 0,
+    groupsMerged: 0,
+    clientiRemoved: 0,
+    errors: [],
+  };
+
+  try {
+    // 1. Rileva tutti i duplicati
+    const duplicateGroups = await detectDuplicates();
+    result.duplicatesFound = duplicateGroups.length;
+
+    if (duplicateGroups.length === 0) {
+      return result;
+    }
+
+    // 2. Per ogni gruppo, esegui merge automatico
+    for (const group of duplicateGroups) {
+      try {
+        // Seleziona primary: il cliente con più dati o il più recente
+        const primary = group.clienti.reduce((best, current) => {
+          // Priorità 1: più sourceRefs
+          const bestRefs = (best.sourceRefs.bookingIds?.length || 0) + 
+                          (best.sourceRefs.orderIds?.length || 0) + 
+                          (best.sourceRefs.galleryIds?.length || 0);
+          const currentRefs = (current.sourceRefs.bookingIds?.length || 0) + 
+                             (current.sourceRefs.orderIds?.length || 0) + 
+                             (current.sourceRefs.galleryIds?.length || 0);
+          
+          if (currentRefs > bestRefs) return current;
+          if (currentRefs < bestRefs) return best;
+          
+          // Priorità 2: più dati anagrafici completi
+          const bestData = [best.cellulare1, best.cellulare2, best.via, best.citta]
+            .filter(Boolean).length;
+          const currentData = [current.cellulare1, current.cellulare2, current.via, current.citta]
+            .filter(Boolean).length;
+          
+          if (currentData > bestData) return current;
+          if (currentData < bestData) return best;
+          
+          // Priorità 3: ultimo aggiornamento
+          const bestTime = best.updatedAt?.toMillis?.() || 0;
+          const currentTime = current.updatedAt?.toMillis?.() || 0;
+          
+          return currentTime > bestTime ? current : best;
+        });
+
+        // Merge tutti gli altri verso il primary
+        const duplicateIds = group.clienti
+          .filter(c => c.id !== primary.id)
+          .map(c => c.id);
+
+        if (duplicateIds.length > 0) {
+          await mergeClientes(primary.id, duplicateIds);
+          result.groupsMerged++;
+          result.clientiRemoved += duplicateIds.length;
+        }
+      } catch (error) {
+        result.success = false;
+        result.errors.push(
+          `Errore merge gruppo ${group.email}: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`
+        );
+      }
+    }
+
+    return result;
+  } catch (error) {
+    result.success = false;
+    result.errors.push(
+      `Errore durante auto-merge: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`
+    );
+    return result;
+  }
+}

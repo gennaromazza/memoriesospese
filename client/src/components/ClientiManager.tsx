@@ -9,7 +9,9 @@ import {
   getClienteStats,
   detectDuplicates,
   mergeClientes,
+  autoMergeDuplicatesByEmail,
   type DuplicateGroup,
+  type AutoMergeResult,
 } from '@/lib/clienti';
 import type { Cliente, InsertCliente, UpdateCliente, ClienteStats } from '@shared/clienti-types';
 import ClientiTable from '@/components/ClientiTable';
@@ -31,7 +33,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, TrendingUp, AlertTriangle, Upload } from 'lucide-react';
+import { Users, Plus, TrendingUp, AlertTriangle, Upload, GitMerge } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export function ClientiManager() {
@@ -46,6 +48,7 @@ export function ClientiManager() {
   const [selectedDuplicateGroup, setSelectedDuplicateGroup] = useState<DuplicateGroup | null>(null);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showAutoMergeConfirm, setShowAutoMergeConfirm] = useState(false);
   
   // Data fetching
   const { data: clienti = [], isLoading: isLoadingClienti } = useQuery({
@@ -110,9 +113,34 @@ export function ClientiManager() {
   
   const deleteMutation = useMutation({
     mutationFn: deleteCliente,
+    onMutate: async (clienteId) => {
+      // Optimistic update: rimuovi immediatamente dalla UI
+      await queryClient.cancelQueries({ queryKey: ['/api/clienti'] });
+      const previousClienti = queryClient.getQueryData(['/api/clienti']);
+      
+      queryClient.setQueryData(['/api/clienti'], (old: Cliente[] | undefined) => 
+        old?.filter(c => c.id !== clienteId) || []
+      );
+      
+      return { previousClienti };
+    },
+    onError: (error: unknown, _, context) => {
+      // Rollback su errore
+      if (context?.previousClienti) {
+        queryClient.setQueryData(['/api/clienti'], context.previousClienti);
+      }
+      
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      toast({
+        title: '❌ Errore',
+        description: `Impossibile eliminare il cliente: ${message}`,
+        variant: 'destructive',
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
       queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
       toast({
         title: '✅ Cliente eliminato',
         description: 'Il cliente è stato rimosso dal sistema.',
@@ -122,14 +150,6 @@ export function ClientiManager() {
         setSelectedCliente(null);
         setShowDetailDrawer(false);
       }
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
-      toast({
-        title: '❌ Errore',
-        description: `Impossibile eliminare il cliente: ${message}`,
-        variant: 'destructive',
-      });
     },
   });
   
@@ -154,6 +174,39 @@ export function ClientiManager() {
         description: `Impossibile unire i duplicati: ${message}`,
         variant: 'destructive',
       });
+    },
+  });
+
+  const autoMergeMutation = useMutation({
+    mutationFn: autoMergeDuplicatesByEmail,
+    onSuccess: (result: AutoMergeResult) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+      
+      if (result.success) {
+        toast({
+          title: '✅ Auto-merge completato',
+          description: `Uniti ${result.groupsMerged} gruppi di duplicati. Rimossi ${result.clientiRemoved} clienti duplicati.`,
+        });
+      } else {
+        toast({
+          title: '⚠️ Auto-merge parzialmente completato',
+          description: `Uniti ${result.groupsMerged} gruppi. Errori: ${result.errors.length}`,
+          variant: 'default',
+        });
+      }
+      
+      setShowAutoMergeConfirm(false);
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      toast({
+        title: '❌ Errore',
+        description: `Impossibile completare auto-merge: ${message}`,
+        variant: 'destructive',
+      });
+      setShowAutoMergeConfirm(false);
     },
   });
   
@@ -277,6 +330,17 @@ export function ClientiManager() {
             <Upload className="w-4 h-4 mr-2" />
             Importa Clienti
           </Button>
+          {duplicates.length > 0 && (
+            <Button
+              onClick={() => setShowAutoMergeConfirm(true)}
+              variant="outline"
+              className="border-orange-500 text-orange-600 hover:bg-orange-50"
+              data-testid="button-auto-merge-duplicates"
+            >
+              <GitMerge className="w-4 h-4 mr-2" />
+              Unisci Duplicati Email
+            </Button>
+          )}
           <Button
             onClick={handleCreateCliente}
             className="bg-sage hover:bg-sage/90"
@@ -415,6 +479,38 @@ export function ClientiManager() {
           queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
         }}
       />
+
+      {/* Auto-Merge Confirmation */}
+      <AlertDialog
+        open={showAutoMergeConfirm}
+        onOpenChange={(open) => !open && setShowAutoMergeConfirm(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma Unione Automatica Duplicati</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa operazione unirà automaticamente tutti i <strong>{duplicates.length}</strong> gruppi di clienti con email duplicata
+              (totale <strong>{duplicates.reduce((sum, d) => sum + d.count, 0)}</strong> clienti).
+              <br /><br />
+              Per ogni gruppo verrà selezionato automaticamente il cliente principale (con più dati) e gli altri verranno consolidati.
+              <br /><br />
+              <strong className="text-orange-600">Questa azione è irreversibile.</strong> Vuoi continuare?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={autoMergeMutation.isPending}>
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => autoMergeMutation.mutate()}
+              disabled={autoMergeMutation.isPending}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {autoMergeMutation.isPending ? 'Unione in corso...' : 'Conferma e Unisci'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
