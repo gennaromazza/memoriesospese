@@ -26,6 +26,9 @@ import type {
   ClienteWithHistory,
   ClientiFilters,
   ClienteStats,
+  ImportCSVRow,
+  ImportValidationResult,
+  ImportResult,
 } from "@shared/clienti-types";
 import type { Booking, Order } from "@shared/booking-types";
 import type { Gallery } from "./galleries";
@@ -682,4 +685,174 @@ export async function mergeClientes(
   });
   
   await batch.commit();
+}
+
+/**
+ * IMPORT CSV - Validazione riga
+ */
+export function validateImportRow(
+  row: ImportCSVRow,
+  existingEmails: Set<string>
+): ImportValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  // Validazione campi obbligatori
+  if (!row.Nome?.trim()) {
+    errors.push('Nome mancante');
+  }
+  if (!row.Cognome?.trim()) {
+    errors.push('Cognome mancante');
+  }
+  
+  // Validazione email
+  const isPlaceholderEmail = row.Email?.toLowerCase().includes('nomail@');
+  if (!row.Email?.trim()) {
+    errors.push('Email mancante');
+  } else if (isPlaceholderEmail) {
+    warnings.push('Email placeholder (nomail@) - verrà importato senza email');
+  } else {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(row.Email)) {
+      errors.push('Email non valida');
+    }
+  }
+  
+  // Check duplicati
+  const normalizedEmail = normalizeEmail(row.Email || '');
+  if (!isPlaceholderEmail && existingEmails.has(normalizedEmail)) {
+    warnings.push('Email già esistente - verrà aggiornato');
+  }
+  
+  // Mapping dati
+  let mappedData: InsertCliente | undefined;
+  if (errors.length === 0) {
+    mappedData = {
+      nome: row.Nome.trim(),
+      cognome: row.Cognome.trim(),
+      email: isPlaceholderEmail ? `${row.Nome}.${row.Cognome}@noemail.local`.toLowerCase().replace(/\s+/g, '') : normalizeEmail(row.Email),
+      cellulare1: row.Phone?.trim() || undefined,
+      citta: row.Città?.trim() || undefined,
+      cap: row['C.A.P']?.trim() || undefined,
+      provincia: row.Provincia?.trim() || undefined,
+      note: row['Note Cliente']?.trim() || undefined,
+      tags: isPlaceholderEmail ? ['import_csv', 'no_email'] : ['import_csv'],
+      status: 'lead',
+    };
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+    mappedData,
+  };
+}
+
+/**
+ * IMPORT CSV - Batch import clienti
+ */
+export async function importClienti(
+  validatedRows: Array<{
+    validation: ImportValidationResult;
+    existingClienteId?: string;
+  }>
+): Promise<ImportResult> {
+  const BATCH_SIZE = 200; // Firestore batch limit: 500, usiamo 200 per sicurezza
+  const result: ImportResult = {
+    success: true,
+    imported: 0,
+    updated: 0,
+    failed: 0,
+    errors: [],
+  };
+  
+  try {
+    // Processa in chunks
+    for (let i = 0; i < validatedRows.length; i += BATCH_SIZE) {
+      const chunk = validatedRows.slice(i, i + BATCH_SIZE);
+      const batch = writeBatch(db);
+      
+      for (let j = 0; j < chunk.length; j++) {
+        const { validation, existingClienteId } = chunk[j];
+        const rowIndex = i + j + 1;
+        
+        if (!validation.valid || !validation.mappedData) {
+          result.failed++;
+          result.errors.push({
+            row: rowIndex,
+            error: validation.errors.join(', '),
+          });
+          continue;
+        }
+        
+        try {
+          const now = serverTimestamp();
+          
+          if (existingClienteId) {
+            // Update esistente
+            const docRef = doc(db, COLLECTION, existingClienteId);
+            const updateData: any = {
+              ...sanitizeData(validation.mappedData),
+              updatedAt: now,
+            };
+            
+            // Merge tags
+            const existingDoc = await getDoc(docRef);
+            if (existingDoc.exists()) {
+              const existingTags = existingDoc.data().tags || [];
+              updateData.tags = [...new Set([...existingTags, ...(validation.mappedData.tags || [])])];
+            }
+            
+            batch.update(docRef, updateData);
+            result.updated++;
+          } else {
+            // Nuovo cliente
+            const newDocRef = doc(collection(db, COLLECTION));
+            const clienteData: Omit<Cliente, 'id'> = {
+              ...validation.mappedData,
+              sourceRefs: {
+                bookingIds: [],
+                orderIds: [],
+                galleryIds: [],
+                passwordRequestIds: [],
+                userIds: [],
+              },
+              lifecycle: {
+                firstContactAt: now as Timestamp,
+                lastInteractionAt: now as Timestamp,
+                status: validation.mappedData.status || 'lead',
+              },
+              financials: {
+                totalRevenue: 0,
+                outstandingBalance: 0,
+                totalOrders: 0,
+              },
+              createdAt: now as Timestamp,
+              updatedAt: now as Timestamp,
+            };
+            
+            batch.set(newDocRef, sanitizeData(clienteData));
+            result.imported++;
+          }
+        } catch (error) {
+          result.failed++;
+          result.errors.push({
+            row: rowIndex,
+            error: error instanceof Error ? error.message : 'Errore sconosciuto',
+          });
+        }
+      }
+      
+      // Commit batch
+      await batch.commit();
+    }
+    
+    result.success = result.failed === 0;
+    return result;
+  } catch (error) {
+    throw new Error(
+      `Errore durante l'import: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`
+    );
+  }
 }
