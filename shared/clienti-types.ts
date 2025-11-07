@@ -164,3 +164,53 @@ export interface ClienteStats {
   outstandingTotal: number;
   avgRevenuePerCliente: number;
 }
+
+/**
+ * IMPORT CSV - Types per importazione clienti da CSV
+ */
+export interface ImportCSVRow {
+  'Nome Azienda'?: string;
+  Nome: string;
+  Cognome: string;
+  Email: string;
+  Phone?: string;
+  'C.A.P'?: string;
+  Stato?: string;
+  Provincia?: string;
+  'Codice Fiscale'?: string;
+  Città?: string;
+  'Prefisso Internazionale'?: string;
+  'Note Cliente'?: string;
+}
+
+export interface ImportValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  mappedData?: InsertCliente;
+}
+
+export interface ImportPreview {
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  duplicateRows: number;
+  rows: Array<{
+    index: number;
+    original: ImportCSVRow;
+    validation: ImportValidationResult;
+    isDuplicate: boolean;
+    existingClienteId?: string;
+  }>;
+}
+
+export interface ImportResult {
+  success: boolean;
+  imported: number;
+  updated: number;
+  failed: number;
+  errors: Array<{
+    row: number;
+    error: string;
+  }>;
+}
