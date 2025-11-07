@@ -548,3 +548,138 @@ export async function recalculateClienteFinancials(clienteId: string): Promise<v
     updatedAt: serverTimestamp(),
   });
 }
+
+/**
+ * DUPLICATE DETECTION AND MERGE
+ */
+
+export interface DuplicateGroup {
+  email: string;
+  clienti: Cliente[];
+  count: number;
+}
+
+/**
+ * Rileva duplicati per email (case-insensitive)
+ */
+export async function detectDuplicates(): Promise<DuplicateGroup[]> {
+  const clienti = await getAllClienti();
+  const emailMap = new Map<string, Cliente[]>();
+  
+  // Raggruppa per email normalizzata
+  clienti.forEach(cliente => {
+    const normalizedEmail = normalizeEmail(cliente.email);
+    if (!emailMap.has(normalizedEmail)) {
+      emailMap.set(normalizedEmail, []);
+    }
+    emailMap.get(normalizedEmail)!.push(cliente);
+  });
+  
+  // Filtra solo i gruppi con duplicati (>1 record)
+  const duplicates: DuplicateGroup[] = [];
+  emailMap.forEach((clienti, email) => {
+    if (clienti.length > 1) {
+      duplicates.push({
+        email,
+        clienti,
+        count: clienti.length,
+      });
+    }
+  });
+  
+  return duplicates;
+}
+
+/**
+ * Unisci clienti duplicati mantenendo il principale
+ */
+export async function mergeClientes(
+  primaryId: string,
+  duplicateIds: string[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  
+  // Carica cliente principale
+  const primaryCliente = await getClienteById(primaryId);
+  if (!primaryCliente) {
+    throw new Error('Cliente principale non trovato');
+  }
+  
+  // Carica tutti i duplicati
+  const duplicates: Cliente[] = [];
+  for (const dupId of duplicateIds) {
+    const dup = await getClienteById(dupId);
+    if (dup) duplicates.push(dup);
+  }
+  
+  // Consolida sourceRefs
+  const consolidatedSourceRefs = {
+    bookingIds: [...new Set([
+      ...primaryCliente.sourceRefs.bookingIds,
+      ...duplicates.flatMap(d => d.sourceRefs.bookingIds || [])
+    ])],
+    orderIds: [...new Set([
+      ...primaryCliente.sourceRefs.orderIds,
+      ...duplicates.flatMap(d => d.sourceRefs.orderIds || [])
+    ])],
+    galleryIds: [...new Set([
+      ...primaryCliente.sourceRefs.galleryIds,
+      ...duplicates.flatMap(d => d.sourceRefs.galleryIds || [])
+    ])],
+    passwordRequestIds: [...new Set([
+      ...(primaryCliente.sourceRefs.passwordRequestIds || []),
+      ...duplicates.flatMap(d => d.sourceRefs.passwordRequestIds || [])
+    ])],
+    userIds: [...new Set([
+      ...(primaryCliente.sourceRefs.userIds || []),
+      ...duplicates.flatMap(d => d.sourceRefs.userIds || [])
+    ])],
+  };
+  
+  // Consolida financials
+  const consolidatedFinancials = {
+    totalRevenue: duplicates.reduce(
+      (sum, d) => sum + (d.financials.totalRevenue || 0),
+      primaryCliente.financials.totalRevenue || 0
+    ),
+    outstandingBalance: duplicates.reduce(
+      (sum, d) => sum + (d.financials.outstandingBalance || 0),
+      primaryCliente.financials.outstandingBalance || 0
+    ),
+    totalOrders: consolidatedSourceRefs.orderIds.length,
+  };
+  
+  // Merge dati anagrafici (prendi primo valore non vuoto)
+  const mergedData: Partial<Cliente> = {
+    cellulare1: primaryCliente.cellulare1 || duplicates.find(d => d.cellulare1)?.cellulare1,
+    cellulare2: primaryCliente.cellulare2 || duplicates.find(d => d.cellulare2)?.cellulare2,
+    whatsapp: primaryCliente.whatsapp || duplicates.find(d => d.whatsapp)?.whatsapp,
+    via: primaryCliente.via || duplicates.find(d => d.via)?.via,
+    citta: primaryCliente.citta || duplicates.find(d => d.citta)?.citta,
+    cap: primaryCliente.cap || duplicates.find(d => d.cap)?.cap,
+    provincia: primaryCliente.provincia || duplicates.find(d => d.provincia)?.provincia,
+    note: [primaryCliente.note, ...duplicates.map(d => d.note)]
+      .filter(Boolean)
+      .join('\n--- MERGE ---\n') || undefined,
+    tags: [...new Set([
+      ...(primaryCliente.tags || []),
+      ...duplicates.flatMap(d => d.tags || [])
+    ])],
+  };
+  
+  // Aggiorna cliente principale
+  const primaryRef = doc(db, COLLECTION, primaryId);
+  batch.update(primaryRef, {
+    ...sanitizeData(mergedData),
+    sourceRefs: consolidatedSourceRefs,
+    financials: consolidatedFinancials,
+    updatedAt: serverTimestamp(),
+  });
+  
+  // Elimina duplicati
+  duplicateIds.forEach(dupId => {
+    batch.delete(doc(db, COLLECTION, dupId));
+  });
+  
+  await batch.commit();
+}
