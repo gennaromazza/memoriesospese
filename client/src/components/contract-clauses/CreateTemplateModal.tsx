@@ -42,21 +42,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
-import type { JobType } from '@shared/jobs-types';
-
-const JOB_TYPES: { value: JobType | 'generico'; label: string }[] = [
-  { value: 'matrimonio', label: 'Matrimonio' },
-  { value: 'battesimo', label: 'Battesimo' },
-  { value: 'famiglia', label: 'Famiglia' },
-  { value: 'evento', label: 'Evento' },
-  { value: 'comunione', label: 'Comunione' },
-  { value: 'compleanno', label: 'Compleanno' },
-  { value: 'altro', label: 'Altro' },
-  { value: 'generico', label: 'Generico (per tutti)' }
-];
+import type { JobType as JobsJobType } from '@shared/jobs-types';
+import type { JobType as DynamicJobType } from '@shared/job-types';
 
 const formSchema = z.object({
-  jobType: z.enum(['matrimonio', 'battesimo', 'famiglia', 'evento', 'comunione', 'compleanno', 'altro', 'generico']),
+  jobType: z.string().min(1, 'Seleziona un tipo di lavoro'),
   titolo: z.string().min(3, 'Titolo troppo corto'),
   attivo: z.boolean(),
   clauses: z.array(z.object({
@@ -71,13 +61,15 @@ type FormData = z.infer<typeof formSchema>;
 interface CreateTemplateModalProps {
   open: boolean;
   onClose: () => void;
-  defaultJobType?: JobType | 'generico';
+  jobTypes: DynamicJobType[];
+  defaultJobType?: string;
 }
 
 export default function CreateTemplateModal({
   open,
   onClose,
-  defaultJobType = 'matrimonio'
+  jobTypes,
+  defaultJobType
 }: CreateTemplateModalProps) {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
@@ -168,12 +160,15 @@ export default function CreateTemplateModal({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {JOB_TYPES.map(type => (
+                      {jobTypes.filter(jt => jt.attivo).map(type => (
                         <SelectItem
-                          key={type.value}
-                          value={type.value}
+                          key={type.slug}
+                          value={type.slug}
                         >
-                          {type.label}
+                          <span className="flex items-center gap-2">
+                            <span>{type.icona}</span>
+                            <span>{type.nome}</span>
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>

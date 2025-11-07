@@ -1,0 +1,570 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  getJobTypes,
+  createJobType,
+  updateJobType,
+  deleteJobType,
+  reorderJobTypes,
+  toggleJobTypeStatus
+} from '@/lib/job-types';
+import type { JobType } from '@shared/job-types';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@/components/ui/form';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Plus,
+  Loader2,
+  Edit,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  Palette
+} from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const formSchema = z.object({
+  nome: z.string().min(2, 'Nome troppo corto'),
+  slug: z
+    .string()
+    .min(2, 'Slug troppo corto')
+    .regex(/^[a-z0-9-]+$/, 'Usa solo lettere minuscole, numeri e trattini'),
+  attivo: z.boolean(),
+  icona: z.string().min(1, 'Icona richiesta'),
+  colore: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, 'Formato colore non valido (es. #ec4899)')
+});
+
+type FormData = z.infer<typeof formSchema>;
+
+interface JobTypeFormProps {
+  jobType?: JobType;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: jobType
+      ? {
+          nome: jobType.nome,
+          slug: jobType.slug,
+          attivo: jobType.attivo,
+          icona: jobType.icona,
+          colore: jobType.colore
+        }
+      : {
+          nome: '',
+          slug: '',
+          attivo: true,
+          icona: '📸',
+          colore: '#6366f1'
+        }
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      if (jobType) {
+        await updateJobType(jobType.id, data);
+      } else {
+        const allTypes = await getJobTypes();
+        const maxOrdine = Math.max(...allTypes.map(t => t.ordine), 0);
+        await createJobType({
+          ...data,
+          ordine: maxOrdine + 1
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobTypes'] });
+      toast({
+        title: jobType ? 'Tipo lavoro aggiornato' : 'Tipo lavoro creato',
+        description: 'Operazione completata con successo'
+      });
+      onSuccess();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const handleSubmit = (data: FormData) => {
+    mutation.mutate(data);
+  };
+
+  // Auto-genera slug dal nome
+  const handleNomeChange = (nome: string) => {
+    if (!jobType) {
+      const slug = nome
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      form.setValue('slug', slug);
+    }
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="nome"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Nome</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  onChange={e => {
+                    field.onChange(e);
+                    handleNomeChange(e.target.value);
+                  }}
+                  placeholder="es. Matrimonio"
+                  data-testid="input-nome"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="slug"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Slug</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  placeholder="es. matrimonio"
+                  data-testid="input-slug"
+                  disabled={!!jobType}
+                />
+              </FormControl>
+              <FormDescription className="text-xs">
+                {jobType
+                  ? 'Lo slug non può essere modificato'
+                  : 'Generato automaticamente dal nome'}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="icona"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Icona (Emoji)</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="es. 💍"
+                    maxLength={2}
+                    data-testid="input-icona"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="colore"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Colore</FormLabel>
+                <FormControl>
+                  <div className="flex gap-2">
+                    <Input
+                      {...field}
+                      placeholder="#6366f1"
+                      data-testid="input-colore"
+                    />
+                    <input
+                      type="color"
+                      value={field.value}
+                      onChange={e => field.onChange(e.target.value)}
+                      className="w-12 h-10 rounded cursor-pointer"
+                      data-testid="picker-colore"
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="attivo"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <FormLabel>Attivo</FormLabel>
+                <FormDescription className="text-xs">
+                  Tipo lavoro utilizzabile
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  data-testid="switch-attivo"
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={mutation.isPending}
+            data-testid="button-cancel"
+          >
+            Annulla
+          </Button>
+          <Button
+            type="submit"
+            disabled={mutation.isPending}
+            data-testid="button-save"
+          >
+            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {jobType ? 'Salva modifiche' : 'Crea tipo'}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
+
+export default function JobTypesManager() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editingJobType, setEditingJobType] = useState<JobType | null>(null);
+  const [deletingJobType, setDeletingJobType] = useState<JobType | null>(null);
+
+  const { data: jobTypes = [], isLoading } = useQuery({
+    queryKey: ['jobTypes'],
+    queryFn: getJobTypes
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: toggleJobTypeStatus,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobTypes'] });
+      toast({
+        title: 'Stato aggiornato',
+        description: 'Tipo lavoro aggiornato con successo'
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteJobType,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobTypes'] });
+      toast({
+        title: 'Tipo lavoro eliminato',
+        description: 'Operazione completata con successo'
+      });
+      setDeletingJobType(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Impossibile eliminare',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: reorderJobTypes,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobTypes'] });
+    }
+  });
+
+  const moveJobType = (index: number, direction: 'up' | 'down') => {
+    const newOrder = [...jobTypes];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+
+    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
+
+    [newOrder[index], newOrder[targetIndex]] = [
+      newOrder[targetIndex],
+      newOrder[index]
+    ];
+
+    const reorderedIds = newOrder.map(jt => jt.id);
+    reorderMutation.mutate(reorderedIds);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-semibold text-blue-gray">
+            Tipi di Lavoro
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Gestisci i tipi di lavori fotografici disponibili
+          </p>
+        </div>
+        <Button
+          onClick={() => setCreateModalOpen(true)}
+          data-testid="button-create-job-type"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Nuovo tipo
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : jobTypes.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Palette className="mx-auto h-12 w-12 mb-4 opacity-50" />
+          <p>Nessun tipo di lavoro configurato</p>
+          <p className="text-sm mt-2">Crea il tuo primo tipo personalizzato</p>
+        </div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-16">Ordine</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Slug</TableHead>
+              <TableHead>Colore</TableHead>
+              <TableHead className="w-24">Stato</TableHead>
+              <TableHead className="text-right w-32">Azioni</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {jobTypes.map((jobType, index) => (
+              <TableRow key={jobType.id} data-testid={`row-job-type-${jobType.id}`}>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => moveJobType(index, 'up')}
+                      disabled={index === 0 || reorderMutation.isPending}
+                      className="h-6 w-6 p-0"
+                      data-testid={`button-move-up-${jobType.id}`}
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => moveJobType(index, 'down')}
+                      disabled={
+                        index === jobTypes.length - 1 || reorderMutation.isPending
+                      }
+                      className="h-6 w-6 p-0"
+                      data-testid={`button-move-down-${jobType.id}`}
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{jobType.icona}</span>
+                    <span className="font-medium">{jobType.nome}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <code className="text-xs bg-muted px-2 py-1 rounded">
+                    {jobType.slug}
+                  </code>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    style={{ backgroundColor: jobType.colore }}
+                    className="text-white"
+                  >
+                    {jobType.colore}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Switch
+                    checked={jobType.attivo}
+                    onCheckedChange={() => toggleMutation.mutate(jobType.id)}
+                    disabled={toggleMutation.isPending}
+                    data-testid={`switch-status-${jobType.id}`}
+                  />
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingJobType(jobType)}
+                      data-testid={`button-edit-${jobType.id}`}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeletingJobType(jobType)}
+                      data-testid={`button-delete-${jobType.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* Create Modal */}
+      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+        <DialogContent data-testid="modal-create-job-type">
+          <DialogHeader>
+            <DialogTitle>Nuovo tipo di lavoro</DialogTitle>
+            <DialogDescription>
+              Crea un nuovo tipo di lavoro personalizzato per il tuo studio
+            </DialogDescription>
+          </DialogHeader>
+          <JobTypeForm
+            onSuccess={() => setCreateModalOpen(false)}
+            onCancel={() => setCreateModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Modal */}
+      {editingJobType && (
+        <Dialog open={!!editingJobType} onOpenChange={() => setEditingJobType(null)}>
+          <DialogContent data-testid="modal-edit-job-type">
+            <DialogHeader>
+              <DialogTitle>Modifica tipo di lavoro</DialogTitle>
+              <DialogDescription>
+                Aggiorna le informazioni del tipo di lavoro
+              </DialogDescription>
+            </DialogHeader>
+            <JobTypeForm
+              jobType={editingJobType}
+              onSuccess={() => setEditingJobType(null)}
+              onCancel={() => setEditingJobType(null)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Confirmation */}
+      <AlertDialog
+        open={!!deletingJobType}
+        onOpenChange={() => setDeletingJobType(null)}
+      >
+        <AlertDialogContent data-testid="alert-delete-job-type">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare il tipo di lavoro "
+              {deletingJobType?.nome}"? Questa azione non può essere annullata.
+              <br />
+              <br />
+              <strong>Nota:</strong> Non puoi eliminare un tipo se ci sono lavori o
+              template clausole associati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingJobType && deleteMutation.mutate(deletingJobType.id)}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

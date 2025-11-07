@@ -3,7 +3,7 @@
  * Gestione template clausole contrattuali per tipo lavoro
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   getAllClauseTemplates,
@@ -12,6 +12,7 @@ import {
   deleteClauseTemplate,
   setAsDefaultTemplate
 } from '@/lib/contract-clauses';
+import { getJobTypes } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Plus,
   FileText,
@@ -35,30 +37,32 @@ import CreateTemplateModal from './CreateTemplateModal';
 import EditTemplateModal from './EditTemplateModal';
 import PreviewClausesModal from './PreviewClausesModal';
 
-const JOB_TYPES: { value: JobType | 'generico'; label: string; color: string }[] = [
-  { value: 'matrimonio', label: 'Matrimonio', color: 'bg-pink-100 text-pink-800' },
-  { value: 'battesimo', label: 'Battesimo', color: 'bg-blue-100 text-blue-800' },
-  { value: 'famiglia', label: 'Famiglia', color: 'bg-green-100 text-green-800' },
-  { value: 'evento', label: 'Evento', color: 'bg-purple-100 text-purple-800' },
-  { value: 'comunione', label: 'Comunione', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'compleanno', label: 'Compleanno', color: 'bg-orange-100 text-orange-800' },
-  { value: 'altro', label: 'Altro', color: 'bg-gray-100 text-gray-800' },
-  { value: 'generico', label: 'Generico', color: 'bg-slate-100 text-slate-800' }
-];
-
 export default function ContractClausesManager() {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
-  const [selectedJobType, setSelectedJobType] = useState<JobType | 'generico'>('matrimonio');
+  const [selectedJobType, setSelectedJobType] = useState<string>('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ContractClauseTemplate | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<ContractClauseTemplate | null>(null);
 
+  // Query job types
+  const { data: jobTypes = [], isLoading: isLoadingJobTypes } = useQuery({
+    queryKey: ['jobTypes'],
+    queryFn: getJobTypes
+  });
+
   // Query templates
-  const { data: allTemplates = [], isLoading } = useQuery({
+  const { data: allTemplates = [], isLoading: isLoadingTemplates } = useQuery({
     queryKey: ['contract-clause-templates'],
     queryFn: getAllClauseTemplates
   });
+
+  // Imposta jobType selezionato al primo disponibile (useEffect per evitare render loop)
+  useEffect(() => {
+    if (jobTypes.length > 0 && !selectedJobType) {
+      setSelectedJobType(jobTypes[0].slug);
+    }
+  }, [jobTypes, selectedJobType]);
 
   // Filtra per tipo
   const templates = allTemplates.filter(t => t.jobType === selectedJobType);
@@ -112,9 +116,33 @@ export default function ContractClausesManager() {
     setDefaultMutation.mutate({ id, jobType });
   };
 
+  const isLoading = isLoadingJobTypes || isLoadingTemplates;
+  
   // Mostra clausole di default se non ci sono template
   const defaultClauses = DEFAULT_CLAUSES[selectedJobType as JobType];
   const hasDefaultClauses = defaultClauses && defaultClauses.length > 0;
+  
+  const selectedJobTypeData = jobTypes.find(jt => jt.slug === selectedJobType);
+
+  if (isLoadingJobTypes) {
+    return (
+      <div className="space-y-4" data-testid="contract-clauses-manager">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (jobTypes.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground" data-testid="contract-clauses-manager">
+        <FileText className="mx-auto h-12 w-12 mb-4 opacity-50" />
+        <p className="font-semibold mb-2">Nessun tipo di lavoro configurato</p>
+        <p className="text-sm">Configura prima i tipi di lavoro nella sezione "Tipi di Lavoro"</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" data-testid="contract-clauses-manager">
@@ -130,6 +158,7 @@ export default function ContractClausesManager() {
         </div>
         <Button
           onClick={() => setCreateModalOpen(true)}
+          disabled={!selectedJobTypeData?.attivo}
           data-testid="button-create-template"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -137,22 +166,24 @@ export default function ContractClausesManager() {
         </Button>
       </div>
 
-      <Tabs value={selectedJobType} onValueChange={(v) => setSelectedJobType(v as JobType | 'generico')}>
-        <TabsList className="grid grid-cols-4 lg:grid-cols-8 gap-2">
-          {JOB_TYPES.map(type => (
+      <Tabs value={selectedJobType} onValueChange={setSelectedJobType}>
+        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          {jobTypes.filter(jt => jt.attivo).map(type => (
             <TabsTrigger
-              key={type.value}
-              value={type.value}
-              data-testid={`tab-${type.value}`}
+              key={type.slug}
+              value={type.slug}
+              data-testid={`tab-${type.slug}`}
+              className="flex items-center gap-2"
             >
-              {type.label}
+              <span>{type.icona}</span>
+              <span className="hidden sm:inline">{type.nome}</span>
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {JOB_TYPES.map(type => (
-          <TabsContent key={type.value} value={type.value} className="space-y-4">
-            {isLoading ? (
+        {jobTypes.filter(jt => jt.attivo).map(type => (
+          <TabsContent key={type.slug} value={type.slug} className="space-y-4">
+            {isLoadingTemplates ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
@@ -163,13 +194,13 @@ export default function ContractClausesManager() {
                   <h3 className="text-lg font-semibold mb-2">Nessun template personalizzato</h3>
                   <p className="text-muted-foreground mb-6">
                     {hasDefaultClauses
-                      ? `Vengono utilizzate ${defaultClauses.length} clausole predefinite per ${type.label}.`
+                      ? `Vengono utilizzate ${defaultClauses.length} clausole predefinite per ${type.nome}.`
                       : 'Non ci sono clausole configurate per questo tipo di lavoro.'}
                   </p>
                   <div className="flex gap-2 justify-center">
                     <Button
                       onClick={() => setCreateModalOpen(true)}
-                      data-testid={`button-create-first-${type.value}`}
+                      data-testid={`button-create-first-${type.slug}`}
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Crea Primo Template
@@ -179,15 +210,15 @@ export default function ContractClausesManager() {
                         variant="outline"
                         onClick={() => setPreviewTemplate({
                           id: 'default',
-                          jobType: type.value as JobType,
-                          titolo: `Clausole predefinite ${type.label}`,
+                          jobType: type.slug as JobType,
+                          titolo: `Clausole predefinite ${type.nome}`,
                           clauses: defaultClauses.map((c, i) => ({ ...c, id: `default-${i}` })),
                           attivo: true,
                           createdAt: null as any,
                           updatedAt: null as any,
                           createdBy: ''
                         })}
-                        data-testid={`button-preview-default-${type.value}`}
+                        data-testid={`button-preview-default-${type.slug}`}
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         Vedi Clausole Predefinite
@@ -197,7 +228,7 @@ export default function ContractClausesManager() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4" data-testid={`templates-list-${type.value}`}>
+              <div className="grid gap-4" data-testid={`templates-list-${type.slug}`}>
                 {templates.map(template => (
                   <Card key={template.id}>
                     <CardHeader>
@@ -300,6 +331,7 @@ export default function ContractClausesManager() {
       <CreateTemplateModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
+        jobTypes={jobTypes}
         defaultJobType={selectedJobType}
       />
 

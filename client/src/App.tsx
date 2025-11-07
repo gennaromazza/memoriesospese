@@ -33,6 +33,9 @@ import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvide
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 
+// Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
+import './scripts/seed-job-types';
+
 // Tracciamento pageview con Wouter
 function useAnalytics() {
   const [location] = useLocation();

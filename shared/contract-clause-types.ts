@@ -22,7 +22,7 @@ export interface Clause {
  */
 export interface ContractClauseTemplate {
   id: string;
-  jobType: JobType | 'generico'; // Tipo lavoro o generico
+  jobType: string;              // Slug del tipo lavoro (riferimento a JobType.slug)
   titolo: string;               // Es. "Clausole standard Matrimonio"
   
   clauses: Clause[];
@@ -41,7 +41,7 @@ export interface ContractClauseTemplate {
  * INSERT CONTRACT CLAUSE TEMPLATE
  */
 export interface InsertContractClauseTemplate {
-  jobType: JobType | 'generico';
+  jobType: string;              // Slug del tipo lavoro
   titolo: string;
   clauses: Omit<Clause, 'id'>[];
   attivo?: boolean;

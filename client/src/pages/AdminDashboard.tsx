@@ -36,6 +36,7 @@ import GestioneCommesse from "@/components/GestioneCommesse";
 import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
+import JobTypesManager from "@/components/job-types/JobTypesManager";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -1496,9 +1497,12 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Lavori */}
             <TabsContent value="lavori">
               <Tabs defaultValue="jobs-list" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
                   <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
                     Lista Lavori
+                  </TabsTrigger>
+                  <TabsTrigger value="job-types" data-testid="subtab-job-types">
+                    Tipi di Lavoro
                   </TabsTrigger>
                   <TabsTrigger value="contract-clauses" data-testid="subtab-contract-clauses">
                     Clausole Contrattuali
@@ -1511,6 +1515,12 @@ export default function AdminDashboard() {
                 <TabsContent value="jobs-list">
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <JobsManager />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="job-types">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <JobTypesManager />
                   </div>
                 </TabsContent>
 
