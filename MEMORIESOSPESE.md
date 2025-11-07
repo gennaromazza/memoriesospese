@@ -1,7 +1,33 @@
 
 # 📸 Memorie Sospese - Documentazione Completa
 
-## 🎯 Panoramica dell'Applicazione
+## 📖 Cos'è Memorie Sospese (Spiegazione Semplice)
+
+**Memorie Sospese** è come un "album fotografico intelligente online" per matrimoni ed eventi speciali.
+
+### 👁️ Cosa Vede l'Utente (Frontend)
+Immagina un sito web dove:
+- Gli **ospiti** possono vedere le foto del matrimonio in gallerie private protette da password
+- Possono **caricare le proprie foto** scattate durante la festa (come condividere su Instagram, ma privato)
+- Possono mettere **"Mi piace"** e **commentare** le foto, proprio come sui social network
+- Possono registrare **messaggi vocali segreti** per gli sposi (che si sbloccano in date speciali)
+- Gli **sposi** possono **prenotare servizi fotografici** direttamente dal sito, scegliendo data e pacchetto
+- Possono **scegliere le foto preferite** da stampare sull'album di matrimonio
+
+### ⚙️ Come Funziona Dietro le Quinte (Backend)
+Il sistema automatizza tutto per il fotografo:
+- **Archivia le foto** in modo sicuro su server cloud (come Google Drive professionale)
+- **Invia email automatiche** quando ci sono nuove foto o conferme prenotazioni
+- **Gestisce i pagamenti** tracciando acconti e saldi degli ordini
+- **Protegge le gallerie** con password e domande di sicurezza
+- **Organizza le prenotazioni** con calendari automatici che evitano doppie prenotazioni
+- **Genera promemoria** e notifiche per sposi e fotografo
+
+In pratica, è come avere un **assistente digitale** che lavora 24/7 per gestire gallerie fotografiche, prenotazioni e ordini, lasciando al fotografo solo la parte creativa del lavoro.
+
+---
+
+## 🎯 Panoramica Tecnica dell'Applicazione
 
 **Memorie Sospese** è una piattaforma web completa per la gestione e condivisione di gallerie fotografiche matrimoniali, con funzionalità avanzate di booking, gestione ordini, questionari personalizzati e molto altro.
 
