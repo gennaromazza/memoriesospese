@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => {
         ".spock.replit.dev",
         "memoriesospese.replit.app",
         ".replit.app",
+        "imagestudiofotografico.com",
+        "www.imagestudiofotografico.com",
       ],
     },
     plugins,
