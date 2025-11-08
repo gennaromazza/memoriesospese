@@ -26,6 +26,7 @@ import UserProfile from "./pages/UserProfile";
 import BookingIndex from "./pages/BookingIndex";
 import BookingPage from "./pages/BookingPage";
 import GalleryManagementWorkspace from "./pages/GalleryManagementWorkspace";
+import JobDetailPage from "./pages/JobDetailPage";
 import NotFound from "./pages/not-found";
 import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
@@ -69,6 +70,7 @@ function AppRoutes() {
       <Route path="/admin/galleries/:galleryId/questionnaire" component={QuestionnaireManager} />
       <Route path="/admin/gallery/:galleryId/manage" component={GalleryManagementWorkspace} />
       <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
+      <Route path="/admin/jobs/:jobId" component={JobDetailPage} />
       
       {/* Public questionnaire route with noindex/nofollow */}
       <Route path="/q/:galleryId" component={QuestionnaireForm} />

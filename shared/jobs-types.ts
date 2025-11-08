@@ -53,6 +53,19 @@ export interface JobPDF {
 }
 
 /**
+ * Costo lavoro - Spese sostenute per il servizio
+ */
+export interface CostoLavoro {
+  id: string;
+  descrizione: string;
+  importo: number;
+  tipo: 'materiale' | 'fornitore' | 'collaboratore' | 'viaggio' | 'altro';
+  data: Timestamp;
+  note?: string;
+  createdBy?: string;          // UID admin
+}
+
+/**
  * Snapshot economico job
  */
 export interface JobFinancials {
@@ -93,6 +106,9 @@ export interface Job {
   
   // PDF moduli allegati
   pdfs: JobPDF[];
+  
+  // Costi lavoro
+  costi: CostoLavoro[];
   
   // Note interne admin
   noteInterne?: string;

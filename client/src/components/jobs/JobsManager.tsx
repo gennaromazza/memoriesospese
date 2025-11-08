@@ -4,6 +4,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { getAllJobs } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
@@ -72,6 +73,7 @@ const PIPELINE_STATUSES: JobStatus[] = [
 ];
 
 export default function JobsManager() {
+  const [, navigate] = useLocation();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -290,7 +292,7 @@ export default function JobsManager() {
                       <JobCard
                         key={job.id}
                         job={job}
-                        onClick={() => setSelectedJobId(job.id)}
+                        onClick={() => navigate(`/admin/jobs/${job.id}`)}
                         jobTypeMap={jobTypeMap}
                       />
                     ))
