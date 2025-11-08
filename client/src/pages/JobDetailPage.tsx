@@ -197,7 +197,8 @@ export default function JobDetailPage() {
               </CardHeader>
               <CardContent>
                 <ModuliJobSection 
-                  jobId={job.id} 
+                  jobId={job.id}
+                  clienteId={job.clientiIds[0]}
                   onCreateModulo={() => setQuoteBuilderOpen(true)}
                   isAdmin={true}
                 />

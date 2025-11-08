@@ -9,6 +9,7 @@ import emailRoutes from './email-routes.js';
 import bookingRoutes from './booking-routes.js';
 import orderRoutes from './order-routes.js';
 import jobRoutes from './job-routes.js';
+import paymentScheduleRoutes from './payment-schedule-routes.js';
 
 async function startServer() {
   const start = Date.now();
@@ -66,6 +67,9 @@ async function startServer() {
     
     app.use('/api/jobs', jobRoutes);
     console.log('💼 Job API routes mounted at /api/jobs');
+    
+    app.use('/api/payment-schedules', paymentScheduleRoutes);
+    console.log('💳 Payment Schedule API routes mounted at /api/payment-schedules');
 
     // Health check
     app.get('/api/health', (req, res) => {

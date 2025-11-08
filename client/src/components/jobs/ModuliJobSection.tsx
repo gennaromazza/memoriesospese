@@ -14,10 +14,12 @@ import {
 import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import GeneraPagamentiModal from './GeneraPagamentiModal';
 
 interface ModuliJobSectionProps {
   jobId: string;
   onCreateModulo?: () => void;
+  clienteId?: string;
   isAdmin?: boolean;
 }
 
@@ -44,7 +46,7 @@ const TYPE_LABELS = {
   variabile: 'Modulo Variabile'
 };
 
-export default function ModuliJobSection({ jobId, onCreateModulo, isAdmin = false }: ModuliJobSectionProps) {
+export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isAdmin = false }: ModuliJobSectionProps) {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
 
@@ -310,6 +312,27 @@ export default function ModuliJobSection({ jobId, onCreateModulo, isAdmin = fals
               </div>
             </SheetContent>
           </Sheet>
+        );
+      })()}
+
+      {/* Genera Pagamenti Modal */}
+      {generaPagamentiQuoteId && (() => {
+        const targetQuote = quotes.find(q => q.id === generaPagamentiQuoteId);
+        if (!targetQuote || !clienteId) return null;
+
+        const totale = targetQuote.type === 'fisso'
+          ? targetQuote.totaleBase
+          : (targetQuote.totaleSelezionato || targetQuote.totaleBase);
+
+        return (
+          <GeneraPagamentiModal
+            open={true}
+            onClose={() => setGeneraPagamentiQuoteId(null)}
+            quoteId={targetQuote.id}
+            quoteTotale={totale}
+            jobId={jobId}
+            clienteId={clienteId}
+          />
         );
       })()}
     </div>
