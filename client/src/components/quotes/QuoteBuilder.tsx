@@ -179,8 +179,8 @@ export default function QuoteBuilder({
       return createQuote(quoteData, user!.uid);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job-quotes', jobId] });
-      queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       toast({
         title: 'Preventivo creato!',
         description: 'Il preventivo è stato creato con successo.'

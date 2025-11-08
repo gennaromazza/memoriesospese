@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download } from 'lucide-react';
@@ -18,14 +19,17 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { getJob } from '@/lib/jobs';
 import { getClienteById } from '@/lib/clienti';
+import { getJobTypeBySlug } from '@/lib/job-types';
 import WorkflowTimeline from '@/components/jobs/WorkflowTimeline';
 import ClienteJobCard from '@/components/jobs/ClienteJobCard';
-import ModuliPrenotazioneSection from '@/components/jobs/ModuliPrenotazioneSection';
+import ModuliJobSection from '@/components/jobs/ModuliJobSection';
 import CostiLavoroTable from '@/components/jobs/CostiLavoroTable';
+import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [, navigate] = useLocation();
+  const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
 
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
@@ -45,6 +49,12 @@ export default function JobDetailPage() {
     .filter(q => q.data)
     .map(q => q.data as Cliente);
   const clientiLoading = clientiQueries.some(q => q.isLoading);
+
+  const { data: jobType } = useQuery({
+    queryKey: ['jobType', job?.jobType],
+    queryFn: () => getJobTypeBySlug(job!.jobType),
+    enabled: !!job
+  });
 
   if (isLoading) {
     return (
@@ -186,9 +196,25 @@ export default function JobDetailPage() {
                 <CardTitle>Moduli di Prenotazione</CardTitle>
               </CardHeader>
               <CardContent>
-                <ModuliPrenotazioneSection />
+                <ModuliJobSection 
+                  jobId={job.id} 
+                  onCreateModulo={() => setQuoteBuilderOpen(true)}
+                  isAdmin={true}
+                />
               </CardContent>
             </Card>
+
+            {/* Quote Builder Modal */}
+            {job.clientiIds.length > 0 && quoteBuilderOpen && jobType && (
+              <QuoteBuilder
+                open={quoteBuilderOpen}
+                onClose={() => setQuoteBuilderOpen(false)}
+                jobId={job.id}
+                jobType={jobType}
+                jobTypeSlug={job.jobType}
+                clienteId={job.clientiIds[0]}
+              />
+            )}
 
             {/* Pagamenti */}
             <Card>
