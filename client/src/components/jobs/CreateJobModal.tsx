@@ -3,7 +3,7 @@
  * Form creazione nuovo lavoro manuale
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -86,6 +86,7 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [dateInputValue, setDateInputValue] = useState('');
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
   
   // Query job types dinamici
@@ -113,6 +114,19 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   });
 
   const allDay = form.watch('allDay');
+  const eventDate = form.watch('eventDate');
+
+  // Sync dateInputValue when eventDate changes externally (from calendar or reset)
+  useEffect(() => {
+    if (eventDate) {
+      const day = String(eventDate.getDate()).padStart(2, '0');
+      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+      const year = eventDate.getFullYear();
+      setDateInputValue(`${day}/${month}/${year}`);
+    } else {
+      setDateInputValue('');
+    }
+  }, [eventDate]);
 
   // Multi-client handlers
   const handleAddCliente = (cliente: Cliente | null) => {
@@ -167,6 +181,7 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   const handleClose = () => {
     form.reset();
     setSelectedClienti([]);
+    setDateInputValue('');
     onClose();
   };
   
@@ -312,49 +327,87 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
               />
             </div>
             
-            {/* Data evento */}
+            {/* Data evento - dual mode input */}
             <FormField
               control={form.control}
               name="eventDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Data Evento *</FormLabel>
-                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            'w-full justify-start text-left font-normal',
-                            !field.value && 'text-muted-foreground'
-                          )}
-                          data-testid="button-select-date"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? (
-                            format(field.value, 'PPP', { locale: it })
-                          ) : (
-                            <span>Seleziona data</span>
-                          )}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          field.onChange(date);
-                          setDatePickerOpen(false);
-                        }}
-                        initialFocus
-                        locale={it}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                // Parse dd/mm/yyyy format
+                const parseDate = (str: string): Date | null => {
+                  const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                  if (!match) return null;
+                  const [_, day, month, year] = match;
+                  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                  // Validate components match (handles invalid dates like 31/02)
+                  if (date.getDate() !== parseInt(day) || 
+                      date.getMonth() !== parseInt(month) - 1 || 
+                      date.getFullYear() !== parseInt(year)) {
+                    return null;
+                  }
+                  return date;
+                };
+
+                const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+                  const value = e.target.value;
+                  setDateInputValue(value);
+                  
+                  // Try to parse if format looks complete
+                  if (value.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+                    const parsed = parseDate(value);
+                    if (parsed) {
+                      field.onChange(parsed);
+                    }
+                  } else if (value === '') {
+                    field.onChange(undefined);
+                  }
+                };
+
+                const handleCalendarSelect = (date: Date | undefined) => {
+                  field.onChange(date);
+                  setDatePickerOpen(false);
+                };
+
+                return (
+                  <FormItem>
+                    <FormLabel>Data Evento *</FormLabel>
+                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                      <div className="relative">
+                        <FormControl>
+                          <Input
+                            type="text"
+                            placeholder="gg/mm/aaaa"
+                            value={dateInputValue}
+                            onChange={handleManualInput}
+                            className="pr-10"
+                            data-testid="input-event-date"
+                          />
+                        </FormControl>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                            data-testid="button-toggle-calendar"
+                          >
+                            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                      </div>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={handleCalendarSelect}
+                          initialFocus
+                          locale={it}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
 
             {/* All day + orari */}
