@@ -105,14 +105,17 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
     queryFn: () => getPaymentScheduleForJob(jobId)
   });
   
-  const { data: cliente } = useQuery({
-    queryKey: ['cliente', job?.clienteId],
+  // Query multiple clienti
+  const { data: clienti = [] } = useQuery({
+    queryKey: ['job-clienti', job?.clientiIds],
     queryFn: async () => {
-      if (!job?.clienteId) return null;
+      if (!job?.clientiIds || job.clientiIds.length === 0) return [];
       const { getClienteById } = await import('@/lib/clienti');
-      return getClienteById(job.clienteId);
+      const clientiPromises = job.clientiIds.map(id => getClienteById(id));
+      const results = await Promise.all(clientiPromises);
+      return results.filter(c => c !== null);
     },
-    enabled: !!job?.clienteId
+    enabled: !!job?.clientiIds && job.clientiIds.length > 0
   });
   
   // Query per ottenere il JobType dinamico
@@ -180,10 +183,15 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
           <div className="flex items-start justify-between">
             <div>
               <SheetTitle className="text-2xl font-playfair">
-                {job.jobType.charAt(0).toUpperCase() + job.jobType.slice(1)}
+                {job.nomeEvento}
               </SheetTitle>
               <SheetDescription>
                 {format(job.eventDate.toDate(), 'PPP', { locale: it })}
+                {!job.allDay && job.startTime && (
+                  <span className="ml-2">
+                    • {job.startTime}{job.endTime && ` - ${job.endTime}`}
+                  </span>
+                )}
               </SheetDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-drawer">
@@ -227,23 +235,27 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
             
             {/* Overview */}
             <TabsContent value="overview" className="space-y-4">
-              {/* Cliente */}
-              {cliente && (
+              {/* Clienti */}
+              {clienti.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm flex items-center gap-2">
                       <User className="w-4 h-4" />
-                      Cliente
+                      Client{clienti.length === 1 ? 'e' : 'i'} ({clienti.length})
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div>
-                      <strong>{cliente.nome} {cliente.cognome}</strong>
-                    </div>
-                    <div className="text-gray-600">{cliente.email}</div>
-                    {cliente.cellulare1 && (
-                      <div className="text-gray-600">{cliente.cellulare1}</div>
-                    )}
+                  <CardContent className="space-y-3 text-sm">
+                    {clienti.map((cliente, idx) => (
+                      <div key={cliente.id} className={idx > 0 ? 'pt-3 border-t' : ''}>
+                        <div>
+                          <strong>{cliente.nome} {cliente.cognome}</strong>
+                        </div>
+                        <div className="text-gray-600">{cliente.email}</div>
+                        {cliente.cellulare1 && (
+                          <div className="text-gray-600">{cliente.cellulare1}</div>
+                        )}
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
               )}
@@ -260,6 +272,15 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-gray-400" />
                     <span>{format(job.eventDate.toDate(), 'PPP', { locale: it })}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <span>
+                      {job.allDay ? 'Tutto il giorno' : 
+                        job.startTime && job.endTime ? `${job.startTime} - ${job.endTime}` :
+                        job.startTime ? `Dalle ${job.startTime}` : 
+                        'Orario non specificato'}
+                    </span>
                   </div>
                   {job.eventLocation && (
                     <div className="flex items-center gap-2">
@@ -539,10 +560,10 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
       </SheetContent>
       
       {/* QuoteBuilder Modal */}
-      {job && jobType && (
+      {job && jobType && clienti.length > 0 && (
         <QuoteBuilder
           jobId={jobId}
-          clienteId={job.clienteId}
+          clienteId={clienti[0].id}
           jobType={jobType}
           jobTypeSlug={job.jobType}
           open={quoteBuilderOpen}

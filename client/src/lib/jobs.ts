@@ -140,14 +140,23 @@ export async function getAllJobs(filters?: JobFilters): Promise<Job[]> {
   try {
     const constraints: QueryConstraint[] = [];
     
+    // Detect incompatible filters for array-contains (status/jobType arrays)
+    const hasIncompatibleFilters = 
+      (filters?.status && filters.status.length > 0) ||
+      (filters?.jobType && filters.jobType.length > 0);
+    
     // Filtri status
     if (filters?.status && filters.status.length > 0) {
       constraints.push(where('status', 'in', filters.status));
     }
     
-    // Filtro cliente
-    if (filters?.clienteId) {
-      constraints.push(where('clienteId', '==', filters.clienteId));
+    // Filtro cliente: hybrid approach
+    // - Se no incompatible filters → use array-contains (server-side)
+    // - Se incompatible filters → fetch all + client-side filtering
+    const clientIdFilter = filters?.clienteId;
+    if (clientIdFilter && !hasIncompatibleFilters) {
+      // Server-side filtering con array-contains
+      constraints.push(where('clientiIds', 'array-contains', clientIdFilter));
     }
     
     // Filtro tipo job
@@ -166,6 +175,13 @@ export async function getAllJobs(filters?: JobFilters): Promise<Job[]> {
       ...doc.data()
     })) as Job[];
     
+    // Client-side filtering per clienteId se incompatible filters
+    if (clientIdFilter && hasIncompatibleFilters) {
+      jobs = jobs.filter(job => 
+        job.clientiIds && job.clientiIds.includes(clientIdFilter)
+      );
+    }
+    
     // Filtro date (client-side perché Firestore non supporta range su campi timestamp facilmente)
     if (filters?.dateFrom) {
       const fromTimestamp = Timestamp.fromDate(filters.dateFrom);
@@ -180,6 +196,7 @@ export async function getAllJobs(filters?: JobFilters): Promise<Job[]> {
     if (filters?.searchQuery) {
       const query = filters.searchQuery.toLowerCase();
       jobs = jobs.filter(job => 
+        job.nomeEvento?.toLowerCase().includes(query) ||
         job.eventLocation?.toLowerCase().includes(query) ||
         job.noteInterne?.toLowerCase().includes(query)
       );

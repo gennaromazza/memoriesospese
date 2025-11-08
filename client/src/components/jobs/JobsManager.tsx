@@ -110,9 +110,10 @@ export default function JobsManager() {
       // Ricerca testuale
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
+        const nomeEvento = job.nomeEvento?.toLowerCase() || '';
         const eventLocation = job.eventLocation?.toLowerCase() || '';
         const note = job.noteInterne?.toLowerCase() || '';
-        return eventLocation.includes(query) || note.includes(query);
+        return nomeEvento.includes(query) || eventLocation.includes(query) || note.includes(query);
       }
       
       return true;
@@ -218,7 +219,7 @@ export default function JobsManager() {
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
-            placeholder="Cerca per location, note..."
+            placeholder="Cerca per nome evento, location, note..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -345,7 +346,7 @@ function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-sm font-semibold line-clamp-1">
-            {displayName}
+            {job.nomeEvento}
           </CardTitle>
           <Badge variant="outline" className="text-xs shrink-0">
             {displayName}
@@ -354,10 +355,25 @@ function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
       </CardHeader>
       
       <CardContent className="space-y-2 pt-0">
+        {/* Clienti */}
+        {job.clientiIds && job.clientiIds.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <User className="w-3 h-3" />
+            <span>{job.clientiIds.length} client{job.clientiIds.length === 1 ? 'e' : 'i'}</span>
+          </div>
+        )}
+        
         {/* Data evento */}
         <div className="flex items-center gap-2 text-xs text-gray-600">
           <Calendar className="w-3 h-3" />
-          <span>{format(job.eventDate.toDate(), 'd MMM yyyy', { locale: it })}</span>
+          <span>
+            {format(job.eventDate.toDate(), 'd MMM yyyy', { locale: it })}
+            {!job.allDay && job.startTime && (
+              <span className="ml-1 text-gray-500">
+                • {job.startTime}{job.endTime && `-${job.endTime}`}
+              </span>
+            )}
+          </span>
         </div>
         
         {/* Location */}
