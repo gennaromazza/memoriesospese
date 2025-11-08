@@ -25,6 +25,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Form,
   FormControl,
   FormDescription,
@@ -47,7 +57,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon, Loader2, X, User } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -88,6 +98,21 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dateInputValue, setDateInputValue] = useState('');
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
+  const [conflictsAlert, setConflictsAlert] = useState<{
+    open: boolean;
+    conflicts: Array<{
+      type: 'calendar' | 'booking';
+      title: string;
+      start: string;
+      end: string;
+      allDay?: boolean;
+      clientName?: string;
+    }>;
+  }>({
+    open: false,
+    conflicts: []
+  });
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
   
   // Query job types dinamici
   const { data: jobTypes = [], isLoading: loadingJobTypes } = useQuery<JobTypeDoc[]>({
@@ -115,6 +140,8 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
 
   const allDay = form.watch('allDay');
   const eventDate = form.watch('eventDate');
+  const startTime = form.watch('startTime');
+  const endTime = form.watch('endTime');
 
   // Sync dateInputValue when eventDate changes externally (from calendar or reset)
   useEffect(() => {
@@ -127,6 +154,58 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
       setDateInputValue('');
     }
   }, [eventDate]);
+
+  // Auto-check calendar conflicts quando data/orari cambiano
+  useEffect(() => {
+    if (!eventDate) return;
+
+    const checkConflicts = async () => {
+      try {
+        setCheckingConflicts(true);
+        
+        // Costruisci query params
+        const year = eventDate.getFullYear();
+        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const day = String(eventDate.getDate()).padStart(2, '0');
+        const eventDateStr = `${year}-${month}-${day}`;
+        
+        const params = new URLSearchParams({
+          eventDate: eventDateStr,
+          allDay: String(allDay)
+        });
+        
+        if (!allDay && startTime && endTime) {
+          params.append('startTime', startTime);
+          params.append('endTime', endTime);
+        }
+        
+        const response = await fetch(`/api/jobs/check-calendar?${params.toString()}`);
+        const data = await response.json();
+        
+        if (data.hasConflicts && data.conflicts.length > 0) {
+          setConflictsAlert({
+            open: true,
+            conflicts: data.conflicts
+          });
+        } else {
+          // Auto-chiudi alert se conflicts risolti
+          setConflictsAlert({
+            open: false,
+            conflicts: []
+          });
+        }
+      } catch (error) {
+        console.error('[Conflict Check] Error:', error);
+        // Silent fail - non bloccare il form
+      } finally {
+        setCheckingConflicts(false);
+      }
+    };
+
+    // Debounce check per evitare troppi requests
+    const timer = setTimeout(checkConflicts, 500);
+    return () => clearTimeout(timer);
+  }, [eventDate, allDay, startTime, endTime]);
 
   // Multi-client handlers
   const handleAddCliente = (cliente: Cliente | null) => {
@@ -186,7 +265,8 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   };
   
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuovo Lavoro</DialogTitle>
@@ -545,5 +625,74 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Alert Dialog Conflitti */}
+    <AlertDialog open={conflictsAlert.open} onOpenChange={(open) => setConflictsAlert(prev => ({ ...prev, open }))}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+            <AlertTriangle className="w-5 h-5" />
+            Conflitti Calendario Rilevati
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Sono stati trovati {conflictsAlert.conflicts.length} {conflictsAlert.conflicts.length === 1 ? 'evento' : 'eventi'} 
+            {' '}che si sovrappongono con la data/orario selezionato:
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        {/* Lista conflitti */}
+        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+          {conflictsAlert.conflicts.map((conflict, index) => (
+            <div
+              key={index}
+              className="p-3 border rounded-lg bg-amber-50 dark:bg-amber-950/20"
+            >
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <p className="font-medium text-sm">
+                    {conflict.type === 'calendar' ? '📅' : '📸'} {conflict.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(conflict.start).toLocaleString('it-IT', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: conflict.allDay ? undefined : '2-digit',
+                      minute: conflict.allDay ? undefined : '2-digit'
+                    })}
+                    {' → '}
+                    {new Date(conflict.end).toLocaleString('it-IT', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: conflict.allDay ? undefined : '2-digit',
+                      minute: conflict.allDay ? undefined : '2-digit'
+                    })}
+                  </p>
+                  {conflict.clientName && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Cliente: {conflict.clientName}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setConflictsAlert({ open: false, conflicts: [] })}>
+            Cambia Data
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => setConflictsAlert({ open: false, conflicts: [] })}
+            className="bg-amber-600 hover:bg-amber-700"
+          >
+            Continua Comunque
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
