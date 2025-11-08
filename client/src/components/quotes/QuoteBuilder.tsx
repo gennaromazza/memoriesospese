@@ -257,8 +257,17 @@ export default function QuoteBuilder({
   };
   
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    const handleDialogChange = useCallback(
+      (isOpen: boolean) => {
+        if (!isOpen) onClose();
+      },
+      [onClose]
+    );
+
+    return (
+      <Dialog open={open} onOpenChange={handleDialogChange}>
+
+    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="text-2xl">{jobType.icona}</span>
