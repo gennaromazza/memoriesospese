@@ -20,25 +20,27 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ClienteQuickAddDialog } from './ClienteQuickAddDialog';
 
 interface ClientAutocompleteProps {
   value?: string;
   onSelect: (cliente: Cliente | null) => void;
-  onAddNew?: () => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  enableQuickAdd?: boolean;
 }
 
 export function ClientAutocomplete({
   value,
   onSelect,
-  onAddNew,
   placeholder = 'Cerca cliente...',
   disabled = false,
-  className
+  className,
+  enableQuickAdd = true
 }: ClientAutocompleteProps) {
   const [open, setOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -100,9 +102,12 @@ export function ClientAutocomplete({
 
   const handleAddNew = () => {
     setOpen(false);
-    if (onAddNew) {
-      onAddNew();
-    }
+    setQuickAddOpen(true);
+  };
+
+  const handleQuickAddSuccess = (cliente: Cliente) => {
+    setSelectedCliente(cliente);
+    onSelect(cliente);
   };
 
   const displayValue = selectedCliente
@@ -110,6 +115,7 @@ export function ClientAutocomplete({
     : placeholder;
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
@@ -197,7 +203,7 @@ export function ClientAutocomplete({
               </CommandGroup>
             )}
 
-            {onAddNew && (
+            {enableQuickAdd && (
               <>
                 <CommandSeparator />
                 <CommandGroup>
@@ -216,5 +222,15 @@ export function ClientAutocomplete({
         </Command>
       </PopoverContent>
     </Popover>
+
+    {enableQuickAdd && (
+      <ClienteQuickAddDialog
+        open={quickAddOpen}
+        onOpenChange={setQuickAddOpen}
+        onSuccess={handleQuickAddSuccess}
+        initialNome={searchQuery}
+      />
+    )}
+  </>
   );
 }
