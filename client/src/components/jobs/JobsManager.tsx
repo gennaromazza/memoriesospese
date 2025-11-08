@@ -6,7 +6,9 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllJobs } from '@/lib/jobs';
-import type { Job, JobStatus, JobType, JobFilters } from '@shared/jobs-types';
+import { getJobTypes } from '@/lib/job-types';
+import type { Job, JobStatus, JobFilters } from '@shared/jobs-types';
+import type { JobType as JobTypeDoc } from '@shared/job-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,17 +60,6 @@ const STATUS_COLORS: Record<JobStatus, string> = {
   archiviato: 'bg-slate-100 text-slate-700 border-slate-300'
 };
 
-// Job type labels
-const JOB_TYPE_LABELS: Record<JobType, string> = {
-  matrimonio: 'Matrimonio',
-  battesimo: 'Battesimo',
-  famiglia: 'Famiglia',
-  evento: 'Evento',
-  comunione: 'Comunione',
-  compleanno: 'Compleanno',
-  altro: 'Altro'
-};
-
 // Pipeline statuses (escluso archiviato)
 const PIPELINE_STATUSES: JobStatus[] = [
   'lead',
@@ -84,13 +75,28 @@ export default function JobsManager() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<JobType | 'all'>('all');
+  const [filterType, setFilterType] = useState<string>('all');
   
   // Query jobs
   const { data: jobs = [], isLoading } = useQuery<Job[]>({
     queryKey: ['jobs'],
     queryFn: () => getAllJobs()
   });
+  
+  // Query job types dinamici
+  const { data: jobTypes = [] } = useQuery<JobTypeDoc[]>({
+    queryKey: ['jobTypes'],
+    queryFn: getJobTypes
+  });
+  
+  // Crea mappa slug -> JobType per lookup veloci
+  const jobTypeMap = useMemo(() => {
+    const map: Record<string, JobTypeDoc> = {};
+    jobTypes.forEach(jt => {
+      map[jt.slug] = jt;
+    });
+    return map;
+  }, [jobTypes]);
   
   // Filtra jobs
   const filteredJobs = useMemo(() => {
@@ -219,17 +225,20 @@ export default function JobsManager() {
             data-testid="input-search-jobs"
           />
         </div>
-        <Select value={filterType} onValueChange={(v) => setFilterType(v as JobType | 'all')}>
+        <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-48" data-testid="select-filter-type">
             <SelectValue placeholder="Tutti i tipi" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i tipi</SelectItem>
-            {Object.entries(JOB_TYPE_LABELS).map(([type, label]) => (
-              <SelectItem key={type} value={type}>
-                {label}
-              </SelectItem>
-            ))}
+            {jobTypes
+              .filter(jt => jt.attivo)
+              .sort((a, b) => a.ordine - b.ordine)
+              .map(jobType => (
+                <SelectItem key={jobType.id} value={jobType.slug}>
+                  {jobType.icona} {jobType.nome}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>
@@ -281,6 +290,7 @@ export default function JobsManager() {
                         key={job.id}
                         job={job}
                         onClick={() => setSelectedJobId(job.id)}
+                        jobTypeMap={jobTypeMap}
                       />
                     ))
                   )}
@@ -315,7 +325,14 @@ interface JobCardProps {
   onClick: () => void;
 }
 
-function JobCard({ job, onClick }: JobCardProps) {
+interface JobCardInternalProps extends JobCardProps {
+  jobTypeMap: Record<string, JobTypeDoc>;
+}
+
+function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
+  const jobTypeInfo = jobTypeMap[job.jobType];
+  const displayName = jobTypeInfo ? `${jobTypeInfo.icona} ${jobTypeInfo.nome}` : job.jobType;
+  
   return (
     <Card
       className="cursor-pointer hover:shadow-lg transition-all border-l-4"
@@ -328,10 +345,10 @@ function JobCard({ job, onClick }: JobCardProps) {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-sm font-semibold line-clamp-1">
-            {JOB_TYPE_LABELS[job.jobType]}
+            {displayName}
           </CardTitle>
           <Badge variant="outline" className="text-xs shrink-0">
-            {JOB_TYPE_LABELS[job.jobType]}
+            {displayName}
           </Badge>
         </div>
       </CardHeader>

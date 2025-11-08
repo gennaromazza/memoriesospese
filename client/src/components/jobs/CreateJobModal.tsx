@@ -10,7 +10,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createJob } from '@/lib/jobs';
 import { getAllClienti } from '@/lib/clienti';
+import { getJobTypes } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import type { JobType as JobTypeDoc } from '@shared/job-types';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -45,17 +47,7 @@ import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import type { JobType, JobProvenance } from '@shared/jobs-types';
-
-const JOB_TYPES: { value: JobType; label: string }[] = [
-  { value: 'matrimonio', label: 'Matrimonio' },
-  { value: 'battesimo', label: 'Battesimo' },
-  { value: 'famiglia', label: 'Famiglia' },
-  { value: 'evento', label: 'Evento' },
-  { value: 'comunione', label: 'Comunione' },
-  { value: 'compleanno', label: 'Compleanno' },
-  { value: 'altro', label: 'Altro' }
-];
+import type { JobProvenance } from '@shared/jobs-types';
 
 const PROVENANCES: { value: JobProvenance; label: string }[] = [
   { value: 'instagram', label: 'Instagram' },
@@ -69,15 +61,7 @@ const PROVENANCES: { value: JobProvenance; label: string }[] = [
 
 const formSchema = z.object({
   clienteId: z.string().min(1, 'Seleziona un cliente'),
-  jobType: z.enum([
-    'matrimonio',
-    'battesimo',
-    'famiglia',
-    'evento',
-    'comunione',
-    'compleanno',
-    'altro'
-  ]),
+  jobType: z.string().min(1, 'Seleziona un tipo lavoro'),
   eventDate: z.date({
     required_error: 'Data evento obbligatoria'
   }),
@@ -112,11 +96,17 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
     queryFn: getAllClienti
   });
   
+  // Query job types dinamici
+  const { data: jobTypes = [], isLoading: loadingJobTypes } = useQuery<JobTypeDoc[]>({
+    queryKey: ['jobTypes'],
+    queryFn: getJobTypes
+  });
+  
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       clienteId: '',
-      jobType: 'matrimonio',
+      jobType: '',
       provenance: 'instagram',
       eventLocation: '',
       noteInterne: ''
@@ -203,18 +193,22 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
+                      disabled={loadingJobTypes}
                     >
                       <FormControl>
                         <SelectTrigger data-testid="select-job-type">
-                          <SelectValue />
+                          <SelectValue placeholder={loadingJobTypes ? 'Caricamento...' : 'Seleziona tipo...'} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {JOB_TYPES.map(type => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
+                        {jobTypes
+                          .filter(jt => jt.attivo)
+                          .sort((a, b) => a.ordine - b.ordine)
+                          .map(jobType => (
+                            <SelectItem key={jobType.id} value={jobType.slug}>
+                              {jobType.icona} {jobType.nome}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

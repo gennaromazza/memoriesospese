@@ -6,16 +6,11 @@
 import { Timestamp } from 'firebase/firestore';
 
 /**
- * Tipi di lavoro fotografico
+ * Tipi di lavoro fotografico - Dynamic job type slugs from Firestore
+ * Legacy values: matrimonio, battesimo, famiglia, evento, comunione, compleanno, altro
+ * Now accepts any string slug configured in jobTypes collection
  */
-export type JobType = 
-  | 'matrimonio' 
-  | 'battesimo' 
-  | 'famiglia' 
-  | 'evento' 
-  | 'comunione' 
-  | 'compleanno'
-  | 'altro';
+export type JobType = string;
 
 /**
  * Stati pipeline lavoro
@@ -86,7 +81,7 @@ export interface Job {
   quoteIds: string[];           // Array preventivi collegati
   
   // Dati lavoro
-  jobType: JobType;
+  jobType: string;              // Dynamic job type slug from Firestore jobTypes collection
   eventDate: Timestamp;         // Data servizio fotografico
   eventLocation?: string;       // Luogo evento (es. "Casale dei Baroni")
   provenance: JobProvenance;    // Da dove è arrivato il cliente
@@ -115,7 +110,7 @@ export interface Job {
  */
 export interface InsertJob {
   clienteId: string;
-  jobType: JobType;
+  jobType: string;  // Dynamic job type slug from Firestore jobTypes collection
   eventDate: Date;
   eventLocation?: string;
   provenance: JobProvenance;
@@ -126,7 +121,7 @@ export interface InsertJob {
  * UPDATE JOB - Dati per aggiornamento job
  */
 export interface UpdateJob {
-  jobType?: JobType;
+  jobType?: string;  // Dynamic job type slug from Firestore jobTypes collection
   eventDate?: Date;
   eventLocation?: string;
   provenance?: JobProvenance;
@@ -162,7 +157,7 @@ export interface JobTimelineEvent {
 export interface JobStats {
   totalJobs: number;
   byStatus: Record<JobStatus, number>;
-  byType: Record<JobType, number>;
+  byType: Record<string, number>;  // Dynamic job type slugs from Firestore
   fatturato: {
     totale: number;
     incassato: number;
@@ -179,7 +174,7 @@ export interface JobStats {
  */
 export interface JobFilters {
   status?: JobStatus[];
-  jobType?: JobType[];
+  jobType?: string[];  // Dynamic job type slugs from Firestore
   clienteId?: string;
   dateFrom?: Date;
   dateTo?: Date;
