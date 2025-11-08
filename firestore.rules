@@ -328,5 +328,41 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update selections
       allow delete: if true; // Allow guest to deselect photos (public delete)
     }
+    
+    // ====== JOB TYPES & QUOTES SYSTEM RULES (November 2025) ======
+    
+    // Job Types - Dynamic configurable job types (matrimoni, battesimi, etc.)
+    match /jobTypes/{jobTypeId} {
+      allow read: if isSignedIn(); // Authenticated users can read job types (needed for quotes UI)
+      allow create: if isAdmin(); // Only admin can create new job types
+      allow update: if isAdmin(); // Only admin can update job types
+      allow delete: if isAdmin(); // Only admin can delete job types
+    }
+    
+    // Contract Clauses - Template clauses for contracts
+    match /contractClauses/{clauseId} {
+      allow read: if isSignedIn(); // Authenticated users can read clauses (needed for template selection)
+      allow create: if isAdmin(); // Only admin can create new clauses
+      allow update: if isAdmin(); // Only admin can update clauses
+      allow delete: if isAdmin(); // Only admin can delete clauses
+    }
+    
+    // Jobs - Client jobs/commissions with quotes
+    match /jobs/{jobId} {
+      allow read: if isAdmin() || 
+        (isSignedIn() && resource.data.clienteId == request.auth.uid); // Admin or job owner can read
+      allow create: if isAdmin(); // Only admin can create jobs
+      allow update: if isAdmin(); // Only admin can update jobs
+      allow delete: if isAdmin(); // Only admin can delete jobs
+      
+      // Quotes subcollection - Individual quotes for each job
+      match /quotes/{quoteId} {
+        allow read: if isAdmin() || 
+          (isSignedIn() && get(/databases/$(database)/documents/jobs/$(jobId)).data.clienteId == request.auth.uid); // Admin or job owner can read quotes
+        allow create: if isAdmin(); // Only admin can create quotes
+        allow update: if isAdmin(); // Only admin can update quotes
+        allow delete: if isAdmin(); // Only admin can delete quotes
+      }
+    }
   }
 }
