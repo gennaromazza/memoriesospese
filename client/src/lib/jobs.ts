@@ -44,12 +44,16 @@ export async function createJob(
 ): Promise<string> {
   try {
     const jobData: Omit<Job, 'id'> = {
-      clienteId: data.clienteId,
+      nomeEvento: data.nomeEvento,
+      clientiIds: data.clientiIds,
       jobType: data.jobType,
       eventDate: Timestamp.fromDate(data.eventDate),
-      eventLocation: data.eventLocation,
+      allDay: data.allDay,
+      ...(data.startTime && { startTime: data.startTime }),
+      ...(data.endTime && { endTime: data.endTime }),
+      ...(data.eventLocation && { eventLocation: data.eventLocation }),
       provenance: data.provenance,
-      noteInterne: data.noteInterne,
+      ...(data.noteInterne && { noteInterne: data.noteInterne }),
       
       // Riferimenti vuoti inizialmente
       orderIds: [],
@@ -83,22 +87,27 @@ export async function createJob(
     await addTimelineEvent({
       jobId: docRef.id,
       tipo: 'creazione',
-      descrizione: `Lavoro creato: ${data.jobType}`,
+      descrizione: `Lavoro creato: ${data.nomeEvento} (${data.jobType})`,
       userId
     });
 
-    // Aggiorna cliente con sourceRefs (atomic arrayUnion per evitare race conditions)
-    const clienteRef = doc(db, 'clienti', data.clienteId);
-    const clienteSnap = await getDoc(clienteRef);
-    if (clienteSnap.exists()) {
-      // Usa arrayUnion per atomic update - previene race conditions durante import massivo
-      await updateDoc(clienteRef, {
-        'sourceRefs.jobIds': arrayUnion(docRef.id),
-        updatedAt: Timestamp.now()
-      });
-    }
+    // Aggiorna TUTTI i clienti con sourceRefs (atomic arrayUnion per evitare race conditions)
+    const updatePromises = data.clientiIds.map(async (clienteId) => {
+      const clienteRef = doc(db, 'clienti', clienteId);
+      const clienteSnap = await getDoc(clienteRef);
+      if (clienteSnap.exists()) {
+        // Usa arrayUnion per atomic update - previene race conditions durante import massivo
+        await updateDoc(clienteRef, {
+          'sourceRefs.jobIds': arrayUnion(docRef.id),
+          updatedAt: Timestamp.now()
+        });
+      }
+    });
 
-    console.log('✅ Job creato:', docRef.id);
+    // Esegui update in parallelo per performance
+    await Promise.all(updatePromises);
+
+    console.log('✅ Job creato:', docRef.id, `(${data.clientiIds.length} clienti collegati)`);
     return docRef.id;
   } catch (error) {
     console.error('❌ Errore creazione job:', error);
