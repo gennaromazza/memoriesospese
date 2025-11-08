@@ -25,6 +25,7 @@ import ClienteJobCard from '@/components/jobs/ClienteJobCard';
 import ModuliJobSection from '@/components/jobs/ModuliJobSection';
 import CostiLavoroTable from '@/components/jobs/CostiLavoroTable';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
+import PaymentScheduleSection from '@/components/jobs/PaymentScheduleSection';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -220,26 +221,13 @@ export default function JobDetailPage() {
             {/* Pagamenti */}
             <Card>
               <CardHeader>
-                <CardTitle>Pagamenti</CardTitle>
+                <CardTitle>Storico Pagamenti</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Totale Preventivato</p>
-                      <p className="text-2xl font-bold">€{job.financials.totalePreventivato.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Totale Pagato</p>
-                      <p className="text-2xl font-bold text-green-600">€{job.financials.totalePagato.toFixed(2)}</p>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Saldo Residuo</p>
-                    <p className="text-2xl font-bold text-orange-600">€{job.financials.saldoResiduo.toFixed(2)}</p>
-                  </div>
-                </div>
+                <PaymentScheduleSection 
+                  jobId={job.id}
+                  isAdmin={true}
+                />
               </CardContent>
             </Card>
 
