@@ -1,15 +1,20 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getJobTypes,
   createJobType,
-  updateJobType,
-  deleteJobType,
-  reorderJobTypes,
-  toggleJobTypeStatus
+  updateJobType
 } from '@/lib/job-types';
+import {
+  getJobProvenances,
+  createJobProvenance,
+  updateJobProvenance
+} from '@/lib/job-provenances';
 import type { JobType } from '@shared/job-types';
+import type { JobProvenance } from '@shared/job-provenances';
 import { useToast } from '@/hooks/use-toast';
+import { useJobEntity } from '@/hooks/useJobEntity';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -78,25 +83,34 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface JobTypeFormProps {
-  jobType?: JobType;
+type Entity = JobType | JobProvenance;
+type EntityType = 'jobType' | 'provenance';
+
+interface JobEntityFormProps {
+  entityType: EntityType;
+  entity?: Entity;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) {
+function JobEntityForm({ entityType, entity, onSuccess, onCancel }: JobEntityFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const queryKey = entityType === 'jobType' ? ['jobTypes'] : ['jobProvenances'];
+  const createFn = entityType === 'jobType' ? createJobType : createJobProvenance;
+  const updateFn = entityType === 'jobType' ? updateJobType : updateJobProvenance;
+  const getAllFn = entityType === 'jobType' ? getJobTypes : getJobProvenances;
+  const entityLabel = entityType === 'jobType' ? 'Tipo lavoro' : 'Provenienza';
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: jobType
+    defaultValues: entity
       ? {
-          nome: jobType.nome,
-          slug: jobType.slug,
-          attivo: jobType.attivo,
-          icona: jobType.icona,
-          colore: jobType.colore
+          nome: entity.nome,
+          slug: entity.slug,
+          attivo: entity.attivo,
+          icona: entity.icona,
+          colore: entity.colore
         }
       : {
           nome: '',
@@ -109,21 +123,21 @@ function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      if (jobType) {
-        await updateJobType(jobType.id, data);
+      if (entity) {
+        await updateFn(entity.id, data);
       } else {
-        const allTypes = await getJobTypes();
-        const maxOrdine = Math.max(...allTypes.map(t => t.ordine), 0);
-        await createJobType({
+        const allItems = await getAllFn();
+        const maxOrdine = Math.max(...allItems.map((t: any) => t.ordine), 0);
+        await createFn({
           ...data,
           ordine: maxOrdine + 1
         });
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobTypes'] });
+      queryClient.invalidateQueries({ queryKey });
       toast({
-        title: jobType ? 'Tipo lavoro aggiornato' : 'Tipo lavoro creato',
+        title: entity ? `${entityLabel} aggiornato` : `${entityLabel} creato`,
         description: 'Operazione completata con successo'
       });
       onSuccess();
@@ -143,7 +157,7 @@ function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) {
 
   // Auto-genera slug dal nome
   const handleNomeChange = (nome: string) => {
-    if (!jobType) {
+    if (!entity) {
       const slug = nome
         .toLowerCase()
         .normalize('NFD')
@@ -190,11 +204,11 @@ function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) {
                   {...field}
                   placeholder="es. matrimonio"
                   data-testid="input-slug"
-                  disabled={!!jobType}
+                  disabled={!!entity}
                 />
               </FormControl>
               <FormDescription className="text-xs">
-                {jobType
+                {entity
                   ? 'Lo slug non può essere modificato'
                   : 'Generato automaticamente dal nome'}
               </FormDescription>
@@ -289,7 +303,7 @@ function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) {
             data-testid="button-save"
           >
             {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {jobType ? 'Salva modifiche' : 'Crea tipo'}
+            {entity ? 'Salva modifiche' : 'Crea'}
           </Button>
         </DialogFooter>
       </form>
@@ -298,213 +312,164 @@ function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) {
 }
 
 export default function JobTypesManager() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
+  const [activeTab, setActiveTab] = useState<EntityType>('jobType');
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editingJobType, setEditingJobType] = useState<JobType | null>(null);
-  const [deletingJobType, setDeletingJobType] = useState<JobType | null>(null);
+  const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
+  const [deletingEntity, setDeletingEntity] = useState<Entity | null>(null);
 
-  const { data: jobTypes = [], isLoading } = useQuery({
-    queryKey: ['jobTypes'],
-    queryFn: getJobTypes
-  });
+  const jobTypeEntity = useJobEntity('jobType');
+  const provenanceEntity = useJobEntity('provenance');
 
-  const toggleMutation = useMutation({
-    mutationFn: toggleJobTypeStatus,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobTypes'] });
-      toast({
-        title: 'Stato aggiornato',
-        description: 'Tipo lavoro aggiornato con successo'
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Errore',
-        description: error.message,
-        variant: 'destructive'
-      });
-    }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteJobType,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobTypes'] });
-      toast({
-        title: 'Tipo lavoro eliminato',
-        description: 'Operazione completata con successo'
-      });
-      setDeletingJobType(null);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Impossibile eliminare',
-        description: error.message,
-        variant: 'destructive'
-      });
-    }
-  });
-
-  const reorderMutation = useMutation({
-    mutationFn: reorderJobTypes,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobTypes'] });
-    }
-  });
-
-  const moveJobType = (index: number, direction: 'up' | 'down') => {
-    const newOrder = [...jobTypes];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-
-    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
-
-    [newOrder[index], newOrder[targetIndex]] = [
-      newOrder[targetIndex],
-      newOrder[index]
-    ];
-
-    const reorderedIds = newOrder.map(jt => jt.id);
-    reorderMutation.mutate(reorderedIds);
-  };
+  const activeEntity = activeTab === 'jobType' ? jobTypeEntity : provenanceEntity;
+  const activeData = activeEntity.items;
+  const isLoading = activeEntity.isLoading;
+  const toggleMutation = activeEntity.mutations.toggle;
+  const deleteMutation = activeEntity.mutations.delete;
+  const moveItem = activeEntity.move;
+  const entityLabel = activeTab === 'jobType' ? 'Tipo lavoro' : 'Provenienza';
+  const entityLabelPlural = activeTab === 'jobType' ? 'tipi di lavoro' : 'provenienze';
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-semibold text-blue-gray">
-            Tipi di Lavoro
-          </h3>
+          <h3 className="text-lg font-semibold text-blue-gray">Configurazione Lavori</h3>
           <p className="text-sm text-muted-foreground">
-            Gestisci i tipi di lavori fotografici disponibili
+            Gestisci tipi di lavoro e provenienze clienti
           </p>
         </div>
-        <Button
-          onClick={() => setCreateModalOpen(true)}
-          data-testid="button-create-job-type"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Nuovo tipo
-        </Button>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2">
-          {[1, 2, 3].map(i => (
-            <Skeleton key={i} className="h-16 w-full" />
-          ))}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as EntityType)}>
+        <div className="flex justify-between items-center mb-4">
+          <TabsList>
+            <TabsTrigger value="jobType" data-testid="tab-job-types">
+              Tipi di Lavoro
+            </TabsTrigger>
+            <TabsTrigger value="provenance" data-testid="tab-provenances">
+              Provenienze
+            </TabsTrigger>
+          </TabsList>
+
+          <Button onClick={() => setCreateModalOpen(true)} data-testid="button-create-entity">
+            <Plus className="mr-2 h-4 w-4" />
+            Nuovo {activeTab === 'jobType' ? 'tipo' : 'provenienza'}
+          </Button>
         </div>
-      ) : jobTypes.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <Palette className="mx-auto h-12 w-12 mb-4 opacity-50" />
-          <p>Nessun tipo di lavoro configurato</p>
-          <p className="text-sm mt-2">Crea il tuo primo tipo personalizzato</p>
-        </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">Ordine</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Slug</TableHead>
-              <TableHead>Colore</TableHead>
-              <TableHead className="w-24">Stato</TableHead>
-              <TableHead className="text-right w-32">Azioni</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {jobTypes.map((jobType, index) => (
-              <TableRow key={jobType.id} data-testid={`row-job-type-${jobType.id}`}>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => moveJobType(index, 'up')}
-                      disabled={index === 0 || reorderMutation.isPending}
-                      className="h-6 w-6 p-0"
-                      data-testid={`button-move-up-${jobType.id}`}
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => moveJobType(index, 'down')}
-                      disabled={
-                        index === jobTypes.length - 1 || reorderMutation.isPending
-                      }
-                      className="h-6 w-6 p-0"
-                      data-testid={`button-move-down-${jobType.id}`}
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{jobType.icona}</span>
-                    <span className="font-medium">{jobType.nome}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <code className="text-xs bg-muted px-2 py-1 rounded">
-                    {jobType.slug}
-                  </code>
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    style={{ backgroundColor: jobType.colore }}
-                    className="text-white"
-                  >
-                    {jobType.colore}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Switch
-                    checked={jobType.attivo}
-                    onCheckedChange={() => toggleMutation.mutate(jobType.id)}
-                    disabled={toggleMutation.isPending}
-                    data-testid={`switch-status-${jobType.id}`}
-                  />
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingJobType(jobType)}
-                      data-testid={`button-edit-${jobType.id}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeletingJobType(jobType)}
-                      data-testid={`button-delete-${jobType.id}`}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+
+        <TabsContent value={activeTab} className="mt-0">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : activeData.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Palette className="mx-auto h-12 w-12 mb-4 opacity-50" />
+              <p>Nessun {entityLabel.toLowerCase()} configurato</p>
+              <p className="text-sm mt-2">Crea il primo {entityLabel.toLowerCase()} personalizzato</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Ordine</TableHead>
+                  <TableHead>{entityLabel}</TableHead>
+                  <TableHead>Slug</TableHead>
+                  <TableHead>Colore</TableHead>
+                  <TableHead className="w-24">Stato</TableHead>
+                  <TableHead className="text-right w-32">Azioni</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeData.map((entity, index) => (
+                  <TableRow key={entity.id} data-testid={`row-entity-${entity.id}`}>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => moveItem(index, 'up')}
+                          disabled={index === 0}
+                          className="h-6 w-6 p-0"
+                          data-testid={`button-move-up-${entity.id}`}
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => moveItem(index, 'down')}
+                          disabled={index === activeData.length - 1}
+                          className="h-6 w-6 p-0"
+                          data-testid={`button-move-down-${entity.id}`}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{entity.icona}</span>
+                        <span className="font-medium">{entity.nome}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <code className="text-xs bg-muted px-2 py-1 rounded">{entity.slug}</code>
+                    </TableCell>
+                    <TableCell>
+                      <Badge style={{ backgroundColor: entity.colore }} className="text-white">
+                        {entity.colore}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={entity.attivo}
+                        onCheckedChange={() => toggleMutation.mutate(entity.id)}
+                        disabled={toggleMutation.isPending}
+                        data-testid={`switch-status-${entity.id}`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingEntity(entity)}
+                          data-testid={`button-edit-${entity.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeletingEntity(entity)}
+                          data-testid={`button-delete-${entity.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Create Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent data-testid="modal-create-job-type">
+        <DialogContent data-testid="modal-create-entity">
           <DialogHeader>
-            <DialogTitle>Nuovo tipo di lavoro</DialogTitle>
+            <DialogTitle>Nuovo {entityLabel.toLowerCase()}</DialogTitle>
             <DialogDescription>
-              Crea un nuovo tipo di lavoro personalizzato per il tuo studio
+              Crea un nuovo {entityLabel.toLowerCase()} personalizzato per il tuo studio
             </DialogDescription>
           </DialogHeader>
-          <JobTypeForm
+          <JobEntityForm
+            entityType={activeTab}
             onSuccess={() => setCreateModalOpen(false)}
             onCancel={() => setCreateModalOpen(false)}
           />
@@ -512,54 +477,47 @@ export default function JobTypesManager() {
       </Dialog>
 
       {/* Edit Modal */}
-      {editingJobType && (
-        <Dialog open={!!editingJobType} onOpenChange={() => setEditingJobType(null)}>
-          <DialogContent data-testid="modal-edit-job-type">
+      {editingEntity && (
+        <Dialog open={!!editingEntity} onOpenChange={() => setEditingEntity(null)}>
+          <DialogContent data-testid="modal-edit-entity">
             <DialogHeader>
-              <DialogTitle>Modifica tipo di lavoro</DialogTitle>
+              <DialogTitle>Modifica {entityLabel.toLowerCase()}</DialogTitle>
               <DialogDescription>
-                Aggiorna le informazioni del tipo di lavoro
+                Aggiorna le informazioni del {entityLabel.toLowerCase()}
               </DialogDescription>
             </DialogHeader>
-            <JobTypeForm
-              jobType={editingJobType}
-              onSuccess={() => setEditingJobType(null)}
-              onCancel={() => setEditingJobType(null)}
+            <JobEntityForm
+              entityType={activeTab}
+              entity={editingEntity}
+              onSuccess={() => setEditingEntity(null)}
+              onCancel={() => setEditingEntity(null)}
             />
           </DialogContent>
         </Dialog>
       )}
 
       {/* Delete Confirmation */}
-      <AlertDialog
-        open={!!deletingJobType}
-        onOpenChange={() => setDeletingJobType(null)}
-      >
-        <AlertDialogContent data-testid="alert-delete-job-type">
+      <AlertDialog open={!!deletingEntity} onOpenChange={() => setDeletingEntity(null)}>
+        <AlertDialogContent data-testid="alert-delete-entity">
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare il tipo di lavoro "
-              {deletingJobType?.nome}"? Questa azione non può essere annullata.
+              Sei sicuro di voler eliminare {activeTab === 'jobType' ? 'il tipo di lavoro' : 'la provenienza'} "
+              {deletingEntity?.nome}"? Questa azione non può essere annullata.
               <br />
               <br />
-              <strong>Nota:</strong> Non puoi eliminare un tipo se ci sono lavori o
-              template clausole associati.
+              <strong>Nota:</strong> Non puoi eliminare {activeTab === 'jobType' ? 'un tipo se ci sono lavori o template clausole associati' : 'una provenienza se ci sono clienti o lavori associati'}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">
-              Annulla
-            </AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deletingJobType && deleteMutation.mutate(deletingJobType.id)}
+              onClick={() => deletingEntity && deleteMutation.mutate(deletingEntity.id)}
               disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete"
             >
-              {deleteMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Elimina
             </AlertDialogAction>
           </AlertDialogFooter>

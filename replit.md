@@ -3,6 +3,13 @@
 ## Overview
 Image Studio è una piattaforma all-in-one per fotografi professionisti che rivoluziona la gestione dello studio fotografico. Non è solo un semplice sito di gallerie, ma un ecosistema completo che unisce fotografi e clienti in un'unica esperienza digitale integrata.
 
+## Recent Changes (November 2025)
+- **Jobs System Enhancement**: Migrated to fully dynamic job types and provenances stored in Firestore
+  - `shared/job-provenances.ts`: New collection for dynamic provenance management
+  - `shared/jobs-types.ts`: Updated schema with clientiIds (multiple clients), nomeEvento, allDay, startTime, endTime
+  - Firebase security rules added for jobProvenances collection
+  - `client/src/lib/job-provenances.ts`: CRUD functions for provenances management
+
 **Key Capabilities:**
 - **Gestione Clienti Unificata:** Database centralizzato con anagrafica completa, storico attività, gestione finanziaria e tracciamento sorgenti.
 - **Sistema di Prenotazioni:** Campagne booking con Google Calendar integration, controllo slot disponibili, homepage banner automatico.
