@@ -372,5 +372,22 @@ service cloud.firestore {
         allow delete: if isAdmin(); // Only admin can delete quotes
       }
     }
+    
+    // Job Timeline - Event log/history for jobs (November 2025)
+    match /jobTimeline/{eventId} {
+      allow read: if isAdmin(); // Admin can read all timeline events
+      allow create: if isAdmin(); // Only admin can create timeline events (automated via createJob, updateJobStatus, etc.)
+      allow update: if isAdmin(); // Only admin can update timeline events
+      allow delete: if isAdmin(); // Only admin can delete timeline events
+    }
+    
+    // Payment Schedules - Payment tracking for jobs (November 2025)
+    match /paymentSchedules/{scheduleId} {
+      allow read: if isAdmin() || 
+        (isSignedIn() && resource.data.clienteId == request.auth.uid); // Admin or payment schedule owner can read
+      allow create: if isAdmin(); // Only admin can create payment schedules
+      allow update: if isAdmin(); // Only admin can update payment schedules (mark payments as received)
+      allow delete: if isAdmin(); // Only admin can delete payment schedules
+    }
   }
 }

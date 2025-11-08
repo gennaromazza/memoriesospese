@@ -4,11 +4,22 @@
 Image Studio è una piattaforma all-in-one per fotografi professionisti che rivoluziona la gestione dello studio fotografico. Non è solo un semplice sito di gallerie, ma un ecosistema completo che unisce fotografi e clienti in un'unica esperienza digitale integrata.
 
 ## Recent Changes (November 2025)
-- **Jobs System Enhancement**: Migrated to fully dynamic job types and provenances stored in Firestore
-  - `shared/job-provenances.ts`: New collection for dynamic provenance management
-  - `shared/jobs-types.ts`: Updated schema with clientiIds (multiple clients), nomeEvento, allDay, startTime, endTime
-  - Firebase security rules added for jobProvenances collection
-  - `client/src/lib/job-provenances.ts`: CRUD functions for provenances management
+- **Jobs System Complete Enhancement** (November 8, 2025): Fully migrated to multi-client support with advanced scheduling
+  - **Schema Migration**: `clienteId` → `clientiIds[]` for multi-client jobs (sposi)
+  - **New Fields**: `nomeEvento` (user-friendly name), `allDay` (boolean), `startTime`/`endTime` (HH:mm format)
+  - **Multi-Client Support**: ClientAutocomplete + chips UI, automatic sourceRefs.jobIds update for all linked clienti
+  - **Advanced Scheduling**: Dual-mode date input (manual typing dd/mm/yyyy + calendar), conflict detection via Google Calendar + Firestore bookings
+  - **Conflict Detection**: Auto-triggered AlertDialog with debounce 500ms, auto-close when resolved
+  - **Dynamic Entities**: Firestore-based job types and provenances (no hardcoded enums)
+  - **Visualization Updates**: JobsManager card shows nomeEvento + clienti count + time info, JobDetailDrawer displays multi-clienti list
+  - **Search Enhancement**: Search by nomeEvento (backend + frontend filtering)
+  - **Hybrid Filtering**: getAllJobs uses array-contains when possible, client-side fallback for incompatible filters
+  - **Firebase Security Rules**: Updated for jobs, jobTimeline, paymentSchedules collections with multi-client access
+  - **Files Modified**: 
+    - Schema: `shared/jobs-types.ts`, `shared/job-provenances.ts`
+    - Backend: `client/src/lib/jobs.ts`, `server/job-routes.ts` (check-calendar endpoint)
+    - Components: `CreateJobModal.tsx`, `JobDetailDrawer.tsx`, `JobsManager.tsx`, `ClientAutocomplete.tsx`
+    - Rules: `firestore.rules` (jobs, jobTimeline, paymentSchedules)
 
 **Key Capabilities:**
 - **Gestione Clienti Unificata:** Database centralizzato con anagrafica completa, storico attività, gestione finanziaria e tracciamento sorgenti.
