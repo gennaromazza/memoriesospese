@@ -110,22 +110,22 @@ export default function QuoteBuilder({
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  
+
   // Query templates
   const { data: templates = [] } = useQuery({
     queryKey: ['quote-templates'],
     queryFn: getAllQuoteTemplates
   });
-  
+
   // Query catalog products
   const { data: catalogProducts = [] } = useQuery({
     queryKey: ['products'],
     queryFn: getAllProducts
   });
-  
+
   // Filtro templates per tipo job usando lo slug
   const filteredTemplates = templates.filter(t => t.jobType === jobType.slug && t.attivo);
-  
+
   const form = useForm<FormData>({
     resolver: zodResolver(quoteSchema),
     defaultValues: {
@@ -150,16 +150,16 @@ export default function QuoteBuilder({
       noteInterne: ''
     }
   });
-  
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'products'
   });
-  
+
   // Watch form values for totals
   const catalogProductIds = form.watch('catalogProductIds') || [];
   const customProducts = form.watch('products') || [];
-  
+
   // Calcola totale unificato (catalog + custom) - wrapped in useMemo to prevent loop
   const totaleCatalogo = useMemo(() => {
     return catalogProductIds.reduce((sum, id) => {
@@ -167,20 +167,20 @@ export default function QuoteBuilder({
       return sum + (product?.prezzoFinale || product?.prezzo || 0);
     }, 0);
   }, [catalogProductIds, catalogProducts]);
-  
+
   const totaleCustom = useMemo(() => {
     return customProducts
       .filter(p => p.nome?.trim())
       .reduce((sum, p) => sum + (p.prezzo || 0), 0);
   }, [customProducts]);
-  
+
   const totale = totaleCatalogo + totaleCustom;
-  
+
   // Load template
   const handleLoadTemplate = (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
     if (!template) return;
-    
+
     setSelectedTemplateId(templateId);
     form.setValue('type', template.type);
     form.setValue('products', template.defaultProducts.map(p => ({
@@ -189,7 +189,7 @@ export default function QuoteBuilder({
     })));
     form.setValue('theme', template.theme);
   };
-  
+
   // Mutation crea preventivo
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -200,7 +200,7 @@ export default function QuoteBuilder({
         catalogProducts,
         data.type
       );
-      
+
       // Prepara clausole dal jobTypeSlug con fallback
       const clauses = DEFAULT_CLAUSES[jobTypeSlug] || [];
       const defaultClauses = clauses.map(c => ({
@@ -209,7 +209,7 @@ export default function QuoteBuilder({
         required: c.required,
         ordine: c.ordine
       }));
-      
+
       const quoteData = {
         jobId: data.jobId,
         clienteId: data.clienteId,
@@ -221,7 +221,7 @@ export default function QuoteBuilder({
         templateId: selectedTemplateId || undefined,
         contractClauses: defaultClauses
       };
-      
+
       return createQuote(quoteData, user!.uid);
     },
     onSuccess: () => {
@@ -242,7 +242,7 @@ export default function QuoteBuilder({
       });
     }
   });
-  
+
   // Reset state when dialog closes (not on every render)
   useEffect(() => {
     if (!open) {
@@ -251,21 +251,21 @@ export default function QuoteBuilder({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]); // Only depend on 'open', not 'form' (form ref is stable)
-  
+
   const onSubmit = (data: FormData) => {
     createMutation.mutate(data);
   };
-  
-  return (
-    const handleDialogChange = useCallback(
-      (isOpen: boolean) => {
-        if (!isOpen) onClose();
-      },
-      [onClose]
-    );
 
-    return (
-      <Dialog open={open} onOpenChange={handleDialogChange}>
+  // Stabilizza il callback per evitare loop infiniti
+  const handleDialogChange = useCallback(
+    (isOpen: boolean) => {
+      if (!isOpen) onClose();
+    },
+    [onClose]
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={handleDialogChange}>
 
     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -278,7 +278,7 @@ export default function QuoteBuilder({
             Crea un preventivo personalizzato per il lavoro <span style={{ color: jobType.colore }} className="font-semibold">{jobType.nome}</span>
           </DialogDescription>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Template selector */}
@@ -306,7 +306,7 @@ export default function QuoteBuilder({
                 </CardContent>
               </Card>
             )}
-            
+
             <div className="grid grid-cols-2 gap-4">
               {/* Tipo preventivo */}
               <FormField
@@ -327,7 +327,7 @@ export default function QuoteBuilder({
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      {field.value === 'fisso' 
+                      {field.value === 'fisso'
                         ? 'Il cliente vede solo il totale e firma'
                         : 'Il cliente può selezionare i prodotti desiderati'}
                     </FormDescription>
@@ -335,7 +335,7 @@ export default function QuoteBuilder({
                   </FormItem>
                 )}
               />
-              
+
               {/* Data scadenza */}
               <FormField
                 control={form.control}
@@ -359,9 +359,9 @@ export default function QuoteBuilder({
                 )}
               />
             </div>
-            
+
             <Separator />
-            
+
             {/* Sezione 1: Catalogo Prodotti */}
             <div>
               <h3 className="text-lg font-semibold mb-4">1. Prodotti dal Catalogo</h3>
@@ -386,9 +386,9 @@ export default function QuoteBuilder({
                 </CardContent>
               </Card>
             </div>
-            
+
             <Separator />
-            
+
             {/* Sezione 2: Prodotti Custom */}
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -411,7 +411,7 @@ export default function QuoteBuilder({
                   Aggiungi Prodotto Custom
                 </Button>
               </div>
-              
+
               <div className="space-y-4">
                 {fields.map((field, index) => (
                   <Card key={field.id}>
@@ -431,7 +431,7 @@ export default function QuoteBuilder({
                             </Button>
                           )}
                         </div>
-                        
+
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -450,7 +450,7 @@ export default function QuoteBuilder({
                               </FormItem>
                             )}
                           />
-                          
+
                           <FormField
                             control={form.control}
                             name={`products.${index}.prezzo`}
@@ -471,7 +471,7 @@ export default function QuoteBuilder({
                             )}
                           />
                         </div>
-                        
+
                         <FormField
                           control={form.control}
                           name={`products.${index}.descrizione`}
@@ -490,7 +490,7 @@ export default function QuoteBuilder({
                             </FormItem>
                           )}
                         />
-                        
+
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -512,7 +512,7 @@ export default function QuoteBuilder({
                               </FormItem>
                             )}
                           />
-                          
+
                           <FormField
                             control={form.control}
                             name={`products.${index}.categoria`}
@@ -538,7 +538,7 @@ export default function QuoteBuilder({
                 ))}
               </div>
             </div>
-            
+
             {/* Riepilogo Totale */}
             <Card className="bg-green-50 border-green-200">
               <CardContent className="pt-6">
@@ -564,7 +564,7 @@ export default function QuoteBuilder({
                       )}
                     </div>
                   )}
-                  
+
                   {/* Totale */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -578,7 +578,7 @@ export default function QuoteBuilder({
                 </div>
               </CardContent>
             </Card>
-            
+
             {/* Note interne */}
             <FormField
               control={form.control}
@@ -598,7 +598,7 @@ export default function QuoteBuilder({
                 </FormItem>
               )}
             />
-            
+
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-4">
               <Button
