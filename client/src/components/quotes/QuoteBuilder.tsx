@@ -3,7 +3,7 @@
  * Interfaccia admin per creare preventivi personalizzati
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -243,12 +243,21 @@ export default function QuoteBuilder({
     }
   });
   
+  // Reset state when dialog closes (not on every render)
+  useEffect(() => {
+    if (!open) {
+      setSelectedTemplateId('');
+      form.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // Only depend on 'open', not 'form' (form ref is stable)
+  
   const onSubmit = (data: FormData) => {
     createMutation.mutate(data);
   };
   
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

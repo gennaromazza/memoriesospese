@@ -41,8 +41,8 @@ export default function CatalogProductSelector({
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
-        p.nome.toLowerCase().includes(query) ||
-        p.descrizione.toLowerCase().includes(query)
+        p.nome?.toLowerCase().includes(query) ||
+        p.descrizione?.toLowerCase().includes(query)
       );
     }
     
