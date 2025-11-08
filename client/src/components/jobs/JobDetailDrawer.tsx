@@ -8,9 +8,11 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { getJob, getJobTimeline, updateJobStatus, attachPDF } from '@/lib/jobs';
 import { getQuotesForJob } from '@/lib/quotes';
 import { getPaymentScheduleForJob } from '@/lib/payment-schedules';
+import { getJobTypeBySlug } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import {
   Sheet,
   SheetContent,
@@ -80,6 +82,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [uploadingPDF, setUploadingPDF] = useState(false);
+  const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
   
   // Queries
   const { data: job, isLoading } = useQuery({
@@ -110,6 +113,13 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
       return getClienteById(job.clienteId);
     },
     enabled: !!job?.clienteId
+  });
+  
+  // Query per ottenere il JobType dinamico
+  const { data: jobType } = useQuery({
+    queryKey: ['jobType', job?.jobType],
+    queryFn: () => getJobTypeBySlug(job!.jobType),
+    enabled: !!job?.jobType
   });
   
   // Mutation cambia status
@@ -400,8 +410,13 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                   <p className="text-sm text-gray-500 mb-4">
                     Nessun preventivo creato
                   </p>
-                  <Button className="bg-sage hover:bg-dark-sage" data-testid="button-create-preventivo">
-                    Crea Preventivo
+                  <Button 
+                    className="bg-sage hover:bg-dark-sage" 
+                    data-testid="button-create-preventivo"
+                    onClick={() => setQuoteBuilderOpen(true)}
+                    disabled={!jobType}
+                  >
+                    {!jobType ? 'Caricamento...' : 'Crea Preventivo'}
                   </Button>
                 </div>
               ) : (
@@ -436,6 +451,15 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                       </CardContent>
                     </Card>
                   ))}
+                  
+                  <Button 
+                    className="w-full bg-sage hover:bg-dark-sage" 
+                    onClick={() => setQuoteBuilderOpen(true)}
+                    disabled={!jobType}
+                    data-testid="button-add-preventivo"
+                  >
+                    {!jobType ? 'Caricamento...' : '+ Aggiungi Preventivo'}
+                  </Button>
                 </div>
               )}
             </TabsContent>
@@ -513,6 +537,18 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
           </Tabs>
         </div>
       </SheetContent>
+      
+      {/* QuoteBuilder Modal */}
+      {job && jobType && (
+        <QuoteBuilder
+          jobId={jobId}
+          clienteId={job.clienteId}
+          jobType={jobType}
+          jobTypeSlug={job.jobType}
+          open={quoteBuilderOpen}
+          onClose={() => setQuoteBuilderOpen(false)}
+        />
+      )}
     </Sheet>
   );
 }

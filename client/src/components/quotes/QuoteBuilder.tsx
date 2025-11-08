@@ -54,7 +54,8 @@ import {
   Euro
 } from 'lucide-react';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
-import type { JobType } from '@shared/jobs-types';
+import type { JobType as JobTypeSlug } from '@shared/jobs-types';
+import type { JobType } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
 
 const quoteSchema = z.object({
@@ -85,6 +86,7 @@ interface QuoteBuilderProps {
   jobId: string;
   clienteId: string;
   jobType: JobType;
+  jobTypeSlug: JobTypeSlug;
   open: boolean;
   onClose: () => void;
 }
@@ -93,6 +95,7 @@ export default function QuoteBuilder({
   jobId,
   clienteId,
   jobType,
+  jobTypeSlug,
   open,
   onClose
 }: QuoteBuilderProps) {
@@ -106,8 +109,8 @@ export default function QuoteBuilder({
     queryFn: getAllQuoteTemplates
   });
   
-  // Filtro templates per tipo job
-  const filteredTemplates = templates.filter(t => t.jobType === jobType && t.attivo);
+  // Filtro templates per tipo job usando lo slug
+  const filteredTemplates = templates.filter(t => t.jobType === jobType.slug && t.attivo);
   
   const form = useForm<FormData>({
     resolver: zodResolver(quoteSchema),
@@ -158,8 +161,9 @@ export default function QuoteBuilder({
   // Mutation crea preventivo
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      // Prepara clausole dal jobType
-      const defaultClauses = DEFAULT_CLAUSES[jobType].map(c => ({
+      // Prepara clausole dal jobTypeSlug con fallback
+      const clauses = DEFAULT_CLAUSES[jobTypeSlug] || [];
+      const defaultClauses = clauses.map(c => ({
         id: nanoid(),
         text: c.text,
         required: c.required,
@@ -202,11 +206,12 @@ export default function QuoteBuilder({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
+            <span className="text-2xl">{jobType.icona}</span>
             <FileText className="w-5 h-5" />
             Crea Preventivo
           </DialogTitle>
           <DialogDescription>
-            Crea un preventivo personalizzato per il lavoro {jobType}
+            Crea un preventivo personalizzato per il lavoro <span style={{ color: jobType.colore }} className="font-semibold">{jobType.nome}</span>
           </DialogDescription>
         </DialogHeader>
         
