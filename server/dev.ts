@@ -6,6 +6,7 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import emailRoutes from './email-routes.js';
+import jobRoutes from './job-routes.js';
 
 async function startDevServer() {
   const app = express();
@@ -28,8 +29,10 @@ async function startDevServer() {
 
   // API Routes (servite PRIMA di Vite middleware)
   app.use('/api/email', emailRoutes);
+  app.use('/api/jobs', jobRoutes);
 
   console.log('📧 Email API routes mounted at /api/email');
+  console.log('💼 Job API routes mounted at /api/jobs');
 
   // Health check
   app.get('/api/health', (req, res) => {

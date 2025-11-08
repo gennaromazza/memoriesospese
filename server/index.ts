@@ -8,6 +8,7 @@ import { createServer as createViteServer } from 'vite';
 import emailRoutes from './email-routes.js';
 import bookingRoutes from './booking-routes.js';
 import orderRoutes from './order-routes.js';
+import jobRoutes from './job-routes.js';
 
 async function startServer() {
   const start = Date.now();
@@ -62,6 +63,9 @@ async function startServer() {
     
     app.use('/api/orders', orderRoutes);
     console.log('📦 Order API routes mounted at /api/orders');
+    
+    app.use('/api/jobs', jobRoutes);
+    console.log('💼 Job API routes mounted at /api/jobs');
 
     // Health check
     app.get('/api/health', (req, res) => {
