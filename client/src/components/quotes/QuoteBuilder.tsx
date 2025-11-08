@@ -3,7 +3,7 @@
  * Interfaccia admin per creare preventivi personalizzati
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -242,13 +242,6 @@ export default function QuoteBuilder({
       });
     }
   });
-
-  // Reset state when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setSelectedTemplateId('');
-    }
-  }, [open]);
 
   const onSubmit = (data: FormData) => {
     createMutation.mutate(data);
