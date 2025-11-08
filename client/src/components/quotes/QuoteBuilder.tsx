@@ -3,16 +3,19 @@
  * Interfaccia admin per creare preventivi personalizzati
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { createQuote, getAllQuoteTemplates } from '@/lib/quotes';
+import { getAllProducts } from '@/lib/products';
+import { mergeQuoteProducts } from '@/lib/quote-mappers';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import CatalogProductSelector from './CatalogProductSelector';
 import {
   Dialog,
   DialogContent,
@@ -63,13 +66,15 @@ const quoteSchema = z.object({
   clienteId: z.string().min(1),
   type: z.enum(['fisso', 'variabile']),
   templateId: z.string().optional(),
+  catalogProductIds: z.array(z.string()).default([]),
   products: z.array(z.object({
     nome: z.string().min(1, 'Nome prodotto obbligatorio'),
     descrizione: z.string(),
     prezzo: z.number().min(0),
     selectable: z.boolean(),
     numeroFoto: z.number().optional(),
-    categoria: z.string().optional()
+    categoria: z.string().optional(),
+    immagini: z.array(z.string()).optional()
   })),
   theme: z.object({
     primaryColor: z.string(),
@@ -78,7 +83,10 @@ const quoteSchema = z.object({
   }).optional(),
   expiresAt: z.date().optional(),
   noteInterne: z.string().optional()
-});
+}).refine(
+  (data) => data.catalogProductIds.length > 0 || data.products.some(p => p.nome.trim()),
+  { message: 'Aggiungi almeno un prodotto (catalogo o custom)', path: ['products'] }
+);
 
 type FormData = z.infer<typeof quoteSchema>;
 
@@ -109,6 +117,12 @@ export default function QuoteBuilder({
     queryFn: getAllQuoteTemplates
   });
   
+  // Query catalog products
+  const { data: catalogProducts = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: getAllProducts
+  });
+  
   // Filtro templates per tipo job usando lo slug
   const filteredTemplates = templates.filter(t => t.jobType === jobType.slug && t.attivo);
   
@@ -118,13 +132,15 @@ export default function QuoteBuilder({
       jobId,
       clienteId,
       type: 'fisso',
+      catalogProductIds: [],
       products: [{
         nome: '',
         descrizione: '',
         prezzo: 0,
         selectable: false,
         numeroFoto: 0,
-        categoria: ''
+        categoria: '',
+        immagini: []
       }],
       theme: {
         primaryColor: '#8B9A8B',
@@ -140,9 +156,25 @@ export default function QuoteBuilder({
     name: 'products'
   });
   
-  // Calcola totale
-  const products = form.watch('products');
-  const totale = products.reduce((sum, p) => sum + (p.prezzo || 0), 0);
+  // Watch form values for totals
+  const catalogProductIds = form.watch('catalogProductIds') || [];
+  const customProducts = form.watch('products') || [];
+  
+  // Calcola totale unificato (catalog + custom) - wrapped in useMemo to prevent loop
+  const totaleCatalogo = useMemo(() => {
+    return catalogProductIds.reduce((sum, id) => {
+      const product = catalogProducts.find(p => p.id === id);
+      return sum + (product?.prezzoFinale || product?.prezzo || 0);
+    }, 0);
+  }, [catalogProductIds, catalogProducts]);
+  
+  const totaleCustom = useMemo(() => {
+    return customProducts
+      .filter(p => p.nome?.trim())
+      .reduce((sum, p) => sum + (p.prezzo || 0), 0);
+  }, [customProducts]);
+  
+  const totale = totaleCatalogo + totaleCustom;
   
   // Load template
   const handleLoadTemplate = (templateId: string) => {
@@ -161,6 +193,14 @@ export default function QuoteBuilder({
   // Mutation crea preventivo
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Merge catalog + custom products
+      const mergedProducts = mergeQuoteProducts(
+        data.catalogProductIds,
+        data.products.filter(p => p.nome.trim()), // Solo custom con nome
+        catalogProducts,
+        data.type
+      );
+      
       // Prepara clausole dal jobTypeSlug con fallback
       const clauses = DEFAULT_CLAUSES[jobTypeSlug] || [];
       const defaultClauses = clauses.map(c => ({
@@ -171,7 +211,13 @@ export default function QuoteBuilder({
       }));
       
       const quoteData = {
-        ...data,
+        jobId: data.jobId,
+        clienteId: data.clienteId,
+        type: data.type,
+        products: mergedProducts,
+        theme: data.theme,
+        expiresAt: data.expiresAt,
+        noteInterne: data.noteInterne,
         templateId: selectedTemplateId || undefined,
         contractClauses: defaultClauses
       };
@@ -298,10 +344,37 @@ export default function QuoteBuilder({
             
             <Separator />
             
-            {/* Prodotti */}
+            {/* Sezione 1: Catalogo Prodotti */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">1. Prodotti dal Catalogo</h3>
+              <Card>
+                <CardContent className="pt-6">
+                  <FormField
+                    control={form.control}
+                    name="catalogProductIds"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <CatalogProductSelector
+                            selectedProductIds={field.value}
+                            onSelectionChange={field.onChange}
+                            products={catalogProducts}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+            
+            <Separator />
+            
+            {/* Sezione 2: Prodotti Custom */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Prodotti</h3>
+                <h3 className="text-lg font-semibold">2. Prodotti Custom (opzionale)</h3>
                 <Button
                   type="button"
                   size="sm"
@@ -311,12 +384,13 @@ export default function QuoteBuilder({
                     prezzo: 0,
                     selectable: form.watch('type') === 'variabile',
                     numeroFoto: 0,
-                    categoria: ''
+                    categoria: '',
+                    immagini: []
                   })}
-                  data-testid="button-add-product"
+                  data-testid="button-add-custom-product"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Aggiungi Prodotto
+                  Aggiungi Prodotto Custom
                 </Button>
               </div>
               
@@ -447,16 +521,41 @@ export default function QuoteBuilder({
               </div>
             </div>
             
-            {/* Totale Preview */}
+            {/* Riepilogo Totale */}
             <Card className="bg-green-50 border-green-200">
               <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Euro className="w-5 h-5 text-green-600" />
-                    <span className="text-lg font-semibold">Totale Preventivo</span>
-                  </div>
-                  <div className="text-3xl font-bold text-green-600" data-testid="text-total-quote">
-                    €{totale.toLocaleString()}
+                <div className="space-y-3">
+                  {/* Breakdown */}
+                  {(catalogProductIds.length > 0 || customProducts.some(p => p.nome.trim())) && (
+                    <div className="space-y-2 pb-3 border-b border-green-200">
+                      {catalogProductIds.length > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-green-700">
+                            Catalogo ({catalogProductIds.length} prodotti)
+                          </span>
+                          <span className="font-medium">€{totaleCatalogo.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {customProducts.some(p => p.nome.trim()) && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-green-700">
+                            Custom ({customProducts.filter(p => p.nome.trim()).length} prodotti)
+                          </span>
+                          <span className="font-medium">€{totaleCustom.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Totale */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Euro className="w-5 h-5 text-green-600" />
+                      <span className="text-lg font-semibold">Totale Preventivo</span>
+                    </div>
+                    <div className="text-3xl font-bold text-green-600" data-testid="text-total-quote">
+                      €{totale.toFixed(2)}
+                    </div>
                   </div>
                 </div>
               </CardContent>
