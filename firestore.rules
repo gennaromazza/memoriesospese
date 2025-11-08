@@ -339,6 +339,14 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Only admin can delete job types
     }
     
+    // Job Provenances - Dynamic configurable job provenances (instagram, passaparola, etc.)
+    match /jobProvenances/{provenanceId} {
+      allow read: if isSignedIn(); // Authenticated users can read job provenances (needed for jobs UI)
+      allow create: if isAdmin(); // Only admin can create new job provenances
+      allow update: if isAdmin(); // Only admin can update job provenances
+      allow delete: if isAdmin(); // Only admin can delete job provenances
+    }
+    
     // Contract Clauses - Template clauses for contracts
     match /contractClauses/{clauseId} {
       allow read: if isSignedIn(); // Authenticated users can read clauses (needed for template selection)

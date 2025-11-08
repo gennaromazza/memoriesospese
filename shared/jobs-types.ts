@@ -26,16 +26,11 @@ export type JobStatus =
   | 'archiviato';           // Lavoro completato e archiviato
 
 /**
- * Provenienze cliente
+ * Provenienze cliente - Dynamic provenance slugs from Firestore
+ * Legacy values: instagram, facebook, passaparola, fiera, google, sito_web, altro
+ * Now accepts any string slug configured in jobProvenances collection
  */
-export type JobProvenance = 
-  | 'instagram' 
-  | 'facebook' 
-  | 'passaparola' 
-  | 'fiera' 
-  | 'google' 
-  | 'sito_web'
-  | 'altro';
+export type JobProvenance = string;
 
 /**
  * Sorgente creazione job
@@ -74,17 +69,21 @@ export interface Job {
   id: string;
   
   // Riferimenti
-  clienteId: string;            // Link a clienti collection (OBBLIGATORIO)
+  clientiIds: string[];         // Array clienti collegati (OBBLIGATORIO - almeno 1)
   bookingId?: string;           // Link opzionale a booking (se da campagna)
   orderIds: string[];           // Array ordini collegati
   galleryIds: string[];         // Array gallerie collegate
   quoteIds: string[];           // Array preventivi collegati
   
   // Dati lavoro
+  nomeEvento: string;           // Nome descrittivo lavoro (es. "Matrimonio Silva")
   jobType: string;              // Dynamic job type slug from Firestore jobTypes collection
   eventDate: Timestamp;         // Data servizio fotografico
+  allDay: boolean;              // Evento tutto il giorno o orario specifico
+  startTime?: string;           // Orario inizio (HH:mm) - opzionale se allDay = true
+  endTime?: string;             // Orario fine (HH:mm) - opzionale
   eventLocation?: string;       // Luogo evento (es. "Casale dei Baroni")
-  provenance: JobProvenance;    // Da dove è arrivato il cliente
+  provenance: string;           // Dynamic provenance slug from Firestore jobProvenances collection
   
   // Pipeline stato
   status: JobStatus;
@@ -109,11 +108,15 @@ export interface Job {
  * INSERT JOB - Dati per creazione nuovo job
  */
 export interface InsertJob {
-  clienteId: string;
+  nomeEvento: string;
+  clientiIds: string[];  // Array clienti - almeno 1 obbligatorio
   jobType: string;  // Dynamic job type slug from Firestore jobTypes collection
   eventDate: Date;
+  allDay: boolean;
+  startTime?: string;  // HH:mm format
+  endTime?: string;    // HH:mm format
   eventLocation?: string;
-  provenance: JobProvenance;
+  provenance: string;  // Dynamic provenance slug from Firestore jobProvenances collection
   noteInterne?: string;
 }
 
@@ -121,10 +124,15 @@ export interface InsertJob {
  * UPDATE JOB - Dati per aggiornamento job
  */
 export interface UpdateJob {
+  nomeEvento?: string;
+  clientiIds?: string[];
   jobType?: string;  // Dynamic job type slug from Firestore jobTypes collection
   eventDate?: Date;
+  allDay?: boolean;
+  startTime?: string;
+  endTime?: string;
   eventLocation?: string;
-  provenance?: JobProvenance;
+  provenance?: string;  // Dynamic provenance slug from Firestore jobProvenances collection
   noteInterne?: string;
   status?: JobStatus;
 }
