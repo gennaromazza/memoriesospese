@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import { Loader2, CreditCard, CheckCircle2, AlertCircle, Clock, XCircle, Plus } 
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { PaymentSchedule, PaymentStatus, PaymentType } from '@shared/payment-schedule-types';
+import RegistraPagamentoModal from './RegistraPagamentoModal';
 
 interface PaymentScheduleSectionProps {
   jobId: string;
@@ -55,7 +57,7 @@ const PAYMENT_STATUS_ICONS: Record<PaymentStatus, typeof CheckCircle2> = {
 };
 
 export default function PaymentScheduleSection({ jobId, isAdmin = false }: PaymentScheduleSectionProps) {
-  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<{ id: string; tipo: string; importo: number; scheduleId: string } | null>(null);
 
   const { data: rawSchedules = [], isLoading } = useQuery<PaymentSchedule[]>({
     queryKey: ['payment-schedules', jobId],
@@ -66,16 +68,20 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
     enabled: !!jobId,
   });
 
-  // Normalize numeric fields (Firestore returns numbers as strings)
+  // Normalize numeric fields + timestamps (Firestore returns numbers as strings, timestamps as plain objects)
   const schedules = (rawSchedules as any[]).map((schedule: any) => ({
     ...schedule,
     totale: Number(schedule.totale ?? 0),
     totalePagato: Number(schedule.totalePagato ?? 0),
     saldoResiduo: Number(schedule.saldoResiduo ?? 0),
+    createdAt: convertFirestoreTimestamp(schedule.createdAt),
+    updatedAt: convertFirestoreTimestamp(schedule.updatedAt),
     payments: schedule.payments.map((payment: any) => ({
       ...payment,
       importo: Number(payment.importo ?? 0),
       importoPagato: payment.importoPagato ? Number(payment.importoPagato) : undefined,
+      dataScadenza: convertFirestoreTimestamp(payment.dataScadenza),
+      dataPagamento: payment.dataPagamento ? convertFirestoreTimestamp(payment.dataPagamento) : null,
     })),
   }));
 
@@ -162,7 +168,7 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
                     const StatusIcon = PAYMENT_STATUS_ICONS[payment.stato as PaymentStatus];
                     const isOverdue =
                       payment.stato === 'atteso' &&
-                      payment.dataScadenza.toDate() < new Date();
+                      payment.dataScadenza && payment.dataScadenza < new Date();
 
                     return (
                       <TableRow key={payment.id} data-testid={`row-payment-${payment.id}`}>
@@ -181,7 +187,7 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p>{format(payment.dataScadenza.toDate(), 'dd/MM/yyyy', { locale: it })}</p>
+                            <p>{payment.dataScadenza ? format(payment.dataScadenza, 'dd/MM/yyyy', { locale: it }) : 'N/A'}</p>
                             {isOverdue && (
                               <p className="text-xs text-red-600 dark:text-red-400">Scaduto</p>
                             )}
@@ -199,7 +205,12 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => setSelectedPaymentId(payment.id)}
+                                onClick={() => setSelectedPayment({
+                                  id: payment.id,
+                                  tipo: payment.tipo,
+                                  importo: payment.importo,
+                                  scheduleId: schedule.id,
+                                })}
                                 data-testid={`button-register-payment-${payment.id}`}
                               >
                                 <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -208,7 +219,7 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
                             )}
                             {payment.stato === 'pagato' && payment.dataPagamento && (
                               <p className="text-xs text-muted-foreground">
-                                {format(payment.dataPagamento.toDate(), 'dd/MM/yyyy', { locale: it })}
+                                {format(payment.dataPagamento, 'dd/MM/yyyy', { locale: it })}
                               </p>
                             )}
                           </TableCell>
@@ -224,7 +235,7 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
             <div className="mt-4 pt-4 border-t flex justify-between items-center">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">
-                  Creato: {format(schedule.createdAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: it })}
+                  Creato: {schedule.createdAt ? format(schedule.createdAt, 'dd/MM/yyyy HH:mm', { locale: it }) : 'N/A'}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   ID: {schedule.id.slice(0, 12)}...
@@ -243,8 +254,16 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
         </Card>
       ))}
 
-      {/* TODO Task 8: RegistraPagamentoModal */}
-      {/* {selectedPaymentId && ...} */}
+      {/* Registra Pagamento Modal */}
+      {selectedPayment && (
+        <RegistraPagamentoModal
+          open={!!selectedPayment}
+          onOpenChange={(open) => !open && setSelectedPayment(null)}
+          scheduleId={selectedPayment.scheduleId}
+          payment={selectedPayment}
+          jobId={jobId}
+        />
+      )}
     </div>
   );
 }
