@@ -355,10 +355,10 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Only admin can delete clauses
     }
     
-    // Jobs - Client jobs/commissions with quotes
+    // Jobs - Client jobs/commissions with quotes (updated November 2025 for multi-client support)
     match /jobs/{jobId} {
       allow read: if isAdmin() || 
-        (isSignedIn() && resource.data.clienteId == request.auth.uid); // Admin or job owner can read
+        (isSignedIn() && resource.data.clientiIds.hasAny([request.auth.uid])); // Admin or any linked client can read
       allow create: if isAdmin(); // Only admin can create jobs
       allow update: if isAdmin(); // Only admin can update jobs
       allow delete: if isAdmin(); // Only admin can delete jobs
@@ -366,7 +366,7 @@ service cloud.firestore {
       // Quotes subcollection - Individual quotes for each job
       match /quotes/{quoteId} {
         allow read: if isAdmin() || 
-          (isSignedIn() && get(/databases/$(database)/documents/jobs/$(jobId)).data.clienteId == request.auth.uid); // Admin or job owner can read quotes
+          (isSignedIn() && get(/databases/$(database)/documents/jobs/$(jobId)).data.clientiIds.hasAny([request.auth.uid])); // Admin or any linked client can read quotes
         allow create: if isAdmin(); // Only admin can create quotes
         allow update: if isAdmin(); // Only admin can update quotes
         allow delete: if isAdmin(); // Only admin can delete quotes
