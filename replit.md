@@ -4,6 +4,22 @@
 Image Studio è una piattaforma all-in-one per fotografi professionisti che rivoluziona la gestione dello studio fotografico. Non è solo un semplice sito di gallerie, ma un ecosistema completo che unisce fotografi e clienti in un'unica esperienza digitale integrata.
 
 ## Recent Changes (November 2025)
+- **Job Detail Page - Gestionale Completo** (November 8, 2025): Pagina dettaglio lavoro professionale ispirata al vecchio gestionale
+  - **Layout 2 Colonne**: Main content + Workflow timeline sidebar
+  - **Header Completo**: Nome evento, data/orari, badges tipo/status, actions dropdown menu
+  - **Workflow Timeline**: 8 step configurabili (creazione → completamento), icone lucide-react, checkbox admin, date tracking
+  - **Sezione Clienti**: Multi-client cards con quick actions (email, WhatsApp, phone), fetch parallelo useQueries
+  - **Sezione Pagamenti**: Display financials (totale preventivato, pagato, saldo residuo)
+  - **Sezione Costi**: CRUD inline con table, calcolo margine automatico (prezzo - costi), stats cards
+  - **Sezione Moduli**: Placeholder per questionari sposi (ready per integrazione gallerie)
+  - **Actions Dropdown**: Edit Job, Generate Quote (stub), Export PDF (stub), Delete Job
+  - **Routing**: JobsManager card onClick → navigate `/admin/jobs/:jobId`
+  - **Files Modified**:
+    - New: `shared/job-workflow-types.ts`, `client/src/pages/JobDetailPage.tsx`
+    - New Components: `WorkflowTimeline.tsx`, `ClienteJobCard.tsx`, `CostiLavoroTable.tsx`, `ModuliPrenotazioneSection.tsx`
+    - Updated: `shared/jobs-types.ts` (CostoLavoro + costi[]), `client/src/App.tsx` (route), `JobsManager.tsx` (navigate)
+    - Firebase: `firestore.rules` deployed (jobs, jobTimeline, paymentSchedules)
+
 - **Jobs System Complete Enhancement** (November 8, 2025): Fully migrated to multi-client support with advanced scheduling
   - **Schema Migration**: `clienteId` → `clientiIds[]` for multi-client jobs (sposi)
   - **New Fields**: `nomeEvento` (user-friendly name), `allDay` (boolean), `startTime`/`endTime` (HH:mm format)
