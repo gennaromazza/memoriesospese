@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, LayoutDashboard, Image, FileText } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'galleries' | 'bookings' | 'lavori' | 'clienti' | 'contenuti' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori'>('galleries');
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
@@ -958,139 +958,85 @@ export default function AdminDashboard() {
 
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 h-auto p-2 bg-muted/30 rounded-lg">
-              {/* 1. Dashboard Overview */}
-              <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" aria-label="Dashboard">
-                <LayoutDashboard className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </TabsTrigger>
-
-              {/* 2. Gallerie */}
-              <TabsTrigger value="galleries" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" aria-label="Gallerie">
-                <Image className="h-4 w-4 flex-shrink-0" />
+          <Tabs defaultValue="galleries" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+            <TabsList className="mb-6 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto">
+              {/* Core: Gallerie */}
+              <TabsTrigger value="galleries" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Eye className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Gallerie</span>
+                <span className="sm:hidden">Eventi</span>
               </TabsTrigger>
 
-              {/* 3. Prenotazioni (con sub-tabs: Campagne, Prenotazioni, Prodotti, Ordini) */}
-              <TabsTrigger value="bookings" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" aria-label="Prenotazioni">
-                <CalendarCheck className="h-4 w-4 flex-shrink-0" />
+              {/* Booking System: Prenotazioni (con sub-tabs: Campagne, Prodotti, Ordini) */}
+              <TabsTrigger value="bookings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Prenotazioni</span>
+                <span className="sm:hidden">Book</span>
               </TabsTrigger>
 
-              {/* 4. Lavori Fotografici (con sub-tabs: Lista, Tipi, Clausole) */}
-              <TabsTrigger value="lavori" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" aria-label="Lavori Fotografici">
-                <Briefcase className="h-4 w-4 flex-shrink-0" />
+              {/* Jobs System: Lavori Fotografici */}
+              <TabsTrigger value="lavori" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Briefcase className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Lavori</span>
+                <span className="sm:hidden">Jobs</span>
               </TabsTrigger>
 
-              {/* 5. Clienti (include anche richieste password) */}
-              <TabsTrigger value="clienti" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" aria-label="Gestione Clienti">
-                <Users className="h-4 w-4 flex-shrink-0" />
+              {/* Workflow Management: Gestione Commesse */}
+              <TabsTrigger value="commesse" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <FolderOpen className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Gestione Commesse</span>
+                <span className="sm:hidden">Comm.</span>
+              </TabsTrigger>
+
+              {/* Financial Management: Cassa */}
+              <TabsTrigger value="cassa" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Wallet className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Cassa</span>
+                <span className="sm:hidden">💰</span>
+              </TabsTrigger>
+
+              {/* Content Management: Questionari, Temi */}
+              <TabsTrigger value="questionnaire" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <HelpCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Questionari</span>
+                <span className="sm:hidden">Q&A</span>
+              </TabsTrigger>
+
+              <TabsTrigger value="themes" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Temi Stagionali</span>
+                <span className="sm:hidden">Temi</span>
+              </TabsTrigger>
+
+              {/* Client Management */}
+              <TabsTrigger value="clienti" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Clienti</span>
+                <span className="sm:hidden">Cli</span>
               </TabsTrigger>
 
-              {/* 6. Contenuti (Temi, Slideshow, Questionari) */}
-              <TabsTrigger value="contenuti" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" aria-label="Gestione Contenuti">
-                <FileText className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Contenuti</span>
+              {/* Media & Support */}
+              <TabsTrigger value="slideshow" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Play className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Slideshow</span>
+                <span className="sm:hidden">Slide</span>
               </TabsTrigger>
 
-              {/* 7. Impostazioni (Settings + Cassa) */}
-              <TabsTrigger value="settings" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" aria-label="Impostazioni">
-                <Settings className="h-4 w-4 flex-shrink-0" />
+              <TabsTrigger value="requests" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Key className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Richieste Password</span>
+                <span className="sm:hidden">Pass</span>
+              </TabsTrigger>
+
+              {/* Settings */}
+              <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Impostazioni</span>
+                <span className="sm:hidden">Setup</span>
               </TabsTrigger>
             </TabsList>
 
-            {/* ===== TAB 1: DASHBOARD OVERVIEW ===== */}
-            <TabsContent value="overview">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {/* KPI Card: Gallerie */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Gallerie Attive</CardTitle>
-                    <Image className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{galleries.filter(g => g.active).length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {galleries.length} totali
-                    </p>
-                  </CardContent>
-                </Card>
-
-                {/* KPI Card: Clienti */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Clienti</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">-</div>
-                    <p className="text-xs text-muted-foreground">
-                      Database clienti
-                    </p>
-                  </CardContent>
-                </Card>
-
-                {/* KPI Card: Prenotazioni */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Prenotazioni</CardTitle>
-                    <CalendarCheck className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">-</div>
-                    <p className="text-xs text-muted-foreground">
-                      Questo mese
-                    </p>
-                  </CardContent>
-                </Card>
-
-                {/* KPI Card: Lavori */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Lavori Attivi</CardTitle>
-                    <Briefcase className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">-</div>
-                    <p className="text-xs text-muted-foreground">
-                      In corso
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Quick Actions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Accesso Rapido</CardTitle>
-                  <CardDescription>Le tue azioni più comuni</CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Button variant="outline" onClick={() => setActiveTab('galleries')} className="flex flex-col h-auto py-4">
-                    <Image className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Nuova Galleria</span>
-                  </Button>
-                  <Button variant="outline" onClick={() => setActiveTab('bookings')} className="flex flex-col h-auto py-4">
-                    <CalendarCheck className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Prenotazioni</span>
-                  </Button>
-                  <Button variant="outline" onClick={() => setActiveTab('lavori')} className="flex flex-col h-auto py-4">
-                    <Briefcase className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Gestione Lavori</span>
-                  </Button>
-                  <Button variant="outline" onClick={() => setActiveTab('clienti')} className="flex flex-col h-auto py-4">
-                    <Users className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Clienti</span>
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* ===== TAB 2: GALLERIE ===== */}
+            {/* Contenuto Tab Gallerie */}
             <TabsContent value="galleries">
               <div className="bg-white shadow sm:rounded-lg p-5">
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
@@ -1299,358 +1245,567 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* ===== TAB 5: CLIENTI (include richieste password) ===== */}
+            {/* Contenuto Tab Clienti */}
             <TabsContent value="clienti">
-              <Tabs defaultValue="clienti-list" className="w-full">
-                <TabsList className="mb-4 grid w-full grid-cols-2 gap-2">
-                  <TabsTrigger value="clienti-list" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Gestione Clienti
-                  </TabsTrigger>
-                  <TabsTrigger value="richieste-password" className="flex items-center gap-2">
-                    <Key className="h-4 w-4" />
-                    Richieste Password
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="clienti-list">
-                  <ClientiManager />
-                </TabsContent>
-
-                <TabsContent value="richieste-password">
-                  <div className="bg-white shadow sm:rounded-lg p-5">
-                    <div className="flex justify-between items-center mb-6">
-                      <div>
-                        <h2 className="text-xl font-semibold text-blue-gray mb-2">Richieste password</h2>
-                        <p className="text-sm text-muted-foreground">
-                          Visualizza tutte le richieste di password ricevute.
-                        </p>
-                      </div>
-
-                      <Button
-                        onClick={exportPasswordRequests}
-                        disabled={passwordRequests.length === 0}
-                      >
-                        <Download className="mr-2 h-4 w-4" /> Esporta in Excel
-                      </Button>
-                    </div>
-
-                    {passwordRequests.length === 0 ? (
-                      <div className="p-8 text-center">
-                        <p className="text-gray-500">Nessuna richiesta di password ricevuta.</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Data
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Nome
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Email
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Galleria
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Azioni
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {currentRequests.map((request) => (
-                              <tr key={request.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-500">
-                                    {request.timestamp.toLocaleDateString()}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {request.firstName} {request.lastName}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-500">{request.email}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                    {request.galleryCode}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                  <Button
-                                    onClick={() => deletePasswordRequest(request.id)}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-600 hover:text-red-900"
-                                  >
-                                    <Trash className="h-4 w-4 mr-1" />
-                                    <span>Elimina</span>
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-
-                        <PaginationControls
-                          currentPage={currentRequestPage}
-                          totalPages={totalRequestPages}
-                          onPageChange={paginateRequests}
-                          onPrevious={goToPreviousRequestPage}
-                          onNext={goToNextRequestPage}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
+              <ClientiManager />
             </TabsContent>
 
-            {/* ===== TAB 6: CONTENUTI (Questionari, Temi, Slideshow) ===== */}
-            <TabsContent value="contenuti">
-              <Tabs defaultValue="questionari" className="w-full">
-                <TabsList className="mb-4 grid w-full grid-cols-3 gap-2">
-                  <TabsTrigger value="questionari" className="flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4" />
-                    Questionari
-                  </TabsTrigger>
-                  <TabsTrigger value="temi" className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    Temi Stagionali
-                  </TabsTrigger>
-                  <TabsTrigger value="slideshow" className="flex items-center gap-2">
-                    <Play className="h-4 w-4" />
-                    Slideshow
-                  </TabsTrigger>
-                </TabsList>
 
-                <TabsContent value="questionari">
-                  <div className="bg-white shadow sm:rounded-lg p-5">
-                    <div className="mb-6">
-                      <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Questionari</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Crea e gestisci questionari per sposi con generazione link sicuri e export ChatGPT.
-                      </p>
-                    </div>
-                    <QuestionnaireManager />
+            {/* Contenuto Tab Slideshow */}
+            <TabsContent value="slideshow">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <h2 className="text-xl font-semibold text-blue-gray mb-4">Gestione Slideshow Homepage</h2>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Seleziona le foto da mostrare nella slideshow della homepage.
+                </p>
+
+                <SlideshowManager />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Richieste Password */}
+            <TabsContent value="requests">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Richieste password</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Visualizza tutte le richieste di password ricevute.
+                    </p>
                   </div>
-                </TabsContent>
 
-                <TabsContent value="temi">
-                  <div className="bg-white shadow sm:rounded-lg p-5">
-                    <div className="mb-6">
-                      <h2 className="text-xl font-semibold text-blue-gray mb-2">Temi Stagionali</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Visualizza i temi disponibili e le gallerie associate.
-                      </p>
-                    </div>
+                  <Button
+                    onClick={exportPasswordRequests}
+                    disabled={passwordRequests.length === 0}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Esporta in Excel
+                  </Button>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {getAllThemes().map((theme) => {
-                        const galleriesWithTheme = galleries.filter(g => g.specialTheme === theme.id);
-                        
-                        return (
-                          <Card key={theme.id} className="border-2" style={{ borderColor: theme.colors.primary + '30' }}>
-                            <CardHeader className="pb-3">
-                              <div className="flex items-center gap-3">
-                                <span className="text-3xl">{theme.icon}</span>
-                                <div>
-                                  <CardTitle className="text-lg">{theme.name}</CardTitle>
-                                  {theme.description && (
-                                    <CardDescription className="text-xs mt-1">{theme.description}</CardDescription>
-                                  )}
-                                </div>
+                {passwordRequests.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <p className="text-gray-500">Nessuna richiesta di password ricevuta.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Data
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Nome
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Email
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Galleria
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Azioni
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {currentRequests.map((request) => (
+                          <tr key={request.id}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">
+                                {request.timestamp.toLocaleDateString()}
                               </div>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                              <div className="flex items-center gap-2 text-sm">
-                                <div 
-                                  className="w-4 h-4 rounded-full border" 
-                                  style={{ backgroundColor: theme.colors.primary }}
-                                />
-                                <span className="text-xs text-muted-foreground">Colore principale</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {request.firstName} {request.lastName}
                               </div>
-                              
-                              <div className="pt-2 border-t">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">
-                                  Gallerie: {galleriesWithTheme.length}
-                                </p>
-                                {galleriesWithTheme.length > 0 && (
-                                  <div className="space-y-1">
-                                    {galleriesWithTheme.slice(0, 3).map(gallery => (
-                                      <div key={gallery.id} className="text-xs bg-muted p-2 rounded flex items-center justify-between">
-                                        <span className="font-medium truncate">{gallery.name}</span>
-                                        {gallery.specialPin && (
-                                          <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono">
-                                            PIN: {gallery.specialPin}
-                                          </span>
-                                        )}
-                                      </div>
-                                    ))}
-                                    {galleriesWithTheme.length > 3 && (
-                                      <p className="text-xs text-muted-foreground pt-1">
-                                        +{galleriesWithTheme.length - 3} altre...
-                                      </p>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">{request.email}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {request.galleryCode}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => deletePasswordRequest(request.id)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash className="h-4 w-4 mr-1" />
+                                <span>Elimina</span>
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Controlli di paginazione per le richieste password */}
+                    <PaginationControls
+                      currentPage={currentRequestPage}
+                      totalPages={totalRequestPages}
+                      onPageChange={paginateRequests}
+                      onPrevious={goToPreviousRequestPage}
+                      onNext={goToNextRequestPage}
+                    />
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Questionari */}
+            <TabsContent value="questionnaire">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Questionari</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Crea e gestisci questionari per sposi con generazione link sicuri e export ChatGPT.
+                  </p>
+                </div>
+                <QuestionnaireManager />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Temi Stagionali */}
+            <TabsContent value="themes">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-blue-gray mb-2">Temi Stagionali</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Visualizza i temi disponibili e le gallerie associate. I temi possono essere assegnati durante la creazione di una galleria.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {getAllThemes().map((theme) => {
+                    const galleriesWithTheme = galleries.filter(g => g.specialTheme === theme.id);
+                    
+                    return (
+                      <Card key={theme.id} className="border-2" style={{ borderColor: theme.colors.primary + '30' }}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-3xl">{theme.icon}</span>
+                            <div>
+                              <CardTitle className="text-lg">{theme.name}</CardTitle>
+                              {theme.description && (
+                                <CardDescription className="text-xs mt-1">{theme.description}</CardDescription>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <div 
+                              className="w-4 h-4 rounded-full border" 
+                              style={{ backgroundColor: theme.colors.primary }}
+                            />
+                            <span className="text-xs text-muted-foreground">Colore principale</span>
+                          </div>
+                          
+                          <div className="pt-2 border-t">
+                            <p className="text-xs font-medium text-muted-foreground mb-2">
+                              Gallerie con questo tema: {galleriesWithTheme.length}
+                            </p>
+                            {galleriesWithTheme.length > 0 && (
+                              <div className="space-y-1">
+                                {galleriesWithTheme.slice(0, 3).map(gallery => (
+                                  <div key={gallery.id} className="text-xs bg-muted p-2 rounded flex items-center justify-between">
+                                    <span className="font-medium truncate">{gallery.name}</span>
+                                    {gallery.specialPin && (
+                                      <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono">
+                                        PIN: {gallery.specialPin}
+                                      </span>
                                     )}
                                   </div>
+                                ))}
+                                {galleriesWithTheme.length > 3 && (
+                                  <p className="text-xs text-muted-foreground pt-1">
+                                    +{galleriesWithTheme.length - 3} altre...
+                                  </p>
                                 )}
                               </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
 
-                    <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                      <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Come usare i temi</h3>
-                      <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
-                        <li>Crea una nuova galleria dal tab "Gallerie"</li>
-                        <li>Seleziona un tema dal dropdown</li>
-                        <li>Assegna un PIN univoco</li>
-                      </ul>
-                    </div>
+                <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                  <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Come usare i temi stagionali</h3>
+                  <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
+                    <li>Crea una nuova galleria dal tab "Gallerie"</li>
+                    <li>Seleziona un tema stagionale dal dropdown</li>
+                    <li>Assegna un PIN univoco per l'accesso</li>
+                    <li>La galleria sarà accessibile tramite la sezione "Gallerie Speciali" in homepage</li>
+                  </ul>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Prenotazioni con Sub-Tabs */}
+            <TabsContent value="bookings">
+              <Tabs defaultValue="bookings-list" className="w-full">
+                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
+                  <TabsTrigger value="bookings-list" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <CalendarCheck className="h-4 w-4 flex-shrink-0" />
+                    Prenotazioni
+                  </TabsTrigger>
+                  <TabsTrigger value="campaigns" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <Calendar className="h-4 w-4 flex-shrink-0" />
+                    Campagne
+                  </TabsTrigger>
+                  <TabsTrigger value="products" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <Package className="h-4 w-4 flex-shrink-0" />
+                    Prodotti
+                  </TabsTrigger>
+                  <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 flex-shrink-0" />
+                    Ordini
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="bookings-list">
+                  <BookingsManager 
+                    highlightBookingId={highlightBookingId}
+                    onHighlightComplete={() => setHighlightBookingId(null)}
+                    highlightOrderId={highlightOrderId}
+                    onOrderHighlightComplete={() => setHighlightOrderId(null)}
+                  />
+                </TabsContent>
+
+                <TabsContent value="campaigns">
+                  <CampaignsManager />
+                </TabsContent>
+
+                <TabsContent value="products">
+                  <ProductsManager />
+                </TabsContent>
+
+                <TabsContent value="orders">
+                  <OrdersManager />
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+
+            {/* Contenuto Tab Lavori */}
+            <TabsContent value="lavori">
+              <Tabs defaultValue="jobs-list" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+                  <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
+                    Lista Lavori
+                  </TabsTrigger>
+                  <TabsTrigger value="job-types" data-testid="subtab-job-types">
+                    Tipi di Lavoro
+                  </TabsTrigger>
+                  <TabsTrigger value="contract-clauses" data-testid="subtab-contract-clauses">
+                    Clausole Contrattuali
+                  </TabsTrigger>
+                  <TabsTrigger value="quote-templates" data-testid="subtab-quote-templates" disabled>
+                    Template Preventivi
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="jobs-list">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <JobsManager />
                   </div>
                 </TabsContent>
 
-                <TabsContent value="slideshow">
+                <TabsContent value="job-types">
                   <div className="bg-white shadow sm:rounded-lg p-5">
-                    <h2 className="text-xl font-semibold text-blue-gray mb-4">Slideshow Homepage</h2>
-                    <p className="text-sm text-muted-foreground mb-6">
-                      Seleziona le foto da mostrare nella slideshow della homepage.
-                    </p>
-                    <SlideshowManager />
+                    <JobTypesManager />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="contract-clauses">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <ContractClausesManager />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="quote-templates">
+                  <div className="bg-white shadow sm:rounded-lg p-5 text-center text-muted-foreground">
+                    <p>Template Preventivi - Coming soon...</p>
                   </div>
                 </TabsContent>
               </Tabs>
             </TabsContent>
 
-            {/* ===== TAB 7: IMPOSTAZIONI (Settings + Cassa) ===== */}
+            {/* Contenuto Tab Gestione Commesse */}
+            <TabsContent value="commesse">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <GestioneCommesse 
+                  onNavigateToTab={setActiveTab}
+                  onEditGallery={openEditModal}
+                  onCreateGallery={openModal}
+                  onOpenBooking={handleOpenBooking}
+                  onOpenOrder={handleOpenOrder}
+                  onOpenPhotoSelection={handleOpenPhotoSelection}
+                />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Cassa */}
+            <TabsContent value="cassa">
+              <CashDashboard />
+            </TabsContent>
+
+            {/* Contenuto Tab Impostazioni */}
             <TabsContent value="settings">
-              <Tabs defaultValue="impostazioni-studio" className="w-full">
-                <TabsList className="mb-4 grid w-full grid-cols-2 gap-2">
-                  <TabsTrigger value="impostazioni-studio" className="flex items-center gap-2">
-                    <Settings className="h-4 w-4" />
-                    Impostazioni Studio
-                  </TabsTrigger>
-                  <TabsTrigger value="cassa" className="flex items-center gap-2">
-                    <Wallet className="h-4 w-4" />
-                    Dashboard Cassa
-                  </TabsTrigger>
-                </TabsList>
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Impostazioni studio</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Modifica le informazioni del tuo studio fotografico.
+                    </p>
+                  </div>
 
-                <TabsContent value="impostazioni-studio">
-                  <div className="bg-white shadow sm:rounded-lg p-5">
-                    <div className="flex justify-between items-center mb-6">
-                      <div>
-                        <h2 className="text-xl font-semibold text-blue-gray mb-2">Impostazioni studio</h2>
-                        <p className="text-sm text-muted-foreground">
-                          Modifica le informazioni del tuo studio fotografico.
-                        </p>
-                      </div>
+                  <Button onClick={saveStudioSettings}>
+                    Salva impostazioni
+                  </Button>
+                </div>
 
-                      <Button onClick={saveStudioSettings}>
-                        Salva impostazioni
-                      </Button>
-                    </div>
-
-                    {isSettingsLoading ? (
+                {isSettingsLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(6)].map((_, i) => (
+                      <Skeleton key={i} className="h-10 w-full" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-4">
-                        {[...Array(6)].map((_, i) => (
-                          <Skeleton key={i} className="h-10 w-full" />
-                        ))}
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-name">Nome dello Studio</Label>
+                          <Input
+                            id="studio-name"
+                            value={studioSettings.name}
+                            onChange={(e) => handleSettingsChange('name', e.target.value)}
+                            placeholder="Nome del tuo studio fotografico"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-slogan">Slogan</Label>
+                          <Input
+                            id="studio-slogan"
+                            value={studioSettings.slogan}
+                            onChange={(e) => handleSettingsChange('slogan', e.target.value)}
+                            placeholder="Slogan del tuo studio"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-address">Indirizzo</Label>
+                          <Input
+                            id="studio-address"
+                            value={studioSettings.address}
+                            onChange={(e) => handleSettingsChange('address', e.target.value)}
+                            placeholder="Indirizzo fisico dello studio"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-phone">Telefono</Label>
+                          <Input
+                            id="studio-phone"
+                            value={studioSettings.phone}
+                            onChange={(e) => handleSettingsChange('phone', e.target.value)}
+                            placeholder="Numero di telefono"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-email">Email</Label>
+                          <Input
+                            id="studio-email"
+                            value={studioSettings.email}
+                            onChange={(e) => handleSettingsChange('email', e.target.value)}
+                            placeholder="Indirizzo email"
+                            type="email"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-website">Sito Web</Label>
+                          <Input
+                            id="studio-website"
+                            value={studioSettings.websiteUrl}
+                            onChange={(e) => handleSettingsChange('websiteUrl', e.target.value)}
+                            placeholder="URL del sito web"
+                            type="url"
+                          />
+                        </div>
                       </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label>Nome Studio</Label>
-                              <Input
-                                value={studioSettings.name}
-                                onChange={(e) => setStudioSettings({ ...studioSettings, name: e.target.value })}
-                                placeholder="Es: Studio Fotografico"
-                              />
-                            </div>
 
-                            <div className="space-y-2">
-                              <Label>Email di contatto</Label>
-                              <Input
-                                type="email"
-                                value={studioSettings.email}
-                                onChange={(e) => setStudioSettings({ ...studioSettings, email: e.target.value })}
-                                placeholder="info@studio.com"
-                              />
-                            </div>
+                      <div className="space-y-4">
+                        <div>
+                          <Label>Logo</Label>
+                          <div className="mt-2">
+                            {studioSettings.logo ? (
+                              <div className="mb-2">
+                                <img
+                                  src={studioSettings.logo}
+                                  alt="Logo dello studio"
+                                  className="h-24 w-auto object-contain rounded-md"
+                                  onError={(e) => {
+                                    console.error('Logo loading error:', e);
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            ) : null}
 
-                            <div className="space-y-2">
-                              <Label>Telefono</Label>
-                              <Input
-                                value={studioSettings.phone}
-                                onChange={(e) => setStudioSettings({ ...studioSettings, phone: e.target.value })}
-                                placeholder="+39 123 456 7890"
-                              />
-                            </div>
+                            <Label
+                              htmlFor="logo-upload"
+                              className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                            >
+                              {studioSettings.logo ? "Cambia logo" : "Carica logo"}
+                            </Label>
+                            <Input
+                              id="logo-upload"
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleLogoUpload}
+                            />
                           </div>
+                        </div>
 
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label>Indirizzo</Label>
-                              <Input
-                                value={studioSettings.address}
-                                onChange={(e) => setStudioSettings({ ...studioSettings, address: e.target.value })}
-                                placeholder="Via Roma 1, Milano"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>Descrizione</Label>
-                              <Textarea
-                                value={studioSettings.description}
-                                onChange={(e) => setStudioSettings({ ...studioSettings, description: e.target.value })}
-                                placeholder="Breve descrizione dello studio..."
-                                rows={5}
-                              />
-                            </div>
-                          </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-about">Descrizione Studio</Label>
+                          <Textarea
+                            id="studio-about"
+                            value={studioSettings.about}
+                            onChange={(e) => handleSettingsChange('about', e.target.value)}
+                            placeholder="Descrizione del tuo studio fotografico"
+                            rows={4}
+                          />
                         </div>
 
                         <div className="space-y-4">
-                          <h3 className="text-lg font-semibold">Social Media</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Label>Social Media</Label>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="social-instagram">Instagram (solo username)</Label>
+                            <Input
+                              id="social-instagram"
+                              value={studioSettings.socialLinks.instagram || ''}
+                              onChange={(e) => handleSettingsChange('socialLinks', e.target.value, 'instagram')}
+                              placeholder="username (senza @)"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="social-facebook">Facebook (solo username)</Label>
+                            <Input
+                              id="social-facebook"
+                              value={studioSettings.socialLinks.facebook || ''}
+                              onChange={(e) => handleSettingsChange('socialLinks', e.target.value, 'facebook')}
+                              placeholder="username o ID pagina"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-6 mt-6">
+                      <h3 className="text-lg font-medium mb-4">Testi personalizzabili</h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="font-medium mb-3">Sezione Hero</h4>
+                          <div className="space-y-3">
                             <div className="space-y-2">
-                              <Label>Facebook</Label>
+                              <Label htmlFor="hero-title">Titolo principale</Label>
                               <Input
-                                value={studioSettings.facebook}
-                                onChange={(e) => setStudioSettings({ ...studioSettings, facebook: e.target.value })}
-                                placeholder="URL pagina Facebook"
+                                id="hero-title"
+                                value={studioSettings.heroTitle || ''}
+                                onChange={(e) => handleSettingsChange('heroTitle', e.target.value)}
+                                placeholder="Titolo principale della pagina"
                               />
                             </div>
 
                             <div className="space-y-2">
-                              <Label>Instagram</Label>
+                              <Label htmlFor="hero-subtitle">Sottotitolo</Label>
                               <Input
-                                value={studioSettings.instagram}
-                                onChange={(e) => setStudioSettings({ ...studioSettings, instagram: e.target.value })}
-                                placeholder="URL profilo Instagram"
+                                id="hero-subtitle"
+                                value={studioSettings.heroSubtitle || ''}
+                                onChange={(e) => handleSettingsChange('heroSubtitle', e.target.value)}
+                                placeholder="Sottotitolo della pagina"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="hero-button">Testo pulsante</Label>
+                              <Input
+                                id="hero-button"
+                                value={studioSettings.heroButtonText || ''}
+                                onChange={(e) => handleSettingsChange('heroButtonText', e.target.value)}
+                                placeholder="Testo del pulsante principale"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="font-medium mb-3">Sezione WhatsApp</h4>
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <Label htmlFor="whatsapp-title">Titolo</Label>
+                              <Input
+                                id="whatsapp-title"
+                                value={studioSettings.whatsappTitle || ''}
+                                onChange={(e) => handleSettingsChange('whatsappTitle', e.target.value)}
+                                placeholder="Titolo sezione WhatsApp"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="whatsapp-subtitle">Sottotitolo</Label>
+                              <Input
+                                id="whatsapp-subtitle"
+                                value={studioSettings.whatsappSubtitle || ''}
+                                onChange={(e) => handleSettingsChange('whatsappSubtitle', e.target.value)}
+                                placeholder="Sottotitolo sezione WhatsApp"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="whatsapp-text">Testo descrittivo</Label>
+                              <Textarea
+                                id="whatsapp-text"
+                                value={studioSettings.whatsappText || ''}
+                                onChange={(e) => handleSettingsChange('whatsappText', e.target.value)}
+                                placeholder="Testo descrittivo della sezione"
+                                rows={2}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="whatsapp-button">Testo pulsante</Label>
+                              <Input
+                                id="whatsapp-button"
+                                value={studioSettings.whatsappButtonText || ''}
+                                onChange={(e) => handleSettingsChange('whatsappButtonText', e.target.value)}
+                                placeholder="Testo del pulsante WhatsApp"
                               />
                             </div>
                           </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </TabsContent>
-
-                <TabsContent value="cassa">
-                  <CashDashboard />
-                </TabsContent>
-              </Tabs>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>
