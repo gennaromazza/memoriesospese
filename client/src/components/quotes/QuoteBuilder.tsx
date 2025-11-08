@@ -243,14 +243,12 @@ export default function QuoteBuilder({
     }
   });
 
-  // Reset state when dialog closes (not on every render)
+  // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
       setSelectedTemplateId('');
-      form.reset();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]); // Only depend on 'open', not 'form' (form ref is stable)
+  }, [open]);
 
   const onSubmit = (data: FormData) => {
     createMutation.mutate(data);
