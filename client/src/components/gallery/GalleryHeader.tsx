@@ -59,6 +59,19 @@ export default function GalleryHeader({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Aggiungi classe al body per navbar trasparente su mobile quando c'è cover image
+  useEffect(() => {
+    if (isMobile && displayImage && displayImage.trim() !== "") {
+      document.body.classList.add('mobile-gallery-fullscreen');
+    } else {
+      document.body.classList.remove('mobile-gallery-fullscreen');
+    }
+    
+    return () => {
+      document.body.classList.remove('mobile-gallery-fullscreen');
+    };
+  }, [isMobile, displayImage]);
+
   // Determina quale immagine mostrare in base al dispositivo
   const displayImage = isMobile 
     ? (coverImageMobile || coverImageDesktop || coverImageUrl)
@@ -156,7 +169,8 @@ export default function GalleryHeader({
                 }}
                 onClick={() => setIsImageDialogOpen(true)}
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70 flex flex-col items-center justify-end p-4 sm:p-6 pointer-events-none">
+              {/* Overlay con nome galleria - solo su desktop */}
+              <div className="hidden sm:flex absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70 flex-col items-center justify-end p-4 sm:p-6 pointer-events-none">
                 <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white font-playfair text-center drop-shadow-md leading-tight">
                   {name}
                 </h1>

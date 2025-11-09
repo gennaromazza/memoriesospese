@@ -62,7 +62,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
   // Gallery navigation bar (when viewing a specific gallery)
   if (galleryOwner) {
     return (
-      <nav className="bg-white shadow-sm">
+      <nav className="bg-white shadow-sm mobile-gallery-nav">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex-shrink-0 flex items-center">
@@ -81,7 +81,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               </Link>
             </div>
             <div className="ml-4 flex items-center md:ml-6 gap-4">
-              <span className="px-4 py-2 rounded-md text-blue-gray bg-light-mint font-medium">
+              <span className="hidden sm:inline-block px-4 py-2 rounded-md text-blue-gray bg-light-mint font-medium">
                 Galleria di <span>{galleryOwner}</span>
               </span>
 
