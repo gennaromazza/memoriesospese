@@ -25,7 +25,7 @@ import type {
   Clause
 } from '@shared/contract-clause-types';
 
-const COLLECTION = 'contractClauseTemplates';
+const COLLECTION = 'contractClauses';
 
 /**
  * Crea nuovo template clausole
