@@ -165,10 +165,9 @@ export default function GeneraPagamentiModal({
     setActiveTab('manuale'); // Switch to manual tab per review
   };
 
-  // Mutation: crea payment schedule (Task 6 - backend)
+  // Mutation: crea payment schedule
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      // TODO Task 6: implementare API POST /api/payment-schedules/generate
       const response = await fetch('/api/payment-schedules/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

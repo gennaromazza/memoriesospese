@@ -11,6 +11,278 @@ import { nanoid } from 'nanoid';
 const router = Router();
 
 /**
+ * GET /api/payment-schedules/presets/:quoteId
+ * Genera preset piani pagamento automaticamente da quote firmato
+ * Ritorna opzioni: acconto-saldo, 2-rate, 3-rate
+ */
+router.get('/presets/:quoteId', async (req: Request, res: Response) => {
+  try {
+    const { quoteId } = req.params;
+
+    // Fetch quote
+    const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: `Quote ${quoteId} non esiste`
+      });
+    }
+
+    const quote = quoteDoc.data();
+    if (!quote) {
+      return res.status(500).json({ error: 'Dati quote non validi' });
+    }
+
+    // Calcola totale da preventivo
+    const totale = quote.totalAfterDiscount || quote.totaleSelezionato || 0;
+    if (totale <= 0) {
+      return res.status(400).json({
+        error: 'Totale preventivo non valido',
+        message: 'Il preventivo deve avere un totale > 0'
+      });
+    }
+
+    const today = new Date();
+    const addDays = (date: Date, days: number) => {
+      const result = new Date(date);
+      result.setDate(result.getDate() + days);
+      return result;
+    };
+
+    // Genera preset automatici
+    const presets = {
+      'acconto-saldo': {
+        nome: 'Acconto + Saldo',
+        descrizione: 'Acconto 30% + Saldo 70%',
+        payments: [
+          {
+            tipo: 'acconto',
+            importo: totale * 0.3,
+            dataScadenza: addDays(today, 7),
+            descrizione: 'Acconto 30%',
+          },
+          {
+            tipo: 'saldo',
+            importo: totale * 0.7,
+            dataScadenza: addDays(today, 30),
+            descrizione: 'Saldo 70%',
+          },
+        ],
+      },
+      '2-rate': {
+        nome: '2 Rate Uguali',
+        descrizione: '50% + 50%',
+        payments: [
+          {
+            tipo: 'acconto',
+            importo: totale / 2,
+            dataScadenza: addDays(today, 7),
+            descrizione: 'Prima rata (50%)',
+          },
+          {
+            tipo: 'saldo',
+            importo: totale / 2,
+            dataScadenza: addDays(today, 30),
+            descrizione: 'Seconda rata (50%)',
+          },
+        ],
+      },
+      '3-rate': {
+        nome: '3 Rate Uguali',
+        descrizione: '33.33% ciascuna',
+        payments: [
+          {
+            tipo: 'acconto',
+            importo: totale / 3,
+            dataScadenza: addDays(today, 7),
+            descrizione: 'Prima rata (1/3)',
+          },
+          {
+            tipo: 'rata',
+            importo: totale / 3,
+            dataScadenza: addDays(today, 30),
+            descrizione: 'Seconda rata (2/3)',
+          },
+          {
+            tipo: 'saldo',
+            importo: totale / 3,
+            dataScadenza: addDays(today, 60),
+            descrizione: 'Terza rata (3/3)',
+          },
+        ],
+      },
+    };
+
+    return res.json({
+      success: true,
+      quoteId,
+      totale,
+      presets,
+    });
+  } catch (error) {
+    console.error('❌ Errore generazione presets:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * POST /api/payment-schedules/generate-auto
+ * Genera E salva automaticamente piano pagamenti da preventivo firmato
+ * Body: { quoteId, jobId, clienteId, presetType: 'acconto-saldo' | '2-rate' | '3-rate' }
+ */
+router.post('/generate-auto', async (req: Request, res: Response) => {
+  try {
+    const { quoteId, jobId, clienteId, presetType = 'acconto-saldo' } = req.body;
+
+    // Validazione
+    if (!quoteId || !jobId || !clienteId) {
+      return res.status(400).json({
+        error: 'Parametri mancanti',
+        message: 'quoteId, jobId, clienteId richiesti'
+      });
+    }
+
+    // Fetch quote
+    const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: `Quote ${quoteId} non esiste`
+      });
+    }
+
+    const quote = quoteDoc.data();
+    if (!quote) {
+      return res.status(500).json({ error: 'Dati quote non validi' });
+    }
+
+    // Calcola totale automaticamente
+    const totale = quote.totalAfterDiscount || quote.totaleSelezionato || 0;
+    if (totale <= 0) {
+      return res.status(400).json({
+        error: 'Totale preventivo non valido',
+        message: 'Il preventivo deve avere un totale > 0'
+      });
+    }
+
+    const today = new Date();
+    const addDays = (date: Date, days: number) => {
+      const result = new Date(date);
+      result.setDate(result.getDate() + days);
+      return result;
+    };
+
+    // Genera payments automaticamente basato su preset
+    let paymentsData: Array<{tipo: string, importo: number, dataScadenza: Date, descrizione: string}> = [];
+    
+    switch (presetType) {
+      case 'acconto-saldo':
+        paymentsData = [
+          { tipo: 'acconto', importo: totale * 0.3, dataScadenza: addDays(today, 7), descrizione: 'Acconto 30%' },
+          { tipo: 'saldo', importo: totale * 0.7, dataScadenza: addDays(today, 30), descrizione: 'Saldo 70%' },
+        ];
+        break;
+      case '2-rate':
+        paymentsData = [
+          { tipo: 'acconto', importo: totale / 2, dataScadenza: addDays(today, 7), descrizione: 'Prima rata (50%)' },
+          { tipo: 'saldo', importo: totale / 2, dataScadenza: addDays(today, 30), descrizione: 'Seconda rata (50%)' },
+        ];
+        break;
+      case '3-rate':
+        paymentsData = [
+          { tipo: 'acconto', importo: totale / 3, dataScadenza: addDays(today, 7), descrizione: 'Prima rata (1/3)' },
+          { tipo: 'rata', importo: totale / 3, dataScadenza: addDays(today, 30), descrizione: 'Seconda rata (2/3)' },
+          { tipo: 'saldo', importo: totale / 3, dataScadenza: addDays(today, 60), descrizione: 'Terza rata (3/3)' },
+        ];
+        break;
+      default:
+        return res.status(400).json({
+          error: 'Preset non valido',
+          message: 'presetType deve essere: acconto-saldo, 2-rate o 3-rate'
+        });
+    }
+
+    // Crea ScheduledPayment[] con nanoid + fix rounding
+    const scheduledPayments = paymentsData.map((p, idx) => ({
+      id: nanoid(),
+      tipo: p.tipo as 'acconto' | 'rata' | 'saldo',
+      importo: Math.round(p.importo * 100) / 100, // Round to cents
+      dataScadenza: Timestamp.fromDate(p.dataScadenza),
+      stato: 'atteso' as const,
+      note: p.descrizione,
+    }));
+
+    // Fix rounding: adjust last payment to match exact total
+    const totaleRounded = scheduledPayments.reduce((sum, p) => sum + p.importo, 0);
+    const differenza = Math.round((totale - totaleRounded) * 100) / 100;
+    
+    if (Math.abs(differenza) > 0) {
+      // Add rounding difference to last payment
+      scheduledPayments[scheduledPayments.length - 1].importo = 
+        Math.round((scheduledPayments[scheduledPayments.length - 1].importo + differenza) * 100) / 100;
+    }
+
+    // Final total after rounding adjustment
+    const totalePagamenti = scheduledPayments.reduce((sum, p) => sum + p.importo, 0);
+
+    // Crea PaymentSchedule documento
+    const scheduleId = nanoid();
+    const now = Timestamp.now();
+
+    const paymentSchedule = {
+      id: scheduleId,
+      jobId,
+      quoteId,
+      orderId: '',
+      clienteId,
+      payments: scheduledPayments,
+      totale: totalePagamenti,
+      totalePagato: 0,
+      saldoResiduo: totalePagamenti,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: 'admin',
+    };
+
+    // Salva in Firestore
+    await db.collection('paymentSchedules').doc(scheduleId).set(paymentSchedule);
+
+    // Timeline event
+    try {
+      const timelineEventId = nanoid();
+      await db.collection('jobTimeline').doc(timelineEventId).set({
+        id: timelineEventId,
+        jobId,
+        evento: 'Piano pagamenti generato automaticamente',
+        descrizione: `Creato ${presetType} con ${scheduledPayments.length} rate per un totale di €${totalePagamenti.toFixed(2)}`,
+        categoria: 'pagamenti',
+        timestamp: now,
+        userId: 'admin',
+      });
+    } catch (timelineError) {
+      console.error('❌ Errore creazione evento timeline:', timelineError);
+    }
+
+    return res.status(201).json({
+      success: true,
+      scheduleId,
+      presetType,
+      message: `Piano pagamenti ${presetType} generato automaticamente`,
+      data: paymentSchedule,
+    });
+  } catch (error) {
+    console.error('❌ Errore generazione automatica piano pagamenti:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
  * POST /api/payment-schedules/generate
  * Genera piano pagamenti da quote
  */
