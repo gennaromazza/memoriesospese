@@ -109,7 +109,7 @@ export default function GalleryHeader({
       </div>
       
       {displayImage && displayImage.trim() !== "" ? (
-        <div className="relative w-full mb-0 sm:mb-6">
+        <div className="relative w-full mb-0">
           <div className={`relative w-full sm:max-w-6xl sm:mx-auto ${
             imageDimensions?.isLandscape 
               ? 'h-screen sm:h-80 md:h-96 lg:h-[450px]' 
