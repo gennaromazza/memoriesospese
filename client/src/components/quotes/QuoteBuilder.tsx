@@ -63,12 +63,14 @@ import {
   CreditCard
 } from 'lucide-react';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
-import type { JobType as JobTypeSlug } from '@shared/jobs-types';
+import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
 import type { JobType } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
 import { calculateQuoteTotals } from '@shared/quote-utils';
+import { calculatePaymentSchedule, formatDueDate, formatCurrency } from '@shared/payment-schedule-utils';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getJob } from '@/lib/jobs';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 
 const quoteSchema = z.object({
@@ -98,7 +100,12 @@ const quoteSchema = z.object({
   paymentScheduleConfig: z.object({
     autoGenerate: z.boolean(),
     numberOfPayments: z.number().min(1).max(10).optional(),
-    accontoPercentage: z.number().min(0).max(100).optional()
+    accontoType: z.enum(['percentage', 'amount']),
+    accontoPercentage: z.number().min(0).max(100).optional(),
+    accontoAmount: z.number().min(0).optional(),
+    useEventDateReference: z.boolean(),
+    accontoRelativeDays: z.number().optional(),
+    rateIntervalDays: z.number().min(1).optional()
   }).optional()
 }).refine(
   (data) => {
@@ -144,6 +151,13 @@ export default function QuoteBuilder({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
 
+  // Query job per eventDate
+  const { data: job } = useQuery({
+    queryKey: ['jobs', jobId],
+    queryFn: () => getJob(jobId),
+    enabled: !!jobId
+  });
+
   // Query templates
   const { data: templates = [] } = useQuery({
     queryKey: ['quote-templates'],
@@ -180,7 +194,17 @@ export default function QuoteBuilder({
         secondaryColor: '#C8B8A8',
         footerText: 'Image Studio - Fotografia professionale'
       },
-      noteInterne: ''
+      noteInterne: '',
+      paymentScheduleConfig: {
+        autoGenerate: false,
+        numberOfPayments: 2,
+        accontoType: 'percentage',
+        accontoPercentage: 30,
+        accontoAmount: 0,
+        useEventDateReference: true,
+        accontoRelativeDays: -30,
+        rateIntervalDays: 30
+      }
     }
   });
 
@@ -194,6 +218,10 @@ export default function QuoteBuilder({
   const customProducts = form.watch('products') || [];
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
+
+  // Watch payment schedule config for simulator
+  const paymentConfig = form.watch('paymentScheduleConfig');
+  const autoGenerate = paymentConfig?.autoGenerate || false;
 
   // Calcola totale unificato (catalog + custom) - wrapped in useMemo to prevent loop
   const totaleCatalogo = useMemo(() => {
@@ -215,6 +243,23 @@ export default function QuoteBuilder({
   const { totalBeforeDiscount, discountAmount, totalAfterDiscount } = useMemo(() => {
     return calculateQuoteTotals(subtotale, discountType, discountValue);
   }, [subtotale, discountType, discountValue]);
+
+  // Calcola simulazione piano pagamenti real-time
+  const paymentSchedulePreview = useMemo(() => {
+    if (!autoGenerate || !paymentConfig || totalAfterDiscount === 0) return null;
+
+    // Converti eventDate da Timestamp a Date
+    const eventDate = job?.eventDate ? 
+      (job.eventDate instanceof Date ? job.eventDate : (job.eventDate as any).toDate?.() || null) 
+      : null;
+
+    try {
+      return calculatePaymentSchedule(totalAfterDiscount, paymentConfig, eventDate || undefined);
+    } catch (error) {
+      console.error('Errore calcolo preview pagamenti:', error);
+      return null;
+    }
+  }, [autoGenerate, paymentConfig, totalAfterDiscount, job?.eventDate]);
 
   // Load template
   const handleLoadTemplate = (templateId: string) => {
@@ -709,7 +754,7 @@ export default function QuoteBuilder({
 
             <Separator />
 
-            {/* Configurazione Piano Pagamenti */}
+            {/* Configurazione Piano Pagamenti Avanzata */}
             <Card className="bg-blue-50 border-blue-200">
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -740,59 +785,228 @@ export default function QuoteBuilder({
                   )}
                 />
 
-                {form.watch('paymentScheduleConfig.autoGenerate') && (
+                {autoGenerate && (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Numero Rate */}
+                    <FormField
+                      control={form.control}
+                      name="paymentScheduleConfig.numberOfPayments"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Numero Rate Totali</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="es. 3"
+                              min={1}
+                              max={10}
+                              {...field}
+                              onChange={e => field.onChange(parseInt(e.target.value) || 2)}
+                              data-testid="input-num-payments"
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Totale rate incluso acconto (min 1, max 10)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Dual-Mode Acconto */}
+                    <div className="space-y-3">
                       <FormField
                         control={form.control}
-                        name="paymentScheduleConfig.numberOfPayments"
+                        name="paymentScheduleConfig.accontoType"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Numero Rate</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="es. 3"
-                                min={1}
-                                max={10}
-                                {...field}
-                                onChange={e => field.onChange(parseInt(e.target.value) || 2)}
-                                data-testid="input-num-payments"
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Totale rate incluso acconto (min 1, max 10)
-                            </FormDescription>
+                            <FormLabel>Tipo Acconto</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-acconto-type">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="percentage">Percentuale (%)</SelectItem>
+                                <SelectItem value="amount">Importo Fisso (€)</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name="paymentScheduleConfig.accontoPercentage"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Acconto %</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="es. 30"
-                                min={0}
-                                max={100}
-                                {...field}
-                                onChange={e => field.onChange(parseInt(e.target.value) || 30)}
-                                data-testid="input-acconto-percent"
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Percentuale acconto iniziale (0-100%)
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {paymentConfig?.accontoType === 'percentage' ? (
+                        <FormField
+                          control={form.control}
+                          name="paymentScheduleConfig.accontoPercentage"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Percentuale Acconto</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="es. 30"
+                                  min={0}
+                                  max={100}
+                                  {...field}
+                                  onChange={e => field.onChange(parseInt(e.target.value) || 30)}
+                                  data-testid="input-acconto-percent"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Percentuale acconto iniziale (0-100%)
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ) : (
+                        <FormField
+                          control={form.control}
+                          name="paymentScheduleConfig.accontoAmount"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Importo Acconto</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="es. 500"
+                                  min={0}
+                                  max={totalAfterDiscount}
+                                  {...field}
+                                  onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                                  data-testid="input-acconto-amount"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Importo acconto fisso in € (max: {formatCurrency(totalAfterDiscount)})
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </div>
+
+                    {/* Riferimento Data */}
+                    <FormField
+                      control={form.control}
+                      name="paymentScheduleConfig.useEventDateReference"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between space-y-0">
+                          <div className="space-y-1">
+                            <FormLabel>Usa Data Evento come Riferimento</FormLabel>
+                            <FormDescription>
+                              Calcola scadenze relative alla data dell'evento
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="switch-event-reference"
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    {paymentConfig?.useEventDateReference && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="paymentScheduleConfig.accontoRelativeDays"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Giorni Acconto da Evento</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="es. -30"
+                                  {...field}
+                                  onChange={e => field.onChange(parseInt(e.target.value) || -30)}
+                                  data-testid="input-acconto-days"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Negativo = giorni prima evento
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="paymentScheduleConfig.rateIntervalDays"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Intervallo tra Rate (gg)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="es. 30"
+                                  min={1}
+                                  {...field}
+                                  onChange={e => field.onChange(parseInt(e.target.value) || 30)}
+                                  data-testid="input-rate-interval"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Giorni tra ogni rata
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+
+                    {/* Simulatore Visivo */}
+                    {paymentSchedulePreview && (
+                      <div className="mt-6 bg-white border border-blue-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          Anteprima Piano Pagamenti
+                        </h4>
+                        <div className="space-y-2">
+                          {paymentSchedulePreview.payments.map((payment, idx) => (
+                            <div 
+                              key={idx} 
+                              className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded border"
+                              data-testid={`preview-payment-${idx}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Badge 
+                                  variant={payment.tipo === 'acconto' ? 'default' : payment.tipo === 'saldo' ? 'secondary' : 'outline'}
+                                  className="capitalize"
+                                >
+                                  {payment.tipo}
+                                </Badge>
+                                <span className="text-sm text-gray-600">{payment.descrizione}</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-semibold">{formatCurrency(payment.importo)}</div>
+                                <div className="text-xs text-gray-500">{formatDueDate(payment.dataScadenza)}</div>
+                                {payment.giorniDaEvento !== undefined && (
+                                  <div className="text-xs text-blue-600">
+                                    {payment.giorniDaEvento > 0 ? '+' : ''}{payment.giorniDaEvento} gg da evento
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between items-center">
+                          <span className="text-sm font-medium">Totale Piano</span>
+                          <span className="text-lg font-bold text-blue-700">
+                            {formatCurrency(paymentSchedulePreview.totale)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>
