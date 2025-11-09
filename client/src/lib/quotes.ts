@@ -122,6 +122,7 @@ export async function createQuote(
       publicToken: generatePublicToken(),
       expiresAt: data.expiresAt ? Timestamp.fromDate(data.expiresAt) : undefined,
       noteInterne: data.noteInterne,
+      paymentScheduleConfig: data.paymentScheduleConfig, // Configurazione piano pagamenti
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       createdBy: userId
@@ -336,7 +337,7 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     }));
     
     // Calcola totale selezionato (per preventivo variabile)
-    let totaleSelezionato = quote.totaleBase;
+    let totaleSelezionato = quote.totaleBase || 0;
     if (quote.type === 'variabile' && data.selectedProducts) {
       totaleSelezionato = quote.products
         .filter(p => data.selectedProducts?.includes(p.nome))
@@ -375,10 +376,108 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       metadata: { quoteId: data.quoteId, totale: totaleSelezionato }
     });
     
+    // Auto-genera piano pagamenti se configurato
+    if (quote.paymentScheduleConfig?.autoGenerate && totaleSelezionato > 0) {
+      try {
+        await autoGeneratePaymentSchedule(
+          data.quoteId,
+          quote.jobId,
+          quote.clienteId,
+          totaleSelezionato,
+          quote.paymentScheduleConfig
+        );
+        console.log('✅ Piano pagamenti auto-generato');
+      } catch (error) {
+        console.error('⚠️ Errore auto-generazione piano pagamenti:', error);
+        // Non bloccare la firma se la generazione fallisce
+      }
+    }
+    
     console.log('✅ Preventivo accettato e firmato');
   } catch (error) {
     console.error('❌ Errore accettazione preventivo:', error);
     throw error;
+  }
+}
+
+/**
+ * Auto-genera piano pagamenti alla firma preventivo
+ */
+async function autoGeneratePaymentSchedule(
+  quoteId: string,
+  jobId: string,
+  clienteId: string,
+  totale: number,
+  config: { numberOfPayments?: number; accontoPercentage?: number }
+): Promise<void> {
+  const numberOfPayments = config.numberOfPayments || 2;
+  const accontoPercentage = config.accontoPercentage || 30;
+  
+  // Calcola importo acconto
+  const accontoAmount = (totale * accontoPercentage) / 100;
+  const saldoAmount = totale - accontoAmount;
+  
+  // Crea array payments
+  const payments: any[] = [];
+  
+  if (numberOfPayments === 1) {
+    // Unico pagamento (acconto)
+    payments.push({
+      importo: totale,
+      dataScadenza: new Date().toISOString(), // Immediato
+      descrizione: 'Pagamento unico'
+    });
+  } else if (numberOfPayments === 2) {
+    // Acconto + Saldo
+    payments.push({
+      importo: accontoAmount,
+      dataScadenza: new Date().toISOString(), // Immediato
+      descrizione: 'Acconto'
+    });
+    
+    const saldoDate = new Date();
+    saldoDate.setDate(saldoDate.getDate() + 30); // +30 giorni
+    payments.push({
+      importo: saldoAmount,
+      dataScadenza: saldoDate.toISOString(),
+      descrizione: 'Saldo'
+    });
+  } else {
+    // Multiple rate
+    payments.push({
+      importo: accontoAmount,
+      dataScadenza: new Date().toISOString(),
+      descrizione: 'Acconto'
+    });
+    
+    const rateAmount = saldoAmount / (numberOfPayments - 1);
+    for (let i = 1; i < numberOfPayments; i++) {
+      const rataDate = new Date();
+      rataDate.setDate(rataDate.getDate() + (30 * i)); // +30 giorni per rata
+      
+      payments.push({
+        importo: i === numberOfPayments - 1 ? saldoAmount - (rateAmount * (numberOfPayments - 2)) : rateAmount,
+        dataScadenza: rataDate.toISOString(),
+        descrizione: i === numberOfPayments - 1 ? 'Saldo' : `Rata ${i}`
+      });
+    }
+  }
+  
+  // Chiama API generazione
+  const response = await fetch('/api/payment-schedules/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      quoteId,
+      jobId,
+      clienteId,
+      payments,
+      totale
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error('Errore generazione payment schedule');
   }
 }
 

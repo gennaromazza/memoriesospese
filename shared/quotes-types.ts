@@ -73,6 +73,15 @@ export interface QuoteTheme {
 }
 
 /**
+ * Configurazione piano pagamenti
+ */
+export interface PaymentScheduleConfig {
+  autoGenerate: boolean;          // Genera automaticamente alla firma
+  numberOfPayments?: number;      // Numero rate (1-10)
+  accontoPercentage?: number;     // Percentuale acconto (0-100%)
+}
+
+/**
  * QUOTE - Preventivo digitale
  */
 export interface Quote {
@@ -126,6 +135,9 @@ export interface Quote {
   // Note interne
   noteInterne?: string;
   
+  // Configurazione piano pagamenti
+  paymentScheduleConfig?: PaymentScheduleConfig;
+  
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -149,6 +161,7 @@ export interface InsertQuote {
   totalAfterDiscount: number;
   expiresAt?: Date;
   noteInterne?: string;
+  paymentScheduleConfig?: PaymentScheduleConfig;
 }
 
 /**

@@ -303,6 +303,7 @@ export default function QuoteBuilder({
         theme: data.theme,
         expiresAt: data.expiresAt,
         noteInterne: data.noteInterne,
+        paymentScheduleConfig: data.paymentScheduleConfig, // Configurazione piano pagamenti
         templateId: selectedTemplateId || undefined,
         contractClauses: defaultClauses
       };
