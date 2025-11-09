@@ -59,6 +59,11 @@ export default function GalleryHeader({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Determina quale immagine mostrare in base al dispositivo
+  const displayImage = isMobile 
+    ? (coverImageMobile || coverImageDesktop || coverImageUrl)
+    : (coverImageDesktop || coverImageUrl);
+
   // Aggiungi classe al body per navbar trasparente su mobile quando c'è cover image
   useEffect(() => {
     if (isMobile && displayImage && displayImage.trim() !== "") {
@@ -71,11 +76,6 @@ export default function GalleryHeader({
       document.body.classList.remove('mobile-gallery-fullscreen');
     };
   }, [isMobile, displayImage]);
-
-  // Determina quale immagine mostrare in base al dispositivo
-  const displayImage = isMobile 
-    ? (coverImageMobile || coverImageDesktop || coverImageUrl)
-    : (coverImageDesktop || coverImageUrl);
   
   // Carica e analizza le dimensioni dell'immagine di copertina
   useEffect(() => {
