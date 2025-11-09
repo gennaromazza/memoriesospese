@@ -25,6 +25,7 @@ import DeleteGalleryPage from "./pages/DeleteGalleryPage";
 import UserProfile from "./pages/UserProfile";
 import BookingIndex from "./pages/BookingIndex";
 import BookingPage from "./pages/BookingPage";
+import QuoteSignedPortalPage from "./pages/QuoteSignedPortalPage";
 import GalleryManagementWorkspace from "./pages/GalleryManagementWorkspace";
 import JobDetailPage from "./pages/JobDetailPage";
 import NotFound from "./pages/not-found";
@@ -58,6 +59,9 @@ function AppRoutes() {
       {/* Booking pubblico */}
       <Route path="/prenota" component={BookingIndex} />
       <Route path="/prenota/:code" component={BookingPage} />
+
+      {/* Quote portale pubblico */}
+      <Route path="/quote/signed/:token" component={QuoteSignedPortalPage} />
 
       {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
       <Route path="/special-gallery" component={SpecialGalleryAccess} />

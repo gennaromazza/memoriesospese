@@ -10,6 +10,7 @@ import bookingRoutes from './booking-routes.js';
 import orderRoutes from './order-routes.js';
 import jobRoutes from './job-routes.js';
 import paymentScheduleRoutes from './payment-schedule-routes.js';
+import quoteRoutes from './quote-routes.js';
 
 async function startServer() {
   const start = Date.now();
@@ -70,6 +71,9 @@ async function startServer() {
     
     app.use('/api/payment-schedules', paymentScheduleRoutes);
     console.log('💳 Payment Schedule API routes mounted at /api/payment-schedules');
+    
+    app.use('/api/quotes', quoteRoutes);
+    console.log('📄 Quote API routes mounted at /api/quotes');
 
     // Health check
     app.get('/api/health', (req, res) => {
