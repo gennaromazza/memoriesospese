@@ -349,7 +349,7 @@ service cloud.firestore {
     
     // Contract Clauses - Template clauses for contracts
     match /contractClauses/{clauseId} {
-      allow read: if isSignedIn(); // Authenticated users can read clauses (needed for template selection)
+      allow read: if true; // Public read access for clauses (template data, similar to quotes)
       allow create: if isAdmin(); // Only admin can create new clauses
       allow update: if isAdmin(); // Only admin can update clauses
       allow delete: if isAdmin(); // Only admin can delete clauses
@@ -357,7 +357,7 @@ service cloud.firestore {
     
     // Quote Templates - Reusable quote templates for different job types
     match /quoteTemplates/{templateId} {
-      allow read: if isSignedIn(); // Authenticated users can read templates (needed for quote creation)
+      allow read: if true; // Public read access for templates (template data, similar to quotes)
       allow create: if isAdmin(); // Only admin can create new templates
       allow update: if isAdmin(); // Only admin can update templates
       allow delete: if isAdmin(); // Only admin can delete templates
@@ -376,7 +376,7 @@ service cloud.firestore {
     match /quotes/{quoteId} {
       allow read: if true; // Public read with token validation in app layer (publicToken)
       allow create: if isAdmin(); // Only admin can create quotes
-      allow update: if isAdmin(); // Only admin can update quotes (status, signature, etc.)
+      allow update: if true; // Allow client-side signature updates (signature, selectedProducts, totaleSelezionato)
       allow delete: if isAdmin(); // Only admin can delete quotes
     }
     

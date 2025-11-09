@@ -3374,4 +3374,309 @@ function createOrderReadyEmailHTML(
   `;
 }
 
+/**
+ * Template HTML per email contratto firmato (Modulo di Prenotazione)
+ * ESPORTATA per uso in quote management
+ */
+export function createQuoteSignedEmailHTML(
+  clienteName: string,
+  quoteType: string,
+  jobName: string,
+  totaleSelezionato: number,
+  signatureDate: Date,
+  portalLink: string,
+  nextPayment?: { importo: number; dataScadenza: Date; descrizione: string },
+  payments?: Array<{ importo: number; dataScadenza: Date; descrizione: string }>,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('it-IT', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #0d6efd; text-align: center;">✅ Contratto Firmato con Successo</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Il tuo preventivo per <strong style="color: #0d6efd;">${jobName}</strong> è stato firmato con successo! 
+          Grazie per la tua fiducia. 🎉
+        </p>
+        
+        <div style="background: #cfe2ff; border-left: 4px solid #0d6efd; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #084298; margin-top: 0; margin-bottom: 10px;">📋 Riepilogo Contratto</h4>
+          <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #b6d4fe;">
+              <td style="padding: 8px 0;">Tipo preventivo:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${quoteType === 'fisso' ? 'Pacchetto Fisso' : 'A Consumo'}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #b6d4fe;">
+              <td style="padding: 8px 0;">Totale selezionato:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 18px; color: #0d6efd;">${formatCurrency(totaleSelezionato)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">Data firma:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatDate(signatureDate)}</td>
+            </tr>
+          </table>
+        </div>
+
+        ${nextPayment ? `
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">💰 Prossima Scadenza</h4>
+          <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold; color: #856404;">
+            ${nextPayment.descrizione}: ${formatCurrency(nextPayment.importo)}
+          </p>
+          <p style="margin: 0; font-size: 14px; color: #856404;">
+            Scadenza: ${formatDate(nextPayment.dataScadenza)}
+          </p>
+        </div>
+        ` : ''}
+
+        ${payments && payments.length > 0 ? `
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
+          <h4 style="color: #333; margin-top: 0; margin-bottom: 15px;">📅 Piano Pagamenti</h4>
+          <table style="width: 100%; font-size: 13px; color: #333; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <th style="padding: 10px; text-align: left;">Descrizione</th>
+                <th style="padding: 10px; text-align: right;">Importo</th>
+                <th style="padding: 10px; text-align: right;">Scadenza</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${payments.map((p, i) => `
+                <tr style="border-bottom: 1px solid #e0e0e0;">
+                  <td style="padding: 10px;">${p.descrizione}</td>
+                  <td style="padding: 10px; text-align: right; font-weight: bold;">${formatCurrency(p.importo)}</td>
+                  <td style="padding: 10px; text-align: right;">${formatDate(p.dataScadenza)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
+
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${portalLink}" style="display: inline-block; background-color: #0d6efd; color: white; padding: 14px 35px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+            🔗 Visualizza Contratto e Pagamenti
+          </a>
+        </div>
+
+        <div style="background: #d1ecf1; border-left: 4px solid #0dcaf0; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #055160;">
+            <strong>💡 Portale Cliente</strong><br>
+            Puoi visualizzare il contratto firmato, lo stato dei pagamenti e tutti i dettagli del tuo servizio 
+            accedendo al portale tramite il link qui sopra. Salvalo tra i preferiti!
+          </p>
+        </div>
+
+        <p style="font-size: 16px; margin-top: 20px;">
+          A presto! ❤️
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">WhatsApp: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email pagamento ricevuto (piano rate)
+ * ESPORTATA per uso in payment schedule management
+ */
+export function createPaymentReceivedEmailHTML(
+  clienteName: string,
+  jobName: string,
+  paymentDescription: string,
+  paymentAmount: number,
+  paymentMethod: string,
+  paymentDate: Date,
+  remainingBalance: number,
+  nextPayment?: { importo: number; dataScadenza: Date; descrizione: string },
+  allPayments?: Array<{ 
+    importo: number; 
+    dataScadenza: Date; 
+    descrizione: string; 
+    stato: 'pending' | 'paid' | 'overdue';
+    dataPagamento?: Date;
+  }>,
+  portalLink?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('it-IT', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
+  const formatMethod = (method: string) => {
+    const methods: Record<string, string> = {
+      'contante': 'Contante',
+      'carta': 'Carta',
+      'bonifico': 'Bonifico',
+      'paypal': 'PayPal',
+      'stripe': 'Carta (Stripe)'
+    };
+    return methods[method.toLowerCase()] || method;
+  };
+
+  const getStatusBadge = (stato: string) => {
+    const badges = {
+      'paid': { bg: '#d1e7dd', color: '#0f5132', text: '✓ Pagato' },
+      'pending': { bg: '#fff3cd', color: '#856404', text: '⏳ In attesa' },
+      'overdue': { bg: '#f8d7da', color: '#842029', text: '⚠️ Scaduto' }
+    };
+    const badge = badges[stato as keyof typeof badges] || badges.pending;
+    return `<span style="background: ${badge.bg}; color: ${badge.color}; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;">${badge.text}</span>`;
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #28a745; text-align: center;">✅ Pagamento Ricevuto</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Abbiamo ricevuto con successo il tuo pagamento per <strong style="color: #28a745;">${jobName}</strong>. 
+          Grazie! 🎉
+        </p>
+        
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #28a745;">
+          <h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px;">✅ Dettagli Pagamento</h3>
+          <div style="background: #d1e7dd; border-left: 4px solid #28a745; padding: 15px; margin: 10px 0;">
+            <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #0f5132;">
+              ${paymentDescription}: ${formatCurrency(paymentAmount)}
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #0f5132;">
+              Metodo: ${formatMethod(paymentMethod)} • Data: ${formatDate(paymentDate)}
+            </p>
+          </div>
+        </div>
+
+        ${remainingBalance > 0 ? `
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">💰 Saldo Rimanente</h4>
+          <p style="margin: 0 0 15px 0; font-size: 20px; font-weight: bold; color: #856404;">
+            ${formatCurrency(remainingBalance)}
+          </p>
+          ${nextPayment ? `
+            <div style="background: rgba(255,255,255,0.5); padding: 10px; border-radius: 3px;">
+              <p style="margin: 0 0 5px 0; font-size: 13px; color: #856404;">
+                <strong>Prossima scadenza:</strong>
+              </p>
+              <p style="margin: 0; font-size: 14px; font-weight: bold; color: #856404;">
+                ${nextPayment.descrizione}: ${formatCurrency(nextPayment.importo)} - ${formatDate(nextPayment.dataScadenza)}
+              </p>
+            </div>
+          ` : ''}
+        </div>
+        ` : `
+        <div style="background: #d1e7dd; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 16px; font-weight: bold; color: #0f5132;">
+            🎉 Tutti i pagamenti completati! Grazie!
+          </p>
+        </div>
+        `}
+
+        ${allPayments && allPayments.length > 0 ? `
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
+          <h4 style="color: #333; margin-top: 0; margin-bottom: 15px;">📋 Stato Pagamenti</h4>
+          <table style="width: 100%; font-size: 13px; color: #333; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <th style="padding: 10px; text-align: left;">Rata</th>
+                <th style="padding: 10px; text-align: right;">Importo</th>
+                <th style="padding: 10px; text-align: center;">Stato</th>
+                <th style="padding: 10px; text-align: right;">Scadenza</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${allPayments.map((p, i) => `
+                <tr style="border-bottom: 1px solid #e0e0e0;">
+                  <td style="padding: 10px;">${p.descrizione}</td>
+                  <td style="padding: 10px; text-align: right; font-weight: bold;">${formatCurrency(p.importo)}</td>
+                  <td style="padding: 10px; text-align: center;">${getStatusBadge(p.stato)}</td>
+                  <td style="padding: 10px; text-align: right;">
+                    ${p.stato === 'paid' && p.dataPagamento ? formatDate(p.dataPagamento) : formatDate(p.dataScadenza)}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
+
+        ${portalLink ? `
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${portalLink}" style="display: inline-block; background-color: #0d6efd; color: white; padding: 14px 35px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+            🔗 Visualizza Stato Pagamenti
+          </a>
+        </div>
+        ` : ''}
+
+        <div style="background: #d1ecf1; border-left: 4px solid #0dcaf0; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #055160;">
+            <strong>💡 Ricevuta</strong><br>
+            Questa email serve come conferma di pagamento. Conservala per i tuoi archivi.
+          </p>
+        </div>
+
+        <p style="font-size: 16px; margin-top: 20px;">
+          Grazie per la tua fiducia! ❤️
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">WhatsApp: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
 export default router;
