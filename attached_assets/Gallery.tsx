@@ -16,7 +16,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useStudio } from "@/context/StudioContext";
 import { trackGalleryView } from "@/lib/analytics";
-import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
+import { createUrl, createAbsoluteUrl } from "@/basePath";
 import Navigation from "@/components/Navigation";
 import ImageLightbox from "@/components/ImageLightbox";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,17 @@ import {
   BackgroundDecoration,
 } from "@/components/WeddingIllustrations";
 import { WeddingImage, DecorativeImage } from "@/components/WeddingImages";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"; // Import Dialog components
+import { Label } from "@/components/ui/label"; // Import Label
+import { Input } from "@/components/ui/input"; // Import Input
+import { Button } from "@/components/ui/button"; // Import Button
+import { useQueryClient } from "@tanstack/react-query"; // Import useQueryClient
 
 interface GalleryData {
   id: string;
@@ -74,6 +85,19 @@ function getYouTubeVideoId(url: string): string {
   }
 }
 
+// Dummy component for ImportClientiDialog - replace with your actual component
+const ImportClientiDialog = ({ open, onOpenChange, onImportComplete }) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Import Clienti</DialogTitle>
+      </DialogHeader>
+      <div>Contenuto del dialogo di importazione qui...</div>
+      <Button onClick={onImportComplete}>Completa Importazione</Button>
+    </DialogContent>
+  </Dialog>
+);
+
 export default function Gallery() {
   const { id } = useParams();
   const [, navigate] = useLocation();
@@ -89,6 +113,11 @@ export default function Gallery() {
   const [photosPerPage, setPhotosPerPage] = useState(20); // Carica 20 foto alla volta
   const { toast } = useToast();
   const { studioSettings } = useStudio();
+  const queryClient = useQueryClient(); // Initialize useQueryClient
+
+  // State for dialogs
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
 
   // Check authentication and fetch gallery data
   // Check if current user is admin
@@ -991,6 +1020,42 @@ export default function Gallery() {
         }))}
         initialIndex={currentPhotoIndex}
       />
+
+      {/* Email Subscription Dialog - Mobile Optimized */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="w-[95vw] max-w-md p-4 sm:p-6">
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="text-lg sm:text-xl font-playfair text-blue-gray">
+              Rimani aggiornato
+            </DialogTitle>
+            <DialogDescription className="text-sm sm:text-base">
+              Iscriviti per ricevere notifiche quando vengono caricate nuove foto
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="subscription-email" className="text-sm">Email</Label>
+              <Input
+                id="subscription-email"
+                type="email"
+                placeholder="tua@email.it"
+                className="w-full"
+              />
+            </div>
+
+            <Button
+              className="w-full bg-sage hover:bg-sage-600"
+              onClick={() => {
+                // Handle subscription logic
+                setShowEmailDialog(false);
+              }}
+            >
+              Iscriviti
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
