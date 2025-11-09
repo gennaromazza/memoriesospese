@@ -100,16 +100,16 @@ export default function GalleryHeader({
   };
 
   return (
-    <div className="relative bg-white sm:py-6 md:py-10 overflow-hidden">
+    <div className="relative bg-white py-3 sm:py-4 md:py-6 overflow-hidden">
       {/* Decorazioni - nascoste su mobile per full-screen */}
-      <FloralCorner position="top-left" className="hidden sm:block absolute top-0 left-0 w-32 h-32 opacity-10 pointer-events-none" />
-      <FloralCorner position="top-right" className="hidden sm:block absolute top-0 right-0 w-32 h-32 opacity-10 pointer-events-none" />
+      <FloralCorner position="top-left" className="hidden sm:block absolute top-0 left-0 w-24 h-24 opacity-10 pointer-events-none" />
+      <FloralCorner position="top-right" className="hidden sm:block absolute top-0 right-0 w-24 h-24 opacity-10 pointer-events-none" />
       <div className="hidden sm:block absolute inset-0 opacity-5 pointer-events-none">
         <BackgroundDecoration />
       </div>
       
       {displayImage && displayImage.trim() !== "" ? (
-        <div className="relative w-full mb-0 sm:mb-10">
+        <div className="relative w-full mb-0 sm:mb-6">
           <div className={`relative w-full sm:max-w-6xl sm:mx-auto ${
             imageDimensions?.isLandscape 
               ? 'h-screen sm:h-80 md:h-96 lg:h-[450px]' 
@@ -156,11 +156,11 @@ export default function GalleryHeader({
                 }}
                 onClick={() => setIsImageDialogOpen(true)}
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70 flex flex-col items-center justify-end p-6 sm:p-8 pointer-events-none">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white font-playfair text-center drop-shadow-md">
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70 flex flex-col items-center justify-end p-4 sm:p-6 pointer-events-none">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white font-playfair text-center drop-shadow-md leading-tight">
                   {name}
                 </h1>
-                <div className="mt-3 text-white/90 flex flex-wrap justify-center items-center gap-2 text-lg drop-shadow-md">
+                <div className="mt-2 text-white/90 flex flex-wrap justify-center items-center gap-2 text-base sm:text-lg drop-shadow-md">
                   <span>{formatDate(date)}</span>
                   {location && (
                     <>
@@ -174,14 +174,12 @@ export default function GalleryHeader({
           </div>
         </div>
       ) : (
-        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 relative z-10">
-          <div className="px-4 text-center mb-10">
-            <div className="flex justify-center items-center mb-2">
-              <h1 className="text-3xl md:text-4xl font-bold text-blue-gray font-playfair">
-                {name}
-              </h1>
-            </div>
-            <div className="mt-2 text-blue-gray/70 flex justify-center items-center space-x-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-4 sm:mb-6">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-gray font-playfair leading-tight mb-2">
+              {name}
+            </h1>
+            <div className="text-sm sm:text-base text-blue-gray/70 flex justify-center items-center flex-wrap gap-2">
               <span>{formatDate(date)}</span>
               {location && (
                 <>
@@ -195,9 +193,9 @@ export default function GalleryHeader({
       )}
       
       {description && description.trim() !== "" && (
-        <div className="px-4 mb-8 max-w-7xl mx-auto">
-          <div className="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-sm">
-            <p className="text-gray-700 italic">{description}</p>
+        <div className="px-4 mb-4 sm:mb-6 max-w-7xl mx-auto">
+          <div className="max-w-4xl mx-auto bg-white p-4 sm:p-6 rounded-lg shadow-sm">
+            <p className="text-sm sm:text-base text-gray-700 italic">{description}</p>
           </div>
         </div>
       )}
