@@ -1,0 +1,92 @@
+GalleryHeader.tsx:73 Uncaught ReferenceError: Cannot access 'displayImage' before initialization
+    at GalleryHeader (GalleryHeader.tsx:73:17)
+    at renderWithHooks (chunk-SP6A6TOT.js?v=c5eef3d8:11548:26)
+    at mountIndeterminateComponent (chunk-SP6A6TOT.js?v=c5eef3d8:14926:21)
+    at beginWork (chunk-SP6A6TOT.js?v=c5eef3d8:15914:22)
+    at HTMLUnknownElement.callCallback2 (chunk-SP6A6TOT.js?v=c5eef3d8:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-SP6A6TOT.js?v=c5eef3d8:3699:24)
+    at invokeGuardedCallback (chunk-SP6A6TOT.js?v=c5eef3d8:3733:39)
+    at beginWork$1 (chunk-SP6A6TOT.js?v=c5eef3d8:19765:15)
+    at performUnitOfWork (chunk-SP6A6TOT.js?v=c5eef3d8:19198:20)
+    at workLoopSync (chunk-SP6A6TOT.js?v=c5eef3d8:19137:13)
+GalleryHeader @ GalleryHeader.tsx:73
+renderWithHooks @ chunk-SP6A6TOT.js?v=c5eef3d8:11548
+mountIndeterminateComponent @ chunk-SP6A6TOT.js?v=c5eef3d8:14926
+beginWork @ chunk-SP6A6TOT.js?v=c5eef3d8:15914
+callCallback2 @ chunk-SP6A6TOT.js?v=c5eef3d8:3674
+invokeGuardedCallbackDev @ chunk-SP6A6TOT.js?v=c5eef3d8:3699
+invokeGuardedCallback @ chunk-SP6A6TOT.js?v=c5eef3d8:3733
+beginWork$1 @ chunk-SP6A6TOT.js?v=c5eef3d8:19765
+performUnitOfWork @ chunk-SP6A6TOT.js?v=c5eef3d8:19198
+workLoopSync @ chunk-SP6A6TOT.js?v=c5eef3d8:19137
+renderRootSync @ chunk-SP6A6TOT.js?v=c5eef3d8:19116
+performConcurrentWorkOnRoot @ chunk-SP6A6TOT.js?v=c5eef3d8:18678
+workLoop @ chunk-SP6A6TOT.js?v=c5eef3d8:197
+flushWork @ chunk-SP6A6TOT.js?v=c5eef3d8:176
+performWorkUntilDeadline @ chunk-SP6A6TOT.js?v=c5eef3d8:384Understand this error
+GalleryHeader.tsx:73 Uncaught ReferenceError: Cannot access 'displayImage' before initialization
+    at GalleryHeader (GalleryHeader.tsx:73:17)
+    at renderWithHooks (chunk-SP6A6TOT.js?v=c5eef3d8:11548:26)
+    at mountIndeterminateComponent (chunk-SP6A6TOT.js?v=c5eef3d8:14926:21)
+    at beginWork (chunk-SP6A6TOT.js?v=c5eef3d8:15914:22)
+    at HTMLUnknownElement.callCallback2 (chunk-SP6A6TOT.js?v=c5eef3d8:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-SP6A6TOT.js?v=c5eef3d8:3699:24)
+    at invokeGuardedCallback (chunk-SP6A6TOT.js?v=c5eef3d8:3733:39)
+    at beginWork$1 (chunk-SP6A6TOT.js?v=c5eef3d8:19765:15)
+    at performUnitOfWork (chunk-SP6A6TOT.js?v=c5eef3d8:19198:20)
+    at workLoopSync (chunk-SP6A6TOT.js?v=c5eef3d8:19137:13)
+GalleryHeader @ GalleryHeader.tsx:73
+renderWithHooks @ chunk-SP6A6TOT.js?v=c5eef3d8:11548
+mountIndeterminateComponent @ chunk-SP6A6TOT.js?v=c5eef3d8:14926
+beginWork @ chunk-SP6A6TOT.js?v=c5eef3d8:15914
+callCallback2 @ chunk-SP6A6TOT.js?v=c5eef3d8:3674
+invokeGuardedCallbackDev @ chunk-SP6A6TOT.js?v=c5eef3d8:3699
+invokeGuardedCallback @ chunk-SP6A6TOT.js?v=c5eef3d8:3733
+beginWork$1 @ chunk-SP6A6TOT.js?v=c5eef3d8:19765
+performUnitOfWork @ chunk-SP6A6TOT.js?v=c5eef3d8:19198
+workLoopSync @ chunk-SP6A6TOT.js?v=c5eef3d8:19137
+renderRootSync @ chunk-SP6A6TOT.js?v=c5eef3d8:19116
+recoverFromConcurrentError @ chunk-SP6A6TOT.js?v=c5eef3d8:18736
+performConcurrentWorkOnRoot @ chunk-SP6A6TOT.js?v=c5eef3d8:18684
+workLoop @ chunk-SP6A6TOT.js?v=c5eef3d8:197
+flushWork @ chunk-SP6A6TOT.js?v=c5eef3d8:176
+performWorkUntilDeadline @ chunk-SP6A6TOT.js?v=c5eef3d8:384Understand this error
+chunk-SP6A6TOT.js?v=c5eef3d8:14032 The above error occurred in the <GalleryHeader> component:
+
+    at GalleryHeader (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/gallery/GalleryHeader.tsx:32:3)
+    at div
+    at div
+    at Gallery (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/pages/Gallery.tsx:93:18)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=c5eef3d8:206:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=c5eef3d8:262:17)
+    at AppRoutes (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/App.tsx:66:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+    at FirebaseAuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=c5eef3d8:38:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=c5eef3d8:65:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=c5eef3d8:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=c5eef3d8:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=c5eef3d8:2763:3)
+    at ErrorBoundary (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=c5eef3d8:161:17)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+logCapturedError @ chunk-SP6A6TOT.js?v=c5eef3d8:14032
+callback @ chunk-SP6A6TOT.js?v=c5eef3d8:14078
+callCallback @ chunk-SP6A6TOT.js?v=c5eef3d8:11248
+commitUpdateQueue @ chunk-SP6A6TOT.js?v=c5eef3d8:11265
+commitLayoutEffectOnFiber @ chunk-SP6A6TOT.js?v=c5eef3d8:17075
+commitLayoutMountEffects_complete @ chunk-SP6A6TOT.js?v=c5eef3d8:17980
+commitLayoutEffects_begin @ chunk-SP6A6TOT.js?v=c5eef3d8:17969
+commitLayoutEffects @ chunk-SP6A6TOT.js?v=c5eef3d8:17920
+commitRootImpl @ chunk-SP6A6TOT.js?v=c5eef3d8:19353
+commitRoot @ chunk-SP6A6TOT.js?v=c5eef3d8:19277
+finishConcurrentRender @ chunk-SP6A6TOT.js?v=c5eef3d8:18760
+performConcurrentWorkOnRoot @ chunk-SP6A6TOT.js?v=c5eef3d8:18718
+workLoop @ chunk-SP6A6TOT.js?v=c5eef3d8:197
+flushWork @ chunk-SP6A6TOT.js?v=c5eef3d8:176
+performWorkUntilDeadline @ chunk-SP6A6TOT.js?v=c5eef3d8:384Understand this error
+logger.ts:88 [2025-11-09T09:35:40.352Z] [ERROR] [ErrorBoundary] React Error Boundary catturato errore ReferenceError: Cannot access 'displayImage' before initialization
+    at GalleryHeader
