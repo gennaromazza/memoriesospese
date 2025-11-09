@@ -56,13 +56,20 @@ import {
   Calendar,
   Euro,
   Percent,
-  Tag
+  Tag,
+  Upload,
+  X,
+  Image as ImageIcon,
+  CreditCard
 } from 'lucide-react';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { JobType as JobTypeSlug } from '@shared/jobs-types';
 import type { JobType } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
 import { calculateQuoteTotals } from '@shared/quote-utils';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 
 const quoteSchema = z.object({
   jobId: z.string().min(1),
@@ -71,7 +78,7 @@ const quoteSchema = z.object({
   templateId: z.string().optional(),
   catalogProductIds: z.array(z.string()).default([]),
   products: z.array(z.object({
-    nome: z.string().min(1, 'Nome prodotto obbligatorio'),
+    nome: z.string(),
     descrizione: z.string(),
     prezzo: z.number().min(0),
     selectable: z.boolean(),
@@ -87,10 +94,30 @@ const quoteSchema = z.object({
     footerText: z.string().optional()
   }).optional(),
   expiresAt: z.date().optional(),
-  noteInterne: z.string().optional()
+  noteInterne: z.string().optional(),
+  paymentScheduleConfig: z.object({
+    autoGenerate: z.boolean(),
+    numberOfPayments: z.number().min(1).max(10).optional(),
+    accontoPercentage: z.number().min(0).max(100).optional()
+  }).optional()
 }).refine(
-  (data) => data.catalogProductIds.length > 0 || data.products.some(p => p.nome.trim()),
+  (data) => {
+    // Valida che ci sia almeno un prodotto (catalogo o custom compilato)
+    const hasValidCustomProducts = data.products.some(p => p.nome.trim() && p.prezzo > 0);
+    return data.catalogProductIds.length > 0 || hasValidCustomProducts;
+  },
   { message: 'Aggiungi almeno un prodotto (catalogo o custom)', path: ['products'] }
+).refine(
+  (data) => {
+    // Valida prodotti custom: se nome è compilato, deve avere anche prezzo > 0
+    const invalidProducts = data.products.filter(p => {
+      const hasName = p.nome.trim();
+      const hasPrice = p.prezzo > 0;
+      return (hasName && !hasPrice) || (!hasName && hasPrice);
+    });
+    return invalidProducts.length === 0;
+  },
+  { message: 'Prodotti custom: se compili il nome, devi inserire anche un prezzo > 0', path: ['products'] }
 );
 
 type FormData = z.infer<typeof quoteSchema>;
@@ -115,6 +142,7 @@ export default function QuoteBuilder({
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
 
   // Query templates
   const { data: templates = [] } = useQuery({
@@ -200,6 +228,43 @@ export default function QuoteBuilder({
       selectable: template.type === 'variabile'
     })));
     form.setValue('theme', template.theme);
+  };
+
+  // Upload immagine prodotto custom
+  const handleImageUpload = async (file: File, productIndex: number) => {
+    try {
+      setUploadingImages(prev => ({ ...prev, [productIndex]: true }));
+
+      // Upload su Firebase Storage
+      const storageRef = ref(storage, `quote-products/${nanoid()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Aggiorna form
+      const currentImages = form.getValues(`products.${productIndex}.immagini`) || [];
+      form.setValue(`products.${productIndex}.immagini`, [...currentImages, downloadURL]);
+
+      toast({
+        title: 'Immagine caricata',
+        description: 'L\'immagine è stata aggiunta al prodotto'
+      });
+    } catch (error) {
+      console.error('Errore upload immagine:', error);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile caricare l\'immagine',
+        variant: 'destructive'
+      });
+    } finally {
+      setUploadingImages(prev => ({ ...prev, [productIndex]: false }));
+    }
+  };
+
+  // Rimuovi immagine
+  const handleRemoveImage = (productIndex: number, imageIndex: number) => {
+    const currentImages = form.getValues(`products.${productIndex}.immagini`) || [];
+    const newImages = currentImages.filter((_, idx) => idx !== imageIndex);
+    form.setValue(`products.${productIndex}.immagini`, newImages);
   };
 
   // Mutation crea preventivo
@@ -543,12 +608,196 @@ export default function QuoteBuilder({
                             )}
                           />
                         </div>
+
+                        {/* Upload Immagine Prodotto */}
+                        <FormField
+                          control={form.control}
+                          name={`products.${index}.immagini`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="flex items-center gap-2">
+                                <ImageIcon className="w-4 h-4" />
+                                Immagine Prodotto (opzionale)
+                              </FormLabel>
+                              <FormControl>
+                                <div className="space-y-3">
+                                  {/* Preview immagini caricate */}
+                                  {field.value && field.value.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {field.value.map((url, imgIndex) => (
+                                        <div key={imgIndex} className="relative group">
+                                          <img
+                                            src={url}
+                                            alt={`Prodotto ${index + 1} - Immagine ${imgIndex + 1}`}
+                                            className="w-full h-24 object-cover rounded-md border"
+                                          />
+                                          <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="destructive"
+                                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => handleRemoveImage(index, imgIndex)}
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="border-2 border-dashed rounded-md p-4 text-center">
+                                      <img
+                                        src={placeholderUrl}
+                                        alt="Placeholder"
+                                        className="w-32 h-24 mx-auto object-cover rounded-md mb-2"
+                                      />
+                                      <p className="text-xs text-muted-foreground">
+                                        Nessuna immagine caricata
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Upload button */}
+                                  <div>
+                                    <Input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      id={`upload-${index}`}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleImageUpload(file, index);
+                                      }}
+                                      data-testid={`input-upload-image-${index}`}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={uploadingImages[index]}
+                                      onClick={() => document.getElementById(`upload-${index}`)?.click()}
+                                      data-testid={`button-upload-image-${index}`}
+                                    >
+                                      {uploadingImages[index] ? (
+                                        <>
+                                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                          Caricamento...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Upload className="w-4 h-4 mr-2" />
+                                          Carica Immagine
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </FormControl>
+                              <FormDescription>
+                                Aggiungi un'immagine rappresentativa del prodotto (max 5MB)
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             </div>
+
+            <Separator />
+
+            {/* Configurazione Piano Pagamenti */}
+            <Card className="bg-blue-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Piano Pagamenti (Opzionale)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="paymentScheduleConfig.autoGenerate"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between space-y-0">
+                      <div className="space-y-1">
+                        <FormLabel>Genera automaticamente alla firma</FormLabel>
+                        <FormDescription>
+                          Crea piano pagamenti quando il cliente firma il preventivo
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-auto-payment"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch('paymentScheduleConfig.autoGenerate') && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="paymentScheduleConfig.numberOfPayments"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Numero Rate</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="es. 3"
+                                min={1}
+                                max={10}
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value) || 2)}
+                                data-testid="input-num-payments"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Totale rate incluso acconto (min 1, max 10)
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="paymentScheduleConfig.accontoPercentage"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Acconto %</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="es. 30"
+                                min={0}
+                                max={100}
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value) || 30)}
+                                data-testid="input-acconto-percent"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Percentuale acconto iniziale (0-100%)
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Separator />
 
             {/* Sconto Finale */}
             <Card className="bg-orange-50 border-orange-200">

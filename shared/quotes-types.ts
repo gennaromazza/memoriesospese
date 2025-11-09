@@ -36,6 +36,7 @@ export interface QuoteProduct {
   selected?: boolean;           // Scelta cliente (solo variabile)
   numeroFoto?: number;          // Numero foto incluse (es. 60 per album)
   categoria?: string;           // Es. "Album", "Video", "Stampe"
+  immagini?: string[];          // URLs immagini prodotto (custom products)
 }
 
 /**
