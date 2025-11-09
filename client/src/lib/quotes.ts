@@ -27,6 +27,9 @@ import type {
 } from '@shared/quotes-types';
 import { nanoid } from 'nanoid';
 import { addTimelineEvent, updateJobStatus } from './jobs';
+import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
+import type { QuoteProduct } from '@shared/quotes-types';
+import type { Product } from '@shared/booking-types';
 
 const QUOTES_COLLECTION = 'quotes';
 const TEMPLATES_COLLECTION = 'quoteTemplates';
@@ -46,8 +49,46 @@ export async function createQuote(
   userId: string
 ): Promise<string> {
   try {
-    // Calcola totale base
-    const totaleBase = data.products.reduce((sum, p) => sum + p.prezzo, 0);
+    // Valida e normalizza prodotti con prezzi trusted da catalog
+    const validatedProducts: QuoteProduct[] = [];
+    let subtotale = 0;
+    
+    for (const product of data.products) {
+      // Se productId esiste, recupera prezzo trusted da Firestore
+      if (product.productId) {
+        const productDoc = await getDoc(doc(db, 'products', product.productId));
+        if (productDoc.exists()) {
+          const catalogProduct = productDoc.data() as Product;
+          const trustedPrice = catalogProduct.prezzoFinale || catalogProduct.prezzo;
+          
+          // Usa prezzo trusted dal catalog (ignora client-side price)
+          validatedProducts.push({
+            ...product,
+            prezzo: trustedPrice
+          });
+          subtotale += trustedPrice;
+        } else {
+          throw new Error(`Prodotto catalogo non trovato: ${product.productId}`);
+        }
+      } else {
+        // Prodotto custom - usa prezzo fornito (già validato lato form)
+        validatedProducts.push(product);
+        subtotale += product.prezzo;
+      }
+    }
+    
+    // Valida sconto server-side
+    const validation = validateDiscount(subtotale, data.discountType, data.discountValue);
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Sconto non valido');
+    }
+    
+    // Calcola totali finali con sconto (server-side)
+    const { totalBeforeDiscount, totalAfterDiscount } = calculateQuoteTotals(
+      subtotale,
+      data.discountType,
+      data.discountValue
+    );
     
     // Prepara clausole con ID
     const clausesWithIds = data.contractClauses.map(c => ({
@@ -55,16 +96,27 @@ export async function createQuote(
       id: nanoid()
     }));
     
+    // Merge theme preservando tutti i campi
+    const defaultTheme = getDefaultTheme();
+    const theme = {
+      ...defaultTheme,
+      ...data.theme // Sovrascrive con campi forniti (preserva headerImage, fontFamily, etc.)
+    };
+
     const quoteData: Omit<Quote, 'id'> = {
       jobId: data.jobId,
       clienteId: data.clienteId,
       type: data.type,
       templateId: data.templateId,
       templateName: data.templateId ? await getTemplateName(data.templateId) : undefined,
-      theme: data.theme || getDefaultTheme(),
-      products: data.products,
-      totaleBase,
-      totaleSelezionato: data.type === 'variabile' ? 0 : totaleBase,
+      theme,
+      products: validatedProducts,  // Prodotti con prezzi validati server-side
+      discountType: data.discountType,
+      discountValue: data.discountValue,
+      totalBeforeDiscount,  // Server-calculated from trusted prices
+      totalAfterDiscount,   // Server-calculated from trusted prices
+      totaleBase: totalBeforeDiscount, // Backward compatibility
+      totaleSelezionato: data.type === 'variabile' ? 0 : totalAfterDiscount,
       contractClauses: clausesWithIds,
       status: 'bozza',
       publicToken: generatePublicToken(),
@@ -77,12 +129,13 @@ export async function createQuote(
 
     const docRef = await addDoc(collection(db, QUOTES_COLLECTION), quoteData);
     
-    // Aggiorna job con quoteId
+    // Aggiorna job con quoteId e financials
     const jobDoc = await getDoc(doc(db, 'jobs', data.jobId));
     if (jobDoc.exists()) {
       const currentQuoteIds = jobDoc.data().quoteIds || [];
       await updateDoc(doc(db, 'jobs', data.jobId), {
         quoteIds: [...currentQuoteIds, docRef.id],
+        'financials.totalePreventivato': totalAfterDiscount, // Server-calculated
         updatedAt: Timestamp.now()
       });
     }

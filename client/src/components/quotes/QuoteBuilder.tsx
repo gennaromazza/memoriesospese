@@ -54,12 +54,15 @@ import {
   Palette,
   Loader2,
   Calendar,
-  Euro
+  Euro,
+  Percent,
+  Tag
 } from 'lucide-react';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { JobType as JobTypeSlug } from '@shared/jobs-types';
 import type { JobType } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
+import { calculateQuoteTotals } from '@shared/quote-utils';
 
 const quoteSchema = z.object({
   jobId: z.string().min(1),
@@ -76,6 +79,8 @@ const quoteSchema = z.object({
     categoria: z.string().optional(),
     immagini: z.array(z.string()).optional()
   })),
+  discountType: z.enum(['amount', 'percent']).optional(),
+  discountValue: z.number().min(0).optional(),
   theme: z.object({
     primaryColor: z.string(),
     secondaryColor: z.string(),
@@ -159,6 +164,8 @@ export default function QuoteBuilder({
   // Watch form values for totals
   const catalogProductIds = form.watch('catalogProductIds') || [];
   const customProducts = form.watch('products') || [];
+  const discountType = form.watch('discountType');
+  const discountValue = form.watch('discountValue') || 0;
 
   // Calcola totale unificato (catalog + custom) - wrapped in useMemo to prevent loop
   const totaleCatalogo = useMemo(() => {
@@ -174,7 +181,12 @@ export default function QuoteBuilder({
       .reduce((sum, p) => sum + (p.prezzo || 0), 0);
   }, [customProducts]);
 
-  const totale = totaleCatalogo + totaleCustom;
+  const subtotale = totaleCatalogo + totaleCustom;
+
+  // Calcola totali con sconto usando utility condivisa
+  const { totalBeforeDiscount, discountAmount, totalAfterDiscount } = useMemo(() => {
+    return calculateQuoteTotals(subtotale, discountType, discountValue);
+  }, [subtotale, discountType, discountValue]);
 
   // Load template
   const handleLoadTemplate = (templateId: string) => {
@@ -210,11 +222,19 @@ export default function QuoteBuilder({
         ordine: c.ordine
       }));
 
+      // Calcola totali finali con sconto
+      const subtotale = mergedProducts.reduce((sum, p) => sum + p.prezzo, 0);
+      const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
+
       const quoteData = {
         jobId: data.jobId,
         clienteId: data.clienteId,
         type: data.type,
         products: mergedProducts,
+        discountType: data.discountType,
+        discountValue: data.discountValue,
+        totalBeforeDiscount: finalTotals.totalBeforeDiscount,
+        totalAfterDiscount: finalTotals.totalAfterDiscount,
         theme: data.theme,
         expiresAt: data.expiresAt,
         noteInterne: data.noteInterne,
@@ -530,6 +550,86 @@ export default function QuoteBuilder({
               </div>
             </div>
 
+            {/* Sconto Finale */}
+            <Card className="bg-orange-50 border-orange-200">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  Sconto Finale (Opzionale)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Tipo Sconto */}
+                <FormField
+                  control={form.control}
+                  name="discountType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo Sconto</FormLabel>
+                      <Select value={field.value || 'none'} onValueChange={(val) => field.onChange(val === 'none' ? undefined : val)}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-discount-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Nessuno sconto</SelectItem>
+                          <SelectItem value="amount">
+                            <div className="flex items-center gap-2">
+                              <Euro className="w-4 h-4" />
+                              <span>Sconto Fisso (€)</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="percent">
+                            <div className="flex items-center gap-2">
+                              <Percent className="w-4 h-4" />
+                              <span>Sconto Percentuale (%)</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Valore Sconto (solo se tipo è selezionato) */}
+                {discountType && (
+                  <FormField
+                    control={form.control}
+                    name="discountValue"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Valore Sconto {discountType === 'amount' ? '(€)' : '(%)'}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={discountType === 'percent' ? '100' : undefined}
+                            placeholder={discountType === 'amount' ? '0.00' : '0'}
+                            {...field}
+                            value={field.value || ''}
+                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            data-testid="input-discount-value"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {discountType === 'amount' 
+                            ? `Max: €${subtotale.toFixed(2)}`
+                            : 'Max: 100%'
+                          }
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
             {/* Riepilogo Totale */}
             <Card className="bg-green-50 border-green-200">
               <CardContent className="pt-6">
@@ -553,17 +653,33 @@ export default function QuoteBuilder({
                           <span className="font-medium">€{totaleCustom.toFixed(2)}</span>
                         </div>
                       )}
+                      
+                      {/* Subtotale */}
+                      <div className="flex items-center justify-between text-sm font-semibold pt-2">
+                        <span className="text-green-800">Subtotale</span>
+                        <span>€{totalBeforeDiscount.toFixed(2)}</span>
+                      </div>
+                      
+                      {/* Sconto applicato */}
+                      {discountAmount > 0 && (
+                        <div className="flex items-center justify-between text-sm text-orange-600">
+                          <span>
+                            Sconto {discountType === 'percent' ? `(${discountValue}%)` : ''}
+                          </span>
+                          <span>-€{discountAmount.toFixed(2)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Totale */}
+                  {/* Totale Finale */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Euro className="w-5 h-5 text-green-600" />
-                      <span className="text-lg font-semibold">Totale Preventivo</span>
+                      <span className="text-lg font-semibold">Totale Finale</span>
                     </div>
                     <div className="text-3xl font-bold text-green-600" data-testid="text-total-quote">
-                      €{totale.toFixed(2)}
+                      €{totalAfterDiscount.toFixed(2)}
                     </div>
                   </div>
                 </div>

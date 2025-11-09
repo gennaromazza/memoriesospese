@@ -92,9 +92,17 @@ export interface Quote {
   // Prodotti
   products: QuoteProduct[];
   
+  // Sconti
+  discountType?: 'amount' | 'percent';  // Tipo sconto: fisso (€) o percentuale (%)
+  discountValue?: number;               // Valore sconto
+  
   // Totali
-  totaleBase: number;           // Totale preventivo fisso
-  totaleSelezionato?: number;   // Totale calcolato da scelte cliente (variabile)
+  totalBeforeDiscount: number;          // Totale prodotti (catalogo + custom)
+  totalAfterDiscount: number;           // Totale finale con sconto applicato
+  totaleSelezionato?: number;           // Totale calcolato da scelte cliente (variabile)
+  
+  // Legacy field (backward compatibility)
+  totaleBase?: number;
   
   // Clausole contrattuali
   contractClauses: QuoteClause[];
@@ -134,6 +142,10 @@ export interface InsertQuote {
   products: Omit<QuoteProduct, 'selected'>[];
   contractClauses: Omit<QuoteClause, 'accepted' | 'acceptedAt'>[];
   theme?: Partial<QuoteTheme>;
+  discountType?: 'amount' | 'percent';
+  discountValue?: number;
+  totalBeforeDiscount: number;
+  totalAfterDiscount: number;
   expiresAt?: Date;
   noteInterne?: string;
 }

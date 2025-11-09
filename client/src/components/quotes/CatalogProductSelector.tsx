@@ -162,9 +162,10 @@ export default function CatalogProductSelector({
                     )}
                     
                     {/* Checkbox overlay */}
-                    <div className="absolute top-2 right-2">
+                    <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={isSelected}
+                        onCheckedChange={() => toggleProduct(product.id)}
                         className="bg-white border-2"
                         data-testid={`checkbox-product-${product.id}`}
                       />
