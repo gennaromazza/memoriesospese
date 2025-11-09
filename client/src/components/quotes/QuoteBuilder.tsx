@@ -1074,6 +1074,9 @@ export default function QuoteBuilder({
                         <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
                           Anteprima Piano Pagamenti
+                          <Badge variant="outline" className="ml-auto" data-testid="badge-payments-count">
+                            {paymentSchedulePreview.payments.length} rate
+                          </Badge>
                         </h4>
                         <div className="space-y-2">
                           {paymentSchedulePreview.payments.map((payment, idx) => (

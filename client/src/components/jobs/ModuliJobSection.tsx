@@ -11,9 +11,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard } from 'lucide-react';
+import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
 import GeneraPagamentiModal from './GeneraPagamentiModal';
 
 interface ModuliJobSectionProps {
@@ -49,6 +50,8 @@ const TYPE_LABELS = {
 export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isAdmin = false }: ModuliJobSectionProps) {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const { toast } = useToast();
 
   const { data: quotes = [], isLoading } = useQuery<Quote[]>({
     queryKey: ['quotes', 'job', jobId],
@@ -293,7 +296,33 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={async () => {
+                        const url = `${window.location.origin}/quote/signed/${selectedQuote.publicToken}`;
+                        try {
+                          await navigator.clipboard.writeText(url);
+                          setCopiedLink(true);
+                          toast({
+                            title: "Link copiato!",
+                            description: "Il link del portale è stato copiato negli appunti"
+                          });
+                          setTimeout(() => setCopiedLink(false), 2000);
+                        } catch (error) {
+                          toast({
+                            title: "Errore",
+                            description: "Impossibile copiare il link",
+                            variant: "destructive"
+                          });
+                        }
+                      }}
+                      data-testid="button-copy-link"
+                    >
+                      {copiedLink ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => window.open(`/quote/signed/${selectedQuote.publicToken}`, '_blank')}
+                      data-testid="button-open-portal"
                     >
                       <ExternalLink className="h-4 w-4" />
                     </Button>
