@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,9 +17,12 @@ import { Job } from '@shared/jobs-types';
 import { Cliente } from '@shared/clienti-types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { getJob } from '@/lib/jobs';
+import { getJob, deleteJob } from '@/lib/jobs';
 import { getClienteById } from '@/lib/clienti';
 import { getJobTypeBySlug } from '@/lib/job-types';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 import WorkflowTimeline from '@/components/jobs/WorkflowTimeline';
 import ClienteJobCard from '@/components/jobs/ClienteJobCard';
 import ModuliJobSection from '@/components/jobs/ModuliJobSection';
@@ -31,6 +34,8 @@ import EditJobModal from '@/components/jobs/EditJobModal';
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [, navigate] = useLocation();
+  const { user } = useFirebaseAuth();
+  const { toast } = useToast();
   const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
@@ -58,6 +63,39 @@ export default function JobDetailPage() {
     queryFn: () => getJobTypeBySlug(job!.jobType),
     enabled: !!job
   });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error('User not authenticated');
+      await deleteJob(jobId!, user.uid);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      toast({
+        title: 'Lavoro eliminato',
+        description: 'Il lavoro è stato eliminato definitivamente'
+      });
+      navigate('/admin/jobs');
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore',
+        description: error instanceof Error ? error.message : 'Impossibile eliminare il lavoro',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const handleDelete = () => {
+    if (!window.confirm(`Sei sicuro di voler eliminare "${job?.nomeEvento}"?`)) {
+      return;
+    }
+    if (!window.confirm('⚠️ ATTENZIONE: Questa operazione è IRREVERSIBILE. Tutti i dati collegati (timeline, pagamenti) saranno eliminati. Confermi?')) {
+      return;
+    }
+    deleteMutation.mutate();
+  };
 
   if (isLoading) {
     return (
@@ -150,15 +188,16 @@ export default function JobDetailPage() {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => {
-                      if (confirm('Sei sicuro di voler eliminare questo lavoro?')) {
-                        alert('Elimina lavoro - Da implementare');
-                      }
-                    }}
+                    onClick={handleDelete}
+                    disabled={deleteMutation.isPending}
                     className="text-destructive focus:text-destructive"
                     data-testid="action-delete"
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
+                    {deleteMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
                     <span>Elimina Lavoro</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>

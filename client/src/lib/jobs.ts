@@ -475,3 +475,95 @@ export async function archiveJob(
     throw error;
   }
 }
+
+/**
+ * Delete job (hard delete con cleanup cascata)
+ * ATTENZIONE: Questa è un'operazione irreversibile
+ */
+export async function deleteJob(
+  jobId: string,
+  userId: string
+): Promise<void> {
+  try {
+    console.log('🗑️ Eliminazione job:', jobId);
+    
+    // 1. Fetch job per ottenere riferimenti
+    const jobDoc = await getDoc(doc(db, JOBS_COLLECTION, jobId));
+    if (!jobDoc.exists()) {
+      throw new Error('Job non trovato');
+    }
+    const job = { id: jobDoc.id, ...jobDoc.data() } as Job;
+
+    // 2. Elimina jobTimeline events
+    const timelineSnapshot = await getDocs(
+      query(
+        collection(db, TIMELINE_COLLECTION),
+        where('jobId', '==', jobId)
+      )
+    );
+    console.log(`  ├─ Eliminazione ${timelineSnapshot.size} eventi timeline`);
+    
+    const batch = writeBatch(db);
+    timelineSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    // 3. Elimina paymentSchedules collegati
+    const schedulesSnapshot = await getDocs(
+      query(
+        collection(db, 'paymentSchedules'),
+        where('jobId', '==', jobId)
+      )
+    );
+    console.log(`  ├─ Eliminazione ${schedulesSnapshot.size} piani pagamento`);
+    schedulesSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    // 4. Aggiorna quotes: rimuovi jobId reference (non eliminare le quote)
+    const quotesSnapshot = await getDocs(
+      query(
+        collection(db, 'quotes'),
+        where('jobId', '==', jobId)
+      )
+    );
+    console.log(`  ├─ Update ${quotesSnapshot.size} preventivi (rimuovi jobId ref)`);
+    quotesSnapshot.docs.forEach((quoteDoc) => {
+      batch.update(quoteDoc.ref, {
+        jobId: null,
+        updatedAt: Timestamp.now()
+      });
+    });
+
+    // 5. Rimuovi jobId da clienti sourceRefs
+    if (job.clientiIds && job.clientiIds.length > 0) {
+      console.log(`  ├─ Update ${job.clientiIds.length} clienti (rimuovi da sourceRefs)`);
+      
+      for (const clienteId of job.clientiIds) {
+        const clienteRef = doc(db, 'clienti', clienteId);
+        const clienteSnap = await getDoc(clienteRef);
+        
+        if (clienteSnap.exists()) {
+          const currentJobIds = clienteSnap.data().sourceRefs?.jobIds || [];
+          const updatedJobIds = currentJobIds.filter((id: string) => id !== jobId);
+          
+          batch.update(clienteRef, {
+            'sourceRefs.jobIds': updatedJobIds,
+            updatedAt: Timestamp.now()
+          });
+        }
+      }
+    }
+
+    // 6. Elimina il job document
+    batch.delete(doc(db, JOBS_COLLECTION, jobId));
+    
+    // 7. Commit batch atomico
+    await batch.commit();
+    
+    console.log('✅ Job eliminato completamente:', jobId);
+  } catch (error) {
+    console.error('❌ Errore eliminazione job:', error);
+    throw error;
+  }
+}
