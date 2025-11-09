@@ -26,11 +26,13 @@ import ModuliJobSection from '@/components/jobs/ModuliJobSection';
 import CostiLavoroTable from '@/components/jobs/CostiLavoroTable';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import PaymentScheduleSection from '@/components/jobs/PaymentScheduleSection';
+import EditJobModal from '@/components/jobs/EditJobModal';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [, navigate] = useLocation();
   const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
@@ -126,7 +128,7 @@ export default function JobDetailPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem
-                    onClick={() => alert('Modifica lavoro - Da implementare')}
+                    onClick={() => setEditModalOpen(true)}
                     data-testid="action-edit"
                   >
                     <Edit className="h-4 w-4 mr-2" />
@@ -262,6 +264,15 @@ export default function JobDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Edit Job Modal */}
+      {editModalOpen && (
+        <EditJobModal
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          job={job}
+        />
+      )}
     </div>
   );
 }

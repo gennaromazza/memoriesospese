@@ -71,7 +71,8 @@ export async function createJob(
         saldoResiduo: 0
       },
       
-      // PDF vuoti
+      // Costi e PDF vuoti
+      costi: [],
       pdfs: [],
       
       // Metadata
