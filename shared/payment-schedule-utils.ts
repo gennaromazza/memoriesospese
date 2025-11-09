@@ -32,10 +32,14 @@ export function calculatePaymentSchedule(
 
   // Calcola importo acconto
   let accontoImporto: number;
+  let accontoDescriptionSuffix = '';
   if (accontoType === 'amount' && accontoAmount) {
     accontoImporto = Math.min(accontoAmount, totale); // Non superare totale
+    accontoDescriptionSuffix = ` – €${accontoAmount.toFixed(2)} fisso`;
   } else {
-    accontoImporto = (totale * (accontoPercentage || 30)) / 100;
+    const percentage = accontoPercentage || 30;
+    accontoImporto = (totale * percentage) / 100;
+    accontoDescriptionSuffix = ` – ${percentage}%`;
   }
 
   // Arrotonda a 2 decimali
@@ -60,7 +64,7 @@ export function calculatePaymentSchedule(
       tipo: 'acconto',
       importo: totale,
       dataScadenza: dueDate,
-      descrizione: 'Pagamento unico',
+      descrizione: `Pagamento unico${accontoDescriptionSuffix}`,
       giorniDaEvento: useEventDateReference && eventDate ? accontoRelativeDays : undefined
     });
 
@@ -86,7 +90,7 @@ export function calculatePaymentSchedule(
       tipo: 'acconto',
       importo: accontoImporto,
       dataScadenza: accontoDate,
-      descrizione: 'Acconto iniziale',
+      descrizione: `Acconto iniziale${accontoDescriptionSuffix}`,
       giorniDaEvento: useEventDateReference && eventDate ? accontoRelativeDays : undefined
     });
 
@@ -130,7 +134,7 @@ export function calculatePaymentSchedule(
     tipo: 'acconto',
     importo: accontoImporto,
     dataScadenza: accontoDate,
-    descrizione: 'Acconto iniziale',
+    descrizione: `Acconto iniziale${accontoDescriptionSuffix}`,
     giorniDaEvento: useEventDateReference && eventDate ? accontoRelativeDays : undefined
   });
 
