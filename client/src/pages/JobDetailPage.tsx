@@ -173,7 +173,7 @@ export default function JobDetailPage() {
                     <span>Modifica Lavoro</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => alert('Genera preventivo - Da implementare nella prossima fase')}
+                    onClick={() => setQuoteBuilderOpen(true)}
                     data-testid="action-generate-quote"
                   >
                     <FileText className="h-4 w-4 mr-2" />
