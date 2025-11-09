@@ -76,9 +76,18 @@ export interface QuoteTheme {
  * Configurazione piano pagamenti
  */
 export interface PaymentScheduleConfig {
-  autoGenerate: boolean;          // Genera automaticamente alla firma
-  numberOfPayments?: number;      // Numero rate (1-10)
-  accontoPercentage?: number;     // Percentuale acconto (0-100%)
+  autoGenerate: boolean;                    // Genera automaticamente alla firma
+  numberOfPayments?: number;                // Numero rate (1-10)
+  
+  // Dual-mode acconto: € o %
+  accontoType: 'percentage' | 'amount';     // Tipo acconto
+  accontoPercentage?: number;               // Percentuale acconto (0-100%)
+  accontoAmount?: number;                   // Importo acconto fisso in €
+  
+  // Date scadenze relative alla data evento
+  useEventDateReference: boolean;           // Usa data evento come riferimento
+  accontoRelativeDays?: number;             // Giorni relativi a evento per acconto (es. -30 = 30gg prima)
+  rateIntervalDays?: number;                // Intervallo giorni tra rate (default 30)
 }
 
 /**
