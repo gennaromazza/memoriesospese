@@ -103,6 +103,15 @@ export async function createQuote(
       ...data.theme // Sovrascrive con campi forniti (preserva headerImage, fontFamily, etc.)
     };
 
+    // Prepara paymentScheduleConfig solo se autoGenerate attivo
+    const paymentScheduleConfig = data.paymentScheduleConfig?.autoGenerate
+      ? {
+          autoGenerate: true,
+          numberOfPayments: data.paymentScheduleConfig.numberOfPayments || 2,
+          accontoPercentage: data.paymentScheduleConfig.accontoPercentage || 30
+        }
+      : undefined;
+
     const quoteData: Omit<Quote, 'id'> = {
       jobId: data.jobId,
       clienteId: data.clienteId,
@@ -122,7 +131,7 @@ export async function createQuote(
       publicToken: generatePublicToken(),
       expiresAt: data.expiresAt ? Timestamp.fromDate(data.expiresAt) : undefined,
       noteInterne: data.noteInterne,
-      paymentScheduleConfig: data.paymentScheduleConfig, // Configurazione piano pagamenti
+      ...(paymentScheduleConfig && { paymentScheduleConfig }), // Solo se definito
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       createdBy: userId
