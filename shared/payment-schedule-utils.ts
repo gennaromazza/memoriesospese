@@ -33,7 +33,11 @@ export function calculatePaymentSchedule(
   // Calcola importo acconto
   let accontoImporto: number;
   let accontoDescriptionSuffix = '';
-  if (accontoType === 'amount' && accontoAmount) {
+  if (accontoType === 'amount') {
+    // Richiedi accontoAmount > 0 per tipo 'amount'
+    if (!accontoAmount || accontoAmount <= 0) {
+      throw new Error('Importo acconto fisso richiesto quando tipo acconto è "amount"');
+    }
     accontoImporto = Math.min(accontoAmount, totale); // Non superare totale
     accontoDescriptionSuffix = ` – €${accontoAmount.toFixed(2)} fisso`;
   } else {
@@ -170,12 +174,13 @@ export function calculatePaymentSchedule(
 
   const saldoDate = new Date(referenceDate);
   if (useEventDateReference && eventDate) {
-    // Saldo dopo evento
-    saldoDate.setDate(saldoDate.getDate() + rateIntervalDays);
+    // Saldo dopo evento: offset cumulativo dopo tutte le rate
+    const saldoDayOffset = (numberOfIntermediatePayments + 1) * rateIntervalDays;
+    saldoDate.setDate(saldoDate.getDate() + saldoDayOffset);
   } else {
-    // Ultima rata + interval
+    // Ultima rata + interval (stesso offset cumulativo)
     saldoDate.setTime(accontoDate.getTime());
-    saldoDate.setDate(saldoDate.getDate() + (numberOfPayments * rateIntervalDays));
+    saldoDate.setDate(saldoDate.getDate() + ((numberOfIntermediatePayments + 1) * rateIntervalDays));
   }
 
   payments.push({
@@ -183,7 +188,7 @@ export function calculatePaymentSchedule(
     importo: saldoFinale,
     dataScadenza: saldoDate,
     descrizione: 'Saldo finale',
-    giorniDaEvento: useEventDateReference && eventDate ? rateIntervalDays : undefined
+    giorniDaEvento: useEventDateReference && eventDate ? (numberOfIntermediatePayments + 1) * rateIntervalDays : undefined
   });
 
   return {

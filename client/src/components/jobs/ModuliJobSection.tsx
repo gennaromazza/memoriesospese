@@ -158,7 +158,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(`/quote/${quote.publicToken}`, '_blank');
+                    window.open(`/quote/signed/${quote.publicToken}`, '_blank');
                   }}
                   data-testid={`button-view-${quote.id}`}
                 >
@@ -281,19 +281,19 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
 
                 {/* Public Link */}
                 <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-3">Link Pubblico</h3>
+                  <h3 className="font-semibold mb-3">Portale Cliente Firmato</h3>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={`${window.location.origin}/quote/${selectedQuote.publicToken}`}
+                      value={`${window.location.origin}/quote/signed/${selectedQuote.publicToken}`}
                       className="flex-1 px-3 py-2 bg-muted rounded text-sm"
                       onClick={(e) => e.currentTarget.select()}
                     />
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => window.open(`/quote/${selectedQuote.publicToken}`, '_blank')}
+                      onClick={() => window.open(`/quote/signed/${selectedQuote.publicToken}`, '_blank')}
                     >
                       <ExternalLink className="h-4 w-4" />
                     </Button>

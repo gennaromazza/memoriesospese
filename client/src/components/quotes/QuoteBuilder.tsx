@@ -67,7 +67,7 @@ import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
 import type { JobType } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
 import { calculateQuoteTotals } from '@shared/quote-utils';
-import { calculatePaymentSchedule, formatDueDate, formatCurrency } from '@shared/payment-schedule-utils';
+import { calculatePaymentSchedule, validatePaymentScheduleConfig, formatDueDate, formatCurrency } from '@shared/payment-schedule-utils';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getJob } from '@/lib/jobs';
@@ -244,9 +244,16 @@ export default function QuoteBuilder({
     return calculateQuoteTotals(subtotale, discountType, discountValue);
   }, [subtotale, discountType, discountValue]);
 
-  // Calcola simulazione piano pagamenti real-time
+  // Validazione + simulazione piano pagamenti real-time
   const paymentSchedulePreview = useMemo(() => {
     if (!autoGenerate || !paymentConfig || totalAfterDiscount === 0) return null;
+
+    // Valida config prima di calcolare
+    const validation = validatePaymentScheduleConfig(paymentConfig, totalAfterDiscount);
+    if (!validation.valid) {
+      console.warn('Configurazione pagamenti non valida:', validation.error);
+      return null;
+    }
 
     // Converti eventDate da Timestamp a Date
     const eventDate = job?.eventDate ? 
@@ -260,6 +267,12 @@ export default function QuoteBuilder({
       return null;
     }
   }, [autoGenerate, paymentConfig, totalAfterDiscount, job?.eventDate]);
+
+  // Validazione errori per alert inline
+  const paymentConfigValidation = useMemo(() => {
+    if (!autoGenerate || !paymentConfig || totalAfterDiscount === 0) return { valid: true };
+    return validatePaymentScheduleConfig(paymentConfig, totalAfterDiscount);
+  }, [autoGenerate, paymentConfig, totalAfterDiscount]);
 
   // Load template
   const handleLoadTemplate = (templateId: string) => {
@@ -869,6 +882,15 @@ export default function QuoteBuilder({
 
                 {autoGenerate && (
                   <>
+                    {/* Alert validazione inline */}
+                    {!paymentConfigValidation.valid && (
+                      <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                        <span className="text-orange-600 text-sm font-medium">
+                          ⚠️ {paymentConfigValidation.error}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Numero Rate */}
                     <FormField
                       control={form.control}
