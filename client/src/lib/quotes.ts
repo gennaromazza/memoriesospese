@@ -23,7 +23,8 @@ import type {
   QuoteTemplate,
   InsertQuoteTemplate,
   AcceptQuoteData,
-  QuoteStatus
+  QuoteStatus,
+  PaymentScheduleConfig
 } from '@shared/quotes-types';
 import { nanoid } from 'nanoid';
 import { addTimelineEvent, updateJobStatus } from './jobs';
@@ -104,11 +105,16 @@ export async function createQuote(
     };
 
     // Prepara paymentScheduleConfig solo se autoGenerate attivo
-    const paymentScheduleConfig = data.paymentScheduleConfig?.autoGenerate
+    const paymentScheduleConfig: PaymentScheduleConfig | undefined = data.paymentScheduleConfig?.autoGenerate
       ? {
           autoGenerate: true,
           numberOfPayments: data.paymentScheduleConfig.numberOfPayments || 2,
-          accontoPercentage: data.paymentScheduleConfig.accontoPercentage || 30
+          accontoType: data.paymentScheduleConfig.accontoType || 'percentage',
+          accontoPercentage: data.paymentScheduleConfig.accontoPercentage || 30,
+          accontoAmount: data.paymentScheduleConfig.accontoAmount,
+          useEventDateReference: data.paymentScheduleConfig.useEventDateReference ?? false,
+          accontoRelativeDays: data.paymentScheduleConfig.accontoRelativeDays,
+          rateIntervalDays: data.paymentScheduleConfig.rateIntervalDays || 30
         }
       : undefined;
 
@@ -388,12 +394,20 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     // Auto-genera piano pagamenti se configurato
     if (quote.paymentScheduleConfig?.autoGenerate && totaleSelezionato > 0) {
       try {
+        // Fetch job per eventDate
+        const jobDoc = await getDoc(doc(db, 'jobs', quote.jobId));
+        const jobData = jobDoc.exists() ? jobDoc.data() : null;
+        const eventDate = jobData?.eventDate ? 
+          (jobData.eventDate instanceof Date ? jobData.eventDate : jobData.eventDate.toDate?.() || null)
+          : null;
+
         await autoGeneratePaymentSchedule(
           data.quoteId,
           quote.jobId,
           quote.clienteId,
           totaleSelezionato,
-          quote.paymentScheduleConfig
+          quote.paymentScheduleConfig,
+          eventDate || undefined
         );
         console.log('✅ Piano pagamenti auto-generato');
       } catch (error) {
@@ -411,66 +425,28 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
 
 /**
  * Auto-genera piano pagamenti alla firma preventivo
+ * Usa utility condivisa per calcolo rate avanzato
  */
 async function autoGeneratePaymentSchedule(
   quoteId: string,
   jobId: string,
   clienteId: string,
   totale: number,
-  config: { numberOfPayments?: number; accontoPercentage?: number }
+  config: PaymentScheduleConfig,
+  eventDate?: Date
 ): Promise<void> {
-  const numberOfPayments = config.numberOfPayments || 2;
-  const accontoPercentage = config.accontoPercentage || 30;
+  // Import dinamico per evitare circular dependency
+  const { calculatePaymentSchedule } = await import('@shared/payment-schedule-utils');
   
-  // Calcola importo acconto
-  const accontoAmount = (totale * accontoPercentage) / 100;
-  const saldoAmount = totale - accontoAmount;
+  // Calcola piano pagamenti usando utility condivisa
+  const schedule = calculatePaymentSchedule(totale, config, eventDate);
   
-  // Crea array payments
-  const payments: any[] = [];
-  
-  if (numberOfPayments === 1) {
-    // Unico pagamento (acconto)
-    payments.push({
-      importo: totale,
-      dataScadenza: new Date().toISOString(), // Immediato
-      descrizione: 'Pagamento unico'
-    });
-  } else if (numberOfPayments === 2) {
-    // Acconto + Saldo
-    payments.push({
-      importo: accontoAmount,
-      dataScadenza: new Date().toISOString(), // Immediato
-      descrizione: 'Acconto'
-    });
-    
-    const saldoDate = new Date();
-    saldoDate.setDate(saldoDate.getDate() + 30); // +30 giorni
-    payments.push({
-      importo: saldoAmount,
-      dataScadenza: saldoDate.toISOString(),
-      descrizione: 'Saldo'
-    });
-  } else {
-    // Multiple rate
-    payments.push({
-      importo: accontoAmount,
-      dataScadenza: new Date().toISOString(),
-      descrizione: 'Acconto'
-    });
-    
-    const rateAmount = saldoAmount / (numberOfPayments - 1);
-    for (let i = 1; i < numberOfPayments; i++) {
-      const rataDate = new Date();
-      rataDate.setDate(rataDate.getDate() + (30 * i)); // +30 giorni per rata
-      
-      payments.push({
-        importo: i === numberOfPayments - 1 ? saldoAmount - (rateAmount * (numberOfPayments - 2)) : rateAmount,
-        dataScadenza: rataDate.toISOString(),
-        descrizione: i === numberOfPayments - 1 ? 'Saldo' : `Rata ${i}`
-      });
-    }
-  }
+  // Converti in formato API
+  const payments = schedule.payments.map(p => ({
+    importo: p.importo,
+    dataScadenza: p.dataScadenza.toISOString(),
+    descrizione: p.descrizione
+  }));
   
   // Chiama API generazione
   const response = await fetch('/api/payment-schedules/generate', {
@@ -486,8 +462,11 @@ async function autoGeneratePaymentSchedule(
   });
   
   if (!response.ok) {
-    throw new Error('Errore generazione payment schedule');
+    const error = await response.json();
+    throw new Error(error.message || 'Errore generazione payment schedule');
   }
+  
+  console.log(`✅ Piano pagamenti generato: ${payments.length} rate per €${totale.toFixed(2)}`);
 }
 
 /**
