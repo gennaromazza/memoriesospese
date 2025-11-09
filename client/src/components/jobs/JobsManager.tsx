@@ -16,6 +16,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -61,16 +69,6 @@ const STATUS_COLORS: Record<JobStatus, string> = {
   archiviato: 'bg-slate-100 text-slate-700 border-slate-300'
 };
 
-// Pipeline statuses (escluso archiviato)
-const PIPELINE_STATUSES: JobStatus[] = [
-  'lead',
-  'preventivo_inviato',
-  'confermato',
-  'shooting_fatto',
-  'selezione_pending',
-  'produzione',
-  'consegnato'
-];
 
 export default function JobsManager() {
   const [, navigate] = useLocation();
@@ -122,24 +120,31 @@ export default function JobsManager() {
     });
   }, [jobs, filterType, searchQuery]);
   
-  // Raggruppa jobs per status
-  const jobsByStatus = useMemo(() => {
-    const grouped: Record<JobStatus, Job[]> = {
-      lead: [],
-      preventivo_inviato: [],
-      confermato: [],
-      shooting_fatto: [],
-      selezione_pending: [],
-      produzione: [],
-      consegnato: [],
-      archiviato: []
+  // Sort jobs by date (più recenti primi)
+  const sortedJobs = useMemo(() => {
+    const toDate = (val: any): Date => {
+      if (!val) return new Date(0);
+      
+      let result: Date;
+      if (typeof val.toDate === 'function') {
+        result = val.toDate();
+      } else {
+        result = new Date(val);
+      }
+      
+      // Validate: fallback to epoch if invalid date
+      if (!Number.isFinite(result.getTime())) {
+        return new Date(0);
+      }
+      
+      return result;
     };
     
-    filteredJobs.forEach(job => {
-      grouped[job.status].push(job);
+    return [...filteredJobs].sort((a, b) => {
+      const dateA = toDate(a.eventDate);
+      const dateB = toDate(b.eventDate);
+      return dateB.getTime() - dateA.getTime();
     });
-    
-    return grouped;
   }, [filteredJobs]);
   
   // Stats
@@ -246,61 +251,122 @@ export default function JobsManager() {
         </Select>
       </div>
       
-      {/* Kanban Board */}
+      {/* Jobs Table */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-96" />
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
+      ) : sortedJobs.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-500">Nessun lavoro trovato</p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max">
-            {PIPELINE_STATUSES.map(status => (
-              <div
-                key={status}
-                className="flex-shrink-0 w-80"
-              >
-                {/* Column header */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-sm text-gray-700">
-                      {STATUS_LABELS[status]}
-                    </h3>
-                    <Badge variant="outline" className="text-xs">
-                      {jobsByStatus[status].length}
-                    </Badge>
-                  </div>
-                  <div className="h-1 bg-gray-200 rounded-full">
-                    <div
-                      className={`h-1 rounded-full ${STATUS_COLORS[status].split(' ')[0]}`}
-                      style={{
-                        width: `${(jobsByStatus[status].length / Math.max(1, filteredJobs.length)) * 100}%`
-                      }}
-                    />
-                  </div>
-                </div>
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="font-semibold">Nome Evento</TableHead>
+                <TableHead className="hidden md:table-cell font-semibold">Cliente/i</TableHead>
+                <TableHead className="font-semibold">Data/Orario</TableHead>
+                <TableHead className="font-semibold">Tipo</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="hidden md:table-cell font-semibold text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedJobs.map(job => {
+                const jobTypeInfo = jobTypeMap[job.jobType];
+                const displayType = jobTypeInfo ? `${jobTypeInfo.icona} ${jobTypeInfo.nome}` : job.jobType;
+                const eventDate = job.eventDate ? (job.eventDate as any).toDate?.() || job.eventDate : null;
                 
-                {/* Jobs cards */}
-                <div className="space-y-3 min-h-[200px]">
-                  {jobsByStatus[status].length === 0 ? (
-                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
-                      <p className="text-sm text-gray-400">Nessun lavoro</p>
-                    </div>
-                  ) : (
-                    jobsByStatus[status].map(job => (
-                      <JobCard
-                        key={job.id}
-                        job={job}
-                        onClick={() => navigate(`/admin/jobs/${job.id}`)}
-                        jobTypeMap={jobTypeMap}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+                return (
+                  <TableRow
+                    key={job.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/admin/jobs/${job.id}`)}
+                    data-testid={`job-row-${job.id}`}
+                  >
+                    {/* Nome Evento + Location */}
+                    <TableCell className="font-medium">
+                      <div className="space-y-1">
+                        <div className="font-semibold">{job.nomeEvento}</div>
+                        {job.eventLocation && (
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {job.eventLocation}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    
+                    {/* Cliente/i */}
+                    <TableCell className="hidden md:table-cell">
+                      {job.clientiIds && job.clientiIds.length > 0 ? (
+                        <div className="flex items-center gap-1 text-sm">
+                          <User className="w-3 h-3" />
+                          {job.clientiIds.length} client{job.clientiIds.length === 1 ? 'e' : 'i'}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
+                    
+                    {/* Data/Orario */}
+                    <TableCell>
+                      {eventDate ? (
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">
+                            {format(eventDate as Date, 'dd MMM yyyy', { locale: it })}
+                          </div>
+                          {job.startTime && job.endTime && (
+                            <div className="text-xs text-muted-foreground">
+                              {job.startTime} - {job.endTime}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
+                    
+                    {/* Tipo */}
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {displayType}
+                      </Badge>
+                    </TableCell>
+                    
+                    {/* Status */}
+                    <TableCell>
+                      <Badge className={STATUS_COLORS[job.status]}>
+                        {STATUS_LABELS[job.status]}
+                      </Badge>
+                    </TableCell>
+                    
+                    {/* Actions */}
+                    <TableCell className="hidden md:table-cell text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedJobId(job.id);
+                        }}
+                        data-testid={`button-manage-${job.id}`}
+                      >
+                        Gestisci
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
       
