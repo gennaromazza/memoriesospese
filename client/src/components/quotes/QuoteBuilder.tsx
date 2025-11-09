@@ -754,6 +754,88 @@ export default function QuoteBuilder({
 
             <Separator />
 
+            {/* Sconto Finale */}
+            <Card className="bg-orange-50 border-orange-200">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  Sconto Finale (Opzionale)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Tipo Sconto */}
+                <FormField
+                  control={form.control}
+                  name="discountType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo Sconto</FormLabel>
+                      <Select value={field.value || 'none'} onValueChange={(val) => field.onChange(val === 'none' ? undefined : val)}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-discount-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Nessuno sconto</SelectItem>
+                          <SelectItem value="amount">
+                            <div className="flex items-center gap-2">
+                              <Euro className="w-4 h-4" />
+                              <span>Sconto Fisso (€)</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="percent">
+                            <div className="flex items-center gap-2">
+                              <Percent className="w-4 h-4" />
+                              <span>Sconto Percentuale (%)</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Valore Sconto (solo se tipo è selezionato) */}
+                {discountType && (
+                  <FormField
+                    control={form.control}
+                    name="discountValue"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Valore Sconto {discountType === 'amount' ? '(€)' : '(%)'}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={discountType === 'percent' ? '100' : undefined}
+                            placeholder={discountType === 'amount' ? '0.00' : '0'}
+                            {...field}
+                            value={field.value || ''}
+                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            data-testid="input-discount-value"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {discountType === 'amount' 
+                            ? `Max: €${subtotale.toFixed(2)}`
+                            : 'Max: 100%'
+                          }
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            <Separator />
+
             {/* Configurazione Piano Pagamenti Avanzata */}
             <Card className="bg-blue-50 border-blue-200">
               <CardHeader>
@@ -1008,88 +1090,6 @@ export default function QuoteBuilder({
                       </div>
                     )}
                   </>
-                )}
-              </CardContent>
-            </Card>
-
-            <Separator />
-
-            {/* Sconto Finale */}
-            <Card className="bg-orange-50 border-orange-200">
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Tag className="w-4 h-4" />
-                  Sconto Finale (Opzionale)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Tipo Sconto */}
-                <FormField
-                  control={form.control}
-                  name="discountType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo Sconto</FormLabel>
-                      <Select value={field.value || 'none'} onValueChange={(val) => field.onChange(val === 'none' ? undefined : val)}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-discount-type">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">Nessuno sconto</SelectItem>
-                          <SelectItem value="amount">
-                            <div className="flex items-center gap-2">
-                              <Euro className="w-4 h-4" />
-                              <span>Sconto Fisso (€)</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="percent">
-                            <div className="flex items-center gap-2">
-                              <Percent className="w-4 h-4" />
-                              <span>Sconto Percentuale (%)</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Valore Sconto (solo se tipo è selezionato) */}
-                {discountType && (
-                  <FormField
-                    control={form.control}
-                    name="discountValue"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Valore Sconto {discountType === 'amount' ? '(€)' : '(%)'}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max={discountType === 'percent' ? '100' : undefined}
-                            placeholder={discountType === 'amount' ? '0.00' : '0'}
-                            {...field}
-                            value={field.value || ''}
-                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
-                            data-testid="input-discount-value"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {discountType === 'amount' 
-                            ? `Max: €${subtotale.toFixed(2)}`
-                            : 'Max: 100%'
-                          }
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 )}
               </CardContent>
             </Card>
