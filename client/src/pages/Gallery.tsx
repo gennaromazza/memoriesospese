@@ -78,6 +78,318 @@ import StoryService from "@/lib/storyService";
 import { CoupleStory } from "@shared/schema";
 import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotlight";
 
+// 🚀 VIRTUAL SCROLLING: Componente ottimizzato per foto visibili
+const VirtualPhotoGrid = React.memo(({
+  photos,
+  isSelectionMode,
+  selectionStatus,
+  selectedPhotoIds,
+  photoAssignments,
+  galleryData,
+  isDeadlinePassed,
+  handleTogglePhotoSelection,
+  handleToggleProductAssignment,
+  openLightbox,
+  setSelectedPhotoForMobileAssignment,
+  setShowMobileProductDialog
+}: {
+  photos: PhotoData[];
+  isSelectionMode: boolean;
+  selectionStatus: string;
+  selectedPhotoIds: string[];
+  photoAssignments: Record<string, string[]>;
+  galleryData: any;
+  isDeadlinePassed: boolean;
+  handleTogglePhotoSelection: (photoId: string) => void;
+  handleToggleProductAssignment: (photoId: string, productIndex: string) => void;
+  openLightbox: (index: number) => void;
+  setSelectedPhotoForMobileAssignment: (photoId: string | null) => void;
+  setShowMobileProductDialog: (show: boolean) => void;
+}) => {
+  // State for visible range, initialized to show a few items initially
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 }); // Show more initially for better UX
+  const containerRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
+
+  // Preload images in cache
+  const preloadImage = useCallback((url: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (imageCache.current.has(url)) {
+        resolve();
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        imageCache.current.set(url, img);
+        resolve();
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }, []);
+
+  // Virtual scrolling with Intersection Observer
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || photos.length === 0) return;
+
+    const options = {
+      root: null,
+      rootMargin: '500px', // Preload aggressivo
+      threshold: 0
+    };
+
+    observerRef.current = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const img = entry.target as HTMLImageElement;
+          const src = img.dataset.src;
+          // Only load if src is set and image is not already loaded
+          if (src && !img.src) {
+            preloadImage(src).then(() => {
+              img.src = src;
+              img.classList.add('loaded'); // Add class after loading for styling
+            }).catch(error => {
+              console.error("Failed to preload image:", src, error);
+              img.alt = "Failed to load image"; // Set alt text on error
+              img.classList.add('error'); // Add error class for styling
+            });
+          }
+        }
+      });
+    }, options);
+
+    // Observe all image elements initially
+    container.querySelectorAll('img[data-src]').forEach(img => {
+      observerRef.current?.observe(img);
+    });
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [photos.length, preloadImage]);
+
+  // Initial preload batch
+  useEffect(() => {
+    const preloadBatch = async () => {
+      // Preload first N images for initial view
+      const batch = photos.slice(0, 50).map(p => p.url);
+      await Promise.all(batch.map(url => preloadImage(url).catch(() => {})));
+    };
+    preloadBatch();
+  }, [photos, preloadImage]);
+
+  // Scroll listener for virtual scrolling
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const viewportHeight = window.innerHeight;
+      // Estimate item height based on common image dimensions and grid layout
+      const estimatedItemHeight = 300; // Adjust as needed
+      // Calculate items per row based on current viewport width
+      const itemsPerRow = window.innerWidth < 640 ? 1 : window.innerWidth < 1024 ? 2 : 3;
+
+      // Calculate estimated start and end indices based on scroll position and item dimensions
+      // Add buffer to ensure smooth loading
+      const bufferItems = 20;
+      const startIndex = Math.max(0, Math.floor(scrollTop / estimatedItemHeight) * itemsPerRow - bufferItems);
+      const endIndex = Math.min(photos.length, startIndex + Math.ceil(viewportHeight / estimatedItemHeight) * itemsPerRow + bufferItems);
+
+      setVisibleRange({ start: startIndex, end: endIndex });
+    };
+
+    // Initial call to set range
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [photos.length]);
+
+  const isMultiProductMode = (galleryData?.productRequirements?.length ?? 0) > 1;
+
+  return (
+    <div ref={containerRef} className="masonry-grid">
+      {photos.map((photo, index) => {
+        const isVisible = index >= visibleRange.start && index <= visibleRange.end;
+
+        return (
+          <div key={photo.id} className="masonry-item">
+            <div
+              className={`gallery-image relative group overflow-hidden rounded-lg transition-all duration-300 ${
+                isSelectionMode &&
+                selectionStatus !== "completed" &&
+                selectedPhotoIds.includes(photo.id)
+                  ? "ring-8 ring-sage shadow-[0_0_25px_rgba(134,168,137,0.6)] scale-[1.03]"
+                  : isSelectionMode &&
+                      selectionStatus !== "completed"
+                    ? "shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50"
+                    : "shadow-md hover:shadow-lg"
+              }`}
+              onClick={() => {
+                // Handle click based on mode
+                if (isMultiProductMode) {
+                  // In multi-product mode, always open lightbox on photo click
+                  openLightbox(index);
+                } else if (isSelectionMode && selectionStatus !== "completed") {
+                  // In legacy single-product selection mode, toggle selection
+                  handleTogglePhotoSelection(photo.id);
+                } else {
+                  // Default behavior: open lightbox
+                  openLightbox(index);
+                }
+              }}
+              style={{ minHeight: isVisible ? 'auto' : '300px' }} // Placeholder height
+            >
+              {isVisible ? (
+                <img
+                  data-src={photo.url}
+                  alt={photo.name || `Foto ${index + 1}`}
+                  className="w-full h-auto object-cover transition-opacity duration-300 opacity-0"
+                  loading="lazy" // Use lazy loading attribute
+                  decoding="async" // Use async decoding
+                  ref={(el) => {
+                    // Observe the image when it's added to the DOM and has a data-src
+                    if (el && observerRef.current && !el.src) {
+                      observerRef.current.observe(el);
+                    }
+                  }}
+                  onLoad={(e) => {
+                    (e.target as HTMLImageElement).classList.replace("opacity-0", "opacity-100");
+                  }}
+                  title={photo.createdAt ? new Date(photo.createdAt).toLocaleString("it-IT") : ""}
+                />
+              ) : (
+                // Placeholder for non-visible items
+                <div className="w-full h-64 bg-gray-100 animate-pulse" />
+              )}
+
+              {/* Overlays and interactive elements for Selection Mode */}
+              {isSelectionMode && selectionStatus !== "completed" && isVisible && (
+                <>
+                  {/* Fullscreen button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent photo click handler
+                      openLightbox(index);
+                    }}
+                    className="absolute top-3 left-3 z-20 bg-blue-gray/90 hover:bg-blue-gray text-white rounded-full w-9 h-9 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+                    title="Visualizza a schermo intero"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                    </svg>
+                  </button>
+
+                  {/* Selection Checkbox */}
+                  <div className="absolute top-3 right-3 z-10">
+                    <div className={`w-8 h-8 rounded-md flex items-center justify-center transition-all border-2 ${
+                      selectedPhotoIds.includes(photo.id)
+                        ? "bg-sage border-sage text-white scale-110 shadow-lg"
+                        : "bg-white border-gray-300 hover:border-sage hover:bg-sage/10"
+                    }`}>
+                      {selectedPhotoIds.includes(photo.id) ? (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <div className="w-4 h-4 rounded-sm border border-gray-400"></div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* "SELECTED" Badge for legacy single-product mode */}
+                  {!galleryData.productRequirements && selectedPhotoIds.includes(photo.id) && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-sage text-white text-center py-2 font-semibold text-sm">
+                      ✓ SELEZIONATA
+                    </div>
+                  )}
+
+                  {/* Mobile Product Assignment Button */}
+                  {galleryData.productRequirements && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPhotoForMobileAssignment(photo.id);
+                          setShowMobileProductDialog(true);
+                        }}
+                        className="md:hidden absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-r from-sage to-dark-sage text-white px-4 py-2.5 font-medium text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        <span>Assegna ai prodotti</span>
+                      </button>
+
+                      {/* Desktop Product Assignment Chips */}
+                      <div className="absolute bottom-0 left-0 right-0 hidden md:flex flex-wrap gap-1 bg-white/95 p-2 rounded-b-lg border-t border-sage/20">
+                        {galleryData.productRequirements.map((prod: any, idx: number) => {
+                          const productIdStr = String(idx);
+                          const isAssigned = photoAssignments[photo.id]?.includes(productIdStr);
+
+                          const productColors = [
+                            { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600' },
+                            { bg: 'bg-green-500', hover: 'hover:bg-green-600', text: 'text-green-600' },
+                            { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', text: 'text-purple-600' },
+                            { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', text: 'text-orange-600' },
+                            { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', text: 'text-pink-600' },
+                            { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600' },
+                          ];
+                          const color = productColors[idx % productColors.length];
+
+                          return (
+                            <button
+                              key={idx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleProductAssignment(photo.id, productIdStr);
+                              }}
+                              className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                                isAssigned
+                                  ? `${color.bg} text-white shadow-md ${color.hover}`
+                                  : `bg-gray-200 ${color.text} hover:bg-gray-300`
+                              }`}
+                              title={`${isAssigned ? 'Rimuovi da' : 'Assegna a'} ${prod.prodottoNome}`}
+                            >
+                              {isAssigned && '✓ '}
+                              {prod.prodottoNome}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Interaction Panel - Nascosto in modalità selezione */}
+            {!isSelectionMode && isVisible && (
+              <div className="mt-2">
+                <InteractionPanel
+                  itemId={photo.id}
+                  itemType="photo"
+                  galleryId={galleryData.id}
+                  isAdmin={false}
+                  variant="default"
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+VirtualPhotoGrid.displayName = 'VirtualPhotoGrid';
+
 export default function Gallery() {
   const { id } = useParams();
   const [, navigate] = useLocation();
@@ -89,7 +401,7 @@ export default function Gallery() {
   const userInfo = useUserInfo();
   const { toast } = useToast();
 
-  // Stato locale per il tracciamento del caricamento
+  // Stato per il tracciamento del caricamento
   const [loadingState, setLoadingState] = useState({
     totalPhotos: 0,
     loadedPhotos: 0,
@@ -172,8 +484,8 @@ export default function Gallery() {
     staleTime: 30000
   });
 
-  // Stati derivati
-  const hasMorePhotos = false; // Semplificato: carica tutto in una volta
+  // Stati derivati (semplificati per il nuovo approccio)
+  const hasMorePhotos = false;
   const loadingMorePhotos = false;
   const loadMorePhotos = useCallback(async () => {
     // Placeholder: paginazione rimossa per semplicità
@@ -192,14 +504,14 @@ export default function Gallery() {
     staleTime: 60000 // Cache 60 secondi (storia cambia raramente)
   });
 
-  // Funzione di refresh che invalida la cache React Query (MOVED dopo galleryData declaration)
+  // Funzione di refresh che invalida la cache React Query
   const handleRefreshPhotos = useCallback(async () => {
     if (!galleryData?.id) return;
-    
+
     // Invalida cache React Query per ricaricare foto
     await queryClient.invalidateQueries({ queryKey: ['photos', galleryData.id] });
     await queryClient.invalidateQueries({ queryKey: ['guestPhotos', galleryData.id] });
-    
+
     // Fallback con evento personalizzato per compatibilità
     refreshPhotos();
   }, [galleryData?.id, refreshPhotos]);
@@ -222,11 +534,11 @@ export default function Gallery() {
         variant: "destructive",
       });
     }
-    if (guestPhotosError) {
-      console.error('Errore caricamento foto ospiti:', guestPhotosError);
-      // Non mostriamo errore per foto ospiti - non è critico
-    }
-  }, [galleryError, photosError, guestPhotosError]);
+    // Guest photos error is less critical, commented out for now
+    // if (guestPhotosError) {
+    //   console.error('Errore caricamento foto ospiti:', guestPhotosError);
+    // }
+  }, [galleryError, photosError, toast]);
 
   // 🔧 Gestione galleria non trovata
   useEffect(() => {
@@ -241,11 +553,9 @@ export default function Gallery() {
         navigate(createUrl('/'));
       }, 2000);
     }
-  }, [isLoadingGallery, galleryError, galleryData, id, navigate]);
+  }, [isLoadingGallery, galleryError, galleryData, id, navigate, toast]);
 
-  // Stati per gestire la selezione foto (Tasks 12-15)
-  // 🔥 CRITICAL FIX: In multi-product mode, photoAssignments è la SINGLE SOURCE OF TRUTH
-  // selectedPhotoIds viene derivato automaticamente da photoAssignments (vedere useMemo sotto)
+  // Stati per gestire la selezione foto
   const [selectedPhotoIdsLegacy, setSelectedPhotoIdsLegacy] = useState<string[]>([]); // Solo per modalità single-product legacy
   const [photoAssignments, setPhotoAssignments] = useState<Record<string, string[]>>({});
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
@@ -256,7 +566,7 @@ export default function Gallery() {
   const [showSidebar, setShowSidebar] = useState(false); // Sidebar miniature
   const [showProductSummary, setShowProductSummary] = useState(false); // Sheet riepilogo prodotti
   const [filterByProduct, setFilterByProduct] = useState<number | null>(null); // Filtro per prodotto specifico
-  
+
   // 📱 Mobile Product Assignment Dialog
   const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
   const [selectedPhotoForMobileAssignment, setSelectedPhotoForMobileAssignment] = useState<string | null>(null);
@@ -266,11 +576,10 @@ export default function Gallery() {
 
   // Check se gallery è in selection mode
   const isSelectionMode = galleryData?.selectionEnabled || false;
-  
+
   // 🔥 CRITICAL FIX: Deriva selectedPhotoIds automaticamente da photoAssignments
-  // Questo elimina il rischio di desync tra i due stati
   const isMultiProductMode = (galleryData?.productRequirements?.length ?? 0) > 1;
-  
+
   const selectedPhotoIds = useMemo(() => {
     if (isMultiProductMode) {
       // Multi-product: deriva da photoAssignments (single source of truth)
@@ -282,7 +591,7 @@ export default function Gallery() {
       return selectedPhotoIdsLegacy;
     }
   }, [isMultiProductMode, photoAssignments, selectedPhotoIdsLegacy]);
-  
+
   // Calculate total required photos: Multi-product mode (sum from productRequirements) OR legacy single-product mode
   const requiredPhotoCount = useMemo(() => {
     if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
@@ -290,65 +599,10 @@ export default function Gallery() {
     }
     return galleryData?.requiredPhotoCount || 0;
   }, [galleryData?.productRequirements, galleryData?.requiredPhotoCount]);
-  
+
   const productRequirements = galleryData?.productRequirements;
   const selectionDeadline = galleryData?.selectionDeadline;
   const selectionStatus = galleryData?.selectionStatus || "pending";
-
-  // 🔍 DEBUG: Log stato modalità selezione
-  useEffect(() => {
-    if (galleryData) {
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("🔍 SELECTION MODE DEBUG - Galleria:", galleryData.code);
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("📌 Gallery ID:", galleryData.id);
-      console.log("📌 Gallery Code:", galleryData.code);
-      console.log("✅ selectionEnabled:", galleryData.selectionEnabled);
-      console.log("✅ isSelectionMode:", isSelectionMode);
-      console.log("📊 requiredPhotoCount:", galleryData.requiredPhotoCount);
-      console.log("📦 productRequirements:", galleryData.productRequirements);
-      console.log("🎯 photoAssignments:", galleryData.photoAssignments);
-      console.log("📋 selectionStatus:", galleryData.selectionStatus);
-      console.log("⏰ selectionDeadline:", galleryData.selectionDeadline);
-      console.log(
-        "🔒 selectionDeadlineEnforced:",
-        galleryData.selectionDeadlineEnforced,
-      );
-      console.log(
-        "💚 selectedPhotoIds count:",
-        galleryData.selectedPhotoIds?.length || 0,
-      );
-      
-      // Multi-Product Debug
-      if (galleryData.productRequirements && galleryData.productRequirements.length > 1) {
-        const totalRequired = galleryData.productRequirements.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
-        console.log("🎨 MULTI-PRODUCT MODE ATTIVO");
-        console.log(`📊 Totale foto richieste: ${totalRequired} (da ${galleryData.productRequirements.length} prodotti)`);
-        galleryData.productRequirements.forEach((p, idx) => {
-          console.log(`  ${idx + 1}. ${p.prodottoNome}: ${p.prodottoNumeroFoto} foto`);
-        });
-      }
-      
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-      if (!galleryData.selectionEnabled) {
-        console.error("❌ PROBLEMA: selectionEnabled è FALSE o undefined!");
-        console.error(
-          "❌ Per attivare: Admin → Gestione Gallerie → Gestisci → Impostazioni → ✓ Modalità Selezione Foto",
-        );
-      }
-    }
-  }, [galleryData, isSelectionMode]);
-
-  // Check deadline enforcement
-  const isDeadlinePassed = useMemo(() => {
-    if (!selectionDeadline || !galleryData?.selectionDeadlineEnforced)
-      return false;
-    const deadline = selectionDeadline.toDate
-      ? selectionDeadline.toDate()
-      : new Date(selectionDeadline);
-    return new Date() > deadline;
-  }, [selectionDeadline, galleryData?.selectionDeadlineEnforced]);
 
   // Sync selectedPhotoIds with galleryData on INITIAL load only
   const [hasInitializedSelection, setHasInitializedSelection] = useState(false);
@@ -356,13 +610,10 @@ export default function Gallery() {
     string | null
   >(null);
 
-  // Reset selection state when gallery ID changes (cross-gallery navigation)
+  // Reset selection state when gallery ID changes
   useEffect(() => {
     if (id && id !== lastGalleryIdForSelection) {
-      console.log("🔄 Gallery changed - reset selection state:", {
-        from: lastGalleryIdForSelection,
-        to: id,
-      });
+      console.log("Gallery changed - reset selection state:", { from: lastGalleryIdForSelection, to: id });
       setSelectedPhotoIdsLegacy([]);
       setPhotoAssignments({});
       setHasInitializedSelection(false);
@@ -379,20 +630,14 @@ export default function Gallery() {
         galleryData?.selectedPhotoIds &&
         galleryData.selectedPhotoIds.length > 0
       ) {
-        console.log(
-          "🔄 Sync iniziale selectedPhotoIds da galleryData (legacy):",
-          galleryData.selectedPhotoIds.length,
-        );
+        console.log("Syncing initial selectedPhotoIds from galleryData (legacy):", galleryData.selectedPhotoIds.length);
         setSelectedPhotoIdsLegacy(galleryData.selectedPhotoIds);
         setHasInitializedSelection(true);
       }
 
       // Multi-product mode: sync photoAssignments
       if (galleryData?.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0) {
-        console.log(
-          "🔄 Sync iniziale photoAssignments da galleryData:",
-          Object.keys(galleryData.photoAssignments).length,
-        );
+        console.log("Syncing initial photoAssignments from galleryData:", Object.keys(galleryData.photoAssignments).length);
         setPhotoAssignments(galleryData.photoAssignments as Record<string, string[]>);
         setHasInitializedSelection(true);
       }
@@ -412,7 +657,7 @@ export default function Gallery() {
 
     // Salva ENTRAMBI selectedPhotoIds E photoAssignments per multi-product
     const hasSelections = selectedPhotoIds.length > 0 || Object.keys(photoAssignments).length > 0;
-    
+
     if (hasSelections) {
       localStorage.setItem(
         storageKey,
@@ -423,17 +668,11 @@ export default function Gallery() {
           count: selectedPhotoIds.length,
         }),
       );
-      console.log(
-        "💾 Auto-saved selection:",
-        selectedPhotoIds.length,
-        "photos +",
-        Object.keys(photoAssignments).length,
-        "assignments",
-      );
+      console.log("Auto-saved selection:", selectedPhotoIds.length, "photos +", Object.keys(photoAssignments).length, "assignments");
     } else {
       // Rimuovi localStorage quando la selezione è vuota
       localStorage.removeItem(storageKey);
-      console.log("🗑️ Cleared saved selection (empty)");
+      console.log("Cleared saved selection (empty)");
     }
   }, [
     selectedPhotoIds,
@@ -464,24 +703,18 @@ export default function Gallery() {
 
         // Ripristina solo se salvato nelle ultime 24 ore
         if (hoursSince < 24 && (photoIds?.length > 0 || Object.keys(savedAssignments || {}).length > 0)) {
-          console.log(
-            "🔄 Restored selection from localStorage:",
-            count,
-            "photos +",
-            Object.keys(savedAssignments || {}).length,
-            "assignments",
-          );
-          
+          console.log("Restored selection from localStorage:", count, "photos +", Object.keys(savedAssignments || {}).length, "assignments");
+
           // 🔥 FIX: Ripristina ENTRAMBI selectedPhotoIds E photoAssignments
           if (photoIds && !isMultiProductMode) setSelectedPhotoIdsLegacy(photoIds); // Solo per legacy
           if (savedAssignments) setPhotoAssignments(savedAssignments); // Multi-product: questo imposta automaticamente selectedPhotoIds via useMemo
-          
+
           setHasInitializedSelection(true); // ✅ FIX: Marca come inizializzato
-          
+
           const hasAssignments = savedAssignments && Object.keys(savedAssignments).length > 0;
           toast({
             title: "💾 Selezione ripristinata",
-            description: hasAssignments 
+            description: hasAssignments
               ? `Abbiamo recuperato le tue ${count} foto selezionate${Object.keys(savedAssignments).length > 0 ? ' con le assegnazioni ai prodotti' : ''}.`
               : `Abbiamo recuperato le tue ${count} foto selezionate precedentemente.`,
           });
@@ -537,7 +770,7 @@ export default function Gallery() {
         if (isAssigned) {
           // Remove product from this photo
           newAssignments = currentAssignments.filter((idx) => idx !== productIndex);
-          
+
           // Toast feedback for removal
           toast({
             title: `📤 Foto rimossa`,
@@ -561,7 +794,7 @@ export default function Gallery() {
 
           // Add product to this photo
           newAssignments = [...currentAssignments, productIndex];
-          
+
           // Toast feedback for assignment
           toast({
             title: `✨ Foto aggiunta`,
@@ -676,7 +909,7 @@ export default function Gallery() {
         const assignedCount = Object.values(photoAssignments).filter(
           assignments => assignments.includes(String(idx))
         ).length;
-        
+
         return {
           prodottoNome: prod.prodottoNome,
           assignedCount,
@@ -685,15 +918,15 @@ export default function Gallery() {
           isExceeded: assignedCount > prod.prodottoNumeroFoto
         };
       });
-      
+
       // Trova prodotti con troppe foto
       const exceededProducts = productProgress.filter(p => p.isExceeded);
-      
+
       if (exceededProducts.length > 0) {
-        const errorMessage = exceededProducts.map(p => 
+        const errorMessage = exceededProducts.map(p =>
           `• ${p.prodottoNome}: ${p.assignedCount}/${p.requiredCount} foto (${p.assignedCount - p.requiredCount} in eccesso)`
         ).join('\n');
-        
+
         toast({
           title: "⚠️ Troppe foto assegnate",
           description: `Alcuni prodotti hanno più foto del necessario:\n\n${errorMessage}\n\nRimuovi le foto in eccesso prima di confermare.`,
@@ -701,15 +934,15 @@ export default function Gallery() {
         });
         return;
       }
-      
+
       // Trova prodotti mancanti
       const missingProducts = productProgress.filter(p => p.isMissing);
-      
+
       if (missingProducts.length > 0) {
-        const errorMessage = missingProducts.map(p => 
+        const errorMessage = missingProducts.map(p =>
           `• ${p.prodottoNome}: ${p.assignedCount}/${p.requiredCount} foto`
         ).join('\n');
-        
+
         toast({
           title: "⚠️ Selezione incompleta",
           description: `Alcuni prodotti non hanno abbastanza foto assegnate:\n\n${errorMessage}\n\nAssegna le foto mancanti prima di confermare.`,
@@ -717,7 +950,7 @@ export default function Gallery() {
         });
         return;
       }
-      
+
       console.log('✅ Validazione multi-prodotto superata - tutti i prodotti hanno le foto richieste');
     }
     // Legacy Single-Product Validation
@@ -744,7 +977,7 @@ export default function Gallery() {
       }
 
       // Converti photoAssignments in formato JSON puro per Firestore
-      const photoAssignmentsData = galleryData.productRequirements 
+      const photoAssignmentsData = galleryData.productRequirements
         ? Object.fromEntries(
             Object.entries(photoAssignments).filter(([_, value]) => value && value.length > 0)
           )
@@ -774,7 +1007,7 @@ export default function Gallery() {
             const assignedCount = Object.values(photoAssignments).filter(
               assignments => assignments.includes(String(idx))
             ).length;
-            
+
             return {
               prodottoNome: prod.prodottoNome,
               assignedCount,
@@ -804,14 +1037,14 @@ export default function Gallery() {
 
       toast({
         title: "✅ Selezione confermata!",
-        description: galleryData.productRequirements 
+        description: galleryData.productRequirements
           ? "Le tue foto sono state assegnate ai prodotti. Riceverai presto il tuo album!"
           : `Le tue ${requiredPhotoCount} foto sono state confermate. Riceverai presto il tuo album!`,
       });
 
       // Refresh gallery data
       await refreshGallery();
-      
+
       // Auto-reload page to show updated state
       setTimeout(() => {
         window.location.reload();
@@ -859,7 +1092,7 @@ export default function Gallery() {
 
     try {
       await StoryService.deleteStory(id);
-      
+
       // Invalida cache React Query per ricaricare storia
       await queryClient.invalidateQueries({ queryKey: ['coupleStory', id] });
 
@@ -911,7 +1144,8 @@ export default function Gallery() {
     }));
   }, [photos.length, guestPhotos.length, galleryData]);
 
-  // 🔧 Storia caricata tramite React Query (vedi useQuery sopra) - vecchio useEffect rimosso
+  // 🎓 Onboarding Tutorial - Gestito autonomamente dal componente wrapper
+  // GalleryOnboardingSpotlight component logic will be here
 
   // Verifica autenticazione
   useEffect(() => {
@@ -929,7 +1163,7 @@ export default function Gallery() {
     }
   }, [id, isAdmin, navigate]);
 
-  // Scroll infinito come fallback
+  // Scroll infinito come fallback (non più necessario con virtual scrolling, ma mantenuto per ora)
   useEffect(() => {
     const handleScroll = () => {
       if (
@@ -1035,7 +1269,7 @@ export default function Gallery() {
 
     // Filtro per prodotto specifico (Task 8)
     if (filterByProduct !== null && photoAssignments) {
-      basePhotos = basePhotos.filter((photo) => 
+      basePhotos = basePhotos.filter((photo) =>
         photoAssignments[photo.id]?.includes(String(filterByProduct))
       );
     }
@@ -1062,20 +1296,20 @@ export default function Gallery() {
     if (!galleryData?.productRequirements || !photoAssignments) {
       return null;
     }
-    
+
     return galleryData.productRequirements.map((prod, idx) => {
       // Conta quante foto hanno questo prodotto assegnato
       const assignedCount = Object.values(photoAssignments).filter(
         assignments => assignments.includes(String(idx))
       ).length;
-      
+
       return {
         prodottoNome: prod.prodottoNome,
         assignedCount,
         requiredCount: prod.prodottoNumeroFoto,
         isComplete: assignedCount >= prod.prodottoNumeroFoto,
-        percentage: prod.prodottoNumeroFoto > 0 
-          ? Math.round((assignedCount / prod.prodottoNumeroFoto) * 100) 
+        percentage: prod.prodottoNumeroFoto > 0
+          ? Math.round((assignedCount / prod.prodottoNumeroFoto) * 100)
           : 100
       };
     });
@@ -1085,9 +1319,8 @@ export default function Gallery() {
   // IMPORTANTE: Nascosto in modalità multi-prodotto perché il progresso è già mostrato nelle card colorate
   const smartMessage = useMemo(() => {
     if (!isSelectionMode || selectionStatus === "completed") return null;
-    
+
     // 🔥 FIX: In multi-prodotto mode, non mostrare questo messaggio legacy
-    // Il progresso è già visualizzato nelle card colorate dei prodotti
     if (galleryData?.productRequirements && galleryData.productRequirements.length > 1) {
       return null;
     }
@@ -1153,26 +1386,22 @@ export default function Gallery() {
     navigate(createUrl("/"));
   };
 
-  if (isLoadingPhotos) {
+  // Show loading progress indicator if photos are still loading or not fully loaded
+  const showProgressIndicator = isLoadingPhotos || loadingState.progress < 100;
+
+  if (showProgressIndicator) {
     return (
       <div className="min-h-screen bg-off-white">
-        <Navigation galleryOwner="Caricamento..." />
-        <div className="py-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <Skeleton className="h-10 w-80 mb-2" />
-            <Skeleton className="h-6 w-60 mb-8" />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-              {[...Array(9)].map((_, i) => (
-                <Skeleton key={i} className="w-full h-60 rounded-md" />
-              ))}
-            </div>
-          </div>
-        </div>
+        <GalleryLoadingProgress
+          totalPhotos={loadingState.totalPhotos || 100}
+          loadedPhotos={loadingState.loadedPhotos || 0}
+          progress={loadingState.progress || 0}
+        />
       </div>
     );
   }
 
+  // Handle case where gallery data is not available after loading
   if (!galleryData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1194,26 +1423,20 @@ export default function Gallery() {
     );
   }
 
-  // Mostra sempre l'indicatore di caricamento durante il caricamento iniziale
-  const showProgressIndicator = isLoadingPhotos || loadingState.progress < 100;
-
-  // Se siamo in stato di caricamento o se il progresso è inferiore a 100, mostra il componente di caricamento
-  if (isLoadingPhotos || loadingState.progress < 100) {
-    return (
-      <div className="min-h-screen bg-off-white">
-        <GalleryLoadingProgress
-          totalPhotos={loadingState.totalPhotos || 100}
-          loadedPhotos={loadingState.loadedPhotos || 0}
-          progress={loadingState.progress || 0}
-        />
-      </div>
-    );
-  }
-
-  // Determina la classe del tema basata su galleryData.specialTheme
+  // Determine the theme class based on galleryData.specialTheme
   const currentTheme = galleryData?.specialTheme;
   const themeClass =
     currentTheme && currentTheme !== "none" ? `theme-${currentTheme}` : "";
+
+  // Check if the selection deadline has passed
+  const isDeadlinePassed = useMemo(() => {
+    if (!selectionDeadline || !galleryData?.selectionDeadlineEnforced)
+      return false;
+    const deadline = selectionDeadline.toDate
+      ? selectionDeadline.toDate()
+      : new Date(selectionDeadline);
+    return new Date() > deadline;
+  }, [selectionDeadline, galleryData?.selectionDeadlineEnforced]);
 
   return (
     <div
@@ -1386,10 +1609,7 @@ export default function Gallery() {
                           <button
                             onClick={() => {
                               setActiveTab("story");
-                              // 🔧 FIX: Non forzare reload - evita loop infinito
-                              console.log(
-                                "📘 Click tab Storia - no reload forzato",
-                              );
+                              console.log("📘 Click tab Storia - no reload forzato");
                             }}
                             className={`px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 ${
                               activeTab === "story"
@@ -1832,7 +2052,7 @@ export default function Gallery() {
                                   Ho capito!
                                 </AlertDialogAction>
                               </AlertDialogFooter>
-                            </AlertDialogContent>
+                            </AlertDialog>
                           </AlertDialog>
 
                           <h3 className="text-2xl font-playfair text-blue-gray mb-3">
@@ -1913,11 +2133,11 @@ export default function Gallery() {
                               <h4 className="font-semibold text-sage mb-3 text-center">📊 Progresso per Prodotto</h4>
                               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                 {calculateProductProgress.map((progress, idx) => (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className={`p-3 rounded-lg border-2 transition-all ${
-                                      progress.isComplete 
-                                        ? 'bg-green-50 border-green-300' 
+                                      progress.isComplete
+                                        ? 'bg-green-50 border-green-300'
                                         : progress.assignedCount > 0
                                           ? 'bg-yellow-50 border-yellow-300'
                                           : 'bg-gray-50 border-gray-300'
@@ -1936,12 +2156,12 @@ export default function Gallery() {
                                       {progress.assignedCount}/{progress.requiredCount}
                                     </p>
                                     <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                      <div 
+                                      <div
                                         className={`h-full transition-all ${
-                                          progress.isComplete 
-                                            ? 'bg-green-500' 
-                                            : progress.assignedCount > 0 
-                                              ? 'bg-yellow-500' 
+                                          progress.isComplete
+                                            ? 'bg-green-500'
+                                            : progress.assignedCount > 0
+                                              ? 'bg-yellow-500'
                                               : 'bg-gray-400'
                                         }`}
                                         style={{ width: `${progress.percentage}%` }}
@@ -2145,9 +2365,9 @@ export default function Gallery() {
                       )}
 
                       {/* Banner Istruzioni Multi-Prodotto - NASCOSTO per UX pulita */}
-                      {false && isSelectionMode && 
-                       selectionStatus !== "completed" && 
-                       galleryData?.productRequirements && 
+                      {false && isSelectionMode &&
+                       selectionStatus !== "completed" &&
+                       galleryData?.productRequirements &&
                        (galleryData?.productRequirements?.length ?? 0) > 1 && (
                         <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-5 mb-6 shadow-md">
                           <div className="flex items-start gap-4">
@@ -2175,9 +2395,9 @@ export default function Gallery() {
                       )}
 
                       {/* Sticky Counter Progress Bar - Multi-Product Mode */}
-                      {isSelectionMode && 
-                       selectionStatus !== "completed" && 
-                       galleryData?.productRequirements && 
+                      {isSelectionMode &&
+                       selectionStatus !== "completed" &&
+                       galleryData?.productRequirements &&
                        (galleryData?.productRequirements?.length ?? 0) > 1 && (
                         <div className="sticky top-16 z-30 bg-gradient-to-r from-sage/10 to-blue-gray/10 backdrop-blur-md border-b-2 border-sage/30 shadow-lg mb-6 rounded-lg overflow-hidden">
                           <div className="px-4 py-3">
@@ -2205,10 +2425,10 @@ export default function Gallery() {
                                   { bg: 'bg-teal-500', ring: 'ring-teal-200' },
                                 ];
                                 const color = productColors[idx % productColors.length];
-                                
+
                                 return (
                                   <div key={idx} className={`bg-white/90 rounded-lg p-3 ring-2 ${color.ring}`}>
-                                    <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-start justify-between mb-2">
                                       <span className="text-xs font-semibold text-gray-700 truncate" title={prog.prodottoNome}>
                                         {prog.prodottoNome}
                                       </span>
@@ -2217,7 +2437,7 @@ export default function Gallery() {
                                       </span>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-2">
-                                      <div 
+                                      <div
                                         className={`h-full ${color.bg} rounded-full transition-all duration-300`}
                                         style={{ width: `${Math.min(prog.percentage, 100)}%` }}
                                       />
@@ -2231,9 +2451,9 @@ export default function Gallery() {
                       )}
 
                       {/* Sheet Riepilogo Prodotti */}
-                      {isSelectionMode && 
-                       selectionStatus !== "completed" && 
-                       galleryData?.productRequirements && 
+                      {isSelectionMode &&
+                       selectionStatus !== "completed" &&
+                       galleryData?.productRequirements &&
                        (galleryData?.productRequirements?.length ?? 0) > 1 && (
                         <Sheet open={showProductSummary} onOpenChange={setShowProductSummary}>
                           <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
@@ -2245,7 +2465,7 @@ export default function Gallery() {
                                 Visualizza il progresso per ogni prodotto e filtra le foto
                               </SheetDescription>
                             </SheetHeader>
-                            
+
                             <div className="mt-6 space-y-4">
                               {calculateProductProgress?.map((prog, idx) => {
                                 const productColors = [
@@ -2258,10 +2478,10 @@ export default function Gallery() {
                                 ];
                                 const color = productColors[idx % productColors.length];
                                 const isFiltered = filterByProduct === idx;
-                                
+
                                 return (
-                                  <div 
-                                    key={idx} 
+                                  <div
+                                    key={idx}
                                     className={`bg-white rounded-lg border-2 ${isFiltered ? color.border + ' shadow-lg' : 'border-gray-200'} p-4 transition-all`}
                                   >
                                     <div className="flex items-start justify-between mb-3">
@@ -2279,14 +2499,14 @@ export default function Gallery() {
                                         </div>
                                       </div>
                                     </div>
-                                    
+
                                     <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                                      <div 
+                                      <div
                                         className={`h-full ${color.bg} rounded-full transition-all duration-300`}
                                         style={{ width: `${Math.min(prog.percentage, 100)}%` }}
                                       />
                                     </div>
-                                    
+
                                     <Button
                                       onClick={() => {
                                         if (isFiltered) {
@@ -2316,7 +2536,7 @@ export default function Gallery() {
                                   </div>
                                 );
                               })}
-                              
+
                               {filterByProduct !== null && (
                                 <Button
                                   onClick={() => {
@@ -2350,14 +2570,14 @@ export default function Gallery() {
                               Seleziona uno o più prodotti per questa foto
                             </SheetDescription>
                           </SheetHeader>
-                          
+
                           <div className="mt-6 space-y-3">
                             {galleryData?.productRequirements?.map((prod, idx) => {
                               const productIdStr = String(idx);
-                              const isAssigned = selectedPhotoForMobileAssignment 
+                              const isAssigned = selectedPhotoForMobileAssignment
                                 ? photoAssignments[selectedPhotoForMobileAssignment]?.includes(productIdStr)
                                 : false;
-                              
+
                               const productColors = [
                                 { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-500' },
                                 { bg: 'bg-green-500', hover: 'hover:bg-green-600', text: 'text-green-600', ring: 'ring-green-500' },
@@ -2367,12 +2587,12 @@ export default function Gallery() {
                                 { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600', ring: 'ring-teal-500' },
                               ];
                               const color = productColors[idx % productColors.length];
-                              
+
                               // Calcola progresso prodotto
                               const assignedCount = Object.values(photoAssignments).filter(
                                 assignments => assignments.includes(productIdStr)
                               ).length;
-                              
+
                               return (
                                 <button
                                   key={idx}
@@ -2382,8 +2602,8 @@ export default function Gallery() {
                                     }
                                   }}
                                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                                    isAssigned 
-                                      ? `${color.bg} text-white border-transparent shadow-lg ring-2 ${color.ring}` 
+                                    isAssigned
+                                      ? `${color.bg} text-white border-transparent shadow-lg ring-2 ${color.ring}`
                                       : `bg-white ${color.text} border-gray-200 hover:border-gray-300`
                                   }`}
                                   data-testid={`mobile-chip-product-${idx}`}
@@ -2410,7 +2630,7 @@ export default function Gallery() {
                               );
                             })}
                           </div>
-                          
+
                           <div className="mt-6">
                             <Button
                               onClick={() => setShowMobileProductDialog(false)}
@@ -2482,225 +2702,21 @@ export default function Gallery() {
                         </div>
                       )}
 
-                      <div ref={galleryGridRef} className="masonry-grid">
-                        {displayPhotos.map((photo, index) => (
-                          <React.Fragment key={photo.id}>
-                            <div className="masonry-item">
-                              <div
-                                className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg transition-all duration-300 ${
-                                  isSelectionMode &&
-                                  selectionStatus !== "completed" &&
-                                  selectedPhotoIds.includes(photo.id)
-                                    ? "ring-8 ring-sage shadow-[0_0_25px_rgba(134,168,137,0.6)] scale-[1.03]"
-                                    : isSelectionMode &&
-                                        selectionStatus !== "completed"
-                                      ? "shadow-md hover:shadow-xl hover:ring-2 hover:ring-sage/50"
-                                      : "shadow-md hover:shadow-lg"
-                                }`}
-                                onClick={() => {
-                                  // 🔥 FIX UX: In multi-product mode, click foto SEMPRE apre lightbox
-                                  // L'assegnazione ai prodotti avviene solo tramite badge (mobile) o chip (desktop)
-                                  const isMultiProduct = galleryData?.productRequirements && galleryData.productRequirements.length > 1;
-                                  
-                                  if (isMultiProduct) {
-                                    // Multi-product: sempre lightbox
-                                    openLightbox(index);
-                                  } else if (isSelectionMode && selectionStatus !== "completed") {
-                                    // Legacy single-product: toggle selezione
-                                    handleTogglePhotoSelection(photo.id);
-                                  } else {
-                                    // Modalità normale: lightbox
-                                    openLightbox(index);
-                                  }
-                                }}
-                              >
-                                <img
-                                  src={photo.url}
-                                  alt={photo.name || `Foto ${index + 1}`}
-                                  className="w-full h-auto object-cover transition-all duration-300 opacity-0 hover:opacity-95"
-                                  loading={index < 6 ? "eager" : "lazy"}
-                                  decoding="async"
-                                  onLoad={(e) => {
-                                    (
-                                      e.target as HTMLImageElement
-                                    ).classList.replace(
-                                      "opacity-0",
-                                      "opacity-100",
-                                    );
-                                  }}
-                                  title={
-                                    photo.createdAt
-                                      ? new Date(
-                                          photo.createdAt,
-                                        ).toLocaleString("it-IT")
-                                      : ""
-                                  }
-                                />
-
-                                {/* 👁️ UX Enhancement: Bottone Espandi/Zoom in modalità selezione */}
-                                {isSelectionMode &&
-                                  selectionStatus !== "completed" && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation(); // Previene trigger del click sulla foto
-                                        openLightbox(index);
-                                      }}
-                                      className="absolute top-3 left-3 z-20 bg-blue-gray/90 hover:bg-blue-gray text-white rounded-full w-9 h-9 flex items-center justify-center transition-all shadow-lg hover:scale-110"
-                                      title="Visualizza a schermo intero"
-                                      data-testid="button-expand-photo"
-                                    >
-                                      <svg
-                                        className="w-5 h-5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
-                                        />
-                                      </svg>
-                                    </button>
-                                  )}
-
-                                {/* Selection Mode Checkbox Badge - nascosto quando completata */}
-                                {isSelectionMode &&
-                                  selectionStatus !== "completed" && (
-                                    <>
-                                      {/* Checkbox Top Right */}
-                                      <div className="absolute top-3 right-3 z-10">
-                                        <div
-                                          className={`w-8 h-8 rounded-md flex items-center justify-center transition-all border-2 ${
-                                            selectedPhotoIds.includes(photo.id)
-                                              ? "bg-sage border-sage text-white scale-110 shadow-lg"
-                                              : "bg-white border-gray-300 hover:border-sage hover:bg-sage/10"
-                                          }`}
-                                        >
-                                          {selectedPhotoIds.includes(
-                                            photo.id,
-                                          ) ? (
-                                            <svg
-                                              className="w-5 h-5"
-                                              fill="currentColor"
-                                              viewBox="0 0 20 20"
-                                            >
-                                              <path
-                                                fillRule="evenodd"
-                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                clipRule="evenodd"
-                                              />
-                                            </svg>
-                                          ) : (
-                                            <div className="w-4 h-4 rounded-sm border border-gray-400"></div>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      {/* Badge "SELEZIONA" / "SELEZIONATA" - solo se NON multi-prodotto */}
-                                      {!galleryData.productRequirements && selectedPhotoIds.includes(photo.id) && (
-                                        <div className="absolute bottom-0 left-0 right-0 bg-sage text-white text-center py-2 font-semibold text-sm">
-                                          ✓ SELEZIONATA
-                                        </div>
-                                      )}
-
-                                      {/* 📱 Mobile: Badge Assegnazione Prodotto - VISIBILE solo su mobile (<768px) */}
-                                      {galleryData.productRequirements && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedPhotoForMobileAssignment(photo.id);
-                                            setShowMobileProductDialog(true);
-                                          }}
-                                          className="md:hidden absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-r from-sage to-dark-sage text-white px-4 py-2.5 font-medium text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                                          title="Assegna a prodotti"
-                                          data-testid={`button-mobile-assign-${photo.id}`}
-                                        >
-                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                                          </svg>
-                                          <span>Assegna ai prodotti</span>
-                                        </button>
-                                      )}
-                                      
-                                      {/* Product Assignment Chips - NASCOSTI su mobile (<768px), visibili su desktop */}
-                                      {galleryData.productRequirements && (
-                                        <div className="absolute bottom-0 left-0 right-0 hidden md:flex flex-wrap gap-1 bg-white/95 p-2 rounded-b-lg border-t border-sage/20">
-                                          {galleryData.productRequirements.map((prod, idx) => {
-                                            // Use string index as unique identifier (aligns with Firestore schema)
-                                            const productIdStr = String(idx);
-                                            const isAssigned = photoAssignments[photo.id]?.includes(productIdStr);
-                                            
-                                            // Colori distintivi per ogni prodotto (rotazione)
-                                            const productColors = [
-                                              { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600' },
-                                              { bg: 'bg-green-500', hover: 'hover:bg-green-600', text: 'text-green-600' },
-                                              { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', text: 'text-purple-600' },
-                                              { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', text: 'text-orange-600' },
-                                              { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', text: 'text-pink-600' },
-                                              { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600' },
-                                            ];
-                                            const color = productColors[idx % productColors.length];
-                                            
-                                            return (
-                                              <button
-                                                key={idx}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handleToggleProductAssignment(photo.id, productIdStr);
-                                                }}
-                                                className={`px-2 py-1 rounded text-xs font-medium transition-all ${
-                                                  isAssigned 
-                                                    ? `${color.bg} text-white shadow-md ${color.hover}` 
-                                                    : `bg-gray-200 ${color.text} hover:bg-gray-300`
-                                                }`}
-                                                title={`${isAssigned ? 'Rimuovi da' : 'Assegna a'} ${prod.prodottoNome}`}
-                                                data-testid={`chip-product-${idx}-photo-${photo.id}`}
-                                              >
-                                                {isAssigned && '✓ '}
-                                                {prod.prodottoNome}
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
-                              </div>
-
-                              {/* Interaction panel below photo - nascosto in modalità selezione */}
-                              {!isSelectionMode && (
-                                <div className="mt-2">
-                                  <InteractionPanel
-                                    itemId={photo.id}
-                                    itemType="photo"
-                                    galleryId={galleryData.id}
-                                    isAdmin={isAdmin}
-                                    variant="default"
-                                  />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Mostra prompt iscrizione ogni 20 foto - full width per non sovrapporsi - NASCOSTO in modalità selezione */}
-                            {showSubscriptionPrompt &&
-                              !isSelectionMode &&
-                              index === 19 &&
-                              galleryData && (
-                                <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-4">
-                                  <SubscriptionPrompt
-                                    galleryId={galleryData.id}
-                                    galleryName={galleryData.name}
-                                    onDismiss={() =>
-                                      setShowSubscriptionPrompt(false)
-                                    }
-                                  />
-                                </div>
-                              )}
-                          </React.Fragment>
-                        ))}
-                      </div>
+                      {/* Main Photo Grid using VirtualPhotoGrid */}
+                      <VirtualPhotoGrid
+                        photos={displayPhotos}
+                        isSelectionMode={isSelectionMode}
+                        selectionStatus={selectionStatus}
+                        selectedPhotoIds={selectedPhotoIds}
+                        photoAssignments={photoAssignments}
+                        galleryData={galleryData}
+                        isDeadlinePassed={isDeadlinePassed}
+                        handleTogglePhotoSelection={handleTogglePhotoSelection}
+                        handleToggleProductAssignment={handleToggleProductAssignment}
+                        openLightbox={openLightbox}
+                        setSelectedPhotoForMobileAssignment={setSelectedPhotoForMobileAssignment}
+                        setShowMobileProductDialog={setShowMobileProductDialog}
+                      />
 
                       {/* Pulsante "Carica altre foto" */}
                       {!areFiltersActive && (
@@ -2761,8 +2777,7 @@ export default function Gallery() {
                                     disabled={
                                       isSubmittingSelection ||
                                       isDeadlinePassed ||
-                                      (galleryData?.productRequirements 
-
+                                      (galleryData?.productRequirements
                                         ? // Multi-product: check all products have required photos
                                           !galleryData.productRequirements.every((prod, idx) => {
                                             const assignedCount = Object.values(photoAssignments).filter(
@@ -3008,12 +3023,7 @@ export default function Gallery() {
       <ImageLightbox
         isOpen={lightboxOpen}
         onClose={closeLightbox}
-        photos={(activeTab === "photographer" &&
-        isSelectionMode &&
-        selectionStatus !== "completed"
-          ? displayPhotos
-          : allPhotos
-        ).map((photo) => ({
+        photos={allPhotos.map((photo) => ({
           id: photo.id,
           name: photo.name,
           url: photo.url,
