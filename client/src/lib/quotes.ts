@@ -122,8 +122,8 @@ export async function createQuote(
       jobId: data.jobId,
       clienteId: data.clienteId,
       type: data.type,
-      templateId: data.templateId,
-      templateName: data.templateId ? await getTemplateName(data.templateId) : undefined,
+      ...(data.templateId && { templateId: data.templateId }), // Solo se definito
+      ...(data.templateId && { templateName: await getTemplateName(data.templateId) }), // Solo se templateId definito
       theme,
       products: validatedProducts,  // Prodotti con prezzi validati server-side
       discountType: data.discountType,
@@ -135,8 +135,8 @@ export async function createQuote(
       contractClauses: clausesWithIds,
       status: 'bozza',
       publicToken: generatePublicToken(),
-      expiresAt: data.expiresAt ? Timestamp.fromDate(data.expiresAt) : undefined,
-      noteInterne: data.noteInterne,
+      ...(data.expiresAt && { expiresAt: Timestamp.fromDate(data.expiresAt) }), // Solo se definito
+      ...(data.noteInterne && { noteInterne: data.noteInterne }), // Solo se definito
       ...(paymentScheduleConfig && { paymentScheduleConfig }), // Solo se definito
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
