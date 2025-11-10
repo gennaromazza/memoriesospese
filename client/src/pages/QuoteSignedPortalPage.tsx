@@ -13,6 +13,8 @@ import { Separator } from '@/components/ui/separator';
 import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin } from 'lucide-react';
 import type { Quote, QuoteSignature } from '@shared/quotes-types';
 import type { PaymentSchedule } from '@shared/payment-schedule-types';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface QuoteSignedPortalData {
   quote: Quote & { signedAt?: any };
@@ -24,6 +26,7 @@ interface QuoteSignedPortalData {
 export default function QuoteSignedPortalPage() {
   const params = useParams();
   const token = params.token;
+  const [studioSettings, setStudioSettings] = useState<{ phone?: string } | null>(null);
 
   // Fetch quote signed data
   const { data, isLoading, error } = useQuery<{ success: boolean; data: QuoteSignedPortalData }>({
@@ -44,6 +47,21 @@ export default function QuoteSignedPortalPage() {
   const paymentSchedule = portalData?.paymentSchedule;
   const jobInfo = portalData?.jobInfo;
   const clienteInfo = portalData?.clienteInfo;
+
+  // Load studio settings
+  useEffect(() => {
+    async function loadStudioSettings() {
+      try {
+        const settingsDoc = await getDoc(doc(db, 'settings', 'studio'));
+        if (settingsDoc.exists()) {
+          setStudioSettings(settingsDoc.data());
+        }
+      } catch (error) {
+        console.error('Error loading studio settings:', error);
+      }
+    }
+    loadStudioSettings();
+  }, []);
 
   // Set theme colors
   useEffect(() => {
@@ -485,15 +503,18 @@ export default function QuoteSignedPortalPage() {
                 <Separator className="bg-sage/30 my-3 sm:my-4" />
                 <div className="flex flex-col items-center gap-2 sm:gap-3">
                   <p className="text-xs sm:text-sm text-mint/80 font-medium">Hai bisogno di assistenza?</p>
-                  <a 
-                    href={`https://wa.me/393341327691?text=${encodeURIComponent(`Ciao, ho bisogno di assistenza per il mio contratto: ${window.location.href}`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-[#25D366] text-white rounded-full text-sm sm:text-base font-semibold hover:bg-[#20BD5A] transition-colors shadow-lg"
-                  >
-                    <Phone className="w-4 h-4" />
-                    <span>Contattaci su WhatsApp</span>
-                  </a>
+                  {studioSettings?.phone && (
+                    <a 
+                      href={`https://wa.me/${studioSettings.phone.replace(/\s+/g, '').replace(/^\+/, '')}?text=${encodeURIComponent(`Ciao, ho bisogno di assistenza per il mio contratto: ${window.location.href}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-[#25D366] text-white rounded-full text-sm sm:text-base font-semibold hover:bg-[#20BD5A] transition-colors shadow-lg"
+                      data-testid="whatsapp-contact-button"
+                    >
+                      <Phone className="w-4 h-4" />
+                      <span>Contattaci su WhatsApp</span>
+                    </a>
+                  )}
                 </div>
               </div>
             </CardContent>
