@@ -31,6 +31,7 @@ import type {
   JobPDF,
   JobFinancials
 } from '@shared/jobs-types';
+import { removeUndefinedFields } from '@shared/firestore-utils';
 
 const JOBS_COLLECTION = 'jobs';
 const TIMELINE_COLLECTION = 'jobTimeline';
@@ -231,7 +232,10 @@ export async function updateJob(
       updateData.eventDate = Timestamp.fromDate(data.eventDate);
     }
     
-    await updateDoc(doc(db, JOBS_COLLECTION, jobId), updateData);
+    // Pulisci campi undefined nested (es. costi con note undefined)
+    const cleanedUpdateData = removeUndefinedFields(updateData);
+    
+    await updateDoc(doc(db, JOBS_COLLECTION, jobId), cleanedUpdateData);
     
     // Timeline event se cambia status
     if (data.status) {

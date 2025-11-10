@@ -31,40 +31,10 @@ import { addTimelineEvent, updateJobStatus } from './jobs';
 import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import type { QuoteProduct } from '@shared/quotes-types';
 import type { Product } from '@shared/booking-types';
+import { removeUndefinedFields } from '@shared/firestore-utils';
 
 const QUOTES_COLLECTION = 'quotes';
 const TEMPLATES_COLLECTION = 'quoteTemplates';
-
-/**
- * Rimuove ricorsivamente tutti i campi undefined da un oggetto
- * Firestore NON accetta undefined values
- */
-function removeUndefinedFields<T>(obj: T): T {
-  if (obj === null || obj === undefined) return obj;
-  
-  // Preserva Timestamp e Date senza processarli
-  if (obj instanceof Timestamp || obj instanceof Date) {
-    return obj;
-  }
-  
-  // Gestisci arrays
-  if (Array.isArray(obj)) {
-    return obj.map(item => removeUndefinedFields(item)) as unknown as T;
-  }
-  
-  // Gestisci plain objects
-  if (typeof obj === 'object') {
-    const cleaned: any = {};
-    for (const [key, value] of Object.entries(obj)) {
-      if (value !== undefined) {
-        cleaned[key] = removeUndefinedFields(value);
-      }
-    }
-    return cleaned as T;
-  }
-  
-  return obj;
-}
 
 /**
  * Genera token sicuro per URL pubblico
