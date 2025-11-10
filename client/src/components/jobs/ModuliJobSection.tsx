@@ -209,17 +209,36 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                 </div>
 
                 {/* Actions */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(getQuoteUrl(quote), '_blank');
-                  }}
-                  data-testid={`button-view-${quote.id}`}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(getQuoteUrl(quote), '_blank');
+                    }}
+                    data-testid={`button-view-${quote.id}`}
+                    title="Apri preventivo"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                  
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteQuoteId(quote.id);
+                      }}
+                      data-testid={`button-delete-${quote.id}`}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      title="Elimina preventivo"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
