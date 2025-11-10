@@ -65,12 +65,18 @@ export default function QuoteSignedPortalPage() {
 
   const formatDate = (date: any) => {
     if (!date) return '-';
-    const d = date.toDate ? date.toDate() : new Date(date);
-    return d.toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
+    try {
+      // Handle Firestore Timestamp, ISO string, or Date object
+      const d = date.toDate ? date.toDate() : new Date(date);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return '-';
+    }
   };
 
   const getPaymentStatusBadge = (stato: string) => {

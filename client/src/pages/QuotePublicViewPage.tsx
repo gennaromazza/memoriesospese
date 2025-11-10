@@ -15,15 +15,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
 import type { Quote, QuoteProduct, QuoteClause } from '@shared/quotes-types';
 
 interface QuotePublicData {
   quote: Quote;
-  jobInfo: { nomeEvento?: string; eventDate?: any } | null;
-  clienteInfo: { nome?: string; cognome?: string } | null;
+  jobInfo: { 
+    nomeEvento?: string; 
+    eventDate?: string | null;
+    eventLocation?: string;
+    startTime?: string;
+    endTime?: string;
+    allDay?: boolean;
+    clientiIds?: string[];
+  } | null;
+  clientiInfo?: Array<{ 
+    id: string;
+    nome?: string; 
+    cognome?: string;
+    email?: string;
+    telefono?: string;
+  }>;
 }
 
 export default function QuotePublicViewPage() {
@@ -54,7 +68,7 @@ export default function QuotePublicViewPage() {
   const portalData = data?.data;
   const quote = portalData?.quote;
   const jobInfo = portalData?.jobInfo;
-  const clienteInfo = portalData?.clienteInfo;
+  const clientiInfo = portalData?.clientiInfo || [];
 
   // Initialize selected products for variabile quotes (only already selected, not selectable)
   useEffect(() => {
@@ -151,6 +165,23 @@ export default function QuotePublicViewPage() {
     }).format(amount);
   };
 
+  // Format date
+  const formatDate = (date: any) => {
+    if (!date) return '-';
+    try {
+      // Handle Firestore Timestamp, ISO string, or Date object
+      const d = date.toDate ? date.toDate() : new Date(date);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return '-';
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -227,11 +258,93 @@ export default function QuotePublicViewPage() {
             {jobInfo?.nomeEvento && (
               <p className="text-white/90 mt-2">{jobInfo.nomeEvento}</p>
             )}
-            <Badge variant="secondary" className="mt-2">
+            <Badge variant="secondary" className="mt-2 bg-white/20 text-white border-white/30">
               {quote.type === 'fisso' ? 'Preventivo Fisso' : 'Preventivo Variabile'}
             </Badge>
           </CardHeader>
         </Card>
+
+        {/* Riepilogo Evento */}
+        {jobInfo && (
+          <Card className="border-blue-100 bg-blue-50/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CalendarIcon className="w-5 h-5 text-blue-600" />
+                Dettagli Evento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Data e Orari */}
+              <div className="grid md:grid-cols-2 gap-4">
+                {jobInfo.eventDate && (
+                  <div className="flex items-start gap-3">
+                    <CalendarIcon className="w-5 h-5 text-gray-500 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-600">Data Evento</p>
+                      <p className="font-semibold">{formatDate(jobInfo.eventDate)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {!jobInfo.allDay && (jobInfo.startTime || jobInfo.endTime) && (
+                  <div className="flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-gray-500 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-600">Orario</p>
+                      <p className="font-semibold">
+                        {jobInfo.startTime && jobInfo.endTime 
+                          ? `${jobInfo.startTime} - ${jobInfo.endTime}`
+                          : jobInfo.startTime || jobInfo.endTime || 'Tutto il giorno'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Location */}
+              {jobInfo.eventLocation && (
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-600">Luogo</p>
+                    <p className="font-semibold">{jobInfo.eventLocation}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Clienti */}
+              {clientiInfo.length > 0 && (
+                <div>
+                  <p className="text-sm text-gray-600 mb-3 flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    {clientiInfo.length === 1 ? 'Cliente' : 'Clienti'}
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {clientiInfo.map((cliente) => (
+                      <div key={cliente.id} className="bg-white p-3 rounded-lg border">
+                        <p className="font-semibold text-gray-900">
+                          {cliente.nome} {cliente.cognome}
+                        </p>
+                        {cliente.email && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                            <Mail className="w-3 h-3" />
+                            <span>{cliente.email}</span>
+                          </div>
+                        )}
+                        {cliente.telefono && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                            <Phone className="w-3 h-3" />
+                            <span>{cliente.telefono}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Prodotti */}
         <Card>
@@ -240,7 +353,7 @@ export default function QuotePublicViewPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {(quote.products ?? []).map((product, idx) => (
-              <div key={idx} className="flex items-start gap-4 p-4 border rounded-lg">
+              <div key={idx} className="flex items-start gap-4 p-4 border rounded-lg bg-white">
                 {quote.type === 'variabile' && product.selectable && (
                   <Checkbox
                     checked={selectedProducts.includes(product.nome)}
@@ -254,20 +367,36 @@ export default function QuotePublicViewPage() {
                     data-testid={`checkbox-product-${idx}`}
                   />
                 )}
-                <div className="flex-1">
-                  <h3 className="font-semibold">{product.nome}</h3>
+                
+                {/* Product Image */}
+                {product.immagini && product.immagini.length > 0 && (
+                  <div className="flex-shrink-0">
+                    <img 
+                      src={product.immagini[0]} 
+                      alt={product.nome}
+                      className="w-20 h-20 object-cover rounded-md border"
+                    />
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-900">{product.nome}</h3>
                   {product.descrizione && (
                     <p className="text-sm text-muted-foreground mt-1">{product.descrizione}</p>
                   )}
-                  {product.numeroFoto && (
-                    <p className="text-xs text-muted-foreground mt-1">{product.numeroFoto} foto</p>
-                  )}
-                  {product.categoria && (
-                    <Badge variant="outline" className="mt-2 text-xs">{product.categoria}</Badge>
-                  )}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {product.numeroFoto && (
+                      <Badge variant="outline" className="text-xs">
+                        📸 {product.numeroFoto} foto
+                      </Badge>
+                    )}
+                    {product.categoria && (
+                      <Badge variant="outline" className="text-xs">{product.categoria}</Badge>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-lg">{formatCurrency(product.prezzo)}</p>
+                <div className="text-right flex-shrink-0">
+                  <p className="font-bold text-lg text-gray-900">{formatCurrency(product.prezzo)}</p>
                 </div>
               </div>
             ))}
@@ -328,21 +457,35 @@ export default function QuotePublicViewPage() {
         )}
 
         {/* Firma Digitale */}
-        <Card>
+        <Card className="border-orange-200">
           <CardHeader>
-            <CardTitle>Firma Digitale</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-orange-600" />
+              Firma Digitale
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-2">
+              Per accettare questo preventivo, inserisci il tuo nome completo e apponi la tua firma digitale qui sotto.
+            </p>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             {/* Nome Firmante */}
-            <div>
-              <Label htmlFor="signer-name">Nome Completo *</Label>
+            <div className="space-y-2">
+              <Label htmlFor="signer-name" className="text-base font-semibold flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Il tuo Nome Completo *
+              </Label>
               <Input
                 id="signer-name"
-                placeholder="Es. Mario Rossi"
+                placeholder="Scrivi qui il tuo nome e cognome (es. Mario Rossi)"
                 value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
                 data-testid="input-signer-name"
+                className="text-base py-6"
               />
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Il nome che inserisci apparirà nel contratto firmato
+              </p>
             </div>
 
             {/* Signature Canvas */}

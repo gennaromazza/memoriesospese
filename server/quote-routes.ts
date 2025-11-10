@@ -10,6 +10,20 @@ import type { PaymentSchedule } from '../shared/payment-schedule-types.js';
 const router = Router();
 
 /**
+ * Helper: Converte Firestore Timestamp in ISO string per serializzazione JSON
+ */
+function serializeTimestamp(timestamp: any): string | null {
+  if (!timestamp) return null;
+  if (timestamp.toDate) {
+    return timestamp.toDate().toISOString();
+  }
+  if (timestamp._seconds !== undefined) {
+    return new Date(timestamp._seconds * 1000).toISOString();
+  }
+  return timestamp;
+}
+
+/**
  * GET /api/quotes/public/:token
  * Portale pubblico per preview e firma preventivo (NON richiede status='firmato')
  */
@@ -66,8 +80,16 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       }
     }
 
-    // 4. Fetch job per info aggiuntive (nome evento, data)
-    let jobInfo: { nomeEvento?: string; eventDate?: any } | null = null;
+    // 4. Fetch job completo (evento, data, location, orari)
+    let jobInfo: { 
+      nomeEvento?: string; 
+      eventDate?: string | null;
+      eventLocation?: string;
+      startTime?: string;
+      endTime?: string;
+      allDay?: boolean;
+      clientiIds?: string[];
+    } | null = null;
     
     if (quote.jobId) {
       const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
@@ -75,26 +97,49 @@ router.get('/public/:token', async (req: Request, res: Response) => {
         const jobData = jobDoc.data();
         jobInfo = {
           nomeEvento: jobData?.nomeEvento,
-          eventDate: jobData?.eventDate
+          eventDate: serializeTimestamp(jobData?.eventDate),
+          eventLocation: jobData?.eventLocation,
+          startTime: jobData?.startTime,
+          endTime: jobData?.endTime,
+          allDay: jobData?.allDay,
+          clientiIds: jobData?.clientiIds || []
         };
       }
     }
 
-    // 5. Fetch cliente info (nome pubblico)
-    let clienteInfo: { nome?: string; cognome?: string } | null = null;
+    // 5. Fetch clienti multipli (da job.clientiIds se esiste, altrimenti fallback a quote.clienteId)
+    let clientiInfo: Array<{ 
+      id: string;
+      nome?: string; 
+      cognome?: string;
+      email?: string;
+      telefono?: string;
+    }> = [];
     
-    if (quote.clienteId) {
-      const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
-      if (clienteDoc.exists) {
-        const clienteData = clienteDoc.data();
-        clienteInfo = {
-          nome: clienteData?.nome,
-          cognome: clienteData?.cognome
-        };
-      }
+    const clientIds = jobInfo?.clientiIds && jobInfo.clientiIds.length > 0 
+      ? jobInfo.clientiIds 
+      : (quote.clienteId ? [quote.clienteId] : []);
+
+    if (clientIds.length > 0) {
+      const clientiDocs = await Promise.all(
+        clientIds.map(id => db.collection('clienti').doc(id).get())
+      );
+
+      clientiInfo = clientiDocs
+        .filter(doc => doc.exists)
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            nome: data?.nome,
+            cognome: data?.cognome,
+            email: data?.contatti?.email,
+            telefono: data?.contatti?.telefono
+          };
+        });
     }
 
-    // 6. Prepara dati sicuri (redact internal fields)
+    // 6. Prepara dati sicuri (redact internal fields + serialize timestamps)
     const safeQuote = {
       id: quote.id,
       type: quote.type,
@@ -113,7 +158,7 @@ router.get('/public/:token', async (req: Request, res: Response) => {
         // NON include 'accepted' e 'acceptedAt' per preview
       })),
       status: quote.status,
-      expiresAt: quote.expiresAt,
+      expiresAt: serializeTimestamp(quote.expiresAt),
       templateName: quote.templateName
     };
 
@@ -123,7 +168,7 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       data: {
         quote: safeQuote,
         jobInfo,
-        clienteInfo
+        clientiInfo
       }
     });
 
@@ -199,7 +244,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       const scheduleDoc = scheduleSnapshot.docs[0];
       const fullSchedule = { id: scheduleDoc.id, ...scheduleDoc.data() } as PaymentSchedule;
       
-      // Redact private fields for client viewing
+      // Redact private fields for client viewing + serialize timestamps
       safePaymentSchedule = {
         id: fullSchedule.id,
         totale: fullSchedule.totale,
@@ -209,16 +254,16 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
           id: p.id,
           tipo: p.tipo,
           importo: p.importo,
-          dataScadenza: p.dataScadenza,
+          dataScadenza: serializeTimestamp(p.dataScadenza),
           stato: p.stato,
-          dataPagamento: p.dataPagamento || null,
+          dataPagamento: serializeTimestamp(p.dataPagamento),
           note: p.note || ''
         }))
       };
     }
 
     // 5. Fetch job per info aggiuntive (nome evento, data)
-    let jobInfo: { nomeEvento?: string; eventDate?: any } | null = null;
+    let jobInfo: { nomeEvento?: string; eventDate?: string | null } | null = null;
     
     if (quote.jobId) {
       const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
@@ -226,7 +271,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
         const jobData = jobDoc.data();
         jobInfo = {
           nomeEvento: jobData?.nomeEvento,
-          eventDate: jobData?.eventDate
+          eventDate: serializeTimestamp(jobData?.eventDate)
         };
       }
     }
@@ -246,7 +291,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       }
     }
 
-    // 7. Prepara dati sicuri (redact internal fields)
+    // 7. Prepara dati sicuri (redact internal fields + serialize timestamps)
     const safeQuote = {
       id: quote.id,
       type: quote.type,
@@ -260,11 +305,11 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       contractClauses: quote.contractClauses,
       signature: quote.signature ? {
         clientName: quote.signature.clientName,
-        signedAt: quote.signature.signedAt,
+        signedAt: serializeTimestamp(quote.signature.signedAt),
         imageUrl: quote.signature.imageUrl
       } : null,
       status: quote.status,
-      signedAt: quote.signature?.signedAt
+      signedAt: serializeTimestamp(quote.signature?.signedAt)
     };
 
     // 8. Return dati completi
