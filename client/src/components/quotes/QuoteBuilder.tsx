@@ -220,6 +220,19 @@ export default function QuoteBuilder({
     }
   });
 
+  // Reset state quando dialog si chiude o jobType cambia
+  useEffect(() => {
+    if (!open) {
+      setSelectedClauseTemplateId('');
+      form.setValue('clauseTemplateId', '');
+    }
+  }, [open, form]);
+
+  useEffect(() => {
+    setSelectedClauseTemplateId('');
+    form.setValue('clauseTemplateId', '');
+  }, [jobTypeSlug, form]);
+
   // Auto-select template predefinito per le clausole (dopo form init)
   useEffect(() => {
     if (clauseTemplates.length > 0 && !selectedClauseTemplateId) {
@@ -380,10 +393,13 @@ export default function QuoteBuilder({
             ordine: c.ordine
           }));
           usedTemplateId = selectedClauseTemplateId;
+        } else {
+          // Template ID fornito ma non trovato - ERROR critico
+          throw new Error(`Template clausole con ID "${selectedClauseTemplateId}" non trovato. Riprova o seleziona un altro template.`);
         }
       }
       
-      // Fallback a DEFAULT_CLAUSES se nessun template selezionato/trovato
+      // Fallback a DEFAULT_CLAUSES se nessun template selezionato
       if (!contractClauses) {
         const clauses = DEFAULT_CLAUSES[jobTypeSlug] || [];
         contractClauses = clauses.map(c => ({
@@ -393,7 +409,7 @@ export default function QuoteBuilder({
           ordine: c.ordine
         }));
         
-        // Warning solo se query completata E ci sono template disponibili ma non selezionati
+        // Info toast solo se query completata E ci sono template disponibili ma non selezionati
         if (!isLoadingClauses && clauseTemplates.length > 0) {
           toast({
             title: 'Clausole di default',
@@ -530,6 +546,51 @@ export default function QuoteBuilder({
                 )}
               />
 
+              {/* Template Clausole Contrattuali */}
+              <FormItem>
+                <FormLabel>Template Clausole Contrattuali</FormLabel>
+                <Select 
+                  value={selectedClauseTemplateId || 'default'} 
+                  onValueChange={(val) => val !== 'default' && handleClauseTemplateChange(val)}
+                  data-testid="select-clause-template"
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleziona template..." />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {!isLoadingClauses && clauseTemplates.length === 0 && (
+                      <SelectItem value="default">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">DEFAULT</Badge>
+                          <span>Clausole hardcoded</span>
+                        </div>
+                      </SelectItem>
+                    )}
+                    {clauseTemplates.map(template => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <div className="flex items-center gap-2">
+                          {template.predefinito && <Badge variant="default">PREDEFINITO</Badge>}
+                          <span>{template.titolo}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({template.clauses.length} clausole)
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  {clauseTemplates.length > 0 
+                    ? 'Template clausole gestito in Admin Dashboard'
+                    : 'Nessun template disponibile - uso clausole di default'}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               {/* Data scadenza */}
               <FormField
                 control={form.control}
