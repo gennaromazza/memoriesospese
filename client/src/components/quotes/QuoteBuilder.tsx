@@ -479,13 +479,44 @@ export default function QuoteBuilder({
 
       return createQuote(quoteData, user!.uid);
     },
-    onSuccess: () => {
+    onSuccess: async (quoteId: string) => {
       queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
       queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      
       toast({
         title: 'Preventivo creato!',
         description: 'Il preventivo è stato creato con successo.'
       });
+
+      // Invia email automaticamente al cliente
+      try {
+        const response = await fetch('/api/quotes/send-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quoteId })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Errore invio email');
+        }
+
+        const result = await response.json();
+        
+        toast({
+          title: '📧 Email inviata!',
+          description: `Preventivo inviato a ${result.recipientEmail}`,
+        });
+      } catch (emailError) {
+        console.error('⚠️ Errore invio email preventivo:', emailError);
+        // Non bloccare il flusso: preventivo creato ma email fallita
+        toast({
+          title: '⚠️ Email non inviata',
+          description: emailError instanceof Error ? emailError.message : 'Impossibile inviare l\'email. Puoi reinviarla manualmente.',
+          variant: 'default'
+        });
+      }
+      
       form.reset();
       onClose();
     },
