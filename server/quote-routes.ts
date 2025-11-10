@@ -92,7 +92,7 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       allDay?: boolean;
       clientiIds?: string[];
     } | null = null;
-    
+
     if (quote.jobId) {
       const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
       if (jobDoc.exists) {
@@ -123,7 +123,7 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       cap?: string;
       provincia?: string;
     }> = [];
-    
+
     const clientIds = jobInfo?.clientiIds && jobInfo.clientiIds.length > 0 
       ? jobInfo.clientiIds 
       : (quote.clienteId ? [quote.clienteId] : []);
@@ -246,7 +246,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
 
     // 4. Fetch payment schedule associato
     let safePaymentSchedule: any = null;
-    
+
     const scheduleSnapshot = await db.collection('paymentSchedules')
       .where('quoteId', '==', quote.id)
       .limit(1)
@@ -255,7 +255,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
     if (!scheduleSnapshot.empty) {
       const scheduleDoc = scheduleSnapshot.docs[0];
       const fullSchedule = { id: scheduleDoc.id, ...scheduleDoc.data() } as PaymentSchedule;
-      
+
       // Redact private fields for client viewing + serialize timestamps
       safePaymentSchedule = {
         id: fullSchedule.id,
@@ -276,7 +276,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
 
     // 5. Fetch job per info aggiuntive (nome evento, data)
     let jobInfo: { nomeEvento?: string; eventDate?: string | null } | null = null;
-    
+
     if (quote.jobId) {
       const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
       if (jobDoc.exists) {
@@ -289,17 +289,58 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
     }
 
     // 6. Fetch cliente info (nome, contatti pubblici)
-    let clienteInfo: { nome?: string; cognome?: string; email?: string } | null = null;
-    
-    if (quote.clienteId) {
+    // NOTE: Da qui in poi il frontend gestirà un array clientiInfo, per compatibilità con `public` endpoint
+    let clientiInfo: Array<{ 
+      id: string;
+      nome?: string; 
+      cognome?: string;
+      email?: string;
+      telefono?: string;
+      via?: string;
+      citta?: string;
+      cap?: string;
+      provincia?: string;
+    }> = [];
+
+    const clientIds = quote.jobId ? (await db.collection('jobs').doc(quote.jobId).get()).data()?.clientiIds : [];
+
+    if (clientIds && clientIds.length > 0) {
+      const clientiDocs = await Promise.all(
+        clientIds.map(id => db.collection('clienti').doc(id).get())
+      );
+
+      clientiInfo = clientiDocs
+        .filter(doc => doc.exists)
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            nome: data?.nome,
+            cognome: data?.cognome,
+            email: data?.contatti?.email,
+            telefono: data?.contatti?.telefono,
+            via: data?.indirizzo?.via,
+            citta: data?.indirizzo?.citta,
+            cap: data?.indirizzo?.cap,
+            provincia: data?.indirizzo?.provincia
+          };
+        });
+    } else if (quote.clienteId) {
+      // Fallback se job non ha clientiIds
       const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
       if (clienteDoc.exists) {
         const clienteData = clienteDoc.data();
-        clienteInfo = {
+        clientiInfo.push({
+          id: clienteDoc.id,
           nome: clienteData?.nome,
           cognome: clienteData?.cognome,
-          email: clienteData?.email
-        };
+          email: clienteData?.contatti?.email,
+          telefono: clienteData?.contatti?.telefono,
+          via: clienteData?.indirizzo?.via,
+          citta: clienteData?.indirizzo?.citta,
+          cap: clienteData?.indirizzo?.cap,
+          provincia: clienteData?.indirizzo?.provincia
+        });
       }
     }
 
@@ -325,13 +366,13 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
     };
 
     // 8. Return dati completi
-    return res.status(200).json({
+    return res.json({
       success: true,
       data: {
         quote: safeQuote,
         paymentSchedule: safePaymentSchedule,
-        jobInfo,
-        clienteInfo
+        jobInfo: jobInfo || null,
+        clientiInfo: clientiInfo || []
       }
     });
 
@@ -380,7 +421,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
       // 4. Get payment schedule IDs from quote (atomic lookup) OR fallback to legacy
       const scheduleIds = quote.paymentScheduleIds || [];
-      
+
       if (scheduleIds.length === 0 && legacyScheduleRefs.length > 0) {
         console.warn(`⚠️ Quote ${id} senza paymentScheduleIds, usando ${legacyScheduleRefs.length} schedules da fallback query`);
       }
@@ -423,12 +464,12 @@ router.delete('/:id', async (req: Request, res: Response) => {
       if (quote.jobId && jobDoc && jobDoc.exists) {
         const jobRef = db.collection('jobs').doc(quote.jobId);
         const jobData = jobDoc.data();
-        
+
         // Calcola nuovo totale preventivato sottraendo il quote eliminato
         const currentTotale = jobData.financials?.totalePreventivato || 0;
         const quoteTotale = quote.totaleBase || 0;
         const newTotale = Math.max(0, currentTotale - quoteTotale);
-        
+
         transaction.update(jobRef, {
           preventivoId: FieldValue.delete(),
           'financials.totalePreventivato': newTotale

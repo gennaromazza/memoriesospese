@@ -25,7 +25,8 @@ interface QuoteSignedPortalData {
     rito?: string;
     location?: string;
   } | null;
-  clienteInfo: {
+  clientiInfo?: Array<{
+    id: string;
     nome?: string;
     cognome?: string;
     email?: string;
@@ -33,7 +34,7 @@ interface QuoteSignedPortalData {
     indirizzo?: string;
     citta?: string;
     cap?: string;
-  } | null;
+  }>;
 }
 
 export default function QuoteSignedPortalPage() {
@@ -59,7 +60,7 @@ export default function QuoteSignedPortalPage() {
   const quote = portalData?.quote;
   const paymentSchedule = portalData?.paymentSchedule;
   const jobInfo = portalData?.jobInfo;
-  const clienteInfo = portalData?.clienteInfo;
+  const clientiInfo = portalData?.clientiInfo || [];
 
   // Load studio settings
   useEffect(() => {
@@ -207,41 +208,49 @@ export default function QuoteSignedPortalPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 sm:space-y-4 pt-4 sm:pt-6 px-4 sm:px-6">
-              {clienteInfo && (
-                <>
+              {clientiInfo.map((cliente, idx) => (
+                <div key={cliente.id} className="space-y-3 pb-4 border-b border-beige last:border-b-0 last:pb-0">
+                  {clientiInfo.length > 1 && (
+                    <h3 className="text-sm font-semibold text-dark-sage uppercase tracking-wide">
+                      Cliente {idx + 1}
+                    </h3>
+                  )}
+                  
                   <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
                     <div className="p-2 bg-mint rounded-full flex-shrink-0">
                       <User className="w-4 h-4 text-blue-gray" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-dark-sage uppercase tracking-wide">Nome Completo</p>
-                      <p className="font-semibold text-gray-900 truncate">{clienteInfo.nome} {clienteInfo.cognome}</p>
+                      <p className="font-semibold text-gray-900 truncate">{cliente.nome} {cliente.cognome}</p>
                     </div>
                   </div>
-                  {clienteInfo.email && (
+                  
+                  {cliente.email && (
                     <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
                       <div className="p-2 bg-mint rounded-full flex-shrink-0">
                         <Mail className="w-4 h-4 text-blue-gray" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-dark-sage uppercase tracking-wide">Email</p>
-                        <p className="font-medium text-gray-900 text-sm break-all">{clienteInfo.email}</p>
+                        <p className="font-medium text-gray-900 text-sm break-all">{cliente.email}</p>
                       </div>
                     </div>
                   )}
-                  {clienteInfo.telefono && (
+                  
+                  {cliente.telefono && (
                     <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
                       <div className="p-2 bg-mint rounded-full flex-shrink-0">
                         <Phone className="w-4 h-4 text-blue-gray" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-dark-sage uppercase tracking-wide">Telefono</p>
-                        <p className="font-medium text-gray-900">{clienteInfo.telefono}</p>
+                        <p className="font-medium text-gray-900">{cliente.telefono}</p>
                       </div>
                     </div>
                   )}
 
-                  {(clienteInfo.indirizzo || clienteInfo.citta || clienteInfo.cap) && (
+                  {(cliente.indirizzo || cliente.citta || cliente.cap) && (
                     <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
                       <div className="p-2 bg-mint rounded-full flex-shrink-0">
                         <MapPin className="w-4 h-4 text-blue-gray" />
@@ -249,19 +258,19 @@ export default function QuoteSignedPortalPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-dark-sage uppercase tracking-wide">Indirizzo</p>
                         <p className="font-medium text-gray-900">
-                          {clienteInfo.indirizzo && <>{clienteInfo.indirizzo}<br /></>}
-                          {(clienteInfo.citta || clienteInfo.cap) && (
+                          {cliente.indirizzo && <>{cliente.indirizzo}<br /></>}
+                          {(cliente.citta || cliente.cap) && (
                             <>
-                              {clienteInfo.cap ? `${clienteInfo.cap} ` : ''}
-                              {clienteInfo.citta}
+                              {cliente.cap ? `${cliente.cap} ` : ''}
+                              {cliente.citta}
                             </>
                           )}
                         </p>
                       </div>
                     </div>
                   )}
-                </>
-              )}
+                </div>
+              ))}
               {jobInfo?.eventDate && (
                 <div className="flex items-center gap-3 p-3 bg-terracotta/10 rounded-lg border border-terracotta/30">
                   <div className="p-2 bg-terracotta/20 rounded-full flex-shrink-0">
