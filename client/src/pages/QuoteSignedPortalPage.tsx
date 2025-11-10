@@ -19,7 +19,12 @@ import { doc, getDoc } from 'firebase/firestore';
 interface QuoteSignedPortalData {
   quote: Quote & { signedAt?: any };
   paymentSchedule: PaymentSchedule | null;
-  jobInfo: { nomeEvento?: string; eventDate?: any } | null;
+  jobInfo: {
+    nomeEvento?: string;
+    eventDate?: any;
+    rito?: string;
+    location?: string;
+  } | null;
   clienteInfo: {
     nome?: string;
     cognome?: string;
@@ -265,6 +270,28 @@ export default function QuoteSignedPortalPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-terracotta uppercase tracking-wide font-medium">Data Evento</p>
                     <p className="font-bold text-terracotta text-base sm:text-lg">{formatDate(jobInfo.eventDate)}</p>
+                  </div>
+                </div>
+              )}
+              {jobInfo?.location && (
+                <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
+                  <div className="p-2 bg-mint rounded-full flex-shrink-0">
+                    <MapPin className="w-4 h-4 text-blue-gray" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-dark-sage uppercase tracking-wide">Location</p>
+                    <p className="font-medium text-gray-900">{jobInfo.location}</p>
+                  </div>
+                </div>
+              )}
+              {jobInfo?.rito && (
+                <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
+                  <div className="p-2 bg-mint rounded-full flex-shrink-0">
+                    <Calendar className="w-4 h-4 text-blue-gray" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-dark-sage uppercase tracking-wide">Rito</p>
+                    <p className="font-medium text-gray-900">{jobInfo.rito}</p>
                   </div>
                 </div>
               )}
