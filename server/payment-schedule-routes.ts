@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from './firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import * as admin from 'firebase-admin';
 import { nanoid } from 'nanoid';
 
 const router = Router();
@@ -401,6 +402,17 @@ router.post('/generate', async (req: Request, res: Response) => {
 
       await db.collection('paymentSchedules').doc(scheduleId).set(paymentSchedule);
 
+      // Link schedule ID to quote atomically
+      try {
+        const quoteRef = db.collection('quotes').doc(quoteId);
+        await quoteRef.update({
+          paymentScheduleIds: admin.firestore.FieldValue.arrayUnion(scheduleId)
+        });
+      } catch (linkError) {
+        console.error('❌ Errore linking schedule to quote:', linkError);
+        // Non bloccare se fallisce (backward compatibility)
+      }
+
       // Timeline
       try {
         const timelineEventId = nanoid();
@@ -492,6 +504,17 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     // Salva in Firestore
     await db.collection('paymentSchedules').doc(scheduleId).set(paymentSchedule);
+
+    // Link schedule ID to quote atomically
+    try {
+      const quoteRef = db.collection('quotes').doc(quoteId);
+      await quoteRef.update({
+        paymentScheduleIds: admin.firestore.FieldValue.arrayUnion(scheduleId)
+      });
+    } catch (linkError) {
+      console.error('❌ Errore linking schedule to quote:', linkError);
+      // Non bloccare se fallisce (backward compatibility)
+    }
 
     // Update job timeline (opzionale ma utile)
     try {

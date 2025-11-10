@@ -32,7 +32,7 @@ import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCar
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/FirebaseAuthContext';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import GeneraPagamentiModal from './GeneraPagamentiModal';
 
@@ -79,7 +79,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user } = useFirebaseAuth();
 
   const { data: quotes = [], isLoading } = useQuery<Quote[]>({
     queryKey: ['quotes', 'job', jobId],

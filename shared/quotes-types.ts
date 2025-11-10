@@ -147,6 +147,9 @@ export interface Quote {
   // Configurazione piano pagamenti
   paymentScheduleConfig?: PaymentScheduleConfig;
   
+  // Payment schedules linkage (for atomic cascade deletes)
+  paymentScheduleIds?: string[];    // IDs degli scadenzari pagamenti collegati
+  
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;

@@ -304,17 +304,13 @@ router.delete('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Pre-fetch payment schedules to get refs
-    //    NOTE: Firestore transactions don't support .where() queries, so we must:
-    //    - Query OUTSIDE transaction to get document refs
-    //    - Re-read INSIDE transaction using transaction.get() for atomicity
-    //    Trade-off: Payment schedules created AFTER this query but BEFORE transaction
-    //    commit will not be deleted (orphan cleanup is a separate concern)
-    const paymentSchedulesQuery = db.collection('paymentSchedules').where('quoteId', '==', id);
-    const paymentSchedulesSnapshot = await paymentSchedulesQuery.get();
-    const scheduleRefs = paymentSchedulesSnapshot.docs.map(doc => doc.ref);
+    // 2. Pre-fetch legacy schedules for quotes without paymentScheduleIds
+    //    NOTE: Query MUST be OUTSIDE transaction (Firestore limitation)
+    const legacyQuery = db.collection('paymentSchedules').where('quoteId', '==', id);
+    const legacySnapshot = await legacyQuery.get();
+    const legacyScheduleRefs = legacySnapshot.docs.map(doc => doc.ref);
 
-    // 3. Firestore transaction per atomicità
+    // 3. Firestore transaction per atomicità (usando paymentScheduleIds se disponibili)
     await db.runTransaction(async (transaction) => {
       const quoteRef = db.collection('quotes').doc(id);
       const quoteDoc = await transaction.get(quoteRef);
@@ -325,13 +321,25 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
       const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
-      // 4. Re-read payment schedules INSIDE transaction for atomicity
+      // 4. Get payment schedule IDs from quote (atomic lookup) OR fallback to legacy
+      const scheduleIds = quote.paymentScheduleIds || [];
+      
+      if (scheduleIds.length === 0 && legacyScheduleRefs.length > 0) {
+        console.warn(`⚠️ Quote ${id} senza paymentScheduleIds, usando ${legacyScheduleRefs.length} schedules da fallback query`);
+      }
+
+      // 5. Re-read payment schedules INSIDE transaction for atomicity
+      const scheduleRefs = scheduleIds.length > 0 
+        ? scheduleIds.map(scheduleId => db.collection('paymentSchedules').doc(scheduleId))
+        : legacyScheduleRefs;
+
       const scheduleSnapshots = await Promise.all(
         scheduleRefs.map(ref => transaction.get(ref))
       );
 
-      // 5. Validation: blocca delete se firmato con pagamenti registrati
+      // 6. Validation: blocca delete se firmato con pagamenti registrati
       if (quote.status === 'firmato') {
+        // Check if any schedule has payments
         const hasPagamenti = scheduleSnapshots.some(snap => {
           if (!snap.exists) return false;
           const schedule = snap.data() as PaymentSchedule;
@@ -344,10 +352,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
         }
       }
 
-      // 6. Delete quote
+      // 7. Delete quote
       transaction.delete(quoteRef);
 
-      // 7. Nullify job.preventivoId se esiste
+      // 8. Nullify job.preventivoId se esiste
       if (quote.jobId) {
         const jobRef = db.collection('jobs').doc(quote.jobId);
         const jobDoc = await transaction.get(jobRef);
@@ -359,12 +367,12 @@ router.delete('/:id', async (req: Request, res: Response) => {
         }
       }
 
-      // 8. Delete related payment schedules
-      scheduleSnapshots.forEach(snap => {
+      // 9. Delete related payment schedules
+      for (const snap of scheduleSnapshots) {
         if (snap.exists) {
           transaction.delete(snap.ref);
         }
-      });
+      }
     });
 
     return res.status(200).json({
