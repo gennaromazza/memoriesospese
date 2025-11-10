@@ -157,6 +157,7 @@ export interface UpdateJob {
   provenance?: string;  // Dynamic provenance slug from Firestore jobProvenances collection
   noteInterne?: string;
   status?: JobStatus;
+  costi?: CostoLavoro[];  // Update costi array
 }
 
 /**

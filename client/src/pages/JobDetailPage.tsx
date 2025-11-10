@@ -13,11 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Job } from '@shared/jobs-types';
+import { Job, CostoLavoro } from '@shared/jobs-types';
 import { Cliente } from '@shared/clienti-types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { getJob, deleteJob } from '@/lib/jobs';
+import { getJob, deleteJob, updateJob } from '@/lib/jobs';
+import { nanoid } from 'nanoid';
+import { Timestamp } from 'firebase/firestore';
 import { getClienteById } from '@/lib/clienti';
 import { getJobTypeBySlug } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
@@ -95,6 +97,86 @@ export default function JobDetailPage() {
       return;
     }
     deleteMutation.mutate();
+  };
+
+  // Costi handlers
+  const handleAddCosto = async (costo: Omit<CostoLavoro, 'id'>) => {
+    if (!job || !user) return;
+    
+    try {
+      const newCosto: CostoLavoro = {
+        id: nanoid(),
+        descrizione: costo.descrizione,
+        importo: costo.importo,
+        tipo: costo.tipo,
+        data: Timestamp.now(),  // Use Firestore Timestamp instead of mock object
+        note: costo.note,
+        createdBy: user.uid
+      };
+      
+      const updatedCosti = [...(job.costi || []), newCosto];
+      await updateJob(jobId!, { costi: updatedCosti }, user.uid);
+      
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      toast({
+        title: 'Costo aggiunto',
+        description: 'Il costo è stato inserito correttamente'
+      });
+    } catch (error) {
+      toast({
+        title: 'Errore',
+        description: error instanceof Error ? error.message : 'Impossibile aggiungere il costo',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleUpdateCosto = async (id: string, updates: Partial<CostoLavoro>) => {
+    if (!job || !user) return;
+    
+    try {
+      // Sanitize updates: omit 'data' field (creation date should not be modified)
+      // and ensure valid Firestore types
+      const { data, ...safeUpdates } = updates;
+      
+      const updatedCosti = (job.costi || []).map(c =>
+        c.id === id ? { ...c, ...safeUpdates } : c
+      );
+      await updateJob(jobId!, { costi: updatedCosti }, user.uid);
+      
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      toast({
+        title: 'Costo aggiornato',
+        description: 'Le modifiche sono state salvate'
+      });
+    } catch (error) {
+      toast({
+        title: 'Errore',
+        description: error instanceof Error ? error.message : 'Impossibile aggiornare il costo',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDeleteCosto = async (id: string) => {
+    if (!job || !user) return;
+    
+    try {
+      const updatedCosti = (job.costi || []).filter(c => c.id !== id);
+      await updateJob(jobId!, { costi: updatedCosti }, user.uid);
+      
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      toast({
+        title: 'Costo eliminato',
+        description: 'Il costo è stato rimosso'
+      });
+    } catch (error) {
+      toast({
+        title: 'Errore',
+        description: error instanceof Error ? error.message : 'Impossibile eliminare il costo',
+        variant: 'destructive'
+      });
+    }
   };
 
   if (isLoading) {
@@ -281,6 +363,9 @@ export default function JobDetailPage() {
                 <CostiLavoroTable
                   costi={job.costi || []}
                   totalePreventivato={job.financials.totalePreventivato}
+                  onAddCosto={handleAddCosto}
+                  onUpdateCosto={handleUpdateCosto}
+                  onDeleteCosto={handleDeleteCosto}
                   isAdmin={true}
                 />
               </CardContent>
