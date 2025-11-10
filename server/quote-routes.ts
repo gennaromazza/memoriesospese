@@ -3,7 +3,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { db } from './firebase-admin.js';
+import { db, FieldValue } from './firebase-admin.js';
 import type { Quote } from '../shared/quotes-types.js';
 import type { PaymentSchedule } from '../shared/payment-schedule-types.js';
 
@@ -419,15 +419,20 @@ router.delete('/:id', async (req: Request, res: Response) => {
       // 8. Delete quote (WRITE operation starts here)
       transaction.delete(quoteRef);
 
-      // 9. Nullify job.preventivoId se esiste
-      if (quote.jobId && jobDoc) {
+      // 9. Update job: remove preventivoId AND update financials
+      if (quote.jobId && jobDoc && jobDoc.exists) {
         const jobRef = db.collection('jobs').doc(quote.jobId);
+        const jobData = jobDoc.data();
         
-        if (jobDoc.exists) {
-          transaction.update(jobRef, { preventivoId: null });
-        } else {
-          console.warn(`⚠️ Job ${quote.jobId} non trovato durante delete quote ${id}`);
-        }
+        // Calcola nuovo totale preventivato sottraendo il quote eliminato
+        const currentTotale = jobData.financials?.totalePreventivato || 0;
+        const quoteTotale = quote.totaleBase || 0;
+        const newTotale = Math.max(0, currentTotale - quoteTotale);
+        
+        transaction.update(jobRef, {
+          preventivoId: FieldValue.delete(),
+          'financials.totalePreventivato': newTotale
+        });
       }
 
       // 10. Delete related payment schedules

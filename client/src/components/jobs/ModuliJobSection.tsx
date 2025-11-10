@@ -468,20 +468,22 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare questo preventivo? 
-              <br /><br />
-              <strong>Questa azione eliminerà anche:</strong>
-              <ul className="list-disc list-inside mt-2 space-y-1">
+              Sei sicuro di voler eliminare questo preventivo?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <p className="font-medium mb-2">Questa azione eliminerà anche:</p>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>Il preventivo e tutti i suoi dati</li>
                 <li>Eventuali scadenzari pagamenti collegati</li>
                 <li>Il riferimento al preventivo nel lavoro</li>
               </ul>
-              <br />
-              <span className="text-destructive font-medium">
-                Questa operazione non può essere annullata.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+            </div>
+            <p className="text-destructive font-medium text-sm">
+              Questa operazione non può essere annullata.
+            </p>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-delete">Annulla</AlertDialogCancel>
             <AlertDialogAction
