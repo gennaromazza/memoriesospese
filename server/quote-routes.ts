@@ -80,75 +80,105 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       }
     }
 
-    // 4. Fetch job completo (evento, data, location, orari, rito)
+    // 4. Fetch job info - priorità dati salvati in quote, fallback a Firestore
     let jobInfo: { 
       nomeEvento?: string; 
       eventDate?: string | null;
-      eventLocation?: string;
-      rituLocation?: string;
+      rito?: string;
+      location?: string;
       rituTime?: string;
       startTime?: string;
       endTime?: string;
       allDay?: boolean;
-      clientiIds?: string[];
     } | null = null;
 
-    if (quote.jobId) {
+    if (quote.jobInfo) {
+      // Usa dati salvati in quote (più completi: include rito e location)
+      jobInfo = {
+        nomeEvento: quote.jobInfo.nomeEvento,
+        eventDate: serializeTimestamp(quote.jobInfo.eventDate),
+        rito: quote.jobInfo.rito,
+        location: quote.jobInfo.location
+      };
+    } else if (quote.jobId) {
+      // Fallback: fetch da Firestore se quote non ha jobInfo (backward compatibility)
       const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
       if (jobDoc.exists) {
         const jobData = jobDoc.data();
         jobInfo = {
           nomeEvento: jobData?.nomeEvento,
           eventDate: serializeTimestamp(jobData?.eventDate),
-          eventLocation: jobData?.eventLocation,
-          rituLocation: jobData?.rituLocation,
+          rito: jobData?.rituLocation || '',
+          location: jobData?.eventLocation || '',
           rituTime: jobData?.rituTime,
           startTime: jobData?.startTime,
           endTime: jobData?.endTime,
-          allDay: jobData?.allDay,
-          clientiIds: jobData?.clientiIds || []
+          allDay: jobData?.allDay
         };
       }
     }
 
-    // 5. Fetch clienti multipli con indirizzi completi (da job.clientiIds se esiste, altrimenti fallback a quote.clienteId)
+    // 5. Fetch clienti info - priorità dati salvati in quote, fallback a Firestore
     let clientiInfo: Array<{ 
       id: string;
       nome?: string; 
       cognome?: string;
       email?: string;
       telefono?: string;
-      via?: string;
+      indirizzo?: string;
       citta?: string;
       cap?: string;
-      provincia?: string;
     }> = [];
 
-    const clientIds = jobInfo?.clientiIds && jobInfo.clientiIds.length > 0 
-      ? jobInfo.clientiIds 
-      : (quote.clienteId ? [quote.clienteId] : []);
+    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      // Usa dati salvati in quote (nomi campi allineati con frontend)
+      clientiInfo = quote.clientiInfo.map(c => ({
+        id: c.id,
+        nome: c.nome,
+        cognome: c.cognome,
+        email: c.email,
+        telefono: c.telefono,
+        indirizzo: c.indirizzo,
+        citta: c.citta,
+        cap: c.cap
+      }));
+    } else {
+      // Fallback: fetch da Firestore se quote non ha clientiInfo (backward compatibility)
+      // Prima recupera clientiIds dal job
+      let clientIds: string[] = [];
+      if (quote.jobId) {
+        const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
+        if (jobDoc.exists) {
+          clientIds = jobDoc.data()?.clientiIds || [];
+        }
+      }
+      
+      // Fallback a quote.clienteId se job non ha clientiIds
+      if (clientIds.length === 0 && quote.clienteId) {
+        clientIds = [quote.clienteId];
+      }
 
-    if (clientIds.length > 0) {
-      const clientiDocs = await Promise.all(
-        clientIds.map(id => db.collection('clienti').doc(id).get())
-      );
+      if (clientIds.length > 0) {
+        const clientiDocs = await Promise.all(
+          clientIds.map((id: string) => db.collection('clienti').doc(id).get())
+        );
 
-      clientiInfo = clientiDocs
-        .filter(doc => doc.exists)
-        .map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            nome: data?.nome,
-            cognome: data?.cognome,
-            email: data?.contatti?.email,
-            telefono: data?.contatti?.telefono,
-            via: data?.indirizzo?.via,
-            citta: data?.indirizzo?.citta,
-            cap: data?.indirizzo?.cap,
-            provincia: data?.indirizzo?.provincia
-          };
-        });
+        clientiInfo = clientiDocs
+          .filter(doc => doc.exists)
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              nome: data?.nome,
+              cognome: data?.cognome,
+              email: data?.email,
+              telefono: data?.cellulare1 || data?.cellulare2 || '',
+              indirizzo: data?.via || '',
+              citta: data?.citta || '',
+              cap: data?.cap || ''
+            };
+          });
+      }
     }
 
     // 6. Prepara dati sicuri (redact internal fields + serialize timestamps)
