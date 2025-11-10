@@ -382,7 +382,14 @@ router.delete('/:id', async (req: Request, res: Response) => {
         scheduleRefs.map(ref => transaction.get(ref))
       );
 
-      // 6. Validation: blocca delete se firmato con pagamenti registrati
+      // 6. Read job BEFORE any writes (Firestore transaction requirement)
+      let jobDoc: any = null;
+      if (quote.jobId) {
+        const jobRef = db.collection('jobs').doc(quote.jobId);
+        jobDoc = await transaction.get(jobRef);
+      }
+
+      // 7. Validation: blocca delete se firmato con pagamenti registrati
       if (quote.status === 'firmato') {
         // Check if any schedule has payments
         const hasPagamenti = scheduleSnapshots.some(snap => {
@@ -397,13 +404,12 @@ router.delete('/:id', async (req: Request, res: Response) => {
         }
       }
 
-      // 7. Delete quote
+      // 8. Delete quote (WRITE operation starts here)
       transaction.delete(quoteRef);
 
-      // 8. Nullify job.preventivoId se esiste
-      if (quote.jobId) {
+      // 9. Nullify job.preventivoId se esiste
+      if (quote.jobId && jobDoc) {
         const jobRef = db.collection('jobs').doc(quote.jobId);
-        const jobDoc = await transaction.get(jobRef);
         
         if (jobDoc.exists) {
           transaction.update(jobRef, { preventivoId: null });
@@ -412,7 +418,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
         }
       }
 
-      // 9. Delete related payment schedules
+      // 10. Delete related payment schedules
       for (const snap of scheduleSnapshots) {
         if (snap.exists) {
           transaction.delete(snap.ref);
