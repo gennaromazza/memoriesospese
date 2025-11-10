@@ -169,62 +169,96 @@ export default function QuoteSignedPortalPage() {
           </CardContent>
         </Card>
 
-        {/* Cliente & Signature Info */}
+        {/* Cliente & Signature Info - Design Elegante */}
         <div className="grid md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <User className="w-4 h-4" />
+          <Card className="border-blue-200 shadow-md hover:shadow-lg transition-shadow">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-gray-800">
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <User className="w-5 h-5 text-blue-600" />
+                </div>
                 Informazioni Cliente
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-4 pt-6">
               {clienteInfo && (
                 <>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Nome:</span>
-                    <span className="font-medium">{clienteInfo.nome} {clienteInfo.cognome}</span>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div className="p-2 bg-purple-100 rounded-full">
+                      <User className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Nome Completo</p>
+                      <p className="font-semibold text-gray-900">{clienteInfo.nome} {clienteInfo.cognome}</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Email:</span>
-                    <span className="font-medium">{clienteInfo.email}</span>
-                  </div>
+                  {clienteInfo.email && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="p-2 bg-blue-100 rounded-full">
+                        <CreditCard className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Email</p>
+                        <p className="font-medium text-gray-900 break-all">{clienteInfo.email}</p>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
               {jobInfo?.eventDate && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Data Evento:</span>
-                  <span className="font-medium">{formatDate(jobInfo.eventDate)}</span>
+                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg border border-pink-200">
+                  <div className="p-2 bg-pink-100 rounded-full">
+                    <Calendar className="w-4 h-4 text-pink-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-pink-600 uppercase tracking-wide font-medium">Data Evento</p>
+                    <p className="font-bold text-pink-800 text-lg">{formatDate(jobInfo.eventDate)}</p>
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <FileText className="w-4 h-4" />
+          <Card className="border-green-200 shadow-md hover:shadow-lg transition-shadow">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-gray-800">
+                <div className="p-2 bg-green-100 rounded-full">
+                  <FileText className="w-5 h-5 text-green-600" />
+                </div>
                 Firma Digitale
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {quote.signature && (
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Firmato da:</span>
-                    <span className="font-medium">{quote.signature.clientName}</span>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                    <div className="p-2 bg-green-100 rounded-full">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-green-600 uppercase tracking-wide">Firmato da</p>
+                      <p className="font-semibold text-gray-900">{quote.signature.clientName}</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Data firma:</span>
-                    <span className="font-medium">{formatDate(quote.signature.signedAt)}</span>
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                    <div className="p-2 bg-blue-100 rounded-full">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-blue-600 uppercase tracking-wide">Data Firma</p>
+                      <p className="font-semibold text-gray-900">{formatDate(quote.signature.signedAt)}</p>
+                    </div>
                   </div>
                   {quote.signature.imageUrl && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-2">Firma:</p>
+                    <div className="mt-4 p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+                      <p className="text-sm text-gray-600 mb-3 font-medium flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Firma Autografa:
+                      </p>
                       <img 
                         src={quote.signature.imageUrl} 
                         alt="Firma digitale" 
-                        className="max-h-24 border border-gray-300 rounded"
+                        className="max-h-28 mx-auto border-2 border-gray-300 rounded-lg shadow-sm bg-white p-2"
                         data-testid="signature-image"
                       />
                     </div>
@@ -235,57 +269,73 @@ export default function QuoteSignedPortalPage() {
           </Card>
         </div>
 
-        {/* Prodotti Selezionati */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Prodotti e Servizi
+        {/* Prodotti Selezionati - Design Elegante */}
+        <Card className="border-purple-200 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b">
+            <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800">
+              <div className="p-3 bg-purple-100 rounded-full">
+                <FileText className="w-6 h-6 text-purple-600" />
+              </div>
+              Prodotti e Servizi Inclusi
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="pt-6">
+            <div className="space-y-4">
               {quote.products.filter(p => quote.type === 'fisso' || p.selected).map((product, idx) => (
                 <div 
                   key={idx} 
-                  className="flex items-start justify-between p-3 bg-gray-50 rounded-lg"
+                  className="flex items-start justify-between p-5 bg-gradient-to-r from-white to-gray-50 rounded-xl border-2 border-gray-200 hover:border-purple-300 hover:shadow-md transition-all"
                   data-testid={`product-item-${idx}`}
                 >
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{product.nome}</h4>
-                    {product.descrizione && (
-                      <p className="text-sm text-gray-600 mt-1">{product.descrizione}</p>
-                    )}
-                    {product.numeroFoto && (
-                      <p className="text-sm text-gray-500 mt-1">
-                        📸 {product.numeroFoto} foto incluse
-                      </p>
-                    )}
+                  <div className="flex items-start gap-4 flex-1">
+                    <div className="p-3 bg-purple-100 rounded-full flex-shrink-0">
+                      <CheckCircle2 className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-gray-900 text-lg mb-2">{product.nome}</h4>
+                      {product.descrizione && (
+                        <p className="text-sm text-gray-600 mb-2 leading-relaxed">{product.descrizione}</p>
+                      )}
+                      {product.numeroFoto && (
+                        <div className="flex items-center gap-2 text-sm text-purple-600 bg-purple-50 px-3 py-1 rounded-full w-fit">
+                          <Calendar className="w-4 h-4" />
+                          <span className="font-medium">{product.numeroFoto} foto incluse</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right ml-4">
-                    <p className="font-semibold text-gray-900">{formatCurrency(product.prezzo)}</p>
+                    <p className="text-2xl font-bold text-purple-700">{formatCurrency(product.prezzo)}</p>
                   </div>
                 </div>
               ))}
 
-              <Separator />
+              <Separator className="my-6" />
 
-              {/* Totali */}
-              <div className="space-y-2 pt-2">
+              {/* Totali - Design Migliorato */}
+              <div className="space-y-3 pt-2 bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200">
                 {quote.discountValue && (
                   <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Subtotale:</span>
-                      <span>{formatCurrency(quote.totalBeforeDiscount)}</span>
+                    <div className="flex justify-between items-center text-base">
+                      <span className="text-gray-600 font-medium">Subtotale</span>
+                      <span className="font-semibold text-gray-800">{formatCurrency(quote.totalBeforeDiscount)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-orange-600">
-                      <span>Sconto {quote.discountType === 'percent' ? `(${quote.discountValue}%)` : ''}:</span>
-                      <span>-{formatCurrency(quote.totalBeforeDiscount - quote.totalAfterDiscount)}</span>
+                    <div className="flex justify-between items-center text-base">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1 bg-orange-100 rounded">
+                          <CreditCard className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <span className="text-orange-600 font-medium">
+                          Sconto {quote.discountType === 'percent' ? `(${quote.discountValue}%)` : ''}
+                        </span>
+                      </div>
+                      <span className="font-semibold text-orange-600">-{formatCurrency(quote.totalBeforeDiscount - quote.totalAfterDiscount)}</span>
                     </div>
                   </>
                 )}
-                <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                  <span>Totale:</span>
+                <Separator />
+                <div className="flex justify-between items-center text-2xl font-bold pt-2">
+                  <span className="text-gray-800">Totale Contratto</span>
                   <span className="text-blue-700">{formatCurrency(quote.totalAfterDiscount)}</span>
                 </div>
               </div>
@@ -293,62 +343,88 @@ export default function QuoteSignedPortalPage() {
           </CardContent>
         </Card>
 
-        {/* Piano Pagamenti */}
+        {/* Piano Pagamenti - Design Elegante */}
         {paymentSchedule && (
-          <Card className="border-blue-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5" />
+          <Card className="border-indigo-200 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border-b">
+              <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800">
+                <div className="p-3 bg-indigo-100 rounded-full">
+                  <CreditCard className="w-6 h-6 text-indigo-600" />
+                </div>
                 Piano Pagamenti
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {/* Stats Overview */}
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg" data-testid="stat-totale">
-                    <p className="text-sm text-gray-600">Totale</p>
-                    <p className="text-lg font-bold text-blue-700">{formatCurrency(paymentSchedule.totale)}</p>
+            <CardContent className="pt-6">
+              <div className="space-y-6">
+                {/* Stats Overview - Design Migliorato */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center p-5 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border-2 border-blue-200 shadow-sm hover:shadow-md transition-shadow" data-testid="stat-totale">
+                    <div className="flex justify-center mb-2">
+                      <div className="p-2 bg-blue-200 rounded-full">
+                        <CreditCard className="w-5 h-5 text-blue-700" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold mb-1">Importo Totale</p>
+                    <p className="text-2xl font-bold text-blue-700">{formatCurrency(paymentSchedule.totale)}</p>
                   </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg" data-testid="stat-pagato">
-                    <p className="text-sm text-gray-600">Pagato</p>
-                    <p className="text-lg font-bold text-green-700">{formatCurrency(paymentSchedule.totalePagato)}</p>
+                  <div className="text-center p-5 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm hover:shadow-md transition-shadow" data-testid="stat-pagato">
+                    <div className="flex justify-center mb-2">
+                      <div className="p-2 bg-green-200 rounded-full">
+                        <CheckCircle2 className="w-5 h-5 text-green-700" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-green-600 uppercase tracking-wider font-semibold mb-1">Già Pagato</p>
+                    <p className="text-2xl font-bold text-green-700">{formatCurrency(paymentSchedule.totalePagato)}</p>
                   </div>
-                  <div className="text-center p-3 bg-orange-50 rounded-lg" data-testid="stat-saldo">
-                    <p className="text-sm text-gray-600">Saldo</p>
-                    <p className="text-lg font-bold text-orange-700">{formatCurrency(paymentSchedule.saldoResiduo)}</p>
+                  <div className="text-center p-5 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border-2 border-orange-200 shadow-sm hover:shadow-md transition-shadow" data-testid="stat-saldo">
+                    <div className="flex justify-center mb-2">
+                      <div className="p-2 bg-orange-200 rounded-full">
+                        <Calendar className="w-5 h-5 text-orange-700" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-orange-600 uppercase tracking-wider font-semibold mb-1">Saldo Residuo</p>
+                    <p className="text-2xl font-bold text-orange-700">{formatCurrency(paymentSchedule.saldoResiduo)}</p>
                   </div>
                 </div>
 
-                {/* Payments List */}
-                <div className="space-y-2">
+                {/* Payments List - Design Elegante */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-2 mb-3">
+                    <FileText className="w-4 h-4" />
+                    Dettaglio Rate
+                  </h3>
                   {(paymentSchedule.payments || []).map((payment, idx) => (
                     <div 
                       key={payment.id} 
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border"
+                      className="flex flex-col md:flex-row md:items-center justify-between p-5 bg-gradient-to-r from-gray-50 to-white rounded-xl border-2 border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all"
                       data-testid={`payment-item-${idx}`}
                     >
-                      <div className="flex items-center gap-3 flex-1">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium text-gray-900 capitalize">
+                      <div className="flex items-start gap-4 flex-1 mb-3 md:mb-0">
+                        <div className="p-3 bg-indigo-100 rounded-full flex-shrink-0">
+                          <Calendar className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold text-gray-900 capitalize text-lg mb-1">
                             {payment.tipo} {idx + 1}
                           </p>
-                          <p className="text-sm text-gray-600">
-                            Scadenza: {formatDate(payment.dataScadenza)}
-                          </p>
+                          <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            <span className="font-medium">Scadenza:</span>
+                            <span className="font-semibold text-gray-800">{formatDate(payment.dataScadenza)}</span>
+                          </div>
                           {payment.note && (
-                            <p className="text-xs text-gray-500 mt-1">{payment.note}</p>
+                            <p className="text-xs text-gray-500 mt-2 italic bg-gray-100 p-2 rounded">{payment.note}</p>
                           )}
                         </div>
                       </div>
-                      <div className="text-right flex items-center gap-3">
-                        <div>
-                          <p className="font-semibold text-gray-900">{formatCurrency(payment.importo)}</p>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(payment.importo)}</p>
                           {payment.dataPagamento && (
-                            <p className="text-xs text-green-600">
-                              Pagato il {formatDate(payment.dataPagamento)}
-                            </p>
+                            <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Pagato il {formatDate(payment.dataPagamento)}</span>
+                            </div>
                           )}
                         </div>
                         {getPaymentStatusBadge(payment.stato)}
@@ -381,21 +457,39 @@ export default function QuoteSignedPortalPage() {
           </CardContent>
         </Card>
 
-        {/* Footer */}
+        {/* Footer - Design Elegante */}
         {quote.theme?.footerText && (
-          <Card className="bg-gray-50">
+          <Card className="bg-gradient-to-r from-gray-50 to-blue-50 border-gray-200 shadow-sm">
             <CardContent className="pt-6 text-center">
-              <p className="text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: quote.theme.footerText }} />
+              <p className="text-sm text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: quote.theme.footerText }} />
             </CardContent>
           </Card>
         )}
 
-        {/* Studio Info */}
-        <div className="text-center text-sm text-gray-500 pb-4">
-          <p>© {new Date().getFullYear()} Image Studio - Tutti i diritti riservati</p>
-          <p className="mt-1">
-            Per assistenza: <a href="mailto:info@imagestudiofotografico.com" className="text-blue-600 hover:underline">info@imagestudiofotografico.com</a>
-          </p>
+        {/* Studio Info - Design Migliorato */}
+        <div className="text-center pb-6">
+          <Card className="bg-gradient-to-br from-blue-900 to-indigo-900 text-white shadow-xl">
+            <CardContent className="py-8">
+              <div className="space-y-4">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <FileText className="w-5 h-5" />
+                  <p className="text-lg font-semibold">© {new Date().getFullYear()} Image Studio</p>
+                </div>
+                <p className="text-sm text-blue-200">Tutti i diritti riservati</p>
+                <Separator className="bg-blue-700 my-4" />
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-sm text-blue-200 font-medium">Hai bisogno di assistenza?</p>
+                  <a 
+                    href="mailto:info@imagestudiofotografico.com" 
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-white text-blue-900 rounded-full font-semibold hover:bg-blue-50 transition-colors shadow-lg"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    info@imagestudiofotografico.com
+                  </a>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
