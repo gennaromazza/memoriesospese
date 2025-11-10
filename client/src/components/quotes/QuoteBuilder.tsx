@@ -435,10 +435,10 @@ export default function QuoteBuilder({
       // Fetch clienti completi da Firestore per includere tutti i dati
       const clientiInfo = [];
       if (job?.clientiIds && job.clientiIds.length > 0) {
-        const { getCliente } = await import('@/lib/clienti');
+        const { getClienteById } = await import('@/lib/clienti');
         for (const clienteId of job.clientiIds) {
           try {
-            const cliente = await getCliente(clienteId);
+            const cliente = await getClienteById(clienteId);
             if (cliente) {
               clientiInfo.push({
                 id: cliente.id,

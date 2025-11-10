@@ -274,73 +274,100 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       };
     }
 
-    // 5. Fetch job per info aggiuntive (nome evento, data)
-    let jobInfo: { nomeEvento?: string; eventDate?: string | null } | null = null;
+    // 5. Fetch job info - priorità dati salvati in quote, fallback a Firestore
+    let jobInfo: { 
+      nomeEvento?: string; 
+      eventDate?: string | null;
+      rito?: string;
+      location?: string;
+    } | null = null;
 
-    if (quote.jobId) {
+    if (quote.jobInfo) {
+      // Usa dati salvati in quote (più completi: include rito e location)
+      jobInfo = {
+        nomeEvento: quote.jobInfo.nomeEvento,
+        eventDate: serializeTimestamp(quote.jobInfo.eventDate),
+        rito: quote.jobInfo.rito,
+        location: quote.jobInfo.location
+      };
+    } else if (quote.jobId) {
+      // Fallback: fetch da Firestore se quote non ha jobInfo (backward compatibility)
       const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
       if (jobDoc.exists) {
         const jobData = jobDoc.data();
         jobInfo = {
           nomeEvento: jobData?.nomeEvento,
-          eventDate: serializeTimestamp(jobData?.eventDate)
+          eventDate: serializeTimestamp(jobData?.eventDate),
+          rito: jobData?.rituLocation || '',
+          location: jobData?.eventLocation || ''
         };
       }
     }
 
-    // 6. Fetch cliente info (nome, contatti pubblici)
-    // NOTE: Da qui in poi il frontend gestirà un array clientiInfo, per compatibilità con `public` endpoint
+    // 6. Fetch clienti info - priorità dati salvati in quote, fallback a Firestore
     let clientiInfo: Array<{ 
       id: string;
       nome?: string; 
       cognome?: string;
       email?: string;
       telefono?: string;
-      via?: string;
+      indirizzo?: string;
       citta?: string;
       cap?: string;
-      provincia?: string;
     }> = [];
 
-    const clientIds = quote.jobId ? (await db.collection('jobs').doc(quote.jobId).get()).data()?.clientiIds : [];
+    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      // Usa dati salvati in quote (nomi campi allineati con frontend)
+      clientiInfo = quote.clientiInfo.map(c => ({
+        id: c.id,
+        nome: c.nome,
+        cognome: c.cognome,
+        email: c.email,
+        telefono: c.telefono,
+        indirizzo: c.indirizzo,
+        citta: c.citta,
+        cap: c.cap
+      }));
+    } else {
+      // Fallback: fetch da Firestore se quote non ha clientiInfo (backward compatibility)
+      const clientIds = quote.jobId ? (await db.collection('jobs').doc(quote.jobId).get()).data()?.clientiIds : [];
 
-    if (clientIds && clientIds.length > 0) {
-      const clientiDocs = await Promise.all(
-        clientIds.map(id => db.collection('clienti').doc(id).get())
-      );
+      if (clientIds && clientIds.length > 0) {
+        const clientiDocs = await Promise.all(
+          clientIds.map((id: string) => db.collection('clienti').doc(id).get())
+        );
 
-      clientiInfo = clientiDocs
-        .filter(doc => doc.exists)
-        .map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            nome: data?.nome,
-            cognome: data?.cognome,
-            email: data?.contatti?.email,
-            telefono: data?.contatti?.telefono,
-            via: data?.indirizzo?.via,
-            citta: data?.indirizzo?.citta,
-            cap: data?.indirizzo?.cap,
-            provincia: data?.indirizzo?.provincia
-          };
-        });
-    } else if (quote.clienteId) {
-      // Fallback se job non ha clientiIds
-      const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
-      if (clienteDoc.exists) {
-        const clienteData = clienteDoc.data();
-        clientiInfo.push({
-          id: clienteDoc.id,
-          nome: clienteData?.nome,
-          cognome: clienteData?.cognome,
-          email: clienteData?.contatti?.email,
-          telefono: clienteData?.contatti?.telefono,
-          via: clienteData?.indirizzo?.via,
-          citta: clienteData?.indirizzo?.citta,
-          cap: clienteData?.indirizzo?.cap,
-          provincia: clienteData?.indirizzo?.provincia
-        });
+        clientiInfo = clientiDocs
+          .filter(doc => doc.exists)
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              nome: data?.nome,
+              cognome: data?.cognome,
+              email: data?.email,
+              telefono: data?.cellulare1 || data?.cellulare2 || '',
+              indirizzo: data?.via || '',
+              citta: data?.citta || '',
+              cap: data?.cap || ''
+            };
+          });
+      } else if (quote.clienteId) {
+        // Fallback se job non ha clientiIds
+        const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
+        if (clienteDoc.exists) {
+          const clienteData = clienteDoc.data();
+          clientiInfo.push({
+            id: clienteDoc.id,
+            nome: clienteData?.nome,
+            cognome: clienteData?.cognome,
+            email: clienteData?.email,
+            telefono: clienteData?.cellulare1 || clienteData?.cellulare2 || '',
+            indirizzo: clienteData?.via || '',
+            citta: clienteData?.citta || '',
+            cap: clienteData?.cap || ''
+          });
+        }
       }
     }
 
