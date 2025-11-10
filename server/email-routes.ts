@@ -1696,102 +1696,209 @@ export function createGalleryReadyEmailHTML(
   const isGalleryEmpty = photoCount === 0;
   
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">🎨 La tua galleria è pronta!</h2>
-      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
-          Ciao <strong>${clienteName}</strong>,
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+      
+      <!-- Hero Header -->
+      <div style="background: linear-gradient(135deg, #8b5a3c 0%, #c9a961 100%); padding: 50px 30px; text-align: center;">
+        <div style="background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 30px;">
+          <h1 style="color: #ffffff; font-size: 32px; font-weight: 300; margin: 0 0 15px 0; letter-spacing: 2px; text-transform: uppercase;">
+            ${isGalleryEmpty ? 'Galleria in Preparazione' : 'La Tua Galleria è Pronta'}
+          </h1>
+          <div style="width: 60px; height: 2px; background: #c9a961; margin: 0 auto 20px auto;"></div>
+          <p style="color: rgba(255,255,255,0.95); font-size: 18px; margin: 0; font-weight: 300; line-height: 1.6;">
+            ${isGalleryEmpty ? 'Stiamo caricando le tue foto' : `${galleryName} - Seleziona le tue preferite`}
+          </p>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="padding: 40px 30px;">
+        
+        <!-- Greeting -->
+        <p style="font-size: 18px; color: #333333; line-height: 1.8; margin-bottom: 25px;">
+          Gentile <strong style="color: #8b5a3c;">${clienteName}</strong>,
         </p>
         
         ${isGalleryEmpty ? `
-          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
-            <p style="margin: 0; font-size: 14px; color: #856404;">
-              <strong>⏳ Stiamo caricando le foto...</strong><br>
-              La tua galleria è stata creata! 📸 Stiamo caricando le foto del tuo shooting.<br><br>
-              <strong>Torna tra 10-15 minuti</strong> per iniziare a selezionare le tue ${requiredPhotoCount} foto preferite per l'album! ❤️
-            </p>
+        <!-- Empty Gallery State -->
+        <p style="font-size: 16px; color: #666666; line-height: 1.8; margin-bottom: 35px;">
+          La tua galleria fotografica è stata creata con successo. Stiamo attualmente caricando le foto del tuo shooting e saranno disponibili a breve.
+        </p>
+
+        <!-- Loading Info Card -->
+        <div style="background: linear-gradient(135deg, #fff8e7 0%, #ffffff 100%); border-left: 4px solid #c9a961; border-radius: 12px; padding: 30px; margin: 35px 0;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <div style="display: inline-block; background: #ff8c42; color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">
+              Caricamento in Corso
+            </div>
           </div>
           
-          <p style="font-size: 16px; margin-top: 20px; text-align: center;">
-            Ti invieremo una notifica quando le foto saranno pronte.<br>
-            Nel frattempo, salva questo link:
+          <p style="margin: 15px 0; font-size: 15px; color: #555; line-height: 1.8; text-align: center;">
+            <strong style="color: #8b5a3c;">Ti consigliamo di tornare tra 10-15 minuti</strong> per iniziare a selezionare le tue <strong>${requiredPhotoCount} foto</strong> preferite
           </p>
           
-          <div style="text-align: center; margin: 25px 0;">
-            <a href="${galleryUrl}" style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-              🔗 Vai alla Galleria
-            </a>
+          <div style="margin-top: 20px; padding-top: 20px; border-top: 1px dashed #e8d5c4; text-align: center;">
+            <p style="margin: 0; font-size: 13px; color: #999; line-height: 1.6;">
+              Riceverai una notifica quando le foto saranno completamente caricate
+            </p>
           </div>
+        </div>
+
+        <!-- Early Access CTA -->
+        <div style="text-align: center; margin: 40px 0;">
+          <p style="font-size: 14px; color: #666; margin-bottom: 20px;">
+            Nel frattempo, puoi salvare questo link per accedere rapidamente:
+          </p>
+          <a href="${galleryUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #c9a961 100%); 
+                    color: white; padding: 16px 40px; text-decoration: none; border-radius: 50px; 
+                    font-weight: 600; font-size: 15px; letter-spacing: 0.5px; text-transform: uppercase;
+                    box-shadow: 0 4px 15px rgba(139, 90, 60, 0.3);">
+            Vai alla Galleria
+          </a>
+        </div>
+        
         ` : `
-          <p style="font-size: 16px; margin-bottom: 20px;">
-            Fantastico! 🎉 Le foto del tuo shooting "<strong style="color: #8b5a3c;">${galleryName}</strong>" sono online!
+        <!-- Gallery Ready State -->
+        <p style="font-size: 16px; color: #666666; line-height: 1.8; margin-bottom: 35px;">
+          Le tue foto sono online e pronte per essere visualizzate! È il momento di selezionare le immagini che diventeranno i tuoi ricordi indelebili.
+        </p>
+
+        ${productRequirements && productRequirements.length > 0 ? `
+        <!-- Multi-Product Selection -->
+        <div style="background: linear-gradient(to right, #f9f7f4, #ffffff); border: 2px solid #e8d5c4; border-radius: 12px; padding: 30px; margin: 35px 0;">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <div style="display: inline-block; background: #8b9a8e; color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">
+              Seleziona per Prodotti
+            </div>
+          </div>
+          
+          <h3 style="color: #8b5a3c; font-size: 16px; font-weight: 600; margin: 0 0 20px 0; letter-spacing: 0.5px;">
+            Prodotti da Completare
+          </h3>
+          
+          <ul style="margin: 0 0 20px 0; padding-left: 0; list-style: none;">
+            ${productRequirements.map((prod, idx) => `
+            <div style="margin: 12px 0; padding: 12px; background: #f5f8f5; border-radius: 6px; display: flex; align-items: center;">
+              <span style="display: inline-block; width: 22px; height: 22px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; font-weight: 700; margin-right: 12px;">${idx + 1}</span>
+              <span style="flex: 1; font-size: 14px; color: #555;">
+                <strong style="color: #333;">${prod.prodottoNome}:</strong> ${prod.prodottoNumeroFoto} foto
+              </span>
+            </div>
+            `).join('')}
+          </ul>
+          
+          <div style="background: #fff8e7; border-radius: 6px; padding: 15px; margin-top: 20px;">
+            <p style="margin: 0; font-size: 13px; color: #856404; line-height: 1.6;">
+              <strong>Nota:</strong> Puoi riutilizzare la stessa foto per più prodotti. Ad esempio, una foto può essere selezionata sia per l'album che per le stampe.
+            </p>
+          </div>
+          
+          ${selectionDeadline ? `
+          <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e8d5c4;">
+            <p style="margin: 0; font-size: 14px; color: #dc3545; text-align: center;">
+              <strong>Scadenza Selezione:</strong> ${selectionDeadline}
+            </p>
+          </div>
+          ` : ''}
+        </div>
+        ` : `
+        <!-- Single-Product Selection -->
+        <div style="background: linear-gradient(to right, #f9f7f4, #ffffff); border: 2px solid #e8d5c4; border-radius: 12px; padding: 30px; margin: 35px 0; text-align: center;">
+          <div style="margin-bottom: 25px;">
+            <div style="display: inline-block; background: #8b9a8e; color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">
+              Obiettivo Selezione
+            </div>
+          </div>
+          
+          <p style="margin: 20px 0; font-size: 18px; color: #555;">
+            Seleziona le tue <strong style="color: #8b5a3c; font-size: 24px;">${requiredPhotoCount} foto</strong> preferite per l'album
           </p>
           
-          ${productRequirements && productRequirements.length > 0 ? `
-          <!-- Multi-Product Mode -->
-          <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
-            <h3 style="color: #0056b3; margin-top: 0; margin-bottom: 15px;">📸 Seleziona le foto per i tuoi prodotti!</h3>
-            <p style="margin: 8px 0; font-size: 14px; color: #0c5460;">
-              <strong>📋 Prodotti da completare:</strong>
+          ${selectionDeadline ? `
+          <div style="margin-top: 20px; padding-top: 20px; border-top: 1px dashed #e8d5c4;">
+            <p style="margin: 0; font-size: 14px; color: #dc3545;">
+              <strong>Scadenza:</strong> ${selectionDeadline}
             </p>
-            <ul style="margin: 10px 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
-              ${productRequirements.map(prod => 
-                `<li><strong>${prod.prodottoNome}:</strong> ${prod.prodottoNumeroFoto} foto</li>`
-              ).join('')}
-            </ul>
-            <p style="margin: 8px 0; font-size: 14px; color: #0c5460;">
-              💡 <strong>Nota:</strong> Puoi riutilizzare la stessa foto per più prodotti! Ad esempio, una foto può andare sia nell'album che nelle stampe.
-            </p>
-            ${selectionDeadline ? `
-              <p style="margin: 8px 0; font-size: 14px; color: #dc3545;">
-                ⏰ <strong>Scadenza:</strong> ${selectionDeadline}
+          </div>
+          ` : ''}
+        </div>
+        `}
+
+        <!-- How It Works -->
+        <div style="background: #f5f8f5; border-radius: 8px; padding: 25px; margin: 35px 0;">
+          <h4 style="color: #8b9a8e; font-size: 14px; font-weight: 700; margin: 0 0 18px 0; letter-spacing: 1px; text-transform: uppercase;">
+            Come Funziona la Selezione
+          </h4>
+          
+          <div style="position: relative; padding-left: 0;">
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">1</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Apri la galleria cliccando il pulsante qui sotto
               </p>
-            ` : ''}
-          </div>
-          ` : `
-          <!-- Legacy Single-Product Mode -->
-          <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
-            <h3 style="color: #0056b3; margin-top: 0; margin-bottom: 15px;">📸 Seleziona le tue foto preferite!</h3>
-            <p style="margin: 8px 0; font-size: 14px; color: #0c5460;">
-              🎯 <strong>Obiettivo:</strong> Seleziona <span style="font-size: 18px; color: #0056b3;"><strong>${requiredPhotoCount} foto</strong></span> per il tuo album
-            </p>
-            ${selectionDeadline ? `
-              <p style="margin: 8px 0; font-size: 14px; color: #dc3545;">
-                ⏰ <strong>Scadenza:</strong> ${selectionDeadline}
+            </div>
+            
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">2</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Sfoglia con calma tutte le foto del tuo shooting
               </p>
-            ` : ''}
+            </div>
+            
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">3</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Clicca sul cuore sulle tue ${requiredPhotoCount} foto preferite
+              </p>
+            </div>
+            
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">4</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Monitora il contatore in alto (es. 15/${requiredPhotoCount}) mentre selezioni
+              </p>
+            </div>
+            
+            <div style="padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">5</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Quando hai finito, clicca su "Conferma Selezione"
+              </p>
+            </div>
           </div>
-          `}
+        </div>
 
-          <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
-            <h4 style="color: #0c5460; margin-top: 0; margin-bottom: 10px;">💡 Come funziona?</h4>
-            <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460; line-height: 1.8;">
-              <li>Apri la galleria cliccando il bottone qui sotto</li>
-              <li>Sfoglia tutte le foto con calma 🌟</li>
-              <li>Clicca sul <strong style="color: #8b5a3c;">cuore ❤️</strong> sulle tue ${requiredPhotoCount} foto preferite</li>
-              <li>Vedrai il contatore in alto (es. 15/${requiredPhotoCount}) mentre selezioni</li>
-              <li>Quando hai finito, clicca su "<strong>Conferma Selezione</strong>" ✅</li>
-            </ol>
-          </div>
+        <!-- CTA Button -->
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${galleryUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #c9a961 100%); 
+                    color: white; padding: 18px 45px; text-decoration: none; border-radius: 50px; 
+                    font-weight: 600; font-size: 16px; letter-spacing: 0.5px; text-transform: uppercase;
+                    box-shadow: 0 4px 15px rgba(139, 90, 60, 0.3);">
+            Inizia a Selezionare le Foto
+          </a>
+        </div>
 
-          <div style="text-align: center; margin: 25px 0;">
-            <a href="${galleryUrl}" style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-              📸 Inizia a Selezionare le Foto
-            </a>
-          </div>
-
-          <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px; font-style: italic;">
-            Prenditi il tuo tempo e scegli le foto che ami di più! ❤️<br>
-            Saranno i ricordi che guarderai per sempre. ✨
+        <!-- Closing Message -->
+        <div style="text-align: center; margin: 40px 0 30px 0; padding: 25px; border-top: 1px solid #e8d5c4; border-bottom: 1px solid #e8d5c4;">
+          <p style="font-size: 16px; color: #8b5a3c; font-style: italic; line-height: 1.8; margin: 0;">
+            Prenditi il tempo necessario per scegliere le foto che ami di più - saranno i ricordi che guarderai per sempre
           </p>
+        </div>
         `}
       </div>
       
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
-        <p style="margin: 5px 0;">Email: ${studio.email}</p>
-        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      <!-- Footer -->
+      <div style="background: #f9f7f4; padding: 30px; text-align: center; border-top: 3px solid #c9a961;">
+        <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c; letter-spacing: 1px;">
+          ${studio.name}
+        </p>
+        ${studio.address ? `<p style="margin: 0 0 5px 0; font-size: 13px; color: #999;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">
+          <a href="mailto:${studio.email}" style="color: #8b5a3c; text-decoration: none;">${studio.email}</a>
+        </p>
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.phone}</p>
       </div>
     </div>
   `;
@@ -2422,77 +2529,161 @@ export function createQuoteSentEmailHTML(
   };
   
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">📋 Preventivo Personalizzato</h2>
-      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
-          Ciao <strong>${clienteName}</strong>,
-        </p>
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          Abbiamo preparato un preventivo personalizzato per il tuo evento 
-          <strong style="color: #8b5a3c;">${nomeEvento}</strong>!
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+      
+      <!-- Hero Header -->
+      <div style="background: linear-gradient(135deg, #8b5a3c 0%, #c9a961 100%); padding: 50px 30px; text-align: center;">
+        <div style="background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 30px;">
+          <h1 style="color: #ffffff; font-size: 32px; font-weight: 300; margin: 0 0 15px 0; letter-spacing: 2px; text-transform: uppercase;">
+            Preventivo Personalizzato
+          </h1>
+          <div style="width: 60px; height: 2px; background: #c9a961; margin: 0 auto 20px auto;"></div>
+          <p style="color: rgba(255,255,255,0.95); font-size: 18px; margin: 0; font-weight: 300; line-height: 1.6;">
+            La tua proposta dedicata per ${nomeEvento}
+          </p>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="padding: 40px 30px;">
+        
+        <!-- Greeting -->
+        <p style="font-size: 18px; color: #333333; line-height: 1.8; margin-bottom: 25px;">
+          Gentile <strong style="color: #8b5a3c;">${clienteName}</strong>,
         </p>
         
+        <p style="font-size: 16px; color: #666666; line-height: 1.8; margin-bottom: 35px;">
+          Abbiamo preparato con cura un preventivo personalizzato per <strong style="color: #8b5a3c;">${nomeEvento}</strong>. 
+          Ogni dettaglio è stato pensato per soddisfare le tue esigenze.
+        </p>
+
         ${eventDate || eventLocation ? `
-        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Dettagli Evento</h3>
-          ${eventDate ? `<p style="margin: 8px 0; font-size: 14px;"><strong>Data:</strong> ${eventDate}</p>` : ''}
-          ${eventLocation ? `<p style="margin: 8px 0; font-size: 14px;"><strong>Location:</strong> ${eventLocation}</p>` : ''}
+        <!-- Event Details -->
+        <div style="background: linear-gradient(to right, #f9f7f4, #ffffff); border: 2px solid #e8d5c4; border-radius: 12px; padding: 25px; margin: 30px 0;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <div style="display: inline-block; background: #8b9a8e; color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">
+              Dettagli Evento
+            </div>
+          </div>
+          ${eventDate ? `
+          <div style="margin: 12px 0; font-size: 15px; color: #555;">
+            <span style="font-weight: 600; color: #666;">Data:</span> 
+            <span style="float: right; color: #333; font-weight: 500;">${eventDate}</span>
+          </div>
+          ` : ''}
+          ${eventLocation ? `
+          <div style="margin: 12px 0; font-size: 15px; color: #555; ${eventDate ? 'border-top: 1px solid #e8d5c4; padding-top: 12px;' : ''}">
+            <span style="font-weight: 600; color: #666;">Location:</span> 
+            <span style="float: right; color: #333; font-weight: 500;">${eventLocation}</span>
+          </div>
+          ` : ''}
         </div>
         ` : ''}
 
-        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Riepilogo Preventivo</h3>
-          <table style="width: 100%; font-size: 14px; color: #333;">
+        <!-- Quote Summary -->
+        <div style="background: linear-gradient(to right, #f9f7f4, #ffffff); border: 2px solid #e8d5c4; border-radius: 12px; padding: 30px; margin: 35px 0; box-shadow: 0 4px 12px rgba(139, 90, 60, 0.08);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <div style="display: inline-block; background: #8b9a8e; color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">
+              Riepilogo Preventivo
+            </div>
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; font-size: 15px;">
             <tr>
-              <td style="padding: 8px 0;">Tipo:</td>
-              <td style="text-align: right; font-weight: bold;">
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; color: #666;">
+                <span style="font-weight: 600;">Tipologia</span>
+              </td>
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; text-align: right; color: #333; font-weight: 500;">
                 ${quoteType === 'fisso' ? 'Prezzo Fisso' : 'Preventivo Variabile'}
               </td>
             </tr>
             <tr>
-              <td style="padding: 8px 0;">Prodotti/Servizi:</td>
-              <td style="text-align: right; font-weight: bold;">${productsCount}</td>
-            </tr>
-            <tr style="border-top: 2px solid #8b5a3c;">
-              <td style="padding: 12px 0; font-size: 16px;">
-                ${quoteType === 'fisso' ? 'Totale:' : 'Importo Base:'}
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; color: #666;">
+                <span style="font-weight: 600;">Prodotti/Servizi</span>
               </td>
-              <td style="text-align: right; color: #8b5a3c; font-weight: bold; font-size: 18px;">
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; text-align: right; color: #333; font-weight: 500;">
+                ${productsCount}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 20px 0 5px 0; color: #666;">
+                <span style="font-weight: 600;">${quoteType === 'fisso' ? 'Totale' : 'Importo Base'}</span>
+              </td>
+              <td style="padding: 20px 0 5px 0; text-align: right; color: #8b5a3c; font-weight: 700; font-size: 22px;">
                 ${formatCurrency(totalAmount)}
               </td>
             </tr>
           </table>
         </div>
 
-        <div style="text-align: center; margin: 30px 0;">
+        <!-- CTA Button -->
+        <div style="text-align: center; margin: 40px 0;">
           <a href="${quoteUrl}" 
-             style="background: #8b5a3c; color: white; padding: 15px 30px; 
-                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-            📄 Visualizza e Firma Preventivo
+             style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #c9a961 100%); 
+                    color: white; padding: 16px 40px; text-decoration: none; border-radius: 50px; 
+                    font-weight: 600; font-size: 15px; letter-spacing: 0.5px; text-transform: uppercase;
+                    box-shadow: 0 4px 15px rgba(139, 90, 60, 0.3);">
+            Visualizza e Firma Preventivo
           </a>
         </div>
 
-        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
-          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Prossimi Passi</h4>
-          <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
-            <li>Clicca sul pulsante sopra per visualizzare il preventivo completo</li>
-            ${quoteType === 'variabile' ? '<li>Seleziona i prodotti/servizi che desideri</li>' : ''}
-            <li>Leggi attentamente le condizioni contrattuali</li>
-            <li>Firma digitalmente per accettare</li>
-          </ol>
+        <!-- Next Steps -->
+        <div style="background: #f5f8f5; border-radius: 8px; padding: 25px; margin: 35px 0;">
+          <h4 style="color: #8b9a8e; font-size: 14px; font-weight: 700; margin: 0 0 18px 0; letter-spacing: 1px; text-transform: uppercase;">
+            I Prossimi Passi
+          </h4>
+          
+          <div style="position: relative; padding-left: 0;">
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">1</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Clicca sul pulsante sopra per visualizzare il preventivo completo
+              </p>
+            </div>
+            
+            ${quoteType === 'variabile' ? `
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">2</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Seleziona i prodotti e servizi che desideri includere
+              </p>
+            </div>
+            ` : ''}
+            
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">${quoteType === 'variabile' ? '3' : '2'}</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Leggi attentamente le condizioni contrattuali
+              </p>
+            </div>
+            
+            <div style="padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">${quoteType === 'variabile' ? '4' : '3'}</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Firma digitalmente per confermare l'accettazione
+              </p>
+            </div>
+          </div>
         </div>
 
-        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Per qualsiasi domanda sul preventivo, non esitare a contattarci!
-        </p>
+        <!-- Closing Message -->
+        <div style="text-align: center; margin: 40px 0 30px 0; padding: 25px; border-top: 1px solid #e8d5c4; border-bottom: 1px solid #e8d5c4;">
+          <p style="font-size: 16px; color: #8b5a3c; font-style: italic; line-height: 1.8; margin: 0;">
+            Per qualsiasi domanda o chiarimento, siamo a tua completa disposizione
+          </p>
+        </div>
       </div>
       
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
-        <p style="margin: 5px 0;">Email: ${studio.email}</p>
-        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      <!-- Footer -->
+      <div style="background: #f9f7f4; padding: 30px; text-align: center; border-top: 3px solid #c9a961;">
+        <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c; letter-spacing: 1px;">
+          ${studio.name}
+        </p>
+        ${studio.address ? `<p style="margin: 0 0 5px 0; font-size: 13px; color: #999;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">
+          <a href="mailto:${studio.email}" style="color: #8b5a3c; text-decoration: none;">${studio.email}</a>
+        </p>
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.phone}</p>
       </div>
     </div>
   `;
@@ -2720,47 +2911,88 @@ export function createPaymentReminderEmailHTML(
     }).format(amount);
   };
   
-  const urgencyColor = isOverdue ? '#dc3545' : daysUntilDue <= 7 ? '#ffc107' : '#0056b3';
-  const urgencyBg = isOverdue ? '#f8d7da' : daysUntilDue <= 7 ? '#fff3cd' : '#e7f3ff';
+  // Urgency colors: red (overdue), orange (<=7 days), sage (normal)
+  const urgencyColor = isOverdue ? '#dc3545' : daysUntilDue <= 7 ? '#ff8c42' : '#8b9a8e';
+  const urgencyGradient = isOverdue 
+    ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
+    : daysUntilDue <= 7 
+      ? 'linear-gradient(135deg, #ff8c42 0%, #ffa726 100%)'
+      : 'linear-gradient(135deg, #8b9a8e 0%, #a8b5a8 100%)';
   
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: ${urgencyColor}; text-align: center;">
-        ${isOverdue ? '⚠️ Pagamento Scaduto' : '📅 Promemoria Pagamento'}
-      </h2>
-      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
-          Ciao <strong>${clienteName}</strong>,
-        </p>
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          ${isOverdue 
-            ? `Ti ricordiamo che è scaduto un pagamento per <strong style="color: #8b5a3c;">${nomeEvento}</strong>.`
-            : `Ti ricordiamo un pagamento in scadenza per <strong style="color: #8b5a3c;">${nomeEvento}</strong>.`
-          }
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+      
+      <!-- Hero Header - Dynamic Urgency -->
+      <div style="background: ${urgencyGradient}; padding: 50px 30px; text-align: center;">
+        <div style="background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 30px;">
+          <h1 style="color: #ffffff; font-size: 32px; font-weight: 300; margin: 0 0 15px 0; letter-spacing: 2px; text-transform: uppercase;">
+            ${isOverdue ? 'Pagamento Scaduto' : 'Promemoria Pagamento'}
+          </h1>
+          <div style="width: 60px; height: 2px; background: rgba(255,255,255,0.6); margin: 0 auto 20px auto;"></div>
+          <p style="color: rgba(255,255,255,0.95); font-size: 18px; margin: 0; font-weight: 300; line-height: 1.6;">
+            ${isOverdue 
+              ? 'Il pagamento ha superato la scadenza prevista' 
+              : daysUntilDue <= 7 
+                ? `Mancano ${daysUntilDue} giorni alla scadenza` 
+                : 'Promemoria gentile per pagamento in programma'
+            }
+          </p>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="padding: 40px 30px;">
+        
+        <!-- Greeting -->
+        <p style="font-size: 18px; color: #333333; line-height: 1.8; margin-bottom: 25px;">
+          Gentile <strong style="color: #8b5a3c;">${clienteName}</strong>,
         </p>
         
-        <div style="background: ${urgencyBg}; border-left: 4px solid ${urgencyColor}; padding: 15px; margin: 20px 0;">
-          <h3 style="color: ${urgencyColor}; margin-top: 0; margin-bottom: 15px;">Dettagli Pagamento</h3>
-          <table style="width: 100%; font-size: 14px; color: #333;">
+        <p style="font-size: 16px; color: #666666; line-height: 1.8; margin-bottom: 35px;">
+          ${isOverdue 
+            ? `Ti ricordiamo che è scaduto un pagamento relativo a <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Ti chiediamo cortesemente di regolarizzare al più presto.`
+            : `Con la presente ti ricordiamo un pagamento ${daysUntilDue <= 7 ? 'in imminente scadenza' : 'programmato'} per <strong style="color: #8b5a3c;">${nomeEvento}</strong>.`
+          }
+        </p>
+
+        <!-- Payment Details Card -->
+        <div style="background: linear-gradient(to right, #f9f7f4, #ffffff); border: 2px solid #e8d5c4; border-left: 4px solid ${urgencyColor}; border-radius: 12px; padding: 30px; margin: 35px 0; box-shadow: 0 4px 12px rgba(139, 90, 60, 0.08);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <div style="display: inline-block; background: ${urgencyColor}; color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">
+              Dettagli Pagamento
+            </div>
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; font-size: 15px;">
             <tr>
-              <td style="padding: 8px 0;">Tipo:</td>
-              <td style="text-align: right; font-weight: bold;">${paymentType}</td>
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; color: #666;">
+                <span style="font-weight: 600;">Tipo Pagamento</span>
+              </td>
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; text-align: right; color: #333; font-weight: 500;">
+                ${paymentType}
+              </td>
             </tr>
             <tr>
-              <td style="padding: 8px 0;">Importo:</td>
-              <td style="text-align: right; font-weight: bold; color: ${urgencyColor}; font-size: 18px;">
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; color: #666;">
+                <span style="font-weight: 600;">Importo Dovuto</span>
+              </td>
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; text-align: right; color: ${urgencyColor}; font-weight: 700; font-size: 20px;">
                 ${formatCurrency(paymentAmount)}
               </td>
             </tr>
             <tr>
-              <td style="padding: 8px 0;">Scadenza:</td>
-              <td style="text-align: right; font-weight: bold;">${paymentDueDate}</td>
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; color: #666;">
+                <span style="font-weight: 600;">Data Scadenza</span>
+              </td>
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; text-align: right; color: #333; font-weight: 600;">
+                ${paymentDueDate}
+              </td>
             </tr>
             <tr>
-              <td style="padding: 8px 0; padding-top: 12px; border-top: 1px solid #ddd;">
-                ${isOverdue ? 'Giorni di ritardo:' : 'Giorni rimanenti:'}
+              <td style="padding: 20px 0 5px 0; color: #666;">
+                <span style="font-weight: 600;">${isOverdue ? 'Giorni di Ritardo' : 'Giorni Rimanenti'}</span>
               </td>
-              <td style="padding: 8px 0; padding-top: 12px; border-top: 1px solid #ddd; text-align: right; font-weight: bold; font-size: 16px;">
+              <td style="padding: 20px 0 5px 0; text-align: right; color: ${urgencyColor}; font-weight: 700; font-size: 22px;">
                 ${Math.abs(daysUntilDue)}
               </td>
             </tr>
@@ -2768,34 +3000,53 @@ export function createPaymentReminderEmailHTML(
         </div>
 
         ${portalUrl ? `
-        <div style="text-align: center; margin: 30px 0;">
+        <!-- CTA Button -->
+        <div style="text-align: center; margin: 40px 0;">
           <a href="${portalUrl}" 
-             style="background: #8b5a3c; color: white; padding: 15px 30px; 
-                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-            💳 Visualizza Dettagli Pagamento
+             style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #c9a961 100%); 
+                    color: white; padding: 16px 40px; text-decoration: none; border-radius: 50px; 
+                    font-weight: 600; font-size: 15px; letter-spacing: 0.5px; text-transform: uppercase;
+                    box-shadow: 0 4px 15px rgba(139, 90, 60, 0.3);">
+            Visualizza Dettagli Pagamento
           </a>
         </div>
         ` : ''}
 
-        <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 14px; color: #0c5460;">
+        <!-- Info Box -->
+        <div style="background: #f5f8f5; border-radius: 8px; padding: 25px; margin: 35px 0;">
+          <h4 style="color: #8b9a8e; font-size: 14px; font-weight: 700; margin: 0 0 15px 0; letter-spacing: 1px; text-transform: uppercase;">
+            ${isOverdue ? 'Cosa Fare Ora' : 'Come Procedere'}
+          </h4>
+          
+          <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.8;">
             ${isOverdue 
-              ? 'Se hai già effettuato il pagamento, ti preghiamo di inviarci la ricevuta via email. Altrimenti, ti chiediamo gentilmente di provvedere al più presto.'
-              : 'Per effettuare il pagamento o per qualsiasi chiarimento, contattaci via email o telefono.'
+              ? 'Se hai già effettuato il pagamento, ti preghiamo di inviarci la ricevuta via email per conferma. In caso contrario, ti chiediamo gentilmente di provvedere al più presto per evitare eventuali ritardi nella lavorazione.'
+              : 'Per effettuare il pagamento o per qualsiasi chiarimento riguardo alle modalità, siamo a tua completa disposizione. Puoi contattarci via email o telefono.'
             }
           </p>
         </div>
 
-        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Grazie per la tua collaborazione!
-        </p>
+        <!-- Closing Message -->
+        <div style="text-align: center; margin: 40px 0 30px 0; padding: 25px; border-top: 1px solid #e8d5c4; border-bottom: 1px solid #e8d5c4;">
+          <p style="font-size: 16px; color: #8b5a3c; font-style: italic; line-height: 1.8; margin: 0;">
+            ${isOverdue 
+              ? 'Grazie per la tua comprensione e collaborazione' 
+              : 'Grazie per la tua puntualità e collaborazione'
+            }
+          </p>
+        </div>
       </div>
       
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
-        <p style="margin: 5px 0;">Email: ${studio.email}</p>
-        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      <!-- Footer -->
+      <div style="background: #f9f7f4; padding: 30px; text-align: center; border-top: 3px solid #c9a961;">
+        <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c; letter-spacing: 1px;">
+          ${studio.name}
+        </p>
+        ${studio.address ? `<p style="margin: 0 0 5px 0; font-size: 13px; color: #999;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">
+          <a href="mailto:${studio.email}" style="color: #8b5a3c; text-decoration: none;">${studio.email}</a>
+        </p>
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.phone}</p>
       </div>
     </div>
   `;
