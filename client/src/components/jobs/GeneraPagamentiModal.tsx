@@ -260,7 +260,14 @@ export default function GeneraPagamentiModal({
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => applyPreset('30-70')}>
+              <Card 
+                className={cn(
+                  "cursor-pointer hover:bg-accent transition-colors border-2",
+                  selectedPreset === 'acconto-saldo' && "border-primary bg-primary/5"
+                )}
+                onClick={() => applyPreset('30-70')}
+                data-testid="card-preset-30-70"
+              >
                 <CardContent className="p-4">
                   <h3 className="font-semibold mb-2">30% / 70%</h3>
                   <div className="text-sm space-y-1">
@@ -276,7 +283,14 @@ export default function GeneraPagamentiModal({
                 </CardContent>
               </Card>
 
-              <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => applyPreset('50-50')}>
+              <Card 
+                className={cn(
+                  "cursor-pointer hover:bg-accent transition-colors border-2",
+                  selectedPreset === '2-rate' && "border-primary bg-primary/5"
+                )}
+                onClick={() => applyPreset('50-50')}
+                data-testid="card-preset-50-50"
+              >
                 <CardContent className="p-4">
                   <h3 className="font-semibold mb-2">50% / 50%</h3>
                   <div className="text-sm space-y-1">
@@ -292,7 +306,14 @@ export default function GeneraPagamentiModal({
                 </CardContent>
               </Card>
 
-              <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => applyPreset('3-rate')}>
+              <Card 
+                className={cn(
+                  "cursor-pointer hover:bg-accent transition-colors border-2",
+                  selectedPreset === '3-rate' && "border-primary bg-primary/5"
+                )}
+                onClick={() => applyPreset('3-rate')}
+                data-testid="card-preset-3-rate"
+              >
                 <CardContent className="p-4">
                   <h3 className="font-semibold mb-2">3 Rate Uguali</h3>
                   <div className="text-sm space-y-1">
@@ -307,6 +328,44 @@ export default function GeneraPagamentiModal({
                 </CardContent>
               </Card>
             </div>
+
+            {/* Anteprima Rate Selezionate */}
+            {selectedPreset && (
+              <Card className="bg-muted/50">
+                <CardContent className="p-4">
+                  <h4 className="font-medium mb-3">Anteprima Scadenzario:</h4>
+                  <div className="space-y-2">
+                    {payments.map((payment, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">{payment.descrizione}</span>
+                        <div className="text-right">
+                          <span className="font-semibold">€{payment.importo.toFixed(2)}</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {format(payment.dataScadenza, 'dd/MM/yyyy', { locale: it })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Footer con Bottone Genera */}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Annulla
+              </Button>
+              <Button 
+                type="button" 
+                onClick={() => onSubmit(form.getValues())} 
+                disabled={createMutation.isPending}
+                data-testid="button-genera-automatico"
+              >
+                {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Genera Piano Pagamenti
+              </Button>
+            </DialogFooter>
           </TabsContent>
 
           {/* Tab Manuale - Custom Rate */}

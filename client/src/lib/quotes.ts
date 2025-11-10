@@ -371,11 +371,20 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       acceptedAt: data.clausesAccepted.includes(clause.id) ? Timestamp.now() : undefined
     }));
     
-    // Calcola totale selezionato (per preventivo variabile)
+    // Calcola totale selezionato E marca prodotti selezionati (per preventivo variabile)
     let totaleSelezionato = quote.totaleBase || 0;
+    let updatedProducts = quote.products;
+    
     if (quote.type === 'variabile' && data.selectedProducts) {
-      totaleSelezionato = quote.products
-        .filter(p => data.selectedProducts?.includes(p.nome))
+      // Marca i prodotti selezionati con selected: true
+      updatedProducts = quote.products.map(p => ({
+        ...p,
+        selected: data.selectedProducts?.includes(p.nome) || false
+      }));
+      
+      // Calcola totale selezionato
+      totaleSelezionato = updatedProducts
+        .filter(p => p.selected)
         .reduce((sum, p) => sum + p.prezzo, 0);
     }
     
@@ -390,6 +399,7 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
         clientName: data.signature.clientName
       },
       contractClauses: updatedClauses,
+      products: updatedProducts,  // Aggiorna products con selected
       totaleSelezionato,
       updatedAt: Timestamp.now()
     });
