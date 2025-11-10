@@ -15,11 +15,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
 import type { Quote, QuoteProduct, QuoteClause } from '@shared/quotes-types';
 import { calculateQuoteTotals } from '@shared/quote-utils';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface QuotePublicData {
   quote: Quote;
@@ -57,6 +59,7 @@ export default function QuotePublicViewPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [acceptedClauses, setAcceptedClauses] = useState<string[]>([]);
   const [signerName, setSignerName] = useState('');
+  const [studioLogo, setStudioLogo] = useState<string | null>(null);
   const signatureRef = useRef<SignatureCanvas>(null);
 
   // Fetch quote data
@@ -86,6 +89,24 @@ export default function QuotePublicViewPage() {
       setSelectedProducts(preselected);
     }
   }, [quote]);
+
+  // Load studio logo
+  useEffect(() => {
+    async function loadStudioLogo() {
+      try {
+        const settingsDoc = await getDoc(doc(db, 'settings', 'studio'));
+        if (settingsDoc.exists()) {
+          const settings = settingsDoc.data();
+          if (settings.logo) {
+            setStudioLogo(settings.logo);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading studio logo:', error);
+      }
+    }
+    loadStudioLogo();
+  }, []);
 
   // Set theme colors
   useEffect(() => {
@@ -264,21 +285,46 @@ export default function QuotePublicViewPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <Card>
-          <CardHeader className="text-center" style={{
-            background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
-            color: 'white'
+        {/* Header elegante con logo studio */}
+        <Card className="overflow-hidden border-none shadow-xl">
+          <CardHeader className="relative text-center py-12 px-6" style={{
+            background: 'linear-gradient(135deg, #8B9A8B 0%, #C8B8A8 50%, #F4EDE4 100%)',
           }}>
-            <CardTitle className="text-2xl font-bold">
-              {quote.templateName || 'Preventivo'}
-            </CardTitle>
-            {jobInfo?.nomeEvento && (
-              <p className="text-white/90 mt-2">{jobInfo.nomeEvento}</p>
-            )}
-            <Badge variant="secondary" className="mt-2 bg-white/20 text-white border-white/30">
-              {quote.type === 'fisso' ? 'Preventivo Fisso' : 'Preventivo Variabile'}
-            </Badge>
+            {/* Pattern decorativo */}
+            <div className="absolute inset-0 opacity-10" style={{
+              backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
+              backgroundSize: '20px 20px'
+            }} />
+            
+            <div className="relative z-10 space-y-4">
+              {/* Logo Studio */}
+              {studioLogo && (
+                <div className="flex justify-center mb-4">
+                  <img 
+                    src={studioLogo} 
+                    alt="Studio Logo" 
+                    className="h-16 w-auto object-contain drop-shadow-lg"
+                  />
+                </div>
+              )}
+              
+              <div className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30 mb-4">
+                <FileText className="w-4 h-4 text-white" />
+                <span className="text-white font-medium text-sm">
+                  {quote.type === 'fisso' ? 'Preventivo Fisso' : 'Preventivo Variabile'}
+                </span>
+              </div>
+              
+              <CardTitle className="text-3xl sm:text-4xl font-playfair font-bold text-white drop-shadow-lg">
+                {quote.templateName || 'Preventivo'}
+              </CardTitle>
+              
+              {jobInfo?.nomeEvento && (
+                <p className="text-white/95 text-lg sm:text-xl font-medium mt-3 drop-shadow">
+                  {jobInfo.nomeEvento}
+                </p>
+              )}
+            </div>
           </CardHeader>
         </Card>
 
@@ -355,51 +401,82 @@ export default function QuotePublicViewPage() {
                 </div>
               )}
 
-              {/* Clienti */}
+              {/* Clienti - Info Complete */}
               {clientiInfo.length > 0 && (
                 <div>
-                  <p className="text-sm text-gray-600 mb-3 flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    {clientiInfo.length === 1 ? 'Cliente' : 'Clienti'}
+                  <p className="text-sm text-gray-700 mb-4 flex items-center gap-2 font-semibold">
+                    <User className="w-5 h-5 text-blue-600" />
+                    {clientiInfo.length === 1 ? 'Informazioni Cliente' : 'Informazioni Clienti'}
                   </p>
-                  <div className="grid md:grid-cols-2 gap-3">
+                  <div className="grid md:grid-cols-2 gap-4">
                     {clientiInfo.map((cliente, idx) => (
-                      <div key={cliente.id} className="bg-white p-3 rounded-lg border">
-                        <p className="font-semibold text-gray-900 mb-2">
-                          {cliente.nome} {cliente.cognome}
-                          {clientiInfo.length > 1 && (
-                            <span className="text-xs text-gray-500 ml-2">
-                              (Cliente {idx + 1})
-                            </span>
-                          )}
-                        </p>
-                        {cliente.email && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                            <Mail className="w-3 h-3" />
-                            <span>{cliente.email}</span>
+                      <div key={cliente.id} className="bg-gradient-to-br from-white to-blue-50/30 p-5 rounded-xl border-2 border-blue-100 shadow-sm hover:shadow-md transition-shadow">
+                        {/* Nome */}
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-blue-100">
+                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <User className="w-5 h-5 text-blue-600" />
                           </div>
-                        )}
-                        {cliente.telefono && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                            <Phone className="w-3 h-3" />
-                            <span>{cliente.telefono}</span>
+                          <div>
+                            <p className="font-bold text-gray-900 text-lg">
+                              {cliente.nome} {cliente.cognome}
+                            </p>
+                            {clientiInfo.length > 1 && (
+                              <span className="text-xs text-blue-600 font-medium">
+                                Cliente {idx + 1}
+                              </span>
+                            )}
                           </div>
-                        )}
-                        {(cliente.via || cliente.citta) && (
-                          <div className="flex items-start gap-2 text-sm text-gray-600 mt-2 pt-2 border-t">
-                            <MapPin className="w-3 h-3 mt-0.5" />
-                            <div>
-                              {cliente.via && <p>{cliente.via}</p>}
-                              {cliente.citta && (
-                                <p>
-                                  {cliente.cap && `${cliente.cap} `}
-                                  {cliente.citta}
-                                  {cliente.provincia && ` (${cliente.provincia})`}
-                                </p>
-                              )}
+                        </div>
+
+                        <div className="space-y-3">
+                          {/* Email */}
+                          {cliente.email && (
+                            <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-blue-50/50 transition-colors">
+                              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                <Mail className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-500 uppercase font-medium">Email</p>
+                                <p className="text-sm text-gray-900 font-medium break-all">{cliente.email}</p>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+
+                          {/* Telefono */}
+                          {cliente.telefono && (
+                            <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-blue-50/50 transition-colors">
+                              <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                                <Phone className="w-4 h-4 text-green-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-500 uppercase font-medium">Telefono</p>
+                                <p className="text-sm text-gray-900 font-medium">{cliente.telefono}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Indirizzo */}
+                          {(cliente.via || cliente.citta) && (
+                            <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-blue-50/50 transition-colors">
+                              <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0">
+                                <Home className="w-4 h-4 text-orange-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-500 uppercase font-medium mb-1">Indirizzo</p>
+                                <div className="text-sm text-gray-900">
+                                  {cliente.via && <p className="font-medium">{cliente.via}</p>}
+                                  {cliente.citta && (
+                                    <p className="text-gray-700">
+                                      {cliente.cap && `${cliente.cap} `}
+                                      {cliente.citta}
+                                      {cliente.provincia && ` (${cliente.provincia})`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -416,7 +493,7 @@ export default function QuotePublicViewPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {(quote.products ?? []).map((product, idx) => (
-              <div key={idx} className="flex items-start gap-4 p-4 border rounded-lg bg-white">
+              <div key={idx} className="flex items-start gap-4 p-4 border-2 border-gray-100 rounded-xl bg-gradient-to-br from-white to-gray-50/50 hover:border-blue-200 hover:shadow-md transition-all">
                 {quote.type === 'variabile' && product.selectable && (
                   <Checkbox
                     checked={selectedProducts.includes(product.nome)}
@@ -427,39 +504,46 @@ export default function QuotePublicViewPage() {
                           : prev.filter(p => p !== product.nome)
                       );
                     }}
+                    className="mt-1"
                     data-testid={`checkbox-product-${idx}`}
                   />
                 )}
                 
-                {/* Product Image */}
-                {product.immagini && product.immagini.length > 0 && (
-                  <div className="flex-shrink-0">
+                {/* Product Image - sempre visibile con placeholder */}
+                <div className="flex-shrink-0">
+                  {product.immagini && product.immagini.length > 0 ? (
                     <img 
                       src={product.immagini[0]} 
                       alt={product.nome}
-                      className="w-20 h-20 object-cover rounded-md border"
+                      className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-lg border-2 border-gray-200 shadow-sm"
                     />
-                  </div>
-                )}
+                  ) : (
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg border-2 border-dashed border-gray-300 bg-gray-100 flex items-center justify-center">
+                      <FileText className="w-8 h-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900">{product.nome}</h3>
+                  <h3 className="font-bold text-gray-900 text-lg mb-1">{product.nome}</h3>
                   {product.descrizione && (
-                    <p className="text-sm text-muted-foreground mt-1">{product.descrizione}</p>
+                    <p className="text-sm text-gray-600 mt-1 leading-relaxed">{product.descrizione}</p>
                   )}
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     {product.numeroFoto && (
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
                         📸 {product.numeroFoto} foto
                       </Badge>
                     )}
                     {product.categoria && (
-                      <Badge variant="outline" className="text-xs">{product.categoria}</Badge>
+                      <Badge variant="outline" className="text-xs bg-purple-50 border-purple-200 text-purple-700">
+                        {product.categoria}
+                      </Badge>
                     )}
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="font-bold text-lg text-gray-900">{formatCurrency(product.prezzo)}</p>
+                  <p className="font-bold text-xl sm:text-2xl text-blue-700">{formatCurrency(product.prezzo)}</p>
                 </div>
               </div>
             ))}
