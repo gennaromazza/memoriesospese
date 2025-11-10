@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getQuotesForJob } from '@/lib/quotes';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { getQuotesForJob, deleteQuote } from '@/lib/quotes';
 import { Quote, QuoteStatus } from '@shared/quotes-types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,29 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/FirebaseAuthContext';
+import { queryClient } from '@/lib/queryClient';
 import GeneraPagamentiModal from './GeneraPagamentiModal';
 
 interface ModuliJobSectionProps {
@@ -57,13 +76,40 @@ const getQuoteUrl = (quote: Quote) => {
 export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isAdmin = false }: ModuliJobSectionProps) {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
+  const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: quotes = [], isLoading } = useQuery<Quote[]>({
     queryKey: ['quotes', 'job', jobId],
     queryFn: () => getQuotesForJob(jobId),
     enabled: !!jobId
+  });
+
+  // Delete quote mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (quoteId: string) => {
+      if (!user?.email) throw new Error('Utente non autenticato');
+      await deleteQuote(quoteId, user.email);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      setSelectedQuoteId(null);
+      setDeleteQuoteId(null);
+      toast({
+        title: 'Preventivo eliminato',
+        description: 'Il preventivo e i dati correlati sono stati eliminati con successo'
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore eliminazione',
+        description: error.message || 'Impossibile eliminare il preventivo',
+        variant: 'destructive'
+      });
+    }
   });
 
   if (isLoading) {
@@ -189,10 +235,33 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
           <Sheet open={!!selectedQuoteId} onOpenChange={(open) => !open && setSelectedQuoteId(null)}>
             <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
               <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  {selectedQuote.templateName || 'Modulo Preventivo'}
-                </SheetTitle>
+                <div className="flex items-center justify-between">
+                  <SheetTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    {selectedQuote.templateName || 'Modulo Preventivo'}
+                  </SheetTitle>
+                  
+                  {/* Actions Dropdown */}
+                  {isAdmin && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" data-testid="button-quote-actions">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => setDeleteQuoteId(selectedQuote.id)}
+                          className="text-destructive"
+                          data-testid="menu-delete-quote"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Elimina Preventivo
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </SheetHeader>
 
               <div className="space-y-6 mt-6">
@@ -373,6 +442,50 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
           />
         );
       })()}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteQuoteId} onOpenChange={(open) => !open && setDeleteQuoteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare questo preventivo? 
+              <br /><br />
+              <strong>Questa azione eliminerà anche:</strong>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Il preventivo e tutti i suoi dati</li>
+                <li>Eventuali scadenzari pagamenti collegati</li>
+                <li>Il riferimento al preventivo nel lavoro</li>
+              </ul>
+              <br />
+              <span className="text-destructive font-medium">
+                Questa operazione non può essere annullata.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteQuoteId && deleteMutation.mutate(deleteQuoteId)}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Eliminazione...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Elimina Definitivamente
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

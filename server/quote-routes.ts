@@ -288,6 +288,100 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
 });
 
 /**
+ * DELETE /api/quotes/:id
+ * Delete quote con cascade cleanup (admin-only)
+ */
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adminEmail = req.headers['x-admin-email'] as string;
+
+    // 1. Admin-only check
+    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
+      return res.status(403).json({
+        error: 'Accesso negato',
+        message: 'Solo gli amministratori possono eliminare preventivi'
+      });
+    }
+
+    // 2. Pre-fetch payment schedules to get refs
+    //    NOTE: Firestore transactions don't support .where() queries, so we must:
+    //    - Query OUTSIDE transaction to get document refs
+    //    - Re-read INSIDE transaction using transaction.get() for atomicity
+    //    Trade-off: Payment schedules created AFTER this query but BEFORE transaction
+    //    commit will not be deleted (orphan cleanup is a separate concern)
+    const paymentSchedulesQuery = db.collection('paymentSchedules').where('quoteId', '==', id);
+    const paymentSchedulesSnapshot = await paymentSchedulesQuery.get();
+    const scheduleRefs = paymentSchedulesSnapshot.docs.map(doc => doc.ref);
+
+    // 3. Firestore transaction per atomicità
+    await db.runTransaction(async (transaction) => {
+      const quoteRef = db.collection('quotes').doc(id);
+      const quoteDoc = await transaction.get(quoteRef);
+
+      if (!quoteDoc.exists) {
+        throw new Error('Preventivo non trovato');
+      }
+
+      const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+      // 4. Re-read payment schedules INSIDE transaction for atomicity
+      const scheduleSnapshots = await Promise.all(
+        scheduleRefs.map(ref => transaction.get(ref))
+      );
+
+      // 5. Validation: blocca delete se firmato con pagamenti registrati
+      if (quote.status === 'firmato') {
+        const hasPagamenti = scheduleSnapshots.some(snap => {
+          if (!snap.exists) return false;
+          const schedule = snap.data() as PaymentSchedule;
+          return (schedule.totalePagato ?? 0) > 0 || 
+            schedule.payments?.some(p => p.stato === 'pagato' || p.stato === 'parziale');
+        });
+
+        if (hasPagamenti) {
+          throw new Error('Impossibile eliminare un preventivo firmato con pagamenti già registrati');
+        }
+      }
+
+      // 6. Delete quote
+      transaction.delete(quoteRef);
+
+      // 7. Nullify job.preventivoId se esiste
+      if (quote.jobId) {
+        const jobRef = db.collection('jobs').doc(quote.jobId);
+        const jobDoc = await transaction.get(jobRef);
+        
+        if (jobDoc.exists) {
+          transaction.update(jobRef, { preventivoId: null });
+        } else {
+          console.warn(`⚠️ Job ${quote.jobId} non trovato durante delete quote ${id}`);
+        }
+      }
+
+      // 8. Delete related payment schedules
+      scheduleSnapshots.forEach(snap => {
+        if (snap.exists) {
+          transaction.delete(snap.ref);
+        }
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Preventivo eliminato con successo'
+    });
+
+  } catch (error) {
+    console.error('❌ Errore delete quote:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
  * GET /api/quotes/health
  * Health check per quote API
  */
