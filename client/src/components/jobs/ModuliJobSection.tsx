@@ -138,8 +138,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     <div>
                       <span className="font-medium">Totale:</span>{' '}
                       €{quote.type === 'fisso' 
-                        ? quote.totaleBase.toFixed(2) 
-                        : (quote.totaleSelezionato || quote.totaleBase).toFixed(2)}
+                        ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2) 
+                        : (quote.totaleSelezionato ?? quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)}
                     </div>
                     {quote.createdAt && (
                       <div>
@@ -236,8 +236,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     <span className="font-semibold text-lg">Totale</span>
                     <span className="font-bold text-2xl">
                       €{selectedQuote.type === 'fisso' 
-                        ? selectedQuote.totaleBase.toFixed(2) 
-                        : (selectedQuote.totaleSelezionato || selectedQuote.totaleBase).toFixed(2)}
+                        ? (selectedQuote.totaleBase ?? selectedQuote.totalAfterDiscount ?? 0).toFixed(2) 
+                        : (selectedQuote.totaleSelezionato ?? selectedQuote.totaleBase ?? selectedQuote.totalAfterDiscount ?? 0).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -251,7 +251,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     </h3>
                     <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg space-y-2">
                       <p className="text-sm">
-                        <span className="font-medium">Firmato da:</span> {selectedQuote.signature.clienteNome}
+                        <span className="font-medium">Firmato da:</span> {selectedQuote.signature.clientName}
                       </p>
                       <p className="text-sm">
                         <span className="font-medium">Data:</span>{' '}
@@ -350,8 +350,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         if (!targetQuote || !clienteId) return null;
 
         const totale = targetQuote.type === 'fisso'
-          ? targetQuote.totaleBase
-          : (targetQuote.totaleSelezionato || targetQuote.totaleBase);
+          ? (targetQuote.totaleBase ?? targetQuote.totalAfterDiscount ?? 0)
+          : (targetQuote.totaleSelezionato ?? targetQuote.totaleBase ?? targetQuote.totalAfterDiscount ?? 0);
 
         return (
           <GeneraPagamentiModal
