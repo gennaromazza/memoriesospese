@@ -104,19 +104,25 @@ export async function createQuote(
       ...data.theme // Sovrascrive con campi forniti (preserva headerImage, fontFamily, etc.)
     };
 
-    // Prepara paymentScheduleConfig solo se autoGenerate attivo
-    const paymentScheduleConfig: PaymentScheduleConfig | undefined = data.paymentScheduleConfig?.autoGenerate
-      ? {
-          autoGenerate: true,
-          numberOfPayments: data.paymentScheduleConfig.numberOfPayments || 2,
-          accontoType: data.paymentScheduleConfig.accontoType || 'percentage',
-          accontoPercentage: data.paymentScheduleConfig.accontoPercentage || 30,
-          accontoAmount: data.paymentScheduleConfig.accontoAmount,
-          useEventDateReference: data.paymentScheduleConfig.useEventDateReference ?? false,
-          accontoRelativeDays: data.paymentScheduleConfig.accontoRelativeDays,
-          rateIntervalDays: data.paymentScheduleConfig.rateIntervalDays || 30
-        }
-      : undefined;
+    // Prepara paymentScheduleConfig solo se autoGenerate attivo E type === 'fisso'
+    // BLOCCA per moduli variabili (il totale non è ancora noto)
+    let paymentScheduleConfig: PaymentScheduleConfig | undefined;
+    if (data.paymentScheduleConfig?.autoGenerate) {
+      if (data.type === 'variabile') {
+        throw new Error('Impossibile generare piano pagamenti per preventivi variabili. Il cliente deve prima selezionare i prodotti.');
+      }
+      
+      paymentScheduleConfig = {
+        autoGenerate: true,
+        numberOfPayments: data.paymentScheduleConfig.numberOfPayments || 2,
+        accontoType: data.paymentScheduleConfig.accontoType || 'percentage',
+        accontoPercentage: data.paymentScheduleConfig.accontoPercentage || 30,
+        accontoAmount: data.paymentScheduleConfig.accontoAmount,
+        useEventDateReference: data.paymentScheduleConfig.useEventDateReference ?? false,
+        accontoRelativeDays: data.paymentScheduleConfig.accontoRelativeDays,
+        rateIntervalDays: data.paymentScheduleConfig.rateIntervalDays || 30
+      };
+    }
 
     const quoteData: Omit<Quote, 'id'> = {
       jobId: data.jobId,

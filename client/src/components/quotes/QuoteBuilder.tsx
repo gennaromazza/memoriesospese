@@ -260,6 +260,7 @@ export default function QuoteBuilder({
   const customProducts = form.watch('products') || [];
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
+  const quoteType = form.watch('type');
 
   // Watch payment schedule config for simulator
   const paymentConfig = form.watch('paymentScheduleConfig');
@@ -969,7 +970,8 @@ export default function QuoteBuilder({
 
             <Separator />
 
-            {/* Configurazione Piano Pagamenti Avanzata */}
+            {/* Configurazione Piano Pagamenti Avanzata - SOLO per moduli FISSI */}
+            {quoteType === 'fisso' && (
             <Card className="bg-blue-50 border-blue-200">
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -1238,6 +1240,7 @@ export default function QuoteBuilder({
                 )}
               </CardContent>
             </Card>
+            )}
 
             {/* Riepilogo Totale */}
             <Card className="bg-green-50 border-green-200">
