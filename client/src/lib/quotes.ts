@@ -36,6 +36,37 @@ const QUOTES_COLLECTION = 'quotes';
 const TEMPLATES_COLLECTION = 'quoteTemplates';
 
 /**
+ * Rimuove ricorsivamente tutti i campi undefined da un oggetto
+ * Firestore NON accetta undefined values
+ */
+function removeUndefinedFields<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  
+  // Preserva Timestamp e Date senza processarli
+  if (obj instanceof Timestamp || obj instanceof Date) {
+    return obj;
+  }
+  
+  // Gestisci arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefinedFields(item)) as unknown as T;
+  }
+  
+  // Gestisci plain objects
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = removeUndefinedFields(value);
+      }
+    }
+    return cleaned as T;
+  }
+  
+  return obj;
+}
+
+/**
  * Genera token sicuro per URL pubblico
  */
 function generatePublicToken(): string {
@@ -156,10 +187,13 @@ export async function createQuote(
       createdBy: userId
     };
 
-    // DEBUG: Log payload prima di inviare a Firestore
-    console.log('🔍 Payload preventivo prima di Firestore:', JSON.stringify(quoteData, null, 2));
+    // Pulisci ricorsivamente campi undefined (Firestore li rifiuta)
+    const cleanedQuoteData = removeUndefinedFields(quoteData);
 
-    const docRef = await addDoc(collection(db, QUOTES_COLLECTION), quoteData);
+    // DEBUG: Log payload pulito prima di inviare a Firestore
+    console.log('🔍 Payload preventivo pulito:', JSON.stringify(cleanedQuoteData, null, 2));
+
+    const docRef = await addDoc(collection(db, QUOTES_COLLECTION), cleanedQuoteData);
     
     // Aggiorna job con quoteId e financials
     const jobDoc = await getDoc(doc(db, 'jobs', data.jobId));
@@ -375,9 +409,9 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
         .reduce((sum, p) => sum + p.prezzo, 0);
     }
     
-    // Update quote
-    await updateDoc(doc(db, QUOTES_COLLECTION, data.quoteId), {
-      status: 'firmato',
+    // Prepara payload update (pulisci undefined nested)
+    const updatePayload = removeUndefinedFields({
+      status: 'firmato' as QuoteStatus,
       signature: {
         imageUrl: signatureUrl,
         signedAt: Timestamp.now(),
@@ -389,6 +423,9 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       totaleSelezionato,
       updatedAt: Timestamp.now()
     });
+    
+    // Update quote
+    await updateDoc(doc(db, QUOTES_COLLECTION, data.quoteId), updatePayload);
     
     // Update job status
     await updateJobStatus(quote.jobId, 'confermato', quote.createdBy);
@@ -502,7 +539,10 @@ export async function createQuoteTemplate(
       createdBy: userId
     };
 
-    const docRef = await addDoc(collection(db, TEMPLATES_COLLECTION), templateData);
+    // Pulisci campi undefined nested (theme, defaultProducts, defaultClauses)
+    const cleanedTemplateData = removeUndefinedFields(templateData);
+
+    const docRef = await addDoc(collection(db, TEMPLATES_COLLECTION), cleanedTemplateData);
     console.log('✅ Template preventivo creato:', docRef.id);
     return docRef.id;
   } catch (error) {
