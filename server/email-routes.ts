@@ -2392,6 +2392,322 @@ function createOrderCreatedEmailHTML(
 }
 
 /**
+ * Template HTML per email invio preventivo
+ * Inviata al cliente quando viene creato e inviato un preventivo
+ */
+function createQuoteSentEmailHTML(
+  clienteName: string,
+  nomeEvento: string,
+  quoteType: 'fisso' | 'variabile',
+  totalAmount: number,
+  productsCount: number,
+  quoteUrl: string,
+  eventDate?: string,
+  eventLocation?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">📋 Preventivo Personalizzato</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Abbiamo preparato un preventivo personalizzato per il tuo evento 
+          <strong style="color: #8b5a3c;">${nomeEvento}</strong>!
+        </p>
+        
+        ${eventDate || eventLocation ? `
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Dettagli Evento</h3>
+          ${eventDate ? `<p style="margin: 8px 0; font-size: 14px;"><strong>Data:</strong> ${eventDate}</p>` : ''}
+          ${eventLocation ? `<p style="margin: 8px 0; font-size: 14px;"><strong>Location:</strong> ${eventLocation}</p>` : ''}
+        </div>
+        ` : ''}
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Riepilogo Preventivo</h3>
+          <table style="width: 100%; font-size: 14px; color: #333;">
+            <tr>
+              <td style="padding: 8px 0;">Tipo:</td>
+              <td style="text-align: right; font-weight: bold;">
+                ${quoteType === 'fisso' ? 'Prezzo Fisso' : 'Preventivo Variabile'}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">Prodotti/Servizi:</td>
+              <td style="text-align: right; font-weight: bold;">${productsCount}</td>
+            </tr>
+            <tr style="border-top: 2px solid #8b5a3c;">
+              <td style="padding: 12px 0; font-size: 16px;">
+                ${quoteType === 'fisso' ? 'Totale:' : 'Importo Base:'}
+              </td>
+              <td style="text-align: right; color: #8b5a3c; font-weight: bold; font-size: 18px;">
+                ${formatCurrency(totalAmount)}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${quoteUrl}" 
+             style="background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            📄 Visualizza e Firma Preventivo
+          </a>
+        </div>
+
+        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Prossimi Passi</h4>
+          <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
+            <li>Clicca sul pulsante sopra per visualizzare il preventivo completo</li>
+            ${quoteType === 'variabile' ? '<li>Seleziona i prodotti/servizi che desideri</li>' : ''}
+            <li>Leggi attentamente le condizioni contrattuali</li>
+            <li>Firma digitalmente per accettare</li>
+          </ol>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Per qualsiasi domanda sul preventivo, non esitare a contattarci!
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email conferma firma preventivo
+ * Inviata al cliente quando firma il preventivo
+ */
+function createQuoteAcceptedEmailHTML(
+  clienteName: string,
+  nomeEvento: string,
+  totalAmount: number,
+  signedAt: string,
+  nextPaymentAmount?: number,
+  nextPaymentDate?: string,
+  portalUrl?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #28a745; text-align: center;">✅ Preventivo Firmato con Successo!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Grazie per aver accettato il nostro preventivo per 
+          <strong style="color: #8b5a3c;">${nomeEvento}</strong>!
+        </p>
+        
+        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #155724;">
+            ✓ Preventivo firmato il <strong>${signedAt}</strong><br>
+            ✓ Importo totale: <strong>${formatCurrency(totalAmount)}</strong>
+          </p>
+        </div>
+
+        ${nextPaymentAmount && nextPaymentDate ? `
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">💰 Prossimo Pagamento</h3>
+          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px;">
+            <table style="width: 100%; font-size: 14px; color: #333;">
+              <tr>
+                <td style="padding: 8px 0;">Importo:</td>
+                <td style="text-align: right; font-weight: bold; color: #856404;">${formatCurrency(nextPaymentAmount)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0;">Scadenza:</td>
+                <td style="text-align: right; font-weight: bold;">${nextPaymentDate}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        ` : ''}
+
+        ${portalUrl ? `
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${portalUrl}" 
+             style="background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            🔍 Visualizza Preventivo Firmato
+          </a>
+        </div>
+        ` : ''}
+
+        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Prossimi Passi</h4>
+          <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
+            <li>Ti contatteremo a breve per confermare tutti i dettagli</li>
+            ${nextPaymentAmount ? '<li>Procederemo con la richiesta del primo pagamento</li>' : ''}
+            <li>Riceverai aggiornamenti via email sullo stato del progetto</li>
+            <li>Resta in contatto per qualsiasi necessità!</li>
+          </ol>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Siamo entusiasti di lavorare con te! Per qualsiasi domanda, siamo sempre disponibili.
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email promemoria pagamento
+ * Inviata al cliente X giorni prima della scadenza
+ */
+function createPaymentReminderEmailHTML(
+  clienteName: string,
+  nomeEvento: string,
+  paymentAmount: number,
+  paymentDueDate: string,
+  paymentType: string,
+  daysUntilDue: number,
+  isOverdue: boolean,
+  portalUrl?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  const urgencyColor = isOverdue ? '#dc3545' : daysUntilDue <= 7 ? '#ffc107' : '#0056b3';
+  const urgencyBg = isOverdue ? '#f8d7da' : daysUntilDue <= 7 ? '#fff3cd' : '#e7f3ff';
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: ${urgencyColor}; text-align: center;">
+        ${isOverdue ? '⚠️ Pagamento Scaduto' : '📅 Promemoria Pagamento'}
+      </h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          ${isOverdue 
+            ? `Ti ricordiamo che è scaduto un pagamento per <strong style="color: #8b5a3c;">${nomeEvento}</strong>.`
+            : `Ti ricordiamo un pagamento in scadenza per <strong style="color: #8b5a3c;">${nomeEvento}</strong>.`
+          }
+        </p>
+        
+        <div style="background: ${urgencyBg}; border-left: 4px solid ${urgencyColor}; padding: 15px; margin: 20px 0;">
+          <h3 style="color: ${urgencyColor}; margin-top: 0; margin-bottom: 15px;">Dettagli Pagamento</h3>
+          <table style="width: 100%; font-size: 14px; color: #333;">
+            <tr>
+              <td style="padding: 8px 0;">Tipo:</td>
+              <td style="text-align: right; font-weight: bold;">${paymentType}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">Importo:</td>
+              <td style="text-align: right; font-weight: bold; color: ${urgencyColor}; font-size: 18px;">
+                ${formatCurrency(paymentAmount)}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">Scadenza:</td>
+              <td style="text-align: right; font-weight: bold;">${paymentDueDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; padding-top: 12px; border-top: 1px solid #ddd;">
+                ${isOverdue ? 'Giorni di ritardo:' : 'Giorni rimanenti:'}
+              </td>
+              <td style="padding: 8px 0; padding-top: 12px; border-top: 1px solid #ddd; text-align: right; font-weight: bold; font-size: 16px;">
+                ${Math.abs(daysUntilDue)}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        ${portalUrl ? `
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${portalUrl}" 
+             style="background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            💳 Visualizza Dettagli Pagamento
+          </a>
+        </div>
+        ` : ''}
+
+        <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0c5460;">
+            ${isOverdue 
+              ? 'Se hai già effettuato il pagamento, ti preghiamo di inviarci la ricevuta via email. Altrimenti, ti chiediamo gentilmente di provvedere al più presto.'
+              : 'Per effettuare il pagamento o per qualsiasi chiarimento, contattaci via email o telefono.'
+            }
+          </p>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Grazie per la tua collaborazione!
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Template HTML per email cancellazione acconto
  * Inviata al cliente quando un acconto viene cancellato/stornato
  */
