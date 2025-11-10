@@ -3,7 +3,7 @@
  * Interfaccia admin per creare preventivi personalizzati
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { createQuote, getAllQuoteTemplates } from '@/lib/quotes';
 import { getAllProducts } from '@/lib/products';
+import { getAllClauseTemplates } from '@/lib/contract-clauses';
 import { mergeQuoteProducts } from '@/lib/quote-mappers';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
@@ -106,7 +107,8 @@ const quoteSchema = z.object({
     useEventDateReference: z.boolean(),
     accontoRelativeDays: z.number().optional(),
     rateIntervalDays: z.number().min(1).optional()
-  }).optional()
+  }).optional(),
+  clauseTemplateId: z.string().optional()
 }).refine(
   (data) => {
     // Valida che ci sia almeno un prodotto (catalogo o custom compilato)
@@ -149,6 +151,7 @@ export default function QuoteBuilder({
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [selectedClauseTemplateId, setSelectedClauseTemplateId] = useState<string>('');
   const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
 
   // Query job per eventDate
@@ -170,8 +173,17 @@ export default function QuoteBuilder({
     queryFn: getAllProducts
   });
 
+  // Query contract clause templates
+  const { data: allClauseTemplates = [], isLoading: isLoadingClauses } = useQuery({
+    queryKey: ['contract-clause-templates'],
+    queryFn: getAllClauseTemplates
+  });
+
   // Filtro templates per tipo job usando lo slug
   const filteredTemplates = templates.filter(t => t.jobType === jobType.slug && t.attivo);
+  
+  // Filtro contract clause templates per jobType e attivi
+  const clauseTemplates = allClauseTemplates.filter(t => t.jobType === jobTypeSlug && t.attivo);
 
   const form = useForm<FormData>({
     resolver: zodResolver(quoteSchema),
@@ -207,6 +219,23 @@ export default function QuoteBuilder({
       }
     }
   });
+
+  // Auto-select template predefinito per le clausole (dopo form init)
+  useEffect(() => {
+    if (clauseTemplates.length > 0 && !selectedClauseTemplateId) {
+      const defaultTemplate = clauseTemplates.find(t => t.predefinito);
+      if (defaultTemplate) {
+        setSelectedClauseTemplateId(defaultTemplate.id);
+        form.setValue('clauseTemplateId', defaultTemplate.id);
+      }
+    }
+  }, [clauseTemplates, selectedClauseTemplateId, form]);
+
+  // Handler cambio template clausole
+  const handleClauseTemplateChange = (templateId: string) => {
+    setSelectedClauseTemplateId(templateId);
+    form.setValue('clauseTemplateId', templateId);
+  };
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -336,14 +365,43 @@ export default function QuoteBuilder({
         data.type
       );
 
-      // Prepara clausole dal jobTypeSlug con fallback
-      const clauses = DEFAULT_CLAUSES[jobTypeSlug] || [];
-      const defaultClauses = clauses.map(c => ({
-        id: nanoid(),
-        text: c.text,
-        required: c.required,
-        ordine: c.ordine
-      }));
+      // Prepara clausole: priorità template Firestore → fallback DEFAULT_CLAUSES
+      let contractClauses;
+      let usedTemplateId;
+      
+      if (selectedClauseTemplateId) {
+        const selectedTemplate = clauseTemplates.find(t => t.id === selectedClauseTemplateId);
+        if (selectedTemplate) {
+          // Usa clausole dal template Firestore
+          contractClauses = selectedTemplate.clauses.map(c => ({
+            id: nanoid(),
+            text: c.text,
+            required: c.required,
+            ordine: c.ordine
+          }));
+          usedTemplateId = selectedClauseTemplateId;
+        }
+      }
+      
+      // Fallback a DEFAULT_CLAUSES se nessun template selezionato/trovato
+      if (!contractClauses) {
+        const clauses = DEFAULT_CLAUSES[jobTypeSlug] || [];
+        contractClauses = clauses.map(c => ({
+          id: nanoid(),
+          text: c.text,
+          required: c.required,
+          ordine: c.ordine
+        }));
+        
+        // Warning solo se query completata E ci sono template disponibili ma non selezionati
+        if (!isLoadingClauses && clauseTemplates.length > 0) {
+          toast({
+            title: 'Clausole di default',
+            description: 'Nessun template clausole selezionato. Uso clausole predefinite hardcoded.',
+            variant: 'default'
+          });
+        }
+      }
 
       // Calcola totali finali con sconto
       const subtotale = mergedProducts.reduce((sum, p) => sum + p.prezzo, 0);
@@ -361,9 +419,10 @@ export default function QuoteBuilder({
         theme: data.theme,
         expiresAt: data.expiresAt,
         noteInterne: data.noteInterne,
-        paymentScheduleConfig: data.paymentScheduleConfig, // Configurazione piano pagamenti
+        paymentScheduleConfig: data.paymentScheduleConfig,
         templateId: selectedTemplateId || undefined,
-        contractClauses: defaultClauses
+        clauseTemplateId: usedTemplateId,
+        contractClauses
       };
 
       return createQuote(quoteData, user!.uid);
