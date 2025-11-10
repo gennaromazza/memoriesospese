@@ -47,6 +47,13 @@ const TYPE_LABELS = {
   variabile: 'Modulo Variabile'
 };
 
+// Utility: genera URL intelligente basato su status
+const getQuoteUrl = (quote: Quote) => {
+  const baseUrl = window.location.origin;
+  const path = quote.status === 'firmato' ? '/quote/signed' : '/quote/view';
+  return `${baseUrl}${path}/${quote.publicToken}`;
+};
+
 export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isAdmin = false }: ModuliJobSectionProps) {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
@@ -161,7 +168,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(`/quote/signed/${quote.publicToken}`, '_blank');
+                    window.open(getQuoteUrl(quote), '_blank');
                   }}
                   data-testid={`button-view-${quote.id}`}
                 >
@@ -284,12 +291,14 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
 
                 {/* Public Link */}
                 <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-3">Portale Cliente Firmato</h3>
+                  <h3 className="font-semibold mb-3">
+                    {selectedQuote.status === 'firmato' ? 'Portale Cliente Firmato' : 'Link Firma Preventivo'}
+                  </h3>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={`${window.location.origin}/quote/signed/${selectedQuote.publicToken}`}
+                      value={getQuoteUrl(selectedQuote)}
                       className="flex-1 px-3 py-2 bg-muted rounded text-sm"
                       onClick={(e) => e.currentTarget.select()}
                     />
@@ -297,7 +306,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                       size="sm"
                       variant="outline"
                       onClick={async () => {
-                        const url = `${window.location.origin}/quote/signed/${selectedQuote.publicToken}`;
+                        const url = getQuoteUrl(selectedQuote);
                         try {
                           await navigator.clipboard.writeText(url);
                           setCopiedLink(true);
@@ -321,7 +330,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => window.open(`/quote/signed/${selectedQuote.publicToken}`, '_blank')}
+                      onClick={() => window.open(getQuoteUrl(selectedQuote), '_blank')}
                       data-testid="button-open-portal"
                     >
                       <ExternalLink className="h-4 w-4" />
