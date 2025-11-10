@@ -2711,6 +2711,143 @@ export function createPaymentReminderEmailHTML(
 }
 
 /**
+ * Template HTML per email conferma pagamento ricevuto (ordini semplici acconto/saldo)
+ * Inviata al cliente quando admin registra un pagamento ordine
+ * ESPORTATA per uso in server order routes (diversa da createPaymentReceivedEmailHTML per payment schedules)
+ */
+export function createOrderPaymentReceivedEmailHTML(
+  clienteName: string,
+  nomeEvento: string,
+  paymentType: 'acconto' | 'saldo',
+  paymentAmount: number,
+  paymentMethod: string,
+  paymentDate: string,
+  remainingBalance?: number,
+  nextPaymentDate?: string,
+  notes?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  const paymentTypeLabel = paymentType === 'acconto' ? 'Acconto' : 'Saldo Finale';
+  const methodLabel = {
+    'contante': 'Contante',
+    'carta': 'Carta di Credito',
+    'bonifico': 'Bonifico Bancario',
+    'paypal': 'PayPal'
+  }[paymentMethod] || paymentMethod;
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #28a745; text-align: center;">Pagamento Ricevuto</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ti confermiamo di aver ricevuto il tuo <strong style="color: #28a745;">${paymentTypeLabel}</strong> 
+          per <strong style="color: #8b5a3c;">${nomeEvento}</strong>!
+        </p>
+        
+        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+          <h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px;">Dettagli Pagamento</h3>
+          <table style="width: 100%; font-size: 14px; color: #333;">
+            <tr>
+              <td style="padding: 8px 0;">Tipo:</td>
+              <td style="text-align: right; font-weight: bold;">${paymentTypeLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">Importo:</td>
+              <td style="text-align: right; font-weight: bold; color: #28a745; font-size: 18px;">
+                ${formatCurrency(paymentAmount)}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">Metodo:</td>
+              <td style="text-align: right; font-weight: bold;">${methodLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">Data:</td>
+              <td style="text-align: right; font-weight: bold;">${paymentDate}</td>
+            </tr>
+            ${notes ? `
+            <tr>
+              <td colspan="2" style="padding-top: 12px; border-top: 1px solid #ddd;">
+                <p style="margin: 8px 0; font-size: 13px; font-style: italic; color: #666;">
+                  <strong>Note:</strong> ${notes}
+                </p>
+              </td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+
+        ${remainingBalance && remainingBalance > 0 ? `
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Saldo Rimanente</h3>
+          <table style="width: 100%; font-size: 14px; color: #333;">
+            <tr>
+              <td style="padding: 8px 0;">Da saldare:</td>
+              <td style="text-align: right; font-weight: bold; color: #8b5a3c; font-size: 16px;">
+                ${formatCurrency(remainingBalance)}
+              </td>
+            </tr>
+            ${nextPaymentDate ? `
+            <tr>
+              <td style="padding: 8px 0;">Scadenza prevista:</td>
+              <td style="text-align: right; font-weight: bold;">${nextPaymentDate}</td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        ` : `
+        <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0c5460; text-align: center; font-weight: 600;">
+            Pagamento completato! Nessun saldo residuo.
+          </p>
+        </div>
+        `}
+
+        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Prossimi Passi</h4>
+          <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
+            ${remainingBalance && remainingBalance > 0 
+              ? '<li>Riceverai un promemoria per il saldo finale prima della scadenza</li>'
+              : '<li>Procederemo con la lavorazione del tuo progetto</li>'
+            }
+            <li>Ti terremo aggiornato sullo stato dei lavori via email</li>
+            <li>Per qualsiasi domanda, non esitare a contattarci!</li>
+          </ol>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Grazie per la tua fiducia! Siamo entusiasti di lavorare al tuo progetto.
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Template HTML per email cancellazione acconto
  * Inviata al cliente quando un acconto viene cancellato/stornato
  */

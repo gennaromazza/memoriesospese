@@ -3,7 +3,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { sendGmailEmail } from './email-routes.js';
+import { sendGmailEmail, createOrderPaymentReceivedEmailHTML } from './email-routes.js';
 import { db, FieldValue } from './firebase-admin.js';
 
 const router = Router();
@@ -248,6 +248,114 @@ router.patch('/:id', async (req: Request, res: Response) => {
     res.status(500).json({
       error: 'Errore aggiornamento ordine',
       details: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/orders/payment-received-notification
+ * Invia email al cliente quando admin registra un pagamento (acconto o saldo)
+ * Body: { orderId, paymentType: 'acconto'|'saldo', paymentAmount, paymentMethod, paymentDate, notes? }
+ */
+router.post('/payment-received-notification', async (req: Request, res: Response) => {
+  try {
+    const {
+      orderId,
+      paymentType,
+      paymentAmount,
+      paymentMethod,
+      paymentDate,
+      notes
+    } = req.body;
+
+    // 1. Validation
+    if (!orderId || !paymentType || !paymentAmount || !paymentMethod || !paymentDate) {
+      return res.status(400).json({
+        error: 'Parametri mancanti',
+        required: ['orderId', 'paymentType', 'paymentAmount', 'paymentMethod', 'paymentDate']
+      });
+    }
+
+    // 2. Fetch order da Firestore
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderDoc = await orderRef.get();
+    
+    if (!orderDoc.exists) {
+      return res.status(404).json({ error: 'Ordine non trovato' });
+    }
+
+    const orderData: any = orderDoc.data();
+
+    // 3. Get client email (fallback a multiple sources)
+    const clientEmail = orderData.emailCliente || orderData.email || null;
+    
+    if (!clientEmail || !clientEmail.trim()) {
+      return res.status(400).json({ 
+        error: 'Email cliente non disponibile per questo ordine' 
+      });
+    }
+
+    // 4. Saldo rimanente DOPO questo pagamento
+    // IMPORTANTE: orderData contiene già i valori POST-update (l'endpoint è chiamato DOPO updateDoc)
+    // Quindi orderData.saldo è già il saldo corretto dopo questo pagamento
+    const totale = orderData.totale || 0;
+    const accontoTotale = orderData.acconto || 0;
+    const saldoRimanente = orderData.saldo || 0;
+    
+    const remainingBalance = paymentType === 'acconto' 
+      ? saldoRimanente               // Saldo già aggiornato in Firestore
+      : 0;                            // Saldo finale = tutto pagato
+
+    // 5. Fetch studio info
+    const studioDoc = await db.collection('settings').doc('studio').get();
+    const studioInfo = studioDoc.exists ? studioDoc.data() : {};
+
+    // 6. Get nome evento (fallback a nomeCliente)
+    const nomeEvento = orderData.nomeEvento || orderData.nomeCliente || 'il tuo ordine';
+
+    // 7. Format date per display
+    const formattedDate = typeof paymentDate === 'string' 
+      ? paymentDate 
+      : new Date(paymentDate).toLocaleDateString('it-IT', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric'
+        });
+
+    // 8. Crea HTML email
+    const htmlContent = createOrderPaymentReceivedEmailHTML(
+      orderData.nomeCliente || 'Cliente',
+      nomeEvento,
+      paymentType,
+      paymentAmount,
+      paymentMethod,
+      formattedDate,
+      remainingBalance,
+      undefined, // nextPaymentDate (opzionale)
+      notes,
+      studioInfo
+    );
+
+    // 9. Invia email
+    await sendGmailEmail(
+      clientEmail,
+      'Pagamento Ricevuto - Image Studio Fotografico',
+      htmlContent
+    );
+
+    console.log(`📧 Email pagamento ricevuto inviata a ${clientEmail} per ordine ${orderId}`);
+
+    res.json({
+      success: true,
+      message: `Email pagamento inviata a ${clientEmail}`,
+      sentTo: clientEmail
+    });
+
+  } catch (error: any) {
+    console.error('❌ Errore invio email pagamento ricevuto:', error);
+    res.status(500).json({
+      error: 'Errore invio email',
+      details: error.message
     });
   }
 });

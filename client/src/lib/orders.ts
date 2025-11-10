@@ -17,6 +17,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { apiRequest } from "@/lib/queryClient";
 import type { Order, InsertOrder, Transaction } from "@shared/booking-types";
 
 const COLLECTION = "orders";
@@ -491,7 +492,26 @@ export async function recordSaldoPayment(
     }),
   );
 
-  // 6. Return transaction creata e il suo index (per email notification e tracking)
+  // 6. Invia email automatica al cliente (non-blocking)
+  try {
+    await apiRequest('POST', '/api/orders/payment-received-notification', {
+      orderId,
+      paymentType: 'saldo',
+      paymentAmount: saldo,
+      paymentMethod: metodo,
+      paymentDate: data.toISOString(),
+      notes: note
+    });
+    console.log('✅ Email pagamento saldo inviata con successo');
+    
+    // Marca transaction come email inviata
+    await markTransactionEmailSent(orderId, updatedTransactions.length - 1);
+  } catch (emailError) {
+    console.error('❌ Errore invio email pagamento saldo:', emailError);
+    // Non blocca il flusso - il pagamento è stato registrato comunque
+  }
+
+  // 7. Return transaction creata e il suo index (per email notification e tracking)
   return {
     transaction: newTransaction,
     index: updatedTransactions.length - 1,
@@ -617,7 +637,26 @@ export async function addAccontoPayment(
     }),
   );
 
-  // 8. Return transaction creata e il suo index (per email notification e tracking)
+  // 8. Invia email automatica al cliente (non-blocking)
+  try {
+    await apiRequest('POST', '/api/orders/payment-received-notification', {
+      orderId,
+      paymentType: 'acconto',
+      paymentAmount: importo,
+      paymentMethod: metodo,
+      paymentDate: data.toISOString(),
+      notes: note
+    });
+    console.log('✅ Email pagamento acconto inviata con successo');
+    
+    // Marca transaction come email inviata
+    await markTransactionEmailSent(orderId, updatedTransactions.length - 1);
+  } catch (emailError) {
+    console.error('❌ Errore invio email pagamento acconto:', emailError);
+    // Non blocca il flusso - il pagamento è stato registrato comunque
+  }
+
+  // 9. Return transaction creata e il suo index (per email notification e tracking)
   return {
     transaction: newTransaction,
     index: updatedTransactions.length - 1,
