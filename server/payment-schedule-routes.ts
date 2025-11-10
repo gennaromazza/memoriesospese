@@ -673,4 +673,292 @@ router.post('/:scheduleId/payments/:paymentId/register', async (req: Request, re
   }
 });
 
+/**
+ * POST /api/payment-schedules/:scheduleId/payments
+ * Aggiungi nuova rata a schedule esistente
+ */
+router.post('/:scheduleId/payments', async (req: Request, res: Response) => {
+  try {
+    const { scheduleId } = req.params;
+    const { tipo, importo, dataScadenza, descrizione } = req.body;
+
+    // Validazione
+    if (!tipo || !importo || !dataScadenza) {
+      return res.status(400).json({
+        error: 'Dati incompleti',
+        message: 'Tipo, importo e data scadenza sono obbligatori'
+      });
+    }
+
+    if (importo <= 0) {
+      return res.status(400).json({
+        error: 'Importo non valido',
+        message: 'Importo deve essere > 0'
+      });
+    }
+
+    // Fetch schedule
+    const scheduleDoc = await db.collection('paymentSchedules').doc(scheduleId).get();
+    if (!scheduleDoc.exists) {
+      return res.status(404).json({
+        error: 'Schedule non trovato',
+        message: `Payment schedule ${scheduleId} non esiste`
+      });
+    }
+
+    const schedule = scheduleDoc.data();
+    if (!schedule) {
+      return res.status(500).json({ error: 'Dati schedule non validi' });
+    }
+
+    // Crea nuovo pagamento
+    const newPayment = {
+      id: nanoid(),
+      tipo: tipo as 'acconto' | 'rata' | 'saldo',
+      importo: Number(importo),
+      dataScadenza: Timestamp.fromDate(new Date(dataScadenza)),
+      stato: 'atteso' as const,
+      descrizione: descrizione || `${tipo} aggiunto manualmente`
+    };
+
+    // Aggiungi pagamento
+    const updatedPayments = [...schedule.payments, newPayment];
+
+    // Ricalcola totale
+    const nuovoTotale = updatedPayments.reduce((sum: number, p: any) => sum + p.importo, 0);
+    const totalePagato = schedule.totalePagato || 0;
+    const nuovoSaldoResiduo = nuovoTotale - totalePagato;
+
+    // Update Firestore
+    await db.collection('paymentSchedules').doc(scheduleId).update({
+      payments: updatedPayments,
+      totale: nuovoTotale,
+      saldoResiduo: nuovoSaldoResiduo,
+      updatedAt: Timestamp.now(),
+    });
+
+    // Timeline event
+    try {
+      const timelineEventId = nanoid();
+      await db.collection('jobTimeline').doc(timelineEventId).set({
+        id: timelineEventId,
+        jobId: schedule.jobId,
+        evento: 'Rata aggiunta',
+        descrizione: `Aggiunta nuova rata: ${tipo} di €${importo.toFixed(2)}`,
+        categoria: 'pagamenti',
+        timestamp: Timestamp.now(),
+        userId: 'admin',
+      });
+    } catch (timelineError) {
+      console.error('❌ Errore creazione evento timeline:', timelineError);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Rata aggiunta con successo',
+      data: {
+        scheduleId,
+        payment: newPayment,
+        totale: nuovoTotale,
+        saldoResiduo: nuovoSaldoResiduo,
+      }
+    });
+  } catch (error) {
+    console.error('❌ Errore aggiunta rata:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * PATCH /api/payment-schedules/:scheduleId/payments/:paymentId
+ * Modifica rata esistente (solo se non ancora pagata)
+ */
+router.patch('/:scheduleId/payments/:paymentId', async (req: Request, res: Response) => {
+  try {
+    const { scheduleId, paymentId } = req.params;
+    const { tipo, importo, dataScadenza, descrizione } = req.body;
+
+    // Fetch schedule
+    const scheduleDoc = await db.collection('paymentSchedules').doc(scheduleId).get();
+    if (!scheduleDoc.exists) {
+      return res.status(404).json({
+        error: 'Schedule non trovato',
+        message: `Payment schedule ${scheduleId} non esiste`
+      });
+    }
+
+    const schedule = scheduleDoc.data();
+    if (!schedule) {
+      return res.status(500).json({ error: 'Dati schedule non validi' });
+    }
+
+    // Trova pagamento
+    const paymentIndex = schedule.payments.findIndex((p: any) => p.id === paymentId);
+    if (paymentIndex === -1) {
+      return res.status(404).json({
+        error: 'Pagamento non trovato',
+        message: `Pagamento ${paymentId} non esiste nello schedule`
+      });
+    }
+
+    const payment = schedule.payments[paymentIndex];
+
+    // Blocca modifica se già pagato
+    if (payment.stato === 'pagato') {
+      return res.status(400).json({
+        error: 'Modifica non consentita',
+        message: 'Impossibile modificare un pagamento già registrato come pagato'
+      });
+    }
+
+    // Update pagamento
+    const updatedPayments = [...schedule.payments];
+    updatedPayments[paymentIndex] = {
+      ...payment,
+      ...(tipo && { tipo }),
+      ...(importo && { importo: Number(importo) }),
+      ...(dataScadenza && { dataScadenza: Timestamp.fromDate(new Date(dataScadenza)) }),
+      ...(descrizione && { descrizione })
+    };
+
+    // Ricalcola totale
+    const nuovoTotale = updatedPayments.reduce((sum: number, p: any) => sum + p.importo, 0);
+    const totalePagato = schedule.totalePagato || 0;
+    const nuovoSaldoResiduo = nuovoTotale - totalePagato;
+
+    // Update Firestore
+    await db.collection('paymentSchedules').doc(scheduleId).update({
+      payments: updatedPayments,
+      totale: nuovoTotale,
+      saldoResiduo: nuovoSaldoResiduo,
+      updatedAt: Timestamp.now(),
+    });
+
+    // Timeline event
+    try {
+      const timelineEventId = nanoid();
+      await db.collection('jobTimeline').doc(timelineEventId).set({
+        id: timelineEventId,
+        jobId: schedule.jobId,
+        evento: 'Rata modificata',
+        descrizione: `Modificata rata ${payment.tipo}: nuovo importo €${importo?.toFixed(2) || payment.importo.toFixed(2)}`,
+        categoria: 'pagamenti',
+        timestamp: Timestamp.now(),
+        userId: 'admin',
+      });
+    } catch (timelineError) {
+      console.error('❌ Errore creazione evento timeline:', timelineError);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Rata modificata con successo',
+      data: {
+        scheduleId,
+        payment: updatedPayments[paymentIndex],
+        totale: nuovoTotale,
+        saldoResiduo: nuovoSaldoResiduo,
+      }
+    });
+  } catch (error) {
+    console.error('❌ Errore modifica rata:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * DELETE /api/payment-schedules/:scheduleId/payments/:paymentId
+ * Elimina rata (solo se non ancora pagata)
+ */
+router.delete('/:scheduleId/payments/:paymentId', async (req: Request, res: Response) => {
+  try {
+    const { scheduleId, paymentId } = req.params;
+
+    // Fetch schedule
+    const scheduleDoc = await db.collection('paymentSchedules').doc(scheduleId).get();
+    if (!scheduleDoc.exists) {
+      return res.status(404).json({
+        error: 'Schedule non trovato',
+        message: `Payment schedule ${scheduleId} non esiste`
+      });
+    }
+
+    const schedule = scheduleDoc.data();
+    if (!schedule) {
+      return res.status(500).json({ error: 'Dati schedule non validi' });
+    }
+
+    // Trova pagamento
+    const payment = schedule.payments.find((p: any) => p.id === paymentId);
+    if (!payment) {
+      return res.status(404).json({
+        error: 'Pagamento non trovato',
+        message: `Pagamento ${paymentId} non esiste nello schedule`
+      });
+    }
+
+    // Blocca eliminazione se già pagato
+    if (payment.stato === 'pagato' || payment.importoPagato > 0) {
+      return res.status(400).json({
+        error: 'Eliminazione non consentita',
+        message: 'Impossibile eliminare un pagamento già registrato o parzialmente pagato'
+      });
+    }
+
+    // Rimuovi pagamento
+    const updatedPayments = schedule.payments.filter((p: any) => p.id !== paymentId);
+
+    // Ricalcola totale
+    const nuovoTotale = updatedPayments.reduce((sum: number, p: any) => sum + p.importo, 0);
+    const totalePagato = schedule.totalePagato || 0;
+    const nuovoSaldoResiduo = nuovoTotale - totalePagato;
+
+    // Update Firestore
+    await db.collection('paymentSchedules').doc(scheduleId).update({
+      payments: updatedPayments,
+      totale: nuovoTotale,
+      saldoResiduo: nuovoSaldoResiduo,
+      updatedAt: Timestamp.now(),
+    });
+
+    // Timeline event
+    try {
+      const timelineEventId = nanoid();
+      await db.collection('jobTimeline').doc(timelineEventId).set({
+        id: timelineEventId,
+        jobId: schedule.jobId,
+        evento: 'Rata eliminata',
+        descrizione: `Eliminata rata ${payment.tipo} di €${payment.importo.toFixed(2)}`,
+        categoria: 'pagamenti',
+        timestamp: Timestamp.now(),
+        userId: 'admin',
+      });
+    } catch (timelineError) {
+      console.error('❌ Errore creazione evento timeline:', timelineError);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Rata eliminata con successo',
+      data: {
+        scheduleId,
+        totale: nuovoTotale,
+        saldoResiduo: nuovoSaldoResiduo,
+      }
+    });
+  } catch (error) {
+    console.error('❌ Errore eliminazione rata:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
 export default router;

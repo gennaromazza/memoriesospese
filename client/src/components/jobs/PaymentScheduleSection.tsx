@@ -4,8 +4,8 @@
  */
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,11 +18,30 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, CreditCard, CheckCircle2, AlertCircle, Clock, XCircle, Plus } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Loader2, CreditCard, CheckCircle2, AlertCircle, Clock, XCircle, Plus, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { PaymentSchedule, PaymentStatus, PaymentType } from '@shared/payment-schedule-types';
 import RegistraPagamentoModal from './RegistraPagamentoModal';
+import GestioneRataModal from './GestioneRataModal';
+import { useToast } from '@/hooks/use-toast';
 
 interface PaymentScheduleSectionProps {
   jobId: string;
@@ -58,6 +77,19 @@ const PAYMENT_STATUS_ICONS: Record<PaymentStatus, typeof CheckCircle2> = {
 
 export default function PaymentScheduleSection({ jobId, isAdmin = false }: PaymentScheduleSectionProps) {
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; tipo: string; importo: number; scheduleId: string } | null>(null);
+  const [gestioneRataState, setGestioneRataState] = useState<{
+    open: boolean;
+    mode: 'add' | 'edit';
+    scheduleId: string;
+    payment?: any;
+  } | null>(null);
+  const [deletePaymentState, setDeletePaymentState] = useState<{
+    scheduleId: string;
+    paymentId: string;
+    tipo: string;
+    importo: number;
+  } | null>(null);
+  const { toast } = useToast();
 
   const { data: rawSchedules = [], isLoading } = useQuery<PaymentSchedule[]>({
     queryKey: ['payment-schedules', jobId],
@@ -94,6 +126,38 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
     }),
     { totale: 0, totalePagato: 0, saldoResiduo: 0 }
   );
+
+  // Delete payment mutation
+  const deleteMutation = useMutation({
+    mutationFn: async ({ scheduleId, paymentId }: { scheduleId: string; paymentId: string }) => {
+      const response = await fetch(`/api/payment-schedules/${scheduleId}/payments/${paymentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Errore eliminazione rata');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payment-schedules', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      toast({
+        title: 'Rata eliminata',
+        description: 'La rata è stata eliminata con successo',
+      });
+      setDeletePaymentState(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -144,10 +208,23 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
         <Card key={schedule.id}>
           <CardHeader>
             <CardTitle className="text-base flex items-center justify-between">
-              <span>Piano Pagamenti</span>
-              <Badge variant="outline">
-                {schedule.payments.length} {schedule.payments.length === 1 ? 'rata' : 'rate'}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <span>Piano Pagamenti</span>
+                <Badge variant="outline">
+                  {schedule.payments.length} {schedule.payments.length === 1 ? 'rata' : 'rate'}
+                </Badge>
+              </div>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setGestioneRataState({ open: true, mode: 'add', scheduleId: schedule.id })}
+                  data-testid="button-add-rata"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Aggiungi Rata
+                </Button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -201,27 +278,67 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
                         </TableCell>
                         {isAdmin && (
                           <TableCell className="text-right">
-                            {payment.stato !== 'pagato' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setSelectedPayment({
-                                  id: payment.id,
-                                  tipo: payment.tipo,
-                                  importo: payment.importo,
-                                  scheduleId: schedule.id,
-                                })}
-                                data-testid={`button-register-payment-${payment.id}`}
-                              >
-                                <CheckCircle2 className="h-4 w-4 mr-1" />
-                                Registra
-                              </Button>
-                            )}
-                            {payment.stato === 'pagato' && payment.dataPagamento && (
-                              <p className="text-xs text-muted-foreground">
-                                {format(payment.dataPagamento, 'dd/MM/yyyy', { locale: it })}
-                              </p>
-                            )}
+                            <div className="flex items-center justify-end gap-2">
+                              {payment.stato !== 'pagato' && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setSelectedPayment({
+                                      id: payment.id,
+                                      tipo: payment.tipo,
+                                      importo: payment.importo,
+                                      scheduleId: schedule.id,
+                                    })}
+                                    data-testid={`button-register-payment-${payment.id}`}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    Registra
+                                  </Button>
+
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button size="sm" variant="ghost" data-testid={`button-actions-${payment.id}`}>
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem
+                                        onClick={() => setGestioneRataState({
+                                          open: true,
+                                          mode: 'edit',
+                                          scheduleId: schedule.id,
+                                          payment
+                                        })}
+                                        data-testid={`menu-edit-${payment.id}`}
+                                      >
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Modifica
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-red-600"
+                                        onClick={() => setDeletePaymentState({
+                                          scheduleId: schedule.id,
+                                          paymentId: payment.id,
+                                          tipo: payment.tipo,
+                                          importo: payment.importo,
+                                        })}
+                                        data-testid={`menu-delete-${payment.id}`}
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Elimina
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </>
+                              )}
+                              {payment.stato === 'pagato' && payment.dataPagamento && (
+                                <p className="text-xs text-muted-foreground">
+                                  {format(payment.dataPagamento, 'dd/MM/yyyy', { locale: it })}
+                                </p>
+                              )}
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>
@@ -264,6 +381,52 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
           jobId={jobId}
         />
       )}
+
+      {/* Gestione Rata Modal (Add/Edit) */}
+      {gestioneRataState && (
+        <GestioneRataModal
+          open={gestioneRataState.open}
+          onClose={() => setGestioneRataState(null)}
+          scheduleId={gestioneRataState.scheduleId}
+          jobId={jobId}
+          payment={gestioneRataState.payment}
+          mode={gestioneRataState.mode}
+        />
+      )}
+
+      {/* Delete Payment Confirmation */}
+      <AlertDialog open={!!deletePaymentState} onOpenChange={(open) => !open && setDeletePaymentState(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare questa rata?
+              <div className="mt-2 p-3 bg-muted rounded-md">
+                <p className="font-semibold">{deletePaymentState?.tipo}</p>
+                <p className="text-sm">Importo: €{deletePaymentState?.importo.toFixed(2)}</p>
+              </div>
+              <p className="mt-2 text-red-600 font-medium">Questa azione non può essere annullata.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletePaymentState) {
+                  deleteMutation.mutate({
+                    scheduleId: deletePaymentState.scheduleId,
+                    paymentId: deletePaymentState.paymentId,
+                  });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="button-confirm-delete"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
