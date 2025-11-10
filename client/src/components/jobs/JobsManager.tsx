@@ -8,8 +8,10 @@ import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { getAllJobs } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
+import { getAllClienti } from '@/lib/clienti';
 import type { Job, JobStatus, JobFilters } from '@shared/jobs-types';
 import type { JobType as JobTypeDoc } from '@shared/job-types';
+import type { Cliente } from '@shared/clienti-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +33,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarUI } from '@/components/ui/calendar';
+import {
   Plus,
   Search,
   Filter,
@@ -38,10 +46,12 @@ import {
   MapPin,
   Euro,
   User,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import CreateJobModal from './CreateJobModal';
 import JobDetailDrawer from './JobDetailDrawer';
 
@@ -76,6 +86,12 @@ export default function JobsManager() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
+  const [filterYear, setFilterYear] = useState<string>('all');
+  const [filterSemester, setFilterSemester] = useState<string>('all');
+  const [customDateRange, setCustomDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({ from: undefined, to: undefined });
   
   // Query jobs
   const { data: jobs = [], isLoading } = useQuery<Job[]>({
@@ -89,6 +105,12 @@ export default function JobsManager() {
     queryFn: getJobTypes
   });
   
+  // Query tutti i clienti (per ricerca nomi)
+  const { data: clienti = [] } = useQuery<Cliente[]>({
+    queryKey: ['clienti'],
+    queryFn: getAllClienti
+  });
+  
   // Crea mappa slug -> JobType per lookup veloci
   const jobTypeMap = useMemo(() => {
     const map: Record<string, JobTypeDoc> = {};
@@ -98,6 +120,31 @@ export default function JobsManager() {
     return map;
   }, [jobTypes]);
   
+  // Crea mappa clienteId -> nome completo per ricerca
+  const clienteNamesMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    clienti.forEach(c => {
+      map[c.id] = `${c.nome} ${c.cognome}`.trim();
+    });
+    return map;
+  }, [clienti]);
+  
+  // Anni disponibili (per dropdown)
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    jobs.forEach(job => {
+      if (job.eventDate) {
+        const date = typeof job.eventDate.toDate === 'function' 
+          ? job.eventDate.toDate() 
+          : new Date(job.eventDate);
+        if (!isNaN(date.getTime())) {
+          years.add(date.getFullYear());
+        }
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [jobs]);
+
   // Filtra jobs
   const filteredJobs = useMemo(() => {
     return jobs.filter(job => {
@@ -107,18 +154,62 @@ export default function JobsManager() {
       // Filtro tipo
       if (filterType !== 'all' && job.jobType !== filterType) return false;
       
-      // Ricerca testuale
+      // Filtri date (precedenza: custom range > anno+semestre > anno)
+      if (job.eventDate) {
+        const eventDate = typeof job.eventDate.toDate === 'function' 
+          ? job.eventDate.toDate() 
+          : new Date(job.eventDate);
+        
+        if (!isNaN(eventDate.getTime())) {
+          // 1. Custom date range (massima priorità)
+          if (customDateRange.from && customDateRange.to) {
+            const inRange = isWithinInterval(eventDate, {
+              start: customDateRange.from,
+              end: customDateRange.to
+            });
+            if (!inRange) return false;
+          }
+          // 2. Anno + Semestre
+          else if (filterYear !== 'all' && filterSemester !== 'all') {
+            const year = parseInt(filterYear);
+            const eventYear = eventDate.getFullYear();
+            const eventMonth = eventDate.getMonth() + 1; // 1-12
+            
+            if (eventYear !== year) return false;
+            
+            if (filterSemester === 'S1' && (eventMonth < 1 || eventMonth > 6)) return false;
+            if (filterSemester === 'S2' && (eventMonth < 7 || eventMonth > 12)) return false;
+          }
+          // 3. Solo Anno
+          else if (filterYear !== 'all') {
+            const year = parseInt(filterYear);
+            const eventYear = eventDate.getFullYear();
+            if (eventYear !== year) return false;
+          }
+        }
+      }
+      
+      // Ricerca testuale (nome evento, location, note, nomi clienti)
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const nomeEvento = job.nomeEvento?.toLowerCase() || '';
         const eventLocation = job.eventLocation?.toLowerCase() || '';
         const note = job.noteInterne?.toLowerCase() || '';
-        return nomeEvento.includes(query) || eventLocation.includes(query) || note.includes(query);
+        
+        // Cerca anche nei nomi dei clienti collegati
+        const clientiNames = (job.clientiIds || [])
+          .map(id => clienteNamesMap[id]?.toLowerCase() || '')
+          .join(' ');
+        
+        return nomeEvento.includes(query) || 
+               eventLocation.includes(query) || 
+               note.includes(query) ||
+               clientiNames.includes(query);
       }
       
       return true;
     });
-  }, [jobs, filterType, searchQuery]);
+  }, [jobs, filterType, filterYear, filterSemester, customDateRange, searchQuery, clienteNamesMap]);
   
   // Sort jobs by date (più recenti primi)
   const sortedJobs = useMemo(() => {
@@ -222,33 +313,162 @@ export default function JobsManager() {
       </div>
       
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Cerca per nome evento, location, note..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-            data-testid="input-search-jobs"
-          />
-        </div>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-48" data-testid="select-filter-type">
-            <SelectValue placeholder="Tutti i tipi" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i tipi</SelectItem>
-            {jobTypes
-              .filter(jt => jt.attivo)
-              .sort((a, b) => a.ordine - b.ordine)
-              .map(jobType => (
-                <SelectItem key={jobType.id} value={jobType.slug}>
-                  {jobType.icona} {jobType.nome}
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-4">
+          {/* Search */}
+          <div className="flex-1 min-w-[250px] relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Cerca per evento, location, clienti, note..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              data-testid="input-search-jobs"
+            />
+          </div>
+          
+          {/* Filtro Tipo */}
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-48" data-testid="select-filter-type">
+              <SelectValue placeholder="Tutti i tipi" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i tipi</SelectItem>
+              {jobTypes
+                .filter(jt => jt.attivo)
+                .sort((a, b) => a.ordine - b.ordine)
+                .map(jobType => (
+                  <SelectItem key={jobType.id} value={jobType.slug}>
+                    {jobType.icona} {jobType.nome}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          
+          {/* Filtro Anno */}
+          <Select value={filterYear} onValueChange={setFilterYear}>
+            <SelectTrigger className="w-32" data-testid="select-filter-year">
+              <SelectValue placeholder="Anno" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti</SelectItem>
+              {availableYears.map(year => (
+                <SelectItem key={year} value={year.toString()}>
+                  {year}
                 </SelectItem>
               ))}
-          </SelectContent>
-        </Select>
+            </SelectContent>
+          </Select>
+          
+          {/* Filtro Semestre */}
+          <Select 
+            value={filterSemester} 
+            onValueChange={setFilterSemester}
+            disabled={filterYear === 'all'}
+          >
+            <SelectTrigger className="w-32" data-testid="select-filter-semester">
+              <SelectValue placeholder="Semestre" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Intero Anno</SelectItem>
+              <SelectItem value="S1">1° Semestre</SelectItem>
+              <SelectItem value="S2">2° Semestre</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {/* Custom Date Range */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-64 justify-start text-left font-normal",
+                  !customDateRange.from && "text-muted-foreground"
+                )}
+                data-testid="button-custom-date-range"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                {customDateRange.from ? (
+                  customDateRange.to ? (
+                    <>
+                      {format(customDateRange.from, "dd MMM yyyy", { locale: it })} -{" "}
+                      {format(customDateRange.to, "dd MMM yyyy", { locale: it })}
+                    </>
+                  ) : (
+                    format(customDateRange.from, "dd MMM yyyy", { locale: it })
+                  )
+                ) : (
+                  <span>Range personalizzato</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarUI
+                mode="range"
+                defaultMonth={customDateRange.from}
+                selected={{
+                  from: customDateRange.from,
+                  to: customDateRange.to
+                }}
+                onSelect={(range) => {
+                  setCustomDateRange({
+                    from: range?.from,
+                    to: range?.to
+                  });
+                  // Reset year/semester quando usi custom range
+                  if (range?.from && range?.to) {
+                    setFilterYear('all');
+                    setFilterSemester('all');
+                  }
+                }}
+                numberOfMonths={2}
+                locale={it}
+              />
+            </PopoverContent>
+          </Popover>
+          
+          {/* Clear Filters Button */}
+          {(filterType !== 'all' || filterYear !== 'all' || filterSemester !== 'all' || customDateRange.from || searchQuery) && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setFilterType('all');
+                setFilterYear('all');
+                setFilterSemester('all');
+                setCustomDateRange({ from: undefined, to: undefined });
+                setSearchQuery('');
+              }}
+              className="gap-2"
+              data-testid="button-clear-filters"
+            >
+              <X className="w-4 h-4" />
+              Reset Filtri
+            </Button>
+          )}
+        </div>
+        
+        {/* Active Filters Summary */}
+        {(filterType !== 'all' || filterYear !== 'all' || customDateRange.from) && (
+          <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
+            <Filter className="w-4 h-4" />
+            <span>Filtri attivi:</span>
+            {filterType !== 'all' && (
+              <Badge variant="secondary">
+                {jobTypeMap[filterType]?.nome || filterType}
+              </Badge>
+            )}
+            {filterYear !== 'all' && !customDateRange.from && (
+              <Badge variant="secondary">
+                {filterYear} {filterSemester !== 'all' ? `(${filterSemester})` : ''}
+              </Badge>
+            )}
+            {customDateRange.from && customDateRange.to && (
+              <Badge variant="secondary">
+                {format(customDateRange.from, "dd/MM/yy")} - {format(customDateRange.to, "dd/MM/yy")}
+              </Badge>
+            )}
+          </div>
+        )}
       </div>
       
       {/* Jobs Table */}
@@ -294,7 +514,15 @@ export default function JobsManager() {
                   >
                     {/* Nome Evento */}
                     <TableCell className="font-medium">
-                      <div className="font-semibold">{job.nomeEvento}</div>
+                      <div className="space-y-1">
+                        <div className="font-semibold">{job.nomeEvento}</div>
+                        {job.eventLocation && (
+                          <div className="text-xs text-muted-foreground flex items-center gap-1 lg:hidden">
+                            <MapPin className="w-3 h-3" />
+                            {job.eventLocation}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     
                     {/* Cliente/i */}
