@@ -96,6 +96,8 @@ export interface Job {
   startTime?: string;           // Orario inizio (HH:mm) - opzionale se allDay = true
   endTime?: string;             // Orario fine (HH:mm) - opzionale
   eventLocation?: string;       // Luogo evento (es. "Casale dei Baroni")
+  rituLocation?: string;        // Luogo rito/celebrazione (es. "Chiesa San Giuseppe")
+  rituTime?: string;            // Orario rito/celebrazione (HH:mm)
   provenance: string;           // Dynamic provenance slug from Firestore jobProvenances collection
   
   // Pipeline stato
@@ -132,6 +134,8 @@ export interface InsertJob {
   startTime?: string;  // HH:mm format
   endTime?: string;    // HH:mm format
   eventLocation?: string;
+  rituLocation?: string;  // Luogo rito/celebrazione
+  rituTime?: string;      // Orario rito/celebrazione (HH:mm)
   provenance: string;  // Dynamic provenance slug from Firestore jobProvenances collection
   noteInterne?: string;
 }
@@ -148,6 +152,8 @@ export interface UpdateJob {
   startTime?: string;
   endTime?: string;
   eventLocation?: string;
+  rituLocation?: string;
+  rituTime?: string;
   provenance?: string;  // Dynamic provenance slug from Firestore jobProvenances collection
   noteInterne?: string;
   status?: JobStatus;

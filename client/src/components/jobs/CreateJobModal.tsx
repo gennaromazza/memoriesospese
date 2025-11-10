@@ -73,6 +73,8 @@ const formSchema = z.object({
   startTime: z.string().optional(),
   endTime: z.string().optional(),
   eventLocation: z.string().optional(),
+  rituLocation: z.string().optional(),
+  rituTime: z.string().optional(),
   provenance: z.string().min(1, 'Seleziona una provenienza'),
   noteInterne: z.string().optional()
 }).refine((data) => {
@@ -134,6 +136,8 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
       endTime: '',
       provenance: '',
       eventLocation: '',
+      rituLocation: '',
+      rituTime: '',
       noteInterne: ''
     }
   });
@@ -561,7 +565,7 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
               name="eventLocation"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location</FormLabel>
+                  <FormLabel>Location Evento</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="es. Casale dei Baroni"
@@ -573,6 +577,45 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                 </FormItem>
               )}
             />
+
+            {/* Rito/Celebrazione */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="rituLocation"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Luogo Rito/Celebrazione</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="es. Chiesa San Giuseppe"
+                        {...field}
+                        data-testid="input-ritu-location"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="rituTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Orario Rito</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="time"
+                        {...field}
+                        data-testid="input-ritu-time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             
             {/* Note interne */}
             <FormField

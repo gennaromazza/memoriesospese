@@ -52,6 +52,8 @@ export async function createJob(
       ...(data.startTime && { startTime: data.startTime }),
       ...(data.endTime && { endTime: data.endTime }),
       ...(data.eventLocation && { eventLocation: data.eventLocation }),
+      ...(data.rituLocation && { rituLocation: data.rituLocation }),
+      ...(data.rituTime && { rituTime: data.rituTime }),
       provenance: data.provenance,
       ...(data.noteInterne && { noteInterne: data.noteInterne }),
       

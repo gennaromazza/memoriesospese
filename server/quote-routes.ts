@@ -80,11 +80,13 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       }
     }
 
-    // 4. Fetch job completo (evento, data, location, orari)
+    // 4. Fetch job completo (evento, data, location, orari, rito)
     let jobInfo: { 
       nomeEvento?: string; 
       eventDate?: string | null;
       eventLocation?: string;
+      rituLocation?: string;
+      rituTime?: string;
       startTime?: string;
       endTime?: string;
       allDay?: boolean;
@@ -99,6 +101,8 @@ router.get('/public/:token', async (req: Request, res: Response) => {
           nomeEvento: jobData?.nomeEvento,
           eventDate: serializeTimestamp(jobData?.eventDate),
           eventLocation: jobData?.eventLocation,
+          rituLocation: jobData?.rituLocation,
+          rituTime: jobData?.rituTime,
           startTime: jobData?.startTime,
           endTime: jobData?.endTime,
           allDay: jobData?.allDay,
@@ -107,13 +111,17 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       }
     }
 
-    // 5. Fetch clienti multipli (da job.clientiIds se esiste, altrimenti fallback a quote.clienteId)
+    // 5. Fetch clienti multipli con indirizzi completi (da job.clientiIds se esiste, altrimenti fallback a quote.clienteId)
     let clientiInfo: Array<{ 
       id: string;
       nome?: string; 
       cognome?: string;
       email?: string;
       telefono?: string;
+      via?: string;
+      citta?: string;
+      cap?: string;
+      provincia?: string;
     }> = [];
     
     const clientIds = jobInfo?.clientiIds && jobInfo.clientiIds.length > 0 
@@ -134,7 +142,11 @@ router.get('/public/:token', async (req: Request, res: Response) => {
             nome: data?.nome,
             cognome: data?.cognome,
             email: data?.contatti?.email,
-            telefono: data?.contatti?.telefono
+            telefono: data?.contatti?.telefono,
+            via: data?.indirizzo?.via,
+            citta: data?.indirizzo?.citta,
+            cap: data?.indirizzo?.cap,
+            provincia: data?.indirizzo?.provincia
           };
         });
     }

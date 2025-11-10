@@ -26,6 +26,8 @@ interface QuotePublicData {
     nomeEvento?: string; 
     eventDate?: string | null;
     eventLocation?: string;
+    rituLocation?: string;
+    rituTime?: string;
     startTime?: string;
     endTime?: string;
     allDay?: boolean;
@@ -37,6 +39,10 @@ interface QuotePublicData {
     cognome?: string;
     email?: string;
     telefono?: string;
+    via?: string;
+    citta?: string;
+    cap?: string;
+    provincia?: string;
   }>;
 }
 
@@ -301,14 +307,39 @@ export default function QuotePublicViewPage() {
                 )}
               </div>
 
-              {/* Location */}
+              {/* Location Evento */}
               {jobInfo.eventLocation && (
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
                   <div>
-                    <p className="text-sm text-gray-600">Luogo</p>
+                    <p className="text-sm text-gray-600">Location Evento</p>
                     <p className="font-semibold">{jobInfo.eventLocation}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Rito/Celebrazione */}
+              {(jobInfo.rituLocation || jobInfo.rituTime) && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {jobInfo.rituLocation && (
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-gray-600">Luogo Rito/Celebrazione</p>
+                        <p className="font-semibold">{jobInfo.rituLocation}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {jobInfo.rituTime && (
+                    <div className="flex items-start gap-3">
+                      <Clock className="w-5 h-5 text-gray-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-gray-600">Orario Rito</p>
+                        <p className="font-semibold">{jobInfo.rituTime}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -320,10 +351,15 @@ export default function QuotePublicViewPage() {
                     {clientiInfo.length === 1 ? 'Cliente' : 'Clienti'}
                   </p>
                   <div className="grid md:grid-cols-2 gap-3">
-                    {clientiInfo.map((cliente) => (
+                    {clientiInfo.map((cliente, idx) => (
                       <div key={cliente.id} className="bg-white p-3 rounded-lg border">
-                        <p className="font-semibold text-gray-900">
+                        <p className="font-semibold text-gray-900 mb-2">
                           {cliente.nome} {cliente.cognome}
+                          {clientiInfo.length > 1 && (
+                            <span className="text-xs text-gray-500 ml-2">
+                              (Cliente {idx + 1})
+                            </span>
+                          )}
                         </p>
                         {cliente.email && (
                           <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
@@ -335,6 +371,21 @@ export default function QuotePublicViewPage() {
                           <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
                             <Phone className="w-3 h-3" />
                             <span>{cliente.telefono}</span>
+                          </div>
+                        )}
+                        {(cliente.via || cliente.citta) && (
+                          <div className="flex items-start gap-2 text-sm text-gray-600 mt-2 pt-2 border-t">
+                            <MapPin className="w-3 h-3 mt-0.5" />
+                            <div>
+                              {cliente.via && <p>{cliente.via}</p>}
+                              {cliente.citta && (
+                                <p>
+                                  {cliente.cap && `${cliente.cap} `}
+                                  {cliente.citta}
+                                  {cliente.provincia && ` (${cliente.provincia})`}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
