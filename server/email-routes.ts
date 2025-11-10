@@ -2394,8 +2394,9 @@ function createOrderCreatedEmailHTML(
 /**
  * Template HTML per email invio preventivo
  * Inviata al cliente quando viene creato e inviato un preventivo
+ * ESPORTATA per uso in quote-routes.ts
  */
-function createQuoteSentEmailHTML(
+export function createQuoteSentEmailHTML(
   clienteName: string,
   nomeEvento: string,
   quoteType: 'fisso' | 'variabile',
@@ -2500,8 +2501,9 @@ function createQuoteSentEmailHTML(
 /**
  * Template HTML per email conferma firma preventivo
  * Inviata al cliente quando firma il preventivo
+ * ESPORTATA per uso in quote-routes.ts
  */
-function createQuoteAcceptedEmailHTML(
+export function createQuoteAcceptedEmailHTML(
   clienteName: string,
   nomeEvento: string,
   totalAmount: number,
@@ -2600,8 +2602,9 @@ function createQuoteAcceptedEmailHTML(
 /**
  * Template HTML per email promemoria pagamento
  * Inviata al cliente X giorni prima della scadenza
+ * ESPORTATA per uso in quote-routes.ts e payment-schedule-routes.ts
  */
-function createPaymentReminderEmailHTML(
+export function createPaymentReminderEmailHTML(
   clienteName: string,
   nomeEvento: string,
   paymentAmount: number,

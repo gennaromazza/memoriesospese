@@ -6,6 +6,13 @@ import { Router, Request, Response } from 'express';
 import { db, FieldValue } from './firebase-admin.js';
 import type { Quote } from '../shared/quotes-types.js';
 import type { PaymentSchedule } from '../shared/payment-schedule-types.js';
+import { 
+  sendGmailEmail, 
+  getStudioContactInfo,
+  createQuoteSentEmailHTML,
+  createQuoteAcceptedEmailHTML,
+  createPaymentReminderEmailHTML
+} from './email-routes.js';
 
 const router = Router();
 
@@ -548,6 +555,382 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('❌ Errore delete quote:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * POST /api/quotes/send-quote
+ * Invia preventivo via email al cliente
+ * PUBBLICO - può essere chiamato dall'admin senza autenticazione Firebase
+ */
+router.post('/send-quote', async (req: Request, res: Response) => {
+  try {
+    const { quoteId } = req.body;
+
+    if (!quoteId) {
+      return res.status(400).json({
+        error: 'Quote ID mancante',
+        message: 'Il parametro quoteId è richiesto'
+      });
+    }
+
+    // Fetch quote
+    const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+    
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: 'Il preventivo specificato non esiste'
+      });
+    }
+
+    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+    // Determina email destinatario
+    let recipientEmail = quote.sentTo;
+    
+    if (!recipientEmail && quote.clientiInfo && quote.clientiInfo.length > 0) {
+      recipientEmail = quote.clientiInfo[0].email;
+    }
+
+    if (!recipientEmail && quote.clienteId) {
+      const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
+      if (clienteDoc.exists) {
+        const clienteData = clienteDoc.data();
+        recipientEmail = clienteData?.email;
+      }
+    }
+
+    if (!recipientEmail) {
+      return res.status(400).json({
+        error: 'Email destinatario mancante',
+        message: 'Impossibile determinare l\'email del cliente'
+      });
+    }
+
+    // Determina nome cliente
+    let clienteName = 'Cliente';
+    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      const firstCliente = quote.clientiInfo[0];
+      clienteName = `${firstCliente.nome || ''} ${firstCliente.cognome || ''}`.trim();
+    }
+
+    // Costruisci URL pubblico
+    const baseUrl = process.env.REPLIT_DOMAINS 
+      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+      : 'http://localhost:5000';
+    const quoteUrl = `${baseUrl}/quote/${quote.publicToken}`;
+
+    // Formato data evento
+    let eventDate: string | undefined;
+    if (quote.jobInfo?.eventDate) {
+      const date = quote.jobInfo.eventDate.toDate ? quote.jobInfo.eventDate.toDate() : new Date(quote.jobInfo.eventDate);
+      eventDate = date.toLocaleDateString('it-IT', { 
+        day: '2-digit', 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    }
+
+    // Recupera dati studio
+    const studioInfo = await getStudioContactInfo();
+
+    // Crea HTML email
+    const htmlContent = createQuoteSentEmailHTML(
+      clienteName,
+      quote.jobInfo?.nomeEvento || 'Evento',
+      quote.type,
+      quote.totalAfterDiscount,
+      quote.products.length,
+      quoteUrl,
+      eventDate,
+      quote.jobInfo?.location,
+      studioInfo
+    );
+
+    const subject = `Preventivo Personalizzato - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
+
+    // Invia email
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    // Update quote con tracking invio
+    await db.collection('quotes').doc(quoteId).update({
+      sentAt: new Date(),
+      sentTo: recipientEmail,
+      status: 'inviato'
+    });
+
+    console.log(`✅ Preventivo ${quoteId} inviato via email a ${recipientEmail}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Preventivo inviato con successo',
+      recipientEmail
+    });
+
+  } catch (error) {
+    console.error('❌ Errore send-quote:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * POST /api/quotes/quote-signed-notification
+ * Invia email di conferma quando il cliente firma il preventivo
+ * PUBBLICO - chiamato automaticamente dopo accettazione preventivo
+ */
+router.post('/quote-signed-notification', async (req: Request, res: Response) => {
+  try {
+    const { quoteId } = req.body;
+
+    if (!quoteId) {
+      return res.status(400).json({
+        error: 'Quote ID mancante',
+        message: 'Il parametro quoteId è richiesto'
+      });
+    }
+
+    // Fetch quote
+    const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+    
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: 'Il preventivo specificato non esiste'
+      });
+    }
+
+    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+    // Verifica che sia firmato
+    if (quote.status !== 'firmato' || !quote.signature) {
+      return res.status(400).json({
+        error: 'Preventivo non firmato',
+        message: 'Il preventivo deve essere firmato per inviare la notifica'
+      });
+    }
+
+    // Determina email destinatario
+    let recipientEmail = quote.sentTo;
+    
+    if (!recipientEmail && quote.clientiInfo && quote.clientiInfo.length > 0) {
+      recipientEmail = quote.clientiInfo[0].email;
+    }
+
+    if (!recipientEmail) {
+      return res.status(400).json({
+        error: 'Email destinatario mancante',
+        message: 'Impossibile determinare l\'email del cliente'
+      });
+    }
+
+    // Nome cliente
+    const clienteName = quote.signature.clientName || 'Cliente';
+
+    // Data firma
+    const signedAt = quote.signature.signedAt.toDate().toLocaleDateString('it-IT', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Recupera prossimo pagamento (se esiste payment schedule)
+    let nextPaymentAmount: number | undefined;
+    let nextPaymentDate: string | undefined;
+
+    if (quote.paymentScheduleIds && quote.paymentScheduleIds.length > 0) {
+      const scheduleDoc = await db.collection('paymentSchedules').doc(quote.paymentScheduleIds[0]).get();
+      if (scheduleDoc.exists) {
+        const schedule = scheduleDoc.data() as PaymentSchedule;
+        const nextPayment = schedule.payments.find(p => p.stato === 'da_pagare');
+        if (nextPayment) {
+          nextPaymentAmount = nextPayment.importo;
+          nextPaymentDate = nextPayment.dataScadenza.toDate().toLocaleDateString('it-IT', { 
+            day: '2-digit', 
+            month: 'long', 
+            year: 'numeric' 
+          });
+        }
+      }
+    }
+
+    // URL portale firmato
+    const baseUrl = process.env.REPLIT_DOMAINS 
+      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+      : 'http://localhost:5000';
+    const portalUrl = `${baseUrl}/quote/signed/${quote.publicToken}`;
+
+    // Recupera dati studio
+    const studioInfo = await getStudioContactInfo();
+
+    // Crea HTML email
+    const htmlContent = createQuoteAcceptedEmailHTML(
+      clienteName,
+      quote.jobInfo?.nomeEvento || 'Evento',
+      quote.totaleSelezionato || quote.totalAfterDiscount,
+      signedAt,
+      nextPaymentAmount,
+      nextPaymentDate,
+      portalUrl,
+      studioInfo
+    );
+
+    const subject = `Preventivo Firmato - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
+
+    // Invia email
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(`✅ Notifica firma preventivo ${quoteId} inviata a ${recipientEmail}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Notifica firma inviata con successo',
+      recipientEmail
+    });
+
+  } catch (error) {
+    console.error('❌ Errore quote-signed-notification:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * POST /api/quotes/payment-reminder
+ * Invia promemoria pagamento in scadenza
+ * PUBBLICO - chiamato manualmente dall'admin o da job schedulato
+ */
+router.post('/payment-reminder', async (req: Request, res: Response) => {
+  try {
+    const { paymentScheduleId, paymentIndex } = req.body;
+
+    if (!paymentScheduleId || paymentIndex === undefined) {
+      return res.status(400).json({
+        error: 'Parametri mancanti',
+        message: 'paymentScheduleId e paymentIndex sono richiesti'
+      });
+    }
+
+    // Fetch payment schedule
+    const scheduleDoc = await db.collection('paymentSchedules').doc(paymentScheduleId).get();
+    
+    if (!scheduleDoc.exists) {
+      return res.status(404).json({
+        error: 'Scadenzario non trovato',
+        message: 'Il piano pagamenti specificato non esiste'
+      });
+    }
+
+    const schedule = { id: scheduleDoc.id, ...scheduleDoc.data() } as PaymentSchedule;
+    const payment = schedule.payments[paymentIndex];
+
+    if (!payment) {
+      return res.status(404).json({
+        error: 'Pagamento non trovato',
+        message: 'Il pagamento specificato non esiste'
+      });
+    }
+
+    // Fetch quote per dati cliente ed evento
+    const quoteDoc = await db.collection('quotes').doc(schedule.quoteId).get();
+    
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: 'Il preventivo collegato non esiste'
+      });
+    }
+
+    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+    // Email destinatario
+    let recipientEmail = quote.sentTo;
+    
+    if (!recipientEmail && quote.clientiInfo && quote.clientiInfo.length > 0) {
+      recipientEmail = quote.clientiInfo[0].email;
+    }
+
+    if (!recipientEmail) {
+      return res.status(400).json({
+        error: 'Email destinatario mancante',
+        message: 'Impossibile determinare l\'email del cliente'
+      });
+    }
+
+    // Nome cliente
+    let clienteName = 'Cliente';
+    if (quote.signature?.clientName) {
+      clienteName = quote.signature.clientName;
+    } else if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      const firstCliente = quote.clientiInfo[0];
+      clienteName = `${firstCliente.nome || ''} ${firstCliente.cognome || ''}`.trim();
+    }
+
+    // Calcola giorni fino a scadenza
+    const dueDate = payment.dataScadenza.toDate();
+    const today = new Date();
+    const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const isOverdue = daysUntilDue < 0;
+
+    // Formato data scadenza
+    const paymentDueDate = dueDate.toLocaleDateString('it-IT', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+
+    // URL portale firmato
+    const baseUrl = process.env.REPLIT_DOMAINS 
+      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+      : 'http://localhost:5000';
+    const portalUrl = `${baseUrl}/quote/signed/${quote.publicToken}`;
+
+    // Recupera dati studio
+    const studioInfo = await getStudioContactInfo();
+
+    // Crea HTML email
+    const htmlContent = createPaymentReminderEmailHTML(
+      clienteName,
+      quote.jobInfo?.nomeEvento || 'Evento',
+      payment.importo,
+      paymentDueDate,
+      payment.descrizione || 'Rata',
+      daysUntilDue,
+      isOverdue,
+      portalUrl,
+      studioInfo
+    );
+
+    const subject = isOverdue 
+      ? `Pagamento Scaduto - ${quote.jobInfo?.nomeEvento || 'Evento'}`
+      : `Promemoria Pagamento - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
+
+    // Invia email
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(`✅ Promemoria pagamento inviato a ${recipientEmail} per scadenzario ${paymentScheduleId}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Promemoria pagamento inviato con successo',
+      recipientEmail,
+      daysUntilDue,
+      isOverdue
+    });
+
+  } catch (error) {
+    console.error('❌ Errore payment-reminder:', error);
     return res.status(500).json({
       error: 'Errore server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto'
