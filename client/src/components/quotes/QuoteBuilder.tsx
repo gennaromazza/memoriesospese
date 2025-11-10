@@ -437,7 +437,7 @@ export default function QuoteBuilder({
         noteInterne: data.noteInterne,
         paymentScheduleConfig: data.paymentScheduleConfig,
         templateId: selectedTemplateId || undefined,
-        clauseTemplateId: usedTemplateId,
+        ...(usedTemplateId && { clauseTemplateId: usedTemplateId }),
         contractClauses
       };
 

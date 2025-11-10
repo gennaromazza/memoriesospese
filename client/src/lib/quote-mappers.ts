@@ -22,7 +22,7 @@ export function catalogProductToQuoteProduct(
     selected: quoteType === 'fisso' ? true : undefined,
     numeroFoto: product.numeroFoto,
     categoria: product.categoria,
-    // Note: immagini stored in catalog, fetched on display
+    immagini: product.immagini || []
   };
 }
 

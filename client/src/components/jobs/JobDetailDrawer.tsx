@@ -107,7 +107,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
   
   // Query multiple clienti
   const { data: clienti = [] } = useQuery({
-    queryKey: ['job-clienti', job?.clientiIds],
+    queryKey: ['clienti', 'job', job?.clientiIds],
     queryFn: async () => {
       if (!job?.clientiIds || job.clientiIds.length === 0) return [];
       const { getClienteById } = await import('@/lib/clienti');

@@ -54,17 +54,17 @@ export function ClientiManager() {
   
   // Data fetching
   const { data: clienti = [], isLoading: isLoadingClienti } = useQuery({
-    queryKey: ['/api/clienti'],
+    queryKey: ['clienti'],
     queryFn: getAllClienti,
   });
   
   const { data: stats } = useQuery({
-    queryKey: ['/api/clienti/stats'],
+    queryKey: ['clienti', 'stats'],
     queryFn: getClienteStats,
   });
   
   const { data: duplicates = [] } = useQuery({
-    queryKey: ['/api/clienti/duplicates'],
+    queryKey: ['clienti', 'duplicates'],
     queryFn: detectDuplicates,
   });
   
@@ -72,8 +72,8 @@ export function ClientiManager() {
   const createMutation = useMutation({
     mutationFn: createCliente,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'stats'] });
       toast({
         title: '✅ Cliente creato',
         description: 'Il cliente è stato aggiunto con successo.',
@@ -95,7 +95,7 @@ export function ClientiManager() {
     mutationFn: ({ id, data }: { id: string; data: UpdateCliente }) =>
       updateCliente(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti'] });
       toast({
         title: '✅ Cliente aggiornato',
         description: 'Le modifiche sono state salvate.',
@@ -117,10 +117,10 @@ export function ClientiManager() {
     mutationFn: deleteCliente,
     onMutate: async (clienteId) => {
       // Optimistic update: rimuovi immediatamente dalla UI
-      await queryClient.cancelQueries({ queryKey: ['/api/clienti'] });
-      const previousClienti = queryClient.getQueryData(['/api/clienti']);
+      await queryClient.cancelQueries({ queryKey: ['clienti'] });
+      const previousClienti = queryClient.getQueryData(['clienti']);
       
-      queryClient.setQueryData(['/api/clienti'], (old: Cliente[] | undefined) => 
+      queryClient.setQueryData(['clienti'], (old: Cliente[] | undefined) => 
         old?.filter(c => c.id !== clienteId) || []
       );
       
@@ -129,7 +129,7 @@ export function ClientiManager() {
     onError: (error: unknown, _, context) => {
       // Rollback su errore
       if (context?.previousClienti) {
-        queryClient.setQueryData(['/api/clienti'], context.previousClienti);
+        queryClient.setQueryData(['clienti'], context.previousClienti);
       }
       
       const message = error instanceof Error ? error.message : 'Errore sconosciuto';
@@ -140,9 +140,9 @@ export function ClientiManager() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'duplicates'] });
       toast({
         title: '✅ Cliente eliminato',
         description: 'Il cliente è stato rimosso dal sistema.',
@@ -159,9 +159,9 @@ export function ClientiManager() {
     mutationFn: ({ primaryId, duplicateIds }: { primaryId: string; duplicateIds: string[] }) =>
       mergeClientes(primaryId, duplicateIds),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'duplicates'] });
       toast({
         title: '✅ Duplicati uniti',
         description: 'I clienti duplicati sono stati consolidati con successo.',
@@ -182,9 +182,9 @@ export function ClientiManager() {
   const autoMergeMutation = useMutation({
     mutationFn: autoMergeDuplicatesByEmail,
     onSuccess: (result: AutoMergeResult) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'duplicates'] });
       
       if (result.success) {
         toast({
@@ -215,9 +215,9 @@ export function ClientiManager() {
   const syncMutation = useMutation({
     mutationFn: syncClientiFromAllSources,
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['clienti', 'duplicates'] });
       
       toast({
         title: '✅ Sincronizzazione completata',
@@ -512,9 +512,9 @@ export function ClientiManager() {
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
         onImportComplete={() => {
-          queryClient.invalidateQueries({ queryKey: ['/api/clienti'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/clienti/stats'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/clienti/duplicates'] });
+          queryClient.invalidateQueries({ queryKey: ['clienti'] });
+          queryClient.invalidateQueries({ queryKey: ['clienti', 'stats'] });
+          queryClient.invalidateQueries({ queryKey: ['clienti', 'duplicates'] });
         }}
       />
 
