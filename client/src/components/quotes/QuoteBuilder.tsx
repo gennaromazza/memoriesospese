@@ -445,7 +445,7 @@ export default function QuoteBuilder({
                 nome: cliente.nome,
                 cognome: cliente.cognome,
                 email: cliente.email,
-                telefono: cliente.cellulare1 || '',
+                telefono: cliente.cellulare1 || cliente.cellulare2 || '',
                 indirizzo: cliente.via || '',
                 cap: cliente.cap || '',
                 citta: cliente.citta || ''

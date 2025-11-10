@@ -152,6 +152,15 @@ export async function createQuote(
       ...(data.expiresAt && { expiresAt: Timestamp.fromDate(data.expiresAt) }), // Solo se definito
       ...(data.noteInterne && { noteInterne: data.noteInterne }), // Solo se definito
       ...(paymentScheduleConfig && { paymentScheduleConfig }), // Solo se definito
+      ...(data.jobInfo && { 
+        jobInfo: {
+          nomeEvento: data.jobInfo.nomeEvento,
+          eventDate: data.jobInfo.eventDate,
+          rito: data.jobInfo.rito,
+          location: data.jobInfo.location
+        }
+      }), // Solo se definito
+      ...(data.clientiInfo && data.clientiInfo.length > 0 && { clientiInfo: data.clientiInfo }), // Solo se definito
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       createdBy: userId
