@@ -486,11 +486,13 @@ export default function QuoteSignedPortalPage() {
                 <div className="flex flex-col items-center gap-2 sm:gap-3">
                   <p className="text-xs sm:text-sm text-mint/80 font-medium">Hai bisogno di assistenza?</p>
                   <a 
-                    href="mailto:info@imagestudiofotografico.com" 
-                    className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-white text-blue-gray rounded-full text-sm sm:text-base font-semibold hover:bg-off-white transition-colors shadow-lg"
+                    href={`https://wa.me/393341327691?text=${encodeURIComponent(`Ciao, ho bisogno di assistenza per il mio contratto: ${window.location.href}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-[#25D366] text-white rounded-full text-sm sm:text-base font-semibold hover:bg-[#20BD5A] transition-colors shadow-lg"
                   >
-                    <Mail className="w-4 h-4" />
-                    <span className="break-all">info@imagestudiofotografico.com</span>
+                    <Phone className="w-4 h-4" />
+                    <span>Contattaci su WhatsApp</span>
                   </a>
                 </div>
               </div>
