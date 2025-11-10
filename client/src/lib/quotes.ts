@@ -592,6 +592,30 @@ export async function getQuoteTemplate(templateId: string): Promise<QuoteTemplat
 }
 
 /**
+ * Reimposta firma preventivo (firmato → bozza)
+ * Admin-only - Rimuove firma e dataFirma mantenendo resto dei dati
+ */
+export async function resetQuoteSignature(quoteId: string, adminEmail: string): Promise<void> {
+  try {
+    const response = await fetch(`/api/quotes/${quoteId}/reset-signature`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-email': adminEmail
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || errorData.message || 'Errore reimpostazione firma');
+    }
+  } catch (error) {
+    console.error('❌ Errore reset signature:', error);
+    throw error;
+  }
+}
+
+/**
  * Elimina preventivo con cascade cleanup
  * Admin-only, blocca se firmato con pagamenti registrati
  * @param forceDelete - Se true, override protezione preventivi firmati

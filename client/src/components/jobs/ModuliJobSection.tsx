@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getQuotesForJob, deleteQuote } from '@/lib/quotes';
+import { getQuotesForJob, deleteQuote, resetQuoteSignature } from '@/lib/quotes';
 import { Quote, QuoteStatus } from '@shared/quotes-types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,6 +77,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
+  const [resetQuoteId, setResetQuoteId] = useState<string | null>(null);
   const [forceDeleteMode, setForceDeleteMode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
@@ -124,6 +125,32 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         setDeleteQuoteId(null);
         setForceDeleteMode(false);
       }
+    }
+  });
+
+  // Reset signature mutation
+  const resetMutation = useMutation({
+    mutationFn: async (quoteId: string) => {
+      if (!user?.email) throw new Error('Utente non autenticato');
+      await resetQuoteSignature(quoteId, user.email);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      setSelectedQuoteId(null);
+      setResetQuoteId(null);
+      toast({
+        title: 'Firma reimpostata',
+        description: 'Il preventivo è tornato in stato "Bozza"'
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore reimpostazione',
+        description: error.message || 'Impossibile reimpostare la firma',
+        variant: 'destructive'
+      });
+      setResetQuoteId(null);
     }
   });
 
@@ -284,6 +311,21 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {/* Reset signature (only for signed quotes) */}
+                        {selectedQuote.status === 'firmato' && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => setResetQuoteId(selectedQuote.id)}
+                              data-testid="menu-reset-signature"
+                            >
+                              <AlertTriangle className="h-4 w-4 mr-2" />
+                              Reimposta Firma
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        
+                        {/* Delete quote */}
                         <DropdownMenuItem
                           onClick={() => setDeleteQuoteId(selectedQuote.id)}
                           className="text-destructive"
@@ -580,6 +622,62 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
                   {forceDeleteMode ? 'Elimina Comunque' : 'Elimina Definitivamente'}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Signature Confirmation Dialog */}
+      <AlertDialog open={!!resetQuoteId} onOpenChange={(open) => !open && setResetQuoteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Reimposta Firma Preventivo
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2">
+              <p>
+                Stai per reimpostare la firma del preventivo. Questa azione:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm pl-2">
+                <li>Cambierà lo status da <strong>Firmato</strong> a <strong>Bozza</strong></li>
+                <li>Rimuoverà la firma digitale del cliente</li>
+                <li>Cancellerà la data di firma</li>
+                <li>Manterrà tutti gli altri dati del preventivo (prodotti, prezzi, clienti)</li>
+              </ul>
+              <p className="text-amber-700 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md border border-amber-200 dark:border-amber-800">
+                ⚠️ Il cliente dovrà firmare nuovamente il preventivo se necessario.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => setResetQuoteId(null)}
+              data-testid="button-cancel-reset"
+            >
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (resetQuoteId) {
+                  resetMutation.mutate(resetQuoteId);
+                }
+              }}
+              disabled={resetMutation.isPending}
+              className="bg-amber-600 hover:bg-amber-700"
+              data-testid="button-confirm-reset"
+            >
+              {resetMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Reimpostazione...
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Reimposta Firma
                 </>
               )}
             </AlertDialogAction>

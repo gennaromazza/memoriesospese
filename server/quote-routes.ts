@@ -586,6 +586,76 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 /**
+ * PATCH /api/quotes/:id/reset-signature
+ * Reimposta firma preventivo (firmato → bozza)
+ * Admin-only - Rimuove firma e dataFirma mantenendo resto dei dati
+ */
+router.patch('/:id/reset-signature', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adminEmail = req.headers['x-admin-email'] as string;
+
+    // 1. Validate admin
+    if (!adminEmail || !isAdminEmail(adminEmail)) {
+      return res.status(403).json({
+        error: 'Non autorizzato',
+        message: 'Solo gli admin possono reimpostare le firme'
+      });
+    }
+
+    // 2. Fetch quote
+    const quoteRef = db.collection('quotes').doc(id);
+    const quoteDoc = await quoteRef.get();
+
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: 'Il preventivo specificato non esiste'
+      });
+    }
+
+    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+    // 3. Validate quote is signed
+    if (quote.status !== 'firmato') {
+      return res.status(400).json({
+        error: 'Preventivo non firmato',
+        message: 'Solo i preventivi firmati possono essere reimpostati'
+      });
+    }
+
+    // 4. Reset signature fields and clause acceptance
+    // Reset contractClauses: omit accepted/acceptedAt (Firestore doesn't allow FieldValue.delete in arrays)
+    const resetClauses = quote.contractClauses.map(clause => {
+      const { accepted, acceptedAt, ...rest } = clause as any;
+      return rest;
+    });
+
+    await quoteRef.update({
+      status: 'bozza',
+      signature: FieldValue.delete(),        // Remove QuoteSignature object
+      contractClauses: resetClauses,         // Reset clause acceptance (omit accepted/acceptedAt)
+      clausesAccepted: FieldValue.delete(),  // Remove top-level accepted clauses array
+      // Legacy fields (backward compatibility)
+      dataFirma: FieldValue.delete(),
+      clienteFirma: FieldValue.delete()
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Firma reimpostata con successo'
+    });
+
+  } catch (error) {
+    console.error('❌ Errore reset signature:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
  * POST /api/quotes/send-quote
  * Invia preventivo via email al cliente
  * PUBBLICO - può essere chiamato dall'admin senza autenticazione Firebase
