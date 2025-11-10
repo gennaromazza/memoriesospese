@@ -4,6 +4,18 @@
 Image Studio è una piattaforma all-in-one per fotografi professionisti che rivoluziona la gestione dello studio fotografico. Non è solo un semplice sito di gallerie, ma un ecosistema completo che unisce fotografi e clienti in un'unica esperienza digitale integrata.
 
 ## Recent Changes (November 2025)
+- **Quote Email Notification System** (November 10, 2025): Sistema completo di notifiche email automatiche per preventivi
+  - **3 Template HTML Professionali**: createQuoteSentEmailHTML (invio preventivo), createQuoteAcceptedEmailHTML (conferma firma), createPaymentReminderEmailHTML (promemoria scadenze)
+  - **3 API Endpoints**: POST /api/quotes/send-quote, /api/quotes/quote-signed-notification, /api/quotes/payment-reminder
+  - **Automatic Email Dispatch**: Email automatica quando admin crea preventivo (QuoteBuilder.tsx onSuccess) e quando cliente firma (acceptQuote in quotes.ts)
+  - **Robust Error Handling**: Email failures non bloccano il flusso principale, toast notifications per feedback utente
+  - **Multi-Fallback Email Resolution**: quote.sentTo → clientiInfo[0].email → clienteId lookup
+  - **Tracking Fields**: sentAt, sentTo aggiornati automaticamente su quote document
+  - **Manual Payment Reminders**: Endpoint pubblico per invio promemoria manuale/schedulato con calcolo giorni scadenza
+  - **Files Modified**:
+    - Backend: `server/email-routes.ts` (3 template esportati), `server/quote-routes.ts` (3 endpoint)
+    - Frontend: `client/src/components/quotes/QuoteBuilder.tsx` (auto-send on create), `client/src/lib/quotes.ts` (auto-send on accept)
+
 - **Job Detail Page - Gestionale Completo** (November 8, 2025): Pagina dettaglio lavoro professionale ispirata al vecchio gestionale
   - **Layout 2 Colonne**: Main content + Workflow timeline sidebar
   - **Header Completo**: Nome evento, data/orari, badges tipo/status, actions dropdown menu
