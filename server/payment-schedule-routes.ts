@@ -284,17 +284,153 @@ router.post('/generate-auto', async (req: Request, res: Response) => {
 
 /**
  * POST /api/payment-schedules/generate
- * Genera piano pagamenti da quote
+ * HYBRID: Genera piano pagamenti automaticamente (presetType) o manualmente (payments)
  */
 router.post('/generate', async (req: Request, res: Response) => {
   try {
-    const { quoteId, jobId, clienteId, payments, totale } = req.body;
+    const { quoteId, jobId, clienteId, payments, totale, presetType } = req.body;
 
-    // Validazione input
-    if (!quoteId || !jobId || !clienteId || !payments || !Array.isArray(payments)) {
+    // Validazione base
+    if (!quoteId || !jobId || !clienteId) {
       return res.status(400).json({
         error: 'Parametri mancanti',
-        message: 'quoteId, jobId, clienteId, payments richiesti'
+        message: 'quoteId, jobId, clienteId richiesti'
+      });
+    }
+
+    // ==== MODE 1: AUTOMATIC (presetType provided) ====
+    if (presetType) {
+      // Fetch quote per calcolare totale automaticamente
+      const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+      if (!quoteDoc.exists) {
+        return res.status(404).json({
+          error: 'Preventivo non trovato',
+          message: `Quote ${quoteId} non esiste`
+        });
+      }
+
+      const quote = quoteDoc.data();
+      if (!quote) {
+        return res.status(500).json({ error: 'Dati quote non validi' });
+      }
+
+      const totaleQuote = quote.totalAfterDiscount || quote.totaleSelezionato || 0;
+      if (totaleQuote <= 0) {
+        return res.status(400).json({
+          error: 'Totale preventivo non valido',
+          message: 'Il preventivo deve avere un totale > 0'
+        });
+      }
+
+      const today = new Date();
+      const addDaysHelper = (date: Date, days: number) => {
+        const result = new Date(date);
+        result.setDate(result.getDate() + days);
+        return result;
+      };
+
+      // Genera payments automaticamente
+      let paymentsData: Array<{tipo: string, importo: number, dataScadenza: Date, descrizione: string}> = [];
+      
+      switch (presetType) {
+        case 'acconto-saldo':
+          paymentsData = [
+            { tipo: 'acconto', importo: totaleQuote * 0.3, dataScadenza: addDaysHelper(today, 7), descrizione: 'Acconto 30%' },
+            { tipo: 'saldo', importo: totaleQuote * 0.7, dataScadenza: addDaysHelper(today, 30), descrizione: 'Saldo 70%' },
+          ];
+          break;
+        case '2-rate':
+          paymentsData = [
+            { tipo: 'acconto', importo: totaleQuote / 2, dataScadenza: addDaysHelper(today, 7), descrizione: 'Prima rata (50%)' },
+            { tipo: 'saldo', importo: totaleQuote / 2, dataScadenza: addDaysHelper(today, 30), descrizione: 'Seconda rata (50%)' },
+          ];
+          break;
+        case '3-rate':
+          paymentsData = [
+            { tipo: 'acconto', importo: totaleQuote / 3, dataScadenza: addDaysHelper(today, 7), descrizione: 'Prima rata (1/3)' },
+            { tipo: 'rata', importo: totaleQuote / 3, dataScadenza: addDaysHelper(today, 30), descrizione: 'Seconda rata (2/3)' },
+            { tipo: 'saldo', importo: totaleQuote / 3, dataScadenza: addDaysHelper(today, 60), descrizione: 'Terza rata (3/3)' },
+          ];
+          break;
+        default:
+          return res.status(400).json({
+            error: 'Preset non valido',
+            message: 'presetType deve essere: acconto-saldo, 2-rate o 3-rate'
+          });
+      }
+
+      // Crea ScheduledPayment[] con rounding fix
+      const scheduledPayments = paymentsData.map((p) => ({
+        id: nanoid(),
+        tipo: p.tipo as 'acconto' | 'rata' | 'saldo',
+        importo: Math.round(p.importo * 100) / 100,
+        dataScadenza: Timestamp.fromDate(p.dataScadenza),
+        stato: 'atteso' as const,
+        note: p.descrizione,
+      }));
+
+      // Fix rounding: adjust last payment
+      const totaleRounded = scheduledPayments.reduce((sum, p) => sum + p.importo, 0);
+      const differenza = Math.round((totaleQuote - totaleRounded) * 100) / 100;
+      
+      if (Math.abs(differenza) > 0) {
+        scheduledPayments[scheduledPayments.length - 1].importo = 
+          Math.round((scheduledPayments[scheduledPayments.length - 1].importo + differenza) * 100) / 100;
+      }
+
+      const totalePagamenti = scheduledPayments.reduce((sum, p) => sum + p.importo, 0);
+
+      // Salva schedule
+      const scheduleId = nanoid();
+      const now = Timestamp.now();
+
+      const paymentSchedule = {
+        id: scheduleId,
+        jobId,
+        quoteId,
+        orderId: '',
+        clienteId,
+        payments: scheduledPayments,
+        totale: totalePagamenti,
+        totalePagato: 0,
+        saldoResiduo: totalePagamenti,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'admin',
+      };
+
+      await db.collection('paymentSchedules').doc(scheduleId).set(paymentSchedule);
+
+      // Timeline
+      try {
+        const timelineEventId = nanoid();
+        await db.collection('jobTimeline').doc(timelineEventId).set({
+          id: timelineEventId,
+          jobId,
+          evento: 'Piano pagamenti generato automaticamente',
+          descrizione: `Creato ${presetType} con ${scheduledPayments.length} rate per un totale di €${totalePagamenti.toFixed(2)}`,
+          categoria: 'pagamenti',
+          timestamp: now,
+          userId: 'admin',
+        });
+      } catch (timelineError) {
+        console.error('❌ Errore timeline:', timelineError);
+      }
+
+      return res.status(201).json({
+        success: true,
+        scheduleId,
+        presetType,
+        message: `Piano pagamenti ${presetType} generato automaticamente`,
+        data: paymentSchedule,
+      });
+    }
+
+    // ==== MODE 2: MANUAL (payments provided) ====
+    if (!payments || !Array.isArray(payments)) {
+      return res.status(400).json({
+        error: 'Parametri mancanti',
+        message: 'payments richiesto per modalità manuale'
       });
     }
 

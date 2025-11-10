@@ -80,6 +80,7 @@ export default function GeneraPagamentiModal({
 }: GeneraPagamentiModalProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'automatico' | 'manuale'>('automatico');
+  const [selectedPreset, setSelectedPreset] = useState<'acconto-saldo' | '2-rate' | '3-rate'>('acconto-saldo');
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -107,6 +108,14 @@ export default function GeneraPagamentiModal({
 
   // Presets automatici
   const applyPreset = (preset: '30-70' | '50-50' | '3-rate') => {
+    // Map frontend preset to backend presetType
+    const presetTypeMap: Record<string, 'acconto-saldo' | '2-rate' | '3-rate'> = {
+      '30-70': 'acconto-saldo',
+      '50-50': '2-rate',
+      '3-rate': '3-rate',
+    };
+    setSelectedPreset(presetTypeMap[preset]);
+
     const today = new Date();
     let newPayments: { importo: number; dataScadenza: Date; descrizione: string }[] = [];
 
@@ -161,23 +170,32 @@ export default function GeneraPagamentiModal({
         break;
     }
 
-    replace(newPayments); // Use useFieldArray replace to sync fields
-    setActiveTab('manuale'); // Switch to manual tab per review
+    replace(newPayments); // Use useFieldArray replace to sync fields per preview
+    // Note: NON switch a 'manuale' altrimenti mutation invia payments invece di presetType
   };
 
-  // Mutation: crea payment schedule
+  // Mutation: crea payment schedule (automatic vs manual)
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      const body = activeTab === 'automatico'
+        ? {
+            quoteId,
+            jobId,
+            clienteId,
+            presetType: selectedPreset, // Server calcola automaticamente
+          }
+        : {
+            quoteId,
+            jobId,
+            clienteId,
+            payments: data.payments,
+            totale: quoteTotale,
+          };
+
       const response = await fetch('/api/payment-schedules/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          quoteId,
-          jobId,
-          clienteId,
-          payments: data.payments,
-          totale: quoteTotale,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
