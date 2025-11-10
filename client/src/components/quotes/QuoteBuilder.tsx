@@ -424,6 +424,39 @@ export default function QuoteBuilder({
       const subtotale = mergedProducts.reduce((sum, p) => sum + p.prezzo, 0);
       const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
 
+      // Prepara jobInfo e clientiInfo per il portale firmato
+      const jobInfo = job ? {
+        nomeEvento: job.nomeEvento,
+        eventDate: job.eventDate,
+        rito: job.rituLocation || '',
+        location: job.eventLocation || ''
+      } : undefined;
+
+      // Fetch clienti completi da Firestore per includere tutti i dati
+      const clientiInfo = [];
+      if (job?.clientiIds && job.clientiIds.length > 0) {
+        const { getCliente } = await import('@/lib/clienti');
+        for (const clienteId of job.clientiIds) {
+          try {
+            const cliente = await getCliente(clienteId);
+            if (cliente) {
+              clientiInfo.push({
+                id: cliente.id,
+                nome: cliente.nome,
+                cognome: cliente.cognome,
+                email: cliente.email,
+                telefono: cliente.cellulare1 || '',
+                indirizzo: cliente.via || '',
+                cap: cliente.cap || '',
+                citta: cliente.citta || ''
+              });
+            }
+          } catch (error) {
+            console.warn(`Impossibile caricare cliente ${clienteId}:`, error);
+          }
+        }
+      }
+
       const quoteData = {
         jobId: data.jobId,
         clienteId: data.clienteId,
@@ -439,7 +472,9 @@ export default function QuoteBuilder({
         paymentScheduleConfig: data.paymentScheduleConfig,
         templateId: selectedTemplateId || undefined,
         ...(usedTemplateId && { clauseTemplateId: usedTemplateId }),
-        contractClauses
+        contractClauses,
+        ...(jobInfo && { jobInfo }),
+        ...(clientiInfo.length > 0 && { clientiInfo })
       };
 
       return createQuote(quoteData, user!.uid);

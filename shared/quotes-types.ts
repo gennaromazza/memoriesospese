@@ -150,6 +150,26 @@ export interface Quote {
   // Payment schedules linkage (for atomic cascade deletes)
   paymentScheduleIds?: string[];    // IDs degli scadenzari pagamenti collegati
   
+  // Dati job per portale pubblico
+  jobInfo?: {
+    nomeEvento: string;
+    eventDate: Timestamp;
+    rito: string;
+    location: string;
+  };
+  
+  // Dati clienti per portale pubblico (supporta multipli)
+  clientiInfo?: Array<{
+    id: string;
+    nome: string;
+    cognome: string;
+    email: string;
+    telefono: string;
+    indirizzo: string;
+    cap: string;
+    citta: string;
+  }>;
+  
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -174,6 +194,22 @@ export interface InsertQuote {
   expiresAt?: Date;
   noteInterne?: string;
   paymentScheduleConfig?: PaymentScheduleConfig;
+  jobInfo?: {
+    nomeEvento: string;
+    eventDate: any;
+    rito: string;
+    location: string;
+  };
+  clientiInfo?: Array<{
+    id: string;
+    nome: string;
+    cognome: string;
+    email: string;
+    telefono: string;
+    indirizzo: string;
+    cap: string;
+    citta: string;
+  }>;
 }
 
 /**
