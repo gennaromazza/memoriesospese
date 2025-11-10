@@ -20,7 +20,15 @@ interface QuoteSignedPortalData {
   quote: Quote & { signedAt?: any };
   paymentSchedule: PaymentSchedule | null;
   jobInfo: { nomeEvento?: string; eventDate?: any } | null;
-  clienteInfo: { nome?: string; cognome?: string; email?: string; telefono?: string } | null;
+  clienteInfo: {
+    nome?: string;
+    cognome?: string;
+    email?: string;
+    telefono?: string;
+    indirizzo?: string;
+    citta?: string;
+    cap?: string;
+  } | null;
 }
 
 export default function QuoteSignedPortalPage() {
@@ -224,6 +232,26 @@ export default function QuoteSignedPortalPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-dark-sage uppercase tracking-wide">Telefono</p>
                         <p className="font-medium text-gray-900">{clienteInfo.telefono}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {(clienteInfo.indirizzo || clienteInfo.citta || clienteInfo.cap) && (
+                    <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
+                      <div className="p-2 bg-mint rounded-full flex-shrink-0">
+                        <MapPin className="w-4 h-4 text-blue-gray" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-dark-sage uppercase tracking-wide">Indirizzo</p>
+                        <p className="font-medium text-gray-900">
+                          {clienteInfo.indirizzo && <>{clienteInfo.indirizzo}<br /></>}
+                          {(clienteInfo.citta || clienteInfo.cap) && (
+                            <>
+                              {clienteInfo.cap ? `${clienteInfo.cap} ` : ''}
+                              {clienteInfo.citta}
+                            </>
+                          )}
+                        </p>
                       </div>
                     </div>
                   )}
