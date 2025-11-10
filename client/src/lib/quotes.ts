@@ -97,11 +97,18 @@ export async function createQuote(
       id: nanoid()
     }));
     
-    // Merge theme preservando tutti i campi
+    // Merge theme preservando tutti i campi, filtrando undefined
     const defaultTheme = getDefaultTheme();
+    const cleanDataTheme = Object.entries(data.theme || {}).reduce((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as any);
+    
     const theme = {
       ...defaultTheme,
-      ...data.theme // Sovrascrive con campi forniti (preserva headerImage, fontFamily, etc.)
+      ...cleanDataTheme // Sovrascrive solo campi definiti
     };
 
     // Prepara paymentScheduleConfig solo se autoGenerate attivo E type === 'fisso'
@@ -148,6 +155,9 @@ export async function createQuote(
       updatedAt: Timestamp.now(),
       createdBy: userId
     };
+
+    // DEBUG: Log payload prima di inviare a Firestore
+    console.log('🔍 Payload preventivo prima di Firestore:', JSON.stringify(quoteData, null, 2));
 
     const docRef = await addDoc(collection(db, QUOTES_COLLECTION), quoteData);
     
