@@ -8,6 +8,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useLocation } from 'wouter';
 import { createJob } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
@@ -97,6 +98,7 @@ interface CreateJobModalProps {
 export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dateInputValue, setDateInputValue] = useState('');
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
@@ -238,7 +240,7 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   // Mutation crea job
   const createMutation = useMutation({
     mutationFn: (data: FormData) => createJob(data, user!.uid),
-    onSuccess: () => {
+    onSuccess: (jobId: string) => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       toast({
         title: 'Lavoro creato!',
@@ -247,6 +249,9 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
       form.reset();
       setSelectedClienti([]);
       onClose();
+      
+      // Redirect automatico a JobDetailPage
+      navigate(`/admin/jobs/${jobId}`);
     },
     onError: (error: any) => {
       toast({

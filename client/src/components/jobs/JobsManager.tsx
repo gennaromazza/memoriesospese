@@ -272,6 +272,7 @@ export default function JobsManager() {
               <TableRow>
                 <TableHead className="font-semibold">Nome Evento</TableHead>
                 <TableHead className="hidden md:table-cell font-semibold">Cliente/i</TableHead>
+                <TableHead className="hidden lg:table-cell font-semibold">Location</TableHead>
                 <TableHead className="font-semibold">Data/Orario</TableHead>
                 <TableHead className="font-semibold">Tipo</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
@@ -291,17 +292,9 @@ export default function JobsManager() {
                     onClick={() => navigate(`/admin/jobs/${job.id}`)}
                     data-testid={`job-row-${job.id}`}
                   >
-                    {/* Nome Evento + Location */}
+                    {/* Nome Evento */}
                     <TableCell className="font-medium">
-                      <div className="space-y-1">
-                        <div className="font-semibold">{job.nomeEvento}</div>
-                        {job.eventLocation && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {job.eventLocation}
-                          </div>
-                        )}
-                      </div>
+                      <div className="font-semibold">{job.nomeEvento}</div>
                     </TableCell>
                     
                     {/* Cliente/i */}
@@ -310,6 +303,18 @@ export default function JobsManager() {
                         <div className="flex items-center gap-1 text-sm">
                           <User className="w-3 h-3" />
                           {job.clientiIds.length} client{job.clientiIds.length === 1 ? 'e' : 'i'}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
+                    
+                    {/* Location */}
+                    <TableCell className="hidden lg:table-cell">
+                      {job.eventLocation ? (
+                        <div className="flex items-center gap-1 text-sm">
+                          <MapPin className="w-3 h-3 text-muted-foreground" />
+                          <span>{job.eventLocation}</span>
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-sm">—</span>
