@@ -28,13 +28,12 @@ interface QuotePublicData {
   jobInfo: { 
     nomeEvento?: string; 
     eventDate?: string | null;
-    eventLocation?: string;
-    rituLocation?: string;
+    location?: string;
+    rito?: string;
     rituTime?: string;
     startTime?: string;
     endTime?: string;
     allDay?: boolean;
-    clientiIds?: string[];
   } | null;
   clientiInfo?: Array<{ 
     id: string;
@@ -42,10 +41,9 @@ interface QuotePublicData {
     cognome?: string;
     email?: string;
     telefono?: string;
-    via?: string;
+    indirizzo?: string;
     citta?: string;
     cap?: string;
-    provincia?: string;
   }>;
 }
 
@@ -365,25 +363,25 @@ export default function QuotePublicViewPage() {
               </div>
 
               {/* Location Evento */}
-              {jobInfo.eventLocation && (
+              {jobInfo.location && (
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
                   <div>
                     <p className="text-sm text-gray-600">Location Evento</p>
-                    <p className="font-semibold">{jobInfo.eventLocation}</p>
+                    <p className="font-semibold">{jobInfo.location}</p>
                   </div>
                 </div>
               )}
 
               {/* Rito/Celebrazione */}
-              {(jobInfo.rituLocation || jobInfo.rituTime) && (
+              {(jobInfo.rito || jobInfo.rituTime) && (
                 <div className="grid md:grid-cols-2 gap-4">
-                  {jobInfo.rituLocation && (
+                  {jobInfo.rito && (
                     <div className="flex items-start gap-3">
                       <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
                       <div>
                         <p className="text-sm text-gray-600">Luogo Rito/Celebrazione</p>
-                        <p className="font-semibold">{jobInfo.rituLocation}</p>
+                        <p className="font-semibold">{jobInfo.rito}</p>
                       </div>
                     </div>
                   )}
@@ -455,7 +453,7 @@ export default function QuotePublicViewPage() {
                           )}
 
                           {/* Indirizzo */}
-                          {(cliente.via || cliente.citta) && (
+                          {(cliente.indirizzo || cliente.citta) && (
                             <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-mint/10 transition-colors">
                               <div className="w-8 h-8 rounded-full bg-cream/50 flex items-center justify-center flex-shrink-0">
                                 <Home className="w-4 h-4 text-blue-gray" />
@@ -463,12 +461,11 @@ export default function QuotePublicViewPage() {
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs text-sage uppercase font-medium mb-1">Indirizzo</p>
                                 <div className="text-sm text-blue-gray">
-                                  {cliente.via && <p className="font-medium">{cliente.via}</p>}
+                                  {cliente.indirizzo && <p className="font-medium">{cliente.indirizzo}</p>}
                                   {cliente.citta && (
                                     <p className="text-dark-sage">
                                       {cliente.cap && `${cliente.cap} `}
                                       {cliente.citta}
-                                      {cliente.provincia && ` (${cliente.provincia})`}
                                     </p>
                                   )}
                                 </div>
