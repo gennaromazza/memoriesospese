@@ -126,8 +126,8 @@ export async function createQuote(
       ...(data.templateId && { templateName: await getTemplateName(data.templateId) }), // Solo se templateId definito
       theme,
       products: validatedProducts,  // Prodotti con prezzi validati server-side
-      discountType: data.discountType,
-      discountValue: data.discountValue,
+      ...(data.discountType && { discountType: data.discountType }), // Solo se definito
+      ...(data.discountValue !== undefined && { discountValue: data.discountValue }), // Solo se definito
       totalBeforeDiscount,  // Server-calculated from trusted prices
       totalAfterDiscount,   // Server-calculated from trusted prices
       totaleBase: totalBeforeDiscount, // Backward compatibility

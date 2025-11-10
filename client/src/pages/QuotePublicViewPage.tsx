@@ -3,7 +3,7 @@
  * Portale pubblico cliente per visualizzare e firmare preventivo
  */
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import SignatureCanvas from 'react-signature-canvas';
@@ -19,6 +19,7 @@ import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar 
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
 import type { Quote, QuoteProduct, QuoteClause } from '@shared/quotes-types';
+import { calculateQuoteTotals } from '@shared/quote-utils';
 
 interface QuotePublicData {
   quote: Quote;
@@ -145,19 +146,30 @@ export default function QuotePublicViewPage() {
   const allRequiredAccepted = requiredClauses.every(c => acceptedClauses.includes(c.id));
   const canSign = signerName.trim().length > 0 && allRequiredAccepted && !acceptMutation.isPending;
 
-  // Calculate totale
-  const calculateTotale = () => {
-    if (!quote) return 0;
-    if (quote.type === 'fisso') {
-      return quote.totaleBase ?? quote.totalAfterDiscount ?? 0;
+  // Calculate totals with discount
+  const totals = useMemo(() => {
+    if (!quote) {
+      return { totalBeforeDiscount: 0, discountAmount: 0, totalAfterDiscount: 0 };
     }
-    // Variabile: sum selected products
-    return (quote.products ?? [])
+    
+    if (quote.type === 'fisso') {
+      // Fixed quote: use server-calculated totals
+      const totalAfterDiscount = quote.totalAfterDiscount ?? quote.totaleBase ?? 0;
+      const totalBeforeDiscount = quote.totalBeforeDiscount ?? totalAfterDiscount;
+      const discountAmount = totalBeforeDiscount - totalAfterDiscount;
+      return { totalBeforeDiscount, discountAmount, totalAfterDiscount };
+    }
+    
+    // Variable quote: calculate subtotal of selected products
+    const subtotale = (quote.products ?? [])
       .filter(p => selectedProducts.includes(p.nome))
       .reduce((sum, p) => sum + p.prezzo, 0);
-  };
+    
+    // Apply discount to selected subtotal
+    return calculateQuoteTotals(subtotale, quote.discountType, quote.discountValue);
+  }, [quote, selectedProducts]);
 
-  const totale = calculateTotale();
+  const totale = totals.totalAfterDiscount;
 
   // Theme colors with fallback
   const primaryColor = quote?.theme?.primaryColor ?? '#8B9A8B';
@@ -453,6 +465,25 @@ export default function QuotePublicViewPage() {
             ))}
 
             <Separator className="my-4" />
+
+            {/* Discount Breakdown */}
+            {totals.discountAmount > 0 && (
+              <div className="space-y-2 text-sm mb-4">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotale</span>
+                  <span>{formatCurrency(totals.totalBeforeDiscount)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600 font-medium">
+                  <span>
+                    Sconto
+                    {quote.discountType === 'percent' && typeof quote.discountValue === 'number'
+                      ? ` (${quote.discountValue}%)`
+                      : ''}
+                  </span>
+                  <span>-{formatCurrency(totals.discountAmount)}</span>
+                </div>
+              </div>
+            )}
 
             {/* Totale */}
             <div className="flex justify-between items-center text-xl font-bold">
