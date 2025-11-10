@@ -4,6 +4,19 @@
 Image Studio è una piattaforma all-in-one per fotografi professionisti che rivoluziona la gestione dello studio fotografico. Non è solo un semplice sito di gallerie, ma un ecosistema completo che unisce fotografi e clienti in un'unica esperienza digitale integrata.
 
 ## Recent Changes (November 2025)
+- **Order Payment Email Notification System** (November 10, 2025): Sistema automatico di notifiche email per registrazione pagamenti
+  - **Professional HTML Template**: createOrderPaymentReceivedEmailHTML con design luxury Image Studio palette
+  - **Email Content**: Tipo pagamento (acconto/saldo), importo, metodo, data, note opzionali, saldo rimanente con scadenza
+  - **API Endpoint**: POST /api/orders/payment-received-notification (validates orderId, paymentType, paymentAmount, paymentMethod, paymentDate)
+  - **Automatic Email Dispatch**: Email inviata automaticamente DOPO updateDoc in recordSaldoPayment e addAccontoPayment (non-blocking try-catch)
+  - **Critical Bug Fixed**: remainingBalance calculation corretto usando orderData.saldo post-update (era: totale - paymentAmount ignorando acconti multipli)
+  - **Transaction Tracking**: markTransactionEmailSent aggiorna flag emailInviata dopo invio email
+  - **Error Handling**: Email failures non bloccano registrazione pagamento, console logging per debugging
+  - **Email Style**: Verde #28a745 per success state, NO emoji in subject, consistent con palette Image Studio
+  - **Files Modified**:
+    - Backend: `server/email-routes.ts` (template), `server/order-routes.ts` (endpoint)
+    - Frontend: `client/src/lib/orders.ts` (recordSaldoPayment, addAccontoPayment con apiRequest integration)
+
 - **Quote Email Notification System** (November 10, 2025): Sistema completo di notifiche email automatiche per preventivi
   - **3 Template HTML Professionali**: createQuoteSentEmailHTML (invio preventivo), createQuoteAcceptedEmailHTML (conferma firma), createPaymentReminderEmailHTML (promemoria scadenze)
   - **3 API Endpoints**: POST /api/quotes/send-quote, /api/quotes/quote-signed-notification, /api/quotes/payment-reminder

@@ -2528,72 +2528,163 @@ export function createQuoteAcceptedEmailHTML(
   };
   
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #28a745; text-align: center;">✅ Preventivo Firmato con Successo!</h2>
-      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
-          Ciao <strong>${clienteName}</strong>,
-        </p>
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          Grazie per aver accettato il nostro preventivo per 
-          <strong style="color: #8b5a3c;">${nomeEvento}</strong>!
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+      
+      <!-- Hero Header - Luxury Design -->
+      <div style="background: linear-gradient(135deg, #8b5a3c 0%, #c9a961 100%); padding: 50px 30px; text-align: center;">
+        <div style="background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 30px; backdrop-filter: blur(10px);">
+          <h1 style="color: #ffffff; font-size: 32px; font-weight: 300; margin: 0 0 15px 0; letter-spacing: 2px; text-transform: uppercase;">
+            Contratto Firmato
+          </h1>
+          <div style="width: 60px; height: 2px; background: #c9a961; margin: 0 auto 20px auto;"></div>
+          <p style="color: rgba(255,255,255,0.95); font-size: 18px; margin: 0; font-weight: 300; line-height: 1.6;">
+            Il tuo viaggio fotografico inizia qui
+          </p>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="padding: 40px 30px;">
+        
+        <!-- Greeting -->
+        <p style="font-size: 18px; color: #333333; line-height: 1.8; margin-bottom: 25px;">
+          Gentile <strong style="color: #8b5a3c;">${clienteName}</strong>,
         </p>
         
-        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 14px; color: #155724;">
-            ✓ Preventivo firmato il <strong>${signedAt}</strong><br>
-            ✓ Importo totale: <strong>${formatCurrency(totalAmount)}</strong>
-          </p>
+        <p style="font-size: 16px; color: #666666; line-height: 1.8; margin-bottom: 35px;">
+          È con grande piacere che confermiamo l'accettazione del preventivo per 
+          <strong style="color: #8b5a3c;">${nomeEvento}</strong>. 
+          Il nostro team è entusiasta di collaborare con te per creare ricordi indimenticabili.
+        </p>
+
+        <!-- Contract Summary Card -->
+        <div style="background: linear-gradient(to right, #f9f7f4, #ffffff); border: 2px solid #e8d5c4; border-radius: 12px; padding: 30px; margin: 35px 0; box-shadow: 0 4px 12px rgba(139, 90, 60, 0.08);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <div style="display: inline-block; background: #8b9a8e; color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">
+              Dettagli Contratto
+            </div>
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; font-size: 15px;">
+            <tr>
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; color: #666;">
+                <span style="font-weight: 600;">Data Firma</span>
+              </td>
+              <td style="padding: 15px 0; border-bottom: 1px solid #e8d5c4; text-align: right; color: #333; font-weight: 500;">
+                ${signedAt}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 15px 0; color: #666;">
+                <span style="font-weight: 600;">Importo Totale</span>
+              </td>
+              <td style="padding: 15px 0; text-align: right; color: #8b5a3c; font-weight: 700; font-size: 20px;">
+                ${formatCurrency(totalAmount)}
+              </td>
+            </tr>
+          </table>
         </div>
 
         ${nextPaymentAmount && nextPaymentDate ? `
-        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">💰 Prossimo Pagamento</h3>
-          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px;">
-            <table style="width: 100%; font-size: 14px; color: #333;">
-              <tr>
-                <td style="padding: 8px 0;">Importo:</td>
-                <td style="text-align: right; font-weight: bold; color: #856404;">${formatCurrency(nextPaymentAmount)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0;">Scadenza:</td>
-                <td style="text-align: right; font-weight: bold;">${nextPaymentDate}</td>
-              </tr>
-            </table>
+        <!-- Next Payment Section -->
+        <div style="background: linear-gradient(135deg, #fff8e7 0%, #ffffff 100%); border-left: 4px solid #c9a961; border-radius: 8px; padding: 25px; margin: 30px 0;">
+          <h3 style="color: #8b5a3c; font-size: 16px; font-weight: 600; margin: 0 0 20px 0; letter-spacing: 0.5px; text-transform: uppercase;">
+            Prossimo Pagamento
+          </h3>
+          
+          <table style="width: 100%; border-collapse: collapse; font-size: 15px;">
+            <tr>
+              <td style="padding: 10px 0; color: #666;">Importo Dovuto</td>
+              <td style="padding: 10px 0; text-align: right; color: #8b5a3c; font-weight: 700; font-size: 18px;">
+                ${formatCurrency(nextPaymentAmount)}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; color: #666;">Scadenza</td>
+              <td style="padding: 10px 0; text-align: right; color: #333; font-weight: 600;">
+                ${nextPaymentDate}
+              </td>
+            </tr>
+          </table>
+          
+          <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e8d5c4;">
+            <p style="margin: 0; font-size: 13px; color: #999; line-height: 1.6;">
+              Riceverai una comunicazione separata con le modalità di pagamento
+            </p>
           </div>
         </div>
         ` : ''}
 
         ${portalUrl ? `
-        <div style="text-align: center; margin: 30px 0;">
+        <!-- CTA Button -->
+        <div style="text-align: center; margin: 40px 0;">
           <a href="${portalUrl}" 
-             style="background: #8b5a3c; color: white; padding: 15px 30px; 
-                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-            🔍 Visualizza Preventivo Firmato
+             style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #c9a961 100%); 
+                    color: white; padding: 16px 40px; text-decoration: none; border-radius: 50px; 
+                    font-weight: 600; font-size: 15px; letter-spacing: 0.5px; text-transform: uppercase;
+                    box-shadow: 0 4px 15px rgba(139, 90, 60, 0.3); transition: all 0.3s ease;">
+            Visualizza Contratto Firmato
           </a>
         </div>
         ` : ''}
 
-        <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
-          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Prossimi Passi</h4>
-          <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
-            <li>Ti contatteremo a breve per confermare tutti i dettagli</li>
-            ${nextPaymentAmount ? '<li>Procederemo con la richiesta del primo pagamento</li>' : ''}
-            <li>Riceverai aggiornamenti via email sullo stato del progetto</li>
-            <li>Resta in contatto per qualsiasi necessità!</li>
-          </ol>
+        <!-- Next Steps -->
+        <div style="background: #f5f8f5; border-radius: 8px; padding: 25px; margin: 35px 0;">
+          <h4 style="color: #8b9a8e; font-size: 14px; font-weight: 700; margin: 0 0 18px 0; letter-spacing: 1px; text-transform: uppercase;">
+            I Prossimi Passi
+          </h4>
+          
+          <div style="position: relative; padding-left: 0;">
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">1</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Ti contatteremo a breve per confermare tutti i dettagli organizzativi
+              </p>
+            </div>
+            
+            ${nextPaymentAmount ? `
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">2</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Riceverai le istruzioni per il pagamento dell'acconto
+              </p>
+            </div>
+            ` : ''}
+            
+            <div style="margin-bottom: 15px; padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">${nextPaymentAmount ? '3' : '2'}</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Resteremo in contatto con aggiornamenti regolari sul progetto
+              </p>
+            </div>
+            
+            <div style="padding-left: 30px; position: relative;">
+              <span style="position: absolute; left: 0; top: 2px; width: 20px; height: 20px; background: #8b9a8e; color: white; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 700;">${nextPaymentAmount ? '4' : '3'}</span>
+              <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">
+                Siamo sempre disponibili per qualsiasi domanda o necessità
+              </p>
+            </div>
+          </div>
         </div>
 
-        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Siamo entusiasti di lavorare con te! Per qualsiasi domanda, siamo sempre disponibili.
-        </p>
+        <!-- Closing Message -->
+        <div style="text-align: center; margin: 40px 0 30px 0; padding: 25px; border-top: 1px solid #e8d5c4; border-bottom: 1px solid #e8d5c4;">
+          <p style="font-size: 16px; color: #8b5a3c; font-style: italic; line-height: 1.8; margin: 0;">
+            Non vediamo l'ora di iniziare questo viaggio fotografico insieme a te
+          </p>
+        </div>
       </div>
       
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
-        <p style="margin: 5px 0;">Email: ${studio.email}</p>
-        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      <!-- Footer -->
+      <div style="background: #f9f7f4; padding: 30px; text-align: center; border-top: 3px solid #c9a961;">
+        <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c; letter-spacing: 1px;">
+          ${studio.name}
+        </p>
+        ${studio.address ? `<p style="margin: 0 0 5px 0; font-size: 13px; color: #999;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">
+          <a href="mailto:${studio.email}" style="color: #8b5a3c; text-decoration: none;">${studio.email}</a>
+        </p>
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.phone}</p>
       </div>
     </div>
   `;
