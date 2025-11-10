@@ -458,6 +458,25 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       }
     }
     
+    // Invia email conferma firma automaticamente
+    try {
+      const response = await fetch('/api/quotes/quote-signed-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteId: data.quoteId })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Errore invio email conferma');
+      }
+
+      console.log('✅ Email conferma firma inviata al cliente');
+    } catch (emailError) {
+      console.error('⚠️ Errore invio email conferma firma:', emailError);
+      // Non bloccare la firma se l'email fallisce
+    }
+    
     console.log('✅ Preventivo accettato e firmato');
   } catch (error) {
     console.error('❌ Errore accettazione preventivo:', error);
