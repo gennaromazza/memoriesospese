@@ -594,10 +594,12 @@ export async function getQuoteTemplate(templateId: string): Promise<QuoteTemplat
 /**
  * Elimina preventivo con cascade cleanup
  * Admin-only, blocca se firmato con pagamenti registrati
+ * @param forceDelete - Se true, override protezione preventivi firmati
  */
-export async function deleteQuote(quoteId: string, adminEmail: string): Promise<void> {
+export async function deleteQuote(quoteId: string, adminEmail: string, forceDelete = false): Promise<void> {
   try {
-    const response = await fetch(`/api/quotes/${quoteId}`, {
+    const url = `/api/quotes/${quoteId}${forceDelete ? '?forceDelete=true' : ''}`;
+    const response = await fetch(url, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -607,7 +609,8 @@ export async function deleteQuote(quoteId: string, adminEmail: string): Promise<
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Errore eliminazione preventivo');
+      // Preserve error code for frontend detection (e.g. SIGNED_QUOTE_PROTECTION)
+      throw new Error(errorData.error || errorData.message || 'Errore eliminazione preventivo');
     }
   } catch (error) {
     console.error('❌ Errore delete quote:', error);

@@ -452,11 +452,13 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
 /**
  * DELETE /api/quotes/:id
  * Delete quote con cascade cleanup (admin-only)
+ * Query params: forceDelete=true per override protezione preventivi firmati
  */
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const adminEmail = req.headers['x-admin-email'] as string;
+    const forceDelete = req.query.forceDelete === 'true';
 
     // 1. Admin-only check
     if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
@@ -506,9 +508,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
         jobDoc = await transaction.get(jobRef);
       }
 
-      // 7. Validation: blocca delete se firmato con pagamenti registrati
-      if (quote.status === 'firmato') {
-        // Check if any schedule has payments
+      // 7. PROTEZIONE: Blocca delete preventivi firmati senza forceDelete
+      if (quote.status === 'firmato' && !forceDelete) {
+        // Check if any schedule has payments for detailed error message
         const hasPagamenti = scheduleSnapshots.some(snap => {
           if (!snap.exists) return false;
           const schedule = snap.data() as PaymentSchedule;
@@ -517,7 +519,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
         });
 
         if (hasPagamenti) {
-          throw new Error('Impossibile eliminare un preventivo firmato con pagamenti già registrati');
+          throw new Error('SIGNED_QUOTE_WITH_PAYMENTS');
+        } else {
+          throw new Error('SIGNED_QUOTE_PROTECTION');
         }
       }
 
@@ -555,6 +559,25 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('❌ Errore delete quote:', error);
+    
+    // Bubble specific protection errors to frontend
+    if (error instanceof Error) {
+      if (error.message === 'SIGNED_QUOTE_PROTECTION') {
+        return res.status(403).json({
+          error: 'SIGNED_QUOTE_PROTECTION',
+          message: 'Impossibile eliminare un preventivo firmato senza forceDelete'
+        });
+      }
+      
+      if (error.message === 'SIGNED_QUOTE_WITH_PAYMENTS') {
+        return res.status(403).json({
+          error: 'SIGNED_QUOTE_WITH_PAYMENTS',
+          message: 'Impossibile eliminare un preventivo firmato con pagamenti già registrati'
+        });
+      }
+    }
+    
+    // Generic error fallback
     return res.status(500).json({
       error: 'Errore server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto'

@@ -28,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2 } from 'lucide-react';
+import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -77,6 +77,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
+  const [forceDeleteMode, setForceDeleteMode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
@@ -87,28 +88,42 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
     enabled: !!jobId
   });
 
+  // Get quote being deleted for status check
+  const quoteToDelete = quotes.find(q => q.id === deleteQuoteId);
+  const isSigned = quoteToDelete?.status === 'firmato';
+
   // Delete quote mutation
   const deleteMutation = useMutation({
-    mutationFn: async (quoteId: string) => {
+    mutationFn: async ({ quoteId, forceDelete }: { quoteId: string; forceDelete: boolean }) => {
       if (!user?.email) throw new Error('Utente non autenticato');
-      await deleteQuote(quoteId, user.email);
+      await deleteQuote(quoteId, user.email, forceDelete);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       setSelectedQuoteId(null);
       setDeleteQuoteId(null);
+      setForceDeleteMode(false);
       toast({
         title: 'Preventivo eliminato',
         description: 'Il preventivo e i dati correlati sono stati eliminati con successo'
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Errore eliminazione',
-        description: error.message || 'Impossibile eliminare il preventivo',
-        variant: 'destructive'
-      });
+      // Check if it's a signed quote protection error
+      if (error.message.includes('SIGNED_QUOTE_PROTECTION') || error.message.includes('SIGNED_QUOTE_WITH_PAYMENTS')) {
+        // Activate force delete mode for 2-step confirm
+        setForceDeleteMode(true);
+      } else {
+        // Other errors: show toast and close
+        toast({
+          title: 'Errore eliminazione',
+          description: error.message || 'Impossibile eliminare il preventivo',
+          variant: 'destructive'
+        });
+        setDeleteQuoteId(null);
+        setForceDeleteMode(false);
+      }
     }
   });
 
@@ -462,32 +477,96 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         );
       })()}
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteQuoteId} onOpenChange={(open) => !open && setDeleteQuoteId(null)}>
+      {/* Delete Confirmation Dialog - 2-Step per Signed Quotes */}
+      <AlertDialog open={!!deleteQuoteId} onOpenChange={(open) => {
+        if (!open) {
+          setDeleteQuoteId(null);
+          setForceDeleteMode(false);
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
+            <AlertDialogTitle>
+              {forceDeleteMode ? 'Attenzione: Preventivo Firmato' : 'Conferma Eliminazione'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare questo preventivo?
+              {forceDeleteMode 
+                ? 'Stai per eliminare un preventivo già firmato dal cliente. Questa è un\'operazione critica.'
+                : 'Sei sicuro di voler eliminare questo preventivo?'
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
+          
           <div className="space-y-4 py-4">
-            <div>
-              <p className="font-medium mb-2">Questa azione eliminerà anche:</p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>Il preventivo e tutti i suoi dati</li>
-                <li>Eventuali scadenzari pagamenti collegati</li>
-                <li>Il riferimento al preventivo nel lavoro</li>
-              </ul>
-            </div>
-            <p className="text-destructive font-medium text-sm">
-              Questa operazione non può essere annullata.
-            </p>
+            {forceDeleteMode ? (
+              <>
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                    <div className="space-y-2">
+                      <p className="font-semibold text-destructive text-sm">
+                        Preventivo Firmato Protetto
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Questo preventivo è stato firmato dal cliente. Eliminarlo potrebbe:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground pl-2">
+                        <li>Invalidare il contratto firmato</li>
+                        <li>Eliminare lo scadenzario pagamenti attivo</li>
+                        <li>Perdere la firma digitale e i dati correlati</li>
+                        <li>Rimuovere i riferimenti dal lavoro</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm font-medium text-amber-900">
+                    Sei assolutamente sicuro di voler procedere?
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <p className="font-medium mb-2">Questa azione eliminerà anche:</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                    <li>Il preventivo e tutti i suoi dati</li>
+                    <li>Eventuali scadenzari pagamenti collegati</li>
+                    <li>Il riferimento al preventivo nel lavoro</li>
+                    {isSigned && <li className="text-destructive font-medium">La firma digitale del cliente</li>}
+                  </ul>
+                </div>
+                {isSigned && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-orange-900">
+                      Nota: Questo preventivo è già stato firmato dal cliente
+                    </p>
+                  </div>
+                )}
+                <p className="text-destructive font-medium text-sm">
+                  Questa operazione non può essere annullata.
+                </p>
+              </>
+            )}
           </div>
+          
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">Annulla</AlertDialogCancel>
+            <AlertDialogCancel 
+              data-testid="button-cancel-delete"
+              onClick={() => setForceDeleteMode(false)}
+            >
+              Annulla
+            </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteQuoteId && deleteMutation.mutate(deleteQuoteId)}
+              onClick={() => {
+                if (deleteQuoteId) {
+                  deleteMutation.mutate({ 
+                    quoteId: deleteQuoteId, 
+                    forceDelete: forceDeleteMode 
+                  });
+                }
+              }}
               disabled={deleteMutation.isPending}
               className="bg-destructive hover:bg-destructive/90"
               data-testid="button-confirm-delete"
@@ -500,7 +579,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Elimina Definitivamente
+                  {forceDeleteMode ? 'Elimina Comunque' : 'Elimina Definitivamente'}
                 </>
               )}
             </AlertDialogAction>
