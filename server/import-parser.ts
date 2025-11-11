@@ -177,12 +177,21 @@ export class LegacyImportParser {
       const firmaStr = normalize(row['Firma Presente']);
       const firma = firmaStr === '✅' || firmaStr?.toLowerCase() === 'si' || firmaStr?.toLowerCase() === 'yes';
 
-      // ✅ FIX: Genera nome job da clienti (es. "Mario Rossi & Laura Bianchi")
+      // ✅ Genera nome job con pattern: **TipoLavoro** Cliente1 & Cliente2
       const nomeCliente1 = `${cliente1Data.nome} ${cliente1Data.cognome}`.trim();
       const nomeCliente2 = `${cliente2Data.nome} ${cliente2Data.cognome}`.trim();
-      const nomeJob = nomeCliente2 
-        ? `${nomeCliente1} & ${nomeCliente2}`
-        : nomeCliente1 || normalize(row['Tipo Lavoro']) || 'Job Senza Nome';
+      const tipoLavoro = normalize(row['Tipo Lavoro']) || 'Lavoro';
+      
+      let nomeJob: string;
+      if (nomeCliente1 && nomeCliente2) {
+        nomeJob = `**${tipoLavoro}** ${nomeCliente1} & ${nomeCliente2}`;
+      } else if (nomeCliente1) {
+        nomeJob = `**${tipoLavoro}** ${nomeCliente1}`;
+      } else if (nomeCliente2) {
+        nomeJob = `**${tipoLavoro}** ${nomeCliente2}`;
+      } else {
+        nomeJob = `**${tipoLavoro}** ${normalize(row['Nome Evento']) || 'Job Senza Nome'}`;
+      }
 
       const jobData: ParsedJobData = {
         // CSV-like fields (compatibilità)
