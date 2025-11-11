@@ -112,37 +112,44 @@ export class LegacyImportParser {
         return str.length > 0 ? str : undefined;
       };
 
-      // Parsing nomi e indirizzi clienti
-      const parseNomeCompleto = (nomeCompleto: string | undefined) => {
-        if (!nomeCompleto) return { nome: '', cognome: '' };
-        const parts = nomeCompleto.trim().split(' ');
-        return {
-          nome: parts[0] || '',
-          cognome: parts.slice(1).join(' ') || '',
-        };
+      // ✅ FIX: Parsing strutturato cliente da colonna unica "Nome, Indirizzo, Telefono"
+      const parseClienteCompleto = (str: string | undefined) => {
+        if (!str) return { nome: '', cognome: '', telefono: '', via: '', citta: '', cap: '' };
+        
+        // Pattern atteso: "Nome Cognome, Via ..., Città, Telefono"
+        // Estrae telefono (sequenza cifre preceduta da spazio/virgola)
+        const phoneMatch = str.match(/[\s,](\d{10}|\d{9}|\+?\d{2,3}[\s-]?\d{9,10})$/);
+        const telefono = phoneMatch ? phoneMatch[1].trim() : '';
+        
+        // Rimuove telefono dalla stringa
+        const senzaTelefono = phoneMatch ? str.slice(0, phoneMatch.index) : str;
+        
+        // Split per virgola: [nome, indirizzo, città?]
+        const parts = senzaTelefono.split(',').map(p => p.trim());
+        
+        const nomeCompleto = parts[0] || '';
+        const nomeParts = nomeCompleto.split(/\s+/);
+        const nome = nomeParts[0] || '';
+        const cognome = nomeParts.slice(1).join(' ') || '';
+        
+        const via = parts[1] || '';
+        const citta = parts[2] || '';
+        
+        return { nome, cognome, telefono, via, citta, cap: '' };
       };
 
-      const parseIndirizzo = (indirizzo: string | undefined) => {
-        if (!indirizzo) return { via: '', citta: '', cap: '' };
-        // Esempio: "Via Orsa Maggiore 7, Giugliano (NA)" → via + città
-        const match = indirizzo.match(/^(.+?),\s*(.+?)(?:\s+\((\w+)\))?$/);
-        if (match) {
-          return {
-            via: match[1]?.trim() || '',
-            citta: match[2]?.trim() || '',
-            cap: '',  // CAP non presente in esempio, ma lasciamo campo per futuro
-          };
-        }
-        return { via: indirizzo, citta: '', cap: '' };
+      const cliente1Data = parseClienteCompleto(normalize(row['Cliente 1 (Nome, Indirizzo, Telefono)']));
+      const cliente2Data = parseClienteCompleto(normalize(row['Cliente 2 (Nome, Indirizzo, Telefono)']));
+
+      // ✅ FIX: Normalizza valori numerici currency ("€ 2.500,00" → 2500)
+      const parseCurrency = (value: any): number => {
+        if (!value) return 0;
+        const str = String(value).trim();
+        // Rimuovi simboli € e spazi, sostituisci , con . per decimali europei
+        const normalized = str.replace(/[€\s]/g, '').replace(/\./g, '').replace(',', '.');
+        const num = parseFloat(normalized);
+        return isNaN(num) ? 0 : num;
       };
-
-      const cliente1Str = normalize(row['Cliente 1 (Nome, Indirizzo, Telefono)']);
-      const cliente1 = parseNomeCompleto(cliente1Str);
-      const indirizzo1 = parseIndirizzo(cliente1Str);
-
-      const cliente2Str = normalize(row['Cliente 2 (Nome, Indirizzo, Telefono)']);
-      const cliente2 = parseNomeCompleto(cliente2Str);
-      const indirizzo2 = parseIndirizzo(cliente2Str);
 
       // Parsing prodotti (split da stringa)
       const prodottiStr = normalize(row['Prodotti / Servizi']);
@@ -162,9 +169,9 @@ export class LegacyImportParser {
         provenienza: '',  // Non presente in Excel
         dataEvento: normalize(row['Data']) || '',
         location: normalize(row['Location']) || '',
-        nomeCliente: cliente1Str || '',
+        nomeCliente: `${cliente1Data.nome} ${cliente1Data.cognome}`.trim() || '',
         email: '',  // Email non presente come colonna separata in Excel
-        telefono: normalize(row['Cliente 1 (Nome, Indirizzo, Telefono)']) || '',
+        telefono: cliente1Data.telefono || '',
         operatori: '',
         settore: '',
         note: '',
@@ -176,15 +183,21 @@ export class LegacyImportParser {
         // PDF Data strutturato
         pdfData: {
           cliente1: {
-            ...cliente1,
-            ...indirizzo1,
-            cellulare: normalize(row['Cliente 1 (Nome, Indirizzo, Telefono)']),
+            nome: cliente1Data.nome,
+            cognome: cliente1Data.cognome,
+            cellulare: cliente1Data.telefono,
+            via: cliente1Data.via,
+            citta: cliente1Data.citta,
+            cap: cliente1Data.cap,
             orarioCasa: normalize(row['Orario Casa Cliente 1']),
           },
           cliente2: {
-            ...cliente2,
-            ...indirizzo2,
-            cellulare: normalize(row['Cliente 2 (Nome, Indirizzo, Telefono)']),
+            nome: cliente2Data.nome,
+            cognome: cliente2Data.cognome,
+            cellulare: cliente2Data.telefono,
+            via: cliente2Data.via,
+            citta: cliente2Data.citta,
+            cap: cliente2Data.cap,
             orarioCasa: normalize(row['Orario Casa Cliente 2']),
           },
           evento: {
@@ -197,27 +210,27 @@ export class LegacyImportParser {
           },
           pagamenti: [
             // Acconto se presente
-            ...(normalize(row['Acconto']) && parseFloat(row['Acconto']) > 0
+            ...(normalize(row['Acconto']) && parseCurrency(row['Acconto']) > 0
               ? [{
                   descrizione: 'Acconto',
-                  importo: parseFloat(row['Acconto']),
+                  importo: parseCurrency(row['Acconto']),
                   metodo: (normalize(row['Metodo Pagamento']) || 'contante') as any,
                   pagato: true,
                   tipo: 'acconto' as const,
                 }]
               : []),
             // Saldo residuo se presente
-            ...(normalize(row['Da Saldare']) && parseFloat(row['Da Saldare']) > 0
+            ...(normalize(row['Da Saldare']) && parseCurrency(row['Da Saldare']) > 0
               ? [{
                   descrizione: 'Saldo residuo',
-                  importo: parseFloat(row['Da Saldare']),
+                  importo: parseCurrency(row['Da Saldare']),
                   metodo: 'contante' as any,
                   pagato: false,
                   tipo: 'saldo' as const,
                 }]
               : []),
           ],
-          importoTotale: parseFloat(row['Totale'] || 0),
+          importoTotale: parseCurrency(row['Totale']),
           prodotti,
         },
       };
@@ -508,6 +521,22 @@ export class LegacyImportParser {
     return data;
   }
 
+  /**
+   * ✅ NUOVO: Parsa file Excel con dati completi (PDF upload a Storage gestito separatamente)
+   * Modalità Excel-first per nuovo workflow import
+   */
+  async parseAllExcel(excelPath?: string): Promise<ParsedJobData[]> {
+    const jobs = await this.parseExcel(excelPath);
+    
+    // Jobs già completi da Excel, pdfFileName incluso
+    // Upload PDF verrà gestito da importSingleJob() in import-routes.ts
+    return jobs;
+  }
+
+  /**
+   * Legacy: Parsa CSV + PDF locale (modalità vecchio gestionale)
+   * Mantiene backwards compatibility per import CSV esistenti
+   */
   async parseAll(): Promise<ParsedJobData[]> {
     const csvJobs = await this.parseCSV();
     const results: ParsedJobData[] = [];

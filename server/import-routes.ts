@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { db, Timestamp } from './firebase-admin';
+import { db, Timestamp, storage } from './firebase-admin';
 import { LegacyImportParser, ParsedJobData } from './import-parser';
 import { authenticateFirebase } from './email-routes';
+import fs from 'fs';
+import path from 'path';
 
 interface AuthRequest extends Request {
   user?: {
@@ -27,6 +29,45 @@ interface ImportResult {
   }>;
 }
 
+// ✅ NUOVO: Preview import Excel
+router.post('/preview-excel', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.user!;
+    
+    if (email !== 'gennaro.mazzacane@gmail.com') {
+      return res.status(403).json({ error: 'Solo gli amministratori possono importare dati' });
+    }
+
+    const parser = new LegacyImportParser();
+    const jobs = await parser.parseAllExcel();
+
+    const preview = jobs.map(job => ({
+      nome: job.nome,
+      dataEvento: job.dataEvento,
+      cliente1: job.pdfData?.cliente1?.nome || job.nomeCliente,
+      cliente2: job.pdfData?.cliente2?.nome || '',
+      location: job.location,
+      tipoLavoro: LegacyImportParser.mapJobType(job.tipoLavoro),
+      firma: job.firma,
+      pdfFileName: job.pdfFileName,
+      hasPDF: !!job.pdfFileName,
+      totale: job.pdfData?.importoTotale || 0,
+      pagamentiCount: job.pdfData?.pagamenti.length || 0,
+      prodottiCount: job.pdfData?.prodotti.length || 0,
+    }));
+
+    res.json({
+      success: true,
+      count: jobs.length,
+      preview,
+    });
+  } catch (error) {
+    console.error('Error previewing Excel import:', error);
+    res.status(500).json({ error: 'Errore nel preview dei dati Excel' });
+  }
+});
+
+// Legacy: Preview import CSV
 router.post('/preview', authenticateFirebase, async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
@@ -62,6 +103,53 @@ router.post('/preview', authenticateFirebase, async (req: AuthRequest, res: Resp
   }
 });
 
+// ✅ NUOVO: Execute import Excel
+router.post('/execute-excel', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.user!;
+    
+    if (email !== 'gennaro.mazzacane@gmail.com') {
+      return res.status(403).json({ error: 'Solo gli amministratori possono importare dati' });
+    }
+
+    const parser = new LegacyImportParser();
+    const jobs = await parser.parseAllExcel();
+
+    const result: ImportResult = {
+      success: true,
+      jobsImported: 0,
+      clientsCreated: 0,
+      errors: [],
+      warnings: [],
+      details: [],
+    };
+
+    for (const jobData of jobs) {
+      try {
+        await importSingleJob(jobData, result);
+      } catch (error: any) {
+        result.errors.push({
+          job: jobData.nome,
+          error: error.message || 'Errore sconosciuto',
+        });
+        result.details.push({
+          jobName: jobData.nome,
+          status: 'error',
+          message: `Errore: ${error.message}`,
+        });
+      }
+    }
+
+    result.success = result.errors.length === 0;
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error executing Excel import:', error);
+    res.status(500).json({ error: 'Errore nell\'importazione Excel' });
+  }
+});
+
+// Legacy: Execute import CSV
 router.post('/execute', authenticateFirebase, async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
@@ -106,6 +194,49 @@ router.post('/execute', authenticateFirebase, async (req: AuthRequest, res: Resp
     res.status(500).json({ error: 'Errore nell\'importazione dei dati' });
   }
 });
+
+/**
+ * Upload PDF a Firebase Storage
+ * @param pdfBuffer Buffer del file PDF
+ * @param fileName Nome originale file (es. "Lavoro_001.pdf")
+ * @param jobId ID del job per path organizzato
+ * @returns URL pubblico del PDF caricato
+ */
+async function uploadPDFToStorage(pdfBuffer: Buffer, fileName: string, jobId: string): Promise<string> {
+  const bucket = storage.bucket();
+  const timestamp = Date.now();
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `legacy-imports/${jobId}/${timestamp}_${safeName}`;
+  
+  const file = bucket.file(storagePath);
+  
+  try {
+    // Upload con metadata (file rimane PRIVATO)
+    await file.save(pdfBuffer, {
+      metadata: {
+        contentType: 'application/pdf',
+        metadata: {
+          uploadedAt: new Date().toISOString(),
+          originalName: fileName,
+          jobId,
+        },
+      },
+    });
+    
+    // ✅ FIX SECURITY: Genera signed URL con scadenza 5 anni invece di makePublic()
+    const [signedUrl] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + (5 * 365 * 24 * 60 * 60 * 1000), // 5 anni
+    });
+    
+    console.log(`✅ PDF caricato (privato con signed URL): ${fileName}`);
+    return signedUrl;
+    
+  } catch (error: any) {
+    console.error(`❌ Errore upload PDF ${fileName}:`, error.message);
+    throw new Error(`Upload PDF fallito: ${error.message}`);
+  }
+}
 
 // Helper: normalizza nome completo in nome + cognome
 function splitNomeCompleto(nomeCompleto: string): { nome: string; cognome: string } {
@@ -243,6 +374,7 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
       cognome: cliente1Data?.cognome || splitNomeCompleto(jobData.nomeCliente).cognome,
       email: cliente1Email,
       telefono: cliente1Data?.cellulare || jobData.telefono || '',
+      ...(cliente1Data?.orarioCasa && { orarioCasa: cliente1Data.orarioCasa }),  // ✅ Orario casa cliente 1
     });
   } else {
     console.warn(`⚠️ Cliente 1 senza email per job ${jobData.nome}`);
@@ -307,6 +439,7 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
       cognome: cliente2Data.cognome || '',
       email: cliente2Email,
       telefono: cliente2Data.cellulare || '',
+      ...(cliente2Data?.orarioCasa && { orarioCasa: cliente2Data.orarioCasa }),  // ✅ Orario casa cliente 2
     });
   } else {
     console.warn(`⚠️ Cliente 2 senza email per job ${jobData.nome} - saltato`);
@@ -394,7 +527,7 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     galleryIds: [],
     quoteIds: [],
     
-    // Costi e PDF vuoti
+    // Costi e PDF vuoti inizialmente (verrà aggiornato dopo upload)
     costi: [],
     pdfs: [],
     
@@ -404,6 +537,10 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     importedFrom: 'legacy',
     legacyId,
     importedAt: new Date().toISOString(),
+    
+    // ✅ NUOVO: Firma contratto (da Excel)
+    ...(jobData.firma !== undefined && { legacyContractSigned: jobData.firma }),
+    
     importedData: {
       dataCreazione: jobData.dataCreazione,
       settore: jobData.settore,
@@ -413,6 +550,7 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
       importoTotaleLegacy: totalePreventivato,
       cliente1PDF: cliente1Data || null,
       cliente2PDF: cliente2Data || null,
+      firma: jobData.firma,  // Flag firma Excel
     },
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
@@ -422,6 +560,59 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
 
   const jobRef = await firestore.collection('jobs').add(jobDoc);
   const jobId = jobRef.id;
+  
+  // ✅ NUOVO: Upload PDF se presente nel job Excel
+  if (jobData.pdfFileName) {
+    try {
+      // ✅ FIX: Cerca PDF in multiple locations (attached_assets/pdf/ poi EXPORTVECCHIOGESTIONALE/)
+      const possiblePaths = [
+        path.join('attached_assets', 'pdf', jobData.pdfFileName),
+        path.join('attached_assets', 'EXPORTVECCHIOGESTIONALE', jobData.pdfFileName),
+        ...(jobData.folderPath 
+          ? [path.join(jobData.folderPath, 'Modulo di prenotazione', jobData.pdfFileName)]
+          : []),
+      ];
+      
+      let pdfPath = null;
+      for (const testPath of possiblePaths) {
+        if (fs.existsSync(testPath)) {
+          pdfPath = testPath;
+          break;
+        }
+      }
+      
+      if (pdfPath) {
+        const pdfBuffer = fs.readFileSync(pdfPath);
+        const pdfUrl = await uploadPDFToStorage(pdfBuffer, jobData.pdfFileName, jobId);
+        
+        // Aggiorna job con URL PDF nell'array pdfs
+        await jobRef.update({
+          pdfs: [{
+            type: 'modulo_prenotazione',
+            url: pdfUrl,
+            fileName: jobData.pdfFileName,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: 'import-legacy',
+          }],
+          updatedAt: Timestamp.now(),
+        });
+        
+        console.log(`✅ PDF ${jobData.pdfFileName} caricato da ${pdfPath} per job ${jobId}`);
+      } else {
+        console.warn(`⚠️ PDF non trovato in nessuna location per job ${jobData.nome}. Paths testati:`, possiblePaths);
+        result.warnings.push({
+          job: jobData.nome,
+          warning: `PDF non trovato: ${jobData.pdfFileName}`,
+        });
+      }
+    } catch (error: any) {
+      console.error(`❌ Errore upload PDF per job ${jobData.nome}:`, error.message);
+      result.warnings.push({
+        job: jobData.nome,
+        warning: `Errore upload PDF: ${error.message}`,
+      });
+    }
+  }
   
   // 4. Aggiorna sourceRefs dei clienti per includere questo job
   for (const clienteId of clientiIds) {
