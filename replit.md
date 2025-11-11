@@ -6,6 +6,7 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 **Vision:** Essere il punto di riferimento per i fotografi professionisti, offrendo una piattaforma completa che gestisce ogni aspetto del business fotografico - dal primo contatto alla consegna finale.
 
 ## Recent Changes (November 2025)
+- **Legacy Data Import System:** Complete CSV/PDF import system for migrating ~25 jobs from old management system with idempotency (legacyId), structured product data persistence (prodottiLegacy), payment schedule extraction, and admin-only cleanup endpoint
 - **QuoteSignedPortalPage Enhancement:** Added product images display and PDF download functionality using html2pdf.js
 - **Multi-Client Email Notifications:** Fixed quote email endpoints (/send-quote, /quote-signed-notification, /payment-reminder) to send to ALL clients in clientiInfo array instead of only first client, with proper comma-separated string splitting for sentTo field fallback
 - **Client Data Management:** Added inline client editing capability from JobDetailPage with EditClienteModal component, including form reset logic to handle switching between different clients

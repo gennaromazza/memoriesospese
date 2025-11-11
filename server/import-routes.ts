@@ -211,8 +211,27 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
       cellulare1: jobData.telefono || '',
     }],
     status: 'lead',
+    
+    // ✅ CRITICO: Financials richiesto da JobsManager
+    financials: {
+      totalePreventivato: jobData.pdfData?.importoTotale || 0,
+      totaleOrdini: 0,
+      totalePagato: 0,
+      saldoResiduo: jobData.pdfData?.importoTotale || 0
+    },
+    
+    // Riferimenti vuoti inizialmente
+    orderIds: [],
+    galleryIds: [],
+    quoteIds: [],
+    
+    // Costi e PDF vuoti
+    costi: [],
+    pdfs: [],
+    
     note: jobData.note || '',
     noteOperatori: jobData.operatori ? `Operatori: ${jobData.operatori}` : '',
+    noteInterne: '',
     importedFrom: 'legacy',
     legacyId,
     importedAt: new Date().toISOString(),
@@ -227,6 +246,8 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     transactions: [] as any[],
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
+    createdBy: 'import-legacy',
+    jobSource: 'import'
   };
 
   // 3. Aggiungi transazioni se ci sono pagamenti dal PDF
