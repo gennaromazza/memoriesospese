@@ -6,6 +6,9 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 **Vision:** Essere il punto di riferimento per i fotografi professionisti, offrendo una piattaforma completa che gestisce ogni aspetto del business fotografico - dal primo contatto alla consegna finale.
 
 ## Recent Changes (November 2025)
+- **Excel-Based Import System (November 11):** Complete Excel import system replacing CSV workflow with `parseExcel()` method supporting European currency formats (€ 2.500,00 → 2500), structured client field parsing from combined columns (Nome, Indirizzo, Telefono → separate fields), Firebase Storage integration with private signed URLs (5-year expiry), multi-location PDF path resolution, and new API routes `/api/import/preview-excel` and `/execute-excel`
+- **Firebase Admin Storage Integration:** Added Firebase Storage singleton export for PDF upload functionality with server-side signed URL generation
+- **Security Enhancement:** PDF uploads remain private in Firebase Storage using signed URLs instead of world-readable public URLs
 - **Legacy Data Import System:** Complete CSV/PDF import system for migrating ~25 jobs from old management system with idempotency (legacyId), structured product data persistence (prodottiLegacy), payment schedule extraction, and admin-only cleanup endpoint
 - **QuoteSignedPortalPage Enhancement:** Added product images display and PDF download functionality using html2pdf.js
 - **Multi-Client Email Notifications:** Fixed quote email endpoints (/send-quote, /quote-signed-notification, /payment-reminder) to send to ALL clients in clientiInfo array instead of only first client, with proper comma-separated string splitting for sentTo field fallback
