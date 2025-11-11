@@ -4,6 +4,7 @@ import { LegacyImportParser, ParsedJobData } from './import-parser';
 import { authenticateFirebase } from './email-routes';
 import fs from 'fs';
 import path from 'path';
+import multer from 'multer';
 
 interface AuthRequest extends Request {
   user?: {
@@ -13,6 +14,22 @@ interface AuthRequest extends Request {
 }
 
 const router = Router();
+
+// ✅ Setup multer per file upload in memoria
+const upload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+        file.mimetype === 'application/vnd.ms-excel') {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo file Excel (.xlsx, .xls) sono permessi'));
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // Max 10MB
+  },
+});
 
 interface ImportResult {
   success: boolean;
@@ -29,8 +46,8 @@ interface ImportResult {
   }>;
 }
 
-// ✅ NUOVO: Preview import Excel
-router.post('/preview-excel', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+// ✅ NUOVO: Preview import Excel con file upload
+router.post('/preview-excel', authenticateFirebase, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
     
@@ -38,8 +55,13 @@ router.post('/preview-excel', authenticateFirebase, async (req: AuthRequest, res
       return res.status(403).json({ error: 'Solo gli amministratori possono importare dati' });
     }
 
+    // Controlla se file è stato caricato
+    if (!req.file) {
+      return res.status(400).json({ error: 'File Excel richiesto' });
+    }
+
     const parser = new LegacyImportParser();
-    const jobs = await parser.parseAllExcel();
+    const jobs = await parser.parseExcelFromBuffer(req.file.buffer);
 
     const preview = jobs.map(job => ({
       nome: job.nome,
@@ -103,8 +125,8 @@ router.post('/preview', authenticateFirebase, async (req: AuthRequest, res: Resp
   }
 });
 
-// ✅ NUOVO: Execute import Excel
-router.post('/execute-excel', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+// ✅ NUOVO: Execute import Excel con file upload
+router.post('/execute-excel', authenticateFirebase, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
     
@@ -112,8 +134,13 @@ router.post('/execute-excel', authenticateFirebase, async (req: AuthRequest, res
       return res.status(403).json({ error: 'Solo gli amministratori possono importare dati' });
     }
 
+    // Controlla se file è stato caricato
+    if (!req.file) {
+      return res.status(400).json({ error: 'File Excel richiesto' });
+    }
+
     const parser = new LegacyImportParser();
-    const jobs = await parser.parseAllExcel();
+    const jobs = await parser.parseExcelFromBuffer(req.file.buffer);
 
     const result: ImportResult = {
       success: true,

@@ -85,7 +85,16 @@ export class LegacyImportParser {
   }
 
   /**
-   * Parsa file Excel con dati job completi
+   * ✅ NUOVO: Parsa Excel da Buffer (per file upload)
+   * Usa questo per gestire file caricati dall'utente via UI
+   */
+  async parseExcelFromBuffer(buffer: Buffer): Promise<ParsedJobData[]> {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    return this.parseExcelWorkbook(workbook);
+  }
+
+  /**
+   * Parsa file Excel da path sul server (legacy/testing)
    * Colonne attese: File PDF, Data, Tipo Lavoro, Location, Località, Orario Rito,
    * Cliente 1 (Nome, Indirizzo, Telefono), Orario Casa Cliente 1,
    * Cliente 2 (Nome, Indirizzo, Telefono), Orario Casa Cliente 2,
@@ -99,6 +108,13 @@ export class LegacyImportParser {
     }
 
     const workbook = XLSX.readFile(finalPath);
+    return this.parseExcelWorkbook(workbook);
+  }
+
+  /**
+   * ✅ REFACTOR: Logica comune parsing Excel (da workbook)
+   */
+  private async parseExcelWorkbook(workbook: XLSX.WorkBook): Promise<ParsedJobData[]> {
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
@@ -161,15 +177,22 @@ export class LegacyImportParser {
       const firmaStr = normalize(row['Firma Presente']);
       const firma = firmaStr === '✅' || firmaStr?.toLowerCase() === 'si' || firmaStr?.toLowerCase() === 'yes';
 
+      // ✅ FIX: Genera nome job da clienti (es. "Mario Rossi & Laura Bianchi")
+      const nomeCliente1 = `${cliente1Data.nome} ${cliente1Data.cognome}`.trim();
+      const nomeCliente2 = `${cliente2Data.nome} ${cliente2Data.cognome}`.trim();
+      const nomeJob = nomeCliente2 
+        ? `${nomeCliente1} & ${nomeCliente2}`
+        : nomeCliente1 || normalize(row['Tipo Lavoro']) || 'Job Senza Nome';
+
       const jobData: ParsedJobData = {
         // CSV-like fields (compatibilità)
         dataCreazione: normalize(row['Data']) || '',
-        nome: normalize(row['Tipo Lavoro']) || '',
+        nome: nomeJob,  // ✅ Nome specifico coppia/evento (non tipo lavoro)
         tipoLavoro: normalize(row['Tipo Lavoro']) || '',
         provenienza: '',  // Non presente in Excel
         dataEvento: normalize(row['Data']) || '',
         location: normalize(row['Location']) || '',
-        nomeCliente: `${cliente1Data.nome} ${cliente1Data.cognome}`.trim() || '',
+        nomeCliente: nomeCliente1 || '',
         email: '',  // Email non presente come colonna separata in Excel
         telefono: cliente1Data.telefono || '',
         operatori: '',
