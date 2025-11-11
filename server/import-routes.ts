@@ -371,10 +371,13 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     location: eventoData?.location || jobData.location || '',
     eventLocation: eventoData?.location || jobData.location || '',
     allDay: false,  // Default - può essere aggiornato manualmente
-    startTime: eventoData?.orarioInizio || undefined,
-    endTime: eventoData?.orarioFine || undefined,
-    rituLocation: eventoData?.rituLocation || undefined,
-    rituTime: eventoData?.rituTime || undefined,
+    
+    // ✅ Campi opzionali: ometti se non presenti invece di undefined/''
+    ...(eventoData?.orarioInizio && { startTime: eventoData.orarioInizio }),
+    ...(eventoData?.orarioFine && { endTime: eventoData.orarioFine }),
+    ...(eventoData?.rituLocation && { rituLocation: eventoData.rituLocation }),
+    ...(eventoData?.rituTime && { rituTime: eventoData.rituTime }),
+    
     jobType: LegacyImportParser.mapJobType(eventoData?.tipoLavoro || jobData.tipoLavoro),
     provenance: LegacyImportParser.mapProvenance(jobData.provenienza),
     clientiInfo,  // ✅ NUOVO: Array con info di ENTRAMBI i clienti
