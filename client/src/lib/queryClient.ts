@@ -68,9 +68,31 @@ export async function apiRequest(
   // Includi automaticamente credenziali auth per richieste che lo richiedono
   const enhancedData = await enhanceRequestWithAuth(url, data);
   
+  // Prepara headers
+  const headers: Record<string, string> = enhancedData ? { "Content-Type": "application/json" } : {};
+  
+  // Aggiungi token Firebase per endpoint che lo richiedono
+  const firebaseAuthEndpoints = [
+    '/api/import/',
+    '/api/email/',
+    '/api/quote/',
+    '/api/booking/'
+  ];
+  
+  const needsFirebaseAuth = firebaseAuthEndpoints.some(endpoint => url.includes(endpoint));
+  
+  if (needsFirebaseAuth && auth.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    } catch (error) {
+      console.error('Errore ottenimento token Firebase:', error);
+    }
+  }
+  
   const res = await fetch(finalUrl, {
     method,
-    headers: enhancedData ? { "Content-Type": "application/json" } : {},
+    headers,
     body: enhancedData ? JSON.stringify(enhancedData) : undefined,
     credentials: "include",
   });
