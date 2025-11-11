@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, CheckCircle, XCircle, AlertCircle, FileText, FileSpreadsheet, Check, X } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import { auth } from '@/lib/firebase';
 
 interface PreviewJob {
   nome: string;
@@ -64,16 +65,19 @@ export default function ImportDataPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+
       const response = await fetch('/api/import/preview-excel', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('idToken')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Errore nel caricamento preview');
+        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
+        throw new Error(errorData.error || `Errore HTTP ${response.status}`);
       }
 
       const data = await response.json();
@@ -84,6 +88,7 @@ export default function ImportDataPage() {
         description: `Trovati ${data.count} lavori da importare`,
       });
     } catch (error: any) {
+      console.error('Errore preview Excel:', error);
       toast({
         title: 'Errore',
         description: error.message || 'Errore nel caricamento preview',
@@ -149,10 +154,12 @@ export default function ImportDataPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+
       const response = await fetch('/api/import/execute-excel', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('idToken')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
