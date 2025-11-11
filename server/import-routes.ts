@@ -280,6 +280,35 @@ function splitNomeCompleto(nomeCompleto: string): { nome: string; cognome: strin
   };
 }
 
+// ✅ NUOVO: Merge intelligente dati cliente - aggiorna solo campi mancanti
+async function mergeClienteData(
+  clienteRef: FirebaseFirestore.DocumentReference,
+  existingData: any,
+  newData: {
+    via?: string;
+    citta?: string;
+    cap?: string;
+    cellulare?: string;
+    orarioCasa?: string;
+  }
+): Promise<void> {
+  const updates: any = {};
+  
+  // Aggiorna solo campi vuoti/mancanti
+  if (!existingData.via && newData.via) updates.via = newData.via;
+  if (!existingData.citta && newData.citta) updates.citta = newData.citta;
+  if (!existingData.cap && newData.cap) updates.cap = newData.cap;
+  if (!existingData.cellulare1 && newData.cellulare) updates.cellulare1 = newData.cellulare;
+  if (!existingData.orarioCasa && newData.orarioCasa) updates.orarioCasa = newData.orarioCasa;
+  
+  // Se ci sono campi da aggiornare, esegui update
+  if (Object.keys(updates).length > 0) {
+    updates.updatedAt = Timestamp.now();
+    await clienteRef.update(updates);
+    console.log(`✅ Cliente ${existingData.nome} ${existingData.cognome} aggiornato con campi mancanti:`, Object.keys(updates));
+  }
+}
+
 // Helper: mappa PagamentoData → Transaction schema (booking-types.ts compliant)
 function mapPagamentoToTransaction(pag: any): any {
   let dataTimestamp: FirebaseFirestore.Timestamp;
@@ -351,6 +380,20 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     let cliente1Id: string;
     if (!cliente1Snapshot.empty) {
       cliente1Id = cliente1Snapshot.docs[0].id;
+      
+      // ✅ MERGE: Aggiorna campi mancanti del cliente esistente
+      const existingCliente1 = cliente1Snapshot.docs[0].data();
+      await mergeClienteData(
+        cliente1Snapshot.docs[0].ref,
+        existingCliente1,
+        {
+          via: cliente1Data?.via,
+          citta: cliente1Data?.citta,
+          cap: cliente1Data?.cap,
+          cellulare: cliente1Data?.cellulare || jobData.telefono,
+          orarioCasa: cliente1Data?.orarioCasa,
+        }
+      );
     } else {
       // Normalizza nome/cognome
       const { nome, cognome } = cliente1Data?.nome && cliente1Data?.cognome 
@@ -421,6 +464,20 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     let cliente2Id: string;
     if (!cliente2Snapshot.empty) {
       cliente2Id = cliente2Snapshot.docs[0].id;
+      
+      // ✅ MERGE: Aggiorna campi mancanti del cliente esistente
+      const existingCliente2 = cliente2Snapshot.docs[0].data();
+      await mergeClienteData(
+        cliente2Snapshot.docs[0].ref,
+        existingCliente2,
+        {
+          via: cliente2Data.via,
+          citta: cliente2Data.citta,
+          cap: cliente2Data.cap,
+          cellulare: cliente2Data.cellulare,
+          orarioCasa: cliente2Data.orarioCasa,
+        }
+      );
     } else {
       const newCliente2 = {
         nome: cliente2Data.nome || '',
