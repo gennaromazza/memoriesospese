@@ -288,13 +288,6 @@ export default function JobDetailPage() {
                     <FileText className="h-4 w-4 mr-2" />
                     <span>Genera Preventivo</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => alert('Esporta PDF - Da implementare')}
-                    data-testid="action-export-pdf"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    <span>Esporta PDF</span>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={handleDelete}
