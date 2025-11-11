@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Papa from 'papaparse';
 import * as pdfParseModule from 'pdf-parse';
+import * as XLSX from 'xlsx';
 
 const pdfParse = (pdfParseModule as any).default ?? pdfParseModule;
 
@@ -28,6 +29,7 @@ export interface ClienteData {
   via?: string;
   citta?: string;
   cap?: string;
+  orarioCasa?: string;  // ✅ NUOVO: Orario casa cliente (es. "07:00")
 }
 
 export interface EventoData {
@@ -70,6 +72,9 @@ export interface ParsedJobData extends CSVJobData {
     }>;
   };
   folderPath?: string;
+  pdfUrl?: string;  // ✅ NUOVO: URL del PDF caricato su Firebase Storage
+  pdfFileName?: string;  // ✅ NUOVO: Nome file PDF da caricare (es. "Lavoro_001.pdf")
+  firma?: boolean;  // ✅ NUOVO: Firma presente (true/false)
 }
 
 export class LegacyImportParser {
@@ -77,6 +82,150 @@ export class LegacyImportParser {
 
   constructor(basePath: string = 'attached_assets/EXPORTVECCHIOGESTIONALE') {
     this.basePath = basePath;
+  }
+
+  /**
+   * Parsa file Excel con dati job completi
+   * Colonne attese: File PDF, Data, Tipo Lavoro, Location, Località, Orario Rito,
+   * Cliente 1 (Nome, Indirizzo, Telefono), Orario Casa Cliente 1,
+   * Cliente 2 (Nome, Indirizzo, Telefono), Orario Casa Cliente 2,
+   * Costo, Sconto, Totale, Acconto, Metodo Pagamento, Da Saldare, Firma Presente, Prodotti/Servizi
+   */
+  async parseExcel(excelPath?: string): Promise<ParsedJobData[]> {
+    const finalPath = excelPath || path.join(this.basePath, 'riepilogo_lavori.xlsx');
+    
+    if (!fs.existsSync(finalPath)) {
+      throw new Error(`Excel file not found at ${finalPath}`);
+    }
+
+    const workbook = XLSX.readFile(finalPath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+    const jobs: ParsedJobData[] = [];
+
+    for (const row of jsonData) {
+      // Helper per normalizzare celle (trim + undefined se vuoto)
+      const normalize = (value: any): string | undefined => {
+        const str = String(value || '').trim();
+        return str.length > 0 ? str : undefined;
+      };
+
+      // Parsing nomi e indirizzi clienti
+      const parseNomeCompleto = (nomeCompleto: string | undefined) => {
+        if (!nomeCompleto) return { nome: '', cognome: '' };
+        const parts = nomeCompleto.trim().split(' ');
+        return {
+          nome: parts[0] || '',
+          cognome: parts.slice(1).join(' ') || '',
+        };
+      };
+
+      const parseIndirizzo = (indirizzo: string | undefined) => {
+        if (!indirizzo) return { via: '', citta: '', cap: '' };
+        // Esempio: "Via Orsa Maggiore 7, Giugliano (NA)" → via + città
+        const match = indirizzo.match(/^(.+?),\s*(.+?)(?:\s+\((\w+)\))?$/);
+        if (match) {
+          return {
+            via: match[1]?.trim() || '',
+            citta: match[2]?.trim() || '',
+            cap: '',  // CAP non presente in esempio, ma lasciamo campo per futuro
+          };
+        }
+        return { via: indirizzo, citta: '', cap: '' };
+      };
+
+      const cliente1Str = normalize(row['Cliente 1 (Nome, Indirizzo, Telefono)']);
+      const cliente1 = parseNomeCompleto(cliente1Str);
+      const indirizzo1 = parseIndirizzo(cliente1Str);
+
+      const cliente2Str = normalize(row['Cliente 2 (Nome, Indirizzo, Telefono)']);
+      const cliente2 = parseNomeCompleto(cliente2Str);
+      const indirizzo2 = parseIndirizzo(cliente2Str);
+
+      // Parsing prodotti (split da stringa)
+      const prodottiStr = normalize(row['Prodotti / Servizi']);
+      const prodotti = prodottiStr
+        ? prodottiStr.split(/[,;]\s*/).map(p => ({ nome: p.trim(), prezzo: 0, quantita: 1 }))
+        : [];
+
+      // Parsing firma (✅ → true, ❌ → false)
+      const firmaStr = normalize(row['Firma Presente']);
+      const firma = firmaStr === '✅' || firmaStr?.toLowerCase() === 'si' || firmaStr?.toLowerCase() === 'yes';
+
+      const jobData: ParsedJobData = {
+        // CSV-like fields (compatibilità)
+        dataCreazione: normalize(row['Data']) || '',
+        nome: normalize(row['Tipo Lavoro']) || '',
+        tipoLavoro: normalize(row['Tipo Lavoro']) || '',
+        provenienza: '',  // Non presente in Excel
+        dataEvento: normalize(row['Data']) || '',
+        location: normalize(row['Location']) || '',
+        nomeCliente: cliente1Str || '',
+        email: '',  // Email non presente come colonna separata in Excel
+        telefono: normalize(row['Cliente 1 (Nome, Indirizzo, Telefono)']) || '',
+        operatori: '',
+        settore: '',
+        note: '',
+
+        // ✅ NUOVI CAMPI EXCEL
+        pdfFileName: normalize(row['File PDF']),
+        firma,
+
+        // PDF Data strutturato
+        pdfData: {
+          cliente1: {
+            ...cliente1,
+            ...indirizzo1,
+            cellulare: normalize(row['Cliente 1 (Nome, Indirizzo, Telefono)']),
+            orarioCasa: normalize(row['Orario Casa Cliente 1']),
+          },
+          cliente2: {
+            ...cliente2,
+            ...indirizzo2,
+            cellulare: normalize(row['Cliente 2 (Nome, Indirizzo, Telefono)']),
+            orarioCasa: normalize(row['Orario Casa Cliente 2']),
+          },
+          evento: {
+            data: normalize(row['Data']),
+            location: normalize(row['Location']),
+            tipoLavoro: normalize(row['Tipo Lavoro']),
+            orarioInizio: normalize(row['Orario Rito']),
+            rituLocation: normalize(row['Località']),
+            rituTime: normalize(row['Orario Rito']),
+          },
+          pagamenti: [
+            // Acconto se presente
+            ...(normalize(row['Acconto']) && parseFloat(row['Acconto']) > 0
+              ? [{
+                  descrizione: 'Acconto',
+                  importo: parseFloat(row['Acconto']),
+                  metodo: (normalize(row['Metodo Pagamento']) || 'contante') as any,
+                  pagato: true,
+                  tipo: 'acconto' as const,
+                }]
+              : []),
+            // Saldo residuo se presente
+            ...(normalize(row['Da Saldare']) && parseFloat(row['Da Saldare']) > 0
+              ? [{
+                  descrizione: 'Saldo residuo',
+                  importo: parseFloat(row['Da Saldare']),
+                  metodo: 'contante' as any,
+                  pagato: false,
+                  tipo: 'saldo' as const,
+                }]
+              : []),
+          ],
+          importoTotale: parseFloat(row['Totale'] || 0),
+          prodotti,
+        },
+      };
+
+      jobs.push(jobData);
+    }
+
+    return jobs.filter(job => job.nome);
   }
 
   async parseCSV(csvPath?: string): Promise<CSVJobData[]> {
