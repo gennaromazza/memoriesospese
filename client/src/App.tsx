@@ -29,6 +29,7 @@ import QuoteSignedPortalPage from "./pages/QuoteSignedPortalPage";
 import QuotePublicViewPage from "./pages/QuotePublicViewPage";
 import GalleryManagementWorkspace from "./pages/GalleryManagementWorkspace";
 import JobDetailPage from "./pages/JobDetailPage";
+import JobsListPage from "./pages/JobsListPage";
 import NotFound from "./pages/not-found";
 import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
@@ -76,6 +77,7 @@ function AppRoutes() {
       <Route path="/admin/galleries/:galleryId/questionnaire" component={QuestionnaireManager} />
       <Route path="/admin/gallery/:galleryId/manage" component={GalleryManagementWorkspace} />
       <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
+      <Route path="/admin/jobs" component={JobsListPage} />
       <Route path="/admin/jobs/:jobId" component={JobDetailPage} />
       
       {/* Public questionnaire route with noindex/nofollow */}
