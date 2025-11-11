@@ -965,7 +965,7 @@ export default function AdminDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
-                    variant={activeTab === 'galleries' || activeTab === 'questionnaire' || activeTab === 'themes' ? 'default' : 'ghost'}
+                    variant={activeTab === 'galleries' || activeTab === 'questionnaire' || activeTab === 'themes' || activeTab === 'requests' ? 'default' : 'ghost'}
                     className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
                   >
                     <Eye className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -986,6 +986,10 @@ export default function AdminDashboard() {
                   <DropdownMenuItem onClick={() => setActiveTab('themes')}>
                     <Sparkles className="h-4 w-4 mr-2" />
                     Temi Stagionali
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab('requests')}>
+                    <Key className="h-4 w-4 mr-2" />
+                    Richieste Password
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1036,12 +1040,6 @@ export default function AdminDashboard() {
                 <Play className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Slideshow</span>
                 <span className="sm:hidden">Slide</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="requests" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Key className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Richieste Password</span>
-                <span className="sm:hidden">Pass</span>
               </TabsTrigger>
 
               {/* Settings */}
