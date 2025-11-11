@@ -10,11 +10,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download } from 'lucide-react';
 import type { Quote, QuoteSignature } from '@shared/quotes-types';
 import type { PaymentSchedule } from '@shared/payment-schedule-types';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import html2pdf from 'html2pdf.js';
 
 interface QuoteSignedPortalData {
   quote: Quote & { signedAt?: any };
@@ -170,13 +172,47 @@ export default function QuoteSignedPortalPage() {
 
   if (!quote) return null;
 
+  // Download PDF function
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById('quote-content');
+    if (!element) return;
+
+    const opt = {
+      margin: 0.5,
+      filename: `Preventivo-${jobInfo?.nomeEvento || 'contratto'}-firmato.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+    };
+
+    try {
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header Hero con logo */}
-        <Card className="overflow-hidden border-sage/20 shadow-lg bg-gradient-to-br from-off-white to-light-mint">
-          <CardHeader className="relative text-center py-8 sm:py-12 px-6">
-            <div className="space-y-4">
+        {/* Download PDF Button */}
+        <div className="flex justify-end">
+          <Button
+            onClick={handleDownloadPDF}
+            className="bg-blue-gray hover:bg-blue-gray/90 text-white shadow-lg"
+            data-testid="download-pdf-button"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Scarica PDF
+          </Button>
+        </div>
+
+        {/* Wrapper per contenuto PDF */}
+        <div id="quote-content">
+          {/* Header Hero con logo */}
+          <Card className="overflow-hidden border-sage/20 shadow-lg bg-gradient-to-br from-off-white to-light-mint">
+            <CardHeader className="relative text-center py-8 sm:py-12 px-6">
+              <div className="space-y-4">
               {/* Logo Studio */}
               {studioLogo && (
                 <div className="flex justify-center mb-6">
@@ -371,6 +407,17 @@ export default function QuoteSignedPortalPage() {
                   className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-4 sm:p-5 bg-off-white rounded-xl border-2 border-beige hover:border-sage hover:shadow-md transition-all gap-3 sm:gap-4"
                   data-testid={`product-item-${idx}`}
                 >
+                  {/* Product Image */}
+                  {product.immagini && product.immagini.length > 0 && (
+                    <div className="flex-shrink-0">
+                      <img 
+                        src={product.immagini[0]} 
+                        alt={product.nome}
+                        className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
+                      />
+                    </div>
+                  )}
+                  
                   <div className="flex items-start gap-3 sm:gap-4 flex-1">
                     <div className="p-2 sm:p-3 bg-sage/20 rounded-full flex-shrink-0">
                       <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-sage" />

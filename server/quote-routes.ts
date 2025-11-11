@@ -688,22 +688,36 @@ router.post('/send-quote', async (req: Request, res: Response) => {
 
     const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
-    // Determina email destinatario
-    let recipientEmail = quote.sentTo;
+    // Raccoglie TUTTE le email dei clienti
+    const recipientEmails: string[] = [];
     
-    if (!recipientEmail && quote.clientiInfo && quote.clientiInfo.length > 0) {
-      recipientEmail = quote.clientiInfo[0].email;
+    // Aggiungi email da clientiInfo (tutti i clienti)
+    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      quote.clientiInfo.forEach(cliente => {
+        if (cliente.email && !recipientEmails.includes(cliente.email)) {
+          recipientEmails.push(cliente.email);
+        }
+      });
     }
 
-    if (!recipientEmail && quote.clienteId) {
+    // Fallback: aggiungi email da clienteId se non ci sono altre email
+    if (recipientEmails.length === 0 && quote.clienteId) {
       const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
       if (clienteDoc.exists) {
         const clienteData = clienteDoc.data();
-        recipientEmail = clienteData?.email;
+        if (clienteData?.email) {
+          recipientEmails.push(clienteData.email);
+        }
       }
     }
 
-    if (!recipientEmail) {
+    // Fallback finale: usa quote.sentTo se presente (split se contiene virgole)
+    if (recipientEmails.length === 0 && quote.sentTo) {
+      const sentToEmails = quote.sentTo.split(',').map(e => e.trim()).filter(e => e.length > 0);
+      recipientEmails.push(...sentToEmails);
+    }
+
+    if (recipientEmails.length === 0) {
       return res.status(400).json({
         error: 'Email destinatario mancante',
         message: 'Impossibile determinare l\'email del cliente'
@@ -752,22 +766,22 @@ router.post('/send-quote', async (req: Request, res: Response) => {
 
     const subject = `Preventivo Personalizzato - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
 
-    // Invia email
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    // Invia email a TUTTI i clienti
+    await sendGmailEmail(recipientEmails, subject, htmlContent);
 
     // Update quote con tracking invio
     await db.collection('quotes').doc(quoteId).update({
       sentAt: new Date(),
-      sentTo: recipientEmail,
+      sentTo: recipientEmails.join(', '), // Salva tutte le email
       status: 'inviato'
     });
 
-    console.log(`✅ Preventivo ${quoteId} inviato via email a ${recipientEmail}`);
+    console.log(`✅ Preventivo ${quoteId} inviato via email a ${recipientEmails.join(', ')}`);
 
     return res.status(200).json({
       success: true,
-      message: 'Preventivo inviato con successo',
-      recipientEmail
+      message: `Preventivo inviato con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? 'cliente' : 'clienti'}`,
+      recipientEmails
     });
 
   } catch (error) {
@@ -815,14 +829,25 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
       });
     }
 
-    // Determina email destinatario
-    let recipientEmail = quote.sentTo;
+    // Raccoglie TUTTE le email dei clienti
+    const recipientEmails: string[] = [];
     
-    if (!recipientEmail && quote.clientiInfo && quote.clientiInfo.length > 0) {
-      recipientEmail = quote.clientiInfo[0].email;
+    // Aggiungi email da clientiInfo (tutti i clienti)
+    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      quote.clientiInfo.forEach(cliente => {
+        if (cliente.email && !recipientEmails.includes(cliente.email)) {
+          recipientEmails.push(cliente.email);
+        }
+      });
     }
 
-    if (!recipientEmail) {
+    // Fallback: usa quote.sentTo se presente (split se contiene virgole)
+    if (recipientEmails.length === 0 && quote.sentTo) {
+      const sentToEmails = quote.sentTo.split(',').map(e => e.trim()).filter(e => e.length > 0);
+      recipientEmails.push(...sentToEmails);
+    }
+
+    if (recipientEmails.length === 0) {
       return res.status(400).json({
         error: 'Email destinatario mancante',
         message: 'Impossibile determinare l\'email del cliente'
@@ -884,15 +909,15 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
 
     const subject = `Preventivo Firmato - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
 
-    // Invia email
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    // Invia email a TUTTI i clienti
+    await sendGmailEmail(recipientEmails, subject, htmlContent);
 
-    console.log(`✅ Notifica firma preventivo ${quoteId} inviata a ${recipientEmail}`);
+    console.log(`✅ Notifica firma preventivo ${quoteId} inviata a ${recipientEmails.join(', ')}`);
 
     return res.status(200).json({
       success: true,
-      message: 'Notifica firma inviata con successo',
-      recipientEmail
+      message: `Notifica firma inviata con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? 'cliente' : 'clienti'}`,
+      recipientEmails
     });
 
   } catch (error) {
@@ -952,14 +977,25 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
 
     const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
-    // Email destinatario
-    let recipientEmail = quote.sentTo;
+    // Raccoglie TUTTE le email dei clienti
+    const recipientEmails: string[] = [];
     
-    if (!recipientEmail && quote.clientiInfo && quote.clientiInfo.length > 0) {
-      recipientEmail = quote.clientiInfo[0].email;
+    // Aggiungi email da clientiInfo (tutti i clienti)
+    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      quote.clientiInfo.forEach(cliente => {
+        if (cliente.email && !recipientEmails.includes(cliente.email)) {
+          recipientEmails.push(cliente.email);
+        }
+      });
     }
 
-    if (!recipientEmail) {
+    // Fallback: usa quote.sentTo se presente (split se contiene virgole)
+    if (recipientEmails.length === 0 && quote.sentTo) {
+      const sentToEmails = quote.sentTo.split(',').map(e => e.trim()).filter(e => e.length > 0);
+      recipientEmails.push(...sentToEmails);
+    }
+
+    if (recipientEmails.length === 0) {
       return res.status(400).json({
         error: 'Email destinatario mancante',
         message: 'Impossibile determinare l\'email del cliente'
@@ -1014,15 +1050,15 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
       ? `Pagamento Scaduto - ${quote.jobInfo?.nomeEvento || 'Evento'}`
       : `Promemoria Pagamento - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
 
-    // Invia email
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    // Invia email a TUTTI i clienti
+    await sendGmailEmail(recipientEmails, subject, htmlContent);
 
-    console.log(`✅ Promemoria pagamento inviato a ${recipientEmail} per scadenzario ${paymentScheduleId}`);
+    console.log(`✅ Promemoria pagamento inviato a ${recipientEmails.join(', ')} per scadenzario ${paymentScheduleId}`);
 
     return res.status(200).json({
       success: true,
-      message: 'Promemoria pagamento inviato con successo',
-      recipientEmail,
+      message: `Promemoria pagamento inviato con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? 'cliente' : 'clienti'}`,
+      recipientEmails,
       daysUntilDue,
       isOverdue
     });
