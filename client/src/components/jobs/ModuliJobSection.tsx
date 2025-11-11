@@ -31,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2, AlertTriangle, Phone } from 'lucide-react';
+import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2, AlertTriangle, Phone, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -517,6 +517,24 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                       <ExternalLink className="h-4 w-4" />
                     </Button>
                   </div>
+
+                  {/* Export PDF Button - only for signed quotes */}
+                  {selectedQuote.status === 'firmato' && (
+                    <div className="mt-3">
+                      <Button
+                        onClick={() => window.open(getQuoteUrl(selectedQuote), '_blank')}
+                        className="w-full bg-blue-gray hover:bg-blue-gray/90 text-white"
+                        size="lg"
+                        data-testid="button-export-pdf"
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        Esporta PDF
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        Apri il portale firmato per scaricare il PDF del preventivo
+                      </p>
+                    </div>
+                  )}
 
                   {/* WhatsApp Button - only for signed quotes with clients */}
                   {selectedQuote.status === 'firmato' && clienti.length > 0 && (
