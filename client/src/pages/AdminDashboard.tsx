@@ -8,6 +8,7 @@ import { createUrl } from "@/lib/basePath";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatPasswordRequestsForExcel, exportToExcel } from "@/lib/excelExport";
 import { ref, listAll, deleteObject, uploadBytes, getDownloadURL } from "firebase/storage";
 import Navigation from "@/components/Navigation";
@@ -960,25 +961,34 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <Tabs defaultValue="galleries" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
             <TabsList className="mb-6 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto">
-              {/* Core: Gallerie */}
-              <TabsTrigger value="galleries" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Eye className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Gallerie</span>
-                <span className="sm:hidden">Eventi</span>
-              </TabsTrigger>
-
-              {/* Content Management */}
-              <TabsTrigger value="questionnaire" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <HelpCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Questionari</span>
-                <span className="sm:hidden">Q&A</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="themes" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Temi Stagionali</span>
-                <span className="sm:hidden">Temi</span>
-              </TabsTrigger>
+              {/* Core: Gallerie con dropdown sottomenu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant={activeTab === 'galleries' || activeTab === 'questionnaire' || activeTab === 'themes' ? 'default' : 'ghost'}
+                    className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
+                  >
+                    <Eye className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">Gallerie</span>
+                    <span className="sm:hidden">Eventi</span>
+                    <ChevronRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuItem onClick={() => setActiveTab('galleries')}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Gallerie Eventi
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab('questionnaire')}>
+                    <HelpCircle className="h-4 w-4 mr-2" />
+                    Questionari
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab('themes')}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Temi Stagionali
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Separatore visivo */}
               <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
