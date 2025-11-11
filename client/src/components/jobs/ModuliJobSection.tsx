@@ -536,18 +536,15 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     </div>
                   )}
 
-                  {/* WhatsApp Button - only for signed quotes with clients that have WhatsApp */}
+                  {/* WhatsApp Button - only for signed quotes with clients that have phone */}
                   {(() => {
                     if (selectedQuote.status !== 'firmato') return null;
                     
-                    console.log('Debug clienti:', clienti);
-                    console.log('Clienti totali:', clienti.length);
-                    clienti.forEach((c, i) => {
-                      console.log(`Cliente ${i}:`, c.nome, 'WhatsApp:', c.whatsapp);
+                    // Use whatsapp field if available, otherwise use cellulare1
+                    const clientiConWhatsApp = clienti.filter(c => {
+                      const phoneNumber = c.whatsapp || c.cellulare1;
+                      return phoneNumber && phoneNumber.trim() !== '';
                     });
-                    
-                    const clientiConWhatsApp = clienti.filter(c => c.whatsapp);
-                    console.log('Clienti con WhatsApp:', clientiConWhatsApp.length);
                     
                     if (clientiConWhatsApp.length === 0) return null;
                     
@@ -558,8 +555,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                           {clientiConWhatsApp.map((cliente, index) => {
                             const nomeEvento = job?.nomeEvento || 'il tuo evento';
                             const message = `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per poter vedere i dettagli e eventualmente confermare la prenotazione\n\n${getQuoteUrl(selectedQuote)}`;
-                            const whatsappNumber = cliente.whatsapp!.replace(/\s+/g, '').replace(/^\+/, '');
-                            const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+                            const phoneNumber = (cliente.whatsapp || cliente.cellulare1 || '').replace(/\s+/g, '').replace(/^\+/, '');
+                            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
                             
                             return (
                               <Button
