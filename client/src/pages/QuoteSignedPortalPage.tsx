@@ -521,6 +521,56 @@ export default function QuoteSignedPortalPage() {
           </Card>
         )}
 
+        {/* Firma Digitale */}
+        {quote.signature && (
+          <>
+            <Separator className="my-8" />
+            <Card className="border-sage/30 bg-gradient-to-br from-white to-sage/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg text-blue-gray font-playfair">
+                  <FileText className="w-5 h-5 text-sage" />
+                  Firma Digitale
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-sage/10 rounded-lg">
+                    <div className="p-2 bg-sage/20 rounded-full flex-shrink-0">
+                      <CheckCircle2 className="w-4 h-4 text-sage" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-sage uppercase tracking-wide">Firmato da</p>
+                      <p className="font-semibold text-gray-900 truncate">{quote.signature.clientName}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-blue-gray/10 rounded-lg">
+                    <div className="p-2 bg-blue-gray/20 rounded-full flex-shrink-0">
+                      <Calendar className="w-4 h-4 text-blue-gray" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-blue-gray uppercase tracking-wide">Data Firma</p>
+                      <p className="font-semibold text-gray-900">{formatDate(quote.signature.signedAt)}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-8 bg-gradient-to-br from-white to-sage/5 rounded-lg border-2 border-sage/30">
+                  <p className="text-sm text-dark-sage mb-4 font-medium flex items-center justify-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Firma Digitale
+                  </p>
+                  <p 
+                    className="text-5xl text-sage text-center" 
+                    style={{ fontFamily: "'Great Vibes', cursive" }}
+                    data-testid="signature-text"
+                  >
+                    {quote.signature.clientName}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
         {/* Clausole Contrattuali */}
         <Card className="border-beige">
           <CardHeader className="bg-cream border-b border-beige pb-3 sm:pb-4">
