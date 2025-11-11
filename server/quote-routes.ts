@@ -596,7 +596,7 @@ router.patch('/:id/reset-signature', async (req: Request, res: Response) => {
     const adminEmail = req.headers['x-admin-email'] as string;
 
     // 1. Validate admin
-    if (!adminEmail || !isAdminEmail(adminEmail)) {
+    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
       return res.status(403).json({
         error: 'Non autorizzato',
         message: 'Solo gli admin possono reimpostare le firme'
@@ -625,21 +625,26 @@ router.patch('/:id/reset-signature', async (req: Request, res: Response) => {
     }
 
     // 4. Reset signature fields and clause acceptance
-    // Reset contractClauses: omit accepted/acceptedAt (Firestore doesn't allow FieldValue.delete in arrays)
-    const resetClauses = quote.contractClauses.map(clause => {
-      const { accepted, acceptedAt, ...rest } = clause as any;
-      return rest;
-    });
-
-    await quoteRef.update({
+    // Build update object
+    const updateData: any = {
       status: 'bozza',
       signature: FieldValue.delete(),        // Remove QuoteSignature object
-      contractClauses: resetClauses,         // Reset clause acceptance (omit accepted/acceptedAt)
       clausesAccepted: FieldValue.delete(),  // Remove top-level accepted clauses array
       // Legacy fields (backward compatibility)
       dataFirma: FieldValue.delete(),
       clienteFirma: FieldValue.delete()
-    });
+    };
+
+    // Reset contractClauses if present (omit accepted/acceptedAt - Firestore doesn't allow FieldValue.delete in arrays)
+    if (quote.contractClauses && Array.isArray(quote.contractClauses)) {
+      const resetClauses = quote.contractClauses.map(clause => {
+        const { accepted, acceptedAt, ...rest } = clause as any;
+        return rest;
+      });
+      updateData.contractClauses = resetClauses;
+    }
+
+    await quoteRef.update(updateData);
 
     return res.status(200).json({
       success: true,

@@ -99,12 +99,22 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
       if (!user?.email) throw new Error('Utente non autenticato');
       await deleteQuote(quoteId, user.email, forceDelete);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      // Optimistic update: remove quote from cache immediately
+      queryClient.setQueryData(['quotes', 'job', jobId], (oldQuotes: Quote[] | undefined) => {
+        if (!oldQuotes) return [];
+        return oldQuotes.filter(q => q.id !== variables.quoteId);
+      });
+      
+      // Invalidate queries for background refetch
       queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      
+      // Close dialogs and reset state
       setSelectedQuoteId(null);
       setDeleteQuoteId(null);
       setForceDeleteMode(false);
+      
       toast({
         title: 'Preventivo eliminato',
         description: 'Il preventivo e i dati correlati sono stati eliminati con successo'
@@ -637,19 +647,21 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
               <AlertTriangle className="h-5 w-5 text-amber-600" />
               Reimposta Firma Preventivo
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3 pt-2">
-              <p>
-                Stai per reimpostare la firma del preventivo. Questa azione:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm pl-2">
-                <li>Cambierà lo status da <strong>Firmato</strong> a <strong>Bozza</strong></li>
-                <li>Rimuoverà la firma digitale del cliente</li>
-                <li>Cancellerà la data di firma</li>
-                <li>Manterrà tutti gli altri dati del preventivo (prodotti, prezzi, clienti)</li>
-              </ul>
-              <p className="text-amber-700 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md border border-amber-200 dark:border-amber-800">
-                ⚠️ Il cliente dovrà firmare nuovamente il preventivo se necessario.
-              </p>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2">
+                <p>
+                  Stai per reimpostare la firma del preventivo. Questa azione:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-sm pl-2">
+                  <li>Cambierà lo status da <strong>Firmato</strong> a <strong>Bozza</strong></li>
+                  <li>Rimuoverà la firma digitale del cliente</li>
+                  <li>Cancellerà la data di firma</li>
+                  <li>Manterrà tutti gli altri dati del preventivo (prodotti, prezzi, clienti)</li>
+                </ul>
+                <p className="text-amber-700 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md border border-amber-200 dark:border-amber-800">
+                  ⚠️ Il cliente dovrà firmare nuovamente il preventivo se necessario.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
