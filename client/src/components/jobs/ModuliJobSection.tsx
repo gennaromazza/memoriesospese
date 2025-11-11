@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { getQuotesForJob, deleteQuote, resetQuoteSignature } from '@/lib/quotes';
 import { Quote, QuoteStatus } from '@shared/quotes-types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -82,6 +83,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
+  const [, navigate] = useLocation();
 
   const { data: quotes = [], isLoading } = useQuery<Quote[]>({
     queryKey: ['quotes', 'job', jobId],
@@ -114,6 +116,9 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
       setSelectedQuoteId(null);
       setDeleteQuoteId(null);
       setForceDeleteMode(false);
+      
+      // Navigate to jobs list in admin dashboard
+      navigate('/admin/dashboard');
       
       toast({
         title: 'Preventivo eliminato',
