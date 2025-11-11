@@ -368,7 +368,58 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
   const cliente1Data = jobData.pdfData?.cliente1;
   let cliente1Email = cliente1Data?.email || jobData.email;
   
-  if (cliente1Email) {
+  // ✅ Se non c'è email, usa nome+cognome per cercare cliente esistente
+  if (!cliente1Email && cliente1Data?.nome && cliente1Data?.cognome) {
+    const cliente1Nome = cliente1Data.nome.trim();
+    const cliente1Cognome = cliente1Data.cognome.trim();
+    const nomeNormalized = cliente1Nome.toLowerCase();
+    const cognomeNormalized = cliente1Cognome.toLowerCase();
+    
+    // ⚡ Query solo per cognome (no composite index) + filter in memoria
+    const allWithSurnameSnapshot = await firestore.collection('clienti')
+      .where('cognome', '==', cliente1Cognome)
+      .get();
+
+    // Filter in memoria per nome (case-insensitive)
+    const matchingDocs = allWithSurnameSnapshot.docs.filter(doc => {
+      const data = doc.data();
+      return data.nome?.toLowerCase() === nomeNormalized;
+    });
+
+    let cliente1Id: string;
+    if (matchingDocs.length > 0) {
+      const matchedDoc = matchingDocs[0]; // Prendi il primo se ci sono omonimi
+      cliente1Id = matchedDoc.id;
+      const existingCliente1 = matchedDoc.data();
+      
+      // ✅ MERGE: Aggiorna campi mancanti del cliente esistente
+      await mergeClienteData(
+        matchedDoc.ref,
+        existingCliente1,
+        {
+          via: cliente1Data?.via,
+          citta: cliente1Data?.citta,
+          cap: cliente1Data?.cap,
+          cellulare: cliente1Data?.cellulare || jobData.telefono,
+          orarioCasa: cliente1Data?.orarioCasa,
+        }
+      );
+    } else {
+      // Cliente non trovato - salta questo job
+      throw new Error(`Cliente 1 "${cliente1Nome} ${cliente1Cognome}" non trovato nel database. Verifica che il cliente esista.`);
+    }
+
+    clientiIds.push(cliente1Id);
+    clientiInfo.push({
+      clienteId: cliente1Id,
+      ruolo: 'principale',
+      nome: cliente1Nome,
+      cognome: cliente1Cognome,
+      email: matchingDocs[0].data().email || '',
+      telefono: cliente1Data?.cellulare || jobData.telefono || '',
+      ...(cliente1Data?.orarioCasa && { orarioCasa: cliente1Data.orarioCasa }),
+    });
+  } else if (cliente1Email) {
     cliente1Email = cliente1Email.toLowerCase().trim();
     
     // Cerca cliente esistente per email
@@ -452,7 +503,57 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
 
   // Cliente 2 (da pdfData.cliente2)
   const cliente2Data = jobData.pdfData?.cliente2;
-  if (cliente2Data?.email) {
+  
+  // ✅ Se non c'è email ma c'è nome+cognome, cerca per nome
+  if (!cliente2Data?.email && cliente2Data?.nome && cliente2Data?.cognome) {
+    const cliente2Nome = cliente2Data.nome.trim();
+    const cliente2Cognome = cliente2Data.cognome.trim();
+    const nomeNormalized = cliente2Nome.toLowerCase();
+    
+    // ⚡ Query solo per cognome (no composite index) + filter in memoria
+    const allWithSurnameSnapshot = await firestore.collection('clienti')
+      .where('cognome', '==', cliente2Cognome)
+      .get();
+
+    // Filter in memoria per nome (case-insensitive)
+    const matchingDocs = allWithSurnameSnapshot.docs.filter(doc => {
+      const data = doc.data();
+      return data.nome?.toLowerCase() === nomeNormalized;
+    });
+
+    if (matchingDocs.length > 0) {
+      const matchedDoc = matchingDocs[0];
+      const cliente2Id = matchedDoc.id;
+      const existingCliente2 = matchedDoc.data();
+      
+      // ✅ MERGE: Aggiorna campi mancanti del cliente esistente
+      await mergeClienteData(
+        matchedDoc.ref,
+        existingCliente2,
+        {
+          via: cliente2Data.via,
+          citta: cliente2Data.citta,
+          cap: cliente2Data.cap,
+          cellulare: cliente2Data.cellulare,
+          orarioCasa: cliente2Data.orarioCasa,
+        }
+      );
+
+      clientiIds.push(cliente2Id);
+      clientiInfo.push({
+        clienteId: cliente2Id,
+        ruolo: 'partner',
+        nome: cliente2Nome,
+        cognome: cliente2Cognome,
+        email: existingCliente2.email || '',
+        telefono: cliente2Data.cellulare || '',
+        ...(cliente2Data?.orarioCasa && { orarioCasa: cliente2Data.orarioCasa }),
+      });
+    } else {
+      // Cliente 2 non trovato - non è critico, salta semplicemente
+      console.warn(`⚠️ Cliente 2 "${cliente2Nome} ${cliente2Cognome}" non trovato - job creato senza Cliente 2`);
+    }
+  } else if (cliente2Data?.email) {
     const cliente2Email = cliente2Data.email.toLowerCase().trim();
     
     // Cerca cliente esistente per email
@@ -531,7 +632,7 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
 
   // Fallback: se nessun cliente è stato creato, errore
   if (clientiIds.length === 0) {
-    throw new Error('Nessun cliente valido trovato (servono almeno email)');
+    throw new Error(`Nessun cliente valido trovato per job "${jobData.nome}". Verifica che i clienti esistano nel database con nome e cognome corretti.`);
   }
 
   result.clientsCreated += clientsCreatedCount;
