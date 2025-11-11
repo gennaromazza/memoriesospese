@@ -41,6 +41,7 @@ export default function QuoteSignedPortalPage() {
   const params = useParams();
   const token = params.token;
   const [studioSettings, setStudioSettings] = useState<{ phone?: string } | null>(null);
+  const [studioLogo, setStudioLogo] = useState<string | null>(null);
 
   // Fetch quote signed data
   const { data, isLoading, error } = useQuery<{ success: boolean; data: QuoteSignedPortalData }>({
@@ -62,13 +63,17 @@ export default function QuoteSignedPortalPage() {
   const jobInfo = portalData?.jobInfo;
   const clientiInfo = portalData?.clientiInfo || [];
 
-  // Load studio settings
+  // Load studio settings and logo
   useEffect(() => {
     async function loadStudioSettings() {
       try {
         const settingsDoc = await getDoc(doc(db, 'settings', 'studio'));
         if (settingsDoc.exists()) {
-          setStudioSettings(settingsDoc.data());
+          const settings = settingsDoc.data();
+          setStudioSettings(settings);
+          if (settings.logo) {
+            setStudioLogo(settings.logo);
+          }
         }
       } catch (error) {
         console.error('Error loading studio settings:', error);
@@ -166,20 +171,51 @@ export default function QuoteSignedPortalPage() {
   if (!quote) return null;
 
   return (
-    <div className="min-h-screen bg-off-white py-4 sm:py-8 px-3 sm:px-4">
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-        {/* Header Hero */}
-        {quote.theme?.headerImage && (
-          <div className="w-full h-32 sm:h-48 rounded-lg overflow-hidden shadow-lg">
-            <img 
-              src={quote.theme.headerImage} 
-              alt="Header" 
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 py-8">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header Hero con logo */}
+        <Card className="overflow-hidden border-sage/20 shadow-lg bg-gradient-to-br from-off-white to-light-mint">
+          <CardHeader className="relative text-center py-8 sm:py-12 px-6">
+            <div className="space-y-4">
+              {/* Logo Studio */}
+              {studioLogo && (
+                <div className="flex justify-center mb-6">
+                  <div className="p-3 bg-white rounded-2xl shadow-md">
+                    <img 
+                      src={studioLogo} 
+                      alt="Studio Logo" 
+                      className="h-12 sm:h-16 w-auto object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* Badge tipo preventivo */}
+              <div className="flex justify-center mb-4">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-gray/10 backdrop-blur-sm rounded-full border border-blue-gray/20">
+                  <FileText className="w-4 h-4 text-blue-gray" />
+                  <span className="text-blue-gray font-medium text-sm">
+                    {quote.type === 'fisso' ? 'Preventivo Fisso' : 'Preventivo Variabile'}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Titolo */}
+              <CardTitle className="text-2xl sm:text-3xl font-playfair font-bold text-blue-gray">
+                {quote.templateName || 'Preventivo'}
+              </CardTitle>
+              
+              {/* Nome evento */}
+              {jobInfo?.nomeEvento && (
+                <p className="text-sage text-base sm:text-lg font-medium mt-2">
+                  {jobInfo.nomeEvento}
+                </p>
+              )}
+            </div>
+          </CardHeader>
+        </Card>
 
-        {/* Contratto Firmato Success */}
+        {/* Success Banner */}
         <Card className="border-sage bg-light-mint shadow-md">
           <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
             <div className="flex items-start sm:items-center gap-3 sm:gap-4">
@@ -196,68 +232,110 @@ export default function QuoteSignedPortalPage() {
           </CardContent>
         </Card>
 
-        {/* Cliente & Signature Info */}
-        <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
-          <Card className="border-beige shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="bg-cream border-b border-beige pb-3 sm:pb-4">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-playfair font-semibold text-dark-sage">
-                <div className="p-2 bg-mint rounded-full">
-                  <User className="w-4 h-4 sm:w-5 sm:h-5 text-blue-gray" />
-                </div>
-                Informazioni Cliente
+        {/* Dettagli Evento */}
+        {jobInfo && (
+          <Card className="border-sage/20 bg-gradient-to-br from-white to-light-mint/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg text-blue-gray font-playfair">
+                <Calendar className="w-5 h-5 text-sage" />
+                Dettagli Evento
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-4 pt-4 sm:pt-6 px-4 sm:px-6">
+            <CardContent className="space-y-4">
+              {/* Data */}
+              <div className="grid md:grid-cols-2 gap-4">
+                {jobInfo.eventDate && (
+                  <div className="flex items-start gap-3">
+                    <Calendar className="w-5 h-5 text-gray-500 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-600">Data Evento</p>
+                      <p className="font-semibold">{formatDate(jobInfo.eventDate)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Location */}
+              {jobInfo.location && (
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-600">Location Evento</p>
+                    <p className="font-semibold">{jobInfo.location}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Rito */}
+              {jobInfo.rito && (
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-gray-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-600">Rito</p>
+                    <p className="font-semibold">{jobInfo.rito}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Informazioni Clienti */}
+        <Card className="border-sage/20 bg-gradient-to-br from-white to-light-mint/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg text-blue-gray font-playfair">
+              <User className="w-5 h-5 text-sage" />
+              Informazioni Clienti
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
               {clientiInfo.map((cliente, idx) => (
-                <div key={cliente.id} className="space-y-3 pb-4 border-b border-beige last:border-b-0 last:pb-0">
+                <div 
+                  key={cliente.id} 
+                  className="p-4 border-2 border-beige rounded-lg bg-white space-y-3"
+                  data-testid={`client-card-${idx}`}
+                >
                   {clientiInfo.length > 1 && (
-                    <h3 className="text-sm font-semibold text-dark-sage uppercase tracking-wide">
+                    <h3 className="text-sm font-semibold text-dark-sage uppercase tracking-wide mb-3">
                       Cliente {idx + 1}
                     </h3>
                   )}
                   
-                  <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
-                    <div className="p-2 bg-mint rounded-full flex-shrink-0">
-                      <User className="w-4 h-4 text-blue-gray" />
-                    </div>
+                  <div className="flex items-center gap-3 p-2 bg-off-white rounded">
+                    <User className="w-4 h-4 text-sage flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-dark-sage uppercase tracking-wide">Nome Completo</p>
+                      <p className="text-xs text-gray-600">Nome Completo</p>
                       <p className="font-semibold text-gray-900 truncate">{cliente.nome} {cliente.cognome}</p>
                     </div>
                   </div>
                   
                   {cliente.email && (
-                    <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
-                      <div className="p-2 bg-mint rounded-full flex-shrink-0">
-                        <Mail className="w-4 h-4 text-blue-gray" />
-                      </div>
+                    <div className="flex items-center gap-3 p-2 bg-off-white rounded">
+                      <Mail className="w-4 h-4 text-sage flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-dark-sage uppercase tracking-wide">Email</p>
+                        <p className="text-xs text-gray-600">Email</p>
                         <p className="font-medium text-gray-900 text-sm break-all">{cliente.email}</p>
                       </div>
                     </div>
                   )}
                   
                   {cliente.telefono && (
-                    <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
-                      <div className="p-2 bg-mint rounded-full flex-shrink-0">
-                        <Phone className="w-4 h-4 text-blue-gray" />
-                      </div>
+                    <div className="flex items-center gap-3 p-2 bg-off-white rounded">
+                      <Phone className="w-4 h-4 text-sage flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-dark-sage uppercase tracking-wide">Telefono</p>
+                        <p className="text-xs text-gray-600">Telefono</p>
                         <p className="font-medium text-gray-900">{cliente.telefono}</p>
                       </div>
                     </div>
                   )}
 
                   {(cliente.indirizzo || cliente.citta || cliente.cap) && (
-                    <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
-                      <div className="p-2 bg-mint rounded-full flex-shrink-0">
-                        <MapPin className="w-4 h-4 text-blue-gray" />
-                      </div>
+                    <div className="flex items-center gap-3 p-2 bg-off-white rounded">
+                      <MapPin className="w-4 h-4 text-sage flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-dark-sage uppercase tracking-wide">Indirizzo</p>
-                        <p className="font-medium text-gray-900">
+                        <p className="text-xs text-gray-600">Indirizzo</p>
+                        <p className="font-medium text-gray-900 text-sm">
                           {cliente.indirizzo && <>{cliente.indirizzo}<br /></>}
                           {(cliente.citta || cliente.cap) && (
                             <>
@@ -271,90 +349,9 @@ export default function QuoteSignedPortalPage() {
                   )}
                 </div>
               ))}
-              {jobInfo?.eventDate && (
-                <div className="flex items-center gap-3 p-3 bg-terracotta/10 rounded-lg border border-terracotta/30">
-                  <div className="p-2 bg-terracotta/20 rounded-full flex-shrink-0">
-                    <Calendar className="w-4 h-4 text-terracotta" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-terracotta uppercase tracking-wide font-medium">Data Evento</p>
-                    <p className="font-bold text-terracotta text-base sm:text-lg">{formatDate(jobInfo.eventDate)}</p>
-                  </div>
-                </div>
-              )}
-              {jobInfo?.location && (
-                <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
-                  <div className="p-2 bg-mint rounded-full flex-shrink-0">
-                    <MapPin className="w-4 h-4 text-blue-gray" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-dark-sage uppercase tracking-wide">Location</p>
-                    <p className="font-medium text-gray-900">{jobInfo.location}</p>
-                  </div>
-                </div>
-              )}
-              {jobInfo?.rito && (
-                <div className="flex items-center gap-3 p-3 bg-off-white rounded-lg hover:bg-light-mint transition-colors">
-                  <div className="p-2 bg-mint rounded-full flex-shrink-0">
-                    <Calendar className="w-4 h-4 text-blue-gray" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-dark-sage uppercase tracking-wide">Rito</p>
-                    <p className="font-medium text-gray-900">{jobInfo.rito}</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-beige shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="bg-cream border-b border-beige pb-3 sm:pb-4">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-playfair font-semibold text-dark-sage">
-                <div className="p-2 bg-sage/20 rounded-full">
-                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-sage" />
-                </div>
-                Firma Digitale
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
-              {quote.signature && (
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="flex items-center gap-3 p-3 bg-sage/10 rounded-lg">
-                    <div className="p-2 bg-sage/20 rounded-full flex-shrink-0">
-                      <CheckCircle2 className="w-4 h-4 text-sage" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-sage uppercase tracking-wide">Firmato da</p>
-                      <p className="font-semibold text-gray-900 truncate">{quote.signature.clientName}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-blue-gray/10 rounded-lg">
-                    <div className="p-2 bg-blue-gray/20 rounded-full flex-shrink-0">
-                      <Calendar className="w-4 h-4 text-blue-gray" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-blue-gray uppercase tracking-wide">Data Firma</p>
-                      <p className="font-semibold text-gray-900">{formatDate(quote.signature.signedAt)}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 p-6 sm:p-8 bg-gradient-to-br from-white to-sage/5 rounded-lg border-2 border-sage/30">
-                    <p className="text-xs sm:text-sm text-dark-sage mb-4 font-medium flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      Firma Digitale:
-                    </p>
-                    <p 
-                      className="text-4xl sm:text-5xl text-sage text-center" 
-                      style={{ fontFamily: "'Great Vibes', cursive" }}
-                      data-testid="signature-text"
-                    >
-                      {quote.signature.clientName}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Prodotti Selezionati */}
         <Card className="border-beige shadow-md">
