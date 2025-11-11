@@ -107,6 +107,47 @@ router.post('/execute', authenticateFirebase, async (req: AuthRequest, res: Resp
   }
 });
 
+// Helper: normalizza nome completo in nome + cognome
+function splitNomeCompleto(nomeCompleto: string): { nome: string; cognome: string } {
+  const parts = nomeCompleto.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return {
+      nome: parts[0],
+      cognome: parts.slice(1).join(' '),
+    };
+  }
+  return {
+    nome: nomeCompleto,
+    cognome: '',
+  };
+}
+
+// Helper: mappa PagamentoData → Transaction schema (booking-types.ts compliant)
+function mapPagamentoToTransaction(pag: any): any {
+  let dataTimestamp: FirebaseFirestore.Timestamp;
+  try {
+    if (pag.data) {
+      const convertedDate = LegacyImportParser.convertDate(pag.data);
+      const parsedDate = new Date(convertedDate);
+      dataTimestamp = Timestamp.fromDate(parsedDate);
+    } else {
+      dataTimestamp = Timestamp.now();
+    }
+  } catch {
+    dataTimestamp = Timestamp.now();
+  }
+
+  return {
+    tipo: pag.tipo || 'acconto',
+    importo: pag.importo || 0,
+    metodo: pag.metodo || 'contante',
+    data: dataTimestamp,
+    note: `${pag.descrizione || 'Importato da vecchio gestionale'}${pag.pagato ? ' - GIÀ PAGATO' : ' - DA PAGARE'}`,
+    pagato: pag.pagato || false,  // ✅ Flag per calcolo totalePagato
+    emailInviata: false,  // ✅ Campo obbligatorio schema Transaction
+  };
+}
+
 async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Promise<void> {
   const firestore = db;
 
@@ -131,44 +172,170 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     return;
   }
 
-  // 1. Cerca o crea cliente
-  let clienteId: string;
-  let isNewClient = false;
+  // 1. Crea o trova ENTRAMBI i clienti (sposi)
+  const clientiIds: string[] = [];
+  const clientiInfo: any[] = [];
+  let clientsCreatedCount = 0;
 
-  if (jobData.email) {
-    const clientiSnapshot = await firestore.collection('clienti')
-      .where('email', '==', jobData.email.toLowerCase().trim())
+  // Cliente 1 (priorità: pdfData.cliente1, poi CSV)
+  const cliente1Data = jobData.pdfData?.cliente1;
+  let cliente1Email = cliente1Data?.email || jobData.email;
+  
+  if (cliente1Email) {
+    cliente1Email = cliente1Email.toLowerCase().trim();
+    
+    // Cerca cliente esistente per email
+    const cliente1Snapshot = await firestore.collection('clienti')
+      .where('email', '==', cliente1Email)
       .limit(1)
       .get();
 
-    if (!clientiSnapshot.empty) {
-      clienteId = clientiSnapshot.docs[0].id;
+    let cliente1Id: string;
+    if (!cliente1Snapshot.empty) {
+      cliente1Id = cliente1Snapshot.docs[0].id;
     } else {
-      const clienteData = {
-        nome: jobData.nomeCliente || '',
-        email: jobData.email.toLowerCase().trim(),
-        telefono: jobData.telefono || '',
-        cellulare1: jobData.telefono || '',
-        indirizzo: jobData.pdfData?.indirizzo || '',
-        cap: jobData.pdfData?.cap || '',
-        citta: jobData.pdfData?.citta || '',
-        provincia: jobData.pdfData?.provincia || '',
-        codiceFiscale: jobData.pdfData?.codiceFiscale || '',
+      // Normalizza nome/cognome
+      const { nome, cognome } = cliente1Data?.nome && cliente1Data?.cognome 
+        ? { nome: cliente1Data.nome, cognome: cliente1Data.cognome }
+        : splitNomeCompleto(jobData.nomeCliente || cliente1Data?.nome || '');
+
+      const newCliente1 = {
+        nome,
+        cognome,
+        email: cliente1Email,
+        cellulare1: cliente1Data?.cellulare || jobData.telefono || '',
+        via: cliente1Data?.via || '',
+        citta: cliente1Data?.citta || '',
+        cap: cliente1Data?.cap || '',
+        
+        // Inizializza campi obbligatori
+        sourceRefs: {
+          bookingIds: [],
+          orderIds: [],
+          galleryIds: [],
+        },
+        lifecycle: {
+          firstContactAt: Timestamp.now(),
+          lastInteractionAt: Timestamp.now(),
+          status: 'lead' as const,
+        },
+        financials: {
+          totalRevenue: 0,
+          outstandingBalance: 0,
+          totalOrders: 0,
+        },
         note: `Importato da vecchio gestionale - ${jobData.dataCreazione}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        createdBy: 'import-legacy',
       };
 
-      const clienteRef = await firestore.collection('clienti').add(clienteData);
-      clienteId = clienteRef.id;
-      isNewClient = true;
-      result.clientsCreated++;
+      const cliente1Ref = await firestore.collection('clienti').add(newCliente1);
+      cliente1Id = cliente1Ref.id;
+      clientsCreatedCount++;
     }
+
+    clientiIds.push(cliente1Id);
+    clientiInfo.push({
+      clienteId: cliente1Id,
+      ruolo: 'principale',
+      nome: cliente1Data?.nome || splitNomeCompleto(jobData.nomeCliente).nome,
+      cognome: cliente1Data?.cognome || splitNomeCompleto(jobData.nomeCliente).cognome,
+      email: cliente1Email,
+      telefono: cliente1Data?.cellulare || jobData.telefono || '',
+    });
   } else {
-    throw new Error('Email cliente mancante');
+    console.warn(`⚠️ Cliente 1 senza email per job ${jobData.nome}`);
   }
 
-  // 2. Crea job
+  // Cliente 2 (da pdfData.cliente2)
+  const cliente2Data = jobData.pdfData?.cliente2;
+  if (cliente2Data?.email) {
+    const cliente2Email = cliente2Data.email.toLowerCase().trim();
+    
+    // Cerca cliente esistente per email
+    const cliente2Snapshot = await firestore.collection('clienti')
+      .where('email', '==', cliente2Email)
+      .limit(1)
+      .get();
+
+    let cliente2Id: string;
+    if (!cliente2Snapshot.empty) {
+      cliente2Id = cliente2Snapshot.docs[0].id;
+    } else {
+      const newCliente2 = {
+        nome: cliente2Data.nome || '',
+        cognome: cliente2Data.cognome || '',
+        email: cliente2Email,
+        cellulare1: cliente2Data.cellulare || '',
+        via: cliente2Data.via || '',
+        citta: cliente2Data.citta || '',
+        cap: cliente2Data.cap || '',
+        
+        // Inizializza campi obbligatori
+        sourceRefs: {
+          bookingIds: [],
+          orderIds: [],
+          galleryIds: [],
+        },
+        lifecycle: {
+          firstContactAt: Timestamp.now(),
+          lastInteractionAt: Timestamp.now(),
+          status: 'lead' as const,
+        },
+        financials: {
+          totalRevenue: 0,
+          outstandingBalance: 0,
+          totalOrders: 0,
+        },
+        note: `Importato da vecchio gestionale - ${jobData.dataCreazione}`,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        createdBy: 'import-legacy',
+      };
+
+      const cliente2Ref = await firestore.collection('clienti').add(newCliente2);
+      cliente2Id = cliente2Ref.id;
+      clientsCreatedCount++;
+    }
+
+    clientiIds.push(cliente2Id);
+    clientiInfo.push({
+      clienteId: cliente2Id,
+      ruolo: 'partner',
+      nome: cliente2Data.nome || '',
+      cognome: cliente2Data.cognome || '',
+      email: cliente2Email,
+      telefono: cliente2Data.cellulare || '',
+    });
+  } else {
+    console.warn(`⚠️ Cliente 2 senza email per job ${jobData.nome} - saltato`);
+  }
+
+  // Fallback: se nessun cliente è stato creato, errore
+  if (clientiIds.length === 0) {
+    throw new Error('Nessun cliente valido trovato (servono almeno email)');
+  }
+
+  result.clientsCreated += clientsCreatedCount;
+
+  // 2. Mappa pagamenti PDF → Transactions e calcola financials
+  const transactions = jobData.pdfData?.pagamenti?.map(mapPagamentoToTransaction) || [];
+  
+  const totalePreventivato = jobData.pdfData?.importoTotale || 0;
+  const totalePagato = transactions
+    .filter(t => t.pagato === true)
+    .reduce((sum, t) => sum + t.importo, 0);
+  const saldoResiduo = Math.max(totalePreventivato - totalePagato, 0);
+
+  const financials = {
+    totalePreventivato,
+    totaleOrdini: 0,
+    totalePagato,
+    saldoResiduo,
+  };
+
+  // 3. Crea job
   const dataEvento = LegacyImportParser.convertDate(jobData.dataEvento);
   
   // Converti data evento in Timestamp Firestore per compatibilità con query UI
@@ -185,7 +352,7 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     eventDateTimestamp = Timestamp.now();
   }
   
-  // Prepara prodotti legacy in formato strutturato
+  // Prepara prodotti legacy in formato strutturato (deprecato ma mantenuto per compatibilità)
   const legacyProducts = jobData.pdfData?.prodotti?.map(p => ({
     nome: p.nome,
     prezzo: p.prezzo || 0,
@@ -193,32 +360,31 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     fonte: 'importazione-pdf'
   })) || [];
 
+  // Estrai dati evento dal PDF se disponibili
+  const eventoData = jobData.pdfData?.evento;
+
   const jobDoc = {
     nomeEvento: jobData.nome,
     dataEvento,  // Mantieni stringa per compatibilità legacy
     eventDate: eventDateTimestamp,  // ✅ CRITICO: Timestamp per query UI
-    clientiIds: [clienteId],  // ✅ CRITICO: Array per query UI
-    location: jobData.location || '',
-    jobType: LegacyImportParser.mapJobType(jobData.tipoLavoro),
-    jobProvenance: LegacyImportParser.mapProvenance(jobData.provenienza),
-    clientiInfo: [{
-      clienteId,
-      ruolo: 'principale',
-      nome: jobData.nomeCliente,
-      email: jobData.email,
-      telefono: jobData.telefono || '',
-      whatsapp: jobData.telefono || '',
-      cellulare1: jobData.telefono || '',
-    }],
-    status: 'lead',
+    clientiIds,  // ✅ NUOVO: Array con ENTRAMBI i clienti
+    location: eventoData?.location || jobData.location || '',
+    eventLocation: eventoData?.location || jobData.location || '',
+    allDay: false,  // Default - può essere aggiornato manualmente
+    startTime: eventoData?.orarioInizio || undefined,
+    endTime: eventoData?.orarioFine || undefined,
+    rituLocation: eventoData?.rituLocation || undefined,
+    rituTime: eventoData?.rituTime || undefined,
+    jobType: LegacyImportParser.mapJobType(eventoData?.tipoLavoro || jobData.tipoLavoro),
+    provenance: LegacyImportParser.mapProvenance(jobData.provenienza),
+    clientiInfo,  // ✅ NUOVO: Array con info di ENTRAMBI i clienti
+    status: 'lead' as const,
     
-    // ✅ CRITICO: Financials richiesto da JobsManager
-    financials: {
-      totalePreventivato: jobData.pdfData?.importoTotale || 0,
-      totaleOrdini: 0,
-      totalePagato: 0,
-      saldoResiduo: jobData.pdfData?.importoTotale || 0
-    },
+    // ✅ NUOVO: Financials calcolati da pagamenti reali
+    financials,
+    
+    // ✅ NUOVO: Transactions mappate correttamente
+    transactions,
     
     // Riferimenti vuoti inizialmente
     orderIds: [],
@@ -241,75 +407,54 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
       tipoLavoroOriginale: jobData.tipoLavoro,
       provenienzaOriginale: jobData.provenienza,
       prodottiLegacy: legacyProducts,
-      importoTotaleLegacy: jobData.pdfData?.importoTotale || null,
+      importoTotaleLegacy: totalePreventivato,
+      cliente1PDF: cliente1Data || null,
+      cliente2PDF: cliente2Data || null,
     },
-    transactions: [] as any[],
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
     createdBy: 'import-legacy',
-    jobSource: 'import'
+    jobSource: 'legacy_import' as const
   };
-
-  // 3. Aggiungi transazioni se ci sono pagamenti dal PDF
-  if (jobData.pdfData?.pagamenti && jobData.pdfData.pagamenti.length > 0) {
-    jobDoc.transactions = jobData.pdfData.pagamenti.map((pag, index) => ({
-      id: `import-${Date.now()}-${index}`,
-      descrizione: pag.descrizione,
-      importo: pag.importo || 0,
-      dataScadenza: pag.data ? LegacyImportParser.convertDate(pag.data) : '',
-      pagato: false,
-      dataPagamento: null,
-      metodoPagamento: null,
-      note: 'Importato da vecchio gestionale',
-    }));
-  }
 
   const jobRef = await firestore.collection('jobs').add(jobDoc);
   const jobId = jobRef.id;
   
+  // 4. Aggiorna sourceRefs dei clienti per includere questo job
+  for (const clienteId of clientiIds) {
+    const clienteRef = firestore.collection('clienti').doc(clienteId);
+    const clienteDoc = await clienteRef.get();
+    
+    if (clienteDoc.exists) {
+      const currentSourceRefs = clienteDoc.data()?.sourceRefs || {};
+      const bookingIds = currentSourceRefs.bookingIds || [];
+      
+      // Aggiungi jobId a bookingIds se non già presente
+      if (!bookingIds.includes(jobId)) {
+        await clienteRef.update({
+          'sourceRefs.bookingIds': [...bookingIds, jobId],
+          'lifecycle.lastInteractionAt': Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+      }
+    }
+  }
+  
   result.jobsImported++;
+  
+  // Prepara messaggio dettagliato
+  const clientiCreati = clientsCreatedCount > 0 ? `${clientsCreatedCount} nuov${clientsCreatedCount === 1 ? 'o cliente' : 'i clienti'}` : 'clienti esistenti';
+  const pagamentiInfo = transactions.length > 0 
+    ? `${transactions.length} pagament${transactions.length === 1 ? 'o' : 'i'} (€${totalePagato} già pagati su €${totalePreventivato})`
+    : 'nessun pagamento';
+  
   result.details.push({
     jobName: jobData.nome,
     jobId,
-    clientId: clienteId,
+    clientId: clientiIds[0],  // Primo cliente per compatibilità
     status: 'success',
-    message: `Job creato${isNewClient ? ' con nuovo cliente' : ' con cliente esistente'}. ${legacyProducts.length} prodotti salvati, ${jobData.pdfData?.pagamenti.length || 0} pagamenti.${jobData.pdfData?.importoTotale ? ` Importo totale: €${jobData.pdfData.importoTotale}` : ''}`,
+    message: `✅ Job creato con ${clientiCreati}. ${pagamentiInfo}. Totale: €${totalePreventivato}${legacyProducts.length > 0 ? `. ${legacyProducts.length} prodotti in importedData.prodottiLegacy` : ''}`,
   });
-
-  // 4. Se non ci sono pagamenti ma c'è un totale, crea una transazione generica
-  if ((!jobData.pdfData?.pagamenti || jobData.pdfData.pagamenti.length === 0) && 
-      jobData.pdfData?.importoTotale) {
-    await firestore.collection('jobs').doc(jobId).update({
-      transactions: [{
-        id: `import-total-${Date.now()}`,
-        descrizione: 'Importo totale (da verificare)',
-        importo: jobData.pdfData.importoTotale,
-        dataScadenza: dataEvento,
-        pagato: false,
-        dataPagamento: null,
-        metodoPagamento: null,
-        note: 'Totale estratto dal PDF - verificare e suddividere',
-      }],
-    });
-
-    result.warnings.push({
-      job: jobData.nome,
-      warning: 'Creata transazione generica con importo totale - da verificare manualmente',
-    });
-  }
-
-  // 5. Aggiungi nota con riepilogo prodotti per referenza rapida
-  if (legacyProducts.length > 0) {
-    const prodottiText = legacyProducts
-      .map(p => `- ${p.nome}${p.prezzo ? ` (€${p.prezzo})` : ''}`)
-      .join('\n');
-    
-    const notaCompleta = `${jobDoc.note}\n\n📦 Prodotti dal vecchio gestionale (disponibili in importedData.prodottiLegacy):\n${prodottiText}${jobData.pdfData?.importoTotale ? `\n\nImporto totale originale: €${jobData.pdfData.importoTotale}` : ''}`;
-    
-    await firestore.collection('jobs').doc(jobId).update({
-      note: notaCompleta,
-    });
-  }
 }
 
 // DELETE /api/import/delete-legacy - Cancella tutti i job importati (per re-import)

@@ -20,24 +20,54 @@ export interface CSVJobData {
   note: string;
 }
 
+export interface ClienteData {
+  nome?: string;
+  cognome?: string;
+  email?: string;
+  cellulare?: string;
+  via?: string;
+  citta?: string;
+  cap?: string;
+}
+
+export interface EventoData {
+  data?: string;
+  location?: string;
+  tipoLavoro?: string;
+  orarioInizio?: string;
+  orarioFine?: string;
+  rituLocation?: string;
+  rituTime?: string;
+}
+
+export interface PagamentoData {
+  descrizione: string;
+  importo?: number;
+  data?: string;
+  metodo?: 'contante' | 'carta' | 'bonifico' | 'paypal';
+  pagato?: boolean;
+  tipo?: 'acconto' | 'saldo';
+}
+
 export interface ParsedJobData extends CSVJobData {
   pdfData?: {
-    indirizzo?: string;
-    cap?: string;
-    citta?: string;
-    provincia?: string;
-    codiceFiscale?: string;
+    // Clienti (entrambi gli sposi)
+    cliente1?: ClienteData;
+    cliente2?: ClienteData;
+    
+    // Dati evento
+    evento?: EventoData;
+    
+    // Pagamenti dettagliati
+    pagamenti: PagamentoData[];
+    importoTotale?: number;
+    
+    // Legacy - deprecato ma mantenuto per compatibilità
     prodotti: Array<{
       nome: string;
       prezzo?: number;
       quantita?: number;
     }>;
-    pagamenti: Array<{
-      descrizione: string;
-      importo?: number;
-      data?: string;
-    }>;
-    importoTotale?: number;
   };
   folderPath?: string;
 }
@@ -109,84 +139,222 @@ export class LegacyImportParser {
   }
 
   private extractDataFromPDFText(text: string): ParsedJobData['pdfData'] {
-    const lines = text.split('\n').map(line => line.trim());
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     
     const data: ParsedJobData['pdfData'] = {
+      cliente1: {},
+      cliente2: {},
+      evento: {},
       prodotti: [],
       pagamenti: [],
     };
 
-    // Estrai indirizzo (cerca pattern comuni)
-    const indirizzoRegex = /(?:Via|Viale|Corso|Piazza)\s+[^\n]+/i;
-    const indirizzoMatch = text.match(indirizzoRegex);
-    if (indirizzoMatch) {
-      data.indirizzo = indirizzoMatch[0].trim();
+    // ESTRAZIONE CLIENTI con pattern label-based (Nome:, Cognome:, Email:, etc.)
+    let currentCliente: 1 | 2 = 1;
+    let nomeCount = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lowerLine = line.toLowerCase();
+      
+      // Pattern: "Nome:" o "Nome :" → prossima riga o stesso riga
+      // ✅ Regex case-insensitive che accetta maiuscolo, minuscolo, accenti, apostrofi
+      if (lowerLine.includes('nome:') || lowerLine.match(/^nome\s*$/i)) {
+        // ✅ Incrementa PRIMA di assegnare per determinare quale cliente
+        nomeCount++;
+        const targetCliente = nomeCount === 1 ? 1 : 2;
+        
+        // Pattern flessibile: accetta UPPERCASE, lowercase, accenti, apostrofi, spazi
+        const nomeMatch = line.match(/nome[:\s]+([A-ZÀ-ÿa-z'\s]+?)(?:\s*$|Cognome|Email|Tel|Cell|Via)/i);
+        if (nomeMatch) {
+          const nome = nomeMatch[1].trim();
+          if (nome.length > 0) {
+            if (targetCliente === 1) {
+              data.cliente1!.nome = nome;
+            } else {
+              data.cliente2!.nome = nome;
+            }
+          }
+        } else if (i + 1 < lines.length) {
+          // Nome è nella prossima riga
+          const nextLine = lines[i + 1];
+          const nameMatch = nextLine.match(/^([A-ZÀ-ÿa-z'\s]+)$/i);
+          if (nameMatch && nameMatch[1].trim().length > 0) {
+            if (targetCliente === 1) {
+              data.cliente1!.nome = nameMatch[1].trim();
+            } else {
+              data.cliente2!.nome = nameMatch[1].trim();
+            }
+          }
+        }
+        
+        if (nomeCount >= 2) {
+          currentCliente = 2;  // Passa a cliente2
+        }
+      }
+      
+      // Pattern: "Cognome:" → prossima riga o stesso riga
+      // ✅ Regex case-insensitive che accetta maiuscolo, minuscolo, accenti, apostrofi
+      if (lowerLine.includes('cognome:') || lowerLine.match(/^cognome\s*$/i)) {
+        const cognomeMatch = line.match(/cognome[:\s]+([A-ZÀ-ÿa-z'\s]+?)(?:\s*$|Email|Tel|Cell|Via|Data)/i);
+        if (cognomeMatch) {
+          const cognome = cognomeMatch[1].trim();
+          if (cognome.length > 0) {
+            if (currentCliente === 1) {
+              data.cliente1!.cognome = cognome;
+            } else {
+              data.cliente2!.cognome = cognome;
+            }
+          }
+        } else if (i + 1 < lines.length) {
+          // Cognome è nella prossima riga
+          const nextLine = lines[i + 1];
+          const surnameMatch = nextLine.match(/^([A-ZÀ-ÿa-z'\s]+)$/i);
+          if (surnameMatch && surnameMatch[1].trim().length > 0) {
+            if (currentCliente === 1) {
+              data.cliente1!.cognome = surnameMatch[1].trim();
+            } else {
+              data.cliente2!.cognome = surnameMatch[1].trim();
+            }
+          }
+        }
+      }
+      
+      // Email (pattern: qualcosa@qualcosa.com)
+      const emailMatch = line.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      if (emailMatch) {
+        if (!data.cliente1!.email) {
+          data.cliente1!.email = emailMatch[1];
+        } else if (!data.cliente2!.email) {
+          data.cliente2!.email = emailMatch[1];
+        }
+      }
+      
+      // Telefono/Cellulare (pattern: varie forme)
+      if (lowerLine.includes('telefono') || lowerLine.includes('cellulare') || lowerLine.includes('cell')) {
+        const telMatch = line.match(/(\+?\d{2,3}[\s\-]?\d{2,4}[\s\-]?\d{3,4}[\s\-]?\d{3,4}|\d{10})/);
+        if (telMatch) {
+          const cleanTel = telMatch[1].replace(/[\s\-]/g, '');
+          if (!data.cliente1!.cellulare) {
+            data.cliente1!.cellulare = cleanTel;
+          } else if (!data.cliente2!.cellulare) {
+            data.cliente2!.cellulare = cleanTel;
+          }
+        }
+      }
+      
+      // Indirizzo (Via, Viale, Corso, Piazza)
+      const viaMatch = line.match(/(?:Via|Viale|Corso|Piazza)\s+([^,\n]+)/i);
+      if (viaMatch) {
+        if (!data.cliente1!.via) {
+          data.cliente1!.via = viaMatch[0].trim();
+        } else if (!data.cliente2!.via) {
+          data.cliente2!.via = viaMatch[0].trim();
+        }
+      }
+      
+      // CAP (5 cifre)
+      if (lowerLine.includes('cap') || lowerLine.match(/\b\d{5}\b/)) {
+        const capMatch = line.match(/\b(\d{5})\b/);
+        if (capMatch) {
+          if (!data.cliente1!.cap) {
+            data.cliente1!.cap = capMatch[1];
+          } else if (!data.cliente2!.cap && data.cliente2!.via) {
+            data.cliente2!.cap = capMatch[1];
+          }
+        }
+      }
+      
+      // Città (cerca dopo label "Città:" o "Località:")
+      if (lowerLine.includes('citt') || lowerLine.includes('localit')) {
+        // ✅ Cattura valore DOPO label, fermandosi PRIMA di Cap/Provincia/Tel/Email
+        const cittaMatch = line.match(/(?:citt[àa]|localit[àa])[:\s]+([A-ZÀ-ÿa-z'\s]+?)(?=\s*(?:Cap|CAP|Provincia|PROVINCIA|Prov|Tel|Cell|Email|$))/i);
+        if (cittaMatch && !line.match(/Via|Viale|Corso|Piazza/i)) {
+          const citta = cittaMatch[1].trim();
+          if (citta.length > 2) {  // Minimo 3 caratteri per essere una città valida
+            // ✅ Usa currentCliente invece di controllare se via è già popolato
+            if (currentCliente === 1) {
+              data.cliente1!.citta = citta;
+            } else {
+              data.cliente2!.citta = citta;
+            }
+          }
+        }
+      }
     }
 
-    // Estrai CAP (5 cifre)
-    const capRegex = /\b\d{5}\b/;
-    const capMatch = text.match(capRegex);
-    if (capMatch) {
-      data.cap = capMatch[0];
+    // ESTRAZIONE DATI EVENTO
+    // Data evento (cerca pattern DD/MM/YYYY)
+    const dataMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (dataMatch) {
+      data.evento!.data = dataMatch[0];
+    }
+    
+    // Location (cerca dopo "Location:" o "Luogo:")
+    const locationMatch = text.match(/(?:Location|Luogo)[:\s]+([^\n]+)/i);
+    if (locationMatch) {
+      data.evento!.location = locationMatch[1].trim();
+    }
+    
+    // Orario (cerca pattern HH:MM o HH.MM)
+    const orarioMatches = text.match(/(\d{1,2})[:\.](\d{2})/g);
+    if (orarioMatches && orarioMatches.length > 0) {
+      data.evento!.orarioInizio = orarioMatches[0];
+      if (orarioMatches.length > 1) {
+        data.evento!.orarioFine = orarioMatches[1];
+      }
     }
 
-    // Estrai città e provincia
-    const cittaProvRegex = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*\(([A-Z]{2})\)/;
-    const cittaProvMatch = text.match(cittaProvRegex);
-    if (cittaProvMatch) {
-      data.citta = cittaProvMatch[1];
-      data.provincia = cittaProvMatch[2];
-    }
-
-    // Estrai codice fiscale (16 caratteri alfanumerici)
-    const cfRegex = /\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/;
-    const cfMatch = text.match(cfRegex);
-    if (cfMatch) {
-      data.codiceFiscale = cfMatch[0];
-    }
-
-    // Estrai importo totale (cerca pattern come "Totale: €1.500,00" o "€ 1.500,00")
-    const totaleRegex = /(?:Totale|TOTALE|Total)[:\s]*€?\s*([\d.,]+)/i;
+    // ESTRAZIONE IMPORTO TOTALE
+    const totaleRegex = /(?:Totale|TOTALE|Total|Importo\s+totale)[:\s]*€?\s*([\d.,]+)/i;
     const totaleMatch = text.match(totaleRegex);
     if (totaleMatch) {
       const importoStr = totaleMatch[1].replace(/\./g, '').replace(',', '.');
       data.importoTotale = parseFloat(importoStr);
     }
 
-    // Estrai prodotti (cerca righe con prezzi)
-    const prodottoRegex = /(.+?)\s+€?\s*([\d.,]+)/g;
-    let match;
-    while ((match = prodottoRegex.exec(text)) !== null) {
-      const nome = match[1].trim();
-      const prezzoStr = match[2].replace(/\./g, '').replace(',', '.');
-      const prezzo = parseFloat(prezzoStr);
-      
-      if (nome.length > 3 && prezzo > 0 && prezzo < 50000) {
-        data.prodotti.push({
-          nome,
-          prezzo,
-          quantita: 1,
-        });
-      }
-    }
-
-    // Estrai pagamenti (cerca pattern come "Acconto", "Saldo", "Rata")
-    const pagamentoKeywords = ['acconto', 'saldo', 'rata', 'anticipo', 'caparra'];
+    // ESTRAZIONE PAGAMENTI (più dettagliata)
+    const pagamentoKeywords = ['acconto', 'saldo', 'rata', 'anticipo', 'caparra', '1°', '2°', '3°'];
     for (const line of lines) {
       const lowerLine = line.toLowerCase();
+      
       for (const keyword of pagamentoKeywords) {
-        if (lowerLine.includes(keyword)) {
+        if (lowerLine.includes(keyword.toLowerCase())) {
           const importoMatch = line.match(/€?\s*([\d.,]+)/);
           const dataMatch = line.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+          
+          // Determina se è acconto o saldo
+          let tipo: 'acconto' | 'saldo' = 'acconto';
+          if (lowerLine.includes('saldo')) {
+            tipo = 'saldo';
+          }
+          
+          // Cerca metodo di pagamento
+          let metodo: 'contante' | 'carta' | 'bonifico' | 'paypal' | undefined;
+          if (lowerLine.includes('contant')) metodo = 'contante';
+          else if (lowerLine.includes('cart')) metodo = 'carta';
+          else if (lowerLine.includes('bonific')) metodo = 'bonifico';
+          else if (lowerLine.includes('paypal')) metodo = 'paypal';
+          
+          // Determina se pagato o programmato
+          const pagato = lowerLine.includes('pagato') || lowerLine.includes('ricevuto');
           
           data.pagamenti.push({
             descrizione: line,
             importo: importoMatch ? parseFloat(importoMatch[1].replace(/\./g, '').replace(',', '.')) : undefined,
             data: dataMatch ? dataMatch[0] : undefined,
+            tipo,
+            metodo,
+            pagato,
           });
+          
+          break; // Evita duplicati per lo stesso keyword
         }
       }
     }
+
+    // Rimuovi prodotti duplicati o invalidi (legacy - non più usato)
+    data.prodotti = [];
 
     return data;
   }
