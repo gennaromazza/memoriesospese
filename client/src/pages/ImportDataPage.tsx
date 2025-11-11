@@ -73,6 +73,40 @@ export default function ImportDataPage() {
     }
   };
 
+  const deleteLegacyJobs = async () => {
+    if (!confirm('Sei sicuro di voler cancellare tutti i job legacy importati? Questa azione non può essere annullata.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await apiRequest('DELETE', '/api/import/delete-legacy');
+
+      if (!response.ok) {
+        throw new Error('Errore nella cancellazione');
+      }
+
+      const data = await response.json();
+      
+      toast({
+        title: 'Job legacy cancellati',
+        description: data.message,
+      });
+
+      // Reset risultati
+      setResult(null);
+      setPreview(null);
+    } catch (error: any) {
+      toast({
+        title: 'Errore',
+        description: error.message || 'Errore nella cancellazione',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const executeImport = async () => {
     setImporting(true);
     setProgress(0);
@@ -139,7 +173,7 @@ export default function ImportDataPage() {
                 Visualizza i dati che verranno importati dal vecchio gestionale
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <Button
                 onClick={loadPreview}
                 disabled={loading}
@@ -148,6 +182,17 @@ export default function ImportDataPage() {
               >
                 <Upload className="h-4 w-4 mr-2" />
                 {loading ? 'Caricamento...' : 'Carica Preview Dati'}
+              </Button>
+              
+              <Button
+                onClick={deleteLegacyJobs}
+                disabled={loading}
+                variant="destructive"
+                data-testid="button-delete-legacy"
+                className="w-full"
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Cancella Job Legacy Importati
               </Button>
             </CardContent>
           </Card>

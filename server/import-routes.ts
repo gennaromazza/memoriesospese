@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db } from './firebase-admin';
+import { db, Timestamp } from './firebase-admin';
 import { LegacyImportParser, ParsedJobData } from './import-parser';
 import { authenticateFirebase } from './email-routes';
 
@@ -171,6 +171,20 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
   // 2. Crea job
   const dataEvento = LegacyImportParser.convertDate(jobData.dataEvento);
   
+  // Converti data evento in Timestamp Firestore per compatibilità con query UI
+  let eventDateTimestamp: FirebaseFirestore.Timestamp;
+  try {
+    const parsedDate = new Date(dataEvento);
+    if (isNaN(parsedDate.getTime())) {
+      throw new Error('Data non valida');
+    }
+    eventDateTimestamp = Timestamp.fromDate(parsedDate);
+  } catch (error) {
+    // Fallback a oggi se la data non è parsabile
+    console.warn(`⚠️ Data evento non valida per ${jobData.nome}: ${dataEvento}, uso data corrente`);
+    eventDateTimestamp = Timestamp.now();
+  }
+  
   // Prepara prodotti legacy in formato strutturato
   const legacyProducts = jobData.pdfData?.prodotti?.map(p => ({
     nome: p.nome,
@@ -181,7 +195,9 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
 
   const jobDoc = {
     nomeEvento: jobData.nome,
-    dataEvento,
+    dataEvento,  // Mantieni stringa per compatibilità legacy
+    eventDate: eventDateTimestamp,  // ✅ CRITICO: Timestamp per query UI
+    clientiIds: [clienteId],  // ✅ CRITICO: Array per query UI
     location: jobData.location || '',
     jobType: LegacyImportParser.mapJobType(jobData.tipoLavoro),
     jobProvenance: LegacyImportParser.mapProvenance(jobData.provenienza),
@@ -209,8 +225,8 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
       importoTotaleLegacy: jobData.pdfData?.importoTotale || null,
     },
     transactions: [] as any[],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
   };
 
   // 3. Aggiungi transazioni se ci sono pagamenti dal PDF
@@ -274,5 +290,37 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     });
   }
 }
+
+// DELETE /api/import/delete-legacy - Cancella tutti i job importati (per re-import)
+router.delete('/delete-legacy', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.user!;
+    
+    if (email !== 'gennaro.mazzacane@gmail.com') {
+      return res.status(403).json({ error: 'Solo gli amministratori possono cancellare i dati importati' });
+    }
+
+    const firestore = db;
+    const jobsSnapshot = await firestore.collection('jobs')
+      .where('importedFrom', '==', 'legacy')
+      .get();
+
+    const batch = firestore.batch();
+    jobsSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+
+    await batch.commit();
+
+    res.json({
+      success: true,
+      deleted: jobsSnapshot.size,
+      message: `${jobsSnapshot.size} job legacy cancellati con successo`,
+    });
+  } catch (error) {
+    console.error('Error deleting legacy jobs:', error);
+    res.status(500).json({ error: 'Errore nella cancellazione dei job legacy' });
+  }
+});
 
 export default router;

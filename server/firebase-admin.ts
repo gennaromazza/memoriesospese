@@ -9,7 +9,7 @@
  */
 
 import { initializeApp, cert, getApps, type App } from 'firebase-admin/app';
-import { getFirestore, FieldValue, type Firestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 
 /**
  * Inizializza Firebase Admin SDK (singleton)
@@ -71,8 +71,8 @@ const app = initializeFirebaseAdmin();
 // Esporta Firestore database pronto all'uso
 export const db: Firestore = getFirestore(app);
 
-// Esporta FieldValue per operazioni speciali (serverTimestamp, delete, etc.)
-export { FieldValue };
+// Esporta FieldValue e Timestamp per operazioni speciali (serverTimestamp, delete, etc.)
+export { FieldValue, Timestamp };
 
 // Esporta anche l'app se necessario
 export { app };
