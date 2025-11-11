@@ -4478,3 +4478,4 @@ export function createPaymentReceivedEmailHTML(
 }
 
 export default router;
+export { authenticateFirebase };
