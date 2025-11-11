@@ -1035,19 +1035,30 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Cli</span>
               </TabsTrigger>
 
-              {/* Media & Support */}
-              <TabsTrigger value="slideshow" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Play className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Slideshow</span>
-                <span className="sm:hidden">Slide</span>
-              </TabsTrigger>
-
-              {/* Settings */}
-              <TabsTrigger value="settings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Impostazioni</span>
-                <span className="sm:hidden">Setup</span>
-              </TabsTrigger>
+              {/* Settings con dropdown sottomenu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant={activeTab === 'settings' || activeTab === 'slideshow' ? 'default' : 'ghost'}
+                    className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
+                  >
+                    <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">Impostazioni</span>
+                    <span className="sm:hidden">Setup</span>
+                    <ChevronRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuItem onClick={() => setActiveTab('settings')}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Impostazioni Studio
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab('slideshow')}>
+                    <Play className="h-4 w-4 mr-2" />
+                    Slideshow Homepage
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </TabsList>
 
             {/* Contenuto Tab Gallerie */}
