@@ -247,7 +247,7 @@ export default function AdminDashboard() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   // Hook Firebase Auth per verifica autenticazione asincrona
   const { user, isLoading: authLoading, isAdmin: isFirebaseAdmin } = useFirebaseAuth();
 
@@ -280,7 +280,7 @@ export default function AdminDashboard() {
         navigate(createUrl("/admin"));
         return;
       }
-      
+
       // Se c'è flag localStorage ma non c'è user, mostra errore
       if (!user) {
         console.error('❌ Firebase Auth: utente non autenticato');
@@ -826,7 +826,7 @@ export default function AdminDashboard() {
     } else if (galleryTypeFilter === 'special') {
       return !!gallery.specialTheme; // Special = con specialTheme
     }
-    
+
     return true; // 'all' mostra tutte
   });
 
@@ -967,7 +967,23 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Eventi</span>
               </TabsTrigger>
 
-              {/* Booking System: Prenotazioni (con sub-tabs: Campagne, Prodotti, Ordini) */}
+              {/* Content Management */}
+              <TabsTrigger value="questionnaire" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <HelpCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Questionari</span>
+                <span className="sm:hidden">Q&A</span>
+              </TabsTrigger>
+
+              <TabsTrigger value="themes" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Temi Stagionali</span>
+                <span className="sm:hidden">Temi</span>
+              </TabsTrigger>
+
+              {/* Separatore visivo */}
+              <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
+
+              {/* Booking System */}
               <TabsTrigger value="bookings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Prenotazioni</span>
@@ -995,18 +1011,8 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">💰</span>
               </TabsTrigger>
 
-              {/* Content Management: Questionari, Temi */}
-              <TabsTrigger value="questionnaire" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <HelpCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Questionari</span>
-                <span className="sm:hidden">Q&A</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="themes" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Temi Stagionali</span>
-                <span className="sm:hidden">Temi</span>
-              </TabsTrigger>
+              {/* Separatore visivo */}
+              <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
 
               {/* Client Management */}
               <TabsTrigger value="clienti" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
@@ -1384,7 +1390,7 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {getAllThemes().map((theme) => {
                     const galleriesWithTheme = galleries.filter(g => g.specialTheme === theme.id);
-                    
+
                     return (
                       <Card key={theme.id} className="border-2" style={{ borderColor: theme.colors.primary + '30' }}>
                         <CardHeader className="pb-3">
@@ -1406,7 +1412,7 @@ export default function AdminDashboard() {
                             />
                             <span className="text-xs text-muted-foreground">Colore principale</span>
                           </div>
-                          
+
                           <div className="pt-2 border-t">
                             <p className="text-xs font-medium text-muted-foreground mb-2">
                               Gallerie con questo tema: {galleriesWithTheme.length}
