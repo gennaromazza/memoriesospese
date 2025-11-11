@@ -337,20 +337,19 @@ export default function QuoteSignedPortalPage() {
                       <p className="font-semibold text-gray-900">{formatDate(quote.signature.signedAt)}</p>
                     </div>
                   </div>
-                  {quote.signature.imageUrl && (
-                    <div className="mt-4 p-3 sm:p-4 bg-off-white rounded-lg border-2 border-dashed border-beige">
-                      <p className="text-xs sm:text-sm text-dark-sage mb-3 font-medium flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        Firma Autografa:
-                      </p>
-                      <img 
-                        src={quote.signature.imageUrl} 
-                        alt="Firma digitale" 
-                        className="max-h-20 sm:max-h-28 mx-auto border-2 border-beige rounded-lg shadow-sm bg-white p-2"
-                        data-testid="signature-image"
-                      />
-                    </div>
-                  )}
+                  <div className="mt-4 p-6 sm:p-8 bg-gradient-to-br from-white to-sage/5 rounded-lg border-2 border-sage/30">
+                    <p className="text-xs sm:text-sm text-dark-sage mb-4 font-medium flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Firma Digitale:
+                    </p>
+                    <p 
+                      className="text-4xl sm:text-5xl text-sage text-center" 
+                      style={{ fontFamily: "'Great Vibes', cursive" }}
+                      data-testid="signature-text"
+                    >
+                      {quote.signature.clientName}
+                    </p>
+                  </div>
                 </div>
               )}
             </CardContent>

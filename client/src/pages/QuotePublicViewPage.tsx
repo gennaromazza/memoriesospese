@@ -6,7 +6,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import SignatureCanvas from 'react-signature-canvas';
+// Removed SignatureCanvas - now using text-based signature with elegant font
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +58,7 @@ export default function QuotePublicViewPage() {
   const [acceptedClauses, setAcceptedClauses] = useState<string[]>([]);
   const [signerName, setSignerName] = useState('');
   const [studioLogo, setStudioLogo] = useState<string | null>(null);
-  const signatureRef = useRef<SignatureCanvas>(null);
+  // Removed signatureRef - now using text-based signature
 
   // Fetch quote data
   const { data, isLoading, error } = useQuery<{ success: boolean; data: QuotePublicData }>({
@@ -122,19 +122,12 @@ export default function QuotePublicViewPage() {
   const acceptMutation = useMutation({
     mutationFn: async () => {
       if (!quote) throw new Error('Quote non trovato');
-      if (!signatureRef.current) throw new Error('Firma mancante');
-
-      // Check if signature canvas is empty
-      if (signatureRef.current.isEmpty()) {
-        throw new Error('Per favore, firma prima di continuare');
-      }
-
-      const signatureDataUrl = signatureRef.current.toDataURL();
+      if (!signerName.trim()) throw new Error('Inserisci il tuo nome per firmare');
 
       await acceptQuote({
         quoteId: quote.id,
         signature: {
-          imageDataUrl: signatureDataUrl,
+          imageDataUrl: '', // No longer using canvas signature
           clientName: signerName.trim()
         },
         selectedProducts: quote.type === 'variabile' ? selectedProducts : undefined,
@@ -650,31 +643,28 @@ export default function QuotePublicViewPage() {
               </p>
             </div>
 
-            {/* Signature Canvas */}
+            {/* Signature Preview */}
             <div>
-              <Label>Firma qui sotto *</Label>
-              <div className="border-2 border-dashed rounded-lg p-2 bg-white">
-                <SignatureCanvas
-                  ref={signatureRef}
-                  canvasProps={{
-                    className: 'w-full h-40',
-                    style: { touchAction: 'none' }
-                  }}
-                  backgroundColor="white"
-                />
+              <Label>Anteprima Firma</Label>
+              <div className="border-2 border-sage/30 rounded-lg p-8 bg-gradient-to-br from-white to-sage/5 min-h-[160px] flex items-center justify-center">
+                {signerName.trim() ? (
+                  <p 
+                    className="text-6xl text-sage" 
+                    style={{ fontFamily: "'Great Vibes', cursive" }}
+                    data-testid="signature-preview"
+                  >
+                    {signerName.trim()}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground italic">
+                    La tua firma apparirà qui
+                  </p>
+                )}
               </div>
-              <div className="flex justify-end mt-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => signatureRef.current?.clear()}
-                  data-testid="button-clear-signature"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Cancella Firma
-                </Button>
-              </div>
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Il tuo nome verrà visualizzato con un font elegante stile firma
+              </p>
             </div>
 
             {/* Submit */}
