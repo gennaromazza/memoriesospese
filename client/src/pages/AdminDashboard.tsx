@@ -1028,13 +1028,6 @@ export default function AdminDashboard() {
               {/* Separatore visivo */}
               <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
 
-              {/* Client Management */}
-              <TabsTrigger value="clienti" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Clienti</span>
-                <span className="sm:hidden">Cli</span>
-              </TabsTrigger>
-
               {/* Settings con dropdown sottomenu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1270,10 +1263,7 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* Contenuto Tab Clienti */}
-            <TabsContent value="clienti">
-              <ClientiManager />
-            </TabsContent>
+            
 
 
             {/* Contenuto Tab Slideshow */}
@@ -1522,9 +1512,12 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Lavori */}
             <TabsContent value="lavori">
               <Tabs defaultValue="jobs-list" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
                   <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
                     Lista Lavori
+                  </TabsTrigger>
+                  <TabsTrigger value="clienti" data-testid="subtab-clienti">
+                    Clienti
                   </TabsTrigger>
                   <TabsTrigger value="job-types" data-testid="subtab-job-types">
                     Tipi di Lavoro
@@ -1541,6 +1534,10 @@ export default function AdminDashboard() {
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <JobsManager />
                   </div>
+                </TabsContent>
+
+                <TabsContent value="clienti">
+                  <ClientiManager />
                 </TabsContent>
 
                 <TabsContent value="job-types">
