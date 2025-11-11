@@ -180,9 +180,9 @@ export default function QuoteSignedPortalPage() {
     const opt = {
       margin: 0.5,
       filename: `Preventivo-${jobInfo?.nomeEvento || 'contratto'}-firmato.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' as const }
     };
 
     try {
@@ -646,6 +646,7 @@ export default function QuoteSignedPortalPage() {
             </CardContent>
           </Card>
         )}
+        </div>
 
         {/* Studio Info */}
         <div className="text-center pb-4 sm:pb-6">
