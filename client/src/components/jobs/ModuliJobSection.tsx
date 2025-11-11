@@ -536,36 +536,49 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     </div>
                   )}
 
-                  {/* WhatsApp Button - only for signed quotes with clients */}
-                  {selectedQuote.status === 'firmato' && clienti.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-xs text-muted-foreground mb-2">Invia preventivo su WhatsApp:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {clienti.map((cliente, index) => {
-                          if (!cliente.whatsapp) return null;
-                          
-                          const nomeEvento = job?.nomeEvento || 'il tuo evento';
-                          const message = `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per poter vedere i dettagli e eventualmente confermare la prenotazione\n\n${getQuoteUrl(selectedQuote)}`;
-                          const whatsappNumber = cliente.whatsapp.replace(/\s+/g, '').replace(/^\+/, '');
-                          const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
-                          
-                          return (
-                            <Button
-                              key={cliente.id}
-                              size="sm"
-                              variant="outline"
-                              onClick={() => window.open(whatsappUrl, '_blank')}
-                              className="bg-[#25D366] hover:bg-[#20BD5A] text-white border-[#25D366] hover:border-[#20BD5A]"
-                              data-testid={`button-whatsapp-${index}`}
-                            >
-                              <Phone className="h-4 w-4 mr-2" />
-                              {cliente.nome || `Cliente ${index + 1}`}
-                            </Button>
-                          );
-                        })}
+                  {/* WhatsApp Button - only for signed quotes with clients that have WhatsApp */}
+                  {(() => {
+                    if (selectedQuote.status !== 'firmato') return null;
+                    
+                    console.log('Debug clienti:', clienti);
+                    console.log('Clienti totali:', clienti.length);
+                    clienti.forEach((c, i) => {
+                      console.log(`Cliente ${i}:`, c.nome, 'WhatsApp:', c.whatsapp);
+                    });
+                    
+                    const clientiConWhatsApp = clienti.filter(c => c.whatsapp);
+                    console.log('Clienti con WhatsApp:', clientiConWhatsApp.length);
+                    
+                    if (clientiConWhatsApp.length === 0) return null;
+                    
+                    return (
+                      <div className="mt-3">
+                        <p className="text-xs text-muted-foreground mb-2">Invia preventivo su WhatsApp:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {clientiConWhatsApp.map((cliente, index) => {
+                            const nomeEvento = job?.nomeEvento || 'il tuo evento';
+                            const message = `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per poter vedere i dettagli e eventualmente confermare la prenotazione\n\n${getQuoteUrl(selectedQuote)}`;
+                            const whatsappNumber = cliente.whatsapp!.replace(/\s+/g, '').replace(/^\+/, '');
+                            const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+                            
+                            return (
+                              <Button
+                                key={cliente.id}
+                                size="sm"
+                                variant="outline"
+                                onClick={() => window.open(whatsappUrl, '_blank')}
+                                className="bg-[#25D366] hover:bg-[#20BD5A] text-white border-[#25D366] hover:border-[#20BD5A]"
+                                data-testid={`button-whatsapp-${index}`}
+                              >
+                                <Phone className="h-4 w-4 mr-2" />
+                                {cliente.nome || `Cliente ${index + 1}`}
+                              </Button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Notes */}
