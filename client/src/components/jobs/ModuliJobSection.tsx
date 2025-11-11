@@ -3,6 +3,8 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { getQuotesForJob, deleteQuote, resetQuoteSignature } from '@/lib/quotes';
 import { Quote, QuoteStatus } from '@shared/quotes-types';
+import { getJob } from '@/lib/jobs';
+import { getClienteById } from '@/lib/clienti';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2, AlertTriangle, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -89,6 +91,25 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
     queryKey: ['quotes', 'job', jobId],
     queryFn: () => getQuotesForJob(jobId),
     enabled: !!jobId
+  });
+
+  // Fetch job data for nome evento and clienti
+  const { data: job } = useQuery({
+    queryKey: ['job', jobId],
+    queryFn: () => getJob(jobId),
+    enabled: !!jobId
+  });
+
+  // Fetch all clienti for the job
+  const { data: clienti = [] } = useQuery({
+    queryKey: ['clienti', 'job', job?.clientiIds],
+    queryFn: async () => {
+      if (!job?.clientiIds || job.clientiIds.length === 0) return [];
+      const clientiPromises = job.clientiIds.map(id => getClienteById(id));
+      const results = await Promise.all(clientiPromises);
+      return results.filter(c => c !== null);
+    },
+    enabled: !!job?.clientiIds && job.clientiIds.length > 0
   });
 
   // Get quote being deleted for status check
@@ -496,6 +517,37 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                       <ExternalLink className="h-4 w-4" />
                     </Button>
                   </div>
+
+                  {/* WhatsApp Button - only for signed quotes with clients */}
+                  {selectedQuote.status === 'firmato' && clienti.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs text-muted-foreground mb-2">Invia preventivo su WhatsApp:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {clienti.map((cliente, index) => {
+                          if (!cliente.whatsapp) return null;
+                          
+                          const nomeEvento = job?.nomeEvento || 'il tuo evento';
+                          const message = `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per poter vedere i dettagli e eventualmente confermare la prenotazione\n\n${getQuoteUrl(selectedQuote)}`;
+                          const whatsappNumber = cliente.whatsapp.replace(/\s+/g, '').replace(/^\+/, '');
+                          const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+                          
+                          return (
+                            <Button
+                              key={cliente.id}
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open(whatsappUrl, '_blank')}
+                              className="bg-[#25D366] hover:bg-[#20BD5A] text-white border-[#25D366] hover:border-[#20BD5A]"
+                              data-testid={`button-whatsapp-${index}`}
+                            >
+                              <Phone className="h-4 w-4 mr-2" />
+                              {cliente.nome || `Cliente ${index + 1}`}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Notes */}
