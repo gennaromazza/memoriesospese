@@ -127,7 +127,6 @@ export default function QuotePublicViewPage() {
       await acceptQuote({
         quoteId: quote.id,
         signature: {
-          imageDataUrl: '', // No longer using canvas signature
           clientName: signerName.trim()
         },
         selectedProducts: quote.type === 'variabile' ? selectedProducts : undefined,

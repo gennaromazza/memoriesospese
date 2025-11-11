@@ -359,13 +359,16 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       throw new Error('Tutte le clausole obbligatorie devono essere accettate');
     }
     
-    // Upload firma su Storage
-    const signatureRef = ref(
-      storage,
-      `quotes/${data.quoteId}/signature.png`
-    );
-    await uploadString(signatureRef, data.signature.imageDataUrl, 'data_url');
-    const signatureUrl = await getDownloadURL(signatureRef);
+    // Upload firma su Storage (only if image data exists - legacy support)
+    let signatureUrl: string | undefined = undefined;
+    if (data.signature.imageDataUrl && data.signature.imageDataUrl.trim() !== '') {
+      const signatureRef = ref(
+        storage,
+        `quotes/${data.quoteId}/signature.png`
+      );
+      await uploadString(signatureRef, data.signature.imageDataUrl, 'data_url');
+      signatureUrl = await getDownloadURL(signatureRef);
+    }
     
     // Get IP address (browser API limitato, usa placeholder)
     const ipAddress = await fetch('https://api.ipify.org?format=json')
@@ -401,7 +404,7 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     const updatePayload = removeUndefinedFields({
       status: 'firmato' as QuoteStatus,
       signature: {
-        imageUrl: signatureUrl,
+        ...(signatureUrl ? { imageUrl: signatureUrl } : {}),
         signedAt: Timestamp.now(),
         ipAddress,
         userAgent: navigator.userAgent,

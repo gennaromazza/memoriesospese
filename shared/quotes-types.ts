@@ -54,7 +54,7 @@ export interface QuoteClause {
  * Firma digitale
  */
 export interface QuoteSignature {
-  imageUrl: string;             // PNG firma su Firebase Storage
+  imageUrl?: string;            // PNG firma su Firebase Storage (opzionale - solo legacy)
   signedAt: Timestamp;
   ipAddress: string;
   userAgent: string;
@@ -258,7 +258,7 @@ export interface InsertQuoteTemplate {
 export interface AcceptQuoteData {
   quoteId: string;
   signature: {
-    imageDataUrl: string;       // Data URL firma canvas
+    imageDataUrl?: string;      // Data URL firma canvas (opzionale - solo legacy)
     clientName: string;
   };
   selectedProducts?: string[];  // IDs prodotti selezionati (solo variabile)
