@@ -1,14 +1,15 @@
 import { Cliente } from '@shared/clienti-types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mail, Phone, MessageCircle } from 'lucide-react';
+import { Mail, Phone, MessageCircle, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ClienteJobCardProps {
   cliente: Cliente;
   onViewDetails?: () => void;
+  onEdit?: () => void;
 }
 
-export default function ClienteJobCard({ cliente, onViewDetails }: ClienteJobCardProps) {
+export default function ClienteJobCard({ cliente, onViewDetails, onEdit }: ClienteJobCardProps) {
   const handleEmail = () => {
     if (cliente.email) {
       window.location.href = `mailto:${cliente.email}`;
@@ -61,6 +62,17 @@ export default function ClienteJobCard({ cliente, onViewDetails }: ClienteJobCar
 
           {/* Quick Actions */}
           <div className="flex flex-col gap-2">
+            {onEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                data-testid={`button-edit-${cliente.id}`}
+                title="Modifica cliente"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            )}
             {cliente.email && (
               <Button
                 variant="outline"

@@ -32,6 +32,8 @@ import CostiLavoroTable from '@/components/jobs/CostiLavoroTable';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import PaymentScheduleSection from '@/components/jobs/PaymentScheduleSection';
 import EditJobModal from '@/components/jobs/EditJobModal';
+import EditClienteModal from '@/components/jobs/EditClienteModal';
+import { updateCliente } from '@/lib/clienti';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -40,6 +42,7 @@ export default function JobDetailPage() {
   const { toast } = useToast();
   const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
 
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
@@ -179,6 +182,30 @@ export default function JobDetailPage() {
     }
   };
 
+  // Update cliente mutation
+  const updateClienteMutation = useMutation({
+    mutationFn: async (updates: Partial<Cliente>) => {
+      if (!editingCliente) throw new Error('Nessun cliente selezionato');
+      await updateCliente(editingCliente.id, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      toast({
+        title: 'Cliente aggiornato',
+        description: 'Le modifiche sono state salvate correttamente'
+      });
+      setEditingCliente(null);
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore',
+        description: error instanceof Error ? error.message : 'Impossibile aggiornare il cliente',
+        variant: 'destructive'
+      });
+    }
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -307,7 +334,11 @@ export default function JobDetailPage() {
                 ) : (
                   <div className="space-y-3">
                     {clienti.map(cliente => (
-                      <ClienteJobCard key={cliente.id} cliente={cliente} />
+                      <ClienteJobCard 
+                        key={cliente.id} 
+                        cliente={cliente}
+                        onEdit={() => setEditingCliente(cliente)}
+                      />
                     ))}
                   </div>
                 )}
@@ -395,6 +426,17 @@ export default function JobDetailPage() {
           open={editModalOpen}
           onClose={() => setEditModalOpen(false)}
           job={job}
+        />
+      )}
+
+      {/* Edit Cliente Modal */}
+      {editingCliente && (
+        <EditClienteModal
+          open={!!editingCliente}
+          onOpenChange={(open) => !open && setEditingCliente(null)}
+          cliente={editingCliente}
+          onSave={updateClienteMutation.mutateAsync}
+          isPending={updateClienteMutation.isPending}
         />
       )}
     </div>
