@@ -719,7 +719,7 @@ export default function ConsultationTemplatesManager() {
             </div>
           </div>
 
-          <DialogFooter className="flex-row justify-end gap-2">
+          <div className="flex flex-row justify-end gap-2 mt-6 pt-4 border-t">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
@@ -737,7 +737,7 @@ export default function ConsultationTemplatesManager() {
                 ? "Salvataggio..."
                 : "Salva"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

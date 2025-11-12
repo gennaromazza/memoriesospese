@@ -28,8 +28,7 @@ import type { Booking } from '../../shared/booking-types.js';
  * Ottiene tutti i template consulenze
  */
 export async function getAllTemplates(): Promise<ConsultationTemplate[]> {
-  const snapshot = await db.collection('consultation_templates')
-    .orderBy('ordine', 'asc')
+  const snapshot = await db.collection('consultationTemplates')
     .orderBy('nome', 'asc')
     .get();
   
@@ -45,7 +44,7 @@ export async function getAllTemplates(): Promise<ConsultationTemplate[]> {
  * Ottiene template per ID
  */
 export async function getTemplateById(id: string): Promise<ConsultationTemplate | null> {
-  const doc = await db.collection('consultation_templates').doc(id).get();
+  const doc = await db.collection('consultationTemplates').doc(id).get();
   
   if (!doc.exists) {
     return null;
@@ -63,10 +62,9 @@ export async function getTemplateById(id: string): Promise<ConsultationTemplate 
  * Ottiene template attivi per tipo lavoro
  */
 export async function getActiveTemplatesByJobType(jobType: string): Promise<ConsultationTemplate[]> {
-  const snapshot = await db.collection('consultation_templates')
+  const snapshot = await db.collection('consultationTemplates')
     .where('jobType', '==', jobType)
     .where('attiva', '==', true)
-    .orderBy('ordine', 'asc')
     .orderBy('nome', 'asc')
     .get();
   
@@ -82,7 +80,7 @@ export async function getActiveTemplatesByJobType(jobType: string): Promise<Cons
  * Ottiene tipi lavoro unici con template attivi (per index page)
  */
 export async function getJobTypesWithActiveTemplates(): Promise<string[]> {
-  const snapshot = await db.collection('consultation_templates')
+  const snapshot = await db.collection('consultationTemplates')
     .where('attiva', '==', true)
     .get();
   
@@ -103,7 +101,7 @@ export async function getJobTypesWithActiveTemplates(): Promise<string[]> {
 export async function createTemplate(data: InsertConsultationTemplate): Promise<string> {
   const now = Timestamp.now();
   
-  const docRef = await db.collection('consultation_templates').add({
+  const docRef = await db.collection('consultationTemplates').add({
     ...data,
     createdAt: now,
     updatedAt: now,
@@ -116,7 +114,7 @@ export async function createTemplate(data: InsertConsultationTemplate): Promise<
  * Aggiorna template esistente
  */
 export async function updateTemplate(id: string, data: UpdateConsultationTemplate): Promise<void> {
-  const docRef = db.collection('consultation_templates').doc(id);
+  const docRef = db.collection('consultationTemplates').doc(id);
   const doc = await docRef.get();
   
   if (!doc.exists) {
@@ -144,7 +142,7 @@ export async function deleteTemplate(id: string): Promise<void> {
     throw new Error('Impossibile eliminare template con consultations attive');
   }
   
-  await db.collection('consultation_templates').doc(id).delete();
+  await db.collection('consultationTemplates').doc(id).delete();
 }
 
 /**
@@ -331,8 +329,8 @@ export async function createConsultation(
     cliente: data.cliente,
     // clienteId verrà aggiunto da linkConsultationToCliente
     
-    // Slot
-    dataConsulenza: Timestamp.fromDate(data.dataConsulenza),
+    // Slot - convert string or Date to Timestamp
+    dataConsulenza: Timestamp.fromDate(new Date(data.dataConsulenza as any)),
     orarioInizio: data.orarioInizio,
     orarioFine: data.orarioFine,
     
@@ -392,7 +390,7 @@ export async function updateConsultation(id: string, data: UpdateConsultation): 
   
   // Converti Date a Timestamp se presente
   if (data.dataConsulenza) {
-    updates.dataConsulenza = Timestamp.fromDate(data.dataConsulenza);
+    updates.dataConsulenza = Timestamp.fromDate(new Date(data.dataConsulenza as any));
   }
   
   await docRef.update(updates);
