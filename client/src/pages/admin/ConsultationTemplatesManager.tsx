@@ -104,7 +104,7 @@ export default function ConsultationTemplatesManager() {
   // Auth state
   const { user, isLoading: authLoading } = useFirebaseAuth();
   const authReady = !authLoading && !!user;
-  
+
   // Queries
   const { data: templates = [], isLoading } = useTemplates(authReady);
   const { data: jobTypes = [] } = useQuery<JobTypeDoc[]>({
@@ -512,7 +512,7 @@ export default function ConsultationTemplatesManager() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+          <div className="flex-1 overflow-y-auto px-6 space-y-6 py-6 pb-28">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome Template *</Label>
@@ -622,7 +622,9 @@ export default function ConsultationTemplatesManager() {
 
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-4">
-                <Label className="text-base font-medium text-blue-gray">Campi Job Data</Label>
+                <Label className="text-base font-medium text-blue-gray">
+                  Campi Job Data
+                </Label>
                 <Button
                   type="button"
                   variant="outline"
