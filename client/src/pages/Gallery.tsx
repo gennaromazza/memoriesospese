@@ -990,11 +990,6 @@ export default function Gallery() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [hasMorePhotos, loadingMorePhotos, isLoadingPhotos, loadMorePhotos]);
 
-  // Combina tutte le foto per il lightbox
-  const allPhotos = useMemo(() => {
-    return [...photos, ...guestPhotos];
-  }, [photos, guestPhotos]);
-
   // 🔍 UX Enhancement: Apre lightbox usando displayPhotos (supporta filtro "Solo Selezionate")
   const openLightbox = (index: number) => {
     setCurrentPhotoIndex(index);
