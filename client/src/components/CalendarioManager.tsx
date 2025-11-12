@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
+import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
 import {
   Dialog,
   DialogContent,
@@ -550,9 +551,10 @@ export default function CalendarioManager() {
                           </p>
                         )}
                         {event.description && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {event.description}
-                          </p>
+                          <div 
+                            className="text-sm text-muted-foreground mt-1 prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: event.description }}
+                          />
                         )}
                       </div>
                     </div>
@@ -637,21 +639,21 @@ export default function CalendarioManager() {
 
             <div>
               <Label htmlFor="cliente">Cliente (opzionale)</Label>
-              <Select
+              <ClientAutocomplete
                 value={newEvent.clienteId}
-                onValueChange={(v) => setNewEvent({ ...newEvent, clienteId: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona cliente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clienti.map((cliente) => (
-                    <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.nome} {cliente.cognome} ({cliente.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onSelect={(cliente) => setNewEvent({ ...newEvent, clienteId: cliente?.id || '' })}
+                placeholder="Cerca cliente per nome o email..."
+                enableQuickAdd={true}
+              />
+              {newEvent.clienteId && (() => {
+                const selectedCliente = clienti.find(c => c.id === newEvent.clienteId);
+                return selectedCliente ? (
+                  <div className="mt-2 p-2 bg-sage/10 rounded-md text-sm">
+                    <p className="font-medium">{selectedCliente.nome} {selectedCliente.cognome}</p>
+                    <p className="text-muted-foreground">{selectedCliente.email}</p>
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             {newEvent.clienteId && (
