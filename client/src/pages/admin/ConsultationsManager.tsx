@@ -76,6 +76,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { createUrl } from '@/lib/basePath';
 
 const STATUS_CONFIG: Record<ConsultationStatus, { label: string; variant: string; icon: typeof Clock }> = {
   in_attesa: { label: 'In Attesa', variant: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: Clock },
@@ -268,6 +269,8 @@ export default function ConsultationsManager() {
       return acc;
     }, {} as Record<ConsultationStatus, number>);
   }, [consultations]);
+
+  const jobDataCount = selectedConsultation?.jobDataCollected ? Object.keys(selectedConsultation.jobDataCollected).length : 0;
 
   return (
     <div className="container mx-auto py-8 px-4">
