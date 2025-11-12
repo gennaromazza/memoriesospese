@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
+import { JobAutocomplete } from '@/components/jobs/JobAutocomplete';
 import {
   Dialog,
   DialogContent,
@@ -1002,42 +1003,11 @@ export default function CalendarioManager() {
 
             <div className="border-t pt-4">
               <Label htmlFor="job">Associa a Job (opzionale)</Label>
-              <Select
-                value={newEvent.jobId || undefined}
-                onValueChange={(value) => setNewEvent({ ...newEvent, jobId: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona un job..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {allJobs
-                    .filter(job => job.status !== 'archiviato')
-                    .sort((a, b) => {
-                      const dateA = a.eventDate?.toDate ? a.eventDate.toDate() : new Date(a.eventDate);
-                      const dateB = b.eventDate?.toDate ? b.eventDate.toDate() : new Date(b.eventDate);
-                      return dateB.getTime() - dateA.getTime();
-                    })
-                    .map(job => (
-                      <SelectItem key={job.id} value={job.id}>
-                        {job.nomeEvento} - {format(
-                          job.eventDate?.toDate ? job.eventDate.toDate() : new Date(job.eventDate),
-                          'dd/MM/yyyy'
-                        )}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              {newEvent.jobId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setNewEvent({ ...newEvent, jobId: '' })}
-                  className="mt-2"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Rimuovi associazione
-                </Button>
-              )}
+              <JobAutocomplete
+                value={newEvent.jobId}
+                onSelect={(job) => setNewEvent({ ...newEvent, jobId: job?.id || '' })}
+                placeholder="Cerca job per nome, data o tipo..."
+              />
               {newEvent.jobId && (() => {
                 const selectedJob = allJobs.find(j => j.id === newEvent.jobId);
                 return selectedJob ? (
