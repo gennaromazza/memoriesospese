@@ -502,7 +502,7 @@ export default function ConsultationTemplatesManager() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] w-full flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {editingTemplate ? "Modifica Template" : "Nuovo Template"}
@@ -512,7 +512,7 @@ export default function ConsultationTemplatesManager() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="flex-1 overflow-y-auto pr-1 space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome Template *</Label>
@@ -724,7 +724,7 @@ export default function ConsultationTemplatesManager() {
             </div>
           </div>
 
-          <div className="flex flex-row justify-end gap-2 mt-6 pt-4 border-t">
+          <div className="sticky bottom-0 left-0 right-0 bg-white border-t pt-4 pb-2 flex justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
