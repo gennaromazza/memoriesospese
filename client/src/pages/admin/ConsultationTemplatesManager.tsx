@@ -97,6 +97,9 @@ import {
 } from "lucide-react";
 import { getJobTypes } from "@/lib/job-types";
 import type { JobType as JobTypeDoc } from "@shared/job-types";
+import { storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+
 
 export default function ConsultationTemplatesManager() {
   const { toast } = useToast();
@@ -122,7 +125,7 @@ export default function ConsultationTemplatesManager() {
       ordine: 0,
     },
   );
-  
+
   // Upload state
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -180,29 +183,57 @@ export default function ConsultationTemplatesManager() {
   };
 
   const handleSave = async () => {
+    // Validazione base
+    if (!formData.nome.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Nome obbligatorio",
+        description: "Inserisci un nome per il template",
+      });
+      return;
+    }
+
+    if (!formData.jobType) {
+      toast({
+        variant: "destructive",
+        title: "Job Type obbligatorio",
+        description: "Seleziona un tipo di lavoro",
+      });
+      return;
+    }
+
+    if (!formData.durataMinuti || formData.durataMinuti <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Durata non valida",
+        description: "Inserisci una durata valida in minuti",
+      });
+      return;
+    }
+
+    // Valida che imageUrls sia un array di stringhe
+    const validImageUrls = Array.isArray(formData.imageUrls)
+      ? formData.imageUrls.filter(url => typeof url === 'string' && url.trim() !== '')
+      : [];
+
     try {
-      if (!formData.nome || !formData.jobType || !formData.descrizione) {
-        toast({
-          variant: "destructive",
-          title: "Campi obbligatori mancanti",
-          description: "Nome, tipo lavoro e descrizione sono obbligatori",
-        });
-        return;
-      }
+      // Prepara i dati con imageUrls validato
+      const dataToSave = {
+        ...formData,
+        imageUrls: validImageUrls
+      };
 
       if (editingTemplate) {
         await updateMutation.mutateAsync({
           id: editingTemplate.id,
-          data: formData as UpdateConsultationTemplate,
+          data: dataToSave,
         });
         toast({
           title: "Template aggiornato",
           description: `Template "${formData.nome}" aggiornato con successo`,
         });
       } else {
-        await createMutation.mutateAsync(
-          formData as InsertConsultationTemplate,
-        );
+        await createMutation.mutateAsync(dataToSave);
         toast({
           title: "Template creato",
           description: `Template "${formData.nome}" creato con successo`,
@@ -210,6 +241,7 @@ export default function ConsultationTemplatesManager() {
       }
 
       setDialogOpen(false);
+      setEditingTemplate(null);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Operazione fallita";
@@ -347,62 +379,48 @@ export default function ConsultationTemplatesManager() {
   };
 
   // Image upload handlers
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editingTemplate) return;
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    // Client validation
-    const currentImages = formData.imageUrls || [];
-    if (currentImages.length >= 10) {
-      toast({
-        variant: "destructive",
-        title: "Limite raggiunto",
-        description: "Massimo 10 immagini per template",
-      });
-      return;
-    }
-
+    // Validazione dimensione (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         variant: "destructive",
         title: "File troppo grande",
-        description: "Dimensione massima 5MB per immagine",
+        description: "L'immagine deve essere inferiore a 5MB",
       });
       return;
     }
 
     setUploadingImage(true);
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append("image", file);
 
-      const token = await user?.getIdToken();
-      const response = await fetch(
-        `/api/consultations/templates/${editingTemplate.id}/upload-image`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formDataUpload,
-        },
+    try {
+      const imageCompression = (await import("browser-image-compression")).default;
+
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+
+      const storageRef = ref(
+        storage,
+        `consultation-templates/${Date.now()}_${file.name}`,
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Upload fallito");
-      }
+      await uploadBytes(storageRef, compressedFile);
+      const downloadURL = await getDownloadURL(storageRef);
 
-      const data = await response.json();
+      // Assicurati che imageUrls sia sempre un array di stringhe
+      const currentImages = Array.isArray(formData.imageUrls) ? formData.imageUrls : [];
 
       setFormData((prev) => ({
         ...prev,
-        imageUrls: [...(prev.imageUrls || []), data.imageUrl],
+        imageUrls: [...currentImages, downloadURL],
       }));
-
-      // Invalida cache template
-      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates() });
-      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.template(editingTemplate.id) });
 
       toast({
         title: "Immagine caricata",
@@ -410,7 +428,7 @@ export default function ConsultationTemplatesManager() {
       });
 
       // Reset input
-      e.target.value = "";
+      event.target.value = "";
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Upload fallito";
@@ -424,32 +442,22 @@ export default function ConsultationTemplatesManager() {
     }
   };
 
-  const handleImageDelete = async (imageUrl: string) => {
+  const handleRemoveImage = async (imageUrl: string) => {
     if (!editingTemplate) return;
 
     try {
-      const token = await user?.getIdToken();
-      const response = await fetch(
-        `/api/consultations/templates/${editingTemplate.id}/images`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ imageUrl }),
-        },
-      );
+      // Rimuovi da storage
+      const imageRef = ref(storage, imageUrl);
+      await deleteObject(imageRef);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Eliminazione fallita");
-      }
-
-      setFormData((prev) => ({
-        ...prev,
-        imageUrls: (prev.imageUrls || []).filter((url) => url !== imageUrl),
-      }));
+      // Aggiorna formData - assicurati che sia sempre un array di stringhe
+      setFormData((prev) => {
+        const currentImages = Array.isArray(prev.imageUrls) ? prev.imageUrls : [];
+        return {
+          ...prev,
+          imageUrls: currentImages.filter((url) => typeof url === 'string' && url !== imageUrl),
+        };
+      });
 
       // Invalida cache template
       queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates() });
@@ -879,7 +887,7 @@ export default function ConsultationTemplatesManager() {
                       <p className="text-sm text-gray-500">
                         Configura orari specifici per questo template. Se non configurato, verranno usati gli orari predefiniti (Lun-Ven 9-18, pausa 13-14:30).
                       </p>
-                      
+
                       <div className="space-y-2">
                         <Button
                           type="button"
@@ -895,7 +903,7 @@ export default function ConsultationTemplatesManager() {
                         >
                           {formData.customWorkingHours ? "Orari personalizzati attivi" : "Attiva orari personalizzati"}
                         </Button>
-                        
+
                         {formData.customWorkingHours && (
                           <Button
                             type="button"
@@ -917,7 +925,7 @@ export default function ConsultationTemplatesManager() {
                         <div className="space-y-3 border-t pt-4">
                           {['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'].map((dayName, dayIdx) => {
                             const dayConfig = formData.customWorkingHours?.find(h => h.giornoSettimana === dayIdx);
-                            
+
                             return (
                               <Card key={dayIdx} className="p-4">
                                 <div className="space-y-3">
@@ -1071,7 +1079,7 @@ export default function ConsultationTemplatesManager() {
                             variant="destructive"
                             size="icon"
                             className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleImageDelete(url)}
+                            onClick={() => handleRemoveImage(url)}
                             data-testid={`button-delete-image-${idx}`}
                           >
                             <X className="w-4 h-4" />
@@ -1135,15 +1143,15 @@ export default function ConsultationTemplatesManager() {
                         </h4>
                         <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" />
                       </CollapsibleTrigger>
-                      
+
                       <CollapsibleContent className="pt-4">
-                    
+
                     <div className="space-y-4">
                       {/* Cosa sono i fieldKey */}
                       <div className="bg-white rounded-lg p-4 border border-blue-200">
                         <h5 className="text-sm font-semibold text-blue-900 mb-2">🔑 Cosa sono i FieldKey?</h5>
                         <p className="text-xs text-blue-800 leading-relaxed">
-                          I <strong>fieldKey</strong> sono identificatori univoci che collegano i campi della consulenza ai campi del job. 
+                          I <strong>fieldKey</strong> sono identificatori univoci che collegano i campi della consulenza ai campi del job.
                           Quando converti una consulenza in job, il sistema usa questi identificatori per copiare automaticamente i dati nei campi corretti.
                         </p>
                       </div>
@@ -1186,7 +1194,7 @@ export default function ConsultationTemplatesManager() {
                       <div className="bg-white rounded-lg p-4 border border-amber-200">
                         <h5 className="text-sm font-semibold text-amber-900 mb-2">🎨 FieldKey Personalizzati</h5>
                         <p className="text-xs text-amber-800 mb-3">
-                          Puoi creare campi personalizzati con qualsiasi <strong>fieldKey</strong> (es. "numeroInvitati", "temaColore", ecc.). 
+                          Puoi creare campi personalizzati con qualsiasi <strong>fieldKey</strong> (es. "numeroInvitati", "temaColore", ecc.).
                           Questi dati verranno salvati nelle <strong>Note Interne</strong> del job in formato leggibile.
                         </p>
                         <div className="bg-amber-50 rounded border border-amber-300 p-3">
@@ -1244,7 +1252,7 @@ export default function ConsultationTemplatesManager() {
                               <div><strong>Risultato:</strong> ✅ Compila automaticamente "eventDate" del job</div>
                             </div>
                           </div>
-                          
+
                           <div className="bg-white rounded p-2 border border-blue-200">
                             <div className="font-semibold text-blue-900 mb-1">Campo 2 (Standard):</div>
                             <div className="grid grid-cols-2 gap-2 text-gray-700">
@@ -1283,7 +1291,7 @@ export default function ConsultationTemplatesManager() {
                           { bg: 'from-blue-50/80 to-sky-50/60', border: 'border-l-blue-400' },         // Accent Blue
                         ];
                         const colorScheme = colors[idx % colors.length];
-                        
+
                         return (
                         <Card key={idx} className={`border-l-4 ${colorScheme.border} bg-gradient-to-r ${colorScheme.bg} shadow-sm hover:shadow-md transition-shadow`}>
                           <CardContent className="p-4 sm:p-6">
@@ -1355,7 +1363,7 @@ export default function ConsultationTemplatesManager() {
                                     required
                                   />
                                   <p className="text-xs text-gray-500 italic">
-                                    Usa fieldKey standard per mapping automatico: 
+                                    Usa fieldKey standard per mapping automatico:
                                     <code className="bg-green-100 px-1 rounded text-green-800 mx-1">eventDate</code>
                                     <code className="bg-green-100 px-1 rounded text-green-800 mx-1">eventLocation</code>
                                   </p>
