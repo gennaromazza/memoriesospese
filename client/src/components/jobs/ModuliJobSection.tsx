@@ -418,7 +418,7 @@ export default function ModuliJobSection({
                     {quote.createdAt && (
                       <div>
                         <span className="font-medium">Creato:</span>{" "}
-                        {formatData(quote.createdAt.toDate(), "dd/MM/yyyy", {
+                        {formatDate(quote.createdAt.toDate(), "dd/MM/yyyy", {
                           locale: it,
                         })}
                       </div>
