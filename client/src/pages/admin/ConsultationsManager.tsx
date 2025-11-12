@@ -534,15 +534,23 @@ export default function ConsultationsManager() {
                   <p className="font-medium">
                     {(() => {
                       try {
-                        // Return early if no date available
                         if (!selectedConsultation.dataConsulenza) {
                           return 'Data non disponibile';
                         }
                         
                         let consultationDate: Date;
-                        if (typeof selectedConsultation.dataConsulenza.toDate === 'function') {
-                          consultationDate = selectedConsultation.dataConsulenza.toDate();
-                        } else {
+                        
+                        // Handle Firestore Timestamp serialized as plain object { seconds, nanoseconds }
+                        if (typeof (selectedConsultation.dataConsulenza as any).seconds === 'number') {
+                          const seconds = (selectedConsultation.dataConsulenza as any).seconds;
+                          consultationDate = new Date(seconds * 1000);
+                        }
+                        // Handle Firestore Timestamp with toDate method
+                        else if (typeof (selectedConsultation.dataConsulenza as any).toDate === 'function') {
+                          consultationDate = (selectedConsultation.dataConsulenza as any).toDate();
+                        }
+                        // Handle ISO string or Date object
+                        else {
                           consultationDate = new Date(selectedConsultation.dataConsulenza as any);
                         }
                         
@@ -552,7 +560,7 @@ export default function ConsultationsManager() {
                         
                         return format(consultationDate, 'dd MMMM yyyy', { locale: it });
                       } catch (error) {
-                        console.error('[ConsultationsManager] Error formatting date in detail modal:', error);
+                        console.error('[ConsultationsManager] Error formatting date:', error);
                         return 'Data non disponibile';
                       }
                     })()}
