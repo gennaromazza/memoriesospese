@@ -43,7 +43,7 @@ import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 
 // Type per tab validi
-type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates';
+type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'products' | 'product-categories';
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -1063,7 +1063,7 @@ export default function AdminDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
-                    variant={activeTab === 'settings' || activeTab === 'slideshow' ? 'default' : 'ghost'}
+                    variant={activeTab === 'settings' || activeTab === 'slideshow' || activeTab === 'products' || activeTab === 'product-categories' ? 'default' : 'ghost'}
                     className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
                   >
                     <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -1080,6 +1080,14 @@ export default function AdminDashboard() {
                   <DropdownMenuItem onClick={() => setActiveTab('slideshow')}>
                     <Play className="h-4 w-4 mr-2" />
                     Slideshow Homepage
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab('products')}>
+                    <Package className="h-4 w-4 mr-2" />
+                    Prodotti
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab('product-categories')}>
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Categorie Prodotti
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1507,14 +1515,6 @@ export default function AdminDashboard() {
                     <Calendar className="h-4 w-4 flex-shrink-0" />
                     Campagne
                   </TabsTrigger>
-                  <TabsTrigger value="products" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                    <Package className="h-4 w-4 flex-shrink-0" />
-                    Prodotti
-                  </TabsTrigger>
-                  <TabsTrigger value="product-categories" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="tab-product-categories">
-                    <FolderOpen className="h-4 w-4 flex-shrink-0" />
-                    Categorie Prodotti
-                  </TabsTrigger>
                   <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <ShoppingBag className="h-4 w-4 flex-shrink-0" />
                     Ordini
@@ -1532,14 +1532,6 @@ export default function AdminDashboard() {
 
                 <TabsContent value="campaigns">
                   <CampaignsManager />
-                </TabsContent>
-
-                <TabsContent value="products">
-                  <ProductsManager />
-                </TabsContent>
-
-                <TabsContent value="product-categories">
-                  <ProductCategoriesManager />
                 </TabsContent>
 
                 <TabsContent value="orders">
@@ -1626,6 +1618,20 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Consulenze Templates */}
             <TabsContent value="consulenze-templates">
               <ConsultationTemplatesManager />
+            </TabsContent>
+
+            {/* Contenuto Tab Prodotti */}
+            <TabsContent value="products">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <ProductsManager />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Categorie Prodotti */}
+            <TabsContent value="product-categories">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <ProductCategoriesManager />
+              </div>
             </TabsContent>
 
             {/* Contenuto Tab Impostazioni */}
