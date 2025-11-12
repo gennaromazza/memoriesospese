@@ -507,14 +507,22 @@ export async function isSlotAvailable(
   
   // Check 3: Google Calendar events - busy periods (solo se forniti)
   if (Array.isArray(googleCalendarBusyPeriods) && googleCalendarBusyPeriods.length > 0) {
+    console.log(`[Consultations] 🔍 Controllo ${googleCalendarBusyPeriods.length} busy periods per slot ${startTime}-${endTime}`);
     for (const busy of googleCalendarBusyPeriods) {
       if (!busy.start || !busy.end) continue;
       
       const busyStart = new Date(busy.start);
       const busyEnd = new Date(busy.end);
       
+      console.log(`[Consultations]   - Busy: ${busyStart.toISOString()} → ${busyEnd.toISOString()}`);
+      console.log(`[Consultations]   - Slot: ${slotStart.toISOString()} → ${slotEnd.toISOString()}`);
+      
       // Check sovrapposizione con periodo occupato in Google Calendar
-      if (slotStart < busyEnd && slotEnd > busyStart) {
+      const overlaps = slotStart < busyEnd && slotEnd > busyStart;
+      console.log(`[Consultations]   - Overlap check: slotStart < busyEnd (${slotStart < busyEnd}) && slotEnd > busyStart (${slotEnd > busyStart}) = ${overlaps}`);
+      
+      if (overlaps) {
+        console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da busy period`);
         return false; // Conflict con evento Google Calendar
       }
     }
@@ -606,6 +614,13 @@ export async function getAvailableSlotsForDate(
     const busyPeriodsResult = await checkFreeBusy('primary', calendarDayStart, calendarDayEnd);
     googleBusyPeriods = Array.isArray(busyPeriodsResult) ? busyPeriodsResult : [];
     console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods in Google Calendar`);
+    
+    if (googleBusyPeriods.length > 0) {
+      console.log('[Consultations] 📋 Busy periods details:');
+      googleBusyPeriods.forEach((busy, idx) => {
+        console.log(`  ${idx + 1}. ${busy.start} → ${busy.end}`);
+      });
+    }
   } catch (error: any) {
     console.error('[Consultations] ⚠️ Errore fetching busy periods Google Calendar:', error.message);
     console.error('[Consultations] Procedo senza controllo Google Calendar busy periods');
