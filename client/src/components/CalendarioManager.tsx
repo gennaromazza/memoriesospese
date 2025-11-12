@@ -34,6 +34,7 @@ import type { Consultation } from '@shared/consultation-types';
 import type { Job } from '@shared/jobs-types';
 import type { Cliente } from '@shared/clienti-types';
 import { getAllClienti } from '@/lib/clienti';
+import { getAllJobs } from '@/lib/jobs';
 
 interface CalendarEvent {
   id: string;
@@ -69,6 +70,7 @@ export default function CalendarioManager() {
     startTime: '09:00',
     endTime: '10:00',
     clienteId: '',
+    jobId: '',
     linkType: '' as 'booking' | 'consultation' | 'job' | '',
     linkEntityId: '',
     notifyCliente: false,
@@ -175,6 +177,13 @@ export default function CalendarioManager() {
   const { data: clienti = [] } = useQuery<Cliente[]>({
     queryKey: ['clienti'],
     queryFn: getAllClienti,
+    enabled: !!user,
+  });
+
+  // Fetch Jobs per autocomplete
+  const { data: allJobs = [] } = useQuery<Job[]>({
+    queryKey: ['jobs-autocomplete'],
+    queryFn: getAllJobs,
     enabled: !!user,
   });
 
@@ -331,6 +340,7 @@ export default function CalendarioManager() {
         startTime: '09:00',
         endTime: '10:00',
         clienteId: '',
+        jobId: '',
         linkType: '',
         linkEntityId: '',
         notifyCliente: false,
@@ -989,6 +999,58 @@ export default function CalendarioManager() {
                 </Label>
               </div>
             )}
+
+            <div className="border-t pt-4">
+              <Label htmlFor="job">Associa a Job (opzionale)</Label>
+              <Select
+                value={newEvent.jobId}
+                onValueChange={(value) => setNewEvent({ ...newEvent, jobId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleziona un job..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nessun job</SelectItem>
+                  {allJobs
+                    .filter(job => job.status !== 'archiviato')
+                    .sort((a, b) => {
+                      const dateA = a.eventDate?.toDate ? a.eventDate.toDate() : new Date(a.eventDate);
+                      const dateB = b.eventDate?.toDate ? b.eventDate.toDate() : new Date(b.eventDate);
+                      return dateB.getTime() - dateA.getTime();
+                    })
+                    .map(job => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.nomeEvento} - {format(
+                          job.eventDate?.toDate ? job.eventDate.toDate() : new Date(job.eventDate),
+                          'dd/MM/yyyy'
+                        )}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {newEvent.jobId && (() => {
+                const selectedJob = allJobs.find(j => j.id === newEvent.jobId);
+                return selectedJob ? (
+                  <div className="mt-2 p-3 bg-orange-50 rounded-md border border-orange-200">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-orange-200 flex items-center justify-center">
+                        <span className="text-sm font-semibold text-orange-700">🎯</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{selectedJob.nomeEvento}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedJob.jobType} • {format(
+                            selectedJob.eventDate?.toDate ? selectedJob.eventDate.toDate() : new Date(selectedJob.eventDate),
+                            'dd MMMM yyyy',
+                            { locale: it }
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
           </div>
 
           <DialogFooter>
