@@ -243,6 +243,11 @@ export default function Gallery() {
     }
   }, [isLoadingGallery, galleryError, galleryData, id, navigate, toast]);
 
+  // Combina tutte le foto per il lightbox - DEVE essere prima dell'useEffect che lo usa
+  const allPhotos = useMemo(() => {
+    return [...photos, ...guestPhotos];
+  }, [photos, guestPhotos]);
+
   // 🔧 Gestione hash URL per scrolling automatico alla foto
   useEffect(() => {
     if (!isLoadingPhotos && allPhotos.length > 0) {
@@ -261,6 +266,25 @@ export default function Gallery() {
       }
     }
   }, [isLoadingPhotos, allPhotos]);
+
+  // Scroll infinito come fallback
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        window.innerHeight + window.scrollY >=
+          document.body.offsetHeight - 300 &&
+        hasMorePhotos &&
+        !loadingMorePhotos &&
+        !isLoadingPhotos
+      ) {
+        loadMorePhotos();
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [hasMorePhotos, loadingMorePhotos, isLoadingPhotos, loadMorePhotos]);
+
 
   // Stati per gestire la selezione foto (Tasks 12-15)
   // 🔥 CRITICAL FIX: In multi-product mode, photoAssignments è la SINGLE SOURCE OF TRUTH
@@ -1851,7 +1875,7 @@ export default function Gallery() {
                                   Ho capito!
                                 </AlertDialogAction>
                               </AlertDialogFooter>
-                            </AlertDialogContent>
+                            </AlertDialog>
                           </AlertDialog>
 
                           <h3 className="text-2xl font-playfair text-blue-gray mb-3">
