@@ -200,12 +200,6 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 Prenotazioni
               </Link>
               <a 
-                href="#servizi" 
-                className="px-4 py-2 font-medium text-blue-gray hover:text-sage hover:bg-light-mint/30 rounded-lg transition-all duration-200"
-              >
-                Come Funziona
-              </a>
-              <a 
                 href="#contact" 
                 className="px-4 py-2 font-medium text-blue-gray hover:text-sage hover:bg-light-mint/30 rounded-lg transition-all duration-200"
               >
@@ -285,12 +279,6 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
           >
             Prenotazioni
           </Link>
-          <a 
-            href="#servizi" 
-            className="block px-3 py-2.5 text-base font-medium text-blue-gray hover:bg-light-mint/30 hover:text-sage rounded-lg transition-all"
-          >
-            Come Funziona
-          </a>
           <a 
             href="#contact" 
             className="block px-3 py-2.5 text-base font-medium text-blue-gray hover:bg-light-mint/30 hover:text-sage rounded-lg transition-all"
