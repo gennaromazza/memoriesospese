@@ -552,9 +552,9 @@ export default function ConsultationBooking() {
 
               {/* Instagram Follow Invitation with Feed Preview */}
               {studioSettings?.socialLinks?.instagram && (
-                <div className="mt-6 pt-6 border-t border-beige/30">
-                  <div className="text-center mb-4">
-                    <h4 className="text-lg font-semibold text-blue-gray mb-2">
+                <div className="mt-8 pt-6 border-t border-beige">
+                  <div className="text-center mb-6">
+                    <h4 className="text-xl font-playfair text-blue-gray mb-2">
                       Seguici su Instagram
                     </h4>
                     <p className="text-sm text-gray-600">
@@ -563,7 +563,7 @@ export default function ConsultationBooking() {
                   </div>
 
                   {/* Instagram Feed Embed */}
-                  <div className="mb-4 rounded-lg overflow-hidden border border-beige/30 bg-gray-50">
+                  <div className="mb-6 rounded-xl overflow-hidden border-2 border-beige bg-off-white shadow-sm">
                     <iframe
                       src={`https://www.instagram.com/${studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}/embed`}
                       width="100%"
@@ -585,20 +585,20 @@ export default function ConsultationBooking() {
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg w-full"
+                    className="flex items-center justify-center gap-3 px-6 py-3.5 bg-gradient-to-br from-sage to-dark-sage text-white rounded-lg font-medium hover:shadow-lg transition-all duration-200 w-full group"
                   >
                     <svg
-                      className="w-5 h-5"
+                      className="w-5 h-5 transition-transform group-hover:scale-110"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="1.5"
+                      strokeWidth="2"
                     >
                       <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
                       <circle cx="12" cy="12" r="3.2" />
                       <circle cx="17" cy="7" r="0.9" />
                     </svg>
-                    Seguici su Instagram
+                    <span className="font-semibold">Seguici su Instagram</span>
                   </a>
                 </div>
               )}
