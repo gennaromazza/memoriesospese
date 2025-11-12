@@ -4,6 +4,8 @@ import { useLocation } from 'wouter';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 import { getQuotesForJob, deleteQuote, resetQuoteSignature } from '@/lib/quotes';
 import { Quote, QuoteStatus } from '@shared/quotes-types';
 import { getJob } from '@/lib/jobs';
