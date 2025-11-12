@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, Package, Euro, Image as ImageIcon } from 'lucide-react';
+import { useProductCategories } from '@/lib/products';
 import type { Product } from '@shared/booking-types';
 
 interface CatalogProductSelectorProps {
@@ -32,6 +33,9 @@ export default function CatalogProductSelector({
 }: CatalogProductSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  
+  // Carica categorie dinamiche da Firestore
+  const { data: productCategories = [] } = useProductCategories();
   
   // Filter products
   const filteredProducts = useMemo(() => {
@@ -54,11 +58,16 @@ export default function CatalogProductSelector({
     return filtered;
   }, [products, searchQuery, categoryFilter]);
   
-  // Get unique categories
-  const categories = useMemo(() => {
-    const cats = new Set(products.map(p => p.categoria));
-    return Array.from(cats);
-  }, [products]);
+  // Get unique categories usate dai prodotti (filtra solo quelle con almeno un prodotto)
+  const usedCategories = useMemo(() => {
+    const usedCatValues = new Set(products.map(p => p.categoria));
+    return productCategories.filter(cat => usedCatValues.has(cat.value));
+  }, [products, productCategories]);
+  
+  // Helper per ottenere il nome visualizzato della categoria
+  const getCategoryDisplayName = (categoryValue: string) => {
+    return productCategories.find(cat => cat.value === categoryValue)?.nome || categoryValue;
+  };
   
   // Toggle product selection
   const toggleProduct = (productId: string) => {
@@ -98,9 +107,9 @@ export default function CatalogProductSelector({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le categorie</SelectItem>
-            {categories.map(cat => (
-              <SelectItem key={cat} value={cat}>
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+            {usedCategories.map(cat => (
+              <SelectItem key={cat.value} value={cat.value}>
+                {cat.nome}
               </SelectItem>
             ))}
           </SelectContent>
@@ -177,7 +186,7 @@ export default function CatalogProductSelector({
                         variant="secondary"
                         className="absolute bottom-2 left-2 text-xs"
                       >
-                        {product.categoria}
+                        {getCategoryDisplayName(product.categoria)}
                       </Badge>
                     )}
                   </div>

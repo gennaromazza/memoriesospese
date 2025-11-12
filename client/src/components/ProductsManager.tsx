@@ -35,7 +35,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
-  useActiveProductCategories,
+  useProductCategories,
 } from '@/lib/products';
 import type { Product, InsertProduct } from '@shared/booking-types';
 
@@ -43,8 +43,11 @@ export default function ProductsManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Carica categorie prodotti da Firestore
-  const { data: categories = [], isLoading: categoriesLoading } = useActiveProductCategories();
+  // Carica TUTTE le categorie prodotti da Firestore (anche quelle disattivate per editing)
+  const { data: allCategories = [], isLoading: categoriesLoading } = useProductCategories();
+  
+  // Filtra solo categorie attive per il dropdown
+  const activeCategories = allCategories.filter(cat => cat.attivo);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -99,7 +102,7 @@ export default function ProductsManager() {
       prezzo: 0,
       sconto: 0,
       numeroFoto: 0,
-      categoria: categories[0]?.value || '', // Prima categoria disponibile o stringa vuota
+      categoria: activeCategories[0]?.value || '', // Prima categoria attiva disponibile o stringa vuota
       attivo: true,
       immagini: [],
     });
@@ -391,7 +394,7 @@ export default function ProductsManager() {
                       )}
                     </CardTitle>
                     <CardDescription className="mt-1">
-                      {categories.find((c) => c.value === product.categoria)?.nome || product.categoria}
+                      {allCategories.find((c) => c.value === product.categoria)?.nome || product.categoria}
                     </CardDescription>
                   </div>
                 </div>
@@ -505,28 +508,28 @@ export default function ProductsManager() {
               <Select
                 value={formData.categoria}
                 onValueChange={(value: any) => setFormData({ ...formData, categoria: value })}
-                disabled={categoriesLoading || categories.length === 0}
+                disabled={categoriesLoading || activeCategories.length === 0}
               >
                 <SelectTrigger data-testid="select-product-category">
                   <SelectValue placeholder={
                     categoriesLoading 
                       ? 'Caricamento categorie...' 
-                      : categories.length === 0 
-                        ? 'Nessuna categoria disponibile' 
+                      : activeCategories.length === 0 
+                        ? 'Nessuna categoria attiva disponibile' 
                         : 'Seleziona categoria'
                   } />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((cat) => (
+                  {activeCategories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.value}>
                       {cat.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {!categoriesLoading && categories.length === 0 && (
+              {!categoriesLoading && activeCategories.length === 0 && (
                 <p className="text-sm text-destructive">
-                  Nessuna categoria disponibile. Crea almeno una categoria prima di aggiungere prodotti.
+                  Nessuna categoria attiva disponibile. Attiva almeno una categoria prima di aggiungere prodotti.
                 </p>
               )}
             </div>
