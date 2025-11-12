@@ -167,40 +167,56 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
 
   // Default navigation bar (home page)
   return (
-    <nav className="bg-off-white shadow-sm">
+    <nav className="bg-white/95 backdrop-blur-md shadow-sm border-b border-beige/20 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           <div className="flex-shrink-0 flex items-center">
-            <Link to={createUrl("/")} className="flex items-center">
+            <Link to={createUrl("/")} className="flex items-center group">
               {studioSettings.logo ? (
                 <img 
                   src={studioSettings.logo} 
                   alt={`${studioSettings.name} Logo`} 
-                  className="h-12 w-auto"
+                  className="h-12 w-auto transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <h1 className="text-blue-gray font-playfair font-semibold text-2xl cursor-pointer">
+                <h1 className="text-blue-gray font-playfair font-semibold text-2xl cursor-pointer transition-colors group-hover:text-sage">
                   {studioSettings.name || "Memorie Sospese"}
                 </h1>
               )}
             </Link>
           </div>
           <div className="hidden md:block">
-            <div className="ml-10 flex items-center space-x-6">
-              <Link to={createUrl("/")} className="font-medium text-blue-gray hover:text-dark-sage transition">
+            <div className="ml-10 flex items-center space-x-2">
+              <Link 
+                to={createUrl("/")} 
+                className="px-4 py-2 font-medium text-blue-gray hover:text-sage hover:bg-light-mint/30 rounded-lg transition-all duration-200"
+              >
                 Home
               </Link>
-              <Link to={createUrl("/prenota")} className="font-medium text-blue-gray hover:text-dark-sage transition">
+              <Link 
+                to={createUrl("/prenota")} 
+                className="px-4 py-2 font-medium text-blue-gray hover:text-sage hover:bg-light-mint/30 rounded-lg transition-all duration-200"
+              >
                 Prenotazioni
               </Link>
-              <a href="#about" className="font-medium text-blue-gray hover:text-dark-sage transition">Come Funziona</a>
-              <a href="#contact" className="font-medium text-blue-gray hover:text-dark-sage transition">Contatti</a>
+              <a 
+                href="#servizi" 
+                className="px-4 py-2 font-medium text-blue-gray hover:text-sage hover:bg-light-mint/30 rounded-lg transition-all duration-200"
+              >
+                Come Funziona
+              </a>
+              <a 
+                href="#contact" 
+                className="px-4 py-2 font-medium text-blue-gray hover:text-sage hover:bg-light-mint/30 rounded-lg transition-all duration-200"
+              >
+                Contatti
+              </a>
 
               {/* Sezione utente e admin */}
-              <div className="hidden md:flex md:items-center md:ml-6 space-x-4">
+              <div className="hidden md:flex md:items-center md:ml-4 space-x-3 pl-4 border-l border-beige/40">
                 {userInfo.isAuthenticated && userInfo.email ? (
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-light-mint/20 rounded-full">
                       <UserAvatar 
                         userEmail={userInfo.email}
                         userName={userInfo.displayName}
@@ -215,7 +231,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate(createUrl("/profile"))}
-                      className="text-blue-gray hover:text-dark-sage"
+                      className="text-blue-gray hover:text-sage hover:bg-light-mint/30"
                     >
                       <User className="h-4 w-4" />
                       <span className="ml-2">Profilo</span>
@@ -224,14 +240,17 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                       variant="ghost"
                       size="sm"
                       onClick={handleLogout}
-                      className="text-blue-gray hover:text-dark-sage"
+                      className="text-blue-gray hover:text-terracotta hover:bg-terracotta/10"
                     >
                       <LogOut className="h-4 w-4" />
                       <span className="ml-2">Esci</span>
                     </Button>
                   </div>
                 ) : (
-                  <Link to={createUrl("/admin")} className="px-4 py-2 rounded-md text-off-white bg-blue-gray hover:bg-dark-sage transition">
+                  <Link 
+                    to={createUrl("/admin")} 
+                    className="px-5 py-2 rounded-lg text-white bg-gradient-to-r from-sage to-dark-sage hover:shadow-lg transition-all duration-300 font-medium"
+                  >
                     Admin
                   </Link>
                 )}
@@ -252,16 +271,32 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
       </div>
 
       {/* Mobile menu */}
-      <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-off-white`}>
+      <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-white/95 backdrop-blur-md border-t border-beige/20`}>
         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-          <Link to={createUrl("/")} className="block px-3 py-2 text-base font-medium text-blue-gray">
+          <Link 
+            to={createUrl("/")} 
+            className="block px-3 py-2.5 text-base font-medium text-blue-gray hover:bg-light-mint/30 hover:text-sage rounded-lg transition-all"
+          >
             Home
           </Link>
-          <Link to={createUrl("/prenota")} className="block px-3 py-2 text-base font-medium text-blue-gray">
+          <Link 
+            to={createUrl("/prenota")} 
+            className="block px-3 py-2.5 text-base font-medium text-blue-gray hover:bg-light-mint/30 hover:text-sage rounded-lg transition-all"
+          >
             Prenotazioni
           </Link>
-          <a href="#about" className="block px-3 py-2 text-base font-medium text-blue-gray">Come Funziona</a>
-          <a href="#contact" className="block px-3 py-2 text-base font-medium text-blue-gray">Contatti</a>
+          <a 
+            href="#servizi" 
+            className="block px-3 py-2.5 text-base font-medium text-blue-gray hover:bg-light-mint/30 hover:text-sage rounded-lg transition-all"
+          >
+            Come Funziona
+          </a>
+          <a 
+            href="#contact" 
+            className="block px-3 py-2.5 text-base font-medium text-blue-gray hover:bg-light-mint/30 hover:text-sage rounded-lg transition-all"
+          >
+            Contatti
+          </a>
 
           {/* Sezione utente mobile */}
           {userInfo.isAuthenticated && userInfo.email ? (
