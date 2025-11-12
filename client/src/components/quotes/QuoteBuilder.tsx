@@ -17,6 +17,7 @@ import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import CatalogProductSelector from './CatalogProductSelector';
+import PresetManager from '../presets/PresetManager';
 import {
   Dialog,
   DialogContent,
@@ -61,7 +62,9 @@ import {
   Upload,
   X,
   Image as ImageIcon,
-  CreditCard
+  CreditCard,
+  Save,
+  FolderOpen
 } from 'lucide-react';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
@@ -153,6 +156,7 @@ export default function QuoteBuilder({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [selectedClauseTemplateId, setSelectedClauseTemplateId] = useState<string>('');
   const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
+  const [presetMode, setPresetMode] = useState<'save' | 'load' | null>(null);
 
   // Query job per eventDate
   const { data: job } = useQuery({
@@ -261,6 +265,7 @@ export default function QuoteBuilder({
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
   const quoteType = form.watch('type');
+  const currentTheme = form.watch('theme');
 
   // Watch payment schedule config for simulator
   const paymentConfig = form.watch('paymentScheduleConfig');
@@ -329,6 +334,34 @@ export default function QuoteBuilder({
       selectable: template.type === 'variabile'
     })));
     form.setValue('theme', template.theme);
+  };
+
+  // Load preset (handler per PresetManager)
+  const handleLoadPreset = (preset: any) => {
+    // Carica prodotti
+    form.setValue('products', preset.products);
+    
+    // Carica sconto se presente
+    if (preset.discountType && preset.discountValue !== undefined) {
+      form.setValue('discountType', preset.discountType);
+      form.setValue('discountValue', preset.discountValue);
+    }
+    
+    // Carica tema se presente
+    if (preset.theme) {
+      form.setValue('theme', preset.theme);
+    }
+    
+    // Carica config pagamenti se presente
+    if (preset.paymentScheduleConfig) {
+      form.setValue('paymentScheduleConfig', preset.paymentScheduleConfig);
+    }
+    
+    // Carica template clausole se presente
+    if (preset.clauseTemplateId) {
+      setSelectedClauseTemplateId(preset.clauseTemplateId);
+      form.setValue('clauseTemplateId', preset.clauseTemplateId);
+    }
   };
 
   // Upload immagine prodotto custom
@@ -1385,31 +1418,106 @@ export default function QuoteBuilder({
             />
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={createMutation.isPending}
-                data-testid="button-cancel"
-              >
-                Annulla
-              </Button>
-              <Button
-                type="submit"
-                disabled={createMutation.isPending}
-                className="bg-sage hover:bg-dark-sage"
-                data-testid="button-submit"
-              >
-                {createMutation.isPending && (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                )}
-                Crea Preventivo
-              </Button>
+            <div className="flex justify-between items-center pt-4">
+              {/* Preset Actions (left) */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPresetMode('load')}
+                  disabled={createMutation.isPending}
+                  data-testid="button-load-preset"
+                >
+                  <FolderOpen className="w-4 h-4 mr-2" />
+                  Carica Preset
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPresetMode('save')}
+                  disabled={createMutation.isPending || (customProducts.filter(p => p.nome?.trim()).length === 0 && catalogProductIds.length === 0)}
+                  data-testid="button-save-preset"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Salva come Preset
+                </Button>
+              </div>
+              
+              {/* Main Actions (right) */}
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={createMutation.isPending}
+                  data-testid="button-cancel"
+                >
+                  Annulla
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending}
+                  className="bg-sage hover:bg-dark-sage"
+                  data-testid="button-submit"
+                >
+                  {createMutation.isPending && (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  )}
+                  Crea Preventivo
+                </Button>
+              </div>
             </div>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Preset Manager */}
+    {presetMode && (
+      <PresetManager
+        mode={presetMode}
+        open={!!presetMode}
+        onOpenChange={(open) => !open && setPresetMode(null)}
+        currentProducts={
+          presetMode === 'save' 
+            ? [
+                ...catalogProductIds.map(id => {
+                  const product = catalogProducts.find(p => p.id === id);
+                  if (!product) return null;
+                  return {
+                    productId: product.id,
+                    nome: product.nome,
+                    descrizione: product.descrizione || '',
+                    prezzo: product.prezzoFinale || product.prezzo,
+                    selectable: quoteType === 'variabile',
+                    numeroFoto: product.numeroFoto,
+                    categoria: product.categoria,
+                    immagini: product.immagini
+                  };
+                }).filter((p): p is QuoteProduct => p !== null),
+                ...customProducts
+                  .filter(p => p.nome?.trim())
+                  .map(p => ({
+                    nome: p.nome,
+                    descrizione: p.descrizione,
+                    prezzo: p.prezzo,
+                    selectable: p.selectable,
+                    numeroFoto: p.numeroFoto,
+                    categoria: p.categoria,
+                    immagini: p.immagini
+                  }))
+              ]
+            : []
+        }
+        currentDiscountType={discountType}
+        currentDiscountValue={discountValue}
+        currentTheme={currentTheme}
+        currentPaymentScheduleConfig={paymentConfig}
+        currentClauseTemplateId={selectedClauseTemplateId}
+        onPresetSelected={handleLoadPreset}
+      />
+    )}
   );
 }
