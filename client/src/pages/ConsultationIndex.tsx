@@ -55,33 +55,95 @@ export default function ConsultationIndex() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {jobTypes.map((jobType) => (
-              <Link key={jobType} href={`/consulenze/${encodeURIComponent(jobType)}`}>
-                <Card 
-                  className="h-full transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer border-beige bg-white group"
-                  data-testid={`card-job-type-${jobType}`}
-                >
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg sm:text-xl font-playfair text-blue-gray flex items-center justify-between gap-2">
-                      <span className="line-clamp-2">{jobType}</span>
-                      <ArrowRight className="h-5 w-5 text-sage flex-shrink-0 transition-transform group-hover:translate-x-1" />
-                    </CardTitle>
-                    <CardDescription className="text-sm text-gray-600 line-clamp-2">
-                      Prenota una consulenza preliminare per {jobType.toLowerCase()}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button 
-                      variant="outline" 
-                      className="w-full border-sage text-sage hover:bg-sage hover:text-white transition-colors"
-                      data-testid={`button-view-templates-${jobType}`}
-                    >
-                      Visualizza Opzioni
-                    </Button>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+            {jobTypes.map((jobType) => {
+              // Selezione icona in base al tipo di servizio
+              const getIconForJobType = (type: string) => {
+                const lowerType = type.toLowerCase();
+                
+                if (lowerType.includes('matrimoni') || lowerType.includes('matrimonio')) {
+                  return (
+                    <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  );
+                }
+                
+                if (lowerType.includes('evento') || lowerType.includes('eventi')) {
+                  return (
+                    <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 15.546c-.523 0-1.046.151-1.5.454a2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.701 2.701 0 00-1.5-.454M9 6v2m3-2v2m3-2v2M9 3h.01M12 3h.01M15 3h.01M21 21v-7a2 2 0 00-2-2H5a2 2 0 00-2 2v7h18zm-3-9v-2a2 2 0 00-2-2H8a2 2 0 00-2 2v2h12z" />
+                    </svg>
+                  );
+                }
+                
+                if (lowerType.includes('ritratt') || lowerType.includes('portrait')) {
+                  return (
+                    <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  );
+                }
+                
+                if (lowerType.includes('battesim') || lowerType.includes('comunion') || lowerType.includes('cresim')) {
+                  return (
+                    <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  );
+                }
+                
+                // Icona predefinita (camera)
+                return (
+                  <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                );
+              };
+
+              return (
+                <Link key={jobType} href={`/consulenze/${encodeURIComponent(jobType)}`}>
+                  <Card 
+                    className="h-full transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer border-beige bg-white group overflow-hidden"
+                    data-testid={`card-job-type-${jobType}`}
+                  >
+                    {/* Icona decorativa di sfondo */}
+                    <div className="relative">
+                      <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 text-sage/10 group-hover:text-sage/20 transition-colors">
+                        {getIconForJobType(jobType)}
+                      </div>
+                      
+                      <CardHeader className="pb-3 relative z-10">
+                        {/* Icona principale nella card */}
+                        <div className="w-16 h-16 mb-4 bg-gradient-to-br from-sage/10 to-cream rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <div className="w-8 h-8 text-sage">
+                            {getIconForJobType(jobType)}
+                          </div>
+                        </div>
+                        
+                        <CardTitle className="text-lg sm:text-xl font-playfair text-blue-gray flex items-center justify-between gap-2">
+                          <span className="line-clamp-2">{jobType}</span>
+                          <ArrowRight className="h-5 w-5 text-sage flex-shrink-0 transition-transform group-hover:translate-x-1" />
+                        </CardTitle>
+                        <CardDescription className="text-sm text-gray-600 line-clamp-2">
+                          Prenota una consulenza preliminare per {jobType.toLowerCase()}
+                        </CardDescription>
+                      </CardHeader>
+                    </div>
+                    
+                    <CardContent>
+                      <Button 
+                        variant="outline" 
+                        className="w-full border-sage text-sage hover:bg-sage hover:text-white transition-colors"
+                        data-testid={`button-view-templates-${jobType}`}
+                      >
+                        Visualizza Opzioni
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         )}
 
