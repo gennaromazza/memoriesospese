@@ -648,9 +648,18 @@ export default function CalendarioManager() {
               {newEvent.clienteId && (() => {
                 const selectedCliente = clienti.find(c => c.id === newEvent.clienteId);
                 return selectedCliente ? (
-                  <div className="mt-2 p-2 bg-sage/10 rounded-md text-sm">
-                    <p className="font-medium">{selectedCliente.nome} {selectedCliente.cognome}</p>
-                    <p className="text-muted-foreground">{selectedCliente.email}</p>
+                  <div className="mt-2 p-3 bg-sage/10 rounded-md border border-sage/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-8 h-8 rounded-full bg-sage/20 flex items-center justify-center">
+                        <span className="text-sm font-semibold text-sage">
+                          {selectedCliente.nome.charAt(0)}{selectedCliente.cognome.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{selectedCliente.nome} {selectedCliente.cognome}</p>
+                        <p className="text-xs text-muted-foreground">{selectedCliente.email}</p>
+                      </div>
+                    </div>
                   </div>
                 ) : null;
               })()}
