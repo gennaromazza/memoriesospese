@@ -35,20 +35,16 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  useActiveProductCategories,
 } from '@/lib/products';
 import type { Product, InsertProduct } from '@shared/booking-types';
-
-const CATEGORIE = [
-  { value: 'album', label: 'Album Fotografico' },
-  { value: 'stampe', label: 'Stampe' },
-  { value: 'digitale', label: 'File Digitali' },
-  { value: 'video', label: 'Video/Montaggio' },
-  { value: 'pacchetto', label: 'Pacchetto Completo' },
-] as const;
 
 export default function ProductsManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Carica categorie prodotti da Firestore
+  const { data: categories = [], isLoading: categoriesLoading } = useActiveProductCategories();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -103,7 +99,7 @@ export default function ProductsManager() {
       prezzo: 0,
       sconto: 0,
       numeroFoto: 0,
-      categoria: 'album',
+      categoria: categories[0]?.value || '', // Prima categoria disponibile o stringa vuota
       attivo: true,
       immagini: [],
     });
@@ -395,7 +391,7 @@ export default function ProductsManager() {
                       )}
                     </CardTitle>
                     <CardDescription className="mt-1">
-                      {CATEGORIE.find(c => c.value === product.categoria)?.label}
+                      {categories.find((c) => c.value === product.categoria)?.nome || product.categoria}
                     </CardDescription>
                   </div>
                 </div>
@@ -514,11 +510,17 @@ export default function ProductsManager() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIE.map(cat => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </SelectItem>
-                  ))}
+                  {categoriesLoading ? (
+                    <SelectItem value="" disabled>Caricamento categorie...</SelectItem>
+                  ) : categories.length === 0 ? (
+                    <SelectItem value="" disabled>Nessuna categoria disponibile</SelectItem>
+                  ) : (
+                    categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.value}>
+                        {cat.nome}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

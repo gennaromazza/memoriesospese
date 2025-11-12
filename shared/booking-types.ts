@@ -25,7 +25,7 @@ export interface Product {
   sconto: number; // Sconto in percentuale (0-100)
   prezzoFinale: number; // Calcolato automaticamente
   numeroFoto: number; // Numero foto incluse nel prodotto (es. 20 per album)
-  categoria: 'album' | 'stampe' | 'digitale' | 'video' | 'pacchetto';
+  categoria: string; // Riferimento a ProductCategory.value
   attivo: boolean;
   immagini: string[]; // Array URLs immagini prodotto da Firebase Storage
   createdAt: Timestamp;
@@ -38,9 +38,29 @@ export interface InsertProduct {
   prezzo: number;
   sconto: number;
   numeroFoto: number;
-  categoria: 'album' | 'stampe' | 'digitale' | 'video' | 'pacchetto';
+  categoria: string; // Riferimento a ProductCategory.value
   attivo: boolean;
   immagini?: string[]; // Opzionale in fase di creazione
+}
+
+/**
+ * PRODUCT CATEGORIES - Categorie prodotti dinamiche
+ */
+export interface ProductCategory {
+  id: string;
+  nome: string; // Nome visualizzato (es. "Album Fotografico")
+  value: string; // Valore tecnico univoco (es. "album")
+  attivo: boolean;
+  displayOrder: number; // Ordine di visualizzazione nei dropdown
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface InsertProductCategory {
+  nome: string;
+  value: string;
+  attivo: boolean;
+  displayOrder: number;
 }
 
 /**

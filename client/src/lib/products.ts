@@ -1,5 +1,5 @@
 /**
- * Funzioni Firebase per gestione Prodotti
+ * Funzioni Firebase per gestione Prodotti e Categorie
  */
 
 import {
@@ -15,8 +15,18 @@ import {
   Timestamp,
   serverTimestamp,
 } from 'firebase/firestore';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import type { Product, InsertProduct } from '@shared/booking-types';
+import type { Product, InsertProduct, ProductCategory } from '@shared/booking-types';
+import {
+  getProductCategories,
+  getActiveProductCategories,
+  createProductCategory,
+  updateProductCategory,
+  deleteProductCategory,
+  reorderProductCategories,
+  toggleProductCategoryStatus
+} from './product-categories';
 
 const PRODUCTS_COLLECTION = 'products';
 
@@ -106,4 +116,85 @@ export async function deleteProduct(id: string): Promise<void> {
 export async function getActiveProducts(): Promise<Product[]> {
   const allProducts = await getAllProducts();
   return allProducts.filter(p => p.attivo);
+}
+
+/**
+ * ========================================
+ * REACT QUERY HOOKS PER PRODUCT CATEGORIES
+ * ========================================
+ */
+
+export function useProductCategories() {
+  return useQuery<ProductCategory[]>({
+    queryKey: ['productCategories'],
+    queryFn: getProductCategories
+  });
+}
+
+export function useActiveProductCategories() {
+  return useQuery<ProductCategory[]>({
+    queryKey: ['activeProductCategories'],
+    queryFn: getActiveProductCategories
+  });
+}
+
+export function useCreateProductCategory() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: createProductCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['productCategories'] });
+      queryClient.invalidateQueries({ queryKey: ['activeProductCategories'] });
+    }
+  });
+}
+
+export function useUpdateProductCategory() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ProductCategory> }) => 
+      updateProductCategory(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['productCategories'] });
+      queryClient.invalidateQueries({ queryKey: ['activeProductCategories'] });
+    }
+  });
+}
+
+export function useDeleteProductCategory() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: deleteProductCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['productCategories'] });
+      queryClient.invalidateQueries({ queryKey: ['activeProductCategories'] });
+    }
+  });
+}
+
+export function useToggleProductCategoryStatus() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: toggleProductCategoryStatus,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['productCategories'] });
+      queryClient.invalidateQueries({ queryKey: ['activeProductCategories'] });
+    }
+  });
+}
+
+export function useReorderProductCategories() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: reorderProductCategories,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['productCategories'] });
+      queryClient.invalidateQueries({ queryKey: ['activeProductCategories'] });
+    }
+  });
 }
