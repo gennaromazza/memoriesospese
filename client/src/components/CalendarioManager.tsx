@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
-import { Calendar as CalendarIcon, Plus, Link as LinkIcon, Mail, Loader2, Filter, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Link as LinkIcon, Mail, Loader2, Filter, X, Edit, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -56,7 +56,8 @@ export default function CalendarioManager() {
   const [viewMode, setViewMode] = useState<'month' | 'day'>('month');
   const [filterType, setFilterType] = useState<'all' | 'google' | 'consultation' | 'job'>('all');
   const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
-  const [isLinkEventOpen, setIsLinkEventOpen] = useState(false);
+  const [isEditEventOpen, setIsEditEventOpen] = useState(false);
+  const [isDeleteEventOpen, setIsDeleteEventOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   // Form state per nuovo evento
@@ -70,6 +71,18 @@ export default function CalendarioManager() {
     clienteId: '',
     linkType: '' as 'booking' | 'consultation' | 'job' | '',
     linkEntityId: '',
+    notifyCliente: false,
+  });
+
+  // Form state per edit evento
+  const [editEvent, setEditEvent] = useState({
+    title: '',
+    description: '',
+    location: '',
+    date: '',
+    startTime: '',
+    endTime: '',
+    clienteId: '',
     notifyCliente: false,
   });
 
@@ -345,6 +358,142 @@ export default function CalendarioManager() {
     createEventMutation.mutate(newEvent);
   };
 
+  // Aggiorna evento Google Calendar
+  const updateEventMutation = useMutation({
+    mutationFn: async (data: typeof editEvent & { eventId: string }) => {
+      const startDateTime = new Date(`${data.date}T${data.startTime}`);
+      const endDateTime = new Date(`${data.date}T${data.endTime}`);
+
+      const response = await fetch('/api/calendar/update-event', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: data.eventId,
+          summary: data.title,
+          description: data.description,
+          location: data.location,
+          start: startDateTime.toISOString(),
+          end: endDateTime.toISOString(),
+          attendees: data.clienteId && data.notifyCliente
+            ? [clienti.find(c => c.id === data.clienteId)?.email].filter(Boolean)
+            : [],
+        }),
+      });
+
+      if (!response.ok) throw new Error('Errore aggiornamento evento');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      setIsEditEventOpen(false);
+      setSelectedEvent(null);
+      toast({
+        title: 'Evento aggiornato',
+        description: 'L\'evento è stato modificato con successo',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Elimina evento Google Calendar
+  const deleteEventMutation = useMutation({
+    mutationFn: async (data: { eventId: string; attendees: string[] }) => {
+      const response = await fetch(`/api/calendar/delete-event/${data.eventId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendees: data.attendees }),
+      });
+
+      if (!response.ok) throw new Error('Errore eliminazione evento');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      setIsDeleteEventOpen(false);
+      setSelectedEvent(null);
+      toast({
+        title: 'Evento eliminato',
+        description: 'L\'evento è stato rimosso dal calendario',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleEditEvent = (event: CalendarEvent) => {
+    if (event.type !== 'google') {
+      toast({
+        title: 'Non modificabile',
+        description: 'Puoi modificare solo eventi creati da Google Calendar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSelectedEvent(event);
+    setEditEvent({
+      title: event.title,
+      description: event.description || '',
+      location: event.location || '',
+      date: format(event.start, 'yyyy-MM-dd'),
+      startTime: format(event.start, 'HH:mm'),
+      endTime: format(event.end, 'HH:mm'),
+      clienteId: '',
+      notifyCliente: false,
+    });
+    setIsEditEventOpen(true);
+  };
+
+  const handleUpdateEvent = () => {
+    if (!editEvent.title || !selectedEvent) {
+      toast({
+        title: 'Errore',
+        description: 'Il titolo è obbligatorio',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    updateEventMutation.mutate({
+      ...editEvent,
+      eventId: selectedEvent.googleEventId!,
+    });
+  };
+
+  const handleDeleteEvent = (event: CalendarEvent) => {
+    if (event.type !== 'google') {
+      toast({
+        title: 'Non eliminabile',
+        description: 'Puoi eliminare solo eventi creati da Google Calendar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSelectedEvent(event);
+    setIsDeleteEventOpen(true);
+  };
+
+  const confirmDeleteEvent = () => {
+    if (!selectedEvent) return;
+
+    deleteEventMutation.mutate({
+      eventId: selectedEvent.googleEventId!,
+      attendees: selectedEvent.clienteEmail ? [selectedEvent.clienteEmail] : [],
+    });
+  };
+
   const getEventTypeColor = (type: CalendarEvent['type']) => {
     switch (type) {
       case 'google': return 'bg-blue-500';
@@ -501,6 +650,27 @@ export default function CalendarioManager() {
                           />
                         )}
                       </div>
+                      {event.type === 'google' && (
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditEvent(event)}
+                            title="Modifica evento"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteEvent(event)}
+                            title="Elimina evento"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
               </div>
@@ -508,6 +678,172 @@ export default function CalendarioManager() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog Modifica Evento */}
+      <Dialog open={isEditEventOpen} onOpenChange={setIsEditEventOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifica Evento</DialogTitle>
+            <DialogDescription>
+              Modifica i dettagli dell'evento nel calendario
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-title">Titolo *</Label>
+              <Input
+                id="edit-title"
+                value={editEvent.title}
+                onChange={(e) => setEditEvent({ ...editEvent, title: e.target.value })}
+                placeholder="Es. Riunione con cliente"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-description">Descrizione</Label>
+              <Textarea
+                id="edit-description"
+                value={editEvent.description}
+                onChange={(e) => setEditEvent({ ...editEvent, description: e.target.value })}
+                placeholder="Dettagli evento..."
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-location">Luogo</Label>
+              <Input
+                id="edit-location"
+                value={editEvent.location}
+                onChange={(e) => setEditEvent({ ...editEvent, location: e.target.value })}
+                placeholder="Es. Studio fotografico"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="edit-date">Data</Label>
+                <Input
+                  id="edit-date"
+                  type="date"
+                  value={editEvent.date}
+                  onChange={(e) => setEditEvent({ ...editEvent, date: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-startTime">Ora Inizio</Label>
+                <Input
+                  id="edit-startTime"
+                  type="time"
+                  value={editEvent.startTime}
+                  onChange={(e) => setEditEvent({ ...editEvent, startTime: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-endTime">Ora Fine</Label>
+                <Input
+                  id="edit-endTime"
+                  type="time"
+                  value={editEvent.endTime}
+                  onChange={(e) => setEditEvent({ ...editEvent, endTime: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-cliente">Notifica Cliente (opzionale)</Label>
+              <ClientAutocomplete
+                value={editEvent.clienteId}
+                onSelect={(cliente) => setEditEvent({ ...editEvent, clienteId: cliente?.id || '' })}
+                placeholder="Seleziona cliente per notifica..."
+              />
+              {editEvent.clienteId && (
+                <div className="flex items-center space-x-2 mt-2">
+                  <input
+                    type="checkbox"
+                    id="edit-notifyCliente"
+                    checked={editEvent.notifyCliente}
+                    onChange={(e) => setEditEvent({ ...editEvent, notifyCliente: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="edit-notifyCliente" className="cursor-pointer">
+                    Invia notifica email di modifica
+                  </Label>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditEventOpen(false)}>
+              Annulla
+            </Button>
+            <Button onClick={handleUpdateEvent} disabled={updateEventMutation.isPending}>
+              {updateEventMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Aggiornamento...
+                </>
+              ) : (
+                'Salva Modifiche'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Elimina Evento */}
+      <Dialog open={isDeleteEventOpen} onOpenChange={setIsDeleteEventOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Elimina Evento</DialogTitle>
+            <DialogDescription>
+              Sei sicuro di voler eliminare questo evento? Questa azione non può essere annullata.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedEvent && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-medium mb-2">{selectedEvent.title}</h4>
+              <p className="text-sm text-muted-foreground">
+                📅 {format(selectedEvent.start, 'dd MMMM yyyy', { locale: it })}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                🕐 {format(selectedEvent.start, 'HH:mm')} - {format(selectedEvent.end, 'HH:mm')}
+              </p>
+              {selectedEvent.clienteEmail && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  ✉️ Verrà inviata email di cancellazione a: {selectedEvent.clienteEmail}
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteEventOpen(false)}>
+              Annulla
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={confirmDeleteEvent}
+              disabled={deleteEventMutation.isPending}
+            >
+              {deleteEventMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eliminazione...
+                </>
+              ) : (
+                <>
+                  <Trash className="mr-2 h-4 w-4" />
+                  Elimina Evento
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog Crea Evento */}
       <Dialog open={isCreateEventOpen} onOpenChange={setIsCreateEventOpen}>
