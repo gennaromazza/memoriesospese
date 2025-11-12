@@ -503,7 +503,7 @@ export default function ConsultationTemplatesManager() {
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] w-full flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <DialogHeader className="px-6 pt-6 pb-2 border-b">
             <DialogTitle className="text-2xl font-playfair">
               {editingTemplate ? "Modifica Template" : "Nuovo Template"}
             </DialogTitle>
@@ -512,7 +512,28 @@ export default function ConsultationTemplatesManager() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 space-y-6 py-6 pb-28">
+          <div className="px-6 py-4 border-b flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              data-testid="button-cancel"
+              className="min-w-[100px]"
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={createMutation.isPending || updateMutation.isPending}
+              className="bg-blue-gray hover:bg-dark-sage text-white min-w-[100px]"
+              data-testid="button-save"
+            >
+              {createMutation.isPending || updateMutation.isPending
+                ? "Salvataggio..."
+                : "Salva"}
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome Template *</Label>
@@ -725,27 +746,6 @@ export default function ConsultationTemplatesManager() {
                 </p>
               )}
             </div>
-          </div>
-
-          <div className="sticky bottom-0 left-0 right-0 bg-off-white border-t px-6 py-4 flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              data-testid="button-cancel"
-              className="min-w-[100px]"
-            >
-              Annulla
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={createMutation.isPending || updateMutation.isPending}
-              className="bg-blue-gray hover:bg-dark-sage text-white min-w-[100px]"
-              data-testid="button-save"
-            >
-              {createMutation.isPending || updateMutation.isPending
-                ? "Salvataggio..."
-                : "Salva"}
-            </Button>
           </div>
         </DialogContent>
       </Dialog>
