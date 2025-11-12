@@ -166,12 +166,14 @@ export default function NotificationBell({
 
   const handleCommentClick = (comment: Comment) => {
     setOpen(false);
-    // Naviga alla galleria del commento
+    // Naviga alla galleria del commento e poi alla foto
     if (comment.galleryId) {
-      // Ottieni il codice galleria e naviga
+      // Ottieni il codice galleria e naviga alla foto specifica
       GalleryService.getGalleryById(comment.galleryId).then(gallery => {
         if (gallery?.code) {
-          onNavigateToGallery?.(gallery.code);
+          // Naviga alla galleria con hash della foto per scrolling automatico
+          const galleryUrl = `/gallery/${gallery.code}${comment.photoId ? `#photo-${comment.photoId}` : ''}`;
+          window.location.href = galleryUrl;
         }
       }).catch(console.error);
     }
