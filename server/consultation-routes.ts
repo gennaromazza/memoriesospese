@@ -597,7 +597,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
 
       await sendGmailEmail(
         consultation.cliente.email,
-        `✅ Consulenza Confermata - ${consultation.jobType}`,
+        `Consulenza Confermata - ${consultation.jobType}`,
         htmlContent
       );
 

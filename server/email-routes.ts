@@ -4857,7 +4857,7 @@ router.post("/send-consultation-approved", async (req, res) => {
       studioInfo
     );
 
-    const subject = `✅ Consulenza Confermata - ${jobType}`;
+    const subject = `Consulenza Confermata - ${jobType}`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
@@ -4967,7 +4967,7 @@ router.post("/send-consultation-cancelled", async (req, res) => {
       studioInfo
     );
 
-    const subject = `⚠️ Consulenza Cancellata - ${jobType}`;
+    const subject = `Consulenza Cancellata - ${jobType}`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
