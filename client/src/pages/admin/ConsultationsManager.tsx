@@ -379,7 +379,11 @@ export default function ConsultationsManager() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedConsultations.map((consultation) => (
+                {sortedConsultations.map((consultation) => {
+                  const config = STATUS_CONFIG[consultation.stato];
+                  const currentJobDataCount = consultation.jobDataCollected ? Object.keys(consultation.jobDataCollected).length : 0;
+                  
+                  return (
                   <TableRow 
                     key={consultation.id}
                     data-consultation-id={consultation.id}
@@ -458,7 +462,7 @@ export default function ConsultationsManager() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="text-xs">
-                        {jobDataCount} {jobDataCount === 1 ? 'campo' : 'campi'}
+                        {currentJobDataCount} {currentJobDataCount === 1 ? 'campo' : 'campi'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -531,7 +535,8 @@ export default function ConsultationsManager() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}
