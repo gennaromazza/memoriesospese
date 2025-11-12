@@ -9,7 +9,7 @@ import { useJobTypes } from '@/lib/consultations';
 import { Link } from 'wouter';
 import { Calendar, ArrowRight, Loader2 } from 'lucide-react';
 
-export function ConsultationIndex() {
+export default function ConsultationIndex() {
   const { data: jobTypes, isLoading } = useJobTypes();
 
   if (isLoading) {

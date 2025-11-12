@@ -38,6 +38,8 @@ import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
 import JobTypesManager from "@/components/job-types/JobTypesManager";
+import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
+import ConsultationsManager from "./admin/ConsultationsManager";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -207,7 +209,7 @@ export default function AdminDashboard() {
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori'>('galleries');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates'>('galleries');
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
@@ -1019,10 +1021,24 @@ export default function AdminDashboard() {
               </TabsTrigger>
 
               {/* Financial Management: Cassa */}
-              <TabsTrigger value="cassa" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+              <TabsTrigger value="cassa" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-cassa">
                 <Wallet className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Cassa</span>
                 <span className="sm:hidden">💰</span>
+              </TabsTrigger>
+
+              {/* Consulenze: Prenotazioni */}
+              <TabsTrigger value="consulenze" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-consulenze">
+                <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Consulenze</span>
+                <span className="sm:hidden">Cons.</span>
+              </TabsTrigger>
+
+              {/* Consulenze: Template */}
+              <TabsTrigger value="consulenze-templates" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-consulenze-templates">
+                <FileText className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Template Consulenze</span>
+                <span className="sm:hidden">Tmpl</span>
               </TabsTrigger>
 
               {/* Separatore visivo */}
@@ -1577,6 +1593,16 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Cassa */}
             <TabsContent value="cassa">
               <CashDashboard />
+            </TabsContent>
+
+            {/* Contenuto Tab Consulenze */}
+            <TabsContent value="consulenze">
+              <ConsultationsManager />
+            </TabsContent>
+
+            {/* Contenuto Tab Consulenze Templates */}
+            <TabsContent value="consulenze-templates">
+              <ConsultationTemplatesManager />
             </TabsContent>
 
             {/* Contenuto Tab Impostazioni */}

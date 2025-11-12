@@ -10,7 +10,7 @@ import { useTemplatesByJobType } from '@/lib/consultations';
 import { Link, useParams } from 'wouter';
 import { Calendar, Clock, ArrowLeft, ArrowRight, Loader2, FileText } from 'lucide-react';
 
-export function ConsultationTemplates() {
+export default function ConsultationTemplates() {
   const params = useParams<{ tipo: string }>();
   const jobType = params.tipo ? decodeURIComponent(params.tipo) : '';
   

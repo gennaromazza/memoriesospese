@@ -37,6 +37,11 @@ import AuthDebugPanel from "./components/AuthDebugPanel";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import ConsultationIndex from "./pages/ConsultationIndex";
+import ConsultationTemplates from "./pages/ConsultationTemplates";
+import ConsultationBooking from "./pages/ConsultationBooking";
+import ConsultationTemplatesManager from "./pages/admin/ConsultationTemplatesManager";
+import ConsultationsManager from "./pages/admin/ConsultationsManager";
 
 // Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
 import './scripts/seed-job-types';
@@ -63,6 +68,11 @@ function AppRoutes() {
       <Route path="/prenota" component={BookingIndex} />
       <Route path="/prenota/:code" component={BookingPage} />
 
+      {/* Consultations pubbliche */}
+      <Route path="/consulenze" component={ConsultationIndex} />
+      <Route path="/consulenze/:tipo/:id/prenota" component={ConsultationBooking} />
+      <Route path="/consulenze/:tipo" component={ConsultationTemplates} />
+
       {/* Quote portale pubblico */}
       <Route path="/quote/view/:token" component={QuotePublicViewPage} />
       <Route path="/quote/signed/:token" component={QuoteSignedPortalPage} />
@@ -81,6 +91,8 @@ function AppRoutes() {
       <Route path="/admin/jobs" component={JobsListPage} />
       <Route path="/admin/jobs/:jobId" component={JobDetailPage} />
       <Route path="/admin/import" component={ImportDataPage} />
+      <Route path="/admin/consulenze/templates" component={ConsultationTemplatesManager} />
+      <Route path="/admin/consulenze" component={ConsultationsManager} />
       
       {/* Public questionnaire route with noindex/nofollow */}
       <Route path="/q/:galleryId" component={QuestionnaireForm} />

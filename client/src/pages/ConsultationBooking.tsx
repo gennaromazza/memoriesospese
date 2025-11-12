@@ -22,7 +22,7 @@ import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import type { ConsultationJobFieldValue } from '@shared/consultation-types';
 
-export function ConsultationBooking() {
+export default function ConsultationBooking() {
   const params = useParams<{ tipo: string; id: string }>();
   const jobType = params.tipo ? decodeURIComponent(params.tipo) : '';
   const templateId = params.id || '';
