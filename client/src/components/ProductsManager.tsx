@@ -53,6 +53,9 @@ export default function ProductsManager() {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   
+  // Filtro per categoria
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  
   // Form state
   const [formData, setFormData] = useState<InsertProduct>({
     nome: '',
@@ -303,6 +306,12 @@ export default function ProductsManager() {
 
   const prezzoFinale = formData.prezzo - (formData.prezzo * formData.sconto / 100);
 
+  // Filtra prodotti per categoria
+  const filteredProducts = products.filter(product => {
+    if (categoryFilter === 'all') return true;
+    return product.categoria === categoryFilter;
+  });
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -337,19 +346,47 @@ export default function ProductsManager() {
         </Button>
       </div>
 
+      {/* Filtro Categoria */}
+      <div className="flex gap-2 items-center">
+        <Label htmlFor="category-filter">Filtra per categoria:</Label>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-64" id="category-filter" data-testid="select-category-filter">
+            <SelectValue placeholder="Tutte le categorie" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutte le categorie</SelectItem>
+            {allCategories.map((cat) => (
+              <SelectItem key={cat.id} value={cat.value}>
+                {cat.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {categoryFilter !== 'all' && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setCategoryFilter('all')}
+            data-testid="button-clear-filter"
+          >
+            Mostra tutti
+          </Button>
+        )}
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Totale Prodotti</CardDescription>
-            <CardTitle className="text-3xl">{products.length}</CardTitle>
+            <CardDescription>Totale Prodotti {categoryFilter !== 'all' ? 'Filtrati' : ''}</CardDescription>
+            <CardTitle className="text-3xl">{filteredProducts.length}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Prodotti Attivi</CardDescription>
             <CardTitle className="text-3xl text-green-600">
-              {products.filter(p => p.attivo).length}
+              {filteredProducts.filter(p => p.attivo).length}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -357,30 +394,41 @@ export default function ProductsManager() {
           <CardHeader className="pb-3">
             <CardDescription>Prodotti Disattivati</CardDescription>
             <CardTitle className="text-3xl text-gray-400">
-              {products.filter(p => !p.attivo).length}
+              {filteredProducts.filter(p => !p.attivo).length}
             </CardTitle>
           </CardHeader>
         </Card>
       </div>
 
       {/* Lista Prodotti */}
-      {products.length === 0 ? (
+      {filteredProducts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nessun prodotto</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {categoryFilter === 'all' ? 'Nessun prodotto' : 'Nessun prodotto in questa categoria'}
+            </h3>
             <p className="text-muted-foreground mb-4">
-              Inizia creando il tuo primo prodotto fotografico
+              {categoryFilter === 'all' 
+                ? 'Inizia creando il tuo primo prodotto fotografico'
+                : 'Non ci sono prodotti in questa categoria. Prova a cambiare filtro o crea un nuovo prodotto.'}
             </p>
-            <Button onClick={openCreateDialog} data-testid="button-create-product-empty">
-              <Plus className="h-4 w-4 mr-2" />
-              Crea Prodotto
-            </Button>
+            <div className="flex gap-2 justify-center">
+              {categoryFilter !== 'all' && (
+                <Button variant="outline" onClick={() => setCategoryFilter('all')}>
+                  Mostra tutti i prodotti
+                </Button>
+              )}
+              <Button onClick={openCreateDialog} data-testid="button-create-product-empty">
+                <Plus className="h-4 w-4 mr-2" />
+                Crea Prodotto
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map(product => (
+          {filteredProducts.map(product => (
             <Card key={product.id} className={!product.attivo ? 'opacity-60' : ''}>
               <CardHeader>
                 <div className="flex justify-between items-start">
