@@ -248,6 +248,18 @@ export default function QuoteBuilder({
     }
   }, [clauseTemplates, selectedClauseTemplateId, form]);
 
+  // Guard di sicurezza: verifica che jobId sia valido quando il dialog si apre
+  useEffect(() => {
+    if (open && !jobId) {
+      toast({
+        title: 'Errore',
+        description: 'Il lavoro deve essere salvato prima di creare un preventivo',
+        variant: 'destructive'
+      });
+      onClose();
+    }
+  }, [open, jobId, toast, onClose]);
+
   // Handler cambio template clausole
   const handleClauseTemplateChange = (templateId: string) => {
     setSelectedClauseTemplateId(templateId);

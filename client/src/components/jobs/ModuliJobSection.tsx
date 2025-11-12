@@ -257,7 +257,21 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
         <p className="text-muted-foreground mb-4">Nessun modulo di prenotazione creato</p>
         {isAdmin && onCreateModulo && (
-          <Button onClick={onCreateModulo} data-testid="button-create-modulo">
+          <Button 
+            onClick={() => {
+              if (!jobId) {
+                toast({
+                  title: 'Salva il lavoro prima',
+                  description: 'Devi salvare il lavoro prima di creare un preventivo',
+                  variant: 'destructive'
+                });
+                return;
+              }
+              onCreateModulo();
+            }} 
+            disabled={!jobId}
+            data-testid="button-create-modulo"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Crea Modulo
           </Button>
@@ -281,7 +295,22 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
           )}
         </div>
         {isAdmin && onCreateModulo && (
-          <Button onClick={onCreateModulo} size="sm" data-testid="button-create-modulo">
+          <Button 
+            onClick={() => {
+              if (!jobId) {
+                toast({
+                  title: 'Salva il lavoro prima',
+                  description: 'Devi salvare il lavoro prima di creare un preventivo',
+                  variant: 'destructive'
+                });
+                return;
+              }
+              onCreateModulo();
+            }}
+            disabled={!jobId}
+            size="sm" 
+            data-testid="button-create-modulo"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Nuovo Modulo
           </Button>
