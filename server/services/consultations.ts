@@ -17,7 +17,7 @@ import type {
   ConsultationWorkingHours
 } from '../../shared/consultation-types.js';
 import { DEFAULT_CONSULTATION_HOURS } from '../../shared/consultation-types.js';
-import { getAvailableSlots as getGoogleCalendarSlots, type WorkingHours } from '../google-calendar.js';
+import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusy, type WorkingHours } from '../google-calendar.js';
 import type { Booking } from '../../shared/booking-types.js';
 
 /**
@@ -433,7 +433,8 @@ export async function isSlotAvailable(
   date: Date,
   startTime: string, // "HH:mm"
   endTime: string,   // "HH:mm"
-  excludeConsultationId?: string
+  excludeConsultationId?: string,
+  googleCalendarBusyPeriods?: any[]
 ): Promise<boolean> {
   const [startHour, startMin] = startTime.split(':').map(Number);
   const [endHour, endMin] = endTime.split(':').map(Number);
@@ -504,8 +505,20 @@ export async function isSlotAvailable(
     }
   }
   
-  // Check 3: Google Calendar events (opzionale - implementabile se necessario)
-  // TODO: Integrare getGoogleCalendarSlots per verificare eventi esterni
+  // Check 3: Google Calendar events - busy periods (solo se forniti)
+  if (googleCalendarBusyPeriods && googleCalendarBusyPeriods.length > 0) {
+    for (const busy of googleCalendarBusyPeriods) {
+      if (!busy.start || !busy.end) continue;
+      
+      const busyStart = new Date(busy.start);
+      const busyEnd = new Date(busy.end);
+      
+      // Check sovrapposizione con periodo occupato in Google Calendar
+      if (slotStart < busyEnd && slotEnd > busyStart) {
+        return false; // Conflict con evento Google Calendar
+      }
+    }
+  }
   
   return true;
 }
@@ -525,6 +538,77 @@ export async function getAvailableSlotsForDate(
   
   if (!dayConfig || !dayConfig.attivo) {
     return []; // Giorno non disponibile
+  }
+  
+  // CONTROLLO EVENTI ALL-DAY GOOGLE CALENDAR
+  // Se esiste un evento "tutto il giorno", blocca completamente il giorno
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+  
+  try {
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+    
+    console.log(`[Consultations] Controllo eventi all-day per ${dateStr}`);
+    
+    const events = await getEvents('primary', dayStart, dayEnd);
+    const allDayEvents = events.filter(event => {
+      // Eventi all-day hanno 'date' invece di 'dateTime'
+      const hasDateStart = event.start?.date && !event.start?.dateTime;
+      const hasDateEnd = event.end?.date && !event.end?.dateTime;
+      
+      if (hasDateStart || hasDateEnd) {
+        // Verifica che l'evento copra la data richiesta
+        const eventStartDate = event.start?.date || '';
+        const eventEndDate = event.end?.date || '';
+        
+        // Gli eventi all-day hanno end date = giorno dopo (es. evento 20/12 ha end = 21/12)
+        // Quindi controlliamo se dateStr è >= start E < end
+        return dateStr >= eventStartDate && dateStr < eventEndDate;
+      }
+      
+      return false;
+    });
+    
+    if (allDayEvents.length > 0) {
+      console.log(`[Consultations] 🚫 Trovati ${allDayEvents.length} eventi all-day per ${dateStr}:`);
+      allDayEvents.forEach(event => {
+        console.log(`  - "${event.summary}" (${event.start?.date} → ${event.end?.date})`);
+      });
+      console.log(`[Consultations] ❌ GIORNO BLOCCATO - Nessuno slot disponibile`);
+      
+      // Ritorna array vuoto = nessuno slot disponibile
+      return [];
+    }
+    
+    console.log(`[Consultations] ✅ Nessun evento all-day trovato per ${dateStr}`);
+  } catch (error: any) {
+    console.error('[Consultations] ⚠️ Errore controllo eventi all-day Google Calendar:', error.message);
+    console.error('[Consultations] Procedo comunque con calcolo slot da Firestore');
+    // Se il controllo all-day fallisce, continua con la logica normale
+  }
+  
+  // CONTROLLO BUSY PERIODS GOOGLE CALENDAR (una sola chiamata per l'intera giornata)
+  let googleBusyPeriods: any[] = [];
+  try {
+    const calendarDayStart = new Date(date);
+    calendarDayStart.setHours(0, 0, 0, 0);
+    
+    const calendarDayEnd = new Date(date);
+    calendarDayEnd.setHours(23, 59, 59, 999);
+    
+    console.log(`[Consultations] Fetching Google Calendar busy periods per ${dateStr}`);
+    googleBusyPeriods = await checkFreeBusy('primary', calendarDayStart, calendarDayEnd);
+    console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods in Google Calendar`);
+  } catch (error: any) {
+    console.error('[Consultations] ⚠️ Errore fetching busy periods Google Calendar:', error.message);
+    console.error('[Consultations] Procedo senza controllo Google Calendar busy periods');
+    // Se il controllo Google Calendar fallisce, continua con la logica normale
   }
   
   // Genera tutti gli slot possibili per la giornata
@@ -567,8 +651,8 @@ export async function getAvailableSlotsForDate(
     const startTime = `${current.getHours().toString().padStart(2, '0')}:${current.getMinutes().toString().padStart(2, '0')}`;
     const endTime = `${slotEnd.getHours().toString().padStart(2, '0')}:${slotEnd.getMinutes().toString().padStart(2, '0')}`;
     
-    // Verifica disponibilità (consultations + bookings)
-    const available = await isSlotAvailable(date, startTime, endTime);
+    // Verifica disponibilità (consultations + bookings + Google Calendar)
+    const available = await isSlotAvailable(date, startTime, endTime, undefined, googleBusyPeriods);
     
     slots.push({
       start: current.toISOString(),

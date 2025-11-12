@@ -278,9 +278,15 @@ export default function ConsultationBooking() {
                         <Loader2 className="h-6 w-6 animate-spin text-sage-600" />
                       </div>
                     )}
+                    {availableSlotsMutation.isError && (
+                      <div className="col-span-full text-center py-8 text-red-600 dark:text-red-400">
+                        <p className="font-medium">Errore nel caricamento degli slot</p>
+                        <p className="text-sm mt-2">Impossibile verificare la disponibilità per questa data</p>
+                      </div>
+                    )}
                     {availableSlotsMutation.data && (
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {availableSlotsMutation.data.slots.length === 0 ? (
+                        {!availableSlotsMutation.data.slots || availableSlotsMutation.data.slots.length === 0 ? (
                           <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
                             Nessuno slot disponibile per questa data
                           </div>
