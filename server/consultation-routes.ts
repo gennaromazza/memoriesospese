@@ -53,7 +53,7 @@ router.get('/templates', authenticateFirebase, async (req: AuthRequest, res) => 
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono accedere ai template' });
     }
-    
+
     const templates = await consultationService.getAllTemplates();
     res.json(templates);
   } catch (error: any) {
@@ -70,11 +70,11 @@ router.get('/templates/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const template = await consultationService.getTemplateById(id);
-    
+
     if (!template) {
       return res.status(404).json({ error: 'Template non trovato' });
     }
-    
+
     res.json(template);
   } catch (error: any) {
     console.error('[GET /templates/:id] Errore:', error.message);
@@ -121,26 +121,26 @@ router.post('/templates', authenticateFirebase, async (req: AuthRequest, res) =>
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono creare template' });
     }
-    
+
     // Validazione Zod
     const validatedData = InsertConsultationTemplateSchema.parse(req.body);
-    
+
     const templateId = await consultationService.createTemplate(validatedData);
-    
+
     res.status(201).json({ 
       id: templateId,
       message: 'Template creato con successo'
     });
   } catch (error: any) {
     console.error('[POST /templates] Errore:', error.message);
-    
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ 
         error: 'Dati non validi', 
         details: error.errors 
       });
     }
-    
+
     res.status(500).json({ error: 'Errore creazione template' });
   }
 });
@@ -155,29 +155,29 @@ router.patch('/templates/:id', authenticateFirebase, async (req: AuthRequest, re
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono modificare template' });
     }
-    
+
     const { id } = req.params;
-    
+
     // Validazione Zod
     const validatedData = UpdateConsultationTemplateSchema.parse(req.body);
-    
+
     await consultationService.updateTemplate(id, validatedData);
-    
+
     res.json({ message: 'Template aggiornato con successo' });
   } catch (error: any) {
     console.error('[PATCH /templates/:id] Errore:', error.message);
-    
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ 
         error: 'Dati non validi', 
         details: error.errors 
       });
     }
-    
+
     if (error.message.includes('non trovato')) {
       return res.status(404).json({ error: error.message });
     }
-    
+
     res.status(500).json({ error: 'Errore aggiornamento template' });
   }
 });
@@ -192,21 +192,21 @@ router.delete('/templates/:id', authenticateFirebase, async (req: AuthRequest, r
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono eliminare template' });
     }
-    
+
     const { id } = req.params;
-    
+
     await consultationService.deleteTemplate(id);
-    
+
     res.json({ message: 'Template eliminato con successo' });
   } catch (error: any) {
     console.error('[DELETE /templates/:id] Errore:', error.message);
-    
+
     if (error.message.includes('consultations attive')) {
       return res.status(409).json({ 
         error: 'Impossibile eliminare template con consultations attive' 
       });
     }
-    
+
     res.status(500).json({ error: 'Errore eliminazione template' });
   }
 });
@@ -227,34 +227,34 @@ router.get('/', authenticateFirebase, async (req: AuthRequest, res) => {
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono accedere alle consultations' });
     }
-    
+
     const { stato, jobType, templateId, dateFrom, dateTo } = req.query;
-    
+
     const filters: any = {};
-    
+
     if (stato) {
       // Supporta sia singolo che multipli stati (comma-separated)
       filters.stato = typeof stato === 'string' 
         ? stato.split(',') as ConsultationStatus[]
         : stato as ConsultationStatus[];
     }
-    
+
     if (jobType) {
       filters.jobType = jobType as string;
     }
-    
+
     if (templateId) {
       filters.templateId = templateId as string;
     }
-    
+
     if (dateFrom) {
       filters.dateFrom = new Date(dateFrom as string);
     }
-    
+
     if (dateTo) {
       filters.dateTo = new Date(dateTo as string);
     }
-    
+
     const consultations = await consultationService.getAllConsultations(filters);
     res.json(consultations);
   } catch (error: any) {
@@ -273,14 +273,14 @@ router.get('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono accedere alle consultations' });
     }
-    
+
     const { id } = req.params;
     const consultation = await consultationService.getConsultationById(id);
-    
+
     if (!consultation) {
       return res.status(404).json({ error: 'Consultation non trovata' });
     }
-    
+
     res.json(consultation);
   } catch (error: any) {
     console.error('[GET /consultations/:id] Errore:', error.message);
@@ -295,29 +295,29 @@ router.get('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
 router.post('/available-slots', async (req, res) => {
   try {
     const { date, templateId } = req.body;
-    
+
     if (!date || !templateId) {
       return res.status(400).json({ 
         error: 'Parametri mancanti (date, templateId richiesti)' 
       });
     }
-    
+
     // Recupera template per durata
     const template = await consultationService.getTemplateById(templateId);
-    
+
     if (!template) {
       return res.status(404).json({ error: 'Template non trovato' });
     }
-    
+
     if (!template.attiva) {
       return res.status(400).json({ error: 'Template non attivo' });
     }
-    
+
     const slots = await consultationService.getAvailableSlotsForDate(
       new Date(date),
       template.durataMinuti
     );
-    
+
     res.json(slots);
   } catch (error: any) {
     console.error('[POST /available-slots] Errore:', error.message);
@@ -333,7 +333,7 @@ router.post('/create', async (req, res) => {
   try {
     // Validazione base dati
     const { templateId, cliente, dataConsulenza, orarioInizio, orarioFine, jobDataCollected, note } = req.body;
-    
+
     // Validazione Zod (dataConsulenza coerced ISO string → Date in schema)
     const validatedData = InsertConsultationSchema.parse({
       templateId,
@@ -344,60 +344,60 @@ router.post('/create', async (req, res) => {
       jobDataCollected: jobDataCollected || {},
       note: note || '',
     });
-    
+
     // Recupera template
     const template = await consultationService.getTemplateById(templateId);
-    
+
     if (!template) {
       return res.status(404).json({ error: 'Template non trovato' });
     }
-    
+
     if (!template.attiva) {
       return res.status(400).json({ error: 'Template non attivo' });
     }
-    
+
     // Validazione durata slot (deve matchare template durataMinuti)
     const [startH, startM] = validatedData.orarioInizio.split(':').map(Number);
     const [endH, endM] = validatedData.orarioFine.split(':').map(Number);
-    
+
     const slotStartMinutes = startH * 60 + startM;
     const slotEndMinutes = endH * 60 + endM;
     const slotDuration = slotEndMinutes - slotStartMinutes;
-    
+
     if (slotDuration !== template.durataMinuti) {
       return res.status(400).json({ 
         error: 'Durata slot non valida',
         message: `Lo slot deve avere durata ${template.durataMinuti} minuti (ricevuto: ${slotDuration} minuti)`
       });
     }
-    
+
     // Verifica disponibilità slot (conflict detection)
     const isAvailable = await consultationService.isSlotAvailable(
       validatedData.dataConsulenza,
       validatedData.orarioInizio,
       validatedData.orarioFine
     );
-    
+
     if (!isAvailable) {
       return res.status(409).json({ 
         error: 'Slot non disponibile',
         message: 'Lo slot selezionato non è più disponibile. Scegli un altro orario.'
       });
     }
-    
+
     // Crea consultation
     // Note: validatedData has Date from z.coerce.date(), service layer expects Date
     const consultationId = await consultationService.createConsultation(
       validatedData as any,  // Type assertion needed: InsertConsultation (string) vs validated (Date)
       template
     );
-    
+
     // Invia email conferma ricezione (task 13)
     let emailStatus = 'sent';
     try {
       const { sendGmailEmail, getStudioContactInfo, createConsultationReceivedEmailHTML } = await import('./email-routes.js');
       const studioInfo = await getStudioContactInfo();
-      
+
       const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
       const formattedDate = validatedData.dataConsulenza.toLocaleDateString('it-IT', { 
         weekday: 'long', 
@@ -405,7 +405,7 @@ router.post('/create', async (req, res) => {
         month: 'long', 
         day: 'numeric' 
       });
-      
+
       const htmlContent = createConsultationReceivedEmailHTML(
         clienteName,
         template.jobType,
@@ -413,19 +413,19 @@ router.post('/create', async (req, res) => {
         `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
         studioInfo
       );
-      
+
       await sendGmailEmail(
         validatedData.cliente.email,
         `Richiesta Consulenza Ricevuta - ${template.jobType}`,
         htmlContent
       );
-      
+
       console.log(`✅ Email "Consulenza Ricevuta" inviata a ${validatedData.cliente.email}`);
     } catch (emailError: any) {
       console.error('⚠️ Errore invio email consulenza ricevuta:', emailError.message);
       emailStatus = 'failed';
     }
-    
+
     res.status(201).json({ 
       id: consultationId,
       message: 'Consultation creata con successo',
@@ -433,14 +433,14 @@ router.post('/create', async (req, res) => {
     });
   } catch (error: any) {
     console.error('[POST /create] Errore:', error.message);
-    
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({ 
         error: 'Dati non validi', 
         details: error.errors 
       });
     }
-    
+
     res.status(500).json({ error: 'Errore creazione consultation' });
   }
 });
@@ -455,33 +455,33 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono approvare consultations' });
     }
-    
+
     const { id } = req.params;
-    
+
     const consultation = await consultationService.getConsultationById(id);
-    
+
     if (!consultation) {
       return res.status(404).json({ error: 'Consultation non trovata' });
     }
-    
+
     if (consultation.stato !== 'in_attesa') {
       return res.status(400).json({ 
         error: 'Consultation già processata',
         stato: consultation.stato
       });
     }
-    
+
     // Crea evento Google Calendar
     const consultationDate = consultation.dataConsulenza.toDate();
     const [startHour, startMin] = consultation.orarioInizio.split(':').map(Number);
     const [endHour, endMin] = consultation.orarioFine.split(':').map(Number);
-    
+
     const startDateTime = new Date(consultationDate);
     startDateTime.setHours(startHour, startMin, 0, 0);
-    
+
     const endDateTime = new Date(consultationDate);
     endDateTime.setHours(endHour, endMin, 0, 0);
-    
+
     const calendarEvent = await createEvent('primary', {
       summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
       description: `Template: ${consultation.templateNome}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || 'Nessuna'}`,
@@ -489,9 +489,9 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
       end: endDateTime,
       attendees: [consultation.cliente.email],
     });
-    
+
     const eventId = calendarEvent.id;
-    
+
     // Aggiorna consultation con compensating transaction (rollback Calendar su errore)
     try {
       // Prepara updates (ometti googleCalendarEventId se null/undefined)
@@ -501,9 +501,9 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
       if (eventId) {
         consultationUpdates.googleCalendarEventId = eventId;
       }
-      
+
       await consultationService.updateConsultation(id, consultationUpdates);
-      
+
       // Aggiorna metadata conferma
       await db.collection('consultations').doc(id).update({
         confermataDa: req.body.userId || 'admin', // TODO: Auth middleware
@@ -518,34 +518,34 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
           await deleteEvent('primary', eventId);
           console.log(`[approve] Rollback step 1 - evento Calendar ${eventId} eliminato`);
         }
-        
+
         // Step 2: Revert consultation a stato in_attesa (annulla updateConsultation)
         await consultationService.updateConsultation(id, {
           stato: 'in_attesa',
         });
-        
+
         // Step 3: Clear googleCalendarEventId usando FieldValue.delete()
         await db.collection('consultations').doc(id).update({
           googleCalendarEventId: FieldValue.delete(),
         });
         console.log(`[approve] Rollback step 2-3 - consultation ${id} ripristinata a stato in_attesa`);
-        
+
       } catch (rollbackError: any) {
         console.error('[approve] ERRORE CRITICO: Fallito rollback completo', rollbackError.message);
       }
-      
+
       return res.status(500).json({ 
         error: 'Errore approvazione',
         message: 'Impossibile salvare la conferma. L\'evento Calendar è stato cancellato e la consultation è stata ripristinata.'
       });
     }
-    
+
     // Invia email conferma (task 13)
     let emailStatus = 'sent';
     try {
       const { sendGmailEmail, getStudioContactInfo, createConsultationApprovedEmailHTML } = await import('./email-routes.js');
       const studioInfo = await getStudioContactInfo();
-      
+
       const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
       const formattedDate = consultationDate.toLocaleDateString('it-IT', { 
         weekday: 'long', 
@@ -553,7 +553,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
         month: 'long', 
         day: 'numeric' 
       });
-      
+
       const htmlContent = createConsultationApprovedEmailHTML(
         clienteName,
         consultation.jobType,
@@ -562,19 +562,19 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
         null, // meetingLink
         studioInfo
       );
-      
+
       await sendGmailEmail(
         consultation.cliente.email,
         `✅ Consulenza Confermata - ${consultation.jobType}`,
         htmlContent
       );
-      
+
       console.log(`✅ Email "Consulenza Approvata" inviata a ${consultation.cliente.email}`);
     } catch (emailError: any) {
       console.error('⚠️ Errore invio email consulenza approvata:', emailError.message);
       emailStatus = 'failed';
     }
-    
+
     res.json({ 
       message: 'Consultation approvata con successo',
       googleCalendarEventId: eventId,
@@ -596,35 +596,35 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono rifiutare consultations' });
     }
-    
+
     const { id } = req.params;
     const { motivo } = req.body;
-    
+
     const consultation = await consultationService.getConsultationById(id);
-    
+
     if (!consultation) {
       return res.status(404).json({ error: 'Consultation non trovata' });
     }
-    
+
     if (consultation.stato !== 'in_attesa') {
       return res.status(400).json({ 
         error: 'Consultation già processata',
         stato: consultation.stato
       });
     }
-    
+
     // Aggiorna stato
     await consultationService.updateConsultation(id, {
       stato: 'annullata',
       note: consultation.note + `\n[RIFIUTATA] ${motivo || 'Nessun motivo specificato'}`,
     });
-    
+
     // Invia email rifiuto (task 13)
     let emailStatus = 'sent';
     try {
       const { sendGmailEmail, getStudioContactInfo, createConsultationRejectedEmailHTML } = await import('./email-routes.js');
       const studioInfo = await getStudioContactInfo();
-      
+
       const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
       const rawDate = consultation.dataConsulenza.toDate();
       const formattedDate = rawDate.toLocaleDateString('it-IT', { 
@@ -633,7 +633,7 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
         month: 'long', 
         day: 'numeric' 
       });
-      
+
       const htmlContent = createConsultationRejectedEmailHTML(
         clienteName,
         consultation.jobType,
@@ -642,19 +642,19 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
         motivo || null,
         studioInfo
       );
-      
+
       await sendGmailEmail(
         consultation.cliente.email,
         `Aggiornamento Consulenza - ${consultation.jobType}`,
         htmlContent
       );
-      
+
       console.log(`✅ Email "Consulenza Rifiutata" inviata a ${consultation.cliente.email}`);
     } catch (emailError: any) {
       console.error('⚠️ Errore invio email consulenza rifiutata:', emailError.message);
       emailStatus = 'failed';
     }
-    
+
     res.json({ 
       message: 'Consultation rifiutata con successo',
       emailStatus
@@ -675,25 +675,25 @@ router.patch('/:id/complete', authenticateFirebase, async (req: AuthRequest, res
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono completare consultations' });
     }
-    
+
     const { id } = req.params;
-    
+
     const consultation = await consultationService.getConsultationById(id);
-    
+
     if (!consultation) {
       return res.status(404).json({ error: 'Consultation non trovata' });
     }
-    
+
     if (consultation.stato !== 'confermata') {
       return res.status(400).json({ 
         error: 'Solo consultations confermate possono essere completate'
       });
     }
-    
+
     await consultationService.updateConsultation(id, {
       stato: 'completata',
     });
-    
+
     res.json({ message: 'Consultation completata con successo' });
   } catch (error: any) {
     console.error('[PATCH /:id/complete] Errore:', error.message);
@@ -711,22 +711,22 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono convertire consultations in job' });
     }
-    
+
     const { id } = req.params;
-    
+
     const consultation = await consultationService.getConsultationById(id);
-    
+
     if (!consultation) {
       return res.status(404).json({ error: 'Consultation non trovata' });
     }
-    
+
     if (consultation.jobCreated) {
       return res.status(400).json({ 
         error: 'Consultation già convertita in job',
         jobId: consultation.jobId
       });
     }
-    
+
     // Prepara dati job da consultation
     const jobData: any = {
       nomeEvento: `${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
@@ -735,7 +735,7 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
       provenance: 'consulenza', // Provenienza speciale
       noteInterne: `Creato da consulenza #${id}\n\nDati raccolti durante consulenza:\n${JSON.stringify(consultation.jobDataCollected, null, 2)}\n\nNote consulenza: ${consultation.note}`,
     };
-    
+
     // Mappa job data collected a campi job (se disponibili)
     if (consultation.jobDataCollected.eventDate) {
       jobData.eventDate = new Date(consultation.jobDataCollected.eventDate as string);
@@ -745,14 +745,14 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
       estimatedDate.setMonth(estimatedDate.getMonth() + 3);
       jobData.eventDate = estimatedDate;
     }
-    
+
     jobData.allDay = !consultation.jobDataCollected.startTime;
     jobData.startTime = consultation.jobDataCollected.startTime as string || undefined;
     jobData.endTime = consultation.jobDataCollected.endTime as string || undefined;
     jobData.eventLocation = consultation.jobDataCollected.eventLocation as string || undefined;
     jobData.rituLocation = consultation.jobDataCollected.rituLocation as string || undefined;
     jobData.rituTime = consultation.jobDataCollected.rituTime as string || undefined;
-    
+
     // Crea job (riutilizza logica jobs esistente)
     const jobRef = await db.collection('jobs').add({
       ...jobData,
@@ -773,13 +773,13 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
       createdBy: req.body.userId || 'admin', // TODO: Auth middleware
       jobSource: 'consultation',
     });
-    
+
     // Aggiorna consultation con job ID
     await consultationService.updateConsultation(id, {
       jobCreated: true,
       jobId: jobRef.id,
     });
-    
+
     res.json({ 
       message: 'Consultation convertita in job con successo',
       jobId: jobRef.id
@@ -800,15 +800,15 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono eliminare consultations' });
     }
-    
+
     const { id } = req.params;
-    
+
     const consultation = await consultationService.getConsultationById(id);
-    
+
     if (!consultation) {
       return res.status(404).json({ error: 'Consultation non trovata' });
     }
-    
+
     // Elimina anche evento Google Calendar se presente
     if (consultation.googleCalendarEventId) {
       try {
@@ -818,17 +818,17 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
         // Continua comunque con eliminazione consultation
       }
     }
-    
+
     await consultationService.deleteConsultation(id);
-    
+
     res.json({ message: 'Consultation eliminata con successo' });
   } catch (error: any) {
     console.error('[DELETE /:id] Errore:', error.message);
-    
+
     if (error.message.includes('Impossibile eliminare')) {
       return res.status(400).json({ error: error.message });
     }
-    
+
     res.status(500).json({ error: 'Errore eliminazione consultation' });
   }
 });
@@ -843,21 +843,21 @@ router.patch('/:id/mark-viewed', authenticateFirebase, async (req: AuthRequest, 
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono marcare consultations come visualizzate' });
     }
-    
+
     const { id } = req.params;
-    
+
     const consultation = await consultationService.getConsultationById(id);
-    
+
     if (!consultation) {
       return res.status(404).json({ error: 'Consultation non trovata' });
     }
-    
+
     if (!consultation.dataVisualizzazione) {
       await db.collection('consultations').doc(id).update({
         dataVisualizzazione: Timestamp.now(),
       });
     }
-    
+
     res.json({ message: 'Consultation marcata come visualizzata' });
   } catch (error: any) {
     console.error('[PATCH /:id/mark-viewed] Errore:', error.message);
