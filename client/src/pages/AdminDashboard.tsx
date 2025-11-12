@@ -41,9 +41,10 @@ import JobTypesManager from "@/components/job-types/JobTypesManager";
 import ProductCategoriesManager from "@/components/product-categories/ProductCategoriesManager";
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
+import CalendarioManager from "@/components/CalendarioManager";
 
 // Type per tab validi
-type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'products' | 'product-categories' | 'commesse';
+type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'products' | 'product-categories' | 'commesse' | 'calendario';
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -1056,6 +1057,16 @@ export default function AdminDashboard() {
               {/* Separatore visivo */}
               <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
 
+              {/* Calendario */}
+              <TabsTrigger value="calendario" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Calendario</span>
+                <span className="sm:hidden">📅</span>
+              </TabsTrigger>
+
+              {/* Separatore visivo */}
+              <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
+
               {/* Settings con dropdown sottomenu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1631,6 +1642,13 @@ export default function AdminDashboard() {
             <TabsContent value="product-categories">
               <div className="bg-white shadow sm:rounded-lg p-5">
                 <ProductCategoriesManager />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Calendario */}
+            <TabsContent value="calendario">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <CalendarioManager />
               </div>
             </TabsContent>
 
