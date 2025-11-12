@@ -1095,130 +1095,166 @@ export default function ConsultationTemplatesManager() {
               )}
             </TabsContent>
 
-            <TabsContent value="fields" className="flex-1 flex flex-col">
-              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6" ref={fieldsContainerRef}>
-                <div className="sticky top-0 bg-white z-10 pb-4 border-b">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div>
-                      <Label className="text-base font-medium text-blue-gray">
-                        Campi Job Data
-                      </Label>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Configura i campi da raccogliere durante la consulenza
-                      </p>
+            <TabsContent value="fields" className="flex-1 flex flex-col overflow-hidden">
+              {/* Header fisso con pulsante */}
+              <div className="px-6 pt-6 pb-4 border-b bg-white">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <Label className="text-base font-medium text-blue-gray">
+                      Campi Job Data
+                    </Label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Configura i campi da raccogliere durante la consulenza
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addJobDataField}
+                    data-testid="button-add-field"
+                    className="border-sage text-sage hover:bg-sage/10 w-full sm:w-auto"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Aggiungi Campo
+                  </Button>
+                </div>
+              </div>
+
+              {/* Area scrollabile */}
+              <div className="flex-1 overflow-y-auto px-6 py-6" ref={fieldsContainerRef}>
+                <div className="space-y-6 max-w-5xl mx-auto">
+                  {/* Info box campi mappabili */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Campi Standard Mappabili
+                    </h4>
+                    <p className="text-xs text-blue-800 mb-3">
+                      Usa questi <strong>fieldKey</strong> per mappare automaticamente i dati ai campi del job quando converti la consulenza:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">eventDate</code>
+                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">eventLocation</code>
+                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">rituLocation</code>
+                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">rituTime</code>
+                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">startTime</code>
+                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">endTime</code>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addJobDataField}
-                      data-testid="button-add-field"
-                      className="border-sage text-sage hover:bg-sage/10 w-full sm:w-auto"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Aggiungi Campo
-                    </Button>
+                    <p className="text-xs text-blue-700 mt-3">
+                      💡 <strong>Nota:</strong> Campi con fieldKey personalizzati verranno salvati nelle note del job.
+                    </p>
                   </div>
-                </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-blue-900 mb-2">
-                    📋 Campi Standard Mappabili
-                  </h4>
-                  <p className="text-xs text-blue-800 mb-3">
-                    Usa questi <strong>fieldKey</strong> per mappare automaticamente i dati ai campi del job quando converti la consulenza:
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
-                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">eventDate</code>
-                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">eventLocation</code>
-                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">rituLocation</code>
-                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">rituTime</code>
-                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">startTime</code>
-                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">endTime</code>
-                  </div>
-                  <p className="text-xs text-blue-700 mt-3">
-                    💡 <strong>Nota:</strong> Campi con fieldKey personalizzati verranno salvati nelle note del job.
-                  </p>
-                </div>
-
-                {formData.jobDataFields && formData.jobDataFields.length > 0 ? (
-                  <div className="space-y-4 pb-4">
-                    {formData.jobDataFields.map((field, idx) => (
-                      <Card key={idx} className="p-4 border-beige bg-off-white">
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-sm font-medium">Label Campo *</Label>
-                              <Input
-                                value={field.label}
-                                onChange={(e) =>
-                                  updateJobDataField(idx, { label: e.target.value })
-                                }
-                                placeholder="es. Data Evento"
-                                data-testid={`input-field-label-${idx}`}
-                                className="w-full"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label className="text-sm font-medium">Tipo Campo *</Label>
-                              <Select
-                                value={field.type}
-                                onValueChange={(value) =>
-                                  updateJobDataField(idx, { type: value as any })
-                                }
-                              >
-                                <SelectTrigger
-                                  data-testid={`select-field-type-${idx}`}
-                                  className="w-full"
+                  {/* Lista campi o empty state */}
+                  {formData.jobDataFields && formData.jobDataFields.length > 0 ? (
+                    <div className="space-y-4">
+                      {formData.jobDataFields.map((field, idx) => (
+                        <Card key={idx} className="border-l-4 border-l-sage bg-gradient-to-r from-off-white to-white shadow-sm hover:shadow-md transition-shadow">
+                          <CardContent className="p-4 sm:p-6">
+                            <div className="space-y-4">
+                              {/* Header campo con badge e azioni */}
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    Campo #{idx + 1}
+                                  </Badge>
+                                  {field.required && (
+                                    <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+                                      Obbligatorio
+                                    </Badge>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeJobDataField(idx)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  data-testid={`button-remove-field-${idx}`}
                                 >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="text">Testo</SelectItem>
-                                  <SelectItem value="date">Data</SelectItem>
-                                  <SelectItem value="number">Numero</SelectItem>
-                                  <SelectItem value="select">Select</SelectItem>
-                                  <SelectItem value="textarea">Textarea</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  <span className="hidden sm:inline">Rimuovi</span>
+                                </Button>
+                              </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-sm font-medium">Placeholder</Label>
-                              <Input
-                                value={field.placeholder || ""}
-                                onChange={(e) =>
-                                  updateJobDataField(idx, {
-                                    placeholder: e.target.value,
-                                  })
-                                }
-                                placeholder="es. gg/mm/aaaa"
-                                data-testid={`input-field-placeholder-${idx}`}
-                                className="w-full"
-                              />
-                            </div>
+                              {/* Griglia campi input */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium flex items-center gap-1">
+                                    Label Campo
+                                    <span className="text-red-500">*</span>
+                                  </Label>
+                                  <Input
+                                    value={field.label}
+                                    onChange={(e) =>
+                                      updateJobDataField(idx, { label: e.target.value })
+                                    }
+                                    placeholder="es. Data Evento"
+                                    data-testid={`input-field-label-${idx}`}
+                                    className="w-full"
+                                  />
+                                </div>
 
-                            <div className="space-y-2">
-                              <Label className="text-sm font-medium">Helper Text</Label>
-                              <Input
-                                value={field.helperText || ""}
-                                onChange={(e) =>
-                                  updateJobDataField(idx, {
-                                    helperText: e.target.value,
-                                  })
-                                }
-                                placeholder="Testo di aiuto per il cliente"
-                                className="w-full"
-                              />
-                            </div>
-                          </div>
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium flex items-center gap-1">
+                                    Tipo Campo
+                                    <span className="text-red-500">*</span>
+                                  </Label>
+                                  <Select
+                                    value={field.type}
+                                    onValueChange={(value) =>
+                                      updateJobDataField(idx, { type: value as any })
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      data-testid={`select-field-type-${idx}`}
+                                      className="w-full"
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="text">Testo</SelectItem>
+                                      <SelectItem value="date">Data</SelectItem>
+                                      <SelectItem value="number">Numero</SelectItem>
+                                      <SelectItem value="select">Select</SelectItem>
+                                      <SelectItem value="textarea">Textarea</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
 
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t">
-                            <div className="flex items-center gap-4">
-                              <div className="flex items-center gap-2">
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium">Placeholder</Label>
+                                  <Input
+                                    value={field.placeholder || ""}
+                                    onChange={(e) =>
+                                      updateJobDataField(idx, {
+                                        placeholder: e.target.value,
+                                      })
+                                    }
+                                    placeholder="es. gg/mm/aaaa"
+                                    data-testid={`input-field-placeholder-${idx}`}
+                                    className="w-full"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium">Testo di Aiuto</Label>
+                                  <Input
+                                    value={field.helperText || ""}
+                                    onChange={(e) =>
+                                      updateJobDataField(idx, {
+                                        helperText: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Testo di aiuto per il cliente"
+                                    className="w-full"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Toggle obbligatorio */}
+                              <div className="flex items-center gap-2 pt-2 border-t">
                                 <Switch
                                   checked={field.required}
                                   onCheckedChange={(checked) =>
@@ -1230,38 +1266,33 @@ export default function ConsultationTemplatesManager() {
                                   Campo Obbligatorio
                                 </Label>
                               </div>
-                              <Badge variant="outline" className="text-xs">
-                                Campo #{idx + 1}
-                              </Badge>
                             </div>
-
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeJobDataField(idx)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              data-testid={`button-remove-field-${idx}`}
-                            >
-                              <Trash2 className="w-4 h-4 mr-1" />
-                              Rimuovi Campo
-                            </Button>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
-                    <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                    <p className="text-sm text-gray-500 mb-2">
-                      Nessun campo job data configurato
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      Clicca su "Aggiungi Campo" per iniziare
-                    </p>
-                  </div>
-                )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+                      <FileText className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                      <p className="text-sm font-medium text-gray-700 mb-2">
+                        Nessun campo job data configurato
+                      </p>
+                      <p className="text-xs text-gray-500 mb-4">
+                        Clicca su "Aggiungi Campo" per iniziare a configurare i campi
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addJobDataField}
+                        className="border-sage text-sage hover:bg-sage/10"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Crea Primo Campo
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </TabsContent>
           </Tabs>
