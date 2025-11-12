@@ -1097,7 +1097,7 @@ export default function ConsultationTemplatesManager() {
 
             <TabsContent value="fields" className="flex-1 flex flex-col overflow-hidden">
               {/* Header fisso con pulsante */}
-              <div className="px-6 pt-6 pb-4 border-b bg-white">
+              <div className="px-6 pt-6 pb-4 border-b bg-white shrink-0">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
                     <Label className="text-base font-medium text-blue-gray">
@@ -1122,7 +1122,7 @@ export default function ConsultationTemplatesManager() {
               </div>
 
               {/* Area scrollabile */}
-              <div className="flex-1 overflow-y-auto px-6 py-6" ref={fieldsContainerRef}>
+              <div className="flex-1 overflow-y-auto px-6 py-6" ref={fieldsContainerRef} style={{ maxHeight: 'calc(90vh - 350px)' }}>
                 <div className="space-y-6 max-w-5xl mx-auto">
                   {/* Tutorial FieldKey Completo */}
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6 shadow-sm">
