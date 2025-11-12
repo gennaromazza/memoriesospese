@@ -43,7 +43,7 @@ import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 
 // Type per tab validi
-type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'products' | 'product-categories';
+type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'products' | 'product-categories' | 'commesse';
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -1003,25 +1003,36 @@ export default function AdminDashboard() {
               {/* Separatore visivo */}
               <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
 
-              {/* Booking System */}
-              <TabsTrigger value="bookings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Prenotazioni</span>
-                <span className="sm:hidden">Book</span>
-              </TabsTrigger>
+              {/* Booking System con dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant={activeTab === 'bookings' || activeTab === 'commesse' ? 'default' : 'ghost'}
+                    className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
+                  >
+                    <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">Prenotazioni</span>
+                    <span className="sm:hidden">Book</span>
+                    <ChevronRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuItem onClick={() => setActiveTab('bookings')}>
+                    <CalendarCheck className="h-4 w-4 mr-2" />
+                    Gestione Prenotazioni
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab('commesse')}>
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Gestione Commesse
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Jobs System: Lavori Fotografici */}
               <TabsTrigger value="lavori" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
                 <Briefcase className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Lavori</span>
                 <span className="sm:hidden">Jobs</span>
-              </TabsTrigger>
-
-              {/* Workflow Management: Gestione Commesse */}
-              <TabsTrigger value="commesse" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <FolderOpen className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Gestione Commesse</span>
-                <span className="sm:hidden">Comm.</span>
               </TabsTrigger>
 
               {/* Financial Management: Cassa */}
@@ -1540,6 +1551,20 @@ export default function AdminDashboard() {
               </Tabs>
             </TabsContent>
 
+            {/* Contenuto Tab Gestione Commesse */}
+            <TabsContent value="commesse">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <GestioneCommesse 
+                  onNavigateToTab={setActiveTab}
+                  onEditGallery={openEditModal}
+                  onCreateGallery={openModal}
+                  onOpenBooking={handleOpenBooking}
+                  onOpenOrder={handleOpenOrder}
+                  onOpenPhotoSelection={handleOpenPhotoSelection}
+                />
+              </div>
+            </TabsContent>
+
             {/* Contenuto Tab Lavori */}
             <TabsContent value="lavori">
               <Tabs defaultValue="jobs-list" className="w-full">
@@ -1589,20 +1614,6 @@ export default function AdminDashboard() {
                   </div>
                 </TabsContent>
               </Tabs>
-            </TabsContent>
-
-            {/* Contenuto Tab Gestione Commesse */}
-            <TabsContent value="commesse">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <GestioneCommesse 
-                  onNavigateToTab={setActiveTab}
-                  onEditGallery={openEditModal}
-                  onCreateGallery={openModal}
-                  onOpenBooking={handleOpenBooking}
-                  onOpenOrder={handleOpenOrder}
-                  onOpenPhotoSelection={handleOpenPhotoSelection}
-                />
-              </div>
             </TabsContent>
 
             {/* Contenuto Tab Cassa */}
