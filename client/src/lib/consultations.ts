@@ -241,6 +241,7 @@ export function useMarkConsultationViewed() {
       return apiRequest('PATCH', `/api/consultations/${id}/mark-viewed`);
     },
     onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
       queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultation(id) });
     }
   });
