@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from './queryClient';
+import { auth } from './firebase';
 import type {
   ConsultationTemplate,
   Consultation,
@@ -27,10 +28,9 @@ export function useTemplates() {
   return useQuery<ConsultationTemplate[]>({
     queryKey: CONSULTATION_KEYS.templates(),
     queryFn: async () => {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       const res = await fetch('/api/consultations/templates', {
-        headers: {
-          'Authorization': `Bearer ${await getIdToken()}`
-        }
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!res.ok) throw new Error('Failed to fetch templates');
       return res.json();
@@ -77,10 +77,9 @@ export function useConsultations() {
   return useQuery<Consultation[]>({
     queryKey: CONSULTATION_KEYS.consultations(),
     queryFn: async () => {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       const res = await fetch('/api/consultations', {
-        headers: {
-          'Authorization': `Bearer ${await getIdToken()}`
-        }
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!res.ok) throw new Error('Failed to fetch consultations');
       return res.json();
@@ -92,10 +91,9 @@ export function useConsultation(id: string | undefined) {
   return useQuery<Consultation>({
     queryKey: CONSULTATION_KEYS.consultation(id!),
     queryFn: async () => {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       const res = await fetch(`/api/consultations/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${await getIdToken()}`
-        }
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!res.ok) throw new Error('Failed to fetch consultation');
       return res.json();
