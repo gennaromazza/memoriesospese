@@ -1,4 +1,3 @@
-
 /**
  * CONSULTATION INDEX PAGE
  * Pagina pubblica - mostra tipi lavoro disponibili per consulenze
@@ -10,6 +9,9 @@ import { useJobTypes } from '@/lib/consultations';
 import { Link } from 'wouter';
 import { Calendar, ArrowRight, Loader2 } from 'lucide-react';
 import { useStudio } from '@/context/StudioContext';
+import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
+
 
 export default function ConsultationIndex() {
   const { data: jobTypes, isLoading } = useJobTypes();
@@ -25,6 +27,7 @@ export default function ConsultationIndex() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-off-white to-white">
+      <Navigation />
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-7xl">
         {/* Header */}
         <div className="text-center mb-8 sm:mb-12">
@@ -157,6 +160,7 @@ export default function ConsultationIndex() {
           )}
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

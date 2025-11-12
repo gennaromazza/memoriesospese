@@ -333,36 +333,36 @@ export default function Home() {
 
           <div className="grid md:grid-cols-3 gap-8">
             {/* Card Servizi Fotografici */}
-            <div className="group bg-gradient-to-br from-white to-sage/5 rounded-2xl p-8 shadow-lg border border-sage/10 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
-              <div className="w-20 h-20 mx-auto mb-6 bg-sage/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="group bg-gradient-to-br from-white to-off-white rounded-2xl p-8 shadow-lg border border-beige hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
+              <div className="w-20 h-20 mx-auto mb-6 bg-light-mint rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                 <svg className="w-10 h-10 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-blue-gray mb-4 font-playfair text-center">
-                Servizi Fotografici
+                Campagne Fotografiche
               </h3>
               <p className="text-gray-600 mb-6 text-center">
-                Matrimoni, eventi, ritratti professionali. Catturiamo i tuoi momenti più preziosi con qualità e creatività.
+                Prenota uno shooting nelle nostre campagne speciali attive durante l'anno: Natale, eventi stagionali e molto altro.
               </p>
               <Link href={createUrl("/prenota")}>
                 <Button className="w-full bg-sage hover:bg-dark-sage text-white">
                   <Calendar className="w-5 h-5 mr-2" />
-                  Prenota un Servizio
+                  Prenota uno Shooting
                 </Button>
               </Link>
             </div>
 
             {/* Card Consulenza Gratuita */}
-            <div className="group bg-gradient-to-br from-white to-green-50 rounded-2xl p-8 shadow-lg border border-green-200 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
-              <div className="w-20 h-20 mx-auto mb-6 bg-green-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-gradient-to-br from-white to-cream rounded-2xl p-8 shadow-lg border border-beige hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
+              <div className="w-20 h-20 mx-auto mb-6 bg-light-mint rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg className="w-10 h-10 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
               <div className="mb-4 text-center">
-                <span className="inline-flex items-center gap-2 bg-green-100 px-4 py-2 rounded-full text-green-700 font-semibold text-sm">
+                <span className="inline-flex items-center gap-2 bg-terracotta/10 px-4 py-2 rounded-full text-terracotta font-semibold text-sm">
                   <Sparkles className="w-4 h-4" />
                   100% Gratuita
                 </span>
@@ -374,7 +374,7 @@ export default function Home() {
                 Parliamo del tuo evento senza impegno. Ti aiutiamo a pianificare ogni dettaglio.
               </p>
               <Link href={createUrl("/consulenze")}>
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                <Button className="w-full bg-terracotta hover:bg-terracotta text-white">
                   <Calendar className="w-5 h-5 mr-2" />
                   Prenota Consulenza
                 </Button>
@@ -382,9 +382,9 @@ export default function Home() {
             </div>
 
             {/* Card Gallerie Online */}
-            <div className="group bg-gradient-to-br from-white to-blue-50 rounded-2xl p-8 shadow-lg border border-blue-200 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
-              <div className="w-20 h-20 mx-auto mb-6 bg-blue-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-gradient-to-br from-white to-off-white rounded-2xl p-8 shadow-lg border border-beige hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
+              <div className="w-20 h-20 mx-auto mb-6 bg-light-mint rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg className="w-10 h-10 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
@@ -395,7 +395,7 @@ export default function Home() {
                 Accedi alle foto del tuo evento in alta qualità. Download illimitato e condivisione facile.
               </p>
               <a href="#access-gallery">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                <Button className="w-full bg-blue-gray hover:bg-dark-sage text-white">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
