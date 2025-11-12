@@ -525,6 +525,13 @@ export default function AdminDashboard() {
   const handleOpenBooking = (bookingId: string) => {
     setHighlightBookingId(bookingId);
     setActiveTab('bookings');
+    // Assicurati che il sub-tab sia 'bookings-list' dopo un breve delay
+    setTimeout(() => {
+      const bookingsListTab = document.querySelector('[value="bookings-list"]') as HTMLButtonElement;
+      if (bookingsListTab) {
+        bookingsListTab.click();
+      }
+    }, 100);
   };
 
   // Handler: Apri ordine specifico e scroll + highlight
