@@ -214,7 +214,7 @@ export default function AdminDashboard() {
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<ValidTab>('galleries');
+  const [activeTab, setActiveTab] = useState<ValidTab>('calendario');
   const [bookingsSubTab, setBookingsSubTab] = useState('bookings-list');
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
@@ -970,7 +970,7 @@ export default function AdminDashboard() {
 
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <Tabs defaultValue="galleries" value={activeTab} onValueChange={(v) => setActiveTab(v as ValidTab)}>
+          <Tabs defaultValue="calendario" value={activeTab} onValueChange={(v) => setActiveTab(v as ValidTab)}>
             <TabsList className="mb-6 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto">
               {/* Core: Gallerie con dropdown sottomenu */}
               <DropdownMenu>
