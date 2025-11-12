@@ -349,9 +349,27 @@ export default function ConsultationsManager() {
               <TableBody>
                 {sortedConsultations.map((consultation) => {
                   const template = templatesMap[consultation.templateId];
-                  const consultationDate = typeof consultation.dataConsulenza.toDate === 'function'
-                    ? consultation.dataConsulenza.toDate()
-                    : new Date(consultation.dataConsulenza as any);
+                  
+                  // Safe date conversion with validation
+                  let consultationDate: Date;
+                  try {
+                    if (typeof consultation.dataConsulenza?.toDate === 'function') {
+                      consultationDate = consultation.dataConsulenza.toDate();
+                    } else if (consultation.dataConsulenza) {
+                      consultationDate = new Date(consultation.dataConsulenza as any);
+                    } else {
+                      consultationDate = new Date(); // Fallback
+                    }
+                    
+                    // Validate date
+                    if (isNaN(consultationDate.getTime())) {
+                      consultationDate = new Date(); // Fallback to current date if invalid
+                    }
+                  } catch (error) {
+                    console.error('[ConsultationsManager] Error parsing date:', error, consultation);
+                    consultationDate = new Date(); // Fallback
+                  }
+                  
                   const config = STATUS_CONFIG[consultation.stato];
                   const jobDataCount = Object.keys(consultation.jobDataCollected || {}).length;
                   
