@@ -403,14 +403,17 @@ export default function CalendarioManager() {
 
   // Elimina evento Google Calendar
   const deleteEventMutation = useMutation({
-    mutationFn: async (data: { eventId: string; attendees: string[] }) => {
-      const response = await fetch(`/api/calendar/delete-event/${data.eventId}`, {
+    mutationFn: async (eventId: string) => {
+      const response = await fetch(`/api/calendar/delete-event/${eventId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendees: data.attendees }),
+        body: JSON.stringify({ attendees: [] }),
       });
 
-      if (!response.ok) throw new Error('Errore eliminazione evento');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Errore eliminazione evento');
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -441,6 +444,11 @@ export default function CalendarioManager() {
       return;
     }
 
+    // Cerca cliente associato tramite email
+    const cliente = event.clienteEmail 
+      ? clienti.find(c => c.email.toLowerCase() === event.clienteEmail?.toLowerCase())
+      : null;
+
     setSelectedEvent(event);
     setEditEvent({
       title: event.title,
@@ -449,7 +457,7 @@ export default function CalendarioManager() {
       date: format(event.start, 'yyyy-MM-dd'),
       startTime: format(event.start, 'HH:mm'),
       endTime: format(event.end, 'HH:mm'),
-      clienteId: '',
+      clienteId: cliente?.id || '',
       notifyCliente: false,
     });
     setIsEditEventOpen(true);
@@ -486,12 +494,16 @@ export default function CalendarioManager() {
   };
 
   const confirmDeleteEvent = () => {
-    if (!selectedEvent) return;
+    if (!selectedEvent || !selectedEvent.googleEventId) {
+      toast({
+        title: 'Errore',
+        description: 'ID evento non valido',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-    deleteEventMutation.mutate({
-      eventId: selectedEvent.googleEventId!,
-      attendees: selectedEvent.clienteEmail ? [selectedEvent.clienteEmail] : [],
-    });
+    deleteEventMutation.mutate(selectedEvent.googleEventId);
   };
 
   const getEventTypeColor = (type: CalendarEvent['type']) => {
@@ -758,20 +770,38 @@ export default function CalendarioManager() {
                 onSelect={(cliente) => setEditEvent({ ...editEvent, clienteId: cliente?.id || '' })}
                 placeholder="Seleziona cliente per notifica..."
               />
-              {editEvent.clienteId && (
-                <div className="flex items-center space-x-2 mt-2">
-                  <input
-                    type="checkbox"
-                    id="edit-notifyCliente"
-                    checked={editEvent.notifyCliente}
-                    onChange={(e) => setEditEvent({ ...editEvent, notifyCliente: e.target.checked })}
-                    className="rounded"
-                  />
-                  <Label htmlFor="edit-notifyCliente" className="cursor-pointer">
-                    Invia notifica email di modifica
-                  </Label>
-                </div>
-              )}
+              {editEvent.clienteId && (() => {
+                const selectedCliente = clienti.find(c => c.id === editEvent.clienteId);
+                return selectedCliente ? (
+                  <div className="mt-2">
+                    <div className="p-3 bg-sage/10 rounded-md border border-sage/20 mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-sage/20 flex items-center justify-center">
+                          <span className="text-sm font-semibold text-sage">
+                            {selectedCliente.nome.charAt(0)}{selectedCliente.cognome.charAt(0)}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{selectedCliente.nome} {selectedCliente.cognome}</p>
+                          <p className="text-xs text-muted-foreground">{selectedCliente.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="edit-notifyCliente"
+                        checked={editEvent.notifyCliente}
+                        onChange={(e) => setEditEvent({ ...editEvent, notifyCliente: e.target.checked })}
+                        className="rounded"
+                      />
+                      <Label htmlFor="edit-notifyCliente" className="cursor-pointer">
+                        Invia notifica email di modifica
+                      </Label>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
             </div>
           </div>
 
