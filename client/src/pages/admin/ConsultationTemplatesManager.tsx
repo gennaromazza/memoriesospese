@@ -647,7 +647,7 @@ export default function ConsultationTemplatesManager() {
             </div>
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="flex-row justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
