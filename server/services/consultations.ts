@@ -506,7 +506,7 @@ export async function isSlotAvailable(
   }
   
   // Check 3: Google Calendar events - busy periods (solo se forniti)
-  if (googleCalendarBusyPeriods && googleCalendarBusyPeriods.length > 0) {
+  if (Array.isArray(googleCalendarBusyPeriods) && googleCalendarBusyPeriods.length > 0) {
     for (const busy of googleCalendarBusyPeriods) {
       if (!busy.start || !busy.end) continue;
       
@@ -603,7 +603,8 @@ export async function getAvailableSlotsForDate(
     calendarDayEnd.setHours(23, 59, 59, 999);
     
     console.log(`[Consultations] Fetching Google Calendar busy periods per ${dateStr}`);
-    googleBusyPeriods = await checkFreeBusy('primary', calendarDayStart, calendarDayEnd);
+    const busyPeriodsResult = await checkFreeBusy('primary', calendarDayStart, calendarDayEnd);
+    googleBusyPeriods = Array.isArray(busyPeriodsResult) ? busyPeriodsResult : [];
     console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods in Google Calendar`);
   } catch (error: any) {
     console.error('[Consultations] ⚠️ Errore fetching busy periods Google Calendar:', error.message);
