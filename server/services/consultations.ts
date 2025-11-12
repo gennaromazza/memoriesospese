@@ -397,7 +397,9 @@ export async function updateConsultation(id: string, data: UpdateConsultation): 
 }
 
 /**
- * Elimina consultation (solo se in_attesa o annullata)
+ * Elimina consultation
+ * Nota: Admin può eliminare consultations in qualsiasi stato (anche confermate)
+ * Per consultations confermate, l'evento Google Calendar viene rimosso automaticamente
  */
 export async function deleteConsultation(id: string): Promise<void> {
   const doc = await db.collection('consultations').doc(id).get();
@@ -407,9 +409,6 @@ export async function deleteConsultation(id: string): Promise<void> {
   }
   
   const data = doc.data();
-  if (data?.stato === 'confermata' || data?.stato === 'completata') {
-    throw new Error('Impossibile eliminare consultation confermata o completata');
-  }
   
   // Rimuovi reference da cliente
   if (data?.clienteId) {

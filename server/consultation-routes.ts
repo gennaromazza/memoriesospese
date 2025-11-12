@@ -5,6 +5,9 @@
 
 import express, { Request, Response } from 'express';
 import { z } from 'zod';
+import axios from 'axios';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 import * as consultationService from './services/consultations.js';
 import { authenticateFirebase } from './email-routes.js';
 import { 
@@ -842,7 +845,11 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
 
 /**
  * DELETE /api/consultations/:id
- * Elimina consultation (solo se in_attesa o annullata)
+ * Elimina consultation (admin può eliminare in qualsiasi stato)
+ * Se confermata, invia email di cancellazione al cliente
+ * 
+ * Query params opzionali:
+ * - cancellationReason: motivo della cancellazione (mostrato in email)
  */
 router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
@@ -852,6 +859,7 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
     }
 
     const { id } = req.params;
+    const { cancellationReason } = req.query;
 
     const consultation = await consultationService.getConsultationById(id);
 
@@ -859,26 +867,62 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Consultation non trovata' });
     }
 
-    // Elimina anche evento Google Calendar se presente
+    // Se consultation confermata, invia email di cancellazione al cliente
+    if (consultation.stato === 'confermata') {
+      try {
+        // Recupera template per nome jobType
+        const template = await consultationService.getTemplateById(consultation.templateId);
+        
+        // Formatta data e orario per email
+        let dataConsulenza: Date;
+        if (consultation.dataConsulenza && typeof consultation.dataConsulenza === 'object' && 'seconds' in consultation.dataConsulenza) {
+          dataConsulenza = new Date((consultation.dataConsulenza as any).seconds * 1000);
+        } else {
+          dataConsulenza = new Date(consultation.dataConsulenza as any);
+        }
+        
+        const consultationDate = format(dataConsulenza, 'dd MMMM yyyy', { locale: it });
+        const consultationTime = `${consultation.orarioInizio} - ${consultation.orarioFine}`;
+
+        // Invia email cancellazione (fire-and-forget, non blocca eliminazione)
+        axios.post(`${process.env.BASE_URL || 'http://localhost:5000'}/api/email/send-consultation-cancelled`, {
+          recipientEmail: consultation.cliente.email,
+          clienteName: `${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+          jobType: template?.nome || 'Consulenza',
+          consultationDate,
+          consultationTime,
+          cancellationReason: cancellationReason || null
+        }).catch((emailError) => {
+          console.warn('[DELETE] Errore invio email cancellazione (non bloccante):', emailError.message);
+        });
+        
+        console.log(`📧 Email cancellazione inviata a ${consultation.cliente.email}`);
+      } catch (emailError: any) {
+        console.warn('[DELETE] Errore preparazione email cancellazione:', emailError.message);
+        // Continua comunque con eliminazione
+      }
+    }
+
+    // Elimina evento Google Calendar se presente
     if (consultation.googleCalendarEventId) {
       try {
         await deleteEvent('primary', consultation.googleCalendarEventId);
+        console.log(`📅 Evento Google Calendar ${consultation.googleCalendarEventId} eliminato`);
       } catch (calError: any) {
         console.warn('[DELETE] Errore eliminazione evento Calendar:', calError.message);
         // Continua comunque con eliminazione consultation
       }
     }
 
+    // Elimina consultation da Firestore
     await consultationService.deleteConsultation(id);
 
-    res.json({ message: 'Consultation eliminata con successo' });
+    res.json({ 
+      message: 'Consultation eliminata con successo',
+      emailSent: consultation.stato === 'confermata'
+    });
   } catch (error: any) {
     console.error('[DELETE /:id] Errore:', error.message);
-
-    if (error.message.includes('Impossibile eliminare')) {
-      return res.status(400).json({ error: error.message });
-    }
-
     res.status(500).json({ error: 'Errore eliminazione consultation' });
   }
 });

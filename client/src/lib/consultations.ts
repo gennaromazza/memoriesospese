@@ -216,8 +216,9 @@ export function useConvertToJob() {
 
 export function useDeleteConsultation() {
   return useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest('DELETE', `/api/consultations/${id}`);
+    mutationFn: async ({ id, cancellationReason }: { id: string; cancellationReason?: string }) => {
+      const params = cancellationReason ? `?cancellationReason=${encodeURIComponent(cancellationReason)}` : '';
+      return apiRequest('DELETE', `/api/consultations/${id}${params}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });

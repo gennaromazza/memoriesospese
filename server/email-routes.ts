@@ -4695,6 +4695,82 @@ function createConsultationRejectedEmailHTML(
 }
 
 /**
+ * Template HTML email: Consulenza Cancellata
+ */
+function createConsultationCancelledEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  cancellationReason: string | null,
+  studio: any
+): string {
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #8B7355; font-size: 28px; margin: 0 0 10px 0;">Consulenza Cancellata</h1>
+        <p style="color: #666; font-size: 16px; margin: 0;">${studio.name}</p>
+      </div>
+
+      <div style="background-color: #FFF5F5; padding: 25px; border-radius: 8px; margin-bottom: 25px; border: 2px solid #FCA5A5;">
+        <p style="font-size: 16px; color: #333; margin: 0 0 15px 0;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        
+        <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 20px 0;">
+          Ti informiamo che la consulenza per <strong>${jobType}</strong> precedentemente confermata è stata cancellata.
+        </p>
+
+        <div style="background-color: #ffffff; padding: 20px; border-left: 4px solid #EF4444; border-radius: 4px;">
+          <h3 style="color: #DC2626; font-size: 18px; margin: 0 0 15px 0;">📅 Dettagli Consulenza Cancellata</h3>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Tipo di lavoro:</strong> ${jobType}
+          </p>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Data:</strong> ${consultationDate}
+          </p>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Orario:</strong> ${consultationTime}
+          </p>
+          ${cancellationReason ? `
+          <div style="background-color: #FEF3C7; padding: 12px; border-radius: 4px; margin-top: 12px;">
+            <p style="margin: 0; font-size: 14px; color: #92400E;">
+              <strong>Motivo cancellazione:</strong> ${cancellationReason}
+            </p>
+          </div>
+          ` : ''}
+        </div>
+
+        <div style="background-color: #E0F2FE; padding: 15px; border-radius: 4px; margin-top: 20px;">
+          <p style="font-size: 14px; color: #075985; margin: 0;">
+            📞 <strong>Vuoi riprogrammare?</strong><br>
+            Ci dispiace per l'inconveniente. Se desideri riprogrammare la consulenza, contattaci direttamente. 
+            Saremo felici di trovare insieme una nuova data!
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 25px;">
+        <p style="font-size: 15px; color: #333; margin-bottom: 15px;">
+          <strong>Contattaci su WhatsApp:</strong>
+        </p>
+        <a href="https://wa.me/${studio.phone.replace(/[^0-9]/g, '')}" 
+           style="display: inline-block; background-color: #25D366; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+          💬 Scrivici su WhatsApp
+        </a>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * POST /api/email/send-consultation-received
  * Invia email "Consulenza Ricevuta" dopo creazione consulenza
  */
@@ -4857,10 +4933,66 @@ router.post("/send-consultation-rejected", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/email/send-consultation-cancelled
+ * Invia email "Consulenza Cancellata" dopo cancellazione admin
+ */
+router.post("/send-consultation-cancelled", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      jobType,
+      consultationDate,
+      consultationTime,
+      cancellationReason
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteName || !jobType || !consultationDate || !consultationTime) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio email consulenza cancellata"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createConsultationCancelledEmailHTML(
+      clienteName,
+      jobType,
+      consultationDate,
+      consultationTime,
+      cancellationReason || null,
+      studioInfo
+    );
+
+    const subject = `⚠️ Consulenza Cancellata - ${jobType}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Consulenza Cancellata" inviata a ${recipientEmail} per ${jobType}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Consultation cancelled email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore send-consultation-cancelled:", error);
+    res.status(500).json({
+      error: "Errore invio email consulenza cancellata"
+    });
+  }
+});
+
 export default router;
 export { 
   authenticateFirebase,
   createConsultationReceivedEmailHTML,
   createConsultationApprovedEmailHTML,
-  createConsultationRejectedEmailHTML
+  createConsultationRejectedEmailHTML,
+  createConsultationCancelledEmailHTML
 };

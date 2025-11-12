@@ -11,6 +11,7 @@ import {
   useRejectConsultation,
   useConvertToJob,
   useMarkConsultationViewed,
+  useDeleteConsultation,
   useTemplates
 } from '@/lib/consultations';
 import type { Consultation, ConsultationStatus, ConsultationTemplate } from '@shared/consultation-types';
@@ -70,7 +71,8 @@ import {
   Phone,
   FileText,
   ExternalLink,
-  Briefcase
+  Briefcase,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -93,6 +95,8 @@ export default function ConsultationsManager() {
   const [rejectConfirmId, setRejectConfirmId] = useState<string | null>(null);
   const [rejectMotivazione, setRejectMotivazione] = useState('');
   const [convertConfirmId, setConvertConfirmId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
   
   // Auth state
   const { user, isLoading: authLoading } = useFirebaseAuth();
@@ -105,6 +109,7 @@ export default function ConsultationsManager() {
   const rejectMutation = useRejectConsultation();
   const convertMutation = useConvertToJob();
   const markViewedMutation = useMarkConsultationViewed();
+  const deleteMutation = useDeleteConsultation();
   
   const templatesMap = useMemo(() => {
     const map: Record<string, ConsultationTemplate> = {};
@@ -193,6 +198,30 @@ export default function ConsultationsManager() {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Conversione fallita';
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: errorMessage
+      });
+    }
+  };
+  
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
+    
+    try {
+      await deleteMutation.mutateAsync({ 
+        id: deleteConfirmId,
+        cancellationReason: cancellationReason.trim() || undefined
+      });
+      toast({
+        title: 'Consulenza cancellata',
+        description: 'Email di cancellazione inviata al cliente e evento rimosso da Calendar'
+      });
+      setDeleteConfirmId(null);
+      setCancellationReason('');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Cancellazione fallita';
       toast({
         variant: 'destructive',
         title: 'Errore',
@@ -463,15 +492,26 @@ export default function ConsultationsManager() {
                           )}
                           
                           {consultation.stato === 'confermata' && !consultation.jobCreated && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setConvertConfirmId(consultation.id)}
-                              className="text-blue-600 hover:text-blue-700"
-                              data-testid={`button-convert-${consultation.id}`}
-                            >
-                              <Briefcase className="w-4 h-4" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setConvertConfirmId(consultation.id)}
+                                className="text-blue-600 hover:text-blue-700"
+                                data-testid={`button-convert-${consultation.id}`}
+                              >
+                                <Briefcase className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteConfirmId(consultation.id)}
+                                className="text-red-600 hover:text-red-700"
+                                data-testid={`button-delete-${consultation.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
                           )}
                           
                           {consultation.jobCreated && consultation.jobId && (
@@ -707,6 +747,51 @@ export default function ConsultationsManager() {
               data-testid="button-confirm-convert"
             >
               Converti
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={() => {
+        setDeleteConfirmId(null);
+        setCancellationReason('');
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma Cancellazione Consulenza</AlertDialogTitle>
+            <AlertDialogDescription>
+              Eliminando questa consulenza confermata verranno eseguite le seguenti azioni:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <ul className="list-disc list-inside space-y-1 text-sm text-gray-600 mb-4">
+              <li>Rimozione dell'evento da Google Calendar</li>
+              <li>Invio email di cancellazione al cliente</li>
+              <li>Eliminazione definitiva della prenotazione</li>
+            </ul>
+            <Label htmlFor="cancellationReason" className="text-sm font-medium mb-2 block">
+              Motivo Cancellazione (opzionale)
+            </Label>
+            <Input
+              id="cancellationReason"
+              placeholder="es. Imprevisto dello studio, maltempo, cambio disponibilità..."
+              value={cancellationReason}
+              onChange={(e) => setCancellationReason(e.target.value)}
+              data-testid="input-cancellation-reason"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Il motivo verrà incluso nell'email inviata al cliente
+            </p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="button-confirm-delete"
+            >
+              Cancella Consulenza
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
