@@ -295,7 +295,7 @@ export default function Home() {
               {studioSettings.heroSubtitle}
             </p>
             <div
-              className="mt-10 animate-slide-up flex flex-col sm:flex-row gap-4"
+              className="mt-10 animate-slide-up"
               style={{ animationDelay: "200ms" }}
             >
               <a
@@ -1272,6 +1272,113 @@ export default function Home() {
       <div className="w-full flex justify-center py-2 bg-white">
         <FloralDivider className="w-full h-12" />
       </div>
+
+      {/* Sezione Instagram con Feed Embedded */}
+      {studioSettings?.socialLinks?.instagram && (
+        <section id="instagram" className="bg-gradient-to-b from-white via-off-white to-cream py-16 relative overflow-hidden">
+          <FloralCorner
+            position="top-left"
+            className="absolute top-0 left-0 w-32 h-32 opacity-10 pointer-events-none"
+          />
+          <FloralCorner
+            position="bottom-right"
+            className="absolute bottom-0 right-0 w-32 h-32 opacity-10 pointer-events-none"
+          />
+
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="text-center mb-10">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-4">
+                <svg
+                  className="w-8 h-8 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
+                  <circle cx="12" cy="12" r="3.2" />
+                  <circle cx="17" cy="7" r="0.9" />
+                </svg>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-blue-gray font-playfair mb-3">
+                Seguici su Instagram
+              </h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Scopri i nostri ultimi lavori e resta aggiornato sulle novità dello studio
+              </p>
+              <div className="w-32 h-0.5 bg-gradient-to-r from-transparent via-purple-400 to-transparent mx-auto mt-4"></div>
+            </div>
+
+            {/* Instagram Feed Embed */}
+            <div className="bg-white rounded-2xl shadow-xl border border-sage/10 overflow-hidden mb-8">
+              <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-sage/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                    <svg
+                      className="w-6 h-6 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
+                      <circle cx="12" cy="12" r="3.2" />
+                      <circle cx="17" cy="7" r="0.9" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">
+                      @{studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}
+                    </p>
+                    <p className="text-sm text-gray-500">I nostri ultimi scatti</p>
+                  </div>
+                </div>
+              </div>
+              
+              <iframe
+                src={`https://www.instagram.com/${studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}/embed`}
+                width="100%"
+                height="500"
+                frameBorder="0"
+                scrolling="no"
+                allowTransparency={true}
+                className="w-full"
+                title="Instagram Feed"
+              />
+            </div>
+
+            {/* Follow Button */}
+            <div className="text-center">
+              <a
+                href={
+                  studioSettings.socialLinks.instagram.startsWith("http")
+                    ? studioSettings.socialLinks.instagram
+                    : `https://instagram.com/${studioSettings.socialLinks.instagram.replace('@', '')}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                <svg
+                  className="w-6 h-6"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
+                  <circle cx="12" cy="12" r="3.2" />
+                  <circle cx="17" cy="7" r="0.9" />
+                </svg>
+                Seguici su Instagram
+              </a>
+              <p className="text-sm text-gray-500 mt-4">
+                Non perderti i momenti più belli che immortaliamo ogni giorno
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Sezione WhatsApp */}
       <section id="contact" className="bg-mint py-16">
