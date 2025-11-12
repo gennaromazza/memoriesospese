@@ -87,7 +87,7 @@ const STATUS_CONFIG: Record<ConsultationStatus, { label: string; variant: string
 export default function ConsultationsManager() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  
+
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
@@ -97,11 +97,11 @@ export default function ConsultationsManager() {
   const [convertConfirmId, setConvertConfirmId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
-  
+
   // Auth state
   const { user, isLoading: authLoading } = useFirebaseAuth();
   const authReady = !authLoading && !!user;
-  
+
   // Queries
   const { data: consultations = [], isLoading } = useConsultations(authReady);
   const { data: templates = [] } = useTemplates(authReady);
@@ -110,7 +110,7 @@ export default function ConsultationsManager() {
   const convertMutation = useConvertToJob();
   const markViewedMutation = useMarkConsultationViewed();
   const deleteMutation = useDeleteConsultation();
-  
+
   const templatesMap = useMemo(() => {
     const map: Record<string, ConsultationTemplate> = {};
     templates.forEach(t => {
@@ -118,10 +118,10 @@ export default function ConsultationsManager() {
     });
     return map;
   }, [templates]);
-  
+
   const handleViewDetails = async (consultation: Consultation) => {
     setSelectedConsultation(consultation);
-    
+
     if (!consultation.dataVisualizzazione) {
       try {
         await markViewedMutation.mutateAsync(consultation.id);
@@ -130,10 +130,10 @@ export default function ConsultationsManager() {
       }
     }
   };
-  
+
   const handleApprove = async () => {
     if (!approveConfirmId) return;
-    
+
     try {
       await approveMutation.mutateAsync(approveConfirmId);
       toast({
@@ -150,7 +150,7 @@ export default function ConsultationsManager() {
       });
     }
   };
-  
+
   const handleReject = async () => {
     if (!rejectConfirmId || !rejectMotivazione.trim()) {
       toast({
@@ -160,7 +160,7 @@ export default function ConsultationsManager() {
       });
       return;
     }
-    
+
     try {
       await rejectMutation.mutateAsync({ 
         id: rejectConfirmId, 
@@ -181,10 +181,10 @@ export default function ConsultationsManager() {
       });
     }
   };
-  
+
   const handleConvertToJob = async () => {
     if (!convertConfirmId) return;
-    
+
     try {
       const result = await convertMutation.mutateAsync(convertConfirmId) as unknown as { jobId: string };
       toast({
@@ -192,7 +192,7 @@ export default function ConsultationsManager() {
         description: `Consulenza convertita in job con successo`
       });
       setConvertConfirmId(null);
-      
+
       if (result?.jobId) {
         navigate(`/admin/jobs/${result.jobId}`);
       }
@@ -205,10 +205,10 @@ export default function ConsultationsManager() {
       });
     }
   };
-  
+
   const handleDelete = async () => {
     if (!deleteConfirmId) return;
-    
+
     try {
       await deleteMutation.mutateAsync({ 
         id: deleteConfirmId,
@@ -229,26 +229,26 @@ export default function ConsultationsManager() {
       });
     }
   };
-  
+
   const filteredConsultations = useMemo(() => {
     return consultations.filter(c => {
       if (filterStatus !== 'all' && c.stato !== filterStatus) return false;
-      
+
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const clienteNome = `${c.cliente.nome} ${c.cliente.cognome}`.toLowerCase();
         const template = templatesMap[c.templateId];
         const templateNome = template?.nome.toLowerCase() || '';
-        
+
         if (!clienteNome.includes(query) && !templateNome.includes(query)) {
           return false;
         }
       }
-      
+
       return true;
     });
   }, [consultations, filterStatus, searchQuery, templatesMap]);
-  
+
   const sortedConsultations = useMemo(() => {
     return [...filteredConsultations].sort((a, b) => {
       const dateA = typeof a.dataConsulenza.toDate === 'function' 
@@ -257,11 +257,11 @@ export default function ConsultationsManager() {
       const dateB = typeof b.dataConsulenza.toDate === 'function' 
         ? b.dataConsulenza.toDate().getTime()
         : new Date(b.dataConsulenza as any).getTime();
-      
+
       return dateB - dateA;
     });
   }, [filteredConsultations]);
-  
+
   const statsCounts = useMemo(() => {
     return consultations.reduce((acc, c) => {
       acc[c.stato] = (acc[c.stato] || 0) + 1;
@@ -279,14 +279,14 @@ export default function ConsultationsManager() {
           </p>
         </div>
       </div>
-      
+
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {(['in_attesa', 'confermata', 'completata', 'annullata'] as ConsultationStatus[]).map((status) => {
           const config = STATUS_CONFIG[status];
           const count = statsCounts[status] || 0;
           const Icon = config.icon;
-          
+
           return (
             <Card 
               key={status} 
@@ -309,7 +309,7 @@ export default function ConsultationsManager() {
           );
         })}
       </div>
-      
+
       {/* Filters */}
       <Card className="mb-6">
         <CardContent className="pt-6">
@@ -329,7 +329,7 @@ export default function ConsultationsManager() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label>Cerca</Label>
               <Input
@@ -342,7 +342,7 @@ export default function ConsultationsManager() {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Table */}
       <Card>
         <CardHeader>
@@ -376,165 +376,165 @@ export default function ConsultationsManager() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedConsultations.map((consultation) => {
-                  const template = templatesMap[consultation.templateId];
-                  const config = STATUS_CONFIG[consultation.stato];
-                  const jobDataCount = Object.keys(consultation.jobDataCollected || {}).length;
-                  
-                  return (
-                    <TableRow key={consultation.id} data-testid={`row-consultation-${consultation.id}`}>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1 text-sm font-medium">
-                            <Calendar className="w-3 h-3" />
-                            {(() => {
-                              try {
-                                if (!consultation.dataConsulenza) return 'Data non disponibile';
-                                
-                                let date: Date;
-                                
-                                // Handle Firestore Timestamp with seconds property
-                                if (typeof (consultation.dataConsulenza as any).seconds === 'number') {
-                                  date = new Date((consultation.dataConsulenza as any).seconds * 1000);
-                                }
-                                // Handle Firestore Timestamp with toDate method
-                                else if (typeof (consultation.dataConsulenza as any).toDate === 'function') {
-                                  date = (consultation.dataConsulenza as any).toDate();
-                                }
-                                // Handle ISO string or Date object
-                                else {
-                                  date = new Date(consultation.dataConsulenza as any);
-                                }
-                                
-                                if (isNaN(date.getTime())) return 'Data non valida';
-                                
-                                return format(date, 'dd MMM yyyy', { locale: it });
-                              } catch (error) {
-                                console.error('[ConsultationsManager] Errore parsing data:', error, consultation);
-                                return 'Errore data';
+                {sortedConsultations.map((consultation) => (
+                  <TableRow 
+                    key={consultation.id}
+                    data-consultation-id={consultation.id}
+                    className={`hover:bg-muted/50 transition-colors ${
+                      !consultation.dataVisualizzazione ? 'bg-yellow-50 dark:bg-yellow-950/20' : ''
+                    }`}
+                  >
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1 text-sm font-medium">
+                          <Calendar className="w-3 h-3" />
+                          {(() => {
+                            try {
+                              if (!consultation.dataConsulenza) return 'Data non disponibile';
+
+                              let date: Date;
+
+                              // Handle Firestore Timestamp with seconds property
+                              if (typeof (consultation.dataConsulenza as any).seconds === 'number') {
+                                date = new Date((consultation.dataConsulenza as any).seconds * 1000);
                               }
-                            })()}
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Clock className="w-3 h-3" />
-                            {consultation.orarioInizio} - {consultation.orarioFine}
-                          </div>
+                              // Handle Firestore Timestamp with toDate method
+                              else if (typeof (consultation.dataConsulenza as any).toDate === 'function') {
+                                date = (consultation.dataConsulenza as any).toDate();
+                              }
+                              // Handle ISO string or Date object
+                              else {
+                                date = new Date(consultation.dataConsulenza as any);
+                              }
+
+                              if (isNaN(date.getTime())) return 'Data non valida';
+
+                              return format(date, 'dd MMM yyyy', { locale: it });
+                            } catch (error) {
+                              console.error('[ConsultationsManager] Errore parsing data:', error, consultation);
+                              return 'Errore data';
+                            }
+                          })()}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1 font-medium">
-                            <User className="w-3 h-3" />
-                            {consultation.cliente.nome} {consultation.cliente.cognome}
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Mail className="w-3 h-3" />
-                            {consultation.cliente.email}
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Phone className="w-3 h-3" />
-                            {consultation.cliente.whatsapp}
-                          </div>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Clock className="w-3 h-3" />
+                          {consultation.orarioInizio} - {consultation.orarioFine}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          {template?.nome || 'Template non trovato'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1 font-medium">
+                          <User className="w-3 h-3" />
+                          {consultation.cliente.nome} {consultation.cliente.cognome}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={config.variant}>
-                          {config.label}
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Mail className="w-3 h-3" />
+                          {consultation.cliente.email}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Phone className="w-3 h-3" />
+                          {consultation.cliente.whatsapp}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {templatesMap[consultation.templateId]?.nome || 'Template non trovato'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={config.variant}>
+                        {config.label}
+                      </Badge>
+                      {!consultation.dataVisualizzazione && (
+                        <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-600 text-xs">
+                          Nuovo
                         </Badge>
-                        {!consultation.dataVisualizzazione && (
-                          <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-600 text-xs">
-                            Nuovo
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-xs">
-                          {jobDataCount} {jobDataCount === 1 ? 'campo' : 'campi'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewDetails(consultation)}
-                            data-testid={`button-view-${consultation.id}`}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          
-                          {consultation.stato === 'in_attesa' && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setApproveConfirmId(consultation.id)}
-                                className="text-green-600 hover:text-green-700"
-                                data-testid={`button-approve-${consultation.id}`}
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setRejectConfirmId(consultation.id)}
-                                className="text-red-600 hover:text-red-700"
-                                data-testid={`button-reject-${consultation.id}`}
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                          
-                          {consultation.stato === 'confermata' && !consultation.jobCreated && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setConvertConfirmId(consultation.id)}
-                                className="text-blue-600 hover:text-blue-700"
-                                data-testid={`button-convert-${consultation.id}`}
-                              >
-                                <Briefcase className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteConfirmId(consultation.id)}
-                                className="text-red-600 hover:text-red-700"
-                                data-testid={`button-delete-${consultation.id}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                          
-                          {consultation.jobCreated && consultation.jobId && (
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">
+                        {jobDataCount} {jobDataCount === 1 ? 'campo' : 'campi'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewDetails(consultation)}
+                          data-testid={`button-view-${consultation.id}`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+
+                        {consultation.stato === 'in_attesa' && (
+                          <>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => navigate(`/admin/jobs/${consultation.jobId}`)}
-                              data-testid={`button-view-job-${consultation.id}`}
+                              onClick={() => setApproveConfirmId(consultation.id)}
+                              className="text-green-600 hover:text-green-700"
+                              data-testid={`button-approve-${consultation.id}`}
                             >
-                              <ExternalLink className="w-4 h-4" />
+                              <CheckCircle className="w-4 h-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setRejectConfirmId(consultation.id)}
+                              className="text-red-600 hover:text-red-700"
+                              data-testid={`button-reject-${consultation.id}`}
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+
+                        {consultation.stato === 'confermata' && !consultation.jobCreated && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setConvertConfirmId(consultation.id)}
+                              className="text-blue-600 hover:text-blue-700"
+                              data-testid={`button-convert-${consultation.id}`}
+                            >
+                              <Briefcase className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteConfirmId(consultation.id)}
+                              className="text-red-600 hover:text-red-700"
+                              data-testid={`button-delete-${consultation.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+
+                        {consultation.jobCreated && consultation.jobId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/admin/jobs/${consultation.jobId}`)}
+                            data-testid={`button-view-job-${consultation.id}`}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
-      
+
       {/* Details Dialog */}
       <Dialog open={!!selectedConsultation} onOpenChange={() => setSelectedConsultation(null)}>
         <DialogContent className="max-w-2xl">
@@ -544,7 +544,7 @@ export default function ConsultationsManager() {
               Informazioni complete sulla prenotazione
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedConsultation && (
             <div className="space-y-6 py-4">
               <div className="grid grid-cols-2 gap-4">
@@ -554,24 +554,24 @@ export default function ConsultationsManager() {
                     {selectedConsultation.cliente.nome} {selectedConsultation.cliente.cognome}
                   </p>
                 </div>
-                
+
                 <div>
                   <Label className="text-xs text-gray-500">Email</Label>
                   <p className="font-medium">{selectedConsultation.cliente.email}</p>
                 </div>
-                
+
                 <div>
                   <Label className="text-xs text-gray-500">WhatsApp</Label>
                   <p className="font-medium">{selectedConsultation.cliente.whatsapp}</p>
                 </div>
-                
+
                 <div>
                   <Label className="text-xs text-gray-500">Template</Label>
                   <p className="font-medium">
                     {templatesMap[selectedConsultation.templateId]?.nome || 'N/A'}
                   </p>
                 </div>
-                
+
                 <div>
                   <Label className="text-xs text-gray-500">Data</Label>
                   <p className="font-medium">
@@ -580,9 +580,9 @@ export default function ConsultationsManager() {
                         if (!selectedConsultation.dataConsulenza) {
                           return 'Data non disponibile';
                         }
-                        
+
                         let consultationDate: Date;
-                        
+
                         // Handle Firestore Timestamp serialized as plain object { seconds, nanoseconds }
                         if (typeof (selectedConsultation.dataConsulenza as any).seconds === 'number') {
                           const seconds = (selectedConsultation.dataConsulenza as any).seconds;
@@ -596,11 +596,11 @@ export default function ConsultationsManager() {
                         else {
                           consultationDate = new Date(selectedConsultation.dataConsulenza as any);
                         }
-                        
+
                         if (isNaN(consultationDate.getTime())) {
                           return 'Data non disponibile';
                         }
-                        
+
                         return format(consultationDate, 'dd MMMM yyyy', { locale: it });
                       } catch (error) {
                         console.error('[ConsultationsManager] Error formatting date:', error);
@@ -609,20 +609,20 @@ export default function ConsultationsManager() {
                     })()}
                   </p>
                 </div>
-                
+
                 <div>
                   <Label className="text-xs text-gray-500">Orario</Label>
                   <p className="font-medium">
                     {selectedConsultation.orarioInizio} - {selectedConsultation.orarioFine}
                   </p>
                 </div>
-                
+
                 <div className="col-span-2">
                   <Label className="text-xs text-gray-500">Note</Label>
                   <p className="font-medium">{selectedConsultation.note || 'Nessuna nota'}</p>
                 </div>
               </div>
-              
+
               {selectedConsultation.jobDataCollected && Object.keys(selectedConsultation.jobDataCollected).length > 0 && (
                 <div className="border-t pt-4">
                   <Label className="text-sm font-medium mb-3 block">Dati Job Raccolti</Label>
@@ -631,7 +631,7 @@ export default function ConsultationsManager() {
                       const template = templatesMap[selectedConsultation.templateId];
                       const fieldDef = template?.jobDataFields?.find(f => f.fieldKey === key);
                       const label = fieldDef?.label || key;
-                      
+
                       return (
                         <div key={key} className="flex items-start gap-2">
                           <Label className="text-xs text-gray-500 min-w-[120px]">{label}:</Label>
@@ -644,7 +644,7 @@ export default function ConsultationsManager() {
                   </div>
                 </div>
               )}
-              
+
               {selectedConsultation.googleCalendarEventId && (
                 <div className="border-t pt-4">
                   <Label className="text-xs text-gray-500">Google Calendar Event ID</Label>
@@ -655,7 +655,7 @@ export default function ConsultationsManager() {
               )}
             </div>
           )}
-          
+
           <DialogFooter>
             <Button
               variant="outline"
@@ -667,7 +667,7 @@ export default function ConsultationsManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Approve Confirmation */}
       <AlertDialog open={!!approveConfirmId} onOpenChange={() => setApproveConfirmId(null)}>
         <AlertDialogContent>
@@ -690,7 +690,7 @@ export default function ConsultationsManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
+
       {/* Reject Confirmation */}
       <AlertDialog open={!!rejectConfirmId} onOpenChange={() => {
         setRejectConfirmId(null);
@@ -728,7 +728,7 @@ export default function ConsultationsManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
+
       {/* Convert to Job Confirmation */}
       <AlertDialog open={!!convertConfirmId} onOpenChange={() => setConvertConfirmId(null)}>
         <AlertDialogContent>
@@ -751,7 +751,7 @@ export default function ConsultationsManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
+
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={() => {
         setDeleteConfirmId(null);

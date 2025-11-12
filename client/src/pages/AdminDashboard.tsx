@@ -42,6 +42,7 @@ import ProductCategoriesManager from "@/components/product-categories/ProductCat
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 import CalendarioManager from "@/components/CalendarioManager";
+import NotificationBell from "@/components/NotificationBell";
 
 // Type per tab validi
 type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'products' | 'product-categories' | 'commesse' | 'calendario';
@@ -531,6 +532,16 @@ export default function AdminDashboard() {
     // Non è più necessario il setTimeout, poiché state gestisce il sub-tab
   };
 
+  // Handler: Apri consulenza specifica e scroll + highlight
+  const handleOpenConsultation = (consultationId: string) => {
+    setActiveTab('consulenze');
+    // Scroll verso la consulenza dopo il cambio tab
+    setTimeout(() => {
+      const element = document.querySelector(`[data-consultation-id="${consultationId}"]`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
   // Handler: Apri ordine specifico e scroll + highlight
   const handleOpenOrder = (orderId: string) => {
     setHighlightOrderId(orderId);
@@ -906,7 +917,11 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto py-4 px-4 sm:py-6 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-blue-gray">Dashboard amministratore</h1>
-            <div className="flex space-x-3">
+            <div className="flex items-center space-x-3">
+              <NotificationBell 
+                onNavigateToBooking={handleOpenBooking}
+                onNavigateToConsultation={handleOpenConsultation}
+              />
               <Link href={createUrl("/")}>
                 <Button variant="outline" size="sm" className="flex items-center space-x-1">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
