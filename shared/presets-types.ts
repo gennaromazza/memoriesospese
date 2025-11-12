@@ -15,7 +15,8 @@ export interface JobPreset {
   descrizione?: string;                // Descrizione opzionale dettagliata
   
   // Prodotti pre-impostati (cuore del preset)
-  products: QuoteProduct[];            // Array completo prodotti con prezzi, descrizioni, categorie
+  catalogProductIds?: string[];        // IDs prodotti selezionati dal catalogo
+  products: QuoteProduct[];            // Array prodotti custom con prezzi, descrizioni, categorie
   
   // Sconto predefinito (opzionale)
   discountType?: 'amount' | 'percent';
@@ -46,6 +47,7 @@ export interface JobPreset {
 export interface InsertJobPreset {
   nome: string;
   descrizione?: string;
+  catalogProductIds?: string[];
   products: QuoteProduct[];
   discountType?: 'amount' | 'percent';
   discountValue?: number;
@@ -62,6 +64,7 @@ export interface InsertJobPreset {
 export interface UpdateJobPreset {
   nome?: string;
   descrizione?: string;
+  catalogProductIds?: string[] | null;
   products?: QuoteProduct[];
   discountType?: 'amount' | 'percent' | null;  // null per rimuovere sconto
   discountValue?: number | null;

@@ -338,7 +338,8 @@ export default function QuoteBuilder({
 
   // Load preset (handler per PresetManager)
   const handleLoadPreset = (preset: any) => {
-    // Carica prodotti
+    // Carica prodotti catalogo e custom
+    form.setValue('catalogProductIds', preset.catalogProductIds || []);
     form.setValue('products', preset.products);
     
     // Carica sconto se presente
@@ -1480,35 +1481,20 @@ export default function QuoteBuilder({
         mode={presetMode}
         open={!!presetMode}
         onOpenChange={(open) => !open && setPresetMode(null)}
+        currentCatalogProductIds={presetMode === 'save' ? catalogProductIds : []}
         currentProducts={
           presetMode === 'save' 
-            ? [
-                ...catalogProductIds.map(id => {
-                  const product = catalogProducts.find(p => p.id === id);
-                  if (!product) return null;
-                  return {
-                    productId: product.id,
-                    nome: product.nome,
-                    descrizione: product.descrizione || '',
-                    prezzo: product.prezzoFinale || product.prezzo,
-                    selectable: quoteType === 'variabile',
-                    numeroFoto: product.numeroFoto,
-                    categoria: product.categoria,
-                    immagini: product.immagini
-                  };
-                }).filter((p): p is QuoteProduct => p !== null),
-                ...customProducts
-                  .filter(p => p.nome?.trim())
-                  .map(p => ({
-                    nome: p.nome,
-                    descrizione: p.descrizione,
-                    prezzo: p.prezzo,
-                    selectable: p.selectable,
-                    numeroFoto: p.numeroFoto,
-                    categoria: p.categoria,
-                    immagini: p.immagini
-                  }))
-              ]
+            ? customProducts
+                .filter(p => p.nome?.trim())
+                .map(p => ({
+                  nome: p.nome,
+                  descrizione: p.descrizione,
+                  prezzo: p.prezzo,
+                  selectable: p.selectable,
+                  numeroFoto: p.numeroFoto,
+                  categoria: p.categoria,
+                  immagini: p.immagini
+                }))
             : []
         }
         currentDiscountType={discountType}

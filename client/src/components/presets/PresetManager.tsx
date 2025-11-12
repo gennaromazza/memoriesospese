@@ -51,6 +51,7 @@ interface PresetManagerProps {
   onOpenChange: (open: boolean) => void;
   
   // Per mode='save': dati da salvare
+  currentCatalogProductIds?: string[];
   currentProducts?: QuoteProduct[];
   currentDiscountType?: 'amount' | 'percent';
   currentDiscountValue?: number;
@@ -66,6 +67,7 @@ export default function PresetManager({
   mode,
   open,
   onOpenChange,
+  currentCatalogProductIds = [],
   currentProducts = [],
   currentDiscountType,
   currentDiscountValue,
@@ -148,6 +150,7 @@ export default function PresetManager({
     const presetData: InsertJobPreset = {
       nome: values.nome,
       descrizione: values.descrizione,
+      catalogProductIds: currentCatalogProductIds,
       products: currentProducts,
       discountType: currentDiscountType,
       discountValue: currentDiscountValue,
