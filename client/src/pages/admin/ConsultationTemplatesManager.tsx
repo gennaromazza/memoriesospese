@@ -211,6 +211,31 @@ export default function ConsultationTemplatesManager() {
       return;
     }
 
+    // Validazione campi job data
+    if (formData.jobDataFields && formData.jobDataFields.length > 0) {
+      for (let i = 0; i < formData.jobDataFields.length; i++) {
+        const field = formData.jobDataFields[i];
+        
+        if (!field.fieldKey || field.fieldKey.trim() === '') {
+          toast({
+            variant: "destructive",
+            title: "FieldKey mancante",
+            description: `Il campo #${i + 1} non ha un fieldKey valido`,
+          });
+          return;
+        }
+        
+        if (!field.label || field.label.trim() === '') {
+          toast({
+            variant: "destructive",
+            title: "Label mancante",
+            description: `Il campo #${i + 1} non ha una label valida`,
+          });
+          return;
+        }
+      }
+    }
+
     // Valida che imageUrls sia un array di stringhe
     const validImageUrls = Array.isArray(formData.imageUrls)
       ? formData.imageUrls.filter(url => typeof url === 'string' && url.trim() !== '')
@@ -1348,14 +1373,23 @@ export default function ConsultationTemplatesManager() {
                                     <span className="text-xs text-gray-500 font-normal ml-1">(nome tecnico)</span>
                                   </Label>
                                   <Input
-                                    value={field.fieldKey}
+                                    value={field.fieldKey || ''}
                                     onChange={(e) => {
-                                      const value = e.target.value.trim();
-                                      // Previeni fieldKey vuoto - mantieni almeno "campo_N" se l'utente cancella tutto
-                                      if (value.length === 0) {
-                                        return; // Blocca cancellazione completa
-                                      }
+                                      const value = e.target.value;
+                                      // Consenti modifica ma validazione stringente al salvataggio
                                       updateJobDataField(idx, { fieldKey: value });
+                                    }}
+                                    onBlur={(e) => {
+                                      // Al blur, se il valore è vuoto, ripristina un valore di default
+                                      const value = e.target.value.trim();
+                                      if (!value) {
+                                        updateJobDataField(idx, { fieldKey: `campo_${idx + 1}` });
+                                        toast({
+                                          variant: "destructive",
+                                          title: "FieldKey richiesto",
+                                          description: "Il fieldKey non può essere vuoto. Ripristinato valore predefinito.",
+                                        });
+                                      }
                                     }}
                                     placeholder="es. eventDate"
                                     data-testid={`input-field-key-${idx}`}
