@@ -502,17 +502,17 @@ export default function ConsultationTemplatesManager() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] w-full flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="max-w-3xl max-h-[90vh] w-full flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <DialogTitle className="text-2xl font-playfair">
               {editingTemplate ? "Modifica Template" : "Nuovo Template"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-600 mt-2">
               Configura il template di consulenza con campi job dinamici
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto pr-1 space-y-6 py-4">
+          <div className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome Template *</Label>
@@ -621,14 +621,15 @@ export default function ConsultationTemplatesManager() {
             </div>
 
             <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-base font-medium">Campi Job Data</Label>
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-base font-medium text-blue-gray">Campi Job Data</Label>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={addJobDataField}
                   data-testid="button-add-field"
+                  className="border-sage text-sage hover:bg-sage/10"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Aggiungi Campo
@@ -638,8 +639,8 @@ export default function ConsultationTemplatesManager() {
               {formData.jobDataFields && formData.jobDataFields.length > 0 ? (
                 <div className="space-y-3">
                   {formData.jobDataFields.map((field, idx) => (
-                    <Card key={idx} className="p-4">
-                      <div className="grid grid-cols-2 gap-3">
+                    <Card key={idx} className="p-4 border-beige bg-off-white">
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Label</Label>
                           <Input
@@ -724,18 +725,19 @@ export default function ConsultationTemplatesManager() {
             </div>
           </div>
 
-          <div className="sticky bottom-0 left-0 right-0 bg-white border-t pt-4 pb-2 flex justify-end gap-2">
+          <div className="sticky bottom-0 left-0 right-0 bg-off-white border-t px-6 py-4 flex justify-end gap-3">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
               data-testid="button-cancel"
+              className="min-w-[100px]"
             >
               Annulla
             </Button>
             <Button
               onClick={handleSave}
               disabled={createMutation.isPending || updateMutation.isPending}
-              className="bg-[hsl(var(--terra))] hover:bg-[hsl(var(--terra))]/90"
+              className="bg-blue-gray hover:bg-dark-sage text-white min-w-[100px]"
               data-testid="button-save"
             >
               {createMutation.isPending || updateMutation.isPending
