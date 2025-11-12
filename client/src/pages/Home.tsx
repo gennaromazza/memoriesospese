@@ -576,6 +576,121 @@ export default function Home() {
         </section>
       )}
 
+      {/* Consulenze Gratuite Section */}
+      <section className="py-20 bg-gradient-to-b from-white to-off-white relative overflow-hidden">
+        {/* Decorazioni */}
+        <FloralCorner
+          position="top-left"
+          className="absolute top-0 left-0 w-40 h-40 opacity-10 pointer-events-none"
+        />
+        <FloralCorner
+          position="bottom-right"
+          className="absolute bottom-0 right-0 w-40 h-40 opacity-10 pointer-events-none"
+        />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-sage/10 rounded-full mb-4">
+              <Calendar className="h-8 w-8 text-sage" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-playfair font-bold text-blue-gray mb-4">
+              Consulenza Gratuita Personalizzata
+            </h2>
+            <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto">
+              Prenota un incontro senza impegno per discutere del tuo progetto fotografico.
+              Ti aiuteremo a pianificare ogni dettaglio del tuo evento speciale.
+            </p>
+            <div className="mt-4 inline-flex items-center gap-2 bg-green-50 px-6 py-3 rounded-full border border-green-200">
+              <Sparkles className="w-5 h-5 text-green-600" />
+              <span className="text-green-700 font-semibold text-lg">100% Gratuita - Nessun Obbligo</span>
+            </div>
+          </div>
+
+          {/* Features Grid */}
+          <div className="grid md:grid-cols-3 gap-8 mb-12">
+            <div className="bg-white rounded-xl p-8 shadow-lg border border-sage/10 text-center hover:shadow-xl transition-shadow">
+              <div className="w-20 h-20 mx-auto mb-6 bg-sage/10 rounded-full flex items-center justify-center">
+                <Calendar className="w-10 h-10 text-sage" />
+              </div>
+              <h3 className="text-xl font-bold text-blue-gray mb-3 font-playfair">
+                Prenota Online
+              </h3>
+              <p className="text-gray-600">
+                Scegli data e orario che preferisci. La prenotazione è immediata e confermerai via email.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-8 shadow-lg border border-sage/10 text-center hover:shadow-xl transition-shadow">
+              <div className="w-20 h-20 mx-auto mb-6 bg-sage/10 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-blue-gray mb-3 font-playfair">
+                Incontro Personalizzato
+              </h3>
+              <p className="text-gray-600">
+                Parliamo del tuo evento, delle tue esigenze e creiamo insieme il servizio perfetto per te.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-8 shadow-lg border border-sage/10 text-center hover:shadow-xl transition-shadow">
+              <div className="w-20 h-20 mx-auto mb-6 bg-sage/10 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-blue-gray mb-3 font-playfair">
+                Senza Impegno
+              </h3>
+              <p className="text-gray-600">
+                La consulenza è completamente gratuita e senza alcun obbligo di prenotazione del servizio.
+              </p>
+            </div>
+          </div>
+
+          {/* CTA Card */}
+          <div className="bg-gradient-to-br from-sage/5 via-cream/30 to-sage/5 rounded-2xl border border-sage/20 p-8 sm:p-12 text-center shadow-xl">
+            <div className="max-w-3xl mx-auto">
+              <div className="mb-6">
+                <div className="w-24 h-24 mx-auto mb-4">
+                  <WeddingImage
+                    type="flower-bouquet"
+                    className="w-full h-auto opacity-90"
+                    alt="Consulenza gratuita"
+                  />
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-bold text-blue-gray mb-4 font-playfair">
+                  Pronto a Iniziare il Tuo Progetto?
+                </h3>
+                <p className="text-lg text-gray-600 mb-8">
+                  Prenota ora la tua consulenza gratuita e scopri come possiamo rendere speciale il tuo evento.
+                  Nessun costo, nessun impegno, solo una chiacchierata per conoscerti meglio.
+                </p>
+              </div>
+
+              <Link href={createUrl("/consulenze")}>
+                <Button
+                  size="lg"
+                  className="bg-sage text-white hover:bg-dark-sage text-xl font-bold py-8 px-12 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 border-2 border-sage/20"
+                  style={{
+                    boxShadow: "inset 0 -2px 8px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  <Calendar className="w-7 h-7 mr-3" />
+                  Prenota la Tua Consulenza Gratuita
+                </Button>
+              </Link>
+
+              <p className="mt-6 text-sm text-gray-500">
+                ✓ Completamente gratuita &nbsp;•&nbsp; ✓ Senza impegno &nbsp;•&nbsp; ✓ Prenotazione immediata
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Access Gallery Form */}
       <section id="access-gallery" className="py-20 bg-off-white relative">
         {/* Decorazioni a tema matrimonio con le immagini fornite */}
