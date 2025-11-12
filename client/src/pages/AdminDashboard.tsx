@@ -921,6 +921,10 @@ export default function AdminDashboard() {
               <NotificationBell 
                 onNavigateToBooking={handleOpenBooking}
                 onNavigateToConsultation={handleOpenConsultation}
+                onNavigateToGallery={(galleryCode) => {
+                  // Naviga alla galleria
+                  navigate(createUrl(`/gallery/${galleryCode}`));
+                }}
               />
               <Link href={createUrl("/")}>
                 <Button variant="outline" size="sm" className="flex items-center space-x-1">
