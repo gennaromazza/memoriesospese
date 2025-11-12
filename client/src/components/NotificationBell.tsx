@@ -112,8 +112,16 @@ export default function NotificationBell({
             selectedAt: data.selectionCompletedAt
           } as PhotoSelection;
         });
-      } catch (error) {
-        console.error('Errore caricamento selezioni recenti:', error);
+      } catch (error: any) {
+        console.error('❌ Errore caricamento selezioni recenti:', error);
+        // Logga anche il messaggio dell'errore che potrebbe contenere il link per creare l'indice Firebase
+        if (error.message) {
+          console.error('📋 Messaggio errore:', error.message);
+        }
+        // Se è un errore Firebase con link per indice, lo mostriamo
+        if (error.code === 'failed-precondition' && error.message) {
+          console.error('🔗 LINK FIREBASE PER CREARE INDICE:', error.message);
+        }
         return [];
       }
     },
