@@ -71,16 +71,26 @@ export async function apiRequest(
   // Prepara headers
   const headers: Record<string, string> = enhancedData ? { "Content-Type": "application/json" } : {};
   
+  // Endpoint consultations pubblici (NON richiedono auth)
+  const publicConsultationEndpoints = [
+    '/api/consultations/available-slots',
+    '/api/consultations/create'
+  ];
+  
+  const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => url.includes(endpoint));
+  
   // Aggiungi token Firebase per endpoint che lo richiedono
   const firebaseAuthEndpoints = [
     '/api/import/',
     '/api/email/',
     '/api/quote/',
-    '/api/booking/',
-    '/api/consultations/'
+    '/api/booking/'
   ];
   
-  const needsFirebaseAuth = firebaseAuthEndpoints.some(endpoint => url.includes(endpoint));
+  // Check specifico per consultations: tutti tranne i pubblici
+  const isConsultationsEndpoint = url.includes('/api/consultations');
+  const needsFirebaseAuth = (isConsultationsEndpoint && !isPublicConsultationEndpoint) || 
+                            firebaseAuthEndpoints.some(endpoint => url.includes(endpoint));
   
   if (needsFirebaseAuth && auth.currentUser) {
     try {

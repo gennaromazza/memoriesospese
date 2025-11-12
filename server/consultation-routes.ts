@@ -294,33 +294,41 @@ router.get('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
  */
 router.post('/available-slots', async (req, res) => {
   try {
+    console.log('[POST /available-slots] Request body:', req.body);
     const { date, templateId } = req.body;
 
     if (!date || !templateId) {
+      console.log('[POST /available-slots] Parametri mancanti:', { date, templateId });
       return res.status(400).json({ 
         error: 'Parametri mancanti (date, templateId richiesti)' 
       });
     }
 
     // Recupera template per durata
+    console.log('[POST /available-slots] Recupero template:', templateId);
     const template = await consultationService.getTemplateById(templateId);
 
     if (!template) {
+      console.log('[POST /available-slots] Template non trovato:', templateId);
       return res.status(404).json({ error: 'Template non trovato' });
     }
 
     if (!template.attiva) {
+      console.log('[POST /available-slots] Template non attivo:', templateId);
       return res.status(400).json({ error: 'Template non attivo' });
     }
 
+    console.log('[POST /available-slots] Calcolo slot per date:', date, 'durata:', template.durataMinuti);
     const slots = await consultationService.getAvailableSlotsForDate(
       new Date(date),
       template.durataMinuti
     );
 
-    res.json(slots);
+    console.log('[POST /available-slots] Slot calcolati:', slots.length);
+    res.json({ slots });
   } catch (error: any) {
-    console.error('[POST /available-slots] Errore:', error.message);
+    console.error('[POST /available-slots] Errore completo:', error);
+    console.error('[POST /available-slots] Stack:', error.stack);
     res.status(500).json({ error: 'Errore calcolo slot disponibili' });
   }
 });

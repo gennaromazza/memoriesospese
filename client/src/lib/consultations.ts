@@ -148,15 +148,7 @@ export function useAvailableSlots() {
       templateId: string;
       date: string;
     }) => {
-      const res = await fetch('/api/consultations/available-slots', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to fetch available slots');
-      }
+      const res = await apiRequest('POST', '/api/consultations/available-slots', data);
       return res.json();
     }
   });
@@ -165,15 +157,7 @@ export function useAvailableSlots() {
 export function useCreateConsultation() {
   return useMutation({
     mutationFn: async (data: InsertConsultation) => {
-      const res = await fetch('/api/consultations/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to create consultation');
-      }
+      const res = await apiRequest('POST', '/api/consultations/create', data);
       return res.json();
     },
     onSuccess: () => {
