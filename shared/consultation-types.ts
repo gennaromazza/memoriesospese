@@ -210,7 +210,7 @@ export interface InsertConsultation {
     email: string;
     whatsapp: string;
   };
-  dataConsulenza: Date;
+  dataConsulenza: string;  // ISO string (frontend → backend), coerced to Date in schema
   orarioInizio: string;
   orarioFine: string;
   jobDataCollected: Record<string, ConsultationJobFieldValue>;
@@ -227,7 +227,7 @@ export interface UpdateConsultation {
     email: string;
     whatsapp: string;
   };
-  dataConsulenza?: Date;
+  dataConsulenza?: string;  // ISO string, coerced to Date in schema
   orarioInizio?: string;
   orarioFine?: string;
   jobDataCollected?: Record<string, ConsultationJobFieldValue>;
@@ -333,7 +333,7 @@ const JobDataValueSchema = z.union([
 export const InsertConsultationSchema = z.object({
   templateId: z.string().min(1, "Template obbligatorio"),
   cliente: ClienteDataSchema,
-  dataConsulenza: z.date(),
+  dataConsulenza: z.coerce.date(),  // Coerce string ISO → Date
   orarioInizio: z.string().regex(/^\d{2}:\d{2}$/, "Formato orario non valido (HH:mm)"),
   orarioFine: z.string().regex(/^\d{2}:\d{2}$/, "Formato orario non valido (HH:mm)"),
   jobDataCollected: z.record(z.string(), JobDataValueSchema),
@@ -343,7 +343,7 @@ export const InsertConsultationSchema = z.object({
 // Schema consulenza aggiornamento
 export const UpdateConsultationSchema = z.object({
   cliente: ClienteDataSchema.optional(),
-  dataConsulenza: z.date().optional(),
+  dataConsulenza: z.coerce.date().optional(),  // Coerce string ISO → Date
   orarioInizio: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   orarioFine: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   jobDataCollected: z.record(z.string(), JobDataValueSchema).optional(),

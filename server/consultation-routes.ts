@@ -334,11 +334,11 @@ router.post('/create', async (req, res) => {
     // Validazione base dati
     const { templateId, cliente, dataConsulenza, orarioInizio, orarioFine, jobDataCollected, note } = req.body;
     
-    // Validazione Zod
+    // Validazione Zod (dataConsulenza coerced ISO string → Date in schema)
     const validatedData = InsertConsultationSchema.parse({
       templateId,
       cliente,
-      dataConsulenza: new Date(dataConsulenza),
+      dataConsulenza,  // z.coerce.date() converts string → Date automatically
       orarioInizio,
       orarioFine,
       jobDataCollected: jobDataCollected || {},
@@ -386,8 +386,9 @@ router.post('/create', async (req, res) => {
     }
     
     // Crea consultation
+    // Note: validatedData has Date from z.coerce.date(), service layer expects Date
     const consultationId = await consultationService.createConsultation(
-      validatedData,
+      validatedData as any,  // Type assertion needed: InsertConsultation (string) vs validated (Date)
       template
     );
     
