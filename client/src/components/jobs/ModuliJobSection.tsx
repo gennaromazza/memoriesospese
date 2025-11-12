@@ -1112,7 +1112,7 @@ export default function ModuliJobSection({
                         {manualSignatureForm.watch("signedAt") ? (
                           formatDate(
                             manualSignatureForm.watch("signedAt"),
-                            "PPP",
+                            "dd/MM/yyyy",
                             { locale: it },
                           )
                         ) : (
