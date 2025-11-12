@@ -1028,19 +1028,30 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">💰</span>
               </TabsTrigger>
 
-              {/* Consulenze: Prenotazioni */}
-              <TabsTrigger value="consulenze" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-consulenze">
-                <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Consulenze</span>
-                <span className="sm:hidden">Cons.</span>
-              </TabsTrigger>
-
-              {/* Consulenze: Template */}
-              <TabsTrigger value="consulenze-templates" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-consulenze-templates">
-                <FileText className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Template Consulenze</span>
-                <span className="sm:hidden">Tmpl</span>
-              </TabsTrigger>
+              {/* Consulenze con dropdown sottomenu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant={activeTab === 'consulenze' || activeTab === 'consulenze-templates' ? 'default' : 'ghost'}
+                    className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
+                  >
+                    <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">Consulenze</span>
+                    <span className="sm:hidden">Cons.</span>
+                    <ChevronRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuItem onClick={() => setActiveTab('consulenze')}>
+                    <CalendarCheck className="h-4 w-4 mr-2" />
+                    Prenotazioni Consulenze
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab('consulenze-templates')}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Template Consulenze
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Separatore visivo */}
               <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
