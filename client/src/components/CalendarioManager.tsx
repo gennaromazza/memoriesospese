@@ -80,6 +80,11 @@ export default function CalendarioManager() {
       const start = startOfMonth(selectedDate);
       const end = endOfMonth(selectedDate);
       
+      console.log('[CalendarioManager] Fetching Google Calendar events:', {
+        timeMin: start.toISOString(),
+        timeMax: end.toISOString()
+      });
+      
       const response = await fetch('/api/calendar/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,51 +94,88 @@ export default function CalendarioManager() {
         }),
       });
 
-      if (!response.ok) throw new Error('Errore caricamento eventi Google');
-      return response.json();
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[CalendarioManager] Google Calendar fetch error:', errorText);
+        throw new Error(`Errore caricamento eventi Google: ${errorText}`);
+      }
+      const events = await response.json();
+      console.log('[CalendarioManager] Google Calendar events loaded:', events.length);
+      return events;
     },
     enabled: !!user,
+    retry: false,
   });
 
   // Fetch Bookings confermati
   const { data: bookings = [], isLoading: loadingBookings } = useQuery<Booking[]>({
     queryKey: ['bookings'],
     queryFn: async () => {
+      console.log('[CalendarioManager] Fetching bookings...');
       const response = await fetch('/api/booking/all');
-      if (!response.ok) throw new Error('Errore caricamento bookings');
+      if (!response.ok) {
+        console.error('[CalendarioManager] Bookings fetch error:', response.status);
+        throw new Error('Errore caricamento bookings');
+      }
       const data = await response.json();
-      return data.filter((b: Booking) => b.stato === 'confermata');
+      const confirmed = data.filter((b: Booking) => b.stato === 'confermata');
+      console.log('[CalendarioManager] Bookings loaded:', {
+        total: data.length,
+        confirmed: confirmed.length
+      });
+      return confirmed;
     },
     enabled: !!user,
+    retry: false,
   });
 
   // Fetch Consultations approvate
   const { data: consultations = [], isLoading: loadingConsultations } = useQuery<Consultation[]>({
     queryKey: ['consultations'],
     queryFn: async () => {
+      console.log('[CalendarioManager] Fetching consultations...');
       const token = user ? await user.getIdToken() : '';
       const response = await fetch('/api/consultations', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
-      if (!response.ok) throw new Error('Errore caricamento consulenze');
+      if (!response.ok) {
+        console.error('[CalendarioManager] Consultations fetch error:', response.status);
+        throw new Error('Errore caricamento consulenze');
+      }
       const data = await response.json();
-      return data.filter((c: Consultation) => c.stato === 'approvata');
+      const approved = data.filter((c: Consultation) => c.stato === 'approvata' || c.stato === 'confermata');
+      console.log('[CalendarioManager] Consultations loaded:', {
+        total: data.length,
+        approved: approved.length
+      });
+      return approved;
     },
     enabled: !!user,
+    retry: false,
   });
 
   // Fetch Jobs confermati
   const { data: jobs = [], isLoading: loadingJobs } = useQuery<Job[]>({
     queryKey: ['jobs'],
     queryFn: async () => {
+      console.log('[CalendarioManager] Fetching jobs...');
       const response = await fetch('/api/jobs');
-      if (!response.ok) throw new Error('Errore caricamento jobs');
+      if (!response.ok) {
+        console.error('[CalendarioManager] Jobs fetch error:', response.status);
+        throw new Error('Errore caricamento jobs');
+      }
       const data = await response.json();
-      return data.filter((j: Job) => 
+      const active = data.filter((j: Job) => 
         j.status !== 'lead' && j.status !== 'annullato' && j.status !== 'archiviato'
       );
+      console.log('[CalendarioManager] Jobs loaded:', {
+        total: data.length,
+        active: active.length
+      });
+      return active;
     },
     enabled: !!user,
+    retry: false,
   });
 
   // Fetch Clienti
@@ -143,9 +185,30 @@ export default function CalendarioManager() {
     enabled: !!user,
   });
 
+  // Debug stato caricamento
+  useEffect(() => {
+    console.log('[CalendarioManager] Data loading state:', {
+      user: !!user,
+      loadingGoogle,
+      loadingBookings,
+      loadingConsultations,
+      loadingJobs,
+      googleEvents: googleEvents.length,
+      bookings: bookings.length,
+      consultations: consultations.length,
+      jobs: jobs.length
+    });
+  }, [user, loadingGoogle, loadingBookings, loadingConsultations, loadingJobs, googleEvents, bookings, consultations, jobs]);
+
   // Converti eventi in formato unificato
   const allEvents = useMemo<CalendarEvent[]>(() => {
     const events: CalendarEvent[] = [];
+    console.log('[CalendarioManager] Building allEvents from:', {
+      googleEvents: googleEvents.length,
+      bookings: bookings.length,
+      consultations: consultations.length,
+      jobs: jobs.length
+    });
 
     // Google Calendar Events
     googleEvents.forEach((event: any) => {
@@ -166,48 +229,60 @@ export default function CalendarioManager() {
 
     // Bookings
     bookings.forEach((booking: Booking) => {
-      const start = booking.dataShootingInizio.toDate();
-      const end = booking.dataShootingFine.toDate();
+      try {
+        const start = booking.dataShootingInizio?.toDate ? booking.dataShootingInizio.toDate() : new Date(booking.dataShootingInizio as any);
+        const end = booking.dataShootingFine?.toDate ? booking.dataShootingFine.toDate() : new Date(booking.dataShootingFine as any);
 
       events.push({
-        id: `booking-${booking.id}`,
-        title: `📸 Shooting - ${booking.cliente.nome} ${booking.cliente.cognome}`,
-        start,
-        end,
-        type: 'booking',
-        entityId: booking.id,
-        clienteEmail: booking.cliente.email,
-        clienteNome: `${booking.cliente.nome} ${booking.cliente.cognome}`,
-      });
+          id: `booking-${booking.id}`,
+          title: `📸 Shooting - ${booking.cliente.nome} ${booking.cliente.cognome}`,
+          start,
+          end,
+          type: 'booking',
+          entityId: booking.id,
+          clienteEmail: booking.cliente.email,
+          clienteNome: `${booking.cliente.nome} ${booking.cliente.cognome}`,
+        });
+      } catch (error) {
+        console.error('[CalendarioManager] Error parsing booking:', booking.id, error);
+      }
     });
 
     // Consultations
     consultations.forEach((consultation: Consultation) => {
-      const start = consultation.dataOraInizio.toDate();
-      const end = consultation.dataOraFine.toDate();
+      try {
+        const start = consultation.dataConsulenza?.toDate ? consultation.dataConsulenza.toDate() : new Date(consultation.dataConsulenza as any);
+        // Calcola end basandosi su orarioFine
+        const end = new Date(start);
+        const [hours, minutes] = consultation.orarioFine.split(':');
+        end.setHours(parseInt(hours), parseInt(minutes));
 
       events.push({
-        id: `consultation-${consultation.id}`,
-        title: `💼 Consulenza - ${consultation.clienteNome} ${consultation.clienteCognome}`,
-        start,
-        end,
-        type: 'consultation',
-        entityId: consultation.id,
-        clienteEmail: consultation.clienteEmail,
-        clienteNome: `${consultation.clienteNome} ${consultation.clienteCognome}`,
-      });
+          id: `consultation-${consultation.id}`,
+          title: `💼 Consulenza - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+          start,
+          end,
+          type: 'consultation',
+          entityId: consultation.id,
+          clienteEmail: consultation.cliente.email,
+          clienteNome: `${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+        });
+      } catch (error) {
+        console.error('[CalendarioManager] Error parsing consultation:', consultation.id, error);
+      }
     });
 
     // Jobs
     jobs.forEach((job: Job) => {
-      const start = job.eventDate.toDate();
-      const end = new Date(start);
-      if (job.endTime) {
-        const [hours, minutes] = job.endTime.split(':');
-        end.setHours(parseInt(hours), parseInt(minutes));
-      } else {
-        end.setHours(start.getHours() + 2); // Default 2 ore
-      }
+      try {
+        const start = job.eventDate?.toDate ? job.eventDate.toDate() : new Date(job.eventDate as any);
+        const end = new Date(start);
+        if (job.endTime) {
+          const [hours, minutes] = job.endTime.split(':');
+          end.setHours(parseInt(hours), parseInt(minutes));
+        } else {
+          end.setHours(start.getHours() + 2); // Default 2 ore
+        }
 
       // Trova nomi clienti
       const clienteNomi = job.clientiIds
@@ -219,16 +294,20 @@ export default function CalendarioManager() {
         .join(', ');
 
       events.push({
-        id: `job-${job.id}`,
-        title: `🎯 ${job.nomeEvento}${clienteNomi ? ` - ${clienteNomi}` : ''}`,
-        start,
-        end,
-        type: 'job',
-        entityId: job.id,
-        clienteNome: clienteNomi,
-      });
+          id: `job-${job.id}`,
+          title: `🎯 ${job.nomeEvento}${clienteNomi ? ` - ${clienteNomi}` : ''}`,
+          start,
+          end,
+          type: 'job',
+          entityId: job.id,
+          clienteNome: clienteNomi,
+        });
+      } catch (error) {
+        console.error('[CalendarioManager] Error parsing job:', job.id, error);
+      }
     });
 
+    console.log('[CalendarioManager] Total events built:', events.length);
     return events;
   }, [googleEvents, bookings, consultations, jobs, clienti]);
 
