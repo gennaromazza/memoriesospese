@@ -351,23 +351,23 @@ export default function ConsultationsManager() {
                   const template = templatesMap[consultation.templateId];
                   
                   // Safe date conversion with validation
-                  let consultationDate: Date;
+                  let consultationDate: Date | null = null;
+                  let dateIsValid = false;
+                  
                   try {
-                    if (typeof consultation.dataConsulenza?.toDate === 'function') {
+                    // Return early if no date available
+                    if (!consultation.dataConsulenza) {
+                      dateIsValid = false;
+                    } else if (typeof consultation.dataConsulenza.toDate === 'function') {
                       consultationDate = consultation.dataConsulenza.toDate();
-                    } else if (consultation.dataConsulenza) {
-                      consultationDate = new Date(consultation.dataConsulenza as any);
+                      dateIsValid = !isNaN(consultationDate.getTime());
                     } else {
-                      consultationDate = new Date(); // Fallback
-                    }
-                    
-                    // Validate date
-                    if (isNaN(consultationDate.getTime())) {
-                      consultationDate = new Date(); // Fallback to current date if invalid
+                      consultationDate = new Date(consultation.dataConsulenza as any);
+                      dateIsValid = !isNaN(consultationDate.getTime());
                     }
                   } catch (error) {
                     console.error('[ConsultationsManager] Error parsing date:', error, consultation);
-                    consultationDate = new Date(); // Fallback
+                    dateIsValid = false;
                   }
                   
                   const config = STATUS_CONFIG[consultation.stato];
@@ -379,7 +379,9 @@ export default function ConsultationsManager() {
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1 text-sm font-medium">
                             <Calendar className="w-3 h-3" />
-                            {format(consultationDate, 'dd MMM yyyy', { locale: it })}
+                            {dateIsValid && consultationDate 
+                              ? format(consultationDate, 'dd MMM yyyy', { locale: it })
+                              : 'Data non disponibile'}
                           </div>
                           <div className="flex items-center gap-1 text-xs text-gray-500">
                             <Clock className="w-3 h-3" />
@@ -530,13 +532,30 @@ export default function ConsultationsManager() {
                 <div>
                   <Label className="text-xs text-gray-500">Data</Label>
                   <p className="font-medium">
-                    {format(
-                      typeof selectedConsultation.dataConsulenza.toDate === 'function'
-                        ? selectedConsultation.dataConsulenza.toDate()
-                        : new Date(selectedConsultation.dataConsulenza as any),
-                      'dd MMMM yyyy',
-                      { locale: it }
-                    )}
+                    {(() => {
+                      try {
+                        // Return early if no date available
+                        if (!selectedConsultation.dataConsulenza) {
+                          return 'Data non disponibile';
+                        }
+                        
+                        let consultationDate: Date;
+                        if (typeof selectedConsultation.dataConsulenza.toDate === 'function') {
+                          consultationDate = selectedConsultation.dataConsulenza.toDate();
+                        } else {
+                          consultationDate = new Date(selectedConsultation.dataConsulenza as any);
+                        }
+                        
+                        if (isNaN(consultationDate.getTime())) {
+                          return 'Data non disponibile';
+                        }
+                        
+                        return format(consultationDate, 'dd MMMM yyyy', { locale: it });
+                      } catch (error) {
+                        console.error('[ConsultationsManager] Error formatting date in detail modal:', error);
+                        return 'Data non disponibile';
+                      }
+                    })()}
                   </p>
                 </div>
                 
