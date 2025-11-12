@@ -138,11 +138,11 @@ export default function PresetManager({
 
   // Handler salva preset
   const handleSavePreset = (values: z.infer<typeof savePresetSchema>) => {
-    if (currentProducts.length === 0) {
+    if (!currentCatalogProductIds.length && !currentProducts.length) {
       toast({
         variant: 'destructive',
         title: '❌ Nessun prodotto da salvare',
-        description: 'Aggiungi almeno un prodotto prima di salvare il preset',
+        description: 'Aggiungi almeno un prodotto dal catalogo o custom prima di salvare il preset',
       });
       return;
     }
@@ -237,7 +237,14 @@ export default function PresetManager({
                 <div className="font-medium text-sm">Contenuto Preset:</div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Package className="h-4 w-4" />
-                  <span>{currentProducts.length} prodotti</span>
+                  <span>
+                    {currentCatalogProductIds.length + currentProducts.length} prodotti
+                    {currentCatalogProductIds.length > 0 && currentProducts.length > 0 && (
+                      <span className="text-xs ml-1">
+                        ({currentCatalogProductIds.length} catalogo + {currentProducts.length} custom)
+                      </span>
+                    )}
+                  </span>
                 </div>
                 {currentDiscountValue !== undefined && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -320,7 +327,7 @@ export default function PresetManager({
                             <div className="flex flex-wrap gap-2">
                               <Badge variant="outline" className="text-xs">
                                 <Package className="h-3 w-3 mr-1" />
-                                {preset.products.length} prodotti
+                                {(preset.catalogProductIds?.length || 0) + preset.products.length} prodotti
                               </Badge>
                               {preset.discountValue !== undefined && (
                                 <Badge variant="outline" className="text-xs">
