@@ -550,21 +550,42 @@ export default function ConsultationBooking() {
                 Riceverai a breve una email di conferma con tutti i dettagli della tua prenotazione.
               </p>
 
-              {/* Instagram Follow Invitation */}
+              {/* Instagram Follow Invitation with Feed Preview */}
               {studioSettings?.socialLinks?.instagram && (
                 <div className="mt-6 pt-6 border-t border-beige/30">
-                  <p className="text-sm text-gray-600 mb-3">
-                    Seguici su Instagram per rimanere aggiornato e scoprire i nostri lavori!
-                  </p>
+                  <div className="text-center mb-4">
+                    <h4 className="text-lg font-semibold text-blue-gray mb-2">
+                      Seguici su Instagram
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      Scopri i nostri ultimi lavori e resta aggiornato!
+                    </p>
+                  </div>
+
+                  {/* Instagram Feed Embed */}
+                  <div className="mb-4 rounded-lg overflow-hidden border border-beige/30 bg-gray-50">
+                    <iframe
+                      src={`https://www.instagram.com/${studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}/embed`}
+                      width="100%"
+                      height="480"
+                      frameBorder="0"
+                      scrolling="no"
+                      allowTransparency={true}
+                      className="w-full"
+                      title="Instagram Feed Preview"
+                    />
+                  </div>
+
+                  {/* Follow Button */}
                   <a
                     href={
                       studioSettings.socialLinks.instagram.startsWith("http")
                         ? studioSettings.socialLinks.instagram
-                        : `https://instagram.com/${studioSettings.socialLinks.instagram}`
+                        : `https://instagram.com/${studioSettings.socialLinks.instagram.replace('@', '')}`
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg"
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg w-full"
                   >
                     <svg
                       className="w-5 h-5"
