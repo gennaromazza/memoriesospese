@@ -576,9 +576,8 @@ export default function QuoteBuilder({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleDialogChange}>
-
-    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={open} onOpenChange={handleDialogChange}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="text-2xl">{jobType.icona}</span>
@@ -1472,11 +1471,11 @@ export default function QuoteBuilder({
             </div>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
 
-    {/* Preset Manager */}
-    {presetMode && (
+      {/* Preset Manager */}
+      {presetMode && (
       <PresetManager
         mode={presetMode}
         open={!!presetMode}
@@ -1518,8 +1517,8 @@ export default function QuoteBuilder({
         currentPaymentScheduleConfig={paymentConfig}
         currentClauseTemplateId={selectedClauseTemplateId}
         onPresetSelected={handleLoadPreset}
-      />
-    )}
+        />
+      )}
     </>
   );
 }
