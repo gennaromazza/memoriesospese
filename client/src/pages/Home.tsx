@@ -91,14 +91,14 @@ export default function Home() {
       const results: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        
+
         // Salta le special gallery - hanno una schermata dedicata con PIN
         // Escludi se ha un tema speciale assegnato (controlla ID tema)
         if (data.specialTheme && specialThemeIds.includes(data.specialTheme)) {
           console.log(`🚫 Esclusa special gallery "${data.name}" con tema ID "${data.specialTheme}"`);
           return;
         }
-        
+
         const galleryName = data.name.toLowerCase();
         const searchTermLower = searchTerm.toLowerCase();
 
@@ -147,7 +147,7 @@ export default function Home() {
         // Import helper function from booking-campaigns.ts
         const { getActiveCampaigns } = await import('@/lib/booking-campaigns');
         const active = await getActiveCampaigns();
-        
+
         // Ordina per data fine più vicina
         active.sort(
           (a, b) => a.dataFine.getTime() - b.dataFine.getTime()
@@ -358,7 +358,7 @@ export default function Home() {
             <div className="group bg-gradient-to-br from-white to-cream rounded-2xl p-8 shadow-lg border border-beige hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
               <div className="w-20 h-20 mx-auto mb-6 bg-light-mint rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                 <svg className="w-10 h-10 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
               <div className="mb-4 text-center">
@@ -453,7 +453,7 @@ export default function Home() {
                             />
                           </div>
                         )}
-                        
+
                         <div className="flex flex-col md:flex-row items-center gap-12 p-8 sm:p-12 lg:p-16">
                           {/* Left side - Info */}
                           <div className="flex-1 text-center md:text-left space-y-6">
@@ -580,7 +580,7 @@ export default function Home() {
                                 />
                               </div>
                             )}
-                            
+
                             <div className="flex flex-col md:flex-row items-center gap-10 p-8 sm:p-12 lg:p-14">
                               {/* Campaign Info */}
                               <div className="flex-1 text-center md:text-left space-y-5">
@@ -673,8 +673,6 @@ export default function Home() {
           </div>
         </section>
       )}
-
-      
 
       {/* Access Gallery Form */}
       <section id="access-gallery" className="py-20 bg-off-white relative">
@@ -876,7 +874,7 @@ export default function Home() {
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-sage/80 to-dark-sage/80 dark:from-sage/60 dark:to-dark-sage/60 rounded-full mb-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-sage/80 to-dark-sage/80 dark:from-sage/60 dark:to-dark-sage/60 rounded-full mb-4 shadow-md">
               <svg
                 className="w-8 h-8 text-white"
                 fill="none"
@@ -1016,9 +1014,9 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Feature Cards */}
+          {/* Contatti diretti */}
           <div className="mt-16">
-            <div className="space-y-10 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-6 md:gap-8">
+            <div className="space-y-10 md:space-y-0 md:grid md:grid-cols-3 md:gap-x-8 md:gap-y-10">
               {/* Card Dove Siamo */}
               <div className="bg-off-white rounded-lg p-6 shadow-sm flex flex-col items-center text-center">
                 <div className="h-16 w-16 mb-4">
@@ -1152,70 +1150,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-          <div className="mt-16">
-            <div className="space-y-10 md:space-y-0 md:grid md:grid-cols-3 md:gap-x-8 md:gap-y-10">
-              {/* Feature 1 */}
-              <div className="relative group">
-                <div className="absolute h-14 w-14">
-                  <DecorativeImage
-                    type="heart-balloon"
-                    className="w-full h-auto"
-                    alt="Icona palloncino a cuore"
-                  />
-                </div>
-                <div className="ml-16">
-                  <h3 className="text-lg leading-6 font-medium text-blue-gray font-playfair">
-                    Accesso riservato agli invitati
-                  </h3>
-                  <p className="mt-2 text-base text-gray-500">
-                    Solo gli ospiti dell'evento hanno accesso alle gallerie,
-                    mantenendo i ricordi privati e speciali.
-                  </p>
-                </div>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="relative group">
-                <div className="absolute h-14 w-14">
-                  <DecorativeImage
-                    type="wedding-cake"
-                    className="w-full h-auto"
-                    alt="Icona torta nuziale"
-                  />
-                </div>
-                <div className="ml-16">
-                  <h3 className="text-lg leading-6 font-medium text-blue-gray font-playfair">
-                    Ricordi in alta qualità
-                  </h3>
-                  <p className="mt-2 text-base text-gray-500">
-                    Rivivi ogni emozione dell'evento con immagini professionali
-                    che catturano l'essenza di ogni momento.
-                  </p>
-                </div>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="relative group">
-                <div className="absolute h-14 w-14">
-                  <DecorativeImage
-                    type="standing"
-                    className="w-full h-auto"
-                    alt="Icona sposi"
-                  />
-                </div>
-                <div className="ml-16">
-                  <h3 className="text-lg leading-6 font-medium text-blue-gray font-playfair">
-                    Condivisione tra invitati
-                  </h3>
-                  <p className="mt-2 text-base text-gray-500">
-                    Condividi facilmente l'indirizzo della galleria con altri
-                    invitati dell'evento o richiedi la password ai protagonisti.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1285,7 +1219,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              
+
               <iframe
                 src={`https://www.instagram.com/${studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}/embed`}
                 width="100%"
