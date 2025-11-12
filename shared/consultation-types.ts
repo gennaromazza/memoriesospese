@@ -107,6 +107,13 @@ export interface ConsultationTemplate {
   // Campi job da raccogliere (configurazione dinamica)
   jobDataFields: ConsultationJobField[];  // Array campi configurabili
   
+  // Disponibilità e orari personalizzati
+  excludedDays?: number[];                // Giorni settimana esclusi (0-6: 0=Dom, 6=Sab)
+  customWorkingHours?: ConsultationWorkingHours[];  // Orari custom (sovrascrive DEFAULT se presente)
+  
+  // Immagini template (Firebase Storage URLs)
+  imageUrls?: string[];                   // Array URLs immagini per preview cliente
+  
   attiva: boolean;                        // Template disponibile per prenotazione
   ordine: number;                         // Ordinamento display (default 0)
   
@@ -123,6 +130,9 @@ export interface InsertConsultationTemplate {
   durataMinuti: number;
   descrizione: string;
   jobDataFields: ConsultationJobField[];
+  excludedDays?: number[];
+  customWorkingHours?: ConsultationWorkingHours[];
+  imageUrls?: string[];
   attiva: boolean;
   ordine: number;
 }
@@ -135,6 +145,9 @@ export interface UpdateConsultationTemplate {
   durataMinuti?: number;
   descrizione?: string;
   jobDataFields?: ConsultationJobField[];
+  excludedDays?: number[];
+  customWorkingHours?: ConsultationWorkingHours[];
+  imageUrls?: string[];
   attiva?: boolean;
   ordine?: number;
 }
@@ -300,6 +313,16 @@ export const ConsultationJobFieldSchema = z.discriminatedUnion('type', [
   ConsultationJobFieldMultiSelectSchema,
 ]);
 
+// Schema working hours per validazione
+const ConsultationWorkingHoursSchema = z.object({
+  giornoSettimana: z.number().min(0).max(6),
+  apertura: z.string().regex(/^\d{2}:\d{2}$/, "Formato ora non valido (HH:mm)"),
+  pausaInizio: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  pausaFine: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  chiusura: z.string().regex(/^\d{2}:\d{2}$/, "Formato ora non valido (HH:mm)"),
+  attivo: z.boolean(),
+});
+
 // Schema template inserimento
 export const InsertConsultationTemplateSchema = z.object({
   nome: z.string().min(1, "Nome template obbligatorio"),
@@ -307,6 +330,9 @@ export const InsertConsultationTemplateSchema = z.object({
   durataMinuti: z.number().min(15).max(480, "Durata massima 8 ore"),
   descrizione: z.string().min(1, "Descrizione obbligatoria"),
   jobDataFields: z.array(ConsultationJobFieldSchema),
+  excludedDays: z.array(z.number().min(0).max(6)).optional(),
+  customWorkingHours: z.array(ConsultationWorkingHoursSchema).optional(),
+  imageUrls: z.array(z.string().url()).optional(),
   attiva: z.boolean(),
   ordine: z.number().int().default(0),
 });
