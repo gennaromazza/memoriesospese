@@ -10,12 +10,12 @@
     "skipLibCheck": true,
     "strict": true,
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "rootDir": "."
   },
   "include": [
     "server/**/*",
-    "shared/**/*",
-    "server/reminder-script.ts"
+    "shared/**/*"
   ],
   "exclude": ["node_modules", "client/**/*", "dist/**/*"]
 }
