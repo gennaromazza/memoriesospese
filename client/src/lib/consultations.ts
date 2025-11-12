@@ -1,0 +1,249 @@
+/**
+ * CONSULTATIONS API CLIENT
+ * TanStack Query wrapper per modulo Consulenze
+ */
+
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { queryClient, apiRequest } from './queryClient';
+import type {
+  ConsultationTemplate,
+  Consultation,
+  InsertConsultationTemplate,
+  UpdateConsultationTemplate,
+  InsertConsultation
+} from '@shared/consultation-types';
+
+export const CONSULTATION_KEYS = {
+  all: ['consultations'] as const,
+  templates: () => [...CONSULTATION_KEYS.all, 'templates'] as const,
+  template: (id: string) => [...CONSULTATION_KEYS.templates(), id] as const,
+  templatesByJobType: (jobType: string) => [...CONSULTATION_KEYS.templates(), 'job-type', jobType] as const,
+  jobTypes: () => [...CONSULTATION_KEYS.all, 'job-types'] as const,
+  consultations: () => [...CONSULTATION_KEYS.all, 'list'] as const,
+  consultation: (id: string) => [...CONSULTATION_KEYS.consultations(), id] as const,
+};
+
+export function useTemplates() {
+  return useQuery<ConsultationTemplate[]>({
+    queryKey: CONSULTATION_KEYS.templates(),
+    queryFn: async () => {
+      const res = await fetch('/api/consultations/templates', {
+        headers: {
+          'Authorization': `Bearer ${await getIdToken()}`
+        }
+      });
+      if (!res.ok) throw new Error('Failed to fetch templates');
+      return res.json();
+    }
+  });
+}
+
+export function useTemplate(id: string | undefined) {
+  return useQuery<ConsultationTemplate>({
+    queryKey: CONSULTATION_KEYS.template(id!),
+    queryFn: async () => {
+      const res = await fetch(`/api/consultations/templates/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch template');
+      return res.json();
+    },
+    enabled: !!id
+  });
+}
+
+export function useTemplatesByJobType(jobType: string | undefined) {
+  return useQuery<ConsultationTemplate[]>({
+    queryKey: CONSULTATION_KEYS.templatesByJobType(jobType!),
+    queryFn: async () => {
+      const res = await fetch(`/api/consultations/templates/by-job-type/${jobType}`);
+      if (!res.ok) throw new Error('Failed to fetch templates');
+      return res.json();
+    },
+    enabled: !!jobType
+  });
+}
+
+export function useJobTypes() {
+  return useQuery<string[]>({
+    queryKey: CONSULTATION_KEYS.jobTypes(),
+    queryFn: async () => {
+      const res = await fetch('/api/consultations/job-types');
+      if (!res.ok) throw new Error('Failed to fetch job types');
+      return res.json();
+    }
+  });
+}
+
+export function useConsultations() {
+  return useQuery<Consultation[]>({
+    queryKey: CONSULTATION_KEYS.consultations(),
+    queryFn: async () => {
+      const res = await fetch('/api/consultations', {
+        headers: {
+          'Authorization': `Bearer ${await getIdToken()}`
+        }
+      });
+      if (!res.ok) throw new Error('Failed to fetch consultations');
+      return res.json();
+    }
+  });
+}
+
+export function useConsultation(id: string | undefined) {
+  return useQuery<Consultation>({
+    queryKey: CONSULTATION_KEYS.consultation(id!),
+    queryFn: async () => {
+      const res = await fetch(`/api/consultations/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${await getIdToken()}`
+        }
+      });
+      if (!res.ok) throw new Error('Failed to fetch consultation');
+      return res.json();
+    },
+    enabled: !!id
+  });
+}
+
+export function useCreateTemplate() {
+  return useMutation({
+    mutationFn: async (data: InsertConsultationTemplate) => {
+      return apiRequest('POST', '/api/consultations/templates', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates() });
+    }
+  });
+}
+
+export function useUpdateTemplate() {
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: UpdateConsultationTemplate }) => {
+      return apiRequest('PATCH', `/api/consultations/templates/${id}`, data);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates() });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.template(variables.id) });
+    }
+  });
+}
+
+export function useDeleteTemplate() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/consultations/templates/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates() });
+    }
+  });
+}
+
+export function useAvailableSlots() {
+  return useMutation({
+    mutationFn: async (data: {
+      templateId: string;
+      date: string;
+    }) => {
+      const res = await fetch('/api/consultations/available-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to fetch available slots');
+      }
+      return res.json();
+    }
+  });
+}
+
+export function useCreateConsultation() {
+  return useMutation({
+    mutationFn: async (data: InsertConsultation) => {
+      const res = await fetch('/api/consultations/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to create consultation');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
+    }
+  });
+}
+
+export function useApproveConsultation() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('PATCH', `/api/consultations/${id}/approve`);
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultation(id) });
+    }
+  });
+}
+
+export function useRejectConsultation() {
+  return useMutation({
+    mutationFn: async ({ id, motivazione }: { id: string; motivazione: string }) => {
+      return apiRequest('PATCH', `/api/consultations/${id}/reject`, { motivazione });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultation(variables.id) });
+    }
+  });
+}
+
+export function useCompleteConsultation() {
+  return useMutation({
+    mutationFn: async ({ id, note }: { id: string; note?: string }) => {
+      return apiRequest('PATCH', `/api/consultations/${id}/complete`, { note });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultation(variables.id) });
+    }
+  });
+}
+
+export function useConvertToJob() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('POST', `/api/consultations/${id}/convert-to-job`);
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultation(id) });
+    }
+  });
+}
+
+export function useDeleteConsultation() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/consultations/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
+    }
+  });
+}
+
+export function useMarkConsultationViewed() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('PATCH', `/api/consultations/${id}/mark-viewed`);
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultation(id) });
+    }
+  });
+}

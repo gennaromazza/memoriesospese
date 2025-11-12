@@ -76,7 +76,8 @@ export async function apiRequest(
     '/api/import/',
     '/api/email/',
     '/api/quote/',
-    '/api/booking/'
+    '/api/booking/',
+    '/api/consultations/'
   ];
   
   const needsFirebaseAuth = firebaseAuthEndpoints.some(endpoint => url.includes(endpoint));
