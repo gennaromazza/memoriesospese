@@ -30,7 +30,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
 import { it } from 'date-fns/locale';
-import type { Booking } from '@shared/booking-types';
 import type { Consultation } from '@shared/consultation-types';
 import type { Job } from '@shared/jobs-types';
 import type { Cliente } from '@shared/clienti-types';
@@ -41,7 +40,7 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
-  type: 'google' | 'booking' | 'consultation' | 'job';
+  type: 'google' | 'consultation' | 'job';
   entityId?: string;
   clienteEmail?: string;
   clienteNome?: string;
@@ -55,7 +54,7 @@ export default function CalendarioManager() {
   const { user } = useFirebaseAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'day'>('month');
-  const [filterType, setFilterType] = useState<'all' | 'google' | 'booking' | 'consultation' | 'job'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'google' | 'consultation' | 'job'>('all');
   const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
   const [isLinkEventOpen, setIsLinkEventOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -108,27 +107,7 @@ export default function CalendarioManager() {
     retry: false,
   });
 
-  // Fetch Bookings confermati
-  const { data: bookings = [], isLoading: loadingBookings } = useQuery<Booking[]>({
-    queryKey: ['bookings'],
-    queryFn: async () => {
-      console.log('[CalendarioManager] Fetching bookings...');
-      const response = await fetch('/api/booking/all');
-      if (!response.ok) {
-        console.error('[CalendarioManager] Bookings fetch error:', response.status);
-        throw new Error('Errore caricamento bookings');
-      }
-      const data = await response.json();
-      const confirmed = data.filter((b: Booking) => b.stato === 'confermata');
-      console.log('[CalendarioManager] Bookings loaded:', {
-        total: data.length,
-        confirmed: confirmed.length
-      });
-      return confirmed;
-    },
-    enabled: !!user,
-    retry: false,
-  });
+  
 
   // Fetch Consultations approvate
   const { data: consultations = [], isLoading: loadingConsultations } = useQuery<Consultation[]>({
@@ -191,22 +170,19 @@ export default function CalendarioManager() {
     console.log('[CalendarioManager] Data loading state:', {
       user: !!user,
       loadingGoogle,
-      loadingBookings,
       loadingConsultations,
       loadingJobs,
       googleEvents: googleEvents.length,
-      bookings: bookings.length,
       consultations: consultations.length,
       jobs: jobs.length
     });
-  }, [user, loadingGoogle, loadingBookings, loadingConsultations, loadingJobs, googleEvents, bookings, consultations, jobs]);
+  }, [user, loadingGoogle, loadingConsultations, loadingJobs, googleEvents, consultations, jobs]);
 
   // Converti eventi in formato unificato
   const allEvents = useMemo<CalendarEvent[]>(() => {
     const events: CalendarEvent[] = [];
     console.log('[CalendarioManager] Building allEvents from:', {
       googleEvents: googleEvents.length,
-      bookings: bookings.length,
       consultations: consultations.length,
       jobs: jobs.length
     });
@@ -226,27 +202,6 @@ export default function CalendarioManager() {
         description: event.description,
         location: event.location,
       });
-    });
-
-    // Bookings
-    bookings.forEach((booking: Booking) => {
-      try {
-        const start = booking.dataShootingInizio?.toDate ? booking.dataShootingInizio.toDate() : new Date(booking.dataShootingInizio as any);
-        const end = booking.dataShootingFine?.toDate ? booking.dataShootingFine.toDate() : new Date(booking.dataShootingFine as any);
-
-      events.push({
-          id: `booking-${booking.id}`,
-          title: `📸 Shooting - ${booking.cliente.nome} ${booking.cliente.cognome}`,
-          start,
-          end,
-          type: 'booking',
-          entityId: booking.id,
-          clienteEmail: booking.cliente.email,
-          clienteNome: `${booking.cliente.nome} ${booking.cliente.cognome}`,
-        });
-      } catch (error) {
-        console.error('[CalendarioManager] Error parsing booking:', booking.id, error);
-      }
     });
 
     // Consultations
@@ -310,7 +265,7 @@ export default function CalendarioManager() {
 
     console.log('[CalendarioManager] Total events built:', events.length);
     return events;
-  }, [googleEvents, bookings, consultations, jobs, clienti]);
+  }, [googleEvents, consultations, jobs, clienti]);
 
   // Filtra eventi per tipo
   const filteredEvents = useMemo(() => {
@@ -393,7 +348,6 @@ export default function CalendarioManager() {
   const getEventTypeColor = (type: CalendarEvent['type']) => {
     switch (type) {
       case 'google': return 'bg-blue-500';
-      case 'booking': return 'bg-purple-500';
       case 'consultation': return 'bg-green-500';
       case 'job': return 'bg-orange-500';
       default: return 'bg-gray-500';
@@ -403,13 +357,12 @@ export default function CalendarioManager() {
   const getEventTypeBadge = (type: CalendarEvent['type']) => {
     switch (type) {
       case 'google': return <Badge variant="outline">Google Calendar</Badge>;
-      case 'booking': return <Badge variant="outline" className="bg-purple-50">Booking</Badge>;
       case 'consultation': return <Badge variant="outline" className="bg-green-50">Consulenza</Badge>;
       case 'job': return <Badge variant="outline" className="bg-orange-50">Job</Badge>;
     }
   };
 
-  const isLoading = loadingGoogle || loadingBookings || loadingConsultations || loadingJobs;
+  const isLoading = loadingGoogle || loadingConsultations || loadingJobs;
 
   return (
     <div className="space-y-6">
@@ -430,7 +383,6 @@ export default function CalendarioManager() {
             <SelectContent>
               <SelectItem value="all">Tutti gli eventi</SelectItem>
               <SelectItem value="google">Google Calendar</SelectItem>
-              <SelectItem value="booking">Bookings</SelectItem>
               <SelectItem value="consultation">Consulenze</SelectItem>
               <SelectItem value="job">Jobs</SelectItem>
             </SelectContent>
@@ -444,21 +396,13 @@ export default function CalendarioManager() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Google Calendar</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{allEvents.filter(e => e.type === 'google').length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Bookings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{allEvents.filter(e => e.type === 'booking').length}</div>
           </CardContent>
         </Card>
         <Card>
