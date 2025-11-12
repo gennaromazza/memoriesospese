@@ -159,7 +159,7 @@ export default function ConsultationBooking() {
             <div className="bg-sage-50 dark:bg-gray-800 rounded-lg p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Tipo:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{template.nome}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{template?.nome}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Data:</span>
@@ -169,7 +169,7 @@ export default function ConsultationBooking() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Durata:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{template.durataMinuti} min</span>
+                <span className="font-medium text-gray-900 dark:text-white">{template?.durataMinuti} min</span>
               </div>
             </div>
           </CardContent>
@@ -233,15 +233,15 @@ export default function ConsultationBooking() {
             <div className="flex items-center justify-between">
               <div>
                 <Badge className="mb-2">{jobType}</Badge>
-                <CardTitle>{template.nome}</CardTitle>
-                {template.descrizione && (
+                <CardTitle>{template?.nome || 'Template'}</CardTitle>
+                {template?.descrizione && (
                   <CardDescription>{template.descrizione}</CardDescription>
                 )}
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
                   <Clock className="h-4 w-4" />
-                  <span>{template.durataMinuti} min</span>
+                  <span>{template?.durataMinuti || 0} min</span>
                 </div>
               </div>
             </div>
@@ -363,7 +363,7 @@ export default function ConsultationBooking() {
             {/* Step 3: Job Data Fields */}
             {step === 3 && (
               <div className="space-y-4">
-                {!template.jobDataFields || template.jobDataFields.length === 0 ? (
+                {!template?.jobDataFields || template.jobDataFields.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                     <p>Nessuna informazione aggiuntiva richiesta</p>
                     <p className="text-sm mt-2">Puoi procedere con la conferma della prenotazione</p>
