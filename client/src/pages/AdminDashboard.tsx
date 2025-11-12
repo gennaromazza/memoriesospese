@@ -38,6 +38,7 @@ import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
 import JobTypesManager from "@/components/job-types/JobTypesManager";
+import ProductCategoriesManager from "@/components/product-categories/ProductCategoriesManager";
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 
@@ -1496,6 +1497,10 @@ export default function AdminDashboard() {
                     <Package className="h-4 w-4 flex-shrink-0" />
                     Prodotti
                   </TabsTrigger>
+                  <TabsTrigger value="product-categories" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="tab-product-categories">
+                    <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                    Categorie
+                  </TabsTrigger>
                   <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <ShoppingBag className="h-4 w-4 flex-shrink-0" />
                     Ordini
@@ -1517,6 +1522,10 @@ export default function AdminDashboard() {
 
                 <TabsContent value="products">
                   <ProductsManager />
+                </TabsContent>
+
+                <TabsContent value="product-categories">
+                  <ProductCategoriesManager />
                 </TabsContent>
 
                 <TabsContent value="orders">

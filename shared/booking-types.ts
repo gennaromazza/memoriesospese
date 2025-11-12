@@ -63,6 +63,39 @@ export interface InsertProductCategory {
   displayOrder: number;
 }
 
+export const DEFAULT_PRODUCT_CATEGORIES: InsertProductCategory[] = [
+  {
+    nome: 'Album Fotografico',
+    value: 'album',
+    displayOrder: 1,
+    attivo: true
+  },
+  {
+    nome: 'Stampe',
+    value: 'stampe',
+    displayOrder: 2,
+    attivo: true
+  },
+  {
+    nome: 'File Digitali',
+    value: 'digitale',
+    displayOrder: 3,
+    attivo: true
+  },
+  {
+    nome: 'Video/Montaggio',
+    value: 'video',
+    displayOrder: 4,
+    attivo: true
+  },
+  {
+    nome: 'Pacchetto Completo',
+    value: 'pacchetto',
+    displayOrder: 5,
+    attivo: true
+  }
+];
+
 /**
  * BOOKING CAMPAIGNS - Campagne di prenotazione stagionali
  */

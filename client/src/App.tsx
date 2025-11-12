@@ -45,6 +45,7 @@ import ConsultationsManager from "./pages/admin/ConsultationsManager";
 
 // Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
 import './scripts/seed-job-types';
+import './scripts/seed-product-categories';
 
 // Tracciamento pageview con Wouter
 function useAnalytics() {
