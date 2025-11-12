@@ -138,7 +138,13 @@ export default function PresetManager({
 
   // Handler salva preset
   const handleSavePreset = (values: z.infer<typeof savePresetSchema>) => {
-    if (!currentCatalogProductIds.length && !currentProducts.length) {
+    // Filtra placeholder vuoti da prodotti custom (form requirement vs actual data)
+    const validCustomProducts = currentProducts.filter(p => 
+      p.nome?.trim() || (p.prezzo !== undefined && p.prezzo > 0)
+    );
+
+    // Guard: richiede almeno un prodotto catalogo O un prodotto custom valido
+    if (!currentCatalogProductIds.length && !validCustomProducts.length) {
       toast({
         variant: 'destructive',
         title: '❌ Nessun prodotto da salvare',
@@ -151,7 +157,7 @@ export default function PresetManager({
       nome: values.nome,
       descrizione: values.descrizione,
       catalogProductIds: currentCatalogProductIds,
-      products: currentProducts,
+      products: validCustomProducts, // Salva solo prodotti validi, non placeholder
       discountType: currentDiscountType,
       discountValue: currentDiscountValue,
       theme: currentTheme,
@@ -165,7 +171,17 @@ export default function PresetManager({
   // Handler carica preset
   const handleLoadPreset = (preset: JobPreset) => {
     if (onPresetSelected) {
-      onPresetSelected(preset);
+      // Cleanup: filtra placeholder vuoti da preset (migration per preset legacy)
+      const cleanedProducts = preset.products.filter(p => 
+        p.nome?.trim() || (p.prezzo !== undefined && p.prezzo > 0)
+      );
+      
+      // Passa preset cleaned a QuoteBuilder
+      onPresetSelected({
+        ...preset,
+        products: cleanedProducts
+      });
+      
       toast({
         title: '📂 Preset caricato',
         description: `Il preset "${preset.nome}" è stato caricato con successo`,
@@ -237,14 +253,23 @@ export default function PresetManager({
                 <div className="font-medium text-sm">Contenuto Preset:</div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Package className="h-4 w-4" />
-                  <span>
-                    {currentCatalogProductIds.length + currentProducts.length} prodotti
-                    {currentCatalogProductIds.length > 0 && currentProducts.length > 0 && (
-                      <span className="text-xs ml-1">
-                        ({currentCatalogProductIds.length} catalogo + {currentProducts.length} custom)
+                  {(() => {
+                    const validCustomCount = currentProducts.filter(p => 
+                      p.nome?.trim() || (p.prezzo !== undefined && p.prezzo > 0)
+                    ).length;
+                    const totalCount = currentCatalogProductIds.length + validCustomCount;
+                    
+                    return (
+                      <span>
+                        {totalCount} prodotti
+                        {currentCatalogProductIds.length > 0 && validCustomCount > 0 && (
+                          <span className="text-xs ml-1">
+                            ({currentCatalogProductIds.length} catalogo + {validCustomCount} custom)
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
+                    );
+                  })()}
                 </div>
                 {currentDiscountValue !== undefined && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -327,7 +352,9 @@ export default function PresetManager({
                             <div className="flex flex-wrap gap-2">
                               <Badge variant="outline" className="text-xs">
                                 <Package className="h-3 w-3 mr-1" />
-                                {(preset.catalogProductIds?.length || 0) + preset.products.length} prodotti
+                                {(preset.catalogProductIds?.length || 0) + preset.products.filter(p => 
+                                  p.nome?.trim() || (p.prezzo !== undefined && p.prezzo > 0)
+                                ).length} prodotti
                               </Badge>
                               {preset.discountValue !== undefined && (
                                 <Badge variant="outline" className="text-xs">
