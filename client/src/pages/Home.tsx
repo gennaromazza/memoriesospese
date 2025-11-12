@@ -1340,7 +1340,7 @@ export default function Home() {
                 width="100%"
                 height="480"
                 frameBorder="0"
-                scrolling="no"
+                scrolling="auto"
                 allowTransparency={true}
                 className="w-full bg-off-white"
                 title="Instagram Feed"
