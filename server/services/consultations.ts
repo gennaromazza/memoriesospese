@@ -428,13 +428,16 @@ export async function deleteConsultation(id: string): Promise<void> {
 /**
  * Verifica se uno slot è disponibile
  * Controlla: consultations + bookings + Google Calendar
+ * OTTIMIZZATO: Accetta array pre-caricati per evitare query ridondanti
  */
 export async function isSlotAvailable(
   date: Date,
   startTime: string, // "HH:mm"
   endTime: string,   // "HH:mm"
   excludeConsultationId?: string,
-  googleCalendarBusyPeriods?: any[]
+  googleCalendarBusyPeriods?: any[],
+  preloadedConsultations?: QueryDocumentSnapshot[],
+  preloadedBookings?: QueryDocumentSnapshot[]
 ): Promise<boolean> {
   const [startHour, startMin] = startTime.split(':').map(Number);
   const [endHour, endMin] = endTime.split(':').map(Number);
@@ -445,21 +448,29 @@ export async function isSlotAvailable(
   const slotEnd = new Date(date);
   slotEnd.setHours(endHour, endMin, 0, 0);
   
-  // Check 1: Consultations esistenti
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
+  const isDebug = process.env.NODE_ENV === 'development';
   
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  // Check 1: Consultations esistenti (usa array pre-caricato se disponibile)
+  let consultationDocs = preloadedConsultations;
   
-  const consultationsQuery = db.collection('consultations')
-    .where('stato', 'in', ['in_attesa', 'confermata'])
-    .where('dataConsulenza', '>=', Timestamp.fromDate(startOfDay))
-    .where('dataConsulenza', '<=', Timestamp.fromDate(endOfDay));
+  if (!consultationDocs) {
+    // Fallback: fetch se non pre-caricato (backward compatibility)
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const consultationsQuery = db.collection('consultations')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .where('dataConsulenza', '>=', Timestamp.fromDate(startOfDay))
+      .where('dataConsulenza', '<=', Timestamp.fromDate(endOfDay));
+    
+    const consultations = await consultationsQuery.get();
+    consultationDocs = consultations.docs;
+  }
   
-  const consultations = await consultationsQuery.get();
-  
-  for (const doc of consultations.docs) {
+  for (const doc of consultationDocs) {
     if (excludeConsultationId && doc.id === excludeConsultationId) {
       continue;
     }
@@ -480,65 +491,64 @@ export async function isSlotAvailable(
     }
   }
   
-  // Check 2: Bookings esistenti (stessa logica)
-  const bookingStartOfDay = new Date(date);
-  bookingStartOfDay.setHours(0, 0, 0, 0);
+  // Check 2: Bookings esistenti (usa array pre-caricato se disponibile)
+  let bookingDocs = preloadedBookings;
   
-  const bookingEndOfDay = new Date(date);
-  bookingEndOfDay.setHours(23, 59, 59, 999);
+  if (!bookingDocs) {
+    // Fallback: fetch se non pre-caricato (backward compatibility)
+    const bookingStartOfDay = new Date(date);
+    bookingStartOfDay.setHours(0, 0, 0, 0);
+    
+    const bookingEndOfDay = new Date(date);
+    bookingEndOfDay.setHours(23, 59, 59, 999);
+    
+    const bookingsQuery = db.collection('bookings')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .where('dataShootingInizio', '>=', Timestamp.fromDate(bookingStartOfDay))
+      .where('dataShootingInizio', '<=', Timestamp.fromDate(bookingEndOfDay));
+    
+    const bookings = await bookingsQuery.get();
+    bookingDocs = bookings.docs;
+  }
   
-  const bookingsQuery = db.collection('bookings')
-    .where('stato', 'in', ['in_attesa', 'confermata'])
-    .where('dataShootingInizio', '>=', Timestamp.fromDate(bookingStartOfDay))
-    .where('dataShootingInizio', '<=', Timestamp.fromDate(bookingEndOfDay));
+  if (isDebug && bookingDocs.length > 0) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    console.log(`[Consultations] 📅 Controllo ${bookingDocs.length} bookings per ${year}-${month}-${day}, slot ${startTime}-${endTime}`);
+  }
   
-  const bookings = await bookingsQuery.get();
-  
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  console.log(`[Consultations Check 2] 📅 Controllo ${bookings.size} bookings per ${year}-${month}-${day}, slot ${startTime}-${endTime}`);
-  
-  for (const doc of bookings.docs) {
+  for (const doc of bookingDocs) {
     const data = doc.data();
     const bookingStart = data.dataShootingInizio.toDate();
     const bookingEnd = data.dataShootingFine.toDate();
     
-    console.log(`[Consultations Check 2]   - Booking: ${bookingStart.toISOString()} → ${bookingEnd.toISOString()} (stato: ${data.stato})`);
-    console.log(`[Consultations Check 2]   - Slot:    ${slotStart.toISOString()} → ${slotEnd.toISOString()}`);
-    
     // Check overlap
     const overlaps = slotStart < bookingEnd && slotEnd > bookingStart;
-    console.log(`[Consultations Check 2]   - Overlap: slotStart < bookingEnd (${slotStart < bookingEnd}) && slotEnd > bookingStart (${slotEnd > bookingStart}) = ${overlaps}`);
     
     if (overlaps) {
-      console.log(`[Consultations Check 2] ❌ Slot ${startTime}-${endTime} BLOCCATO da booking`);
+      if (isDebug) {
+        console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da booking`);
+      }
       return false; // Conflict con booking esistente
     }
   }
   
-  if (bookings.size > 0) {
-    console.log(`[Consultations Check 2] ✅ Slot ${startTime}-${endTime} NON sovrapposto con ${bookings.size} bookings`);
-  }
-  
   // Check 3: Google Calendar events - busy periods (solo se forniti)
   if (Array.isArray(googleCalendarBusyPeriods) && googleCalendarBusyPeriods.length > 0) {
-    console.log(`[Consultations] 🔍 Controllo ${googleCalendarBusyPeriods.length} busy periods per slot ${startTime}-${endTime}`);
     for (const busy of googleCalendarBusyPeriods) {
       if (!busy.start || !busy.end) continue;
       
       const busyStart = new Date(busy.start);
       const busyEnd = new Date(busy.end);
       
-      console.log(`[Consultations]   - Busy: ${busyStart.toISOString()} → ${busyEnd.toISOString()}`);
-      console.log(`[Consultations]   - Slot: ${slotStart.toISOString()} → ${slotEnd.toISOString()}`);
-      
       // Check sovrapposizione con periodo occupato in Google Calendar
       const overlaps = slotStart < busyEnd && slotEnd > busyStart;
-      console.log(`[Consultations]   - Overlap check: slotStart < busyEnd (${slotStart < busyEnd}) && slotEnd > busyStart (${slotEnd > busyStart}) = ${overlaps}`);
       
       if (overlaps) {
-        console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da busy period`);
+        if (isDebug) {
+          console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da busy period`);
+        }
         return false; // Conflict con evento Google Calendar
       }
     }
@@ -626,29 +636,65 @@ export async function getAvailableSlotsForDate(
     // Se il controllo all-day fallisce, continua con la logica normale
   }
   
+  // PERFORMANCE OPTIMIZATION: Pre-carica consultations + bookings UNA VOLTA per l'intera giornata
+  const dayStart = new Date(date);
+  dayStart.setHours(0, 0, 0, 0);
+  
+  const dayEnd = new Date(date);
+  dayEnd.setHours(23, 59, 59, 999);
+  
+  const isDebug = process.env.NODE_ENV === 'development';
+  
+  // Fetch consultations per questa giornata
+  let preloadedConsultations: QueryDocumentSnapshot[] = [];
+  try {
+    const consultationsSnapshot = await db.collection('consultations')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .where('dataConsulenza', '>=', Timestamp.fromDate(dayStart))
+      .where('dataConsulenza', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+    
+    preloadedConsultations = consultationsSnapshot.docs;
+    
+    if (isDebug) {
+      console.log(`[Consultations] ⚡ Pre-caricati ${preloadedConsultations.length} consultations per ${dateStr}`);
+    }
+  } catch (error: any) {
+    console.error('[Consultations] ⚠️ Errore pre-caricamento consultations:', error.message);
+  }
+  
+  // Fetch bookings per questa giornata
+  let preloadedBookings: QueryDocumentSnapshot[] = [];
+  try {
+    const bookingsSnapshot = await db.collection('bookings')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+    
+    preloadedBookings = bookingsSnapshot.docs;
+    
+    if (isDebug) {
+      console.log(`[Consultations] ⚡ Pre-caricati ${preloadedBookings.length} bookings per ${dateStr}`);
+    }
+  } catch (error: any) {
+    console.error('[Consultations] ⚠️ Errore pre-caricamento bookings:', error.message);
+  }
+  
   // CONTROLLO BUSY PERIODS GOOGLE CALENDAR (una sola chiamata per l'intera giornata)
   let googleBusyPeriods: any[] = [];
   try {
-    const calendarDayStart = new Date(date);
-    calendarDayStart.setHours(0, 0, 0, 0);
-    
-    const calendarDayEnd = new Date(date);
-    calendarDayEnd.setHours(23, 59, 59, 999);
-    
-    console.log(`[Consultations] Fetching Google Calendar busy periods per ${dateStr}`);
-    const busyPeriodsResult = await checkFreeBusy('primary', calendarDayStart, calendarDayEnd);
+    if (isDebug) {
+      console.log(`[Consultations] Fetching Google Calendar busy periods per ${dateStr}`);
+    }
+    const busyPeriodsResult = await checkFreeBusy('primary', dayStart, dayEnd);
     googleBusyPeriods = Array.isArray(busyPeriodsResult) ? busyPeriodsResult : [];
-    console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods in Google Calendar`);
     
-    if (googleBusyPeriods.length > 0) {
-      console.log('[Consultations] 📋 Busy periods details:');
-      googleBusyPeriods.forEach((busy, idx) => {
-        console.log(`  ${idx + 1}. ${busy.start} → ${busy.end}`);
-      });
+    if (isDebug && googleBusyPeriods.length > 0) {
+      console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods in Google Calendar`);
     }
   } catch (error: any) {
     console.error('[Consultations] ⚠️ Errore fetching busy periods Google Calendar:', error.message);
-    console.error('[Consultations] Procedo senza controllo Google Calendar busy periods');
     // Se il controllo Google Calendar fallisce, continua con la logica normale
   }
   
@@ -692,8 +738,16 @@ export async function getAvailableSlotsForDate(
     const startTime = `${current.getHours().toString().padStart(2, '0')}:${current.getMinutes().toString().padStart(2, '0')}`;
     const endTime = `${slotEnd.getHours().toString().padStart(2, '0')}:${slotEnd.getMinutes().toString().padStart(2, '0')}`;
     
-    // Verifica disponibilità (consultations + bookings + Google Calendar)
-    const available = await isSlotAvailable(date, startTime, endTime, undefined, googleBusyPeriods);
+    // Verifica disponibilità usando array pre-caricati (ZERO query Firestore per slot!)
+    const available = await isSlotAvailable(
+      date,
+      startTime,
+      endTime,
+      undefined, // excludeConsultationId
+      googleBusyPeriods,
+      preloadedConsultations, // ⚡ OPTIMIZATION: passa array pre-caricato
+      preloadedBookings       // ⚡ OPTIMIZATION: passa array pre-caricato
+    );
     
     slots.push({
       start: current.toISOString(),
@@ -705,6 +759,10 @@ export async function getAvailableSlotsForDate(
     
     // Avanza di 30 minuti (slot standard)
     current = new Date(current.getTime() + 30 * 60000);
+  }
+  
+  if (isDebug) {
+    console.log(`[Consultations] ⚡ Generati ${slots.length} slot totali (${slots.filter(s => s.available).length} disponibili)`);
   }
   
   return slots;

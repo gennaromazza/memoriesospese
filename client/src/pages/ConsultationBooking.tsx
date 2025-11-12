@@ -6,7 +6,7 @@
  * Step 3: Dati job dinamici (opzionali)
  */
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,27 +56,38 @@ export default function ConsultationBooking() {
   const [jobData, setJobData] = useState<Record<string, ConsultationJobFieldValue>>({});
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleDateSelect = async (date: Date | undefined) => {
+  // Debounce timer per evitare chiamate API troppo frequenti
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleDateSelect = useCallback((date: Date | undefined) => {
     setSelectedDate(date);
     setSelectedSlot(null);
 
-    if (date && templateId) {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      availableSlotsMutation.mutate(
-        { templateId, date: dateStr },
-        {
-          onError: (error: unknown) => {
-            const errorMessage = error instanceof Error ? error.message : 'Impossibile caricare slot disponibili';
-            toast({
-              variant: 'destructive',
-              title: 'Errore',
-              description: errorMessage
-            });
-          }
-        }
-      );
+    // Clear previous debounce timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
-  };
+
+    if (date && templateId) {
+      // Debounce 300ms: aspetta che l'utente finisca di navigare il calendario
+      debounceTimerRef.current = setTimeout(() => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        availableSlotsMutation.mutate(
+          { templateId, date: dateStr },
+          {
+            onError: (error: unknown) => {
+              const errorMessage = error instanceof Error ? error.message : 'Impossibile caricare slot disponibili';
+              toast({
+                variant: 'destructive',
+                title: 'Errore',
+                description: errorMessage
+              });
+            }
+          }
+        );
+      }, 300);
+    }
+  }, [templateId, availableSlotsMutation, toast]);
 
   const handleSubmit = async () => {
     if (!selectedSlot || !template) return;
