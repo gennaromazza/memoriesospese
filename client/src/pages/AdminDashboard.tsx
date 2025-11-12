@@ -1003,30 +1003,12 @@ export default function AdminDashboard() {
               {/* Separatore visivo */}
               <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
 
-              {/* Booking System con dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant={activeTab === 'bookings' || activeTab === 'commesse' ? 'default' : 'ghost'}
-                    className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
-                  >
-                    <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Prenotazioni</span>
-                    <span className="sm:hidden">Book</span>
-                    <ChevronRight className="h-3 w-3 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem onClick={() => setActiveTab('bookings')}>
-                    <CalendarCheck className="h-4 w-4 mr-2" />
-                    Gestione Prenotazioni
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('commesse')}>
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    Gestione Commesse
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Booking System */}
+              <TabsTrigger value="bookings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Prenotazioni</span>
+                <span className="sm:hidden">Book</span>
+              </TabsTrigger>
 
               {/* Jobs System: Lavori Fotografici */}
               <TabsTrigger value="lavori" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
@@ -1530,6 +1512,10 @@ export default function AdminDashboard() {
                     <ShoppingBag className="h-4 w-4 flex-shrink-0" />
                     Ordini
                   </TabsTrigger>
+                  <TabsTrigger value="commesse" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                    Gestione Commesse
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="bookings-list">
@@ -1548,21 +1534,20 @@ export default function AdminDashboard() {
                 <TabsContent value="orders">
                   <OrdersManager />
                 </TabsContent>
-              </Tabs>
-            </TabsContent>
 
-            {/* Contenuto Tab Gestione Commesse */}
-            <TabsContent value="commesse">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <GestioneCommesse 
-                  onNavigateToTab={setActiveTab}
-                  onEditGallery={openEditModal}
-                  onCreateGallery={openModal}
-                  onOpenBooking={handleOpenBooking}
-                  onOpenOrder={handleOpenOrder}
-                  onOpenPhotoSelection={handleOpenPhotoSelection}
-                />
-              </div>
+                <TabsContent value="commesse">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <GestioneCommesse 
+                      onNavigateToTab={setActiveTab}
+                      onEditGallery={openEditModal}
+                      onCreateGallery={openModal}
+                      onOpenBooking={handleOpenBooking}
+                      onOpenOrder={handleOpenOrder}
+                      onOpenPhotoSelection={handleOpenPhotoSelection}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
             </TabsContent>
 
             {/* Contenuto Tab Lavori */}
