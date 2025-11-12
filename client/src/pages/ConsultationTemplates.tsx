@@ -130,35 +130,6 @@ export default function ConsultationTemplates() {
                     </div>
                   </div>
 
-                  {/* Campi Job */}
-                  {template.jobDataFields && template.jobDataFields.length > 0 && (
-                    <div className="bg-beige/10 rounded-lg p-5 border border-beige/30">
-                      <p className="text-sm font-semibold text-blue-gray mb-3 flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-sage" />
-                        Informazioni da Raccogliere
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {template.jobDataFields.slice(0, 6).map((campo, idx) => (
-                          <Badge 
-                            key={idx}
-                            variant="outline"
-                            className="text-xs border-sage/40 text-gray-700 bg-white hover:bg-sage/5 px-3 py-1"
-                          >
-                            {campo.label}
-                          </Badge>
-                        ))}
-                        {template.jobDataFields.length > 6 && (
-                          <Badge 
-                            variant="outline" 
-                            className="text-xs border-beige/60 bg-beige/10 text-gray-600 px-3 py-1"
-                          >
-                            +{template.jobDataFields.length - 6} altri campi
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   {/* CTA Button */}
                   <Link href={`/consulenze/${encodeURIComponent(jobType)}/${template.id}/prenota`}>
                     <Button 
