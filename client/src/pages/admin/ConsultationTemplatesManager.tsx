@@ -1124,26 +1124,142 @@ export default function ConsultationTemplatesManager() {
               {/* Area scrollabile */}
               <div className="flex-1 overflow-y-auto px-6 py-6" ref={fieldsContainerRef}>
                 <div className="space-y-6 max-w-5xl mx-auto">
-                  {/* Info box campi mappabili */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      Campi Standard Mappabili
+                  {/* Tutorial FieldKey Completo */}
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6 shadow-sm">
+                    <h4 className="text-base font-bold text-blue-900 mb-3 flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      📘 Tutorial: Come Funzionano i FieldKey
                     </h4>
-                    <p className="text-xs text-blue-800 mb-3">
-                      Usa questi <strong>fieldKey</strong> per mappare automaticamente i dati ai campi del job quando converti la consulenza:
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
-                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">eventDate</code>
-                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">eventLocation</code>
-                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">rituLocation</code>
-                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">rituTime</code>
-                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">startTime</code>
-                      <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">endTime</code>
+                    
+                    <div className="space-y-4">
+                      {/* Cosa sono i fieldKey */}
+                      <div className="bg-white rounded-lg p-4 border border-blue-200">
+                        <h5 className="text-sm font-semibold text-blue-900 mb-2">🔑 Cosa sono i FieldKey?</h5>
+                        <p className="text-xs text-blue-800 leading-relaxed">
+                          I <strong>fieldKey</strong> sono identificatori univoci che collegano i campi della consulenza ai campi del job. 
+                          Quando converti una consulenza in job, il sistema usa questi identificatori per copiare automaticamente i dati nei campi corretti.
+                        </p>
+                      </div>
+
+                      {/* Campi Standard Mappabili */}
+                      <div className="bg-white rounded-lg p-4 border border-green-200">
+                        <h5 className="text-sm font-semibold text-green-900 mb-2">✅ FieldKey Standard (Mapping Automatico)</h5>
+                        <p className="text-xs text-green-800 mb-3">
+                          Usa questi <strong>fieldKey</strong> per mappare automaticamente i dati ai campi del job:
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          <div className="flex items-start gap-2">
+                            <code className="bg-green-100 px-2 py-1 rounded border border-green-300 text-green-900 font-mono text-xs whitespace-nowrap">eventDate</code>
+                            <span className="text-gray-600">→ Data evento</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <code className="bg-green-100 px-2 py-1 rounded border border-green-300 text-green-900 font-mono text-xs whitespace-nowrap">eventLocation</code>
+                            <span className="text-gray-600">→ Location ricevimento</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <code className="bg-green-100 px-2 py-1 rounded border border-green-300 text-green-900 font-mono text-xs whitespace-nowrap">rituLocation</code>
+                            <span className="text-gray-600">→ Location rito</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <code className="bg-green-100 px-2 py-1 rounded border border-green-300 text-green-900 font-mono text-xs whitespace-nowrap">rituTime</code>
+                            <span className="text-gray-600">→ Orario rito</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <code className="bg-green-100 px-2 py-1 rounded border border-green-300 text-green-900 font-mono text-xs whitespace-nowrap">startTime</code>
+                            <span className="text-gray-600">→ Orario inizio</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <code className="bg-green-100 px-2 py-1 rounded border border-green-300 text-green-900 font-mono text-xs whitespace-nowrap">endTime</code>
+                            <span className="text-gray-600">→ Orario fine</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Campi Personalizzati */}
+                      <div className="bg-white rounded-lg p-4 border border-amber-200">
+                        <h5 className="text-sm font-semibold text-amber-900 mb-2">🎨 FieldKey Personalizzati</h5>
+                        <p className="text-xs text-amber-800 mb-3">
+                          Puoi creare campi personalizzati con qualsiasi <strong>fieldKey</strong> (es. "numeroInvitati", "temaColore", ecc.). 
+                          Questi dati verranno salvati nelle <strong>Note Interne</strong> del job in formato leggibile.
+                        </p>
+                        <div className="bg-amber-50 rounded border border-amber-300 p-3">
+                          <p className="text-xs text-amber-900 font-medium mb-2">Esempio:</p>
+                          <div className="space-y-1 text-xs text-amber-800 font-mono">
+                            <div className="flex gap-2">
+                              <span className="text-amber-600">fieldKey:</span>
+                              <code className="bg-white px-1 rounded">numeroInvitati</code>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="text-amber-600">Label:</span>
+                              <span>Numero Invitati Previsti</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="text-amber-600">Tipo:</span>
+                              <span>number</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Best Practices */}
+                      <div className="bg-white rounded-lg p-4 border border-purple-200">
+                        <h5 className="text-sm font-semibold text-purple-900 mb-2">💡 Best Practices</h5>
+                        <ul className="space-y-2 text-xs text-purple-800">
+                          <li className="flex items-start gap-2">
+                            <span className="text-purple-500 font-bold">•</span>
+                            <span>Usa <strong>camelCase</strong> per i fieldKey personalizzati (es. "temaColore", "numeroInvitati")</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-purple-500 font-bold">•</span>
+                            <span>Scegli nomi descrittivi e in <strong>inglese</strong> per compatibilità futura</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-purple-500 font-bold">•</span>
+                            <span>Per dati importanti, usa i <strong>fieldKey standard</strong> quando possibile</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-purple-500 font-bold">•</span>
+                            <span>Il <strong>Label</strong> è quello che vede il cliente, puoi scriverlo in italiano</span>
+                          </li>
+                        </ul>
+                      </div>
+
+                      {/* Esempio Pratico */}
+                      <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 border-2 border-dashed border-green-400">
+                        <h5 className="text-sm font-semibold text-green-900 mb-2">🎯 Esempio Pratico: Template Matrimonio</h5>
+                        <div className="space-y-2 text-xs">
+                          <div className="bg-white rounded p-2 border border-green-200">
+                            <div className="font-semibold text-green-900 mb-1">Campo 1 (Standard):</div>
+                            <div className="grid grid-cols-2 gap-2 text-gray-700">
+                              <div><strong>fieldKey:</strong> <code className="bg-green-100 px-1 rounded">eventDate</code></div>
+                              <div><strong>Label:</strong> "Data del Matrimonio"</div>
+                              <div><strong>Tipo:</strong> date</div>
+                              <div><strong>Risultato:</strong> ✅ Compila automaticamente "eventDate" del job</div>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-white rounded p-2 border border-blue-200">
+                            <div className="font-semibold text-blue-900 mb-1">Campo 2 (Standard):</div>
+                            <div className="grid grid-cols-2 gap-2 text-gray-700">
+                              <div><strong>fieldKey:</strong> <code className="bg-blue-100 px-1 rounded">eventLocation</code></div>
+                              <div><strong>Label:</strong> "Location Ricevimento"</div>
+                              <div><strong>Tipo:</strong> text</div>
+                              <div><strong>Risultato:</strong> ✅ Compila automaticamente "eventLocation" del job</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white rounded p-2 border border-amber-200">
+                            <div className="font-semibold text-amber-900 mb-1">Campo 3 (Personalizzato):</div>
+                            <div className="grid grid-cols-2 gap-2 text-gray-700">
+                              <div><strong>fieldKey:</strong> <code className="bg-amber-100 px-1 rounded">temaColore</code></div>
+                              <div><strong>Label:</strong> "Tema e Colori Scelti"</div>
+                              <div><strong>Tipo:</strong> text</div>
+                              <div><strong>Risultato:</strong> 📝 Salvato in "Note Interne" del job</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs text-blue-700 mt-3">
-                      💡 <strong>Nota:</strong> Campi con fieldKey personalizzati verranno salvati nelle note del job.
-                    </p>
                   </div>
 
                   {/* Lista campi o empty state */}
