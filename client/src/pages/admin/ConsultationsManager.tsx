@@ -349,27 +349,6 @@ export default function ConsultationsManager() {
               <TableBody>
                 {sortedConsultations.map((consultation) => {
                   const template = templatesMap[consultation.templateId];
-                  
-                  // Safe date conversion with validation
-                  let consultationDate: Date | null = null;
-                  let dateIsValid = false;
-                  
-                  try {
-                    // Return early if no date available
-                    if (!consultation.dataConsulenza) {
-                      dateIsValid = false;
-                    } else if (typeof consultation.dataConsulenza.toDate === 'function') {
-                      consultationDate = consultation.dataConsulenza.toDate();
-                      dateIsValid = !isNaN(consultationDate.getTime());
-                    } else {
-                      consultationDate = new Date(consultation.dataConsulenza as any);
-                      dateIsValid = !isNaN(consultationDate.getTime());
-                    }
-                  } catch (error) {
-                    console.error('[ConsultationsManager] Error parsing date:', error, consultation);
-                    dateIsValid = false;
-                  }
-                  
                   const config = STATUS_CONFIG[consultation.stato];
                   const jobDataCount = Object.keys(consultation.jobDataCollected || {}).length;
                   
@@ -379,9 +358,33 @@ export default function ConsultationsManager() {
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1 text-sm font-medium">
                             <Calendar className="w-3 h-3" />
-                            {dateIsValid && consultationDate 
-                              ? format(consultationDate, 'dd MMM yyyy', { locale: it })
-                              : 'Data non disponibile'}
+                            {(() => {
+                              try {
+                                if (!consultation.dataConsulenza) return 'Data non disponibile';
+                                
+                                let date: Date;
+                                
+                                // Handle Firestore Timestamp with seconds property
+                                if (typeof (consultation.dataConsulenza as any).seconds === 'number') {
+                                  date = new Date((consultation.dataConsulenza as any).seconds * 1000);
+                                }
+                                // Handle Firestore Timestamp with toDate method
+                                else if (typeof (consultation.dataConsulenza as any).toDate === 'function') {
+                                  date = (consultation.dataConsulenza as any).toDate();
+                                }
+                                // Handle ISO string or Date object
+                                else {
+                                  date = new Date(consultation.dataConsulenza as any);
+                                }
+                                
+                                if (isNaN(date.getTime())) return 'Data non valida';
+                                
+                                return format(date, 'dd MMM yyyy', { locale: it });
+                              } catch (error) {
+                                console.error('[ConsultationsManager] Errore parsing data:', error, consultation);
+                                return 'Errore data';
+                              }
+                            })()}
                           </div>
                           <div className="flex items-center gap-1 text-xs text-gray-500">
                             <Clock className="w-3 h-3" />
