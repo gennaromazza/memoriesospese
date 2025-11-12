@@ -3,9 +3,10 @@
  * Gestisce endpoint per modulo Consulenze (templates e prenotazioni)
  */
 
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import { z } from 'zod';
 import * as consultationService from './services/consultations.js';
+import { authenticateFirebase } from './email-routes.js';
 import { 
   InsertConsultationTemplateSchema, 
   UpdateConsultationTemplateSchema,
@@ -32,77 +33,9 @@ interface AuthRequest extends Request {
 }
 
 /**
- * Middleware per autenticazione Firebase
+ * Admin emails (consistente con email-routes.ts)
  */
-async function authenticateFirebase(
-  req: any,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const authHeader = req.headers.authorization || "";
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: {
-          code: "unauthenticated",
-          message: "Missing Authorization Bearer token",
-        },
-      });
-    }
-
-    const idToken = authHeader.replace("Bearer ", "").trim();
-
-    try {
-      // Verifica token usando Firebase REST API - getAccountInfo verifica ID tokens
-      const firebaseApiKey =
-        process.env.VITE_FIREBASE_API_KEY ||
-        "AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME";
-      const verifyUrl = `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${firebaseApiKey}`;
-
-      console.log("🔍 Verificando token Firebase...");
-
-      const verifyResponse = await fetch(verifyUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      });
-
-      if (!verifyResponse.ok) {
-        const errorData = await verifyResponse.json().catch(() => ({}));
-        console.error("❌ Firebase token verification failed:", errorData);
-        throw new Error("Invalid token");
-      }
-
-      const userData = await verifyResponse.json();
-      const user = userData.users?.[0];
-
-      if (!user) {
-        throw new Error("User not found");
-      }
-
-      req.user = {
-        uid: user.localId,
-        email: user.email,
-      };
-
-      console.log(`🔐 Authenticated user: ${user.email} (${user.localId})`);
-      next();
-    } catch (authError) {
-      console.error("❌ Token verification failed:", authError);
-      return res.status(401).json({
-        error: { code: "unauthenticated", message: "Invalid or expired token" },
-      });
-    }
-  } catch (error) {
-    console.error("❌ Auth middleware error:", error);
-    return res.status(500).json({
-      error: { code: "internal", message: "Authentication error" },
-    });
-  }
-}
-
-const ADMIN_EMAIL = 'gennaro.mazzacane@gmail.com';
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
 /**
  * ========================================
@@ -117,7 +50,7 @@ const ADMIN_EMAIL = 'gennaro.mazzacane@gmail.com';
 router.get('/templates', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono accedere ai template' });
     }
     
@@ -185,7 +118,7 @@ router.get('/job-types', async (req, res) => {
 router.post('/templates', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono creare template' });
     }
     
@@ -219,7 +152,7 @@ router.post('/templates', authenticateFirebase, async (req: AuthRequest, res) =>
 router.patch('/templates/:id', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono modificare template' });
     }
     
@@ -256,7 +189,7 @@ router.patch('/templates/:id', authenticateFirebase, async (req: AuthRequest, re
 router.delete('/templates/:id', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono eliminare template' });
     }
     
@@ -291,7 +224,7 @@ router.delete('/templates/:id', authenticateFirebase, async (req: AuthRequest, r
 router.get('/', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono accedere alle consultations' });
     }
     
@@ -337,7 +270,7 @@ router.get('/', authenticateFirebase, async (req: AuthRequest, res) => {
 router.get('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono accedere alle consultations' });
     }
     
@@ -485,7 +418,7 @@ router.post('/create', async (req, res) => {
 router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono approvare consultations' });
     }
     
@@ -592,7 +525,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
 router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono rifiutare consultations' });
     }
     
@@ -634,7 +567,7 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
 router.patch('/:id/complete', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono completare consultations' });
     }
     
@@ -670,7 +603,7 @@ router.patch('/:id/complete', authenticateFirebase, async (req: AuthRequest, res
 router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono convertire consultations in job' });
     }
     
@@ -759,7 +692,7 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
 router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono eliminare consultations' });
     }
     
@@ -802,7 +735,7 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
 router.patch('/:id/mark-viewed', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
     const { email } = req.user!;
-    if (email !== ADMIN_EMAIL) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Solo gli amministratori possono marcare consultations come visualizzate' });
     }
     
