@@ -396,5 +396,23 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update payment schedules (mark payments as received)
       allow delete: if isAdmin(); // Only admin can delete payment schedules
     }
+    
+    // ====== CONSULTATION SYSTEM RULES (November 2025) ======
+    
+    // Consultation Templates - Admin manages templates, public can view active templates for booking
+    match /consultationTemplates/{templateId} {
+      allow read: if true; // Public read access for clients booking consultations
+      allow create: if isAdmin(); // Only admin can create consultation templates
+      allow update: if isAdmin(); // Only admin can update consultation templates
+      allow delete: if isAdmin(); // Only admin can delete consultation templates
+    }
+    
+    // Consultations - Public can create booking requests, admin manages approval workflow
+    match /consultations/{consultationId} {
+      allow read: if isAdmin(); // Only admin can view consultation requests (contains client PII)
+      allow create: if true; // Public can create consultation booking requests via public form
+      allow update: if isAdmin(); // Only admin can update consultations (approve, reject, convert to job)
+      allow delete: if isAdmin(); // Only admin can delete consultations
+    }
   }
 }
