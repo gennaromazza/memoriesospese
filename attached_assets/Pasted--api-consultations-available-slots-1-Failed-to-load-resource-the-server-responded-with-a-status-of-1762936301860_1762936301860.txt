@@ -1,0 +1,50 @@
+/api/consultations/available-slots:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+@tanstack_react-query.js?v=ef723ae2:1271 Error: Errore calcolo slot disponibili
+    at Object.mutationFn (consultations.ts:158:15)
+execute @ @tanstack_react-query.js?v=ef723ae2:1271Understand this error
+client:536 WebSocket connection to 'wss://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/?token=Lj4yd5Gb7AkH' failed: 
+setupWebSocket @ client:536
+(anonymous) @ client:531Understand this error
+client:560 [vite] server connection lost. Polling for restart...
+2ConsultationBooking.tsx:283 Uncaught TypeError: Cannot read properties of undefined (reading 'length')
+    at ConsultationBooking (ConsultationBooking.tsx:283:60)
+    at renderWithHooks (chunk-SP6A6TOT.js?v=ef723ae2:11548:26)
+    at updateFunctionComponent (chunk-SP6A6TOT.js?v=ef723ae2:14582:28)
+    at beginWork (chunk-SP6A6TOT.js?v=ef723ae2:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-SP6A6TOT.js?v=ef723ae2:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-SP6A6TOT.js?v=ef723ae2:3699:24)
+    at invokeGuardedCallback (chunk-SP6A6TOT.js?v=ef723ae2:3733:39)
+    at beginWork$1 (chunk-SP6A6TOT.js?v=ef723ae2:19765:15)
+    at performUnitOfWork (chunk-SP6A6TOT.js?v=ef723ae2:19198:20)
+    at workLoopSync (chunk-SP6A6TOT.js?v=ef723ae2:19137:13)Understand this error
+chunk-SP6A6TOT.js?v=ef723ae2:14032 The above error occurred in the <ConsultationBooking> component:
+
+    at ConsultationBooking (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/pages/ConsultationBooking.tsx:34:18)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=ef723ae2:206:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=ef723ae2:262:17)
+    at AppRoutes (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/App.tsx:75:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+    at FirebaseAuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=ef723ae2:38:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=ef723ae2:65:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=ef723ae2:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=ef723ae2:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=ef723ae2:2763:3)
+    at ErrorBoundary (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=ef723ae2:161:17)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+logCapturedError @ chunk-SP6A6TOT.js?v=ef723ae2:14032Understand this error
+logger.ts:88 [2025-11-12T08:31:13.618Z] [ERROR] [ErrorBoundary] React Error Boundary catturato errore TypeError: Cannot read properties of undefined (reading 'length')
+    at ConsultationBooking (ConsultationBooking.tsx:283:60)
+    at renderWithHooks (chunk-SP6A6TOT.js?v=ef723ae2:11548:26)
+    at updateFunctionComponent (chunk-SP6A6TOT.js?v=ef723ae2:14582:28)
+    at beginWork (chunk-SP6A6TOT.js?v=ef723ae2:15924:22)
+    at beginWork$1 (chunk-SP6A6TOT.js?v=ef723ae2:19753:22)
+    at performUnitOfWork (chunk-SP6A6TOT.js?v=ef723ae2:19198:20)
+    at workLoopSync (chunk-SP6A6TOT.js?v=ef723ae2:19137:13)
+    at renderRootSync (chunk-SP6A6TOT.js?v=ef723ae2:19116:15)
+    at recoverFromConcurrentError (chunk-SP6A6TOT.js?v=ef723ae2:18736:28)
+    at performSyncWorkOnRoot (chunk-SP6A6TOT.js?v=ef723ae2:18879:28)
