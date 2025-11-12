@@ -6,6 +6,8 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 **Vision:** Essere il punto di riferimento per i fotografi professionisti, offrendo una piattaforma completa che gestisce ogni aspetto del business fotografico - dal primo contatto alla consegna finale.
 
 ## Recent Changes (November 2025)
+- **Consultation Template Enhancements (November 12):** Enhanced consultation templates with per-template availability customization (excludedDays array, customWorkingHours per day) and multi-image uploads for client-facing booking pages. Admin UI features Tabs layout (Generale|Disponibilità|Immagini|Campi Job) with weekday exclusion checkboxes, custom working hours editor (per-day apertura/chiusura/pausa), and Firebase Storage image management (up to 10 images, 5MB each, signed URLs). Backend getAvailableSlotsForDate() now respects template-specific constraints, prioritizing customWorkingHours over studio defaults. Client pages (ConsultationTemplates list, ConsultationBooking) display template images in responsive grids.
+
 - **Consulenze (Consultations) Module (November 12):** Complete pre-work consultation system with multi-step public booking flow, admin template management, Google Calendar integration, and automated email notifications (received/approved/rejected). Enables photographers to collect advance job data through configurable templates per job type, manage consultation requests with approve/reject workflow, and convert approved consultations into full jobs with automatic client linkage.
 
 - **Excel-Based Import System (November 11):** Complete Excel import system replacing CSV workflow with `parseExcel()` method supporting European currency formats (€ 2.500,00 → 2500), structured client field parsing from combined columns (Nome, Indirizzo, Telefono → separate fields), Firebase Storage integration with private signed URLs (5-year expiry), multi-location PDF path resolution, and new API routes `/api/import/preview-excel` and `/execute-excel`
@@ -28,25 +30,28 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 **Purpose:** Pre-work consultation scheduling and data collection system integrated with Google Calendar and email notifications.
 
 **Key Features:**
-- **Template Management:** Admin-configurable consultation templates per job type with customizable duration, price, and dynamic job data fields
-- **Public Booking Flow:** Multi-step client-facing pages (job type selection → template selection → calendar slot booking → client data + job data collection)
+- **Template Management:** Admin-configurable consultation templates per job type with customizable duration, price, dynamic job data fields, per-template availability (excludedDays, customWorkingHours), and multi-image uploads (Firebase Storage, signed URLs)
+- **Availability Customization:** Exclude specific weekdays per template, configure custom working hours per day (apertura/chiusura/pausa) overriding studio defaults, automatic slot generation respecting template-specific constraints
+- **Image Management:** Upload up to 10 images per template (5MB max each), preview in admin grid (3 cols), client-facing display in template list and booking pages
+- **Public Booking Flow:** Multi-step client-facing pages (job type selection → template selection with preview images → calendar slot booking → client data + job data collection)
 - **Calendar Integration:** Automatic Google Calendar event creation on approval with conflict detection and compensating transaction rollback
 - **Admin Workflow:** Approve/reject/convert-to-job actions with first-view tracking (dataVisualizzazione) and expandable detail rows
 - **Email Notifications:** Automated lifecycle emails (consultation received, approved with calendar link, rejected with reason) using Gmail API with centralized HTML templates
 - **Client Linkage:** Automatic findOrCreateCliente integration matching existing booking/job patterns for unified client management
 
 **Data Model:**
-- `consultationTemplates` collection: jobType, durataMinuti, prezzo, campiJobConfigurable[], attiva
+- `consultationTemplates` collection: jobType, durataMinuti, prezzo, campiJobConfigurable[], attiva, excludedDays[], customWorkingHours[], imageUrls[]
 - `consultations` collection: templateId, cliente{nome, cognome, email, whatsapp}, dataConsulenza, orarioInizio/Fine, jobDataCollected{}, stato (in_attesa|confermata|annullata|completata), googleCalendarEventId
 
 **API Routes:**
 - Public: `POST /api/consultations/create`, `POST /api/consultations/available-slots`
 - Admin: `GET/POST/PATCH/DELETE /api/consultations/templates`, `PATCH /api/consultations/:id/{approve|reject|complete}`, `POST /api/consultations/:id/convert-to-job`
+- Storage: `POST /api/consultations/templates/:id/upload-image`, `DELETE /api/consultations/templates/:id/images`
 - Email: `POST /api/email/send-consultation-{received|approved|rejected}`
 
 **Frontend Pages:**
-- Public: `/consulenze` (ConsultationIndex), `/consulenze/:tipo` (ConsultationTemplates), `/consulenze/:tipo/:id/prenota` (ConsultationBooking)
-- Admin: `/admin/consulenze` (ConsultationsManager), `/admin/consulenze/templates` (ConsultationTemplatesManager) - accessible via "Consulenze" tab dropdown in AdminDashboard
+- Public: `/consulenze` (ConsultationIndex), `/consulenze/:tipo` (ConsultationTemplates with image previews), `/consulenze/:tipo/:id/prenota` (ConsultationBooking with full image grid)
+- Admin: `/admin/consulenze` (ConsultationsManager), `/admin/consulenze/templates` (ConsultationTemplatesManager with Tabs: Generale|Disponibilità|Immagini|Campi Job) - accessible via "Consulenze" tab dropdown in AdminDashboard
 
 ## System Architecture
 
