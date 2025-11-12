@@ -1125,12 +1125,18 @@ export default function ConsultationTemplatesManager() {
               {/* Area scrollabile */}
               <div className="flex-1 overflow-y-auto px-6 py-6" ref={fieldsContainerRef} style={{ maxHeight: 'calc(90vh - 350px)' }}>
                 <div className="space-y-6 max-w-5xl mx-auto">
-                  {/* Tutorial FieldKey Completo */}
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6 shadow-sm">
-                    <h4 className="text-base font-bold text-blue-900 mb-3 flex items-center gap-2">
-                      <FileText className="w-5 h-5" />
-                      📘 Tutorial: Come Funzionano i FieldKey
-                    </h4>
+                  {/* Tutorial FieldKey Completo - Collapsabile */}
+                  <Collapsible defaultOpen={false}>
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-4 shadow-sm">
+                      <CollapsibleTrigger className="w-full flex items-center justify-between hover:bg-blue-100/50 rounded-lg px-2 py-2 transition-colors">
+                        <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                          <FileText className="w-5 h-5" />
+                          📘 Tutorial: Come Funzionano i FieldKey
+                        </h4>
+                        <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" />
+                      </CollapsibleTrigger>
+                      
+                      <CollapsibleContent className="pt-4">
                     
                     <div className="space-y-4">
                       {/* Cosa sono i fieldKey */}
@@ -1261,13 +1267,25 @@ export default function ConsultationTemplatesManager() {
                         </div>
                       </div>
                     </div>
-                  </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
 
                   {/* Lista campi o empty state */}
                   {formData.jobDataFields && formData.jobDataFields.length > 0 ? (
                     <div className="space-y-4">
-                      {formData.jobDataFields.map((field, idx) => (
-                        <Card key={idx} className="border-l-4 border-l-sage bg-gradient-to-r from-off-white to-white shadow-sm hover:shadow-md transition-shadow">
+                      {formData.jobDataFields.map((field, idx) => {
+                        // Colori alternati per feedback visivo (palette Image Studio)
+                        const colors = [
+                          { bg: 'from-green-50/80 to-emerald-50/60', border: 'border-l-green-500' },    // Sage/Green
+                          { bg: 'from-orange-50/80 to-amber-50/60', border: 'border-l-orange-500' },   // Terra/Orange
+                          { bg: 'from-yellow-50/80 to-amber-50/60', border: 'border-l-amber-500' },    // Gold/Amber
+                          { bg: 'from-blue-50/80 to-sky-50/60', border: 'border-l-blue-400' },         // Accent Blue
+                        ];
+                        const colorScheme = colors[idx % colors.length];
+                        
+                        return (
+                        <Card key={idx} className={`border-l-4 ${colorScheme.border} bg-gradient-to-r ${colorScheme.bg} shadow-sm hover:shadow-md transition-shadow`}>
                           <CardContent className="p-4 sm:p-6">
                             <div className="space-y-4">
                               {/* Header campo con badge e azioni */}
@@ -1323,12 +1341,18 @@ export default function ConsultationTemplatesManager() {
                                   </Label>
                                   <Input
                                     value={field.fieldKey}
-                                    onChange={(e) =>
-                                      updateJobDataField(idx, { fieldKey: e.target.value })
-                                    }
+                                    onChange={(e) => {
+                                      const value = e.target.value.trim();
+                                      // Previeni fieldKey vuoto - mantieni almeno "campo_N" se l'utente cancella tutto
+                                      if (value.length === 0) {
+                                        return; // Blocca cancellazione completa
+                                      }
+                                      updateJobDataField(idx, { fieldKey: value });
+                                    }}
                                     placeholder="es. eventDate"
                                     data-testid={`input-field-key-${idx}`}
                                     className="w-full font-mono text-sm"
+                                    required
                                   />
                                   <p className="text-xs text-gray-500 italic">
                                     Usa fieldKey standard per mapping automatico: 
@@ -1410,7 +1434,8 @@ export default function ConsultationTemplatesManager() {
                             </div>
                           </CardContent>
                         </Card>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
