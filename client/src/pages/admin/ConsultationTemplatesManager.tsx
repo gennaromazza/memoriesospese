@@ -11,13 +11,16 @@ import {
   useCreateTemplate,
   useUpdateTemplate,
   useDeleteTemplate,
+  CONSULTATION_KEYS,
 } from "@/lib/consultations";
 import type {
   ConsultationTemplate,
   InsertConsultationTemplate,
   UpdateConsultationTemplate,
   ConsultationJobField,
+  ConsultationWorkingHours,
 } from "@shared/consultation-types";
+import { DEFAULT_CONSULTATION_HOURS } from "@shared/consultation-types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -47,6 +50,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -54,6 +58,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +90,10 @@ import {
   FileText,
   ChevronDown,
   ChevronRight,
+  Upload,
+  X,
+  CalendarX,
+  Image as ImageIcon,
 } from "lucide-react";
 import { getJobTypes } from "@/lib/job-types";
 import type { JobType as JobTypeDoc } from "@shared/job-types";
@@ -96,10 +115,16 @@ export default function ConsultationTemplatesManager() {
       durataMinuti: 60,
       descrizione: "",
       jobDataFields: [],
+      excludedDays: [],
+      customWorkingHours: undefined,
+      imageUrls: [],
       attiva: true,
       ordine: 0,
     },
   );
+  
+  // Upload state
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Auth state
   const { user, isLoading: authLoading } = useFirebaseAuth();
@@ -124,6 +149,9 @@ export default function ConsultationTemplatesManager() {
       durataMinuti: 60,
       descrizione: "",
       jobDataFields: [],
+      excludedDays: [],
+      customWorkingHours: undefined,
+      imageUrls: [],
       attiva: true,
       ordine: 0,
     });
@@ -138,6 +166,9 @@ export default function ConsultationTemplatesManager() {
       durataMinuti: template.durataMinuti,
       descrizione: template.descrizione,
       jobDataFields: template.jobDataFields || [],
+      excludedDays: template.excludedDays || [],
+      customWorkingHours: template.customWorkingHours,
+      imageUrls: template.imageUrls || [],
       attiva: template.attiva,
       ordine: template.ordine || 0,
     });
@@ -154,6 +185,11 @@ export default function ConsultationTemplatesManager() {
         });
         return;
       }
+
+      console.log('[handleSave] formData before save:', formData);
+      console.log('[handleSave] excludedDays:', formData.excludedDays);
+      console.log('[handleSave] customWorkingHours:', formData.customWorkingHours);
+      console.log('[handleSave] imageUrls:', formData.imageUrls);
 
       if (editingTemplate) {
         await updateMutation.mutateAsync({
@@ -276,6 +312,148 @@ export default function ConsultationTemplatesManager() {
       ...prev,
       jobDataFields: prev.jobDataFields?.filter((_, i) => i !== index),
     }));
+  };
+
+  // Availability handlers
+  const toggleExcludedDay = (dayIndex: number) => {
+    setFormData((prev) => {
+      const current = prev.excludedDays || [];
+      if (current.includes(dayIndex)) {
+        return {
+          ...prev,
+          excludedDays: current.filter((d) => d !== dayIndex),
+        };
+      } else {
+        return {
+          ...prev,
+          excludedDays: [...current, dayIndex],
+        };
+      }
+    });
+  };
+
+  // Image upload handlers
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingTemplate) return;
+
+    // Client validation
+    const currentImages = formData.imageUrls || [];
+    if (currentImages.length >= 10) {
+      toast({
+        variant: "destructive",
+        title: "Limite raggiunto",
+        description: "Massimo 10 immagini per template",
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "File troppo grande",
+        description: "Dimensione massima 5MB per immagine",
+      });
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append("image", file);
+
+      const token = await user?.getIdToken();
+      const response = await fetch(
+        `/api/consultations/templates/${editingTemplate.id}/upload-image`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formDataUpload,
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Upload fallito");
+      }
+
+      const data = await response.json();
+
+      setFormData((prev) => ({
+        ...prev,
+        imageUrls: [...(prev.imageUrls || []), data.imageUrl],
+      }));
+
+      // Invalida cache template
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates() });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.template(editingTemplate.id) });
+
+      toast({
+        title: "Immagine caricata",
+        description: "Immagine aggiunta con successo",
+      });
+
+      // Reset input
+      e.target.value = "";
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Upload fallito";
+      toast({
+        variant: "destructive",
+        title: "Errore upload",
+        description: errorMessage,
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleImageDelete = async (imageUrl: string) => {
+    if (!editingTemplate) return;
+
+    try {
+      const token = await user?.getIdToken();
+      const response = await fetch(
+        `/api/consultations/templates/${editingTemplate.id}/images`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ imageUrl }),
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Eliminazione fallita");
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        imageUrls: (prev.imageUrls || []).filter((url) => url !== imageUrl),
+      }));
+
+      // Invalida cache template
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates() });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.template(editingTemplate.id) });
+
+      toast({
+        title: "Immagine eliminata",
+        description: "Immagine rimossa con successo",
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Eliminazione fallita";
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: errorMessage,
+      });
+    }
   };
 
   const sortedTemplates = [...templates].sort(
@@ -533,220 +711,485 @@ export default function ConsultationTemplatesManager() {
             </Button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nome">Nome Template *</Label>
-                <Input
-                  id="nome"
-                  value={formData.nome || ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, nome: e.target.value }))
-                  }
-                  placeholder="es. Consulenza Pre-Matrimonio"
-                  data-testid="input-nome"
-                />
-              </div>
+          <Tabs defaultValue="general" className="flex-1 flex flex-col">
+            <TabsList className="mx-6 mt-4">
+              <TabsTrigger value="general">Generale</TabsTrigger>
+              <TabsTrigger value="availability">Disponibilità</TabsTrigger>
+              <TabsTrigger value="images">Immagini</TabsTrigger>
+              <TabsTrigger value="fields">Campi Job</TabsTrigger>
+            </TabsList>
 
-              <div className="space-y-2">
-                <Label htmlFor="jobType">Tipo Lavoro *</Label>
-                <Select
-                  value={formData.jobType || ""}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, jobType: value }))
-                  }
-                >
-                  <SelectTrigger id="jobType" data-testid="select-jobType">
-                    <SelectValue placeholder="Seleziona tipo lavoro" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {jobTypes.map((jt: JobTypeDoc) => (
-                      <SelectItem key={jt.slug} value={jt.slug}>
-                        {jt.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="descrizione">Descrizione *</Label>
-              <Textarea
-                id="descrizione"
-                value={formData.descrizione || ""}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    descrizione: e.target.value,
-                  }))
-                }
-                placeholder="Breve descrizione della consulenza"
-                rows={3}
-                data-testid="input-descrizione"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="durata">Durata (minuti) *</Label>
-                <Input
-                  id="durata"
-                  type="number"
-                  min="15"
-                  max="480"
-                  step="15"
-                  value={formData.durataMinuti || 60}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      durataMinuti: parseInt(e.target.value),
-                    }))
-                  }
-                  data-testid="input-durata"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ordine">Ordine</Label>
-                <Input
-                  id="ordine"
-                  type="number"
-                  value={formData.ordine || 0}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      ordine: parseInt(e.target.value),
-                    }))
-                  }
-                  data-testid="input-ordine"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="attiva">Stato</Label>
-                <div className="flex items-center gap-2 pt-2">
-                  <Switch
-                    id="attiva"
-                    checked={formData.attiva}
-                    onCheckedChange={(checked) =>
-                      setFormData((prev) => ({ ...prev, attiva: checked }))
+            <TabsContent value="general" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome Template *</Label>
+                  <Input
+                    id="nome"
+                    value={formData.nome || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, nome: e.target.value }))
                     }
-                    data-testid="switch-attiva"
+                    placeholder="es. Consulenza Pre-Matrimonio"
+                    data-testid="input-nome"
                   />
-                  <span className="text-sm text-gray-600">
-                    {formData.attiva ? "Attivo" : "Inattivo"}
-                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="jobType">Tipo Lavoro *</Label>
+                  <Select
+                    value={formData.jobType || ""}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, jobType: value }))
+                    }
+                  >
+                    <SelectTrigger id="jobType" data-testid="select-jobType">
+                      <SelectValue placeholder="Seleziona tipo lavoro" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobTypes.map((jt: JobTypeDoc) => (
+                        <SelectItem key={jt.slug} value={jt.slug}>
+                          {jt.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            </div>
 
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <Label className="text-base font-medium text-blue-gray">
-                  Campi Job Data
-                </Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addJobDataField}
-                  data-testid="button-add-field"
-                  className="border-sage text-sage hover:bg-sage/10"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Aggiungi Campo
-                </Button>
+              <div className="space-y-2">
+                <Label htmlFor="descrizione">Descrizione *</Label>
+                <Textarea
+                  id="descrizione"
+                  value={formData.descrizione || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      descrizione: e.target.value,
+                    }))
+                  }
+                  placeholder="Breve descrizione della consulenza"
+                  rows={3}
+                  data-testid="input-descrizione"
+                />
               </div>
 
-              {formData.jobDataFields && formData.jobDataFields.length > 0 ? (
-                <div className="space-y-3">
-                  {formData.jobDataFields.map((field, idx) => (
-                    <Card key={idx} className="p-4 border-beige bg-off-white">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Label</Label>
-                          <Input
-                            value={field.label}
-                            onChange={(e) =>
-                              updateJobDataField(idx, { label: e.target.value })
-                            }
-                            placeholder="es. Data Evento"
-                            data-testid={`input-field-label-${idx}`}
-                          />
-                        </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="durata">Durata (minuti) *</Label>
+                  <Input
+                    id="durata"
+                    type="number"
+                    min="15"
+                    max="480"
+                    step="15"
+                    value={formData.durataMinuti || 60}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        durataMinuti: parseInt(e.target.value),
+                      }))
+                    }
+                    data-testid="input-durata"
+                  />
+                </div>
 
-                        <div className="space-y-2">
-                          <Label>Tipo</Label>
-                          <Select
-                            value={field.type}
-                            onValueChange={(value) =>
-                              updateJobDataField(idx, { type: value as any })
-                            }
-                          >
-                            <SelectTrigger
-                              data-testid={`select-field-type-${idx}`}
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="text">Testo</SelectItem>
-                              <SelectItem value="date">Data</SelectItem>
-                              <SelectItem value="number">Numero</SelectItem>
-                              <SelectItem value="select">Select</SelectItem>
-                              <SelectItem value="textarea">Textarea</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ordine">Ordine</Label>
+                  <Input
+                    id="ordine"
+                    type="number"
+                    value={formData.ordine || 0}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        ordine: parseInt(e.target.value),
+                      }))
+                    }
+                    data-testid="input-ordine"
+                  />
+                </div>
 
-                        <div className="space-y-2">
-                          <Label>Placeholder</Label>
-                          <Input
-                            value={field.placeholder || ""}
-                            onChange={(e) =>
-                              updateJobDataField(idx, {
-                                placeholder: e.target.value,
-                              })
-                            }
-                            placeholder="es. gg/mm/aaaa"
-                            data-testid={`input-field-placeholder-${idx}`}
-                          />
-                        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="attiva">Stato</Label>
+                  <div className="flex items-center gap-2 pt-2">
+                    <Switch
+                      id="attiva"
+                      checked={formData.attiva}
+                      onCheckedChange={(checked) =>
+                        setFormData((prev) => ({ ...prev, attiva: checked }))
+                      }
+                      data-testid="switch-attiva"
+                    />
+                    <span className="text-sm text-gray-600">
+                      {formData.attiva ? "Attivo" : "Inattivo"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
 
-                        <div className="flex items-end gap-4">
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={field.required}
-                              onCheckedChange={(checked) =>
-                                updateJobDataField(idx, { required: checked })
-                              }
-                              data-testid={`switch-field-required-${idx}`}
-                            />
-                            <Label className="text-sm">Obbligatorio</Label>
-                          </div>
+            <TabsContent value="availability" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base font-medium">Giorni Esclusi</Label>
+                  <p className="text-sm text-gray-500 mt-1 mb-3">
+                    Seleziona i giorni in cui NON accettare prenotazioni
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'].map((day, idx) => (
+                      <div key={idx} className="flex items-center space-x-2 border rounded-md px-3 py-2 hover:bg-gray-50">
+                        <Checkbox
+                          id={`day-${idx}`}
+                          checked={formData.excludedDays?.includes(idx)}
+                          onCheckedChange={() => toggleExcludedDay(idx)}
+                          data-testid={`checkbox-day-${idx}`}
+                        />
+                        <Label
+                          htmlFor={`day-${idx}`}
+                          className="text-sm font-medium leading-none cursor-pointer"
+                        >
+                          {day}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
+                <div className="border-t pt-4">
+                  <Collapsible>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-base font-medium hover:underline">
+                      <Clock className="w-4 h-4" />
+                      Orari Personalizzati (opzionale)
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-4 space-y-4">
+                      <p className="text-sm text-gray-500">
+                        Configura orari specifici per questo template. Se non configurato, verranno usati gli orari predefiniti (Lun-Ven 9-18, pausa 13-14:30).
+                      </p>
+                      
+                      <div className="space-y-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              customWorkingHours: JSON.parse(JSON.stringify(DEFAULT_CONSULTATION_HOURS)) as ConsultationWorkingHours[],
+                            }));
+                          }}
+                          disabled={!!formData.customWorkingHours}
+                        >
+                          {formData.customWorkingHours ? "Orari personalizzati attivi" : "Attiva orari personalizzati"}
+                        </Button>
+                        
+                        {formData.customWorkingHours && (
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => removeJobDataField(idx)}
-                            className="ml-auto"
-                            data-testid={`button-remove-field-${idx}`}
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                customWorkingHours: undefined,
+                              }));
+                            }}
                           >
-                            <Trash2 className="w-4 h-4 text-red-600" />
+                            Ripristina orari predefiniti
+                          </Button>
+                        )}
+                      </div>
+
+                      {formData.customWorkingHours && (
+                        <div className="space-y-3 border-t pt-4">
+                          {['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'].map((dayName, dayIdx) => {
+                            const dayConfig = formData.customWorkingHours?.find(h => h.giornoSettimana === dayIdx);
+                            
+                            return (
+                              <Card key={dayIdx} className="p-4">
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-sm font-medium">{dayName}</Label>
+                                    <div className="flex items-center gap-2">
+                                      <Switch
+                                        checked={dayConfig?.attivo ?? false}
+                                        onCheckedChange={(checked) => {
+                                          setFormData((prev) => ({
+                                            ...prev,
+                                            customWorkingHours: prev.customWorkingHours?.map((h) =>
+                                              h.giornoSettimana === dayIdx
+                                                ? { ...h, attivo: checked }
+                                                : h
+                                            ),
+                                          }));
+                                        }}
+                                      />
+                                      <span className="text-xs text-gray-500">
+                                        {dayConfig?.attivo ? "Attivo" : "Chiuso"}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {dayConfig?.attivo && (
+                                    <div className="grid grid-cols-4 gap-3">
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Apertura</Label>
+                                        <Input
+                                          type="time"
+                                          value={dayConfig.apertura}
+                                          onChange={(e) => {
+                                            setFormData((prev) => ({
+                                              ...prev,
+                                              customWorkingHours: prev.customWorkingHours?.map((h) =>
+                                                h.giornoSettimana === dayIdx
+                                                  ? { ...h, apertura: e.target.value }
+                                                  : h
+                                              ),
+                                            }));
+                                          }}
+                                          className="text-xs"
+                                        />
+                                      </div>
+
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Pausa Inizio</Label>
+                                        <Input
+                                          type="time"
+                                          value={dayConfig.pausaInizio || ""}
+                                          onChange={(e) => {
+                                            setFormData((prev) => ({
+                                              ...prev,
+                                              customWorkingHours: prev.customWorkingHours?.map((h) =>
+                                                h.giornoSettimana === dayIdx
+                                                  ? { ...h, pausaInizio: e.target.value || undefined }
+                                                  : h
+                                              ),
+                                            }));
+                                          }}
+                                          className="text-xs"
+                                        />
+                                      </div>
+
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Pausa Fine</Label>
+                                        <Input
+                                          type="time"
+                                          value={dayConfig.pausaFine || ""}
+                                          onChange={(e) => {
+                                            setFormData((prev) => ({
+                                              ...prev,
+                                              customWorkingHours: prev.customWorkingHours?.map((h) =>
+                                                h.giornoSettimana === dayIdx
+                                                  ? { ...h, pausaFine: e.target.value || undefined }
+                                                  : h
+                                              ),
+                                            }));
+                                          }}
+                                          className="text-xs"
+                                        />
+                                      </div>
+
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Chiusura</Label>
+                                        <Input
+                                          type="time"
+                                          value={dayConfig.chiusura}
+                                          onChange={(e) => {
+                                            setFormData((prev) => ({
+                                              ...prev,
+                                              customWorkingHours: prev.customWorkingHours?.map((h) =>
+                                                h.giornoSettimana === dayIdx
+                                                  ? { ...h, chiusura: e.target.value }
+                                                  : h
+                                              ),
+                                            }));
+                                          }}
+                                          className="text-xs"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="images" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+              {editingTemplate ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-medium">Immagini Template</Label>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Carica fino a 10 immagini (max 5MB ciascuna) per mostrare ai clienti
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage || (formData.imageUrls?.length ?? 0) >= 10}
+                      className="max-w-xs"
+                      data-testid="input-upload-image"
+                    />
+                    {uploadingImage && (
+                      <span className="text-sm text-gray-500">Caricamento...</span>
+                    )}
+                  </div>
+
+                  {formData.imageUrls && formData.imageUrls.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      {formData.imageUrls.map((url, idx) => (
+                        <div key={idx} className="relative group border rounded-lg overflow-hidden">
+                          <img
+                            src={url}
+                            alt={`Template image ${idx + 1}`}
+                            className="w-full h-32 object-cover"
+                          />
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleImageDelete(url)}
+                            data-testid={`button-delete-image-${idx}`}
+                          >
+                            <X className="w-4 h-4" />
                           </Button>
                         </div>
-                      </div>
-                    </Card>
-                  ))}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <ImageIcon className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+                      <p className="text-sm text-gray-500">Nessuna immagine caricata</p>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  Nessun campo job data configurato
-                </p>
+                <div className="text-center py-8">
+                  <ImageIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-sm text-gray-500">
+                    Salva il template prima di caricare immagini
+                  </p>
+                </div>
               )}
-            </div>
-          </div>
+            </TabsContent>
+
+            <TabsContent value="fields" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-base font-medium text-blue-gray">
+                    Campi Job Data
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addJobDataField}
+                    data-testid="button-add-field"
+                    className="border-sage text-sage hover:bg-sage/10"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Aggiungi Campo
+                  </Button>
+                </div>
+
+                {formData.jobDataFields && formData.jobDataFields.length > 0 ? (
+                  <div className="space-y-3">
+                    {formData.jobDataFields.map((field, idx) => (
+                      <Card key={idx} className="p-4 border-beige bg-off-white">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Label</Label>
+                            <Input
+                              value={field.label}
+                              onChange={(e) =>
+                                updateJobDataField(idx, { label: e.target.value })
+                              }
+                              placeholder="es. Data Evento"
+                              data-testid={`input-field-label-${idx}`}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Tipo</Label>
+                            <Select
+                              value={field.type}
+                              onValueChange={(value) =>
+                                updateJobDataField(idx, { type: value as any })
+                              }
+                            >
+                              <SelectTrigger
+                                data-testid={`select-field-type-${idx}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="text">Testo</SelectItem>
+                                <SelectItem value="date">Data</SelectItem>
+                                <SelectItem value="number">Numero</SelectItem>
+                                <SelectItem value="select">Select</SelectItem>
+                                <SelectItem value="textarea">Textarea</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Placeholder</Label>
+                            <Input
+                              value={field.placeholder || ""}
+                              onChange={(e) =>
+                                updateJobDataField(idx, {
+                                  placeholder: e.target.value,
+                                })
+                              }
+                              placeholder="es. gg/mm/aaaa"
+                              data-testid={`input-field-placeholder-${idx}`}
+                            />
+                          </div>
+
+                          <div className="flex items-end gap-4">
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={field.required}
+                                onCheckedChange={(checked) =>
+                                  updateJobDataField(idx, { required: checked })
+                                }
+                                data-testid={`switch-field-required-${idx}`}
+                              />
+                              <Label className="text-sm">Obbligatorio</Label>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeJobDataField(idx)}
+                              className="ml-auto"
+                              data-testid={`button-remove-field-${idx}`}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    Nessun campo job data configurato
+                  </p>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 

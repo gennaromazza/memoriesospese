@@ -14,8 +14,9 @@ import {
   UpdateConsultationSchema,
   type ConsultationStatus
 } from '../shared/consultation-types.js';
-import { db, Timestamp, FieldValue } from './firebase-admin.js';
+import { db, Timestamp, FieldValue, storage } from './firebase-admin.js';
 import { createEvent, deleteEvent } from './google-calendar.js';
+import multer from 'multer';
 
 const router = express.Router();
 
@@ -36,6 +37,24 @@ interface AuthRequest extends Request {
  * Admin emails (consistente con email-routes.ts)
  */
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+/**
+ * Multer setup per upload immagini template
+ */
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5 MB max per immagine
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo immagini JPEG, PNG o WebP sono consentite'));
+    }
+  },
+});
 
 /**
  * ========================================
@@ -321,7 +340,9 @@ router.post('/available-slots', async (req, res) => {
     console.log('[POST /available-slots] Calcolo slot per date:', date, 'durata:', template.durataMinuti);
     const slots = await consultationService.getAvailableSlotsForDate(
       new Date(date),
-      template.durataMinuti
+      template.durataMinuti,
+      undefined, // workingHours - usa template customWorkingHours se presente
+      template   // passa template per excludedDays e customWorkingHours
     );
 
     console.log('[POST /available-slots] Slot calcolati:', slots.length);
@@ -870,6 +891,151 @@ router.patch('/:id/mark-viewed', authenticateFirebase, async (req: AuthRequest, 
   } catch (error: any) {
     console.error('[PATCH /:id/mark-viewed] Errore:', error.message);
     res.status(500).json({ error: 'Errore aggiornamento consultation' });
+  }
+});
+
+/**
+ * ========================================
+ * TEMPLATE IMAGE UPLOAD ENDPOINTS
+ * ========================================
+ */
+
+/**
+ * POST /api/consultations/templates/:id/upload-image
+ * Upload immagine per template (admin only, max 10 immagini)
+ */
+router.post('/templates/:id/upload-image', authenticateFirebase, upload.single('image'), async (req: AuthRequest, res) => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Solo gli amministratori possono caricare immagini' });
+    }
+
+    const { id } = req.params;
+
+    // Verifica template esistente
+    const template = await consultationService.getTemplateById(id);
+    if (!template) {
+      return res.status(404).json({ error: 'Template non trovato' });
+    }
+
+    // Limite 10 immagini per template
+    const currentImages = template.imageUrls || [];
+    if (currentImages.length >= 10) {
+      return res.status(400).json({ 
+        error: 'Limite raggiunto', 
+        message: 'Massimo 10 immagini per template' 
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nessun file caricato' });
+    }
+
+    const bucket = storage.bucket();
+    const timestamp = Date.now();
+    const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `consultation-templates/${id}/${timestamp}_${safeName}`;
+    
+    const file = bucket.file(storagePath);
+
+    // Upload immagine (privata con signed URL)
+    await file.save(req.file.buffer, {
+      metadata: {
+        contentType: req.file.mimetype,
+        metadata: {
+          uploadedAt: new Date().toISOString(),
+          originalName: req.file.originalname,
+          templateId: id,
+        },
+      },
+    });
+
+    // Genera signed URL (5 anni validità)
+    const [signedUrl] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 5 * 365 * 24 * 60 * 60 * 1000, // 5 anni
+    });
+
+    // Aggiorna template con nuovo URL
+    await consultationService.updateTemplate(id, {
+      imageUrls: [...currentImages, signedUrl],
+    });
+
+    console.log(`✅ Immagine caricata per template ${id}: ${req.file.originalname}`);
+
+    res.json({ 
+      message: 'Immagine caricata con successo',
+      imageUrl: signedUrl
+    });
+  } catch (error: any) {
+    console.error('[POST /templates/:id/upload-image] Errore:', error.message);
+    
+    if (error.message.includes('Solo immagini')) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    res.status(500).json({ error: 'Errore upload immagine' });
+  }
+});
+
+/**
+ * DELETE /api/consultations/templates/:id/images
+ * Elimina immagine da template (admin only)
+ */
+router.delete('/templates/:id/images', authenticateFirebase, async (req: AuthRequest, res) => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Solo gli amministratori possono eliminare immagini' });
+    }
+
+    const { id } = req.params;
+    const { imageUrl } = req.body;
+
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'imageUrl obbligatorio nel body' });
+    }
+
+    // Verifica template esistente
+    const template = await consultationService.getTemplateById(id);
+    if (!template) {
+      return res.status(404).json({ error: 'Template non trovato' });
+    }
+
+    const currentImages = template.imageUrls || [];
+    
+    if (!currentImages.includes(imageUrl)) {
+      return res.status(404).json({ error: 'Immagine non trovata nel template' });
+    }
+
+    // Estrai storage path da signed URL (pattern: consultation-templates/{id}/{filename})
+    // Gli signed URL hanno formato: https://storage.googleapis.com/{bucket}/consultation-templates/...
+    const pathMatch = imageUrl.match(/consultation-templates\/[^?]+/);
+    
+    if (pathMatch) {
+      const storagePath = pathMatch[0];
+      
+      try {
+        const bucket = storage.bucket();
+        await bucket.file(storagePath).delete();
+        console.log(`✅ File eliminato da Storage: ${storagePath}`);
+      } catch (storageError: any) {
+        console.warn('[DELETE] Errore eliminazione file Storage:', storageError.message);
+        // Continua comunque con rimozione da Firestore
+      }
+    }
+
+    // Rimuovi URL da template
+    const updatedImages = currentImages.filter(url => url !== imageUrl);
+    await consultationService.updateTemplate(id, {
+      imageUrls: updatedImages,
+    });
+
+    res.json({ message: 'Immagine eliminata con successo' });
+  } catch (error: any) {
+    console.error('[DELETE /templates/:id/images] Errore:', error.message);
+    res.status(500).json({ error: 'Errore eliminazione immagine' });
   }
 });
 

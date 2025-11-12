@@ -254,6 +254,25 @@ export default function ConsultationBooking() {
               </div>
             </div>
           </CardHeader>
+          {template?.imageUrls && template.imageUrls.length > 0 && (
+            <CardContent className="pt-0 pb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {template.imageUrls.map((url, idx) => (
+                  <div
+                    key={idx}
+                    className="aspect-[4/3] rounded-lg overflow-hidden border border-beige bg-gray-50"
+                    data-testid={`img-template-${idx}`}
+                  >
+                    <img
+                      src={url}
+                      alt={`${template.nome} - immagine ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
         </Card>
 
         {/* Step Content */}

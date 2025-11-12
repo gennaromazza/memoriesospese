@@ -549,15 +549,24 @@ export async function isSlotAvailable(
 
 /**
  * Calcola slot disponibili per una data
- * Basato su working hours configurabili
+ * Basato su working hours configurabili e template settings
  */
 export async function getAvailableSlotsForDate(
   date: Date,
   durataMinuti: number,
-  workingHours?: ConsultationWorkingHours[]
+  workingHours?: ConsultationWorkingHours[],
+  template?: ConsultationTemplate
 ): Promise<ConsultationSlot[]> {
   const dayOfWeek = date.getDay();
-  const hours = workingHours || DEFAULT_CONSULTATION_HOURS;
+  
+  // Check 1: Giorno escluso dal template?
+  if (template?.excludedDays && template.excludedDays.includes(dayOfWeek)) {
+    console.log(`[getAvailableSlotsForDate] Giorno ${dayOfWeek} escluso dal template ${template.nome}`);
+    return []; // Giorno bloccato da template
+  }
+  
+  // Check 2: Determina working hours (priorità: template > parameter > default)
+  const hours = template?.customWorkingHours || workingHours || DEFAULT_CONSULTATION_HOURS;
   const dayConfig = hours.find(h => h.giornoSettimana === dayOfWeek);
   
   if (!dayConfig || !dayConfig.attivo) {
