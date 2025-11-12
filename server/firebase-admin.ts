@@ -55,7 +55,7 @@ function initializeFirebaseAdmin(): App {
     // Inizializza con pattern modulare
     const app = initializeApp({
       credential: cert(serviceAccount),
-      storageBucket: `${serviceAccount.project_id}.appspot.com`
+      storageBucket: `${serviceAccount.project_id}.firebasestorage.app`
     });
     
     console.log('✅ Firebase Admin SDK inizializzato correttamente');
