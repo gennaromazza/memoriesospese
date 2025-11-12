@@ -445,10 +445,16 @@ export async function isSlotAvailable(
   slotEnd.setHours(endHour, endMin, 0, 0);
   
   // Check 1: Consultations esistenti
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+  
   const consultationsQuery = db.collection('consultations')
     .where('stato', 'in', ['in_attesa', 'confermata'])
-    .where('dataConsulenza', '>=', Timestamp.fromDate(new Date(date.setHours(0, 0, 0, 0))))
-    .where('dataConsulenza', '<=', Timestamp.fromDate(new Date(date.setHours(23, 59, 59, 999))));
+    .where('dataConsulenza', '>=', Timestamp.fromDate(startOfDay))
+    .where('dataConsulenza', '<=', Timestamp.fromDate(endOfDay));
   
   const consultations = await consultationsQuery.get();
   
@@ -474,10 +480,16 @@ export async function isSlotAvailable(
   }
   
   // Check 2: Bookings esistenti (stessa logica)
+  const bookingStartOfDay = new Date(date);
+  bookingStartOfDay.setHours(0, 0, 0, 0);
+  
+  const bookingEndOfDay = new Date(date);
+  bookingEndOfDay.setHours(23, 59, 59, 999);
+  
   const bookingsQuery = db.collection('bookings')
     .where('stato', 'in', ['in_attesa', 'confermata'])
-    .where('dataShootingInizio', '>=', Timestamp.fromDate(new Date(date.setHours(0, 0, 0, 0))))
-    .where('dataShootingInizio', '<=', Timestamp.fromDate(new Date(date.setHours(23, 59, 59, 999))));
+    .where('dataShootingInizio', '>=', Timestamp.fromDate(bookingStartOfDay))
+    .where('dataShootingInizio', '<=', Timestamp.fromDate(bookingEndOfDay));
   
   const bookings = await bookingsQuery.get();
   
