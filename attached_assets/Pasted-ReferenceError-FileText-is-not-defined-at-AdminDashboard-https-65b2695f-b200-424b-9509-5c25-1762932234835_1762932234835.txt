@@ -1,0 +1,16 @@
+ReferenceError: FileText is not defined
+    at AdminDashboard (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/pages/AdminDashboard.tsx:251:41)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=cc20d8b7:206:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=cc20d8b7:262:17)
+    at AppRoutes (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/App.tsx:75:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+    at FirebaseAuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=d9eac158:38:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=35050ef9:65:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=112904d2:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=112904d2:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=9450a060:2763:3)
+    at ErrorBoundary (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=cc20d8b7:161:17)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)

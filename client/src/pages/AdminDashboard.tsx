@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
