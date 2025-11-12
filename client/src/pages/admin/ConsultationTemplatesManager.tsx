@@ -2,7 +2,7 @@
  * Consultation Templates Manager - Admin CRUD per template consulenze
  */
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
@@ -125,6 +125,10 @@ export default function ConsultationTemplatesManager() {
   
   // Upload state
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Ref for auto-scroll to new field
+  const fieldsContainerRef = useRef<HTMLDivElement>(null);
+  const lastFieldCountRef = useRef(0);
 
   // Auth state
   const { user, isLoading: authLoading } = useFirebaseAuth();
@@ -287,6 +291,20 @@ export default function ConsultationTemplatesManager() {
       ],
     }));
   };
+
+  // Auto-scroll to bottom when new field is added
+  useEffect(() => {
+    const currentCount = formData.jobDataFields?.length || 0;
+    if (currentCount > lastFieldCountRef.current && fieldsContainerRef.current) {
+      setTimeout(() => {
+        fieldsContainerRef.current?.scrollTo({
+          top: fieldsContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+    }
+    lastFieldCountRef.current = currentCount;
+  }, [formData.jobDataFields?.length]);
 
   const updateJobDataField = (
     index: number,
@@ -1077,9 +1095,9 @@ export default function ConsultationTemplatesManager() {
               )}
             </TabsContent>
 
-            <TabsContent value="fields" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+            <TabsContent value="fields" className="flex-1 overflow-y-auto px-6 space-y-6 py-6" ref={fieldsContainerRef}>
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 sticky top-0 bg-white z-10 py-2">
                   <Label className="text-base font-medium text-blue-gray">
                     Campi Job Data
                   </Label>
@@ -1096,8 +1114,28 @@ export default function ConsultationTemplatesManager() {
                   </Button>
                 </div>
 
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-2">
+                    📋 Campi Standard Mappabili
+                  </h4>
+                  <p className="text-xs text-blue-800 mb-3">
+                    Usa questi <strong>fieldKey</strong> per mappare automaticamente i dati ai campi del job quando converti la consulenza:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">eventDate</code>
+                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">eventLocation</code>
+                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">rituLocation</code>
+                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">rituTime</code>
+                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">startTime</code>
+                    <code className="bg-white px-2 py-1 rounded border border-blue-300 text-blue-900">endTime</code>
+                  </div>
+                  <p className="text-xs text-blue-700 mt-3">
+                    💡 <strong>Nota:</strong> Campi con fieldKey personalizzati verranno salvati nelle note del job.
+                  </p>
+                </div>
+
                 {formData.jobDataFields && formData.jobDataFields.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4 pb-4">
                     {formData.jobDataFields.map((field, idx) => (
                       <Card key={idx} className="p-4 border-beige bg-off-white">
                         <div className="grid grid-cols-2 gap-4">

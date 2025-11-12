@@ -756,31 +756,52 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
       });
     }
 
+    // Campi standard mappabili consultation → job
+    const STANDARD_FIELD_KEYS = ['eventDate', 'eventLocation', 'rituLocation', 'rituTime', 'startTime', 'endTime', 'allDay'];
+    
+    // Mappa campi standard da jobDataCollected
+    const eventDate = consultation.jobDataCollected.eventDate 
+      ? new Date(consultation.jobDataCollected.eventDate as string)
+      : (() => {
+          // Fallback: data consulenza + 3 mesi
+          const estimatedDate = consultation.dataConsulenza.toDate();
+          estimatedDate.setMonth(estimatedDate.getMonth() + 3);
+          return estimatedDate;
+        })();
+
+    const allDay = !consultation.jobDataCollected.startTime;
+    
+    // Costruisci noteInterne solo con campi EXTRA (non mappati)
+    const extraFields: Record<string, any> = {};
+    for (const [key, value] of Object.entries(consultation.jobDataCollected || {})) {
+      if (!STANDARD_FIELD_KEYS.includes(key)) {
+        extraFields[key] = value;
+      }
+    }
+    
+    const noteParts = [`Creato da consulenza #${id}`];
+    if (Object.keys(extraFields).length > 0) {
+      noteParts.push(`\nDati aggiuntivi raccolti durante consulenza:\n${JSON.stringify(extraFields, null, 2)}`);
+    }
+    if (consultation.note) {
+      noteParts.push(`\nNote consulenza:\n${consultation.note}`);
+    }
+
     // Prepara dati job da consultation
     const jobData: any = {
       nomeEvento: `${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
       clientiIds: consultation.clienteId ? [consultation.clienteId] : [],
       jobType: consultation.jobType,
-      provenance: 'consulenza', // Provenienza speciale
-      noteInterne: `Creato da consulenza #${id}\n\nDati raccolti durante consulenza:\n${JSON.stringify(consultation.jobDataCollected, null, 2)}\n\nNote consulenza: ${consultation.note}`,
+      provenance: 'consulenza',
+      eventDate,
+      allDay,
+      startTime: consultation.jobDataCollected.startTime as string || undefined,
+      endTime: consultation.jobDataCollected.endTime as string || undefined,
+      eventLocation: consultation.jobDataCollected.eventLocation as string || undefined,
+      rituLocation: consultation.jobDataCollected.rituLocation as string || undefined,
+      rituTime: consultation.jobDataCollected.rituTime as string || undefined,
+      noteInterne: noteParts.join('\n'),
     };
-
-    // Mappa job data collected a campi job (se disponibili)
-    if (consultation.jobDataCollected.eventDate) {
-      jobData.eventDate = new Date(consultation.jobDataCollected.eventDate as string);
-    } else {
-      // Default: data consulenza + 3 mesi
-      const estimatedDate = consultation.dataConsulenza.toDate();
-      estimatedDate.setMonth(estimatedDate.getMonth() + 3);
-      jobData.eventDate = estimatedDate;
-    }
-
-    jobData.allDay = !consultation.jobDataCollected.startTime;
-    jobData.startTime = consultation.jobDataCollected.startTime as string || undefined;
-    jobData.endTime = consultation.jobDataCollected.endTime as string || undefined;
-    jobData.eventLocation = consultation.jobDataCollected.eventLocation as string || undefined;
-    jobData.rituLocation = consultation.jobDataCollected.rituLocation as string || undefined;
-    jobData.rituTime = consultation.jobDataCollected.rituTime as string || undefined;
 
     // Crea job (riutilizza logica jobs esistente)
     const jobRef = await db.collection('jobs').add({
