@@ -276,13 +276,14 @@ export default function ConsultationTemplatesManager() {
   };
 
   const addJobDataField = () => {
+    const fieldNumber = (formData.jobDataFields?.length || 0) + 1;
     setFormData((prev) => ({
       ...prev,
       jobDataFields: [
         ...(prev.jobDataFields || []),
         {
-          fieldKey: `field_${Date.now()}`,
-          label: "Nuovo Campo",
+          fieldKey: `campo_${fieldNumber}`,
+          label: `Nuovo Campo ${fieldNumber}`,
           type: "text" as const,
           required: false,
           placeholder: "",
@@ -1298,18 +1299,42 @@ export default function ConsultationTemplatesManager() {
                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                   <Label className="text-sm font-medium flex items-center gap-1">
-                                    Label Campo
+                                    Label Cliente
                                     <span className="text-red-500">*</span>
+                                    <span className="text-xs text-gray-500 font-normal ml-1">(quello che vede il cliente)</span>
                                   </Label>
                                   <Input
                                     value={field.label}
                                     onChange={(e) =>
                                       updateJobDataField(idx, { label: e.target.value })
                                     }
-                                    placeholder="es. Data Evento"
+                                    placeholder="es. Data del Matrimonio"
                                     data-testid={`input-field-label-${idx}`}
                                     className="w-full"
                                   />
+                                  <p className="text-xs text-gray-500 italic">Scrivi in italiano, sarà mostrato al cliente nel form</p>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium flex items-center gap-1">
+                                    FieldKey Tecnico
+                                    <span className="text-red-500">*</span>
+                                    <span className="text-xs text-gray-500 font-normal ml-1">(nome tecnico)</span>
+                                  </Label>
+                                  <Input
+                                    value={field.fieldKey}
+                                    onChange={(e) =>
+                                      updateJobDataField(idx, { fieldKey: e.target.value })
+                                    }
+                                    placeholder="es. eventDate"
+                                    data-testid={`input-field-key-${idx}`}
+                                    className="w-full font-mono text-sm"
+                                  />
+                                  <p className="text-xs text-gray-500 italic">
+                                    Usa fieldKey standard per mapping automatico: 
+                                    <code className="bg-green-100 px-1 rounded text-green-800 mx-1">eventDate</code>
+                                    <code className="bg-green-100 px-1 rounded text-green-800 mx-1">eventLocation</code>
+                                  </p>
                                 </div>
 
                                 <div className="space-y-2">
