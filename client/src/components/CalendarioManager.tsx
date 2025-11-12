@@ -1003,14 +1003,13 @@ export default function CalendarioManager() {
             <div className="border-t pt-4">
               <Label htmlFor="job">Associa a Job (opzionale)</Label>
               <Select
-                value={newEvent.jobId}
+                value={newEvent.jobId || undefined}
                 onValueChange={(value) => setNewEvent({ ...newEvent, jobId: value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona un job..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessun job</SelectItem>
                   {allJobs
                     .filter(job => job.status !== 'archiviato')
                     .sort((a, b) => {
@@ -1028,6 +1027,17 @@ export default function CalendarioManager() {
                     ))}
                 </SelectContent>
               </Select>
+              {newEvent.jobId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setNewEvent({ ...newEvent, jobId: '' })}
+                  className="mt-2"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Rimuovi associazione
+                </Button>
+              )}
               {newEvent.jobId && (() => {
                 const selectedJob = allJobs.find(j => j.id === newEvent.jobId);
                 return selectedJob ? (
