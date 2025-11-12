@@ -1,3 +1,4 @@
+
 /**
  * CONSULTATION BOOKING PAGE
  * Form multi-step per prenotazione consulenza
@@ -115,22 +116,22 @@ export default function ConsultationBooking() {
 
   if (isLoadingTemplate) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-sage-600" />
+      <div className="flex items-center justify-center min-h-screen bg-off-white">
+        <Loader2 className="h-8 w-8 animate-spin text-sage" />
       </div>
     );
   }
 
   if (!template) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-md">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-off-white">
+        <Card className="max-w-md border-beige">
           <CardContent className="pt-6 text-center">
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-gray-600 mb-4">
               Template non trovato
             </p>
             <Link href="/consulenze">
-              <Button variant="outline" data-testid="button-back-empty">
+              <Button variant="outline" className="border-sage text-sage hover:bg-sage hover:text-white" data-testid="button-back-empty">
                 Torna alle Consulenze
               </Button>
             </Link>
@@ -142,13 +143,13 @@ export default function ConsultationBooking() {
 
   if (showSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-sage-50 to-white dark:from-gray-900 dark:to-gray-800">
-        <Card className="max-w-lg">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-off-white to-white">
+        <Card className="max-w-lg w-full border-beige">
           <CardHeader className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900 mx-auto mb-4">
-              <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mx-auto mb-4">
+              <CheckCircle2 className="h-10 w-10 text-green-600" />
             </div>
-            <CardTitle className="text-2xl text-gray-900 dark:text-white">
+            <CardTitle className="text-2xl font-playfair text-blue-gray">
               Prenotazione Completata!
             </CardTitle>
             <CardDescription>
@@ -156,26 +157,26 @@ export default function ConsultationBooking() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-sage-50 dark:bg-gray-800 rounded-lg p-4 space-y-2">
+            <div className="bg-sage/5 rounded-lg p-4 space-y-2 border border-sage/20">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Tipo:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{template?.nome}</span>
+                <span className="text-gray-600">Tipo:</span>
+                <span className="font-medium text-blue-gray">{template?.nome}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Data:</span>
-                <span className="font-medium text-gray-900 dark:text-white">
+                <span className="text-gray-600">Data:</span>
+                <span className="font-medium text-blue-gray">
                   {selectedSlot && format(selectedSlot.start, "d MMMM yyyy 'alle' HH:mm", { locale: it })}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Durata:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{template?.durataMinuti} min</span>
+                <span className="text-gray-600">Durata:</span>
+                <span className="font-medium text-blue-gray">{template?.durataMinuti} min</span>
               </div>
             </div>
           </CardContent>
           <CardFooter>
             <Link href="/consulenze" className="w-full">
-              <Button className="w-full bg-sage-600 hover:bg-sage-700">
+              <Button className="w-full bg-sage hover:bg-dark-sage text-white">
                 Torna alle Consulenze
               </Button>
             </Link>
@@ -186,12 +187,12 @@ export default function ConsultationBooking() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sage-50 to-white dark:from-gray-900 dark:to-gray-800 py-8">
-      <div className="container mx-auto px-4 max-w-4xl">
+    <div className="min-h-screen bg-gradient-to-b from-off-white to-white py-6 sm:py-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
         {/* Breadcrumb */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6">
           <Link href={`/consulenze/${encodeURIComponent(jobType)}`}>
-            <Button variant="ghost" className="text-sage-600 dark:text-sage-400" data-testid="button-back">
+            <Button variant="ghost" className="text-sage hover:text-dark-sage hover:bg-sage/10 -ml-2" data-testid="button-back">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Torna ai Template
             </Button>
@@ -199,28 +200,28 @@ export default function ConsultationBooking() {
         </div>
 
         {/* Progress Steps */}
-        <div className="mb-8">
-          <div className="flex items-center justify-center gap-2">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-center gap-1 sm:gap-2">
             {[1, 2, 3].map((s) => (
               <div key={s} className="flex items-center">
-                <div className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold transition-colors ${
+                <div className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full font-semibold text-sm sm:text-base transition-colors ${
                   step === s
-                    ? 'bg-sage-600 text-white'
+                    ? 'bg-sage text-white'
                     : step > s
                     ? 'bg-green-500 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    : 'bg-gray-200 text-gray-600'
                 }`}>
                   {s}
                 </div>
                 {s < 3 && (
-                  <div className={`w-12 h-1 mx-1 rounded transition-colors ${
-                    step > s ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
+                  <div className={`w-8 sm:w-12 h-1 mx-0.5 sm:mx-1 rounded transition-colors ${
+                    step > s ? 'bg-green-500' : 'bg-gray-200'
                   }`} />
                 )}
               </div>
             ))}
           </div>
-          <div className="flex justify-center mt-2 text-sm text-gray-600 dark:text-gray-400">
+          <div className="flex justify-center mt-2 text-xs sm:text-sm text-gray-600">
             {step === 1 && 'Seleziona Data e Orario'}
             {step === 2 && 'Dati di Contatto'}
             {step === 3 && 'Informazioni Aggiuntive'}
@@ -228,34 +229,32 @@ export default function ConsultationBooking() {
         </div>
 
         {/* Template Info */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
+        <Card className="mb-4 sm:mb-6 border-beige">
+          <CardHeader className="pb-3 sm:pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <Badge className="mb-2">{jobType}</Badge>
-                <CardTitle>{template?.nome || 'Template'}</CardTitle>
+                <Badge className="mb-2 bg-sage/10 text-sage border-sage">{jobType}</Badge>
+                <CardTitle className="text-xl sm:text-2xl font-playfair text-blue-gray">{template?.nome || 'Template'}</CardTitle>
                 {template?.descrizione && (
-                  <CardDescription>{template.descrizione}</CardDescription>
+                  <CardDescription className="mt-1 text-sm">{template.descrizione}</CardDescription>
                 )}
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-                  <Clock className="h-4 w-4" />
-                  <span>{template?.durataMinuti || 0} min</span>
-                </div>
+              <div className="flex items-center gap-1.5 text-sm text-gray-600 self-start sm:self-auto">
+                <Clock className="h-4 w-4 text-sage" />
+                <span>{template?.durataMinuti || 0} min</span>
               </div>
             </div>
           </CardHeader>
         </Card>
 
         {/* Step Content */}
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="border-beige">
+          <CardContent className="pt-4 sm:pt-6">
             {/* Step 1: Date & Slot Selection */}
             {step === 1 && (
               <div className="space-y-6">
                 <div>
-                  <Label className="text-base font-semibold mb-4 block">Seleziona una Data</Label>
+                  <Label className="text-base font-semibold mb-4 block text-blue-gray">Seleziona una Data</Label>
                   <div className="flex justify-center">
                     <Calendar
                       mode="single"
@@ -263,41 +262,35 @@ export default function ConsultationBooking() {
                       onSelect={handleDateSelect}
                       disabled={(date) => date < new Date()}
                       locale={it}
-                      className="rounded-md border"
+                      className="rounded-md border border-beige"
                     />
                   </div>
                 </div>
 
                 {selectedDate && (
                   <div>
-                    <Label className="text-base font-semibold mb-3 block">
+                    <Label className="text-base font-semibold mb-3 block text-blue-gray">
                       Slot Disponibili - {format(selectedDate, "d MMMM yyyy", { locale: it })}
                     </Label>
                     {availableSlotsMutation.isPending && (
                       <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-sage-600" />
+                        <Loader2 className="h-6 w-6 animate-spin text-sage" />
                       </div>
                     )}
                     {availableSlotsMutation.isError && (
-                      <div className="col-span-full text-center py-8 text-red-600 dark:text-red-400">
+                      <div className="col-span-full text-center py-8 text-red-600">
                         <p className="font-medium">Errore nel caricamento degli slot</p>
                         <p className="text-sm mt-2">Impossibile verificare la disponibilità per questa data</p>
                       </div>
                     )}
                     {availableSlotsMutation.data && (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {(() => {
-                          const availableSlots = availableSlotsMutation.data.slots?.filter((slot: any) => slot.available) || [];
-                          
-                          if (availableSlots.length === 0) {
-                            return (
-                              <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
-                                Nessuno slot disponibile per questa data
-                              </div>
-                            );
-                          }
-                          
-                          return availableSlots.map((slot: any, idx: number) => {
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                        {!availableSlotsMutation.data.slots || availableSlotsMutation.data.slots.length === 0 ? (
+                          <div className="col-span-full text-center py-8 text-gray-500">
+                            Nessuno slot disponibile per questa data
+                          </div>
+                        ) : (
+                          availableSlotsMutation.data.slots.map((slot: any, idx: number) => {
                             const slotStart = new Date(slot.start);
                             const slotEnd = new Date(slot.end);
                             const isSelected = selectedSlot?.start.getTime() === slotStart.getTime();
@@ -307,15 +300,15 @@ export default function ConsultationBooking() {
                                 key={idx}
                                 variant={isSelected ? "default" : "outline"}
                                 onClick={() => setSelectedSlot({ start: slotStart, end: slotEnd })}
-                                className={isSelected ? "bg-sage-600 hover:bg-sage-700" : ""}
+                                className={`text-sm ${isSelected ? "bg-sage hover:bg-dark-sage text-white" : "border-sage text-sage hover:bg-sage hover:text-white"}`}
                                 data-testid={`button-slot-${idx}`}
                               >
-                                <Clock className="h-4 w-4 mr-2" />
+                                <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                                 {format(slotStart, "HH:mm")}
                               </Button>
                             );
-                          });
-                        })()}
+                          })
+                        )}
                       </div>
                     )}
                   </div>
@@ -326,46 +319,50 @@ export default function ConsultationBooking() {
             {/* Step 2: Client Data */}
             {step === 2 && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="nome">Nome *</Label>
+                    <Label htmlFor="nome" className="text-blue-gray">Nome *</Label>
                     <Input
                       id="nome"
                       value={clienteData.nome}
                       onChange={(e) => setClienteData({ ...clienteData, nome: e.target.value })}
                       placeholder="Mario"
+                      className="border-beige focus:border-sage"
                       data-testid="input-nome"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="cognome">Cognome *</Label>
+                    <Label htmlFor="cognome" className="text-blue-gray">Cognome *</Label>
                     <Input
                       id="cognome"
                       value={clienteData.cognome}
                       onChange={(e) => setClienteData({ ...clienteData, cognome: e.target.value })}
                       placeholder="Rossi"
+                      className="border-beige focus:border-sage"
                       data-testid="input-cognome"
                     />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="email">Email *</Label>
+                  <Label htmlFor="email" className="text-blue-gray">Email *</Label>
                   <Input
                     id="email"
                     type="email"
                     value={clienteData.email}
                     onChange={(e) => setClienteData({ ...clienteData, email: e.target.value })}
                     placeholder="mario.rossi@example.com"
+                    className="border-beige focus:border-sage"
                     data-testid="input-email"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="whatsapp">WhatsApp (opzionale)</Label>
+                  <Label htmlFor="whatsapp" className="text-blue-gray">WhatsApp (opzionale)</Label>
                   <Input
                     id="whatsapp"
                     value={clienteData.whatsapp}
                     onChange={(e) => setClienteData({ ...clienteData, whatsapp: e.target.value })}
                     placeholder="+39 333 1234567"
+                    className="border-beige focus:border-sage"
                     data-testid="input-whatsapp"
                   />
                 </div>
@@ -376,14 +373,14 @@ export default function ConsultationBooking() {
             {step === 3 && (
               <div className="space-y-4">
                 {!template?.jobDataFields || template.jobDataFields.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <div className="text-center py-8 text-gray-500">
                     <p>Nessuna informazione aggiuntiva richiesta</p>
                     <p className="text-sm mt-2">Puoi procedere con la conferma della prenotazione</p>
                   </div>
                 ) : (
                   template.jobDataFields.map((field) => (
                     <div key={field.fieldKey}>
-                      <Label htmlFor={field.fieldKey}>
+                      <Label htmlFor={field.fieldKey} className="text-blue-gray">
                         {field.label} {field.required && '*'}
                       </Label>
                       {field.type === 'text' && (
@@ -393,6 +390,7 @@ export default function ConsultationBooking() {
                           onChange={(e) => setJobData({ ...jobData, [field.fieldKey]: e.target.value })}
                           placeholder={field.placeholder}
                           required={field.required}
+                          className="border-beige focus:border-sage"
                           data-testid={`input-${field.fieldKey}`}
                         />
                       )}
@@ -404,6 +402,7 @@ export default function ConsultationBooking() {
                           placeholder={field.placeholder}
                           required={field.required}
                           rows={'rows' in field ? field.rows : 3}
+                          className="border-beige focus:border-sage"
                           data-testid={`textarea-${field.fieldKey}`}
                         />
                       )}
@@ -417,6 +416,7 @@ export default function ConsultationBooking() {
                           required={field.required}
                           min={'min' in field ? field.min : undefined}
                           max={'max' in field ? field.max : undefined}
+                          className="border-beige focus:border-sage"
                           data-testid={`input-${field.fieldKey}`}
                         />
                       )}
@@ -427,6 +427,7 @@ export default function ConsultationBooking() {
                           value={(jobData[field.fieldKey] as string) || ''}
                           onChange={(e) => setJobData({ ...jobData, [field.fieldKey]: e.target.value })}
                           required={field.required}
+                          className="border-beige focus:border-sage"
                           data-testid={`input-${field.fieldKey}`}
                         />
                       )}
@@ -437,11 +438,12 @@ export default function ConsultationBooking() {
             )}
           </CardContent>
 
-          <CardFooter className="flex justify-between">
+          <CardFooter className="flex flex-col sm:flex-row justify-between gap-3 pt-4 sm:pt-6 border-t">
             <Button
               variant="outline"
               onClick={() => setStep(Math.max(1, step - 1) as 1 | 2 | 3)}
               disabled={step === 1}
+              className="w-full sm:w-auto border-beige text-blue-gray hover:bg-gray-50"
               data-testid="button-prev-step"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -452,7 +454,7 @@ export default function ConsultationBooking() {
               <Button
                 onClick={() => setStep(Math.min(3, step + 1) as 1 | 2 | 3)}
                 disabled={(step === 1 && !canProceedStep1) || (step === 2 && !canProceedStep2)}
-                className="bg-sage-600 hover:bg-sage-700"
+                className="w-full sm:w-auto bg-sage hover:bg-dark-sage text-white"
                 data-testid="button-next-step"
               >
                 Avanti
@@ -462,7 +464,7 @@ export default function ConsultationBooking() {
               <Button
                 onClick={handleSubmit}
                 disabled={createConsultationMutation.isPending || !canProceedStep3()}
-                className="bg-sage-600 hover:bg-sage-700"
+                className="w-full sm:w-auto bg-sage hover:bg-dark-sage text-white"
                 data-testid="button-confirm-booking"
               >
                 {createConsultationMutation.isPending ? (
