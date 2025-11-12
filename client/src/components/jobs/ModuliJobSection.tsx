@@ -214,13 +214,10 @@ export default function ModuliJobSection({
       setDeleteQuoteId(null);
       setForceDeleteMode(false);
 
-      // Navigate to jobs list in admin dashboard
-      navigate("/admin/dashboard");
-
       toast({
         title: "Preventivo eliminato",
         description:
-          "Il preventivo e i dati correlati sono stati eliminati con successo",
+          "Il preventivo è stato eliminato con successo. Il lavoro rimane intatto.",
       });
     },
     onError: (error: Error) => {
