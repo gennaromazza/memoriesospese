@@ -505,24 +505,30 @@ export default function ProductsManager() {
               <Select
                 value={formData.categoria}
                 onValueChange={(value: any) => setFormData({ ...formData, categoria: value })}
+                disabled={categoriesLoading || categories.length === 0}
               >
                 <SelectTrigger data-testid="select-product-category">
-                  <SelectValue />
+                  <SelectValue placeholder={
+                    categoriesLoading 
+                      ? 'Caricamento categorie...' 
+                      : categories.length === 0 
+                        ? 'Nessuna categoria disponibile' 
+                        : 'Seleziona categoria'
+                  } />
                 </SelectTrigger>
                 <SelectContent>
-                  {categoriesLoading ? (
-                    <SelectItem value="" disabled>Caricamento categorie...</SelectItem>
-                  ) : categories.length === 0 ? (
-                    <SelectItem value="" disabled>Nessuna categoria disponibile</SelectItem>
-                  ) : (
-                    categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.value}>
-                        {cat.nome}
-                      </SelectItem>
-                    ))
-                  )}
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.value}>
+                      {cat.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {!categoriesLoading && categories.length === 0 && (
+                <p className="text-sm text-destructive">
+                  Nessuna categoria disponibile. Crea almeno una categoria prima di aggiungere prodotti.
+                </p>
+              )}
             </div>
 
             {/* Descrizione */}
