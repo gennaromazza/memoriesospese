@@ -650,6 +650,8 @@ export async function resetQuoteSignature(
 export async function deleteQuote(quoteId: string, adminEmail: string, forceDelete = false): Promise<void> {
   try {
     const url = `/api/quotes/${quoteId}${forceDelete ? '?forceDelete=true' : ''}`;
+    console.log('🗑️ Deleting quote:', { url, adminEmail, forceDelete });
+    
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
@@ -658,11 +660,26 @@ export async function deleteQuote(quoteId: string, adminEmail: string, forceDele
       }
     });
 
+    console.log('📡 Delete response status:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json();
+      const contentType = response.headers.get('content-type');
+      let errorData;
+      
+      // Check if response is JSON or HTML
+      if (contentType && contentType.includes('application/json')) {
+        errorData = await response.json();
+      } else {
+        const textResponse = await response.text();
+        console.error('❌ Non-JSON response received:', textResponse.substring(0, 200));
+        throw new Error('Errore di comunicazione con il server. Verifica che il backend sia attivo.');
+      }
+      
       // Preserve error code for frontend detection (e.g. SIGNED_QUOTE_PROTECTION)
       throw new Error(errorData.error || errorData.message || 'Errore eliminazione preventivo');
     }
+    
+    console.log('✅ Quote deleted successfully');
   } catch (error) {
     console.error('❌ Errore delete quote:', error);
     throw error;
