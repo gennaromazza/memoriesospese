@@ -1499,7 +1499,7 @@ export default function AdminDashboard() {
                   </TabsTrigger>
                   <TabsTrigger value="product-categories" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="tab-product-categories">
                     <FolderOpen className="h-4 w-4 flex-shrink-0" />
-                    Categorie
+                    Categorie Prodotti
                   </TabsTrigger>
                   <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <ShoppingBag className="h-4 w-4 flex-shrink-0" />
