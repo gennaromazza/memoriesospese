@@ -1287,7 +1287,7 @@ export default function Home() {
 
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-10">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-sage to-dark-sage rounded-full mb-4 shadow-md">
                 <svg
                   className="w-8 h-8 text-white"
                   viewBox="0 0 24 24"
@@ -1306,14 +1306,14 @@ export default function Home() {
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                 Scopri i nostri ultimi lavori e resta aggiornato sulle novità dello studio
               </p>
-              <div className="w-32 h-0.5 bg-gradient-to-r from-transparent via-purple-400 to-transparent mx-auto mt-4"></div>
+              <div className="w-32 h-0.5 bg-gradient-to-r from-transparent via-sage to-transparent mx-auto mt-4"></div>
             </div>
 
-            {/* Instagram Feed Embed */}
-            <div className="bg-white rounded-2xl shadow-xl border border-sage/10 overflow-hidden mb-8">
-              <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-sage/10">
+            {/* Instagram Feed Embed - Stile coerente */}
+            <div className="bg-white rounded-2xl shadow-xl border border-sage/20 overflow-hidden mb-8">
+              <div className="p-5 bg-gradient-to-r from-off-white to-cream border-b border-sage/20">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-sage to-dark-sage rounded-full flex items-center justify-center shadow-sm">
                     <svg
                       className="w-6 h-6 text-white"
                       viewBox="0 0 24 24"
@@ -1327,7 +1327,7 @@ export default function Home() {
                     </svg>
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-800">
+                    <p className="font-semibold text-blue-gray font-playfair">
                       @{studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}
                     </p>
                     <p className="text-sm text-gray-500">I nostri ultimi scatti</p>
@@ -1338,16 +1338,16 @@ export default function Home() {
               <iframe
                 src={`https://www.instagram.com/${studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}/embed`}
                 width="100%"
-                height="500"
+                height="480"
                 frameBorder="0"
                 scrolling="no"
                 allowTransparency={true}
-                className="w-full"
+                className="w-full bg-off-white"
                 title="Instagram Feed"
               />
             </div>
 
-            {/* Follow Button */}
+            {/* Follow Button - Stile coerente */}
             <div className="text-center">
               <a
                 href={
@@ -1357,7 +1357,7 @@ export default function Home() {
                 }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
+                className="inline-flex items-center gap-2 px-8 py-4 bg-sage hover:bg-dark-sage text-white rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-sage/20"
               >
                 <svg
                   className="w-6 h-6"
@@ -1372,7 +1372,7 @@ export default function Home() {
                 </svg>
                 Seguici su Instagram
               </a>
-              <p className="text-sm text-gray-500 mt-4">
+              <p className="text-sm text-gray-600 mt-4">
                 Non perderti i momenti più belli che immortaliamo ogni giorno
               </p>
             </div>
