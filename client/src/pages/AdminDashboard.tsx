@@ -214,6 +214,7 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ValidTab>('galleries');
+  const [bookingsSubTab, setBookingsSubTab] = useState('bookings-list');
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
@@ -525,19 +526,15 @@ export default function AdminDashboard() {
   const handleOpenBooking = (bookingId: string) => {
     setHighlightBookingId(bookingId);
     setActiveTab('bookings');
-    // Assicurati che il sub-tab sia 'bookings-list' dopo un breve delay
-    setTimeout(() => {
-      const bookingsListTab = document.querySelector('[value="bookings-list"]') as HTMLButtonElement;
-      if (bookingsListTab) {
-        bookingsListTab.click();
-      }
-    }, 100);
+    setBookingsSubTab('bookings-list'); // Assicura che il sub-tab sia corretto
+    // Non è più necessario il setTimeout, poiché state gestisce il sub-tab
   };
 
   // Handler: Apri ordine specifico e scroll + highlight
   const handleOpenOrder = (orderId: string) => {
     setHighlightOrderId(orderId);
     setActiveTab('bookings'); // OrdersManager è dentro BookingsManager
+    setBookingsSubTab('orders'); // Assicura che il sub-tab sia corretto
   };
 
   // Handler: Apri gestione selezioni foto
@@ -1505,8 +1502,8 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Prenotazioni con Sub-Tabs */}
             <TabsContent value="bookings">
-              <Tabs defaultValue="bookings-list" className="w-full">
-                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
+              <Tabs value={bookingsSubTab} onValueChange={setBookingsSubTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-4 mb-6">
                   <TabsTrigger value="bookings-list" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <CalendarCheck className="h-4 w-4 flex-shrink-0" />
                     Prenotazioni
