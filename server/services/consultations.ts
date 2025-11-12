@@ -494,15 +494,31 @@ export async function isSlotAvailable(
   
   const bookings = await bookingsQuery.get();
   
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  console.log(`[Consultations Check 2] 📅 Controllo ${bookings.size} bookings per ${year}-${month}-${day}, slot ${startTime}-${endTime}`);
+  
   for (const doc of bookings.docs) {
     const data = doc.data();
     const bookingStart = data.dataShootingInizio.toDate();
     const bookingEnd = data.dataShootingFine.toDate();
     
+    console.log(`[Consultations Check 2]   - Booking: ${bookingStart.toISOString()} → ${bookingEnd.toISOString()} (stato: ${data.stato})`);
+    console.log(`[Consultations Check 2]   - Slot:    ${slotStart.toISOString()} → ${slotEnd.toISOString()}`);
+    
     // Check overlap
-    if (slotStart < bookingEnd && slotEnd > bookingStart) {
+    const overlaps = slotStart < bookingEnd && slotEnd > bookingStart;
+    console.log(`[Consultations Check 2]   - Overlap: slotStart < bookingEnd (${slotStart < bookingEnd}) && slotEnd > bookingStart (${slotEnd > bookingStart}) = ${overlaps}`);
+    
+    if (overlaps) {
+      console.log(`[Consultations Check 2] ❌ Slot ${startTime}-${endTime} BLOCCATO da booking`);
       return false; // Conflict con booking esistente
     }
+  }
+  
+  if (bookings.size > 0) {
+    console.log(`[Consultations Check 2] ✅ Slot ${startTime}-${endTime} NON sovrapposto con ${bookings.size} bookings`);
   }
   
   // Check 3: Google Calendar events - busy periods (solo se forniti)
