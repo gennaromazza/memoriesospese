@@ -11,6 +11,30 @@ import { Timestamp } from 'firebase-admin/firestore';
 const router = express.Router();
 
 /**
+ * GET /api/jobs
+ * Restituisce tutti i jobs da Firestore
+ */
+router.get('/', async (req, res) => {
+  try {
+    const jobsSnapshot = await db.collection('jobs').get();
+    
+    const jobs = jobsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`[GET /api/jobs] Returning ${jobs.length} jobs`);
+    return res.json(jobs);
+  } catch (error: any) {
+    console.error('[GET /api/jobs] Error:', error);
+    return res.status(500).json({ 
+      error: 'Errore caricamento jobs',
+      details: error.message 
+    });
+  }
+});
+
+/**
  * GET /api/jobs/check-calendar
  * Controlla conflitti su Google Calendar e bookings per una data/orario specifico
  * 

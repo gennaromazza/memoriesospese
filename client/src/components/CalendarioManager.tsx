@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { format, parseISO, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, isSameDay, addMonths, startOfDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { Consultation } from '@shared/consultation-types';
 import type { Job } from '@shared/jobs-types';
@@ -42,7 +42,7 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
-  type: 'google' | 'consultation' | 'job';
+  type: 'google' | 'consultation' | 'job' | 'booking';
   entityId?: string;
   clienteEmail?: string;
   clienteNome?: string;
@@ -56,7 +56,7 @@ export default function CalendarioManager() {
   const { user } = useFirebaseAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'day'>('month');
-  const [filterType, setFilterType] = useState<'all' | 'google' | 'consultation' | 'job'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'google' | 'consultation' | 'job' | 'booking'>('all');
   const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
   const [isEditEventOpen, setIsEditEventOpen] = useState(false);
   const [isDeleteEventOpen, setIsDeleteEventOpen] = useState(false);
@@ -89,14 +89,14 @@ export default function CalendarioManager() {
     notifyCliente: false,
   });
 
-  // Fetch Google Calendar events
+  // Fetch Google Calendar events (da oggi a 6 mesi futuri per includere Natale)
   const { data: googleEvents = [], isLoading: loadingGoogle } = useQuery<any[]>({
-    queryKey: ['calendar-events', selectedDate.getFullYear(), selectedDate.getMonth()],
+    queryKey: ['calendar-events', 'extended-range'],
     queryFn: async () => {
-      const start = startOfMonth(selectedDate);
-      const end = endOfMonth(selectedDate);
+      const start = startOfDay(new Date()); // Oggi 00:00
+      const end = addMonths(start, 6); // 6 mesi nel futuro
       
-      console.log('[CalendarioManager] Fetching Google Calendar events:', {
+      console.log('[CalendarioManager] Fetching Google Calendar events (6 months):', {
         timeMin: start.toISOString(),
         timeMax: end.toISOString()
       });
@@ -174,6 +174,28 @@ export default function CalendarioManager() {
     retry: false,
   });
 
+  // Fetch Bookings confermati
+  const { data: bookings = [], isLoading: loadingBookings } = useQuery<any[]>({
+    queryKey: ['bookings-calendar'],
+    queryFn: async () => {
+      console.log('[CalendarioManager] Fetching bookings...');
+      const response = await fetch('/api/bookings');
+      if (!response.ok) {
+        console.error('[CalendarioManager] Bookings fetch error:', response.status);
+        throw new Error('Errore caricamento bookings');
+      }
+      const data = await response.json();
+      const confirmed = data.filter((b: any) => b.stato === 'confermata');
+      console.log('[CalendarioManager] Bookings loaded:', {
+        total: data.length,
+        confirmed: confirmed.length
+      });
+      return confirmed;
+    },
+    enabled: !!user,
+    retry: false,
+  });
+
   // Fetch Clienti
   const { data: clienti = [] } = useQuery<Cliente[]>({
     queryKey: ['clienti'],
@@ -195,11 +217,13 @@ export default function CalendarioManager() {
       loadingGoogle,
       loadingConsultations,
       loadingJobs,
+      loadingBookings,
       googleEvents: googleEvents.length,
       consultations: consultations.length,
-      jobs: jobs.length
+      jobs: jobs.length,
+      bookings: bookings.length
     });
-  }, [user, loadingGoogle, loadingConsultations, loadingJobs, googleEvents, consultations, jobs]);
+  }, [user, loadingGoogle, loadingConsultations, loadingJobs, loadingBookings, googleEvents, consultations, jobs, bookings]);
 
   // Converti eventi in formato unificato
   const allEvents = useMemo<CalendarEvent[]>(() => {
@@ -207,7 +231,8 @@ export default function CalendarioManager() {
     console.log('[CalendarioManager] Building allEvents from:', {
       googleEvents: googleEvents.length,
       consultations: consultations.length,
-      jobs: jobs.length
+      jobs: jobs.length,
+      bookings: bookings.length
     });
 
     // Google Calendar Events
@@ -286,9 +311,31 @@ export default function CalendarioManager() {
       }
     });
 
+    // Bookings
+    bookings.forEach((booking: any) => {
+      try {
+        const start = booking.dataShootingInizio?.toDate ? booking.dataShootingInizio.toDate() : new Date(booking.dataShootingInizio);
+        const end = booking.dataShootingFine?.toDate ? booking.dataShootingFine.toDate() : new Date(booking.dataShootingFine);
+
+        events.push({
+          id: `booking-${booking.id}`,
+          title: `📸 Shooting - ${booking.cliente.nome} ${booking.cliente.cognome}`,
+          start,
+          end,
+          type: 'booking',
+          entityId: booking.id,
+          clienteEmail: booking.cliente.email,
+          clienteNome: `${booking.cliente.nome} ${booking.cliente.cognome}`,
+          description: booking.note || '',
+        });
+      } catch (error) {
+        console.error('[CalendarioManager] Error parsing booking:', booking.id, error);
+      }
+    });
+
     console.log('[CalendarioManager] Total events built:', events.length);
     return events;
-  }, [googleEvents, consultations, jobs, clienti]);
+  }, [googleEvents, consultations, jobs, bookings, clienti]);
 
   // Filtra eventi per tipo
   const filteredEvents = useMemo(() => {
@@ -522,6 +569,7 @@ export default function CalendarioManager() {
       case 'google': return 'bg-blue-500';
       case 'consultation': return 'bg-green-500';
       case 'job': return 'bg-orange-500';
+      case 'booking': return 'bg-purple-500';
       default: return 'bg-gray-500';
     }
   };
@@ -531,10 +579,11 @@ export default function CalendarioManager() {
       case 'google': return <Badge variant="outline">Google Calendar</Badge>;
       case 'consultation': return <Badge variant="outline" className="bg-green-50">Consulenza</Badge>;
       case 'job': return <Badge variant="outline" className="bg-orange-50">Job</Badge>;
+      case 'booking': return <Badge variant="outline" className="bg-purple-50">Booking</Badge>;
     }
   };
 
-  const isLoading = loadingGoogle || loadingConsultations || loadingJobs;
+  const isLoading = loadingGoogle || loadingConsultations || loadingJobs || loadingBookings;
 
   return (
     <div className="space-y-6">
@@ -555,6 +604,7 @@ export default function CalendarioManager() {
             <SelectContent>
               <SelectItem value="all">Tutti gli eventi</SelectItem>
               <SelectItem value="google">Google Calendar</SelectItem>
+              <SelectItem value="booking">Bookings</SelectItem>
               <SelectItem value="consultation">Consulenze</SelectItem>
               <SelectItem value="job">Jobs</SelectItem>
             </SelectContent>
@@ -568,13 +618,21 @@ export default function CalendarioManager() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Google Calendar</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{allEvents.filter(e => e.type === 'google').length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Bookings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{allEvents.filter(e => e.type === 'booking').length}</div>
           </CardContent>
         </Card>
         <Card>
