@@ -575,6 +575,7 @@ export default function QuoteBuilder({
   );
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleDialogChange}>
 
     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1519,5 +1520,6 @@ export default function QuoteBuilder({
         onPresetSelected={handleLoadPreset}
       />
     )}
+    </>
   );
 }
