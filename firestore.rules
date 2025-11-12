@@ -349,7 +349,7 @@ service cloud.firestore {
     
     // Product Categories - Dynamic configurable product categories (album, stampe, etc.)
     match /productCategories/{categoryId} {
-      allow read: if isSignedIn(); // Authenticated users can read product categories (needed for products UI)
+      allow read: if true; // Public read access (needed for products UI and category dropdowns)
       allow create: if isAdmin(); // Only admin can create new product categories
       allow update: if isAdmin(); // Only admin can update product categories
       allow delete: if isAdmin(); // Only admin can delete product categories
