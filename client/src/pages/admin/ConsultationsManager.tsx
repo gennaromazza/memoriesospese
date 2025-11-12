@@ -4,6 +4,7 @@
 
 import { useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import {
   useConsultations,
   useApproveConsultation,
@@ -93,9 +94,13 @@ export default function ConsultationsManager() {
   const [rejectMotivazione, setRejectMotivazione] = useState('');
   const [convertConfirmId, setConvertConfirmId] = useState<string | null>(null);
   
+  // Auth state
+  const { user, isLoading: authLoading } = useFirebaseAuth();
+  const authReady = !authLoading && !!user;
+  
   // Queries
-  const { data: consultations = [], isLoading } = useConsultations();
-  const { data: templates = [] } = useTemplates();
+  const { data: consultations = [], isLoading } = useConsultations(authReady);
+  const { data: templates = [] } = useTemplates(authReady);
   const approveMutation = useApproveConsultation();
   const rejectMutation = useRejectConsultation();
   const convertMutation = useConvertToJob();

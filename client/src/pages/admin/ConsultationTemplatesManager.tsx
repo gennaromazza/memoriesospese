@@ -5,6 +5,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import {
   useTemplates,
   useCreateTemplate,
@@ -100,8 +101,12 @@ export default function ConsultationTemplatesManager() {
     },
   );
 
+  // Auth state
+  const { user, isLoading: authLoading } = useFirebaseAuth();
+  const authReady = !authLoading && !!user;
+  
   // Queries
-  const { data: templates = [], isLoading } = useTemplates();
+  const { data: templates = [], isLoading } = useTemplates(authReady);
   const { data: jobTypes = [] } = useQuery<JobTypeDoc[]>({
     queryKey: ["jobTypes"],
     queryFn: getJobTypes,

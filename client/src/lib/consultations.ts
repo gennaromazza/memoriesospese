@@ -24,7 +24,7 @@ export const CONSULTATION_KEYS = {
   consultation: (id: string) => [...CONSULTATION_KEYS.consultations(), id] as const,
 };
 
-export function useTemplates() {
+export function useTemplates(authReady: boolean = true) {
   return useQuery<ConsultationTemplate[]>({
     queryKey: CONSULTATION_KEYS.templates(),
     queryFn: async () => {
@@ -38,7 +38,8 @@ export function useTemplates() {
         throw new Error(`Failed to fetch templates: ${res.status}`);
       }
       return res.json();
-    }
+    },
+    enabled: authReady
   });
 }
 
@@ -77,7 +78,7 @@ export function useJobTypes() {
   });
 }
 
-export function useConsultations() {
+export function useConsultations(authReady: boolean = true) {
   return useQuery<Consultation[]>({
     queryKey: CONSULTATION_KEYS.consultations(),
     queryFn: async () => {
@@ -87,7 +88,8 @@ export function useConsultations() {
       });
       if (!res.ok) throw new Error('Failed to fetch consultations');
       return res.json();
-    }
+    },
+    enabled: authReady
   });
 }
 
