@@ -1,4 +1,3 @@
-
 /**
  * CONSULTATION BOOKING PAGE
  * Form multi-step per prenotazione consulenza
@@ -22,15 +21,25 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import type { ConsultationJobFieldValue } from '@shared/consultation-types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useStudio } from '@/context/StudioContext';
 
 export default function ConsultationBooking() {
   const params = useParams<{ tipo: string; id: string }>();
   const jobType = params.tipo ? decodeURIComponent(params.tipo) : '';
   const templateId = params.id || '';
-  
+
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  
+  const { studioSettings } = useStudio();
+
   const { data: template, isLoading: isLoadingTemplate } = useTemplate(templateId);
   const availableSlotsMutation = useAvailableSlots();
   const createConsultationMutation = useCreateConsultation();
@@ -50,7 +59,7 @@ export default function ConsultationBooking() {
   const handleDateSelect = async (date: Date | undefined) => {
     setSelectedDate(date);
     setSelectedSlot(null);
-    
+
     if (date && templateId) {
       const dateStr = format(date, 'yyyy-MM-dd');
       availableSlotsMutation.mutate(
@@ -102,10 +111,10 @@ export default function ConsultationBooking() {
 
   const canProceedStep1 = selectedSlot !== null;
   const canProceedStep2 = clienteData.nome && clienteData.cognome && clienteData.email;
-  
+
   const canProceedStep3 = () => {
     if (!template?.jobDataFields) return true;
-    
+
     for (const field of template.jobDataFields) {
       if (field.required && !jobData[field.fieldKey]) {
         return false;
@@ -294,7 +303,7 @@ export default function ConsultationBooking() {
                             const slotStart = new Date(slot.start);
                             const slotEnd = new Date(slot.end);
                             const isSelected = selectedSlot?.start.getTime() === slotStart.getTime();
-                            
+
                             return (
                               <Button
                                 key={idx}
@@ -449,7 +458,7 @@ export default function ConsultationBooking() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Indietro
             </Button>
-            
+
             {step < 3 ? (
               <Button
                 onClick={() => setStep(Math.min(3, step + 1) as 1 | 2 | 3)}
@@ -483,6 +492,77 @@ export default function ConsultationBooking() {
           </CardFooter>
         </Card>
       </div>
+      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+        <DialogContent className="sm:max-w-md border-beige">
+          <DialogHeader className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mx-auto mb-4">
+              <CheckCircle2 className="h-10 w-10 text-green-600" />
+            </div>
+            <DialogTitle className="text-2xl font-playfair text-blue-gray">
+              Prenotazione Completata!
+            </DialogTitle>
+            <DialogDescription className="text-center space-y-4">
+              <p className="text-lg">
+                La tua consulenza è stata prenotata con successo per il{' '}
+                <span className="font-semibold text-sage">
+                  {selectedDate && format(selectedDate, "d MMMM yyyy", { locale: it })}
+                </span>
+                {' '}alle{' '}
+                <span className="font-semibold text-sage">
+                  {selectedSlot && `${format(selectedSlot.start, "HH:mm")} - ${format(selectedSlot.end, "HH:mm")}`}
+                </span>
+              </p>
+              <p className="text-gray-600">
+                Riceverai a breve una email di conferma con tutti i dettagli della tua prenotazione.
+              </p>
+
+              {/* Instagram Follow Invitation */}
+              {studioSettings?.socialLinks?.instagram && (
+                <div className="mt-6 pt-6 border-t border-beige/30">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Seguici su Instagram per rimanere aggiornato e scoprire i nostri lavori!
+                  </p>
+                  <a
+                    href={
+                      studioSettings.socialLinks.instagram.startsWith("http")
+                        ? studioSettings.socialLinks.instagram
+                        : `https://instagram.com/${studioSettings.socialLinks.instagram}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
+                      <circle cx="12" cy="12" r="3.2" />
+                      <circle cx="17" cy="7" r="0.9" />
+                    </svg>
+                    Seguici su Instagram
+                  </a>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center gap-3 mt-4">
+            <Link href="/consulenze">
+              <Button variant="outline" className="border-sage text-sage hover:bg-sage/10">
+                Torna ai Servizi
+              </Button>
+            </Link>
+            <Link href="/">
+              <Button className="bg-sage hover:bg-dark-sage text-white">
+                Torna alla Home
+              </Button>
+            </Link>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
