@@ -186,11 +186,6 @@ export default function ConsultationTemplatesManager() {
         return;
       }
 
-      console.log('[handleSave] formData before save:', formData);
-      console.log('[handleSave] excludedDays:', formData.excludedDays);
-      console.log('[handleSave] customWorkingHours:', formData.customWorkingHours);
-      console.log('[handleSave] imageUrls:', formData.imageUrls);
-
       if (editingTemplate) {
         await updateMutation.mutateAsync({
           id: editingTemplate.id,

@@ -120,6 +120,18 @@ export default function ConsultationTemplates() {
                 </div>
                 
                 <CardContent className="p-6 space-y-6">
+                  {/* Preview Image */}
+                  {template.imageUrls && template.imageUrls.length > 0 && (
+                    <div className="aspect-[16/9] rounded-lg overflow-hidden border border-beige bg-gray-50">
+                      <img
+                        src={template.imageUrls[0]}
+                        alt={template.nome}
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-300"
+                        data-testid={`img-preview-template-${template.id}`}
+                      />
+                    </div>
+                  )}
+                  
                   {/* Info Pills */}
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2 px-4 py-2.5 bg-sage/5 rounded-full border border-sage/20">
