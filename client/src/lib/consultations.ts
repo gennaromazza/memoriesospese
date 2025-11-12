@@ -32,7 +32,11 @@ export function useTemplates() {
       const res = await fetch('/api/consultations/templates', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
-      if (!res.ok) throw new Error('Failed to fetch templates');
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Templates fetch error:', res.status, errorText);
+        throw new Error(`Failed to fetch templates: ${res.status}`);
+      }
       return res.json();
     }
   });
