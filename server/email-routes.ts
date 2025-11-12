@@ -4477,5 +4477,390 @@ export function createPaymentReceivedEmailHTML(
   `;
 }
 
+/**
+ * =============================
+ * CONSULENZE EMAIL TEMPLATES
+ * =============================
+ */
+
+/**
+ * Template HTML email: Consulenza Ricevuta
+ */
+function createConsultationReceivedEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  studio: any
+): string {
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #7C9885; font-size: 28px; margin: 0 0 10px 0;">Richiesta Consulenza Ricevuta</h1>
+        <p style="color: #8B7355; font-size: 16px; margin: 0;">Grazie per aver scelto ${studio.name}</p>
+      </div>
+
+      <div style="background-color: #F5F3EF; padding: 25px; border-radius: 8px; margin-bottom: 25px;">
+        <p style="font-size: 16px; color: #333; margin: 0 0 15px 0;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        
+        <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 20px 0;">
+          Abbiamo ricevuto la tua richiesta di consulenza per <strong>${jobType}</strong>. 
+          La tua prenotazione è in attesa di conferma.
+        </p>
+
+        <div style="background-color: #ffffff; padding: 20px; border-left: 4px solid #C9A87C; border-radius: 4px;">
+          <h3 style="color: #7C9885; font-size: 18px; margin: 0 0 15px 0;">📅 Dettagli Consulenza</h3>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Tipo di lavoro:</strong> ${jobType}
+          </p>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Data:</strong> ${consultationDate}
+          </p>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Orario:</strong> ${consultationTime}
+          </p>
+        </div>
+
+        <div style="background-color: #FFF9F0; padding: 15px; border-radius: 4px; margin-top: 20px;">
+          <p style="font-size: 14px; color: #8B7355; margin: 0;">
+            ⏳ <strong>Cosa succede ora?</strong><br>
+            Riceverai un'email di conferma non appena approveremo la tua richiesta. 
+            Ti contatteremo a breve per tutti i dettagli!
+          </p>
+        </div>
+      </div>
+
+      <p style="font-size: 14px; color: #666; text-align: center;">
+        Per qualsiasi domanda, contattaci su WhatsApp al ${studio.phone}
+      </p>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML email: Consulenza Approvata
+ */
+function createConsultationApprovedEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  meetingLink: string | null,
+  studio: any
+): string {
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #7C9885; font-size: 28px; margin: 0 0 10px 0;">✅ Consulenza Confermata!</h1>
+        <p style="color: #8B7355; font-size: 16px; margin: 0;">La tua consulenza è stata approvata</p>
+      </div>
+
+      <div style="background-color: #F0F7F4; padding: 25px; border-radius: 8px; margin-bottom: 25px; border: 2px solid #7C9885;">
+        <p style="font-size: 16px; color: #333; margin: 0 0 15px 0;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        
+        <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 20px 0;">
+          Ottima notizia! La tua consulenza per <strong>${jobType}</strong> è stata confermata. 
+          Non vediamo l'ora di conoscerti e parlare del tuo progetto!
+        </p>
+
+        <div style="background-color: #ffffff; padding: 20px; border-left: 4px solid #7C9885; border-radius: 4px;">
+          <h3 style="color: #7C9885; font-size: 18px; margin: 0 0 15px 0;">📅 Appuntamento Confermato</h3>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Tipo di lavoro:</strong> ${jobType}
+          </p>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Data:</strong> ${consultationDate}
+          </p>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Orario:</strong> ${consultationTime}
+          </p>
+          ${meetingLink ? `
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Link incontro:</strong> <a href="${meetingLink}" style="color: #7C9885;">${meetingLink}</a>
+          </p>
+          ` : ''}
+        </div>
+
+        <div style="background-color: #FFF9F0; padding: 15px; border-radius: 4px; margin-top: 20px;">
+          <p style="font-size: 14px; color: #8B7355; margin: 0;">
+            💡 <strong>Preparati per l'incontro:</strong><br>
+            Porta con te eventuali idee, ispirazioni o domande. Insieme creeremo qualcosa di speciale!
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 25px;">
+        <p style="font-size: 14px; color: #666;">
+          L'appuntamento è stato aggiunto al nostro calendario.<br>
+          Ti aspettiamo!
+        </p>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML email: Consulenza Rifiutata
+ */
+function createConsultationRejectedEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  rejectionReason: string | null,
+  studio: any
+): string {
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #8B7355; font-size: 28px; margin: 0 0 10px 0;">Aggiornamento Consulenza</h1>
+        <p style="color: #666; font-size: 16px; margin: 0;">${studio.name}</p>
+      </div>
+
+      <div style="background-color: #F5F3EF; padding: 25px; border-radius: 8px; margin-bottom: 25px;">
+        <p style="font-size: 16px; color: #333; margin: 0 0 15px 0;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        
+        <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 20px 0;">
+          Purtroppo non possiamo confermare la consulenza per <strong>${jobType}</strong> 
+          nella data e orario richiesti.
+        </p>
+
+        <div style="background-color: #ffffff; padding: 20px; border-left: 4px solid #C9A87C; border-radius: 4px;">
+          <h3 style="color: #8B7355; font-size: 18px; margin: 0 0 15px 0;">📅 Dettagli Richiesta</h3>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Tipo di lavoro:</strong> ${jobType}
+          </p>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Data richiesta:</strong> ${consultationDate}
+          </p>
+          <p style="margin: 8px 0; font-size: 15px; color: #333;">
+            <strong>Orario richiesto:</strong> ${consultationTime}
+          </p>
+          ${rejectionReason ? `
+          <div style="background-color: #FFF9F0; padding: 12px; border-radius: 4px; margin-top: 12px;">
+            <p style="margin: 0; font-size: 14px; color: #8B7355;">
+              <strong>Motivo:</strong> ${rejectionReason}
+            </p>
+          </div>
+          ` : ''}
+        </div>
+
+        <div style="background-color: #E8F4F8; padding: 15px; border-radius: 4px; margin-top: 20px;">
+          <p style="font-size: 14px; color: #555; margin: 0;">
+            📞 <strong>Non preoccuparti!</strong><br>
+            Contattaci direttamente per trovare insieme una nuova data che vada bene a entrambi. 
+            Siamo sempre disponibili a organizzare la tua consulenza.
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 25px;">
+        <p style="font-size: 15px; color: #333; margin-bottom: 15px;">
+          <strong>Contattaci su WhatsApp:</strong>
+        </p>
+        <a href="https://wa.me/${studio.phone.replace(/[^0-9]/g, '')}" 
+           style="display: inline-block; background-color: #25D366; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+          💬 Scrivici su WhatsApp
+        </a>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * POST /api/email/send-consultation-received
+ * Invia email "Consulenza Ricevuta" dopo creazione consulenza
+ */
+router.post("/send-consultation-received", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      jobType,
+      consultationDate,
+      consultationTime
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteName || !jobType || !consultationDate || !consultationTime) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio email consulenza ricevuta"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createConsultationReceivedEmailHTML(
+      clienteName,
+      jobType,
+      consultationDate,
+      consultationTime,
+      studioInfo
+    );
+
+    const subject = `Richiesta Consulenza Ricevuta - ${jobType}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Consulenza Ricevuta" inviata a ${recipientEmail} per ${jobType}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Consultation received email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore send-consultation-received:", error);
+    res.status(500).json({
+      error: "Errore invio email consulenza ricevuta"
+    });
+  }
+});
+
+/**
+ * POST /api/email/send-consultation-approved
+ * Invia email "Consulenza Approvata" dopo approvazione admin
+ */
+router.post("/send-consultation-approved", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      jobType,
+      consultationDate,
+      consultationTime,
+      meetingLink
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteName || !jobType || !consultationDate || !consultationTime) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio email consulenza approvata"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createConsultationApprovedEmailHTML(
+      clienteName,
+      jobType,
+      consultationDate,
+      consultationTime,
+      meetingLink || null,
+      studioInfo
+    );
+
+    const subject = `✅ Consulenza Confermata - ${jobType}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Consulenza Approvata" inviata a ${recipientEmail} per ${jobType}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Consultation approved email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore send-consultation-approved:", error);
+    res.status(500).json({
+      error: "Errore invio email consulenza approvata"
+    });
+  }
+});
+
+/**
+ * POST /api/email/send-consultation-rejected
+ * Invia email "Consulenza Rifiutata" dopo rifiuto admin
+ */
+router.post("/send-consultation-rejected", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      jobType,
+      consultationDate,
+      consultationTime,
+      rejectionReason
+    } = req.body;
+
+    // Validazioni
+    if (!recipientEmail || !clienteName || !jobType || !consultationDate || !consultationTime) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio email consulenza rifiutata"
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createConsultationRejectedEmailHTML(
+      clienteName,
+      jobType,
+      consultationDate,
+      consultationTime,
+      rejectionReason || null,
+      studioInfo
+    );
+
+    const subject = `Aggiornamento Consulenza - ${jobType}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email "Consulenza Rifiutata" inviata a ${recipientEmail} per ${jobType}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Consultation rejected email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore send-consultation-rejected:", error);
+    res.status(500).json({
+      error: "Errore invio email consulenza rifiutata"
+    });
+  }
+});
+
 export default router;
-export { authenticateFirebase };
+export { 
+  authenticateFirebase,
+  createConsultationReceivedEmailHTML,
+  createConsultationApprovedEmailHTML,
+  createConsultationRejectedEmailHTML
+};

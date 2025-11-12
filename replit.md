@@ -6,6 +6,8 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 **Vision:** Essere il punto di riferimento per i fotografi professionisti, offrendo una piattaforma completa che gestisce ogni aspetto del business fotografico - dal primo contatto alla consegna finale.
 
 ## Recent Changes (November 2025)
+- **Consulenze (Consultations) Module (November 12):** Complete pre-work consultation system with multi-step public booking flow, admin template management, Google Calendar integration, and automated email notifications (received/approved/rejected). Enables photographers to collect advance job data through configurable templates per job type, manage consultation requests with approve/reject workflow, and convert approved consultations into full jobs with automatic client linkage.
+
 - **Excel-Based Import System (November 11):** Complete Excel import system replacing CSV workflow with `parseExcel()` method supporting European currency formats (€ 2.500,00 → 2500), structured client field parsing from combined columns (Nome, Indirizzo, Telefono → separate fields), Firebase Storage integration with private signed URLs (5-year expiry), multi-location PDF path resolution, and new API routes `/api/import/preview-excel` and `/execute-excel`
 - **Firebase Admin Storage Integration:** Added Firebase Storage singleton export for PDF upload functionality with server-side signed URL generation
 - **Security Enhancement:** PDF uploads remain private in Firebase Storage using signed URLs instead of world-readable public URLs
@@ -21,6 +23,30 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 - Admin Features: Full access for gennaro.mazzacane@gmail.com.
 - The agent should prioritize fixing critical security vulnerabilities and authentication inconsistencies.
 - Iterative development with clear communication before major architectural changes.
+
+## Consultation System (Consulenze)
+**Purpose:** Pre-work consultation scheduling and data collection system integrated with Google Calendar and email notifications.
+
+**Key Features:**
+- **Template Management:** Admin-configurable consultation templates per job type with customizable duration, price, and dynamic job data fields
+- **Public Booking Flow:** Multi-step client-facing pages (job type selection → template selection → calendar slot booking → client data + job data collection)
+- **Calendar Integration:** Automatic Google Calendar event creation on approval with conflict detection and compensating transaction rollback
+- **Admin Workflow:** Approve/reject/convert-to-job actions with first-view tracking (dataVisualizzazione) and expandable detail rows
+- **Email Notifications:** Automated lifecycle emails (consultation received, approved with calendar link, rejected with reason) using Gmail API with centralized HTML templates
+- **Client Linkage:** Automatic findOrCreateCliente integration matching existing booking/job patterns for unified client management
+
+**Data Model:**
+- `consultationTemplates` collection: jobType, durataMinuti, prezzo, campiJobConfigurable[], attiva
+- `consultations` collection: templateId, cliente{nome, cognome, email, whatsapp}, dataConsulenza, orarioInizio/Fine, jobDataCollected{}, stato (in_attesa|confermata|annullata|completata), googleCalendarEventId
+
+**API Routes:**
+- Public: `POST /api/consultations/create`, `POST /api/consultations/available-slots`
+- Admin: `GET/POST/PATCH/DELETE /api/consultations/templates`, `PATCH /api/consultations/:id/{approve|reject|complete}`, `POST /api/consultations/:id/convert-to-job`
+- Email: `POST /api/email/send-consultation-{received|approved|rejected}`
+
+**Frontend Pages:**
+- Public: `/consulenze` (ConsultationIndex), `/consulenze/:tipo` (ConsultationTemplates), `/consulenze/:tipo/:id/prenota` (ConsultationBooking)
+- Admin: `/admin/consulenze` (ConsultationsManager), `/admin/consulenze/templates` (ConsultationTemplatesManager) - accessible via "Consulenze" tab dropdown in AdminDashboard
 
 ## System Architecture
 

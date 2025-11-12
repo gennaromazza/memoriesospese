@@ -392,11 +392,44 @@ router.post('/create', async (req, res) => {
       template
     );
     
-    // TODO: Invia email conferma ricezione (task 13)
+    // Invia email conferma ricezione (task 13)
+    let emailStatus = 'sent';
+    try {
+      const { sendGmailEmail, getStudioContactInfo, createConsultationReceivedEmailHTML } = await import('./email-routes.js');
+      const studioInfo = await getStudioContactInfo();
+      
+      const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
+      const formattedDate = validatedData.dataConsulenza.toLocaleDateString('it-IT', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const htmlContent = createConsultationReceivedEmailHTML(
+        clienteName,
+        template.jobType,
+        formattedDate,
+        `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+        studioInfo
+      );
+      
+      await sendGmailEmail(
+        validatedData.cliente.email,
+        `Richiesta Consulenza Ricevuta - ${template.jobType}`,
+        htmlContent
+      );
+      
+      console.log(`✅ Email "Consulenza Ricevuta" inviata a ${validatedData.cliente.email}`);
+    } catch (emailError: any) {
+      console.error('⚠️ Errore invio email consulenza ricevuta:', emailError.message);
+      emailStatus = 'failed';
+    }
     
     res.status(201).json({ 
       id: consultationId,
-      message: 'Consultation creata con successo'
+      message: 'Consultation creata con successo',
+      emailStatus
     });
   } catch (error: any) {
     console.error('[POST /create] Errore:', error.message);
@@ -507,11 +540,45 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
       });
     }
     
-    // TODO: Invia email conferma (task 13)
+    // Invia email conferma (task 13)
+    let emailStatus = 'sent';
+    try {
+      const { sendGmailEmail, getStudioContactInfo, createConsultationApprovedEmailHTML } = await import('./email-routes.js');
+      const studioInfo = await getStudioContactInfo();
+      
+      const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
+      const formattedDate = consultationDate.toLocaleDateString('it-IT', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const htmlContent = createConsultationApprovedEmailHTML(
+        clienteName,
+        consultation.jobType,
+        formattedDate,
+        `${consultation.orarioInizio} - ${consultation.orarioFine}`,
+        null, // meetingLink
+        studioInfo
+      );
+      
+      await sendGmailEmail(
+        consultation.cliente.email,
+        `✅ Consulenza Confermata - ${consultation.jobType}`,
+        htmlContent
+      );
+      
+      console.log(`✅ Email "Consulenza Approvata" inviata a ${consultation.cliente.email}`);
+    } catch (emailError: any) {
+      console.error('⚠️ Errore invio email consulenza approvata:', emailError.message);
+      emailStatus = 'failed';
+    }
     
     res.json({ 
       message: 'Consultation approvata con successo',
-      googleCalendarEventId: eventId
+      googleCalendarEventId: eventId,
+      emailStatus
     });
   } catch (error: any) {
     console.error('[PATCH /:id/approve] Errore:', error.message);
@@ -552,9 +619,46 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
       note: consultation.note + `\n[RIFIUTATA] ${motivo || 'Nessun motivo specificato'}`,
     });
     
-    // TODO: Invia email rifiuto (task 13)
+    // Invia email rifiuto (task 13)
+    let emailStatus = 'sent';
+    try {
+      const { sendGmailEmail, getStudioContactInfo, createConsultationRejectedEmailHTML } = await import('./email-routes.js');
+      const studioInfo = await getStudioContactInfo();
+      
+      const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
+      const rawDate = consultation.dataConsulenza.toDate();
+      const formattedDate = rawDate.toLocaleDateString('it-IT', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const htmlContent = createConsultationRejectedEmailHTML(
+        clienteName,
+        consultation.jobType,
+        formattedDate,
+        `${consultation.orarioInizio} - ${consultation.orarioFine}`,
+        motivo || null,
+        studioInfo
+      );
+      
+      await sendGmailEmail(
+        consultation.cliente.email,
+        `Aggiornamento Consulenza - ${consultation.jobType}`,
+        htmlContent
+      );
+      
+      console.log(`✅ Email "Consulenza Rifiutata" inviata a ${consultation.cliente.email}`);
+    } catch (emailError: any) {
+      console.error('⚠️ Errore invio email consulenza rifiutata:', emailError.message);
+      emailStatus = 'failed';
+    }
     
-    res.json({ message: 'Consultation rifiutata con successo' });
+    res.json({ 
+      message: 'Consultation rifiutata con successo',
+      emailStatus
+    });
   } catch (error: any) {
     console.error('[PATCH /:id/reject] Errore:', error.message);
     res.status(500).json({ error: 'Errore rifiuto consultation' });
