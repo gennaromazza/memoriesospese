@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { getQuotesForJob, deleteQuote, resetQuoteSignature } from '@/lib/quotes';
 import { Quote, QuoteStatus } from '@shared/quotes-types';
 import { getJob } from '@/lib/jobs';
@@ -8,12 +11,24 @@ import { getClienteById } from '@/lib/clienti';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,13 +46,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2, AlertTriangle, Phone, Download } from 'lucide-react';
-import { format } from 'date-fns';
+import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2, AlertTriangle, Phone, Download, Calendar as CalendarIcon, Edit } from 'lucide-react';
+import { format as formatDate } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import GeneraPagamentiModal from './GeneraPagamentiModal';
+import { cn } from '@/lib/utils';
+
+const manualSignatureSchema = z.object({
+  signedAt: z.date({ required_error: 'La data di firma è obbligatoria' }),
+  signerName: z.string().min(2, 'Il nome del firmatario deve contenere almeno 2 caratteri')
+});
 
 interface ModuliJobSectionProps {
   jobId: string;
@@ -81,11 +102,21 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
   const [resetQuoteId, setResetQuoteId] = useState<string | null>(null);
+  const [signatureMode, setSignatureMode] = useState<'none' | 'reset' | 'manual'>('none');
   const [forceDeleteMode, setForceDeleteMode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
   const [, navigate] = useLocation();
+
+  // Form per firma manuale
+  const manualSignatureForm = useForm<z.infer<typeof manualSignatureSchema>>({
+    resolver: zodResolver(manualSignatureSchema),
+    defaultValues: {
+      signedAt: new Date(),
+      signerName: ''
+    }
+  });
 
   const { data: quotes = [], isLoading } = useQuery<Quote[]>({
     queryKey: ['quotes', 'job', jobId],
@@ -164,29 +195,49 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
     }
   });
 
-  // Reset signature mutation
-  const resetMutation = useMutation({
-    mutationFn: async (quoteId: string) => {
+  // Signature management mutation (reset o manual)
+  const signatureMutation = useMutation({
+    mutationFn: async (params: { 
+      quoteId: string; 
+      action: 'reset' | 'manual';
+      signatureData?: { signedAt: string; signerName: string };
+    }) => {
       if (!user?.email) throw new Error('Utente non autenticato');
-      await resetQuoteSignature(quoteId, user.email);
+      await resetQuoteSignature(params.quoteId, user.email, {
+        action: params.action,
+        signatureData: params.signatureData
+      });
+      return params.action;
     },
-    onSuccess: () => {
+    onSuccess: (action) => {
       queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       setSelectedQuoteId(null);
       setResetQuoteId(null);
-      toast({
-        title: 'Firma reimpostata',
-        description: 'Il preventivo è tornato in stato "Bozza"'
-      });
+      setSignatureMode('none');
+      manualSignatureForm.reset();
+      
+      const messages = {
+        reset: {
+          title: 'Firma reimpostata',
+          description: 'Il preventivo è tornato in stato "Bozza"'
+        },
+        manual: {
+          title: 'Firma impostata',
+          description: 'La firma è stata registrata con successo'
+        }
+      };
+      
+      toast(messages[action]);
     },
     onError: (error: Error) => {
       toast({
-        title: 'Errore reimpostazione',
-        description: error.message || 'Impossibile reimpostare la firma',
+        title: 'Errore gestione firma',
+        description: error.message || 'Impossibile completare l\'operazione',
         variant: 'destructive'
       });
       setResetQuoteId(null);
+      setSignatureMode('none');
     }
   });
 
@@ -347,15 +398,37 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {/* Reset signature (only for signed quotes) */}
-                        {selectedQuote.status === 'firmato' && (
+                        {/* Gestione Firma */}
+                        {selectedQuote.status === 'firmato' ? (
                           <>
                             <DropdownMenuItem
-                              onClick={() => setResetQuoteId(selectedQuote.id)}
+                              onClick={() => {
+                                setResetQuoteId(selectedQuote.id);
+                                setSignatureMode('reset');
+                              }}
                               data-testid="menu-reset-signature"
                             >
                               <AlertTriangle className="h-4 w-4 mr-2" />
                               Reimposta Firma
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        ) : (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setResetQuoteId(selectedQuote.id);
+                                setSignatureMode('manual');
+                                // Pre-fill con nome cliente se disponibile
+                                if (selectedQuote.clientiInfo && selectedQuote.clientiInfo.length > 0) {
+                                  const firstClient = selectedQuote.clientiInfo[0];
+                                  manualSignatureForm.setValue('signerName', `${firstClient.nome} ${firstClient.cognome}`);
+                                }
+                              }}
+                              data-testid="menu-set-manual-signature"
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Imposta come Firmato
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                           </>
@@ -724,63 +797,202 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Reset Signature Confirmation Dialog */}
-      <AlertDialog open={!!resetQuoteId} onOpenChange={(open) => !open && setResetQuoteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              Reimposta Firma Preventivo
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3 pt-2">
-                <p>
-                  Stai per reimpostare la firma del preventivo. Questa azione:
-                </p>
-                <ul className="list-disc list-inside space-y-1 text-sm pl-2">
-                  <li>Cambierà lo status da <strong>Firmato</strong> a <strong>Bozza</strong></li>
-                  <li>Rimuoverà la firma digitale del cliente</li>
-                  <li>Cancellerà la data di firma</li>
-                  <li>Manterrà tutti gli altri dati del preventivo (prodotti, prezzi, clienti)</li>
-                </ul>
-                <p className="text-amber-700 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md border border-amber-200 dark:border-amber-800">
-                  ⚠️ Il cliente dovrà firmare nuovamente il preventivo se necessario.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel 
-              onClick={() => setResetQuoteId(null)}
-              data-testid="button-cancel-reset"
-            >
-              Annulla
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (resetQuoteId) {
-                  resetMutation.mutate(resetQuoteId);
-                }
-              }}
-              disabled={resetMutation.isPending}
-              className="bg-amber-600 hover:bg-amber-700"
-              data-testid="button-confirm-reset"
-            >
-              {resetMutation.isPending ? (
+      {/* Signature Management Dialog (Reset or Manual) */}
+      <Dialog open={!!resetQuoteId && signatureMode !== 'none'} onOpenChange={(open) => {
+        if (!open) {
+          setResetQuoteId(null);
+          setSignatureMode('none');
+          manualSignatureForm.reset();
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {signatureMode === 'reset' ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Reimpostazione...
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  Reimposta Firma Preventivo
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Reimposta Firma
+                  <Edit className="h-5 w-5 text-green-600" />
+                  Imposta Firma Manualmente
                 </>
               )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </DialogTitle>
+            <DialogDescription>
+              {signatureMode === 'reset' 
+                ? 'Rimuovi la firma del preventivo e riportalo in stato "Bozza"'
+                : 'Registra manualmente una firma per questo preventivo (utile per import da vecchio database)'
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* RESET MODE: Conferma reimpostazione */}
+          {signatureMode === 'reset' && (
+            <div className="space-y-4">
+              <div className="space-y-3 pt-2">
+                <p className="text-sm text-muted-foreground">
+                  Questa azione:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-sm pl-2 text-muted-foreground">
+                  <li>Cambierà lo status da <strong>Firmato</strong> a <strong>Bozza</strong></li>
+                  <li>Rimuoverà la firma digitale del cliente</li>
+                  <li>Cancellerà la data di firma</li>
+                  <li>Manterrà tutti gli altri dati del preventivo</li>
+                </ul>
+                <div className="text-amber-700 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md border border-amber-200 dark:border-amber-800 text-sm">
+                  ⚠️ Il cliente dovrà firmare nuovamente il preventivo se necessario.
+                </div>
+              </div>
+              
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setResetQuoteId(null);
+                    setSignatureMode('none');
+                  }}
+                  data-testid="button-cancel-reset"
+                >
+                  Annulla
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (resetQuoteId) {
+                      signatureMutation.mutate({
+                        quoteId: resetQuoteId,
+                        action: 'reset'
+                      });
+                    }
+                  }}
+                  disabled={signatureMutation.isPending}
+                  className="bg-amber-600 hover:bg-amber-700"
+                  data-testid="button-confirm-reset"
+                >
+                  {signatureMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Reimpostazione...
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Reimposta Firma
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {/* MANUAL MODE: Form inserimento dati firma */}
+          {signatureMode === 'manual' && (
+            <form onSubmit={manualSignatureForm.handleSubmit((data) => {
+              if (resetQuoteId) {
+                signatureMutation.mutate({
+                  quoteId: resetQuoteId,
+                  action: 'manual',
+                  signatureData: {
+                    signedAt: data.signedAt.toISOString(),
+                    signerName: data.signerName
+                  }
+                });
+              }
+            })}>
+              <div className="space-y-4 py-4">
+                {/* Data Firma */}
+                <div className="space-y-2">
+                  <Label htmlFor="signedAt">Data di Firma *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !manualSignatureForm.watch('signedAt') && "text-muted-foreground"
+                        )}
+                        data-testid="button-date-picker"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {manualSignatureForm.watch('signedAt') ? (
+                          formatDate(manualSignatureForm.watch('signedAt'), 'PPP', { locale: it })
+                        ) : (
+                          <span>Seleziona data</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={manualSignatureForm.watch('signedAt')}
+                        onSelect={(date) => date && manualSignatureForm.setValue('signedAt', date)}
+                        disabled={(date) => date > new Date()}
+                        initialFocus
+                        locale={it}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {manualSignatureForm.formState.errors.signedAt && (
+                    <p className="text-sm text-destructive">{manualSignatureForm.formState.errors.signedAt.message}</p>
+                  )}
+                </div>
+
+                {/* Nome Firmatario */}
+                <div className="space-y-2">
+                  <Label htmlFor="signerName">Nome Firmatario *</Label>
+                  <Input
+                    id="signerName"
+                    placeholder="Nome e cognome di chi ha firmato"
+                    {...manualSignatureForm.register('signerName')}
+                    data-testid="input-signer-name"
+                  />
+                  {manualSignatureForm.formState.errors.signerName && (
+                    <p className="text-sm text-destructive">{manualSignatureForm.formState.errors.signerName.message}</p>
+                  )}
+                </div>
+
+                <div className="text-green-700 bg-green-50 dark:bg-green-950/20 p-3 rounded-md border border-green-200 dark:border-green-800 text-sm">
+                  ℹ️ Questa firma verrà registrata come inserimento manuale per import legacy.
+                </div>
+              </div>
+
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  onClick={() => {
+                    setResetQuoteId(null);
+                    setSignatureMode('none');
+                    manualSignatureForm.reset();
+                  }}
+                  data-testid="button-cancel-manual"
+                >
+                  Annulla
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={signatureMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                  data-testid="button-confirm-manual"
+                >
+                  {signatureMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Registrazione...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Registra Firma
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

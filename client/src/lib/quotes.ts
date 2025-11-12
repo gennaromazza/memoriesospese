@@ -595,25 +595,49 @@ export async function getQuoteTemplate(templateId: string): Promise<QuoteTemplat
 }
 
 /**
- * Reimposta firma preventivo (firmato → bozza)
- * Admin-only - Rimuove firma e dataFirma mantenendo resto dei dati
+ * Gestione firma preventivo: Reset (firmato → bozza) O Impostazione manuale
+ * Admin-only - Supporta import legacy e correzioni manuali
+ * 
+ * @param quoteId - ID preventivo
+ * @param adminEmail - Email admin
+ * @param options - Opzioni azione:
+ *   - { action: 'reset' } - Rimuove firma (default)
+ *   - { action: 'manual', signatureData: { signedAt, signerName, ipAddress?, userAgent? } } - Imposta firma manualmente
  */
-export async function resetQuoteSignature(quoteId: string, adminEmail: string): Promise<void> {
+export async function resetQuoteSignature(
+  quoteId: string, 
+  adminEmail: string,
+  options?: {
+    action?: 'reset' | 'manual';
+    signatureData?: {
+      signedAt: string;
+      signerName: string;
+      ipAddress?: string;
+      userAgent?: string;
+    };
+  }
+): Promise<void> {
   try {
+    const body = options ? {
+      action: options.action || 'reset',
+      signatureData: options.signatureData
+    } : undefined;
+
     const response = await fetch(`/api/quotes/${quoteId}/reset-signature`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'x-admin-email': adminEmail
-      }
+      },
+      body: body ? JSON.stringify(body) : undefined
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || errorData.message || 'Errore reimpostazione firma');
+      throw new Error(errorData.error || errorData.message || 'Errore gestione firma');
     }
   } catch (error) {
-    console.error('❌ Errore reset signature:', error);
+    console.error('❌ Errore gestione firma:', error);
     throw error;
   }
 }
