@@ -876,117 +876,132 @@ export default function BookingsManager({
       {activeTab === 'bookings' && (
         <>
           {/* Header e filtri */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-6 h-6 text-sage" />
-                Gestione Prenotazioni
-              </CardTitle>
-              <CardDescription>
-                Visualizza e gestisci tutte le prenotazioni dei clienti
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-          <div className="space-y-4">
-            {/* Filtri */}
-            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-              <div className="flex-1">
-                <Select value={selectedStato} onValueChange={setSelectedStato}>
-                  <SelectTrigger data-testid="select-stato-filter">
-                    <SelectValue placeholder="Filtra per stato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATI_BOOKING.map((stato) => (
-                      <SelectItem key={stato.value} value={stato.value}>
-                        {stato.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex-1">
-                <Select value={timeFilter} onValueChange={(value: any) => { setTimeFilter(value); setCurrentPage(1); }}>
-                  <SelectTrigger data-testid="select-time-filter">
-                    <SelectValue placeholder="Filtra per data" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tutte le date</SelectItem>
-                    <SelectItem value="today">Oggi</SelectItem>
-                    <SelectItem value="tomorrow">Domani</SelectItem>
-                    <SelectItem value="next-week">Prossima Settimana</SelectItem>
-                    <SelectItem value="next-month">Prossimo Mese</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant={selectionFilter === 'all' ? 'outline' : 'default'}
-                  size="default"
-                  onClick={() => setSelectionFilter('all')}
-                  className={selectionFilter === 'all' ? '' : 'bg-green-600 hover:bg-green-700'}
-                  data-testid="filter-all-selections-btn"
-                >
-                  📷 Tutte
-                </Button>
-                <Button
-                  variant={selectionFilter === 'approved' ? 'default' : 'outline'}
-                  size="default"
-                  onClick={() => setSelectionFilter('approved')}
-                  className={selectionFilter === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
-                  data-testid="filter-approved-selections-btn"
-                >
-                  ✅ Solo Approvate
-                </Button>
-              </div>
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    placeholder="Cerca per nome, email o campagna..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                    data-testid="input-search-bookings"
-                  />
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            {/* Header */}
+            <div className="border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-sage/10 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-sage" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Gestione Prenotazioni</h2>
+                  <p className="text-sm text-gray-500">Visualizza e gestisci tutte le prenotazioni dei clienti</p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="default"
-                onClick={() => refetch()}
-                data-testid="button-refresh"
-              >
-                Aggiorna
-              </Button>
-              <Button
-                variant="default"
-                size="default"
-                onClick={() => setShowManualBookingModal(true)}
-                className="bg-sage hover:bg-dark-sage"
-                data-testid="button-new-manual-booking"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Nuova Prenotazione
-              </Button>
             </div>
 
-            {/* Contatore risultati - sempre visibile */}
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-sm px-3 py-1">
-                <span className="font-semibold">{bookings.length}</span>
-                <span className="ml-1 text-muted-foreground">
-                  {bookings.length === 1 ? 'prenotazione' : 'prenotazioni'}
-                </span>
-              </Badge>
-              {(selectedStato !== 'all' || searchQuery.trim()) && (
-                <span className="text-xs text-muted-foreground">
-                  (filtrate)
-                </span>
-              )}
+            {/* Filtri */}
+            <div className="px-6 py-4 space-y-4">
+              {/* Prima riga filtri */}
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+                {/* Filtro stato */}
+                <div className="w-full lg:w-48">
+                  <Select value={selectedStato} onValueChange={setSelectedStato}>
+                    <SelectTrigger data-testid="select-stato-filter" className="h-10">
+                      <SelectValue placeholder="Tutti" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATI_BOOKING.map((stato) => (
+                        <SelectItem key={stato.value} value={stato.value}>
+                          {stato.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filtro data */}
+                <div className="w-full lg:w-56">
+                  <Select value={timeFilter} onValueChange={(value: any) => { setTimeFilter(value); setCurrentPage(1); }}>
+                    <SelectTrigger data-testid="select-time-filter" className="h-10">
+                      <SelectValue placeholder="Tutte le date" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutte le date</SelectItem>
+                      <SelectItem value="today">Oggi</SelectItem>
+                      <SelectItem value="tomorrow">Domani</SelectItem>
+                      <SelectItem value="next-week">Prossima Settimana</SelectItem>
+                      <SelectItem value="next-month">Prossimo Mese</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Pulsanti Tutte/Solo Approvate */}
+                <div className="flex gap-2">
+                  <Button
+                    variant={selectionFilter === 'all' ? 'default' : 'outline'}
+                    size="default"
+                    onClick={() => setSelectionFilter('all')}
+                    className={selectionFilter === 'all' ? 'bg-sage hover:bg-dark-sage h-10' : 'h-10'}
+                    data-testid="filter-all-selections-btn"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Tutte
+                  </Button>
+                  <Button
+                    variant={selectionFilter === 'approved' ? 'default' : 'outline'}
+                    size="default"
+                    onClick={() => setSelectionFilter('approved')}
+                    className={selectionFilter === 'approved' ? 'bg-green-600 hover:bg-green-700 h-10' : 'h-10'}
+                    data-testid="filter-approved-selections-btn"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Solo Approvate
+                  </Button>
+                </div>
+
+                {/* Barra di ricerca */}
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Cerca per nome, email o campagna..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 h-10"
+                      data-testid="input-search-bookings"
+                    />
+                  </div>
+                </div>
+
+                {/* Pulsanti azione */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="default"
+                    onClick={() => refetch()}
+                    data-testid="button-refresh"
+                    className="h-10"
+                  >
+                    Aggiorna
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="default"
+                    onClick={() => setShowManualBookingModal(true)}
+                    className="bg-sage hover:bg-dark-sage h-10"
+                    data-testid="button-new-manual-booking"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nuova Prenotazione
+                  </Button>
+                </div>
+              </div>
+
+              {/* Badge contatore risultati */}
+              <div className="flex items-center gap-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sage/10 text-sage">
+                  <span className="font-semibold">{bookings.length}</span>
+                  <span className="text-sm">
+                    {bookings.length === 1 ? 'prenotazione' : 'prenotazioni'}
+                  </span>
+                </div>
+                {(selectedStato !== 'all' || searchQuery.trim() || timeFilter !== 'all' || selectionFilter !== 'all') && (
+                  <span className="text-xs text-gray-500">(filtrate)</span>
+                )}
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
       {/* Lista prenotazioni */}
       {isLoading ? (
