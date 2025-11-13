@@ -5,7 +5,8 @@
 
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from './queryClient';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
+import { collection, getDocs, getDoc, doc, query, where, orderBy } from 'firebase/firestore';
 import type {
   ConsultationTemplate,
   Consultation,
@@ -13,6 +14,86 @@ import type {
   UpdateConsultationTemplate,
   InsertConsultation
 } from '@shared/consultation-types';
+
+/**
+ * FIRESTORE DIRECT FUNCTIONS - No HTTP API needed
+ */
+
+// Get all consultation templates from Firestore
+export async function getAllTemplates(): Promise<ConsultationTemplate[]> {
+  try {
+    const templatesRef = collection(db, 'consultation_templates');
+    const q = query(templatesRef, orderBy('ordine', 'asc'));
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as ConsultationTemplate));
+  } catch (error) {
+    console.error('[consultations] Error fetching templates from Firestore:', error);
+    return [];
+  }
+}
+
+// Get all consultations from Firestore
+export async function getAllConsultations(): Promise<Consultation[]> {
+  try {
+    const consultationsRef = collection(db, 'consultations');
+    const q = query(consultationsRef, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Consultation));
+  } catch (error) {
+    console.error('[consultations] Error fetching consultations from Firestore:', error);
+    return [];
+  }
+}
+
+// Get single template by ID
+export async function getTemplateById(id: string): Promise<ConsultationTemplate | null> {
+  try {
+    const templateRef = doc(db, 'consultation_templates', id);
+    const snapshot = await getDoc(templateRef);
+    
+    if (!snapshot.exists()) {
+      return null;
+    }
+    
+    return {
+      id: snapshot.id,
+      ...snapshot.data()
+    } as ConsultationTemplate;
+  } catch (error) {
+    console.error('[consultations] Error fetching template by ID:', error);
+    return null;
+  }
+}
+
+// Get templates by job type
+export async function getTemplatesByJobType(jobType: string): Promise<ConsultationTemplate[]> {
+  try {
+    const templatesRef = collection(db, 'consultation_templates');
+    const q = query(
+      templatesRef,
+      where('jobType', '==', jobType),
+      where('attiva', '==', true),
+      orderBy('ordine', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as ConsultationTemplate));
+  } catch (error) {
+    console.error('[consultations] Error fetching templates by job type:', error);
+    return [];
+  }
+}
 
 export const CONSULTATION_KEYS = {
   all: ['consultations'] as const,
@@ -27,31 +108,22 @@ export const CONSULTATION_KEYS = {
 export function useTemplates(authReady: boolean = true) {
   return useQuery<ConsultationTemplate[]>({
     queryKey: CONSULTATION_KEYS.templates(),
-    queryFn: async () => {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      const res = await fetch('/api/consultations/templates', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Templates fetch error:', res.status, errorText);
-        throw new Error(`Failed to fetch templates: ${res.status}`);
-      }
-      return res.json();
-    },
-    enabled: authReady
+    queryFn: getAllTemplates,
+    enabled: authReady,
+    retry: 2,
+    staleTime: 60000 // Cache for 1 minute
   });
 }
 
 export function useTemplate(id: string | undefined) {
-  return useQuery<ConsultationTemplate>({
+  return useQuery<ConsultationTemplate | null>({
     queryKey: CONSULTATION_KEYS.template(id!),
     queryFn: async () => {
-      const res = await fetch(`/api/consultations/templates/${id}`);
-      if (!res.ok) throw new Error('Failed to fetch template');
-      return res.json();
+      if (!id) return null;
+      return await getTemplateById(id);
     },
-    enabled: !!id
+    enabled: !!id,
+    retry: 2
   });
 }
 
@@ -59,11 +131,11 @@ export function useTemplatesByJobType(jobType: string | undefined) {
   return useQuery<ConsultationTemplate[]>({
     queryKey: CONSULTATION_KEYS.templatesByJobType(jobType!),
     queryFn: async () => {
-      const res = await fetch(`/api/consultations/templates/by-job-type/${jobType}`);
-      if (!res.ok) throw new Error('Failed to fetch templates');
-      return res.json();
+      if (!jobType) return [];
+      return await getTemplatesByJobType(jobType);
     },
-    enabled: !!jobType
+    enabled: !!jobType,
+    retry: 2
   });
 }
 
@@ -71,40 +143,55 @@ export function useJobTypes() {
   return useQuery<string[]>({
     queryKey: CONSULTATION_KEYS.jobTypes(),
     queryFn: async () => {
-      const res = await fetch('/api/consultations/job-types');
-      if (!res.ok) throw new Error('Failed to fetch job types');
-      return res.json();
-    }
+      try {
+        // Usa la funzione esistente getJobTypes da job-types.ts
+        const { getJobTypes } = await import('./job-types');
+        const jobTypes = await getJobTypes();
+        return jobTypes.map(jt => jt.slug);
+      } catch (error) {
+        console.error('[consultations] Error fetching job types:', error);
+        return [];
+      }
+    },
+    retry: 2,
+    staleTime: 300000 // Cache for 5 minutes
   });
 }
 
 export function useConsultations(authReady: boolean = true) {
   return useQuery<Consultation[]>({
     queryKey: CONSULTATION_KEYS.consultations(),
-    queryFn: async () => {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      const res = await fetch('/api/consultations', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
-      if (!res.ok) throw new Error('Failed to fetch consultations');
-      return res.json();
-    },
-    enabled: authReady
+    queryFn: getAllConsultations,
+    enabled: authReady,
+    retry: 2,
+    staleTime: 30000 // Cache for 30 seconds
   });
 }
 
 export function useConsultation(id: string | undefined) {
-  return useQuery<Consultation>({
+  return useQuery<Consultation | null>({
     queryKey: CONSULTATION_KEYS.consultation(id!),
     queryFn: async () => {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      const res = await fetch(`/api/consultations/${id}`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
-      if (!res.ok) throw new Error('Failed to fetch consultation');
-      return res.json();
+      if (!id) return null;
+      try {
+        const consultationRef = doc(db, 'consultations', id);
+        const snapshot = await getDoc(consultationRef);
+        
+        if (!snapshot.exists()) {
+          return null;
+        }
+        
+        return {
+          id: snapshot.id,
+          ...snapshot.data()
+        } as Consultation;
+      } catch (error) {
+        console.error('[consultations] Error fetching consultation by ID:', error);
+        return null;
+      }
     },
-    enabled: !!id
+    enabled: !!id,
+    retry: 2
   });
 }
 
