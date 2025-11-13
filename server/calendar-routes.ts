@@ -50,6 +50,7 @@ router.get('/events', authenticateFirebase, async (req, res) => {
     }
 
     const events: CalendarEventDTO[] = [];
+    const warnings: string[] = [];
     const timeMin = new Date(startDate as string);
     const timeMax = new Date(endDate as string);
 
@@ -77,8 +78,10 @@ router.get('/events', authenticateFirebase, async (req, res) => {
       });
 
       console.log(`✅ Caricati ${googleEvents.length} eventi Google Calendar`);
-    } catch (error) {
-      console.error('⚠️ Errore caricamento Google Calendar (continuiamo comunque):', error);
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      console.error('⚠️ Errore caricamento Google Calendar (continuiamo comunque):', errorMessage);
+      warnings.push(`Google Calendar non disponibile: ${errorMessage}`);
     }
 
     // 2. Consulenze confermate nel range di date
@@ -108,8 +111,10 @@ router.get('/events', authenticateFirebase, async (req, res) => {
       });
 
       console.log(`✅ Caricate ${consultazioniSnap.size} consulenze`);
-    } catch (error) {
-      console.error('⚠️ Errore caricamento consulenze (continuiamo comunque):', error);
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      console.error('⚠️ Errore caricamento consulenze (continuiamo comunque):', errorMessage);
+      warnings.push(`Consulenze non disponibili: ${errorMessage}`);
     }
 
     // 3. Jobs attivi con dataServizio nel range (opzionale)
@@ -139,16 +144,22 @@ router.get('/events', authenticateFirebase, async (req, res) => {
       });
 
       console.log(`✅ Caricati ${jobsSnap.size} jobs`);
-    } catch (error) {
-      console.error('⚠️ Errore caricamento jobs (continuiamo comunque):', error);
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      console.error('⚠️ Errore caricamento jobs (continuiamo comunque):', errorMessage);
+      warnings.push(`Jobs non disponibili: ${errorMessage}`);
     }
 
     console.log(`📋 Totale eventi caricati: ${events.length}`);
+    if (warnings.length > 0) {
+      console.log(`⚠️ Warnings: ${warnings.join(', ')}`);
+    }
     
-    res.json({ events });
-  } catch (error) {
-    console.error('❌ Error fetching calendar events:', error);
-    res.status(500).json({ error: 'Failed to fetch events' });
+    res.json({ events, warnings });
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    console.error('❌ Error fetching calendar events:', errorMessage);
+    res.status(500).json({ error: 'Failed to fetch events', message: errorMessage });
   }
 });
 

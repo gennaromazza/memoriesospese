@@ -88,7 +88,7 @@ export default function CalendarioManager() {
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
 
-  const { data: eventsData, isLoading: eventsLoading } = useQuery<CalendarEventDTO[]>({
+  const { data: eventsData, isLoading: eventsLoading } = useQuery<{ events: CalendarEventDTO[]; warnings?: string[] }>({
     queryKey: ['/api/calendar/events', monthStart.toISOString(), monthEnd.toISOString()],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -100,7 +100,18 @@ export default function CalendarioManager() {
         throw new Error('Failed to fetch calendar events');
       }
       const data = await response.json();
-      return data.events;
+      
+      if (data.warnings && data.warnings.length > 0) {
+        data.warnings.forEach((warning: string) => {
+          toast({
+            title: 'Avviso',
+            description: warning,
+            variant: 'default',
+          });
+        });
+      }
+      
+      return data;
     },
     enabled: true,
   });
@@ -134,7 +145,7 @@ export default function CalendarioManager() {
     },
   });
 
-  const events = eventsData || [];
+  const events = eventsData?.events || [];
 
   const eventsByType = useMemo(() => {
     return {
