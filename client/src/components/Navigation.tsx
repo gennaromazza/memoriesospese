@@ -192,6 +192,15 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                         {userInfo.displayName || 'Ospite'}
                       </span>
                     </div>
+                    {isAdmin && (
+                      <Link
+                        to={createUrl("/admin/dashboard")}
+                        className="px-4 py-2 rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg transition-all duration-300 font-medium"
+                        data-testid="link-admin-dashboard"
+                      >
+                        Pannello Admin
+                      </Link>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -259,6 +268,17 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 </div>
               </div>
               <div className="space-y-2">
+                {/* Pulsante Admin mobile - solo per admin */}
+                {isAdmin && (
+                  <Link
+                    to={createUrl("/admin/dashboard")}
+                    className="block w-full text-center px-4 py-3 rounded-xl text-base font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg transition-all duration-300"
+                    onClick={() => setIsMenuOpen(false)}
+                    data-testid="link-admin-dashboard-mobile"
+                  >
+                    Pannello Admin
+                  </Link>
+                )}
                 {/* Pulsante Richiedi Password mobile */}
                 {galleryCode && (
                   <button

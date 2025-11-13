@@ -329,6 +329,18 @@ service cloud.firestore {
       allow delete: if true; // Allow guest to deselect photos (public delete)
     }
     
+    // Photo Selections (camelCase variant) - Same rules as photo_selections for backward compatibility
+    match /photoSelections/{selectionId} {
+      allow read: if true; // Public read access for guests and admin
+      allow create: if true && // Allow guest selection with validation
+        request.resource.data.keys().hasAll(['galleryId', 'photoId', 'selectedAt']) &&
+        request.resource.data.galleryId is string &&
+        request.resource.data.photoId is string &&
+        request.resource.data.selectedAt is timestamp;
+      allow update: if isAdmin(); // Only admin can update selections
+      allow delete: if true; // Allow guest to deselect photos (public delete)
+    }
+    
     // ====== JOB TYPES & QUOTES SYSTEM RULES (November 2025) ======
     
     // Job Types - Dynamic configurable job types (matrimoni, battesimi, etc.)
