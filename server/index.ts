@@ -13,6 +13,7 @@ import paymentScheduleRoutes from './payment-schedule-routes.js';
 import quoteRoutes from './quote-routes.js';
 import importRoutes from './import-routes.js';
 import consultationRoutes from './consultation-routes.js';
+import calendarRoutes from './calendar-routes.js';
 
 async function startServer() {
   const start = Date.now();
@@ -82,6 +83,9 @@ async function startServer() {
     
     app.use('/api/consultations', consultationRoutes);
     console.log('🗓️  Consultation API routes mounted at /api/consultations');
+    
+    app.use('/api/calendar', calendarRoutes);
+    console.log('📆 Calendar API routes mounted at /api/calendar');
 
     // Health check
     app.get('/api/health', (req, res) => {

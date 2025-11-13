@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +52,7 @@ export default function ProductsManager() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   
   // Form state
   const [formData, setFormData] = useState<InsertProduct>({
@@ -303,6 +304,11 @@ export default function ProductsManager() {
 
   const prezzoFinale = formData.prezzo - (formData.prezzo * formData.sconto / 100);
 
+  // Filtra prodotti per categoria
+  const filteredProducts = products.filter(p => 
+    categoryFilter === null || p.categoria === categoryFilter
+  );
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -341,27 +347,54 @@ export default function ProductsManager() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Totale Prodotti</CardDescription>
-            <CardTitle className="text-3xl">{products.length}</CardTitle>
+            <CardDescription>Prodotti Totali</CardDescription>
+            <CardTitle className="text-3xl">{filteredProducts.length}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Prodotti Attivi</CardDescription>
+            <CardDescription>Attivi</CardDescription>
             <CardTitle className="text-3xl text-green-600">
-              {products.filter(p => p.attivo).length}
+              {filteredProducts.filter(p => p.attivo).length}
             </CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Prodotti Disattivati</CardDescription>
+            <CardDescription>Disattivati</CardDescription>
             <CardTitle className="text-3xl text-gray-400">
-              {products.filter(p => !p.attivo).length}
+              {filteredProducts.filter(p => !p.attivo).length}
             </CardTitle>
           </CardHeader>
         </Card>
       </div>
+
+      {/* Filtro Categoria */}
+      {!categoriesLoading && activeCategories.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={categoryFilter === null ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCategoryFilter(null)}
+            data-testid="button-filter-all"
+          >
+            <FolderOpen className="h-4 w-4 mr-2" />
+            Mostra tutti
+          </Button>
+          {activeCategories.map(category => (
+            <Button
+              key={category.id}
+              variant={categoryFilter === category.value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setCategoryFilter(category.value)}
+              data-testid={`button-filter-${category.value}`}
+            >
+              <FolderOpen className="h-4 w-4 mr-2" />
+              {category.nome}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* Lista Prodotti */}
       {products.length === 0 ? (
@@ -378,9 +411,25 @@ export default function ProductsManager() {
             </Button>
           </CardContent>
         </Card>
+      ) : filteredProducts.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">
+              Nessun prodotto in categoria {allCategories.find(c => c.value === categoryFilter)?.nome || categoryFilter}
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              Non ci sono prodotti disponibili per la categoria selezionata
+            </p>
+            <Button onClick={() => setCategoryFilter(null)} variant="outline" data-testid="button-show-all-empty">
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Mostra tutti i prodotti
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map(product => (
+          {filteredProducts.map(product => (
             <Card key={product.id} className={!product.attivo ? 'opacity-60' : ''}>
               <CardHeader>
                 <div className="flex justify-between items-start">

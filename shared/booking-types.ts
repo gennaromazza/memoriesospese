@@ -178,6 +178,7 @@ export interface Booking {
   emailRicevutaInviata: boolean; // Email "Prenotazione Ricevuta" (automatica dopo creazione)
   emailConfermataInviata: boolean; // Email "Prenotazione Confermata" (dopo approvazione admin)
   emailAdminInviata?: boolean; // Email notifica admin (automatica dopo creazione)
+  reminderEmailSent?: boolean; // Email reminder inviata (es. promemoria 24h prima)
   googleCalendarEventId?: string; // ID evento creato su Google Calendar
   
   // Tracking visualizzazione admin

@@ -8,12 +8,31 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { useJobTypes } from '@/lib/consultations';
 import { Link } from 'wouter';
-import { Calendar, ArrowRight, Loader2 } from 'lucide-react';
+import { Calendar, ArrowRight, Loader2, Heart, Baby, Cake, Briefcase, User, Camera } from 'lucide-react';
 import { useStudio } from '@/context/StudioContext';
+import Navigation from '@/components/Navigation';
 
 export default function ConsultationIndex() {
   const { data: jobTypes, isLoading } = useJobTypes();
   const { studioSettings } = useStudio();
+
+  const getJobTypeIcon = (jobType: string) => {
+    const jobTypeLower = jobType.toLowerCase();
+    
+    if (jobTypeLower.includes('matrimonio')) {
+      return Heart;
+    } else if (jobTypeLower.includes('battesimo') || jobTypeLower.includes('comunione')) {
+      return Baby;
+    } else if (jobTypeLower.includes('compleanno')) {
+      return Cake;
+    } else if (jobTypeLower.includes('aziendale') || jobTypeLower.includes('corporate')) {
+      return Briefcase;
+    } else if (jobTypeLower.includes('ritratto')) {
+      return User;
+    } else {
+      return Camera;
+    }
+  };
 
   if (isLoading) {
     return (
@@ -25,6 +44,7 @@ export default function ConsultationIndex() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-off-white to-white">
+      <Navigation />
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-7xl">
         {/* Header */}
         <div className="text-center mb-8 sm:mb-12">
@@ -52,33 +72,41 @@ export default function ConsultationIndex() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {jobTypes.map((jobType) => (
-              <Link key={jobType} href={`/consulenze/${encodeURIComponent(jobType)}`}>
-                <Card 
-                  className="h-full transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer border-beige bg-white group"
-                  data-testid={`card-job-type-${jobType}`}
-                >
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg sm:text-xl font-playfair text-blue-gray flex items-center justify-between gap-2">
-                      <span className="line-clamp-2">{jobType}</span>
-                      <ArrowRight className="h-5 w-5 text-sage flex-shrink-0 transition-transform group-hover:translate-x-1" />
-                    </CardTitle>
-                    <CardDescription className="text-sm text-gray-600 line-clamp-2">
-                      Prenota una consulenza preliminare per {jobType.toLowerCase()}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button 
-                      variant="outline" 
-                      className="w-full border-sage text-sage hover:bg-sage hover:text-white transition-colors"
-                      data-testid={`button-view-templates-${jobType}`}
-                    >
-                      Visualizza Opzioni
-                    </Button>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+            {jobTypes.map((jobType) => {
+              const IconComponent = getJobTypeIcon(jobType);
+              return (
+                <Link key={jobType} href={`/consulenze/${encodeURIComponent(jobType)}`}>
+                  <Card 
+                    className="h-full transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer border-beige bg-white group"
+                    data-testid={`card-job-type-${jobType}`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-center mb-4">
+                        <div className="w-16 h-16 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                          <IconComponent className="h-8 w-8 text-sage" />
+                        </div>
+                      </div>
+                      <CardTitle className="text-lg sm:text-xl font-playfair text-blue-gray flex items-center justify-between gap-2">
+                        <span className="line-clamp-2">{jobType}</span>
+                        <ArrowRight className="h-5 w-5 text-sage flex-shrink-0 transition-transform group-hover:translate-x-1" />
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 line-clamp-2">
+                        Prenota una consulenza preliminare per {jobType.toLowerCase()}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button 
+                        variant="outline" 
+                        className="w-full border-sage text-sage hover:bg-sage hover:text-white transition-colors"
+                        data-testid={`button-view-templates-${jobType}`}
+                      >
+                        Visualizza Opzioni
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         )}
 

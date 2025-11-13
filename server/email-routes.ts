@@ -268,8 +268,9 @@ interface AuthRequest extends Request {
 
 /**
  * Middleware per autenticazione Firebase
+ * ESPORTATA per uso in altri moduli (calendar-routes.ts, etc.)
  */
-async function authenticateFirebase(
+export async function authenticateFirebase(
   req: any,
   res: Response,
   next: NextFunction,
@@ -4990,7 +4991,6 @@ router.post("/send-consultation-cancelled", async (req, res) => {
 
 export default router;
 export { 
-  authenticateFirebase,
   createConsultationReceivedEmailHTML,
   createConsultationApprovedEmailHTML,
   createConsultationRejectedEmailHTML,

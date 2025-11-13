@@ -84,6 +84,33 @@ const STATUS_CONFIG: Record<ConsultationStatus, { label: string; variant: string
   annullata: { label: 'Annullata', variant: 'bg-red-100 text-red-700 border-red-200', icon: XCircle }
 };
 
+const formatDataCreazione = (dataCreazione: any) => {
+  try {
+    if (!dataCreazione) return 'Data non disponibile';
+    
+    // Firestore Timestamp serializzato con proprietà seconds
+    if (dataCreazione.seconds) {
+      return format(new Date(dataCreazione.seconds * 1000), 'd MMM yyyy', { locale: it });
+    }
+    
+    // Firestore Timestamp con metodo toDate()
+    if (typeof dataCreazione.toDate === 'function') {
+      return format(dataCreazione.toDate(), 'd MMM yyyy', { locale: it });
+    }
+    
+    // Stringa ISO o Date object
+    const date = new Date(dataCreazione);
+    if (!isNaN(date.getTime())) {
+      return format(date, 'd MMM yyyy', { locale: it });
+    }
+    
+    return 'Data non disponibile';
+  } catch (error) {
+    console.error('Error parsing dataCreazione:', error);
+    return 'Data non disponibile';
+  }
+};
+
 export default function ConsultationsManager() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -368,6 +395,7 @@ export default function ConsultationsManager() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Data/Ora</TableHead>
+                  <TableHead>Data Richiesta</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Template</TableHead>
                   <TableHead>Stato</TableHead>
@@ -421,6 +449,7 @@ export default function ConsultationsManager() {
                           </div>
                         </div>
                       </TableCell>
+                      <TableCell>{formatDataCreazione(consultation.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1 font-medium">

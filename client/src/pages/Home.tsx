@@ -27,7 +27,7 @@ import {
 import { WeddingImage, DecorativeImage } from "@/components/WeddingImages";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Calendar, Clock, Sparkles, Instagram as InstagramIcon } from "lucide-react";
+import { Calendar, Clock, Sparkles, Instagram as InstagramIcon, Camera, CalendarCheck, MessageCircle, Eye } from "lucide-react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import type { BookingCampaign } from "@shared/booking-types";
@@ -308,6 +308,98 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Servizi Principali Section - NEW */}
+      <section className="py-16 bg-gradient-to-b from-off-white to-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-blue-gray font-playfair mb-4">
+              I Nostri Servizi
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Scopri come possiamo aiutarti a catturare e rivivere i tuoi momenti speciali
+            </p>
+            <div className="w-32 h-0.5 bg-gradient-to-r from-transparent via-sage to-transparent mx-auto mt-4"></div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Card 1: Prenota uno Shooting */}
+            <Link href={createUrl("/prenota")}>
+              <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-beige hover:border-sage cursor-pointer h-full">
+                <div className="bg-gradient-to-br from-sage/10 to-sage/5 p-8 flex justify-center">
+                  <div className="w-20 h-20 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <Camera className="h-12 w-12 text-sage" />
+                  </div>
+                </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-bold text-blue-gray font-playfair mb-3 group-hover:text-sage transition-colors">
+                    Prenota uno Shooting
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Campagne di shooting stagionali e su richiesta per immortalare i tuoi momenti più importanti
+                  </p>
+                  <div className="mt-4 flex items-center text-sage font-medium group-hover:translate-x-2 transition-transform duration-300">
+                    <span>Scopri di più</span>
+                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            {/* Card 2: Consulenza Gratuita */}
+            <Link href={createUrl("/consulenze")}>
+              <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-beige hover:border-sage cursor-pointer h-full">
+                <div className="bg-gradient-to-br from-sage/10 to-sage/5 p-8 flex justify-center">
+                  <div className="w-20 h-20 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <MessageCircle className="h-12 w-12 text-sage" />
+                  </div>
+                </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-bold text-blue-gray font-playfair mb-3 group-hover:text-sage transition-colors">
+                    Consulenza Gratuita
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Pianifica il tuo evento con una consulenza gratuita personalizzata con i nostri esperti
+                  </p>
+                  <div className="mt-4 flex items-center text-sage font-medium group-hover:translate-x-2 transition-transform duration-300">
+                    <span>Prenota ora</span>
+                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            {/* Card 3: Gallerie Online */}
+            <a href="#access-gallery">
+              <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-beige hover:border-sage cursor-pointer h-full">
+                <div className="bg-gradient-to-br from-sage/10 to-sage/5 p-8 flex justify-center">
+                  <div className="w-20 h-20 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <Eye className="h-12 w-12 text-sage" />
+                  </div>
+                </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-bold text-blue-gray font-playfair mb-3 group-hover:text-sage transition-colors">
+                    Gallerie Online
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Accedi alle tue foto private e condividile con amici e familiari in tutta sicurezza
+                  </p>
+                  <div className="mt-4 flex items-center text-sage font-medium group-hover:translate-x-2 transition-transform duration-300">
+                    <span>Accedi alle foto</span>
+                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
 
       {/* Active Booking Campaigns Slider - FULL WIDTH */}
       {activeCampaigns.length > 0 && (

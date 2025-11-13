@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useStudio } from '@/context/StudioContext';
+import Navigation from '@/components/Navigation';
 
 export default function ConsultationBooking() {
   const params = useParams<{ tipo: string; id: string }>();
@@ -207,8 +208,9 @@ export default function ConsultationBooking() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-off-white to-white py-6 sm:py-8">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+    <div className="min-h-screen bg-gradient-to-b from-off-white to-white">
+      <Navigation />
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl py-6 sm:py-8">
         {/* Breadcrumb */}
         <div className="mb-4 sm:mb-6">
           <Link href={`/consulenze/${encodeURIComponent(jobType)}`}>
