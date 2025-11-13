@@ -550,55 +550,34 @@ export default function ConsultationBooking() {
                 Riceverai a breve una email di conferma con tutti i dettagli della tua prenotazione.
               </p>
 
-              {/* Instagram Follow Invitation with Feed Preview */}
+              {/* Instagram Follow Invitation */}
               {studioSettings?.socialLinks?.instagram && (
-                <div className="mt-8 pt-6 border-t border-beige">
-                  <div className="text-center mb-6">
-                    <h4 className="text-xl font-playfair text-blue-gray mb-2">
-                      Seguici su Instagram
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      Scopri i nostri ultimi lavori e resta aggiornato!
-                    </p>
-                  </div>
-
-                  {/* Instagram Feed Embed */}
-                  <div className="mb-6 rounded-xl overflow-hidden border-2 border-beige bg-off-white shadow-sm">
-                    <iframe
-                      src={`https://www.instagram.com/${studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}/embed`}
-                      width="100%"
-                      height="480"
-                      frameBorder="0"
-                      scrolling="no"
-                      allowTransparency={true}
-                      className="w-full"
-                      title="Instagram Feed Preview"
-                    />
-                  </div>
-
-                  {/* Follow Button */}
+                <div className="mt-6 pt-6 border-t border-beige/30">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Seguici su Instagram per rimanere aggiornato e scoprire i nostri lavori!
+                  </p>
                   <a
                     href={
                       studioSettings.socialLinks.instagram.startsWith("http")
                         ? studioSettings.socialLinks.instagram
-                        : `https://instagram.com/${studioSettings.socialLinks.instagram.replace('@', '')}`
+                        : `https://instagram.com/${studioSettings.socialLinks.instagram}`
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-3 px-6 py-3.5 bg-gradient-to-br from-sage to-dark-sage text-white rounded-lg font-medium hover:shadow-lg transition-all duration-200 w-full group"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg"
                   >
                     <svg
-                      className="w-5 h-5 transition-transform group-hover:scale-110"
+                      className="w-5 h-5"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="2"
+                      strokeWidth="1.5"
                     >
                       <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
                       <circle cx="12" cy="12" r="3.2" />
                       <circle cx="17" cy="7" r="0.9" />
                     </svg>
-                    <span className="font-semibold">Seguici su Instagram</span>
+                    Seguici su Instagram
                   </a>
                 </div>
               )}

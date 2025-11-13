@@ -422,38 +422,5 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update consultations (approve, reject, convert to job)
       allow delete: if isAdmin(); // Only admin can delete consultations
     }
-    
-    // ====== JOB PRESETS SYSTEM RULES (November 2025) ======
-    
-    // Job Presets - Reusable product configurations for quote creation with ownership and sharing support
-    match /jobPresets/{presetId} {
-      // Read access: owner, shared users, or public presets
-      allow read: if isSignedIn() && (
-        resource.data.createdBy == request.auth.token.email || // Owner
-        (resource.data.sharedWith != null && request.auth.token.email in resource.data.sharedWith) || // Shared with user
-        resource.data.isPublic == true // Public preset
-      );
-      
-      // Write access: only owner can create, update, or delete
-      allow create: if isSignedIn() && 
-        request.resource.data.keys().hasAll(['nome', 'products', 'createdBy', 'createdAt', 'updatedAt']) &&
-        request.resource.data.createdBy == request.auth.token.email && // Owner email must match auth
-        request.resource.data.products is list &&
-        request.resource.data.products.size() > 0 && // At least one product required
-        request.resource.data.nome is string &&
-        request.resource.data.nome.size() >= 2 && // Name min length
-        request.resource.data.createdAt is timestamp &&
-        request.resource.data.updatedAt is timestamp;
-      
-      allow update: if isSignedIn() && 
-        resource.data.createdBy == request.auth.token.email && // Only owner can update
-        request.resource.data.createdBy == resource.data.createdBy && // Cannot change owner
-        request.resource.data.updatedAt is timestamp &&
-        (!request.resource.data.keys().hasAny(['products']) || 
-         (request.resource.data.products is list && request.resource.data.products.size() > 0)); // Products validation if present
-      
-      allow delete: if isSignedIn() && 
-        resource.data.createdBy == request.auth.token.email; // Only owner can delete
-    }
   }
 }

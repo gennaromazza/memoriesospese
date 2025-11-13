@@ -587,24 +587,19 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
 /**
  * PATCH /api/quotes/:id/reset-signature
- * Dual-purpose: Reset firma (firmato → bozza) O Imposta firma manualmente
- * Admin-only - Supporta import legacy e correzioni manuali
- * 
- * Body (opzionale):
- * - { action: 'reset' } - Rimuove firma (default se body vuoto)
- * - { action: 'manual', signatureData: { signedAt, signerName, ipAddress?, userAgent? } } - Imposta firma manualmente
+ * Reimposta firma preventivo (firmato → bozza)
+ * Admin-only - Rimuove firma e dataFirma mantenendo resto dei dati
  */
 router.patch('/:id/reset-signature', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { action = 'reset', signatureData } = req.body || {};
     const adminEmail = req.headers['x-admin-email'] as string;
 
     // 1. Validate admin
     if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
       return res.status(403).json({
         error: 'Non autorizzato',
-        message: 'Solo gli admin possono gestire le firme'
+        message: 'Solo gli admin possono reimpostare le firme'
       });
     }
 
@@ -621,113 +616,43 @@ router.patch('/:id/reset-signature', async (req: Request, res: Response) => {
 
     const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
-    // 3. Handle action: reset or manual
-    if (action === 'reset') {
-      // Validate quote is signed before resetting
-      if (quote.status !== 'firmato') {
-        return res.status(400).json({
-          error: 'Preventivo non firmato',
-          message: 'Solo i preventivi firmati possono essere reimpostati'
-        });
-      }
-
-      // Reset signature fields and clause acceptance
-      const updateData: any = {
-        status: 'bozza',
-        signature: FieldValue.delete(),
-        clausesAccepted: FieldValue.delete(),
-        dataFirma: FieldValue.delete(),
-        clienteFirma: FieldValue.delete(),
-        updatedAt: Timestamp.now()
-      };
-
-      // Reset contractClauses
-      if (quote.contractClauses && Array.isArray(quote.contractClauses)) {
-        const resetClauses = quote.contractClauses.map(clause => {
-          const { accepted, acceptedAt, ...rest } = clause as any;
-          return rest;
-        });
-        updateData.contractClauses = resetClauses;
-      }
-
-      await quoteRef.update(updateData);
-
-      console.log(`✅ Firma reimpostata per preventivo ${id} da admin ${adminEmail}`);
-
-      return res.status(200).json({
-        success: true,
-        message: 'Firma reimpostata con successo'
-      });
-
-    } else if (action === 'manual') {
-      // Validate signatureData
-      if (!signatureData || !signatureData.signedAt || !signatureData.signerName) {
-        return res.status(400).json({
-          error: 'Dati firma mancanti',
-          message: 'signatureData deve contenere signedAt e signerName'
-        });
-      }
-
-      // Parse and validate signedAt date
-      let signedAtDate: Date;
-      try {
-        signedAtDate = new Date(signatureData.signedAt);
-        if (isNaN(signedAtDate.getTime())) {
-          throw new Error('Data non valida');
-        }
-      } catch (err) {
-        return res.status(400).json({
-          error: 'Data firma non valida',
-          message: 'La data di firma deve essere in formato ISO valido'
-        });
-      }
-
-      // Build signature object
-      const signature = {
-        signedAt: Timestamp.fromDate(signedAtDate),
-        clientName: signatureData.signerName.trim(),
-        ipAddress: signatureData.ipAddress || 'manual-entry',
-        userAgent: signatureData.userAgent || 'Admin manual signature entry'
-      };
-
-      // Update quote with manual signature
-      const updateData: any = {
-        status: 'firmato',
-        signature: signature,
-        updatedAt: Timestamp.now()
-      };
-
-      // Accept all required clauses (manual override)
-      if (quote.contractClauses && Array.isArray(quote.contractClauses)) {
-        const acceptedClauses = quote.contractClauses.map(clause => ({
-          ...clause,
-          accepted: clause.required ? true : (clause.accepted || false),
-          acceptedAt: clause.required ? Timestamp.fromDate(signedAtDate) : (clause.acceptedAt || undefined)
-        }));
-        updateData.contractClauses = acceptedClauses;
-      }
-
-      await quoteRef.update(updateData);
-
-      console.log(`✅ Firma manuale impostata per preventivo ${id} da admin ${adminEmail}:`, {
-        signerName: signature.clientName,
-        signedAt: signedAtDate.toISOString()
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Firma impostata manualmente con successo'
-      });
-
-    } else {
+    // 3. Validate quote is signed
+    if (quote.status !== 'firmato') {
       return res.status(400).json({
-        error: 'Azione non valida',
-        message: 'action deve essere "reset" o "manual"'
+        error: 'Preventivo non firmato',
+        message: 'Solo i preventivi firmati possono essere reimpostati'
       });
     }
 
+    // 4. Reset signature fields and clause acceptance
+    // Build update object
+    const updateData: any = {
+      status: 'bozza',
+      signature: FieldValue.delete(),        // Remove QuoteSignature object
+      clausesAccepted: FieldValue.delete(),  // Remove top-level accepted clauses array
+      // Legacy fields (backward compatibility)
+      dataFirma: FieldValue.delete(),
+      clienteFirma: FieldValue.delete()
+    };
+
+    // Reset contractClauses if present (omit accepted/acceptedAt - Firestore doesn't allow FieldValue.delete in arrays)
+    if (quote.contractClauses && Array.isArray(quote.contractClauses)) {
+      const resetClauses = quote.contractClauses.map(clause => {
+        const { accepted, acceptedAt, ...rest } = clause as any;
+        return rest;
+      });
+      updateData.contractClauses = resetClauses;
+    }
+
+    await quoteRef.update(updateData);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Firma reimpostata con successo'
+    });
+
   } catch (error) {
-    console.error('❌ Errore gestione firma:', error);
+    console.error('❌ Errore reset signature:', error);
     return res.status(500).json({
       error: 'Errore server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto'

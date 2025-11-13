@@ -91,14 +91,14 @@ export default function Home() {
       const results: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-
+        
         // Salta le special gallery - hanno una schermata dedicata con PIN
         // Escludi se ha un tema speciale assegnato (controlla ID tema)
         if (data.specialTheme && specialThemeIds.includes(data.specialTheme)) {
           console.log(`🚫 Esclusa special gallery "${data.name}" con tema ID "${data.specialTheme}"`);
           return;
         }
-
+        
         const galleryName = data.name.toLowerCase();
         const searchTermLower = searchTerm.toLowerCase();
 
@@ -147,7 +147,7 @@ export default function Home() {
         // Import helper function from booking-campaigns.ts
         const { getActiveCampaigns } = await import('@/lib/booking-campaigns');
         const active = await getActiveCampaigns();
-
+        
         // Ordina per data fine più vicina
         active.sort(
           (a, b) => a.dataFine.getTime() - b.dataFine.getTime()
@@ -295,7 +295,7 @@ export default function Home() {
               {studioSettings.heroSubtitle}
             </p>
             <div
-              className="mt-10 animate-slide-up"
+              className="mt-10 animate-slide-up flex flex-col sm:flex-row gap-4"
               style={{ animationDelay: "200ms" }}
             >
               <a
@@ -358,7 +358,7 @@ export default function Home() {
             <div className="group bg-gradient-to-br from-white to-cream rounded-2xl p-8 shadow-lg border border-beige hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
               <div className="w-20 h-20 mx-auto mb-6 bg-light-mint rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                 <svg className="w-10 h-10 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
               <div className="mb-4 text-center">
@@ -453,7 +453,7 @@ export default function Home() {
                             />
                           </div>
                         )}
-
+                        
                         <div className="flex flex-col md:flex-row items-center gap-12 p-8 sm:p-12 lg:p-16">
                           {/* Left side - Info */}
                           <div className="flex-1 text-center md:text-left space-y-6">
@@ -580,7 +580,7 @@ export default function Home() {
                                 />
                               </div>
                             )}
-
+                            
                             <div className="flex flex-col md:flex-row items-center gap-10 p-8 sm:p-12 lg:p-14">
                               {/* Campaign Info */}
                               <div className="flex-1 text-center md:text-left space-y-5">
@@ -673,6 +673,8 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      
 
       {/* Access Gallery Form */}
       <section id="access-gallery" className="py-20 bg-off-white relative">
@@ -874,7 +876,7 @@ export default function Home() {
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-sage/80 to-dark-sage/80 dark:from-sage/60 dark:to-dark-sage/60 rounded-full mb-4 shadow-md">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-sage/80 to-dark-sage/80 dark:from-sage/60 dark:to-dark-sage/60 rounded-full mb-4">
               <svg
                 className="w-8 h-8 text-white"
                 fill="none"
@@ -1014,9 +1016,9 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Contatti diretti */}
+          {/* Feature Cards - sostituisce Informazioni con mappa e social */}
           <div className="mt-16">
-            <div className="space-y-10 md:space-y-0 md:grid md:grid-cols-3 md:gap-x-8 md:gap-y-10">
+            <div className="space-y-10 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-6 md:gap-8">
               {/* Card Dove Siamo */}
               <div className="bg-off-white rounded-lg p-6 shadow-sm flex flex-col items-center text-center">
                 <div className="h-16 w-16 mb-4">
@@ -1065,6 +1067,87 @@ export default function Home() {
                 ) : (
                   <p className="text-gray-600">Indirizzo non disponibile</p>
                 )}
+              </div>
+
+              {/* Card Social */}
+              <div className="bg-off-white rounded-lg p-6 shadow-sm flex flex-col items-center text-center">
+                <div className="h-16 w-16 mb-4">
+                  <DecorativeImage
+                    type="heart-balloon"
+                    className="w-full h-auto opacity-80"
+                    alt="Icona social"
+                  />
+                </div>
+                <h3 className="text-xl font-medium text-terracotta mb-3">
+                  Seguici sui social
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Scopri le nostre ultime opere e rimani aggiornato sui nostri
+                  servizi!
+                </p>
+                <div className="flex space-x-4 mt-2">
+                  {studioSettings.socialLinks.facebook && (
+                    <a
+                      href={studioSettings.socialLinks.facebook}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <svg
+                        className="h-8 w-8"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </a>
+                  )}
+
+                  {studioSettings.socialLinks.instagram && (
+                    <a
+                      href={studioSettings.socialLinks.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-pink-600 hover:text-pink-800"
+                    >
+                      <svg
+                        className="h-8 w-8"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 015.45 2.525c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </a>
+                  )}
+
+                  {studioSettings.socialLinks.twitter && (
+                    <a
+                      href={studioSettings.socialLinks.twitter}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-600"
+                    >
+                      <svg
+                        className="h-8 w-8"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
               </div>
 
               {/* Card Contatti */}
@@ -1116,37 +1199,69 @@ export default function Home() {
                   </a>
                 )}
               </div>
+            </div>
+          </div>
 
-              {/* Card Social - Link a sezione Instagram */}
-              <div className="bg-off-white rounded-lg p-6 shadow-sm flex flex-col items-center text-center">
-                <div className="h-16 w-16 mb-4">
+          <div className="mt-16">
+            <div className="space-y-10 md:space-y-0 md:grid md:grid-cols-3 md:gap-x-8 md:gap-y-10">
+              {/* Feature 1 */}
+              <div className="relative group">
+                <div className="absolute h-14 w-14">
                   <DecorativeImage
                     type="heart-balloon"
-                    className="w-full h-auto opacity-80"
-                    alt="Icona social"
+                    className="w-full h-auto"
+                    alt="Icona palloncino a cuore"
                   />
                 </div>
-                <h3 className="text-xl font-medium text-terracotta mb-3">
-                  Seguici sui social
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  Scopri le nostre ultime opere e rimani aggiornato!
-                </p>
-                <a
-                  href="#instagram"
-                  className="inline-flex items-center px-4 py-2 bg-white border border-sage text-sage rounded-md text-sm hover:bg-sage hover:text-white transition-colors"
-                >
-                  <svg
-                    className="h-4 w-4 mr-2"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
-                    <circle cx="12" cy="12" r="3.2" />
-                    <circle cx="17" cy="7" r="0.9" />
-                  </svg>
-                  Vai al Feed Instagram
-                </a>
+                <div className="ml-16">
+                  <h3 className="text-lg leading-6 font-medium text-blue-gray font-playfair">
+                    Accesso riservato agli invitati
+                  </h3>
+                  <p className="mt-2 text-base text-gray-500">
+                    Solo gli ospiti dell'evento hanno accesso alle gallerie,
+                    mantenendo i ricordi privati e speciali.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feature 2 */}
+              <div className="relative group">
+                <div className="absolute h-14 w-14">
+                  <DecorativeImage
+                    type="wedding-cake"
+                    className="w-full h-auto"
+                    alt="Icona torta nuziale"
+                  />
+                </div>
+                <div className="ml-16">
+                  <h3 className="text-lg leading-6 font-medium text-blue-gray font-playfair">
+                    Ricordi in alta qualità
+                  </h3>
+                  <p className="mt-2 text-base text-gray-500">
+                    Rivivi ogni emozione dell'evento con immagini professionali
+                    che catturano l'essenza di ogni momento.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="relative group">
+                <div className="absolute h-14 w-14">
+                  <DecorativeImage
+                    type="standing"
+                    className="w-full h-auto"
+                    alt="Icona sposi"
+                  />
+                </div>
+                <div className="ml-16">
+                  <h3 className="text-lg leading-6 font-medium text-blue-gray font-playfair">
+                    Condivisione tra invitati
+                  </h3>
+                  <p className="mt-2 text-base text-gray-500">
+                    Condividi facilmente l'indirizzo della galleria con altri
+                    invitati dell'evento o richiedi la password ai protagonisti.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1157,113 +1272,6 @@ export default function Home() {
       <div className="w-full flex justify-center py-2 bg-white">
         <FloralDivider className="w-full h-12" />
       </div>
-
-      {/* Sezione Instagram con Feed Embedded */}
-      {studioSettings?.socialLinks?.instagram && (
-        <section id="instagram" className="bg-gradient-to-b from-white via-off-white to-cream py-16 relative overflow-hidden">
-          <FloralCorner
-            position="top-left"
-            className="absolute top-0 left-0 w-32 h-32 opacity-10 pointer-events-none"
-          />
-          <FloralCorner
-            position="bottom-right"
-            className="absolute bottom-0 right-0 w-32 h-32 opacity-10 pointer-events-none"
-          />
-
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="text-center mb-10">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-sage to-dark-sage rounded-full mb-4 shadow-md">
-                <svg
-                  className="w-8 h-8 text-white"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                >
-                  <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
-                  <circle cx="12" cy="12" r="3.2" />
-                  <circle cx="17" cy="7" r="0.9" />
-                </svg>
-              </div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-blue-gray font-playfair mb-3">
-                Seguici su Instagram
-              </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Scopri i nostri ultimi lavori e resta aggiornato sulle novità dello studio
-              </p>
-              <div className="w-32 h-0.5 bg-gradient-to-r from-transparent via-sage to-transparent mx-auto mt-4"></div>
-            </div>
-
-            {/* Instagram Feed Embed - Stile coerente */}
-            <div className="bg-white rounded-2xl shadow-xl border border-sage/20 overflow-hidden mb-8">
-              <div className="p-5 bg-gradient-to-r from-off-white to-cream border-b border-sage/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-sage to-dark-sage rounded-full flex items-center justify-center shadow-sm">
-                    <svg
-                      className="w-6 h-6 text-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
-                      <circle cx="12" cy="12" r="3.2" />
-                      <circle cx="17" cy="7" r="0.9" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-blue-gray font-playfair">
-                      @{studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}
-                    </p>
-                    <p className="text-sm text-gray-500">I nostri ultimi scatti</p>
-                  </div>
-                </div>
-              </div>
-
-              <iframe
-                src={`https://www.instagram.com/${studioSettings.socialLinks.instagram.replace('@', '').replace('https://instagram.com/', '').replace('https://www.instagram.com/', '')}/embed`}
-                width="100%"
-                height="480"
-                frameBorder="0"
-                scrolling="auto"
-                allowTransparency={true}
-                className="w-full bg-off-white"
-                title="Instagram Feed"
-              />
-            </div>
-
-            {/* Follow Button - Stile coerente */}
-            <div className="text-center">
-              <a
-                href={
-                  studioSettings.socialLinks.instagram.startsWith("http")
-                    ? studioSettings.socialLinks.instagram
-                    : `https://instagram.com/${studioSettings.socialLinks.instagram.replace('@', '')}`
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-8 py-4 bg-sage hover:bg-dark-sage text-white rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-sage/20"
-              >
-                <svg
-                  className="w-6 h-6"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
-                  <circle cx="12" cy="12" r="3.2" />
-                  <circle cx="17" cy="7" r="0.9" />
-                </svg>
-                Seguici su Instagram
-              </a>
-              <p className="text-sm text-gray-600 mt-4">
-                Non perderti i momenti più belli che immortaliamo ogni giorno
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Sezione WhatsApp */}
       <section id="contact" className="bg-mint py-16">

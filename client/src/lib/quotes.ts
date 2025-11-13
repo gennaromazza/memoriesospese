@@ -595,49 +595,25 @@ export async function getQuoteTemplate(templateId: string): Promise<QuoteTemplat
 }
 
 /**
- * Gestione firma preventivo: Reset (firmato → bozza) O Impostazione manuale
- * Admin-only - Supporta import legacy e correzioni manuali
- * 
- * @param quoteId - ID preventivo
- * @param adminEmail - Email admin
- * @param options - Opzioni azione:
- *   - { action: 'reset' } - Rimuove firma (default)
- *   - { action: 'manual', signatureData: { signedAt, signerName, ipAddress?, userAgent? } } - Imposta firma manualmente
+ * Reimposta firma preventivo (firmato → bozza)
+ * Admin-only - Rimuove firma e dataFirma mantenendo resto dei dati
  */
-export async function resetQuoteSignature(
-  quoteId: string, 
-  adminEmail: string,
-  options?: {
-    action?: 'reset' | 'manual';
-    signatureData?: {
-      signedAt: string;
-      signerName: string;
-      ipAddress?: string;
-      userAgent?: string;
-    };
-  }
-): Promise<void> {
+export async function resetQuoteSignature(quoteId: string, adminEmail: string): Promise<void> {
   try {
-    const body = options ? {
-      action: options.action || 'reset',
-      signatureData: options.signatureData
-    } : undefined;
-
     const response = await fetch(`/api/quotes/${quoteId}/reset-signature`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'x-admin-email': adminEmail
-      },
-      body: body ? JSON.stringify(body) : undefined
+      }
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || errorData.message || 'Errore gestione firma');
+      throw new Error(errorData.error || errorData.message || 'Errore reimpostazione firma');
     }
   } catch (error) {
-    console.error('❌ Errore gestione firma:', error);
+    console.error('❌ Errore reset signature:', error);
     throw error;
   }
 }
@@ -650,8 +626,6 @@ export async function resetQuoteSignature(
 export async function deleteQuote(quoteId: string, adminEmail: string, forceDelete = false): Promise<void> {
   try {
     const url = `/api/quotes/${quoteId}${forceDelete ? '?forceDelete=true' : ''}`;
-    console.log('🗑️ Deleting quote:', { url, adminEmail, forceDelete });
-    
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
@@ -660,26 +634,11 @@ export async function deleteQuote(quoteId: string, adminEmail: string, forceDele
       }
     });
 
-    console.log('📡 Delete response status:', response.status);
-
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      let errorData;
-      
-      // Check if response is JSON or HTML
-      if (contentType && contentType.includes('application/json')) {
-        errorData = await response.json();
-      } else {
-        const textResponse = await response.text();
-        console.error('❌ Non-JSON response received:', textResponse.substring(0, 200));
-        throw new Error('Errore di comunicazione con il server. Verifica che il backend sia attivo.');
-      }
-      
+      const errorData = await response.json();
       // Preserve error code for frontend detection (e.g. SIGNED_QUOTE_PROTECTION)
       throw new Error(errorData.error || errorData.message || 'Errore eliminazione preventivo');
     }
-    
-    console.log('✅ Quote deleted successfully');
   } catch (error) {
     console.error('❌ Errore delete quote:', error);
     throw error;

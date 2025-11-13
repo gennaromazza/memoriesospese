@@ -7,7 +7,6 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
-import { getPaymentScheduleForJob } from '@/lib/payment-schedules';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -95,8 +94,8 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
   const { data: rawSchedules = [], isLoading } = useQuery<PaymentSchedule[]>({
     queryKey: ['payment-schedules', jobId],
     queryFn: async () => {
-      const schedule = await getPaymentScheduleForJob(jobId);
-      return schedule ? [schedule] : [];
+      const response = await apiRequest('GET', `/api/payment-schedules/job/${jobId}`);
+      return response.json();
     },
     enabled: !!jobId,
   });

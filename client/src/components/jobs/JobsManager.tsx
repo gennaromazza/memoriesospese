@@ -93,12 +93,10 @@ export default function JobsManager() {
     to: Date | undefined;
   }>({ from: undefined, to: undefined });
   
-  // Query jobs from Firestore
+  // Query jobs
   const { data: jobs = [], isLoading } = useQuery<Job[]>({
     queryKey: ['jobs'],
-    queryFn: () => getAllJobs(),
-    retry: 2,
-    staleTime: 30000 // Cache for 30s
+    queryFn: () => getAllJobs()
   });
   
   // Query job types dinamici
@@ -245,13 +243,13 @@ export default function JobsManager() {
     return {
       totalJobs: filteredJobs.length,
       totalePreventivato: filteredJobs.reduce((sum, j) => 
-        sum + (j.financials?.totalePreventivato || 0), 0
+        sum + j.financials.totalePreventivato, 0
       ),
       totalePagato: filteredJobs.reduce((sum, j) => 
-        sum + (j.financials?.totalePagato || 0), 0
+        sum + j.financials.totalePagato, 0
       ),
       saldoResiduo: filteredJobs.reduce((sum, j) => 
-        sum + (j.financials?.saldoResiduo || 0), 0
+        sum + j.financials.saldoResiduo, 0
       )
     };
   }, [filteredJobs]);
@@ -692,14 +690,14 @@ function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">Preventivato:</span>
             <span className="font-semibold text-green-600">
-              €{job.financials?.totalePreventivato || 0}
+              €{job.financials.totalePreventivato}
             </span>
           </div>
-          {(job.financials?.saldoResiduo || 0) > 0 && (
+          {job.financials.saldoResiduo > 0 && (
             <div className="flex items-center justify-between text-xs mt-1">
               <span className="text-gray-500">Da incassare:</span>
               <span className="font-semibold text-orange-600">
-                €{job.financials?.saldoResiduo || 0}
+                €{job.financials.saldoResiduo}
               </span>
             </div>
           )}
@@ -707,16 +705,16 @@ function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
         
         {/* Badges */}
         <div className="flex flex-wrap gap-1 pt-2">
-          {(job.quoteIds?.length || 0) > 0 && (
+          {job.quoteIds.length > 0 && (
             <Badge variant="secondary" className="text-xs">
               <FileText className="w-3 h-3 mr-1" />
-              {job.quoteIds?.length || 0} preventiv{(job.quoteIds?.length || 0) === 1 ? 'o' : 'i'}
+              {job.quoteIds.length} preventiv{job.quoteIds.length === 1 ? 'o' : 'i'}
             </Badge>
           )}
-          {(job.orderIds?.length || 0) > 0 && (
+          {job.orderIds.length > 0 && (
             <Badge variant="secondary" className="text-xs">
               <Euro className="w-3 h-3 mr-1" />
-              {job.orderIds?.length || 0} ordin{(job.orderIds?.length || 0) === 1 ? 'e' : 'i'}
+              {job.orderIds.length} ordin{job.orderIds.length === 1 ? 'e' : 'i'}
             </Badge>
           )}
         </div>
