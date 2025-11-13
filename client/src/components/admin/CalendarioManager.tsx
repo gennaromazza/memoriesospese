@@ -3,8 +3,6 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query as firestoreQuery, orderBy } from 'firebase/firestore';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -44,6 +42,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO, isSameDay } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
+import type { Cliente } from '@shared/clienti-types';
 
 interface CalendarEventDTO {
   id: string;
@@ -56,13 +56,6 @@ interface CalendarEventDTO {
   clientName?: string;
   clientEmail?: string;
   googleEventId?: string;
-}
-
-interface Cliente {
-  id: string;
-  nome: string;
-  cognome: string;
-  email: string;
 }
 
 export default function CalendarioManager() {
@@ -89,7 +82,7 @@ export default function CalendarioManager() {
   const [newEventEndDate, setNewEventEndDate] = useState('');
   const [newEventEndTime, setNewEventEndTime] = useState('');
   const [newEventLocation, setNewEventLocation] = useState('');
-  const [newEventClientId, setNewEventClientId] = useState('');
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [sendNotification, setSendNotification] = useState(true);
 
   const monthStart = startOfMonth(selectedDate);
@@ -110,19 +103,6 @@ export default function CalendarioManager() {
       return data.events;
     },
     enabled: true,
-  });
-
-  const { data: clientiData = [] } = useQuery<Cliente[]>({
-    queryKey: ['clienti'],
-    queryFn: async () => {
-      const clientiRef = collection(db, 'clienti');
-      const q = firestoreQuery(clientiRef, orderBy('cognome', 'asc'));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Cliente));
-    },
   });
 
   const createEventMutation = useMutation({
@@ -226,7 +206,7 @@ export default function CalendarioManager() {
       start: startDate.toISOString(),
       end: endDate.toISOString(),
       location: newEventLocation || undefined,
-      clienteId: newEventClientId && newEventClientId !== 'none' ? newEventClientId : undefined,
+      clienteId: selectedCliente?.id,
       notifyCliente: sendNotification,
     });
   };
@@ -240,7 +220,7 @@ export default function CalendarioManager() {
     setNewEventEndDate('');
     setNewEventEndTime('');
     setNewEventLocation('');
-    setNewEventClientId('');
+    setSelectedCliente(null);
     setSendNotification(true);
   };
 
@@ -556,19 +536,12 @@ export default function CalendarioManager() {
 
             <div className="space-y-2">
               <Label htmlFor="client">Cliente</Label>
-              <Select value={newEventClientId} onValueChange={setNewEventClientId}>
-                <SelectTrigger data-testid="select-client">
-                  <SelectValue placeholder="Seleziona cliente (opzionale)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessun cliente</SelectItem>
-                  {clientiData.map(cliente => (
-                    <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.cognome} {cliente.nome} - {cliente.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClientAutocomplete
+                value={selectedCliente?.id}
+                onSelect={setSelectedCliente}
+                placeholder="Cerca cliente (opzionale)"
+                enableQuickAdd={true}
+              />
             </div>
 
             <div className="flex items-center space-x-2">
