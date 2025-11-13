@@ -267,9 +267,17 @@ export default function Gallery() {
   // Check se gallery è in selection mode
   const isSelectionMode = galleryData?.selectionEnabled || false;
   
-  // 🔥 CRITICAL FIX: Deriva selectedPhotoIds automaticamente da photoAssignments
-  // Questo elimina il rischio di desync tra i due stati
-  const isMultiProductMode = (galleryData?.productRequirements?.length ?? 0) > 1;
+  // 🔥 REFACTORED: Separa correttamente le 3 modalità di selezione
+  const productRequirements = galleryData?.productRequirements;
+  
+  // Modalità 1: Single-product con productRequirements (1 prodotto con N foto)
+  const isSingleProductRequirement = (productRequirements?.length === 1);
+  
+  // Modalità 2: Multi-product con productRequirements (2+ prodotti)
+  const isMultiProductMode = (productRequirements?.length ?? 0) > 1;
+  
+  // Modalità 3: Legacy (nessun productRequirements, usa requiredPhotoCount diretto)
+  const isLegacySingleProductMode = !productRequirements && (galleryData?.requiredPhotoCount ?? 0) > 0;
   
   const selectedPhotoIds = useMemo(() => {
     if (isMultiProductMode) {
@@ -278,20 +286,28 @@ export default function Gallery() {
         photoId => photoAssignments[photoId] && photoAssignments[photoId].length > 0
       );
     } else {
-      // Legacy single-product: usa lo stato separato
+      // Single-product (sia legacy che con productRequirements): usa lo stato separato
       return selectedPhotoIdsLegacy;
     }
   }, [isMultiProductMode, photoAssignments, selectedPhotoIdsLegacy]);
   
-  // Calculate total required photos: Multi-product mode (sum from productRequirements) OR legacy single-product mode
+  // Calculate total required photos: 
+  // 1. Single-product requirement: estrai da productRequirements[0]
+  // 2. Multi-product: somma tutti i prodotti
+  // 3. Legacy: usa requiredPhotoCount diretto
   const requiredPhotoCount = useMemo(() => {
-    if (galleryData?.productRequirements && galleryData.productRequirements.length > 0) {
-      return galleryData.productRequirements.reduce((sum, p) => sum + (p.prodottoNumeroFoto || 0), 0);
+    if (isSingleProductRequirement) {
+      // 1 prodotto: estrai numeroFoto dal primo (e unico) prodotto
+      return productRequirements![0].prodottoNumeroFoto || 0;
     }
+    if (isMultiProductMode) {
+      // 2+ prodotti: somma tutti
+      return productRequirements!.reduce((sum, p) => sum + (p.prodottoNumeroFoto || 0), 0);
+    }
+    // Legacy: usa requiredPhotoCount diretto dal galleryData
     return galleryData?.requiredPhotoCount || 0;
-  }, [galleryData?.productRequirements, galleryData?.requiredPhotoCount]);
+  }, [isSingleProductRequirement, isMultiProductMode, productRequirements, galleryData?.requiredPhotoCount]);
   
-  const productRequirements = galleryData?.productRequirements;
   const selectionDeadline = galleryData?.selectionDeadline;
   const selectionStatus = galleryData?.selectionStatus || "pending";
 
@@ -320,13 +336,19 @@ export default function Gallery() {
       );
       
       // Multi-Product Debug
-      if (galleryData.productRequirements && galleryData.productRequirements.length > 1) {
-        const totalRequired = galleryData.productRequirements.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
+      if (isMultiProductMode && productRequirements) {
+        const totalRequired = productRequirements.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
         console.log("🎨 MULTI-PRODUCT MODE ATTIVO");
-        console.log(`📊 Totale foto richieste: ${totalRequired} (da ${galleryData.productRequirements.length} prodotti)`);
-        galleryData.productRequirements.forEach((p, idx) => {
+        console.log(`📊 Totale foto richieste: ${totalRequired} (da ${productRequirements.length} prodotti)`);
+        productRequirements.forEach((p, idx) => {
           console.log(`  ${idx + 1}. ${p.prodottoNome}: ${p.prodottoNumeroFoto} foto`);
         });
+      } else if (isSingleProductRequirement && productRequirements) {
+        console.log("📦 SINGLE-PRODUCT MODE ATTIVO (productRequirements[0])");
+        console.log(`📊 Foto richieste: ${productRequirements[0].prodottoNumeroFoto} (da "${productRequirements[0].prodottoNome}")`);
+      } else if (isLegacySingleProductMode) {
+        console.log("📦 LEGACY SINGLE-PRODUCT MODE ATTIVO");
+        console.log(`📊 Foto richieste: ${galleryData.requiredPhotoCount}`);
       }
       
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -372,32 +394,35 @@ export default function Gallery() {
 
   // Sync selectedPhotoIds from galleryData after reset (only once per gallery)
   useEffect(() => {
-    if (!hasInitializedSelection) {
-      // Legacy single-product mode
+    if (!hasInitializedSelection && galleryData) {
+      // Single-product mode (legacy OR productRequirements[0]): sync selectedPhotoIds if they exist
       if (
-        !isMultiProductMode &&
-        galleryData?.selectedPhotoIds &&
+        (isSingleProductRequirement || isLegacySingleProductMode) &&
+        galleryData.selectedPhotoIds &&
         galleryData.selectedPhotoIds.length > 0
       ) {
         console.log(
-          "🔄 Sync iniziale selectedPhotoIds da galleryData (legacy):",
+          "🔄 Sync iniziale selectedPhotoIds da galleryData (single-product):",
           galleryData.selectedPhotoIds.length,
         );
         setSelectedPhotoIdsLegacy(galleryData.selectedPhotoIds);
-        setHasInitializedSelection(true);
       }
 
-      // Multi-product mode: sync photoAssignments
-      if (galleryData?.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0) {
+      // Multi-product mode: sync photoAssignments if they exist
+      if (isMultiProductMode && galleryData.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0) {
         console.log(
-          "🔄 Sync iniziale photoAssignments da galleryData:",
+          "🔄 Sync iniziale photoAssignments da galleryData (multi-product):",
           Object.keys(galleryData.photoAssignments).length,
         );
         setPhotoAssignments(galleryData.photoAssignments as Record<string, string[]>);
-        setHasInitializedSelection(true);
       }
+      
+      // 🔥 FIX CRITICAL: SEMPRE imposta hasInitializedSelection = true dopo primo load
+      // Anche se la galleria è nuova (zero selezioni), questo sblocca auto-save e toggle
+      setHasInitializedSelection(true);
+      console.log("✅ Inizializzazione galleria completata (single:", isSingleProductRequirement, "multi:", isMultiProductMode, "legacy:", isLegacySingleProductMode, ")");
     }
-  }, [galleryData?.selectedPhotoIds, galleryData?.photoAssignments, hasInitializedSelection, isMultiProductMode]);
+  }, [galleryData, hasInitializedSelection, isSingleProductRequirement, isLegacySingleProductMode, isMultiProductMode]);
 
   // 💾 Auto-save selezioni in localStorage (UX Enhancement #2)
   useEffect(() => {
@@ -615,7 +640,7 @@ export default function Gallery() {
       }
 
       // In multi-product mode, don't allow direct photo selection
-      if (galleryData?.productRequirements && galleryData.productRequirements.length > 1) {
+      if (isMultiProductMode) {
         toast({
           title: "💡 Modalità Multi-Prodotto",
           description: "Clicca sui chip dei prodotti sotto la foto per assegnarla.",
@@ -670,9 +695,9 @@ export default function Gallery() {
     }
 
     // Multi-Product Validation
-    if (galleryData?.productRequirements && galleryData.productRequirements.length > 1) {
+    if (isMultiProductMode && productRequirements) {
       // Calcola progresso per ogni prodotto
-      const productProgress = galleryData.productRequirements.map((prod, idx) => {
+      const productProgress = productRequirements.map((prod, idx) => {
         const assignedCount = Object.values(photoAssignments).filter(
           assignments => assignments.includes(String(idx))
         ).length;
@@ -744,7 +769,7 @@ export default function Gallery() {
       }
 
       // Converti photoAssignments in formato JSON puro per Firestore
-      const photoAssignmentsData = galleryData.productRequirements 
+      const photoAssignmentsData = isMultiProductMode
         ? Object.fromEntries(
             Object.entries(photoAssignments).filter(([_, value]) => value && value.length > 0)
           )
@@ -770,17 +795,19 @@ export default function Gallery() {
           const token = await user.getIdToken();
 
           // Build product assignments for email if multi-product mode
-          const productAssignments = galleryData.productRequirements?.map((prod, idx) => {
-            const assignedCount = Object.values(photoAssignments).filter(
-              assignments => assignments.includes(String(idx))
-            ).length;
-            
-            return {
-              prodottoNome: prod.prodottoNome,
-              assignedCount,
-              requiredCount: prod.prodottoNumeroFoto
-            };
-          });
+          const productAssignments = (isMultiProductMode && productRequirements) 
+            ? productRequirements.map((prod, idx) => {
+                const assignedCount = Object.values(photoAssignments).filter(
+                  assignments => assignments.includes(String(idx))
+                ).length;
+                
+                return {
+                  prodottoNome: prod.prodottoNome,
+                  assignedCount,
+                  requiredCount: prod.prodottoNumeroFoto
+                };
+              })
+            : undefined;
 
           await fetch("/api/email/selection-completed", {
             method: "POST",
@@ -804,7 +831,7 @@ export default function Gallery() {
 
       toast({
         title: "✅ Selezione confermata!",
-        description: galleryData.productRequirements 
+        description: isMultiProductMode
           ? "Le tue foto sono state assegnate ai prodotti. Riceverai presto il tuo album!"
           : `Le tue ${requiredPhotoCount} foto sono state confermate. Riceverai presto il tuo album!`,
       });
@@ -1059,11 +1086,11 @@ export default function Gallery() {
 
   // 📊 Multi-Product Progress Calculation
   const calculateProductProgress = useMemo(() => {
-    if (!galleryData?.productRequirements || !photoAssignments) {
+    if (!isMultiProductMode || !productRequirements || !photoAssignments) {
       return null;
     }
     
-    return galleryData.productRequirements.map((prod, idx) => {
+    return productRequirements.map((prod, idx) => {
       // Conta quante foto hanno questo prodotto assegnato
       const assignedCount = Object.values(photoAssignments).filter(
         assignments => assignments.includes(String(idx))
@@ -1088,7 +1115,7 @@ export default function Gallery() {
     
     // 🔥 FIX: In multi-prodotto mode, non mostrare questo messaggio legacy
     // Il progresso è già visualizzato nelle card colorate dei prodotti
-    if (galleryData?.productRequirements && galleryData.productRequirements.length > 1) {
+    if (isMultiProductMode) {
       return null;
     }
 
@@ -2498,18 +2525,19 @@ export default function Gallery() {
                                       : "shadow-md hover:shadow-lg"
                                 }`}
                                 onClick={() => {
-                                  // 🔥 FIX UX: In multi-product mode, click foto SEMPRE apre lightbox
-                                  // L'assegnazione ai prodotti avviene solo tramite badge (mobile) o chip (desktop)
-                                  const isMultiProduct = galleryData?.productRequirements && galleryData.productRequirements.length > 1;
-                                  
-                                  if (isMultiProduct) {
-                                    // Multi-product: sempre lightbox
+                                  // 🔥 REFACTORED: UX semplificata basata su modalità selezione
+                                  if (isMultiProductMode) {
+                                    // Multi-product (2+ prodotti): click foto apre lightbox
+                                    // Assegnazione prodotti avviene tramite badge mobile o chip desktop
                                     openLightbox(index);
-                                  } else if (isSelectionMode && selectionStatus !== "completed") {
-                                    // Legacy single-product: toggle selezione
+                                  } else if ((isSingleProductRequirement || isLegacySingleProductMode) && 
+                                             isSelectionMode && 
+                                             selectionStatus !== "completed") {
+                                    // Single-product (1 prodotto o legacy): click foto toggling DIRETTO
+                                    // NO lightbox, selezione immediata con 1 click
                                     handleTogglePhotoSelection(photo.id);
                                   } else {
-                                    // Modalità normale: lightbox
+                                    // Modalità normale (no selezione): lightbox standard
                                     openLightbox(index);
                                   }
                                 }}
@@ -2598,18 +2626,19 @@ export default function Gallery() {
                                         </div>
                                       </div>
 
-                                      {/* Badge "SELEZIONA" / "SELEZIONATA" - solo se NON multi-prodotto */}
-                                      {!galleryData.productRequirements && selectedPhotoIds.includes(photo.id) && (
+                                      {/* Badge "SELEZIONATA" - solo se single-product o legacy (NON multi-product) */}
+                                      {(isSingleProductRequirement || isLegacySingleProductMode || !productRequirements) && 
+                                       selectedPhotoIds.includes(photo.id) && (
                                         <div className="absolute bottom-0 left-0 right-0 bg-sage text-white text-center py-2 font-semibold text-sm">
                                           ✓ SELEZIONATA
                                         </div>
                                       )}
 
-                                      {/* 📱 Mobile: Badge Assegnazione Prodotto - VISIBILE solo su mobile (<768px) */}
-                                      {galleryData.productRequirements && (
+                                      {/* 📱 Mobile: Badge Assegnazione Prodotto - VISIBILE solo se MULTI-PRODUCT (2+ prodotti) */}
+                                      {isMultiProductMode && (
                                         <button
                                           onClick={(e) => {
-                                            e.stopPropagation();
+                                            e.stopPropagation(); // Previene apertura lightbox
                                             setSelectedPhotoForMobileAssignment(photo.id);
                                             setShowMobileProductDialog(true);
                                           }}
@@ -2624,10 +2653,10 @@ export default function Gallery() {
                                         </button>
                                       )}
                                       
-                                      {/* Product Assignment Chips - NASCOSTI su mobile (<768px), visibili su desktop */}
-                                      {galleryData.productRequirements && (
+                                      {/* Product Assignment Chips - VISIBILI solo se MULTI-PRODUCT (2+ prodotti), nascosti su mobile */}
+                                      {isMultiProductMode && productRequirements && (
                                         <div className="absolute bottom-0 left-0 right-0 hidden md:flex flex-wrap gap-1 bg-white/95 p-2 rounded-b-lg border-t border-sage/20">
-                                          {galleryData.productRequirements.map((prod, idx) => {
+                                          {productRequirements.map((prod, idx) => {
                                             // Use string index as unique identifier (aligns with Firestore schema)
                                             const productIdStr = String(idx);
                                             const isAssigned = photoAssignments[photo.id]?.includes(productIdStr);
@@ -2761,17 +2790,16 @@ export default function Gallery() {
                                     disabled={
                                       isSubmittingSelection ||
                                       isDeadlinePassed ||
-                                      (galleryData?.productRequirements 
-
+                                      (isMultiProductMode && productRequirements
                                         ? // Multi-product: check all products have required photos
-                                          !galleryData.productRequirements.every((prod, idx) => {
+                                          !productRequirements.every((prod, idx) => {
                                             const assignedCount = Object.values(photoAssignments).filter(
                                               assignments => assignments.includes(String(idx))
                                             ).length;
                                             const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
                                             return assignedCount >= requiredCount;
                                           })
-                                        : // Legacy: check selectedPhotoIds count
+                                        : // Single-product (legacy or productRequirements[0]): check selectedPhotoIds count
                                           selectedPhotoIds.length !== requiredPhotoCount
                                       )
                                     }
@@ -2789,9 +2817,9 @@ export default function Gallery() {
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  {galleryData?.productRequirements ? (
+                                  {isMultiProductMode && productRequirements ? (
                                     <div className="text-sm">
-                                      {galleryData.productRequirements.map((prod, idx) => {
+                                      {productRequirements.map((prod, idx) => {
                                         const assignedCount = Object.values(photoAssignments).filter(
                                           assignments => assignments.includes(String(idx))
                                         ).length;
