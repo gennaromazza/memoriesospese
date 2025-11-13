@@ -571,7 +571,7 @@ export default function ConsultationBooking() {
                       })()}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-sage to-dark-sage hover:from-dark-sage hover:to-sage text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-sage hover:bg-dark-sage text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg duration-300"
                     >
                       <svg
                         className="w-5 h-5"

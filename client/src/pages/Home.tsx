@@ -300,7 +300,7 @@ export default function Home() {
             >
               <a
                 href="#access-gallery"
-                className="px-8 py-4 bg-gradient-to-r from-sage to-dark-sage text-white font-semibold rounded-xl shadow-lg hover:from-dark-sage hover:to-sage transition-all duration-300 hover:shadow-xl inline-block text-center transform hover:scale-105"
+                className="px-8 py-4 bg-sage hover:bg-dark-sage text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 inline-block text-center transform hover:scale-105"
               >
                 {studioSettings.heroButtonText}
               </a>
@@ -1312,7 +1312,7 @@ export default function Home() {
                   })()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-sage to-dark-sage hover:from-dark-sage hover:to-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-sage hover:bg-dark-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105 duration-300"
                 >
                   <InstagramIcon className="w-6 h-6" />
                   <span>Seguici su Instagram</span>
@@ -1600,7 +1600,7 @@ export default function Home() {
                 }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-gray hover:bg-dark-sage focus:outline-none btn-primary"
+                className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-sage hover:bg-dark-sage focus:outline-none transition-all duration-300"
               >
                 <span className="mr-2">
                   {studioSettings.whatsappButtonText}

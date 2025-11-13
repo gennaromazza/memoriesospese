@@ -1,4 +1,3 @@
-
 /**
  * CONSULTATION INDEX PAGE
  * Pagina pubblica - mostra tipi lavoro disponibili per consulenze
@@ -18,7 +17,7 @@ export default function ConsultationIndex() {
 
   const getJobTypeIcon = (jobType: string) => {
     const jobTypeLower = jobType.toLowerCase();
-    
+
     if (jobTypeLower.includes('matrimonio')) {
       return Heart;
     } else if (jobTypeLower.includes('battesimo') || jobTypeLower.includes('comunione')) {
