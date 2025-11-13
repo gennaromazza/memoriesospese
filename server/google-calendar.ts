@@ -172,9 +172,36 @@ export async function createEvent(
     end: Date;
     location?: string;
     attendees?: string[]; // Array di email
+    isAllDay?: boolean;
+    startDateStr?: string;
   }
 ) {
   const calendar = await getGoogleCalendarClient();
+  
+  let startField: any;
+  let endField: any;
+  
+  if (eventData.isAllDay && eventData.startDateStr) {
+    const [year, month, day] = eventData.startDateStr.split('-').map(Number);
+    const endDateObj = new Date(year, month - 1, day);
+    endDateObj.setDate(endDateObj.getDate() + 1);
+    const endYear = endDateObj.getFullYear();
+    const endMonth = String(endDateObj.getMonth() + 1).padStart(2, '0');
+    const endDay = String(endDateObj.getDate()).padStart(2, '0');
+    const endDateStr = `${endYear}-${endMonth}-${endDay}`;
+    
+    startField = { date: eventData.startDateStr };
+    endField = { date: endDateStr };
+  } else {
+    startField = {
+      dateTime: eventData.start.toISOString(),
+      timeZone: 'Europe/Rome',
+    };
+    endField = {
+      dateTime: eventData.end.toISOString(),
+      timeZone: 'Europe/Rome',
+    };
+  }
   
   const response = await calendar.events.insert({
     calendarId,
@@ -182,14 +209,8 @@ export async function createEvent(
       summary: eventData.summary,
       description: eventData.description,
       location: eventData.location,
-      start: {
-        dateTime: eventData.start.toISOString(),
-        timeZone: 'Europe/Rome',
-      },
-      end: {
-        dateTime: eventData.end.toISOString(),
-        timeZone: 'Europe/Rome',
-      },
+      start: startField,
+      end: endField,
       attendees: eventData.attendees?.map(email => ({ email })),
       reminders: {
         useDefault: false,

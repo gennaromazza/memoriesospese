@@ -7,8 +7,10 @@
 import express from 'express';
 import { getEvents, createEvent } from './google-calendar.js';
 import { db } from './firebase-admin.js';
-import { authenticateFirebase } from './email-routes.js';
+import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, getStudioContactInfo } from './email-routes.js';
 import { z } from 'zod';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 
 const router = express.Router();
 
@@ -180,16 +182,24 @@ router.get('/events', authenticateFirebase, async (req, res) => {
 const createEventSchema = z.object({
   title: z.string().min(1, 'Titolo evento obbligatorio'),
   description: z.string().optional(),
-  start: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: 'Data inizio non valida (ISO string richiesta)'
-  }),
-  end: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: 'Data fine non valida (ISO string richiesta)'
-  }),
+  start: z.string().min(1, 'Data inizio richiesta'),
+  end: z.string().min(1, 'Data fine richiesta'),
   location: z.string().optional(),
   clienteId: z.string().optional(),
   notifyCliente: z.boolean().default(false),
-});
+  isAllDay: z.boolean().default(false),
+}).refine(
+  (data) => {
+    if (data.isAllDay) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      return dateRegex.test(data.start) && dateRegex.test(data.end);
+    }
+    return !isNaN(Date.parse(data.start)) && !isNaN(Date.parse(data.end));
+  },
+  {
+    message: 'All-day events require YYYY-MM-DD format, timed events require valid ISO datetime',
+  }
+);
 
 router.post('/create-event', authenticateFirebase, async (req, res) => {
   try {
@@ -217,9 +227,18 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
       }
     }
     
-    // 2. Crea evento su Google Calendar con attendees se notifyCliente
-    const startDate = new Date(data.start);
-    const endDate = new Date(data.end);
+    // 2. Crea evento su Google Calendar
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (data.isAllDay) {
+      const [year, month, day] = data.start.split('-').map(Number);
+      startDate = new Date(year, month - 1, day, 0, 0, 0);
+      endDate = new Date(year, month - 1, day, 23, 59, 59);
+    } else {
+      startDate = new Date(data.start);
+      endDate = new Date(data.end);
+    }
     
     const attendees = (data.notifyCliente && clienteEmail) 
       ? [clienteEmail] 
@@ -232,12 +251,53 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
       end: endDate,
       location: data.location,
       attendees,
+      isAllDay: data.isAllDay,
+      startDateStr: data.isAllDay ? data.start : undefined,
     });
 
     console.log(`✅ Evento creato su Google Calendar: ${event.id}`);
     
-    if (attendees && attendees.length > 0) {
-      console.log(`📧 Invito Google Calendar inviato a: ${clienteEmail}`);
+    // 3. Invia email notifica al cliente se richiesto
+    if (data.notifyCliente && clienteEmail) {
+      try {
+        const clienteDoc = await db.collection('clienti').doc(data.clienteId!).get();
+        const cliente = clienteDoc.data();
+        const clienteName = `${cliente?.nome || ''} ${cliente?.cognome || ''}`.trim() || 'Cliente';
+        
+        const studioInfo = await getStudioContactInfo();
+        
+        // Format dates/times in Italian
+        let eventDate: string;
+        if (data.isAllDay) {
+          const [year, month, day] = data.start.split('-').map(Number);
+          const pureDate = new Date(year, month - 1, day);
+          eventDate = format(pureDate, 'EEEE d MMMM yyyy', { locale: it });
+        } else {
+          eventDate = format(startDate, 'EEEE d MMMM yyyy', { locale: it });
+        }
+        
+        const eventTime = data.isAllDay ? 'Tutto il giorno' : format(startDate, 'HH:mm', { locale: it });
+        const eventEndTime = data.isAllDay ? '' : format(endDate, 'HH:mm', { locale: it });
+        
+        const htmlContent = createCalendarEventEmailHTML(
+          clienteName,
+          data.title,
+          eventDate,
+          eventTime,
+          eventEndTime,
+          data.location,
+          data.description,
+          studioInfo
+        );
+        
+        const subject = `Nuovo Appuntamento: ${data.title}`;
+        
+        await sendGmailEmail(clienteEmail, subject, htmlContent);
+        
+        console.log(`✅ Email notifica inviata a ${clienteEmail}`);
+      } catch (emailError) {
+        console.error('⚠️ Errore invio email notifica (evento creato comunque):', emailError);
+      }
     }
 
     res.json({ 

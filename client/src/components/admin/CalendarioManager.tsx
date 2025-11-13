@@ -79,11 +79,13 @@ export default function CalendarioManager() {
   const [newEventDescription, setNewEventDescription] = useState('');
   const [newEventStartDate, setNewEventStartDate] = useState('');
   const [newEventStartTime, setNewEventStartTime] = useState('');
-  const [newEventEndDate, setNewEventEndDate] = useState('');
-  const [newEventEndTime, setNewEventEndTime] = useState('');
   const [newEventLocation, setNewEventLocation] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [sendNotification, setSendNotification] = useState(true);
+  
+  const [isAllDay, setIsAllDay] = useState(false);
+  const [durationPreset, setDurationPreset] = useState<'30min' | '1h' | '2h' | '3h' | 'custom'>('1h');
+  const [customDurationHours, setCustomDurationHours] = useState('1');
 
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
@@ -122,6 +124,7 @@ export default function CalendarioManager() {
       location?: string;
       clienteId?: string;
       notifyCliente: boolean;
+      isAllDay?: boolean;
     }) => {
       return await apiRequest('POST', '/api/calendar/create-event', eventData);
     },
@@ -196,27 +199,74 @@ export default function CalendarioManager() {
   }, [filteredEvents]);
 
   const handleCreateEvent = () => {
-    if (!newEventTitle.trim() || !newEventStartDate || !newEventStartTime || !newEventEndDate || !newEventEndTime) {
+    if (!newEventTitle.trim() || !newEventStartDate) {
       toast({
         title: 'Campi obbligatori',
-        description: 'Compila tutti i campi obbligatori',
+        description: 'Compila titolo e data inizio',
         variant: 'destructive',
       });
       return;
     }
 
-    const startDate = new Date(`${newEventStartDate}T${newEventStartTime}:00`);
-    const endDate = new Date(`${newEventEndDate}T${newEventEndTime}:00`);
+    if (!isAllDay && !newEventStartTime) {
+      toast({
+        title: 'Ora richiesta',
+        description: 'Specifica ora inizio o seleziona "Tutto il giorno"',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-    createEventMutation.mutate({
-      title: newEventTitle,
-      description: newEventDescription || undefined,
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-      location: newEventLocation || undefined,
-      clienteId: selectedCliente?.id,
-      notifyCliente: sendNotification,
-    });
+    if (isAllDay) {
+      createEventMutation.mutate({
+        title: newEventTitle,
+        description: newEventDescription || undefined,
+        start: newEventStartDate,
+        end: newEventStartDate,
+        location: newEventLocation || undefined,
+        clienteId: selectedCliente?.id,
+        notifyCliente: sendNotification,
+        isAllDay: true,
+      });
+    } else {
+      const startDate = new Date(`${newEventStartDate}T${newEventStartTime}:00`);
+      
+      let durationMinutes: number;
+      
+      if (durationPreset === 'custom') {
+        const customHours = parseFloat(customDurationHours);
+        if (isNaN(customHours) || customHours <= 0) {
+          toast({
+            title: 'Durata non valida',
+            description: 'Inserisci una durata valida (es. 1.5)',
+            variant: 'destructive',
+          });
+          return;
+        }
+        durationMinutes = customHours * 60;
+      } else {
+        const durationMap = {
+          '30min': 30,
+          '1h': 60,
+          '2h': 120,
+          '3h': 180,
+        };
+        durationMinutes = durationMap[durationPreset];
+      }
+      
+      const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+
+      createEventMutation.mutate({
+        title: newEventTitle,
+        description: newEventDescription || undefined,
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        location: newEventLocation || undefined,
+        clienteId: selectedCliente?.id,
+        notifyCliente: sendNotification,
+        isAllDay: false,
+      });
+    }
   };
 
   const handleCloseCreateDialog = () => {
@@ -225,11 +275,12 @@ export default function CalendarioManager() {
     setNewEventDescription('');
     setNewEventStartDate('');
     setNewEventStartTime('');
-    setNewEventEndDate('');
-    setNewEventEndTime('');
     setNewEventLocation('');
     setSelectedCliente(null);
     setSendNotification(true);
+    setIsAllDay(false);
+    setDurationPreset('1h');
+    setCustomDurationHours('1');
   };
 
   const getEventTypeBadge = (type: string) => {
@@ -483,6 +534,21 @@ export default function CalendarioManager() {
               />
             </div>
 
+            <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+              <Checkbox
+                id="all-day"
+                checked={isAllDay}
+                onCheckedChange={(checked) => setIsAllDay(checked as boolean)}
+                data-testid="checkbox-all-day"
+              />
+              <Label 
+                htmlFor="all-day" 
+                className="text-sm font-normal cursor-pointer"
+              >
+                Evento di tutta la giornata
+              </Label>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start-date">Data Inizio *</Label>
@@ -496,40 +562,53 @@ export default function CalendarioManager() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="start-time">Ora Inizio *</Label>
+                <Label htmlFor="start-time">Ora Inizio {!isAllDay && '*'}</Label>
                 <Input
                   id="start-time"
                   type="time"
                   value={newEventStartTime}
                   onChange={(e) => setNewEventStartTime(e.target.value)}
+                  disabled={isAllDay}
                   data-testid="input-start-time"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {!isAllDay && (
               <div className="space-y-2">
-                <Label htmlFor="end-date">Data Fine *</Label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={newEventEndDate}
-                  onChange={(e) => setNewEventEndDate(e.target.value)}
-                  data-testid="input-end-date"
-                />
+                <Label htmlFor="duration">Durata</Label>
+                <Select value={durationPreset} onValueChange={(val) => setDurationPreset(val as any)}>
+                  <SelectTrigger id="duration" data-testid="select-duration">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30min">30 minuti</SelectItem>
+                    <SelectItem value="1h">1 ora</SelectItem>
+                    <SelectItem value="2h">2 ore</SelectItem>
+                    <SelectItem value="3h">3 ore</SelectItem>
+                    <SelectItem value="custom">Personalizzata</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {durationPreset === 'custom' && (
+                  <div className="mt-2">
+                    <Label htmlFor="custom-duration" className="text-sm text-gray-600">
+                      Durata (ore)
+                    </Label>
+                    <Input
+                      id="custom-duration"
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={customDurationHours}
+                      onChange={(e) => setCustomDurationHours(e.target.value)}
+                      placeholder="Es. 1.5"
+                      data-testid="input-custom-duration"
+                    />
+                  </div>
+                )}
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="end-time">Ora Fine *</Label>
-                <Input
-                  id="end-time"
-                  type="time"
-                  value={newEventEndTime}
-                  onChange={(e) => setNewEventEndTime(e.target.value)}
-                  data-testid="input-end-time"
-                />
-              </div>
-            </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="location">Luogo</Label>
