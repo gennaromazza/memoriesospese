@@ -7,6 +7,7 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import { useQuery } from "@tanstack/react-query";
+import { WorkflowState } from "@shared/schema";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatPasswordRequestsForExcel, exportToExcel } from "@/lib/excelExport";
@@ -26,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
@@ -732,6 +734,34 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleWorkflowStateChange = async (galleryId: string, galleryName: string, newState: string) => {
+    // Guard: Solo WorkflowState validi (NO empty string, NO undefined)
+    if (!newState || !Object.values(WorkflowState).includes(newState as WorkflowState)) {
+      console.warn('Invalid workflow state:', newState);
+      return;
+    }
+
+    try {
+      await GalleryService.updateGallery(galleryId, {
+        workflowState: newState as WorkflowState
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+
+      toast({
+        title: "✅ Stato workflow aggiornato",
+        description: `Il workflow di "${galleryName}" è stato aggiornato con successo.`
+      });
+    } catch (error) {
+      console.error('Errore aggiornamento workflow:', error);
+      toast({
+        title: "❌ Errore",
+        description: "Non è stato possibile aggiornare lo stato del workflow.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const deleteGallery = async (gallery: GalleryItem) => {
     if (!window.confirm(`Sei sicuro di voler eliminare la galleria "${gallery.name}"? Questa operazione rimuoverà TUTTE le foto e non può essere annullata.`)) {
       return;
@@ -1352,6 +1382,9 @@ export default function AdminDashboard() {
                             Selezione
                           </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Workflow
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Stato
                           </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1388,6 +1421,25 @@ export default function AdminDashboard() {
                                   -
                                 </span>
                               )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Select
+                                value={gallery.workflowState || undefined}
+                                onValueChange={(value) => handleWorkflowStateChange(gallery.id, gallery.name, value)}
+                                data-testid={`select-workflow-${gallery.id}`}
+                              >
+                                <SelectTrigger className="w-[220px]">
+                                  <SelectValue placeholder="- Imposta stato -" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={WorkflowState.SHOOTING_DA_SVOLGERE}>📸 Shooting da svolgere</SelectItem>
+                                  <SelectItem value={WorkflowState.SHOOTING_COMPLETATO}>✅ Shooting completato</SelectItem>
+                                  <SelectItem value={WorkflowState.IN_LAVORAZIONE}>🎨 In lavorazione</SelectItem>
+                                  <SelectItem value={WorkflowState.IN_ATTESA_SELEZIONE}>⏳ In attesa selezione</SelectItem>
+                                  <SelectItem value={WorkflowState.COMPLETATO}>🎉 Completato</SelectItem>
+                                  <SelectItem value={WorkflowState.CONSEGNATO}>📦 Consegnato</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${

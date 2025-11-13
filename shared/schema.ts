@@ -7,6 +7,16 @@ export enum SecurityQuestionType {
   CUSTOM = 'custom'
 }
 
+// Workflow State Types for Gallery Management
+export enum WorkflowState {
+  SHOOTING_DA_SVOLGERE = 'shooting_da_svolgere',
+  SHOOTING_COMPLETATO = 'shooting_completato',
+  IN_LAVORAZIONE = 'in_lavorazione',
+  IN_ATTESA_SELEZIONE = 'in_attesa_selezione',
+  COMPLETATO = 'completato',
+  CONSEGNATO = 'consegnato'
+}
+
 // Gallery validation schema for Firebase
 export const insertGallerySchema = z.object({
   name: z.string().min(3, "Il nome deve contenere almeno 3 caratteri"),
@@ -67,6 +77,10 @@ export interface Gallery {
   
   // Booking Integration
   bookingId?: string; // Link a booking se galleria creata da BookingsManager
+  
+  // Workflow Management
+  workflowState?: WorkflowState; // Stato del flusso di lavoro fotografico (default: shooting_da_svolgere)
+  
   userId: string; // UID admin/utente che ha creato la galleria
   
   createdAt: any; // Firebase Timestamp

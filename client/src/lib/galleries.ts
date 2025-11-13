@@ -19,6 +19,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { WorkflowState } from '@shared/schema';
 
 export interface Gallery {
   id: string;
@@ -69,6 +70,9 @@ export interface Gallery {
   
   // Booking Integration
   bookingId?: string;
+  
+  // Workflow Management
+  workflowState?: WorkflowState;
 }
 
 export interface GalleryAccessInfo {
