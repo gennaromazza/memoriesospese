@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export interface Notification {
@@ -7,7 +7,7 @@ export interface Notification {
   type: 'booking' | 'consultation' | 'comment' | 'selection';
   title: string;
   description: string;
-  createdAt: any;
+  createdAt: Timestamp | null;
   isRead: boolean;
   resourceId: string;
   deepLink: string;
@@ -23,9 +23,7 @@ export function useNotifications() {
         const bookingsRef = collection(db, 'bookings');
         const bookingsQuery = query(
           bookingsRef,
-          where('dataVisualizzazione', '==', null),
-          orderBy('createdAt', 'desc'),
-          limit(10)
+          where('dataVisualizzazione', '==', null)
         );
         const bookingsSnap = await getDocs(bookingsQuery);
         bookingsSnap.forEach(doc => {
@@ -38,23 +36,21 @@ export function useNotifications() {
             type: 'booking',
             title: 'Nuova Prenotazione',
             description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${dataStr}`,
-            createdAt: data.createdAt,
+            createdAt: data.createdAt || null,
             isRead: false,
             resourceId: doc.id,
             deepLink: `/admin?tab=prenotazioni&section=bookings&booking=${doc.id}`
           });
         });
       } catch (error) {
-        // Silently handle bookings fetch errors
+        console.error('[Notifications] Errore fetch bookings:', error);
       }
       
       try {
         const consultationsRef = collection(db, 'consultations');
         const consultationsQuery = query(
           consultationsRef,
-          where('dataVisualizzazione', '==', null),
-          orderBy('createdAt', 'desc'),
-          limit(10)
+          where('dataVisualizzazione', '==', null)
         );
         const consultationsSnap = await getDocs(consultationsQuery);
         consultationsSnap.forEach(doc => {
@@ -64,14 +60,14 @@ export function useNotifications() {
             type: 'consultation',
             title: 'Nuova Consulenza',
             description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${data.jobType || 'Servizio non specificato'}`,
-            createdAt: data.createdAt,
+            createdAt: data.createdAt || null,
             isRead: false,
             resourceId: doc.id,
             deepLink: `/admin?tab=consulenze&consultation=${doc.id}`
           });
         });
       } catch (error) {
-        // Silently handle consultations fetch errors
+        console.error('[Notifications] Errore fetch consultations:', error);
       }
       
       try {
@@ -81,7 +77,7 @@ export function useNotifications() {
         const commentsQuery = query(
           commentsRef,
           orderBy('createdAt', 'desc'),
-          limit(10)
+          limit(20)
         );
         const commentsSnap = await getDocs(commentsQuery);
         commentsSnap.forEach(doc => {
@@ -94,7 +90,7 @@ export function useNotifications() {
               type: 'comment',
               title: 'Nuovo Commento',
               description: `${data.userName || 'Utente'}: "${contentPreview}..."`,
-              createdAt: data.createdAt,
+              createdAt: data.createdAt || null,
               isRead: true,
               resourceId: data.galleryId || '',
               deepLink: `/admin/galleries/${data.galleryId || ''}`
@@ -102,7 +98,7 @@ export function useNotifications() {
           }
         });
       } catch (error) {
-        // Silently handle comments fetch errors
+        console.error('[Notifications] Errore fetch comments:', error);
       }
       
       try {
@@ -112,7 +108,7 @@ export function useNotifications() {
         const selectionsQuery = query(
           selectionsRef,
           orderBy('selectedAt', 'desc'),
-          limit(10)
+          limit(20)
         );
         const selectionsSnap = await getDocs(selectionsQuery);
         selectionsSnap.forEach(doc => {
@@ -124,15 +120,17 @@ export function useNotifications() {
               type: 'selection',
               title: 'Nuova Selezione Foto',
               description: `${data.selectedByName || 'Cliente'} ha selezionato una foto`,
-              createdAt: data.selectedAt,
+              createdAt: data.selectedAt || null,
               isRead: true,
               resourceId: data.galleryId || '',
               deepLink: `/admin/galleries/${data.galleryId || ''}`
             });
           }
         });
-      } catch (error) {
-        // Silently handle selections fetch errors
+      } catch (error: any) {
+        if (error?.code !== 'permission-denied') {
+          console.error('[Notifications] Errore fetch selections:', error);
+        }
       }
       
       return notifications.sort((a, b) => {

@@ -1,4 +1,5 @@
 import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { useNotifications } from '@/hooks/useNotifications';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -6,10 +7,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { createUrl } from '@/lib/basePath';
 
 export function NotificationBell() {
   const { data: notifications = [], isLoading } = useNotifications();
+  const [, navigate] = useLocation();
   
   const unreadCount = notifications.filter(n => !n.isRead).length;
   
@@ -24,7 +25,7 @@ export function NotificationBell() {
   };
   
   const handleNotificationClick = (deepLink: string) => {
-    window.location.href = createUrl(deepLink);
+    navigate(deepLink);
   };
   
   return (

@@ -225,6 +225,7 @@ export default function AdminDashboard() {
     return (sessionStorage.getItem('settingsSection') as any) || 'studio';
   });
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
+  const [locationSearch, setLocationSearch] = useState(window.location.search);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
   // Detect if admin came from a specific gallery
@@ -297,6 +298,62 @@ export default function AdminDashboard() {
   useEffect(() => {
     sessionStorage.setItem('settingsSection', settingsSection);
   }, [settingsSection]);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setLocationSearch(window.location.search);
+    };
+    
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(locationSearch);
+    const tab = params.get('tab');
+    const section = params.get('section');
+    const booking = params.get('booking');
+    const consultation = params.get('consultation');
+    
+    if (booking && tab === 'prenotazioni') {
+      setTimeout(() => handleOpenBooking(booking), 300);
+      return;
+    }
+    
+    if (tab) {
+      const tabMapping: Record<string, string> = {
+        'prenotazioni': 'bookings',
+        'consulenze': 'consulenze',
+        'gallerie': 'galleries',
+        'clienti': 'clienti',
+        'impostazioni': 'settings',
+        'calendario': 'calendario'
+      };
+      
+      const sectionMapping: Record<string, string> = {
+        'bookings': 'bookings-list',
+        'commesse': 'commesse'
+      };
+      
+      const mappedTab = tabMapping[tab] || tab;
+      setActiveTab(mappedTab as any);
+      
+      if (mappedTab === 'bookings' && section) {
+        const mappedSection = sectionMapping[section] || section;
+        setActiveBookingSection(mappedSection as any);
+      }
+      
+      if (mappedTab === 'consulenze') {
+        setActiveConsultationSection('consulenze');
+        if (consultation) {
+          setTimeout(() => {
+            const consultationElement = document.querySelector(`[data-consultation-id="${consultation}"]`);
+            consultationElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 500);
+        }
+      }
+    }
+  }, [locationSearch]);
 
   // Check authentication and referrer gallery
   useEffect(() => {
