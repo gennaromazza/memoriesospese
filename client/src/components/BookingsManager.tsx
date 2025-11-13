@@ -165,6 +165,7 @@ export default function BookingsManager({
   const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'tomorrow' | 'next-week' | 'next-month'>('all');
+  const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all');
   
   // State per cancellazione a cascata
   const [deleteBookingCascadeId, setDeleteBookingCascadeId] = useState<string | null>(null);
@@ -254,7 +255,15 @@ export default function BookingsManager({
       });
     }
 
-    // 3. Filtra per intervallo temporale
+    // 3. Filtra per selezioni approvate
+    if (selectionFilter === 'approved') {
+      filtered = filtered.filter(b => {
+        const gallery = getGalleryByBookingId(b.id!);
+        return gallery && gallery.selectionStatus === 'completed';
+      });
+    }
+
+    // 4. Filtra per intervallo temporale
     if (timeFilter !== 'all') {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -300,7 +309,7 @@ export default function BookingsManager({
       });
     }
 
-    // 4. Ordina per data e ora (più vicine prima per filtri temporali, più recenti per 'all')
+    // 5. Ordina per data e ora (più vicine prima per filtri temporali, più recenti per 'all')
     filtered.sort((a, b) => {
       const getTime = (timestamp: any): number => {
         if (!timestamp) return 0;
@@ -316,7 +325,7 @@ export default function BookingsManager({
     });
 
     return filtered;
-  }, [allBookings, selectedStato, searchQuery, campaigns, timeFilter]);
+  }, [allBookings, selectedStato, searchQuery, campaigns, timeFilter, selectionFilter, allGalleries]);
 
   // Paginazione
   const totalPages = Math.ceil(bookings.length / ITEMS_PER_PAGE);
@@ -328,7 +337,7 @@ export default function BookingsManager({
   // Reset currentPage quando cambiano filtri
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedStato, searchQuery, timeFilter]);
+  }, [selectedStato, searchQuery, timeFilter, selectionFilter]);
 
   // Scroll e highlight booking quando richiesto da GestioneCommesse
   useEffect(() => {
@@ -845,6 +854,26 @@ export default function BookingsManager({
                     <SelectItem value="next-month">Prossimo Mese</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={selectionFilter === 'all' ? 'outline' : 'default'}
+                  size="default"
+                  onClick={() => setSelectionFilter('all')}
+                  className={selectionFilter === 'all' ? '' : 'bg-green-600 hover:bg-green-700'}
+                  data-testid="filter-all-selections-btn"
+                >
+                  📷 Tutte
+                </Button>
+                <Button
+                  variant={selectionFilter === 'approved' ? 'default' : 'outline'}
+                  size="default"
+                  onClick={() => setSelectionFilter('approved')}
+                  className={selectionFilter === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
+                  data-testid="filter-approved-selections-btn"
+                >
+                  ✅ Solo Approvate
+                </Button>
               </div>
               <div className="flex-1">
                 <div className="relative">

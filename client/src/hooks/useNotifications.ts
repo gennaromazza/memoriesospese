@@ -101,37 +101,9 @@ export function useNotifications() {
         console.error('[Notifications] Errore fetch comments:', error);
       }
       
-      try {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const selectionsRef = collection(db, 'photoSelections');
-        const selectionsQuery = query(
-          selectionsRef,
-          orderBy('selectedAt', 'desc'),
-          limit(20)
-        );
-        const selectionsSnap = await getDocs(selectionsQuery);
-        selectionsSnap.forEach(doc => {
-          const data = doc.data();
-          const selectionDate = data.selectedAt?.toDate ? data.selectedAt.toDate() : null;
-          if (selectionDate && selectionDate >= sevenDaysAgo) {
-            notifications.push({
-              id: `selection-${doc.id}`,
-              type: 'selection',
-              title: 'Nuova Selezione Foto',
-              description: `${data.selectedByName || 'Cliente'} ha selezionato una foto`,
-              createdAt: data.selectedAt || null,
-              isRead: true,
-              resourceId: data.galleryId || '',
-              deepLink: `/admin/galleries/${data.galleryId || ''}`
-            });
-          }
-        });
-      } catch (error: any) {
-        if (error?.code !== 'permission-denied') {
-          console.error('[Notifications] Errore fetch selections:', error);
-        }
-      }
+      // NOTA: Photo selections singole (dalla collezione photoSelections) sono ora disabilitate
+      // perché le notifiche "Selezione Approvata" (dalla collezione galleries) sono più rilevanti.
+      // Se necessario riabilitare, usare deeplink corretto con bookingId della gallery associata.
       
       try {
         const todayStart = new Date();

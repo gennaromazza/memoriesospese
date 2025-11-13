@@ -226,7 +226,6 @@ export default function AdminDashboard() {
     return (sessionStorage.getItem('settingsSection') as any) || 'studio';
   });
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
-  const [locationSearch, setLocationSearch] = useState(window.location.search);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
   // Detect if admin came from a specific gallery
@@ -263,7 +262,7 @@ export default function AdminDashboard() {
     whatsappText: 'Hai domande sulle nostre gallerie o vuoi prenotare un servizio? Scrivici su WhatsApp!',
     whatsappButtonText: 'Scrivici su WhatsApp'
   });
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -300,17 +299,9 @@ export default function AdminDashboard() {
     sessionStorage.setItem('settingsSection', settingsSection);
   }, [settingsSection]);
 
+  // 🔧 Deeplink handler - reagisce a navigate() da wouter usando location tuple
   useEffect(() => {
-    const handleLocationChange = () => {
-      setLocationSearch(window.location.search);
-    };
-    
-    window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
-
-  useEffect(() => {
-    const params = new URLSearchParams(locationSearch);
+    const params = new URLSearchParams(location.split('?')[1] || '');
     const tab = params.get('tab');
     const section = params.get('section');
     const booking = params.get('booking');
@@ -354,7 +345,7 @@ export default function AdminDashboard() {
         }
       }
     }
-  }, [locationSearch]);
+  }, [location]); // Dependency: reagisce a navigate() da wouter
 
   // Check authentication and referrer gallery
   useEffect(() => {
@@ -915,6 +906,11 @@ export default function AdminDashboard() {
       if (!matchesSearch) return false;
     }
 
+    // Filtro selezioni approvate
+    if (selectionFilter === 'approved') {
+      if (gallery.selectionStatus !== 'completed') return false;
+    }
+
     // Filtro tipo galleria
     if (galleryTypeFilter === 'generic') {
       return !gallery.specialTheme; // Generiche = senza specialTheme
@@ -1259,34 +1255,59 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* 🎨 Filtri Tipo Galleria */}
-                <div className="flex gap-2 mb-4">
-                  <Button
-                    variant={galleryTypeFilter === 'generic' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGalleryTypeFilter('generic')}
-                    className="flex items-center gap-2"
-                    data-testid="filter-generic-galleries"
-                  >
-                    🏠 Generiche
-                  </Button>
-                  <Button
-                    variant={galleryTypeFilter === 'special' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGalleryTypeFilter('special')}
-                    className="flex items-center gap-2"
-                    data-testid="filter-special-galleries"
-                  >
-                    🎨 Special/Tematiche
-                  </Button>
-                  <Button
-                    variant={galleryTypeFilter === 'all' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGalleryTypeFilter('all')}
-                    className="flex items-center gap-2"
-                    data-testid="filter-all-galleries"
-                  >
-                    📋 Tutte
-                  </Button>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <div className="flex gap-2">
+                    <Button
+                      variant={galleryTypeFilter === 'generic' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setGalleryTypeFilter('generic')}
+                      className="flex items-center gap-2"
+                      data-testid="filter-generic-galleries"
+                    >
+                      🏠 Generiche
+                    </Button>
+                    <Button
+                      variant={galleryTypeFilter === 'special' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setGalleryTypeFilter('special')}
+                      className="flex items-center gap-2"
+                      data-testid="filter-special-galleries"
+                    >
+                      🎨 Special/Tematiche
+                    </Button>
+                    <Button
+                      variant={galleryTypeFilter === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setGalleryTypeFilter('all')}
+                      className="flex items-center gap-2"
+                      data-testid="filter-all-galleries"
+                    >
+                      📋 Tutte
+                    </Button>
+                  </div>
+                  
+                  <div className="h-6 w-px bg-gray-300" />
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      variant={selectionFilter === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectionFilter('all')}
+                      className="flex items-center gap-2"
+                      data-testid="filter-all-selections"
+                    >
+                      📷 Tutte
+                    </Button>
+                    <Button
+                      variant={selectionFilter === 'approved' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectionFilter('approved')}
+                      className="flex items-center gap-2 bg-green-50 hover:bg-green-100 border-green-200"
+                      data-testid="filter-approved-selections"
+                    >
+                      ✅ Solo Selezioni Approvate
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Skeleton loader durante il caricamento */}
@@ -1328,6 +1349,9 @@ export default function AdminDashboard() {
                             Foto
                           </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Selezione
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Stato
                           </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1349,6 +1373,21 @@ export default function AdminDashboard() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-500">{gallery.photoCount || 0}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {gallery.selectionStatus === 'completed' ? (
+                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                  ✅ Completata
+                                </span>
+                              ) : gallery.selectionEnabled ? (
+                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                  ⏳ In attesa
+                                </span>
+                              ) : (
+                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-500">
+                                  -
+                                </span>
+                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
