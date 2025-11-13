@@ -150,28 +150,24 @@ export default function CalendarioManager() {
     retry: false,
   });
 
-  // Fetch Jobs confermati
+  // Fetch Jobs confermati from Firestore
   const { data: jobs = [], isLoading: loadingJobs } = useQuery<Job[]>({
     queryKey: ['jobs'],
     queryFn: async () => {
-      console.log('[CalendarioManager] Fetching jobs...');
-      const response = await fetch('/api/jobs');
-      if (!response.ok) {
-        console.error('[CalendarioManager] Jobs fetch error:', response.status);
-        throw new Error('Errore caricamento jobs');
-      }
-      const data = await response.json();
-      const active = data.filter((j: Job) => 
+      console.log('[CalendarioManager] Fetching jobs from Firestore...');
+      const { getAllJobs } = await import('@/lib/jobs');
+      const allJobs = await getAllJobs();
+      const active = allJobs.filter((j: Job) => 
         j.status !== 'lead' && j.status !== 'annullato' && j.status !== 'archiviato'
       );
       console.log('[CalendarioManager] Jobs loaded:', {
-        total: data.length,
+        total: allJobs.length,
         active: active.length
       });
       return active;
     },
     enabled: !!user,
-    retry: false,
+    retry: 2,
   });
 
   // Fetch Bookings confermati

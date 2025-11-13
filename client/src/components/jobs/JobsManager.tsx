@@ -93,10 +93,12 @@ export default function JobsManager() {
     to: Date | undefined;
   }>({ from: undefined, to: undefined });
   
-  // Query jobs
+  // Query jobs from Firestore
   const { data: jobs = [], isLoading } = useQuery<Job[]>({
     queryKey: ['jobs'],
-    queryFn: () => getAllJobs()
+    queryFn: () => getAllJobs(),
+    retry: 2,
+    staleTime: 30000 // Cache for 30s
   });
   
   // Query job types dinamici
