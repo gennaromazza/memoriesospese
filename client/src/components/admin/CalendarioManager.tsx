@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -60,6 +61,7 @@ interface CalendarEventDTO {
 
 export default function CalendarioManager() {
   const { toast } = useToast();
+  const { user, isLoading: authLoading, isAuthenticated } = useFirebaseAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [eventTypeFilter, setEventTypeFilter] = useState<'all' | 'google' | 'consulenza' | 'job'>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -112,7 +114,7 @@ export default function CalendarioManager() {
       
       return data;
     },
-    enabled: true,
+    enabled: !authLoading && isAuthenticated,
   });
 
   const createEventMutation = useMutation({

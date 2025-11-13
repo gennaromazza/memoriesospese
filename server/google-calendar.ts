@@ -168,12 +168,13 @@ export async function createEvent(
   eventData: {
     summary: string;
     description?: string;
-    start: Date;
-    end: Date;
+    start?: Date;
+    end?: Date;
     location?: string;
     attendees?: string[]; // Array di email
     isAllDay?: boolean;
     startDateStr?: string;
+    endDateStr?: string;
   }
 ) {
   const calendar = await getGoogleCalendarClient();
@@ -192,7 +193,7 @@ export async function createEvent(
     
     startField = { date: eventData.startDateStr };
     endField = { date: endDateStr };
-  } else {
+  } else if (eventData.start && eventData.end) {
     startField = {
       dateTime: eventData.start.toISOString(),
       timeZone: 'Europe/Rome',
@@ -201,6 +202,8 @@ export async function createEvent(
       dateTime: eventData.end.toISOString(),
       timeZone: 'Europe/Rome',
     };
+  } else {
+    throw new Error('Invalid event data: must provide either isAllDay+startDateStr or start+end Dates');
   }
   
   const response = await calendar.events.insert({

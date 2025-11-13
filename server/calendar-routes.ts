@@ -228,18 +228,6 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
     }
     
     // 2. Crea evento su Google Calendar
-    let startDate: Date;
-    let endDate: Date;
-    
-    if (data.isAllDay) {
-      const [year, month, day] = data.start.split('-').map(Number);
-      startDate = new Date(year, month - 1, day, 0, 0, 0);
-      endDate = new Date(year, month - 1, day, 23, 59, 59);
-    } else {
-      startDate = new Date(data.start);
-      endDate = new Date(data.end);
-    }
-    
     const attendees = (data.notifyCliente && clienteEmail) 
       ? [clienteEmail] 
       : undefined;
@@ -247,12 +235,13 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
     const event = await createEvent('primary', {
       summary: data.title,
       description: data.description,
-      start: startDate,
-      end: endDate,
+      start: data.isAllDay ? undefined : new Date(data.start),
+      end: data.isAllDay ? undefined : new Date(data.end),
       location: data.location,
       attendees,
       isAllDay: data.isAllDay,
       startDateStr: data.isAllDay ? data.start : undefined,
+      endDateStr: data.isAllDay ? data.end : undefined,
     });
 
     console.log(`✅ Evento creato su Google Calendar: ${event.id}`);
@@ -268,16 +257,22 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
         
         // Format dates/times in Italian
         let eventDate: string;
+        let eventTime: string;
+        let eventEndTime: string;
+        
         if (data.isAllDay) {
           const [year, month, day] = data.start.split('-').map(Number);
           const pureDate = new Date(year, month - 1, day);
           eventDate = format(pureDate, 'EEEE d MMMM yyyy', { locale: it });
+          eventTime = 'Tutto il giorno';
+          eventEndTime = '';
         } else {
+          const startDate = new Date(data.start);
+          const endDate = new Date(data.end);
           eventDate = format(startDate, 'EEEE d MMMM yyyy', { locale: it });
+          eventTime = format(startDate, 'HH:mm', { locale: it });
+          eventEndTime = format(endDate, 'HH:mm', { locale: it });
         }
-        
-        const eventTime = data.isAllDay ? 'Tutto il giorno' : format(startDate, 'HH:mm', { locale: it });
-        const eventEndTime = data.isAllDay ? '' : format(endDate, 'HH:mm', { locale: it });
         
         const htmlContent = createCalendarEventEmailHTML(
           clienteName,
