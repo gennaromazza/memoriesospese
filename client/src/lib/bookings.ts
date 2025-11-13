@@ -702,24 +702,24 @@ async function sendWorkflowStateEmail(
     };
 
     switch (stato) {
-      case 'shooting_svolto':
+      case 'shooting_completato':
         endpoint = '/api/email/shooting-completed';
         payload.campaignName = dati.campaignName || 'Shooting';
         payload.bookingDate = dati.bookingDate || new Date().toLocaleDateString('it-IT');
         break;
 
-      case 'inizio_lavorazione':
+      case 'in_lavorazione':
         endpoint = '/api/email/order-processing';
         payload.prodottoNome = dati.prodottoNome || 'Il tuo ordine';
         break;
 
-      case 'pronto_consegna':
+      case 'completato':
         endpoint = '/api/email/order-ready';
         payload.prodottoNome = dati.prodottoNome || 'Il tuo ordine';
         break;
 
       default:
-        // shooting_da_svolgere non invia email (già gestita da booking-confirmed)
+        // shooting_da_svolgere, in_attesa_selezione, consegnato: no email automatica
         console.log(`ℹ️ Stato ${stato} non richiede email automatica`);
         return;
     }

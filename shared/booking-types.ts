@@ -4,15 +4,7 @@
  */
 
 import { Timestamp } from 'firebase/firestore';
-
-/**
- * WORKFLOW STATE - Stati del workflow operativo
- */
-export type WorkflowState = 
-  | 'shooting_da_svolgere'  // Prenotazione confermata, shooting futuro
-  | 'shooting_svolto'       // Shooting completato, in attesa caricamento foto o creazione ordine
-  | 'inizio_lavorazione'    // Foto caricate, selezione completata, pronto per produzione
-  | 'pronto_consegna';      // Album/stampe pronte per il ritiro
+import { WorkflowState } from './schema';
 
 /**
  * PRODUCTS - Catalogo prodotti fotografici

@@ -78,9 +78,6 @@ export interface Gallery {
   // Booking Integration
   bookingId?: string; // Link a booking se galleria creata da BookingsManager
   
-  // Workflow Management
-  workflowState?: WorkflowState; // Stato del flusso di lavoro fotografico (default: shooting_da_svolgere)
-  
   userId: string; // UID admin/utente che ha creato la galleria
   
   createdAt: any; // Firebase Timestamp

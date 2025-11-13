@@ -17,12 +17,14 @@ import {
   updateBooking,
   countRelatedEntities,
   deleteBookingCascade,
+  updateWorkflowState,
 } from '@/lib/bookings';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { getAllOrders, createOrder } from '@/lib/orders';
 import { getActiveProducts } from '@/lib/products';
 import { GalleryService, type Gallery } from '@/lib/galleries';
 import type { Booking, BookingCampaign, Order, Product, OrderItem } from '@shared/booking-types';
+import { WorkflowState } from '@shared/schema';
 import NewGalleryModal from '@/components/NewGalleryModal';
 import EditGalleryModal from '@/components/EditGalleryModal';
 import { OrdersManager } from '@/components/OrdersManager';
@@ -166,6 +168,9 @@ export default function BookingsManager({
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'tomorrow' | 'next-week' | 'next-month'>('all');
   const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all');
+  
+  // State per workflow state change con conferma
+  const [workflowChangeBooking, setWorkflowChangeBooking] = useState<{ booking: Booking; newState: WorkflowState } | null>(null);
   
   // State per cancellazione a cascata
   const [deleteBookingCascadeId, setDeleteBookingCascadeId] = useState<string | null>(null);
@@ -683,6 +688,34 @@ export default function BookingsManager({
     },
   });
 
+  // Mutation: Aggiorna stato workflow
+  const workflowStateMutation = useMutation({
+    mutationFn: async ({ bookingId, newState, emailData }: { 
+      bookingId: string; 
+      newState: WorkflowState; 
+      emailData?: any 
+    }) => {
+      await updateWorkflowState(bookingId, 'booking', newState, emailData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({
+        title: '✅ Stato workflow aggiornato',
+        description: 'Il workflow è stato aggiornato e l\'email è stata inviata al cliente.',
+      });
+      setWorkflowChangeBooking(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: '❌ Errore',
+        description: `Impossibile aggiornare lo stato: ${error.message}`,
+        variant: 'destructive',
+      });
+      setWorkflowChangeBooking(null);
+    },
+  });
+
   // Handler: Apri dettagli e marca come vista
   const handleOpenDetails = async (booking: Booking) => {
     setSelectedBooking(booking);
@@ -691,6 +724,36 @@ export default function BookingsManager({
     if (!booking.dataVisualizzazione) {
       markAsViewedMutation.mutate(booking.id);
     }
+  };
+
+  // Handler: Request workflow state change (apre conferma dialog)
+  const handleWorkflowStateChange = (booking: Booking, newState: string) => {
+    if (!newState || !Object.values(WorkflowState).includes(newState as WorkflowState)) {
+      return;
+    }
+    setWorkflowChangeBooking({ booking, newState: newState as WorkflowState });
+  };
+
+  // Handler: Conferma cambio workflow state
+  const handleConfirmWorkflowChange = () => {
+    if (!workflowChangeBooking) return;
+
+    const { booking, newState } = workflowChangeBooking;
+    
+    // Prepara dati per email
+    const emailData = {
+      clienteNome: `${booking.cliente.nome} ${booking.cliente.cognome}`.trim(),
+      clienteEmail: booking.cliente.email,
+      prodottoNome: booking.prodottoNome,
+      campaignName: getCampaignName(booking.campaignId),
+      bookingDate: formatDateTime(booking.dataShootingInizio),
+    };
+
+    workflowStateMutation.mutate({ 
+      bookingId: booking.id, 
+      newState, 
+      emailData 
+    });
   };
 
   // Handler: Apri dialog modifica
@@ -967,7 +1030,7 @@ export default function BookingsManager({
               ref={(el) => { bookingRefs.current[booking.id] = el; }}
               className={`hover:shadow-lg transition-all ${colorClass.border} ${colorClass.bg} ${isHighlighted ? 'ring-4 ring-blue-500 ring-offset-2 shadow-2xl' : ''}`}
             >
-              <CardContent className="p-6">
+              <CardContent className="p-4 md:p-6">
                 <div className="flex justify-between items-start gap-6">
                   {/* Info prenotazione */}
                   <div className="flex-1 space-y-3">
@@ -1191,7 +1254,7 @@ export default function BookingsManager({
                       size="sm"
                       onClick={() => handleOpenDetails(booking)}
                       data-testid={`button-view-${booking.id}`}
-                      className="w-full"
+                      className="w-full h-12"
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Dettagli
@@ -1219,6 +1282,7 @@ export default function BookingsManager({
                                 }
                               }}
                               data-testid={`button-order-${booking.id}`}
+                              className="h-10 w-10"
                             >
                               {!getOrderByBookingId(booking.id) ? (
                                 <Plus className="w-4 h-4" />
@@ -1248,6 +1312,7 @@ export default function BookingsManager({
                                 }
                               }}
                               data-testid={`button-gallery-${booking.id}`}
+                              className="h-10 w-10"
                             >
                               {!getGalleryByBookingId(booking.id) ? (
                                 <Plus className="w-4 h-4" />
@@ -1269,7 +1334,7 @@ export default function BookingsManager({
                               size="icon"
                               disabled={!isApproved}
                               onClick={() => handleRequestCascadeDelete(booking.id)}
-                              className="text-destructive hover:bg-destructive/10"
+                              className="text-destructive hover:bg-destructive/10 h-10 w-10"
                               data-testid={`button-delete-${booking.id}`}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1289,7 +1354,7 @@ export default function BookingsManager({
                           size="sm"
                           onClick={() => approveMutation.mutate(booking.id)}
                           disabled={approveMutation.isPending || rejectMutation.isPending}
-                          className="bg-sage hover:bg-dark-sage"
+                          className="bg-sage hover:bg-dark-sage h-12"
                           data-testid={`button-approve-${booking.id}`}
                         >
                           {approveMutation.isPending ? (
@@ -1304,7 +1369,7 @@ export default function BookingsManager({
                           variant="outline"
                           onClick={() => rejectMutation.mutate(booking.id)}
                           disabled={approveMutation.isPending || rejectMutation.isPending}
-                          className="border-red-200 text-red-600 hover:bg-red-50"
+                          className="border-red-200 text-red-600 hover:bg-red-50 h-12"
                           data-testid={`button-reject-${booking.id}`}
                         >
                           {rejectMutation.isPending ? (
@@ -1314,6 +1379,30 @@ export default function BookingsManager({
                           )}
                           Rifiuta
                         </Button>
+                      </div>
+                    )}
+
+                    {/* Workflow State Dropdown - Solo per booking confermati */}
+                    {isApproved && (
+                      <div className="w-full pt-2 border-t border-gray-200">
+                        <Label className="text-xs text-gray-600 mb-1 block">Stato Workflow</Label>
+                        <Select
+                          value={booking.statoWorkflow || undefined}
+                          onValueChange={(value) => handleWorkflowStateChange(booking, value)}
+                          data-testid={`select-workflow-${booking.id}`}
+                        >
+                          <SelectTrigger className="w-full h-12 text-sm">
+                            <SelectValue placeholder="- Imposta stato -" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={WorkflowState.SHOOTING_DA_SVOLGERE}>📸 Shooting da svolgere</SelectItem>
+                            <SelectItem value={WorkflowState.SHOOTING_COMPLETATO}>✅ Shooting completato</SelectItem>
+                            <SelectItem value={WorkflowState.IN_LAVORAZIONE}>🎨 In lavorazione</SelectItem>
+                            <SelectItem value={WorkflowState.IN_ATTESA_SELEZIONE}>⏳ In attesa selezione</SelectItem>
+                            <SelectItem value={WorkflowState.COMPLETATO}>🎉 Completato</SelectItem>
+                            <SelectItem value={WorkflowState.CONSEGNATO}>📦 Consegnato</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     )}
                   </div>
@@ -1955,6 +2044,81 @@ export default function BookingsManager({
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
                   Elimina Tutto
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog Conferma Workflow State Change */}
+      <AlertDialog 
+        open={!!workflowChangeBooking} 
+        onOpenChange={() => setWorkflowChangeBooking(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-blue-600" />
+              Conferma Cambio Stato Workflow
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              {workflowChangeBooking && (
+                <>
+                  <p className="font-medium">
+                    Stai per aggiornare lo stato workflow di:
+                  </p>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700">Cliente:</span>
+                      <span className="font-bold text-blue-900">
+                        {workflowChangeBooking.booking.cliente.nome} {workflowChangeBooking.booking.cliente.cognome}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700">Nuovo stato:</span>
+                      <span className="font-bold text-blue-900">
+                        {workflowChangeBooking.newState === WorkflowState.SHOOTING_DA_SVOLGERE && '📸 Shooting da svolgere'}
+                        {workflowChangeBooking.newState === WorkflowState.SHOOTING_COMPLETATO && '✅ Shooting completato'}
+                        {workflowChangeBooking.newState === WorkflowState.IN_LAVORAZIONE && '🎨 In lavorazione'}
+                        {workflowChangeBooking.newState === WorkflowState.IN_ATTESA_SELEZIONE && '⏳ In attesa selezione'}
+                        {workflowChangeBooking.newState === WorkflowState.COMPLETATO && '🎉 Completato'}
+                        {workflowChangeBooking.newState === WorkflowState.CONSEGNATO && '📦 Consegnato'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm text-green-800 font-medium flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      Una email automatica sarà inviata al cliente ({workflowChangeBooking.booking.cliente.email})
+                    </p>
+                  </div>
+                  
+                  <p className="text-sm text-gray-600">
+                    Vuoi procedere con l'aggiornamento?
+                  </p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmWorkflowChange}
+              disabled={workflowStateMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700 focus:ring-blue-600"
+            >
+              {workflowStateMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Aggiornamento...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Conferma
                 </>
               )}
             </AlertDialogAction>

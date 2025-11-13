@@ -7,7 +7,6 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import { useQuery } from "@tanstack/react-query";
-import { WorkflowState } from "@shared/schema";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatPasswordRequestsForExcel, exportToExcel } from "@/lib/excelExport";
@@ -734,60 +733,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleWorkflowStateChange = async (gallery: GalleryItem, newState: string) => {
-    // Guard: Solo WorkflowState validi (NO empty string, NO undefined)
-    if (!newState || !Object.values(WorkflowState).includes(newState as WorkflowState)) {
-      console.warn('Invalid workflow state:', newState);
-      return;
-    }
-
-    try {
-      // Prepara dati cliente per email (se bookingId presente)
-      let clientData: { clienteNome: string; clienteEmail: string; galleryName?: string } | undefined;
-
-      if (gallery.bookingId) {
-        try {
-          const bookingSnap = await getDoc(doc(db, 'bookings', gallery.bookingId));
-          if (bookingSnap.exists()) {
-            const booking = bookingSnap.data();
-            clientData = {
-              clienteNome: `${booking.cliente?.nome || ''} ${booking.cliente?.cognome || ''}`.trim(),
-              clienteEmail: booking.cliente?.email || '',
-              galleryName: gallery.name
-            };
-          }
-        } catch (error) {
-          console.warn('Impossibile recuperare dati cliente per email:', error);
-          // Continua senza email
-        }
-      }
-
-      // Aggiorna workflow + invia email automatica (se clientData presente)
-      await GalleryService.updateWorkflowState(
-        gallery.id,
-        newState as WorkflowState,
-        clientData
-      );
-
-      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
-
-      toast({
-        title: "✅ Stato workflow aggiornato",
-        description: clientData?.clienteEmail
-          ? `Il workflow di "${gallery.name}" è stato aggiornato. Email inviata a ${clientData.clienteEmail}.`
-          : gallery.bookingId 
-            ? `Il workflow di "${gallery.name}" è stato aggiornato (dati cliente non disponibili, nessuna email inviata).`
-            : `Il workflow di "${gallery.name}" è stato aggiornato (galleria senza cliente, nessuna email inviata).`
-      });
-    } catch (error) {
-      console.error('Errore aggiornamento workflow:', error);
-      toast({
-        title: "❌ Errore",
-        description: "Non è stato possibile aggiornare lo stato del workflow.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const deleteGallery = async (gallery: GalleryItem) => {
     if (!window.confirm(`Sei sicuro di voler eliminare la galleria "${gallery.name}"? Questa operazione rimuoverà TUTTE le foto e non può essere annullata.`)) {
@@ -1409,9 +1354,6 @@ export default function AdminDashboard() {
                             Selezione
                           </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Workflow
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Stato
                           </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1448,25 +1390,6 @@ export default function AdminDashboard() {
                                   -
                                 </span>
                               )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Select
-                                value={gallery.workflowState || undefined}
-                                onValueChange={(value) => handleWorkflowStateChange(gallery, value)}
-                                data-testid={`select-workflow-${gallery.id}`}
-                              >
-                                <SelectTrigger className="w-[220px]">
-                                  <SelectValue placeholder="- Imposta stato -" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value={WorkflowState.SHOOTING_DA_SVOLGERE}>📸 Shooting da svolgere</SelectItem>
-                                  <SelectItem value={WorkflowState.SHOOTING_COMPLETATO}>✅ Shooting completato</SelectItem>
-                                  <SelectItem value={WorkflowState.IN_LAVORAZIONE}>🎨 In lavorazione</SelectItem>
-                                  <SelectItem value={WorkflowState.IN_ATTESA_SELEZIONE}>⏳ In attesa selezione</SelectItem>
-                                  <SelectItem value={WorkflowState.COMPLETATO}>🎉 Completato</SelectItem>
-                                  <SelectItem value={WorkflowState.CONSEGNATO}>📦 Consegnato</SelectItem>
-                                </SelectContent>
-                              </Select>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
