@@ -7,7 +7,7 @@
 import express from 'express';
 import { getEvents, createEvent } from './google-calendar.js';
 import { db } from './firebase-admin.js';
-import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, getStudioContactInfo } from './email-routes.js';
+import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, getStudioContactInfo, generateGoogleCalendarLink } from './email-routes.js';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -274,6 +274,16 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
           eventEndTime = format(endDate, 'HH:mm', { locale: it });
         }
         
+        // Generate Google Calendar "Add to Calendar" link
+        const calendarLink = generateGoogleCalendarLink({
+          title: data.title,
+          description: `${data.description || ''}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+          location: data.location || studioInfo.address,
+          startDate: data.start,
+          endDate: data.end,
+          isAllDay: data.isAllDay
+        });
+        
         const htmlContent = createCalendarEventEmailHTML(
           clienteName,
           data.title,
@@ -282,7 +292,8 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
           eventEndTime,
           data.location,
           data.description,
-          studioInfo
+          studioInfo,
+          calendarLink
         );
         
         const subject = `Nuovo Appuntamento: ${data.title}`;

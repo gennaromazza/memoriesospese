@@ -58,6 +58,145 @@ export async function getStudioContactInfo(): Promise<{
 }
 
 /**
+ * Genera link "Aggiungi al Calendario" per Google Calendar
+ * ESPORTATA per uso in booking-routes.ts, consultation-routes.ts, calendar-routes.ts
+ * 
+ * @param params.title - Titolo evento (obbligatorio)
+ * @param params.description - Descrizione evento (opzionale, max 200 chars)
+ * @param params.location - Luogo evento (opzionale)
+ * @param params.startDate - Data/ora inizio (Date, string ISO, o YYYY-MM-DD per all-day)
+ * @param params.endDate - Data/ora fine (Date, string ISO, o YYYY-MM-DD per all-day)
+ * @param params.isAllDay - Se true, usa formato YYYYMMDD senza orario (default: false)
+ * @returns URL Google Calendar o stringa vuota se parsing fallisce
+ */
+export function generateGoogleCalendarLink(params: {
+  title: string;
+  description?: string;
+  location?: string;
+  startDate: Date | string;
+  endDate: Date | string;
+  isAllDay?: boolean;
+}): string {
+  try {
+    const { title, description, location, startDate, endDate, isAllDay = false } = params;
+
+    // Validazione title obbligatorio
+    if (!title || title.trim() === '') {
+      console.warn('⚠️ generateGoogleCalendarLink: title mancante');
+      return '';
+    }
+
+    // Converti date in Date objects se necessario
+    let start: Date;
+    let end: Date;
+
+    if (typeof startDate === 'string') {
+      start = new Date(startDate);
+    } else {
+      start = startDate;
+    }
+
+    if (typeof endDate === 'string') {
+      end = new Date(endDate);
+    } else {
+      end = endDate;
+    }
+
+    // Validazione date valide
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      console.warn('⚠️ generateGoogleCalendarLink: date non valide', { startDate, endDate });
+      return '';
+    }
+
+    // Formatta date secondo formato Google Calendar
+    let datesParam: string;
+
+    if (isAllDay) {
+      // All-day: YYYYMMDD/YYYYMMDD (end date exclusive)
+      const formatYYYYMMDD = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}${month}${day}`;
+      };
+
+      const startFormatted = formatYYYYMMDD(start);
+      
+      // Google Calendar richiede end date esclusivo (+1 giorno dall'ultimo giorno dell'evento)
+      // Se start === end (stesso giorno), aggiungi +1 per renderlo esclusivo
+      // Se end > start (già esclusivo), usa così com'è
+      const startDay = start.toDateString();
+      const endDay = end.toDateString();
+      
+      let endFormatted: string;
+      if (startDay === endDay) {
+        // Single-day event: end deve essere start+1 (esclusivo)
+        const endPlusOne = new Date(end);
+        endPlusOne.setDate(endPlusOne.getDate() + 1);
+        endFormatted = formatYYYYMMDD(endPlusOne);
+      } else {
+        // Multi-day event: end è già esclusivo, usa così com'è
+        endFormatted = formatYYYYMMDD(end);
+      }
+
+      datesParam = `${startFormatted}/${endFormatted}`;
+    } else {
+      // Timed event: YYYYMMDDTHHmmssZ (UTC format)
+      const formatUTC = (date: Date): string => {
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const hours = String(date.getUTCHours()).padStart(2, '0');
+        const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+        return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+      };
+
+      datesParam = `${formatUTC(start)}/${formatUTC(end)}`;
+    }
+
+    // Costruisci URL Google Calendar
+    const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+    
+    // URL-encode parametri
+    const params_url = new URLSearchParams();
+    params_url.append('text', title);
+    params_url.append('dates', datesParam);
+
+    // Aggiungi description (tronca a 200 chars, rimuovi HTML se presente)
+    if (description && description.trim() !== '') {
+      const cleanDescription = description
+        .replace(/<[^>]*>/g, '') // Rimuovi tag HTML
+        .trim()
+        .substring(0, 200); // Max 200 chars
+      
+      if (cleanDescription) {
+        params_url.append('details', cleanDescription);
+      }
+    }
+
+    // Aggiungi location se presente
+    if (location && location.trim() !== '') {
+      params_url.append('location', location.trim());
+    }
+
+    // Aggiungi timezone per eventi con orario (migliora UX per utenti italiani)
+    if (!isAllDay) {
+      params_url.append('ctz', 'Europe/Rome');
+    }
+
+    const finalUrl = `${baseUrl}&${params_url.toString()}`;
+
+    console.log(`📅 Generato Google Calendar link: ${title} (${isAllDay ? 'all-day' : 'timed'})`);
+    return finalUrl;
+
+  } catch (error) {
+    console.error('❌ Errore generateGoogleCalendarLink:', error);
+    return ''; // Graceful degradation: ritorna stringa vuota
+  }
+}
+
+/**
  * Query Firestore tramite REST API
  */
 async function queryFirestore(
@@ -758,7 +897,8 @@ export function createBookingReceivedEmailHTML(
   bookingTime: string,
   duration: number,
   productName?: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  calendarLink?: string
 ): string {
   const studio = studioInfo || { 
     name: "Memorie Sospese", 
@@ -799,6 +939,20 @@ export function createBookingReceivedEmailHTML(
           non esitare a contattarci via WhatsApp.
         </p>
       </div>
+
+      ${calendarLink ? `
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${calendarLink}" 
+           style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
+                  text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;
+                  transition: background 0.3s ease;">
+          📅 Aggiungi al Calendario
+        </a>
+        <p style="font-size: 12px; color: #888; margin-top: 12px;">
+          Compatibile con Google Calendar, Outlook, Apple Calendar
+        </p>
+      </div>
+      ` : ''}
       
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
@@ -997,7 +1151,7 @@ export function createBookingConfirmedEmailHTML(
   productName?: string,
   notes?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  bookingId?: string
+  calendarLink?: string
 ): string {
   const studio = studioInfo || { 
     name: "Memorie Sospese", 
@@ -1044,23 +1198,21 @@ export function createBookingConfirmedEmailHTML(
           </ul>
         </div>
 
-        ${bookingId ? `
-        <div style="text-align: center; margin: 25px 0; padding: 20px; background: linear-gradient(135deg, #f5f7fa 0%, #e8eef7 100%); border-radius: 12px;">
+        ${calendarLink ? `
+        <div style="text-align: center; margin: 25px 0; padding: 20px; background: #f9f7f4; border-radius: 12px;">
           <p style="font-size: 16px; color: #333; margin-bottom: 8px; font-weight: 600;">
             📅 Non dimenticare il tuo appuntamento!
           </p>
           <p style="font-size: 14px; color: #666; margin-bottom: 18px; line-height: 1.5;">
-            Aggiungi questo evento al tuo calendario per ricevere un promemoria automatico 24 ore prima dello shooting. Basta un click!
+            Aggiungi questo evento al tuo calendario per ricevere un promemoria automatico. Basta un click!
           </p>
-          <a href="${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/api/booking/calendar/${bookingId}" 
-             style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    color: white; padding: 16px 32px; text-decoration: none; border-radius: 10px; 
-                    font-weight: 600; font-size: 16px; box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-                    transition: all 0.3s ease;">
-            📲 Aggiungi al Calendario
+          <a href="${calendarLink}" 
+             style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;
+                    transition: background 0.3s ease;">
+            📅 Aggiungi al Calendario
           </a>
           <p style="font-size: 12px; color: #888; margin-top: 12px; line-height: 1.4;">
-            Funziona su tutti i dispositivi: iPhone, Android, PC, Mac<br>
             Compatibile con Google Calendar, Outlook, Apple Calendar
           </p>
         </div>
@@ -4492,7 +4644,8 @@ function createConsultationReceivedEmailHTML(
   jobType: string,
   consultationDate: string,
   consultationTime: string,
-  studio: any
+  studio: any,
+  calendarLink?: string
 ): string {
   return `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px;">
@@ -4533,6 +4686,19 @@ function createConsultationReceivedEmailHTML(
         </div>
       </div>
 
+      ${calendarLink ? `
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${calendarLink}" 
+           style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
+                  text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+          📅 Aggiungi al Calendario
+        </a>
+        <p style="font-size: 12px; color: #888; margin-top: 12px;">
+          Compatibile con Google Calendar, Outlook, Apple Calendar
+        </p>
+      </div>
+      ` : ''}
+
       <p style="font-size: 14px; color: #666; text-align: center;">
         Per qualsiasi domanda, contattaci su WhatsApp al ${studio.phone}
       </p>
@@ -4556,7 +4722,8 @@ function createConsultationApprovedEmailHTML(
   consultationDate: string,
   consultationTime: string,
   meetingLink: string | null,
-  studio: any
+  studio: any,
+  calendarLink?: string
 ): string {
   return `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px;">
@@ -4601,9 +4768,27 @@ function createConsultationApprovedEmailHTML(
         </div>
       </div>
 
+      ${calendarLink ? `
+      <div style="text-align: center; margin: 30px 0; padding: 20px; background: #F5F3EF; border-radius: 12px;">
+        <p style="font-size: 16px; color: #333; margin-bottom: 8px; font-weight: 600;">
+          📅 Aggiungi al tuo calendario
+        </p>
+        <p style="font-size: 14px; color: #666; margin-bottom: 18px; line-height: 1.5;">
+          Non dimenticare l'appuntamento! Salvalo nel tuo calendario per ricevere un promemoria.
+        </p>
+        <a href="${calendarLink}" 
+           style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
+                  text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+          📅 Aggiungi al Calendario
+        </a>
+        <p style="font-size: 12px; color: #888; margin-top: 12px;">
+          Compatibile con Google Calendar, Outlook, Apple Calendar
+        </p>
+      </div>
+      ` : ''}
+
       <div style="text-align: center; margin-top: 25px;">
         <p style="font-size: 14px; color: #666;">
-          L'appuntamento è stato aggiunto al nostro calendario.<br>
           Ti aspettiamo!
         </p>
       </div>
@@ -4800,7 +4985,8 @@ router.post("/send-consultation-received", async (req, res) => {
       jobType,
       consultationDate,
       consultationTime,
-      studioInfo
+      studioInfo,
+      undefined  // No calendarLink for pending consultations
     );
 
     const subject = `Richiesta Consulenza Ricevuta - ${jobType}`;
@@ -4991,8 +5177,9 @@ router.post("/send-consultation-cancelled", async (req, res) => {
 
 /**
  * Template HTML per email notifica evento calendario creato
+ * ESPORTATA per uso in calendar-routes.ts
  */
-function createCalendarEventEmailHTML(
+export function createCalendarEventEmailHTML(
   clienteName: string,
   eventTitle: string,
   eventDate: string,
@@ -5000,7 +5187,8 @@ function createCalendarEventEmailHTML(
   eventEndTime: string,
   eventLocation?: string,
   eventDescription?: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  calendarLink?: string
 ): string {
   const studio = studioInfo || { 
     name: "Memorie Sospese", 
@@ -5040,6 +5228,25 @@ function createCalendarEventEmailHTML(
           Se hai bisogno di modificare o annullare l'appuntamento, contattaci via WhatsApp o email.
         </p>
       </div>
+
+      ${calendarLink ? `
+      <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f9f7f4; border-radius: 12px;">
+        <p style="font-size: 16px; color: #333; margin-bottom: 8px; font-weight: 600;">
+          📅 Non dimenticare l'appuntamento!
+        </p>
+        <p style="font-size: 14px; color: #666; margin-bottom: 18px; line-height: 1.5;">
+          Salvalo nel tuo calendario con un click.
+        </p>
+        <a href="${calendarLink}" 
+           style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
+                  text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+          📅 Aggiungi al Calendario
+        </a>
+        <p style="font-size: 12px; color: #888; margin-top: 12px;">
+          Compatibile con Google Calendar, Outlook, Apple Calendar
+        </p>
+      </div>
+      ` : ''}
       
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
@@ -5056,6 +5263,5 @@ export {
   createConsultationReceivedEmailHTML,
   createConsultationApprovedEmailHTML,
   createConsultationRejectedEmailHTML,
-  createConsultationCancelledEmailHTML,
-  createCalendarEventEmailHTML
+  createConsultationCancelledEmailHTML
 };

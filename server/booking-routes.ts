@@ -630,7 +630,8 @@ router.post('/create', async (req, res) => {
         bookingTime,
         durationMinutes,
         prodottoNome,
-        studioInfo
+        studioInfo,
+        undefined  // No calendarLink for pending bookings
       );
       
       await sendGmailEmail(
@@ -888,12 +889,23 @@ router.patch('/:id/approve', async (req, res) => {
       const durationMinutes = Math.round((slotEnd.getTime() - slotStart.getTime()) / (1000 * 60));
 
       // Import diretto delle funzioni email
-      const { sendGmailEmail, createBookingConfirmedEmailHTML, getStudioContactInfo } = await import('./email-routes.js');
+      const { sendGmailEmail, createBookingConfirmedEmailHTML, getStudioContactInfo, generateGoogleCalendarLink } = await import('./email-routes.js');
 
       // Recupera dati contatto studio
       const studioInfo = await getStudioContactInfo();
 
       const clienteName = `${bookingData.cliente.nome} ${bookingData.cliente.cognome}`;
+      
+      // Generate Google Calendar "Add to Calendar" link
+      const calendarLink = generateGoogleCalendarLink({
+        title: `Shooting ${campaignName} - ${clienteName}`,
+        description: `Sessione fotografica: ${campaignName}\nCliente: ${clienteName}\n${bookingData.prodottoNome ? `Pacchetto: ${bookingData.prodottoNome}\n` : ''}${bookingData.note ? `Note: ${bookingData.note}\n` : ''}\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+        location: studioInfo.address || 'Studio fotografico',
+        startDate: slotStart,
+        endDate: slotEnd,
+        isAllDay: false
+      });
+
       const emailHTML = createBookingConfirmedEmailHTML(
         clienteName,
         campaignName,
@@ -903,7 +915,7 @@ router.patch('/:id/approve', async (req, res) => {
         bookingData.prodottoNome,
         bookingData.note,
         studioInfo,
-        id  // bookingId per generare link calendario
+        calendarLink
       );
 
       await sendGmailEmail(

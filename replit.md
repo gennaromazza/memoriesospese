@@ -25,8 +25,8 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 - **Image Handling:** Automatic compression, watermarking, duplicate detection, advanced cropping, multi-image uploads (Firebase Storage, signed URLs).
 - **Galleries:** Professional galleries with client-side selection, real-time updates for likes, comments, and voice memos. Secure access via passwords and PINs.
 - **Subscription System:** Stripe integration for tiered access control.
-- **Email System:** Express.js server via Gmail API with dynamic templates for notifications (orders, quotes, payments, consultations).
-- **Booking & Calendar System:** Campaign-based with Google Calendar integration for booking slots, atomic booking via Firestore transactions, and conflict detection. Features include flexible event duration selection and timezone-safe all-day event handling.
+- **Email System:** Express.js server via Gmail API with dynamic templates for notifications (orders, quotes, payments, consultations). Integrated "Aggiungi al Calendario" (Add to Calendar) Google Calendar links in confirmation emails with timezone-aware date formatting, Italian localization, and brand-consistent styling (#8b5a3c).
+- **Booking & Calendar System:** Campaign-based with Google Calendar integration for booking slots, atomic booking via Firestore transactions, and conflict detection. Features include flexible event duration selection, timezone-safe all-day event handling, and automated Google Calendar link generation for confirmed appointments with proper UTC conversion and exclusive end-date handling.
 - **Security:** Gallery passwords and PINs stored in `gallerySecrets`, server-side verification, granular Firebase Security Rules, token verification, user isolation, and rate limiting. PDF uploads remain private using signed URLs.
 - **Questionnaire System:** Secure crypto tokens, multi-step forms with auto-save, and ChatGPT export.
 - **Theming:** Modular seasonal galleries with dedicated CSS and mandatory PIN-based access.

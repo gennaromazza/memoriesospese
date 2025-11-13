@@ -443,7 +443,8 @@ router.post('/create', async (req, res) => {
         template.jobType,
         formattedDate,
         `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
-        studioInfo
+        studioInfo,
+        undefined  // No calendarLink for pending consultations
       );
 
       await sendGmailEmail(
@@ -575,7 +576,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
     // Invia email conferma (task 13)
     let emailStatus = 'sent';
     try {
-      const { sendGmailEmail, getStudioContactInfo, createConsultationApprovedEmailHTML } = await import('./email-routes.js');
+      const { sendGmailEmail, getStudioContactInfo, createConsultationApprovedEmailHTML, generateGoogleCalendarLink } = await import('./email-routes.js');
       const studioInfo = await getStudioContactInfo();
 
       const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
@@ -586,13 +587,24 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
         day: 'numeric' 
       });
 
+      // Generate Google Calendar "Add to Calendar" link
+      const calendarLink = generateGoogleCalendarLink({
+        title: `Consulenza ${consultation.jobType} - ${clienteName}`,
+        description: `Consulenza per ${consultation.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+        location: studioInfo.address,
+        startDate: startDateTime,
+        endDate: endDateTime,
+        isAllDay: false
+      });
+
       const htmlContent = createConsultationApprovedEmailHTML(
         clienteName,
         consultation.jobType,
         formattedDate,
         `${consultation.orarioInizio} - ${consultation.orarioFine}`,
         null, // meetingLink
-        studioInfo
+        studioInfo,
+        calendarLink
       );
 
       await sendGmailEmail(
