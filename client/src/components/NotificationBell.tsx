@@ -157,13 +157,43 @@ export default function NotificationBell({
     }
   }, [totalUnviewed]);
 
-  const handleBookingClick = (bookingId: string) => {
+  const handleBookingClick = async (bookingId: string) => {
     setOpen(false);
+    
+    // Mark booking as viewed in Firestore
+    try {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      
+      await updateDoc(doc(db, 'bookings', bookingId), {
+        dataVisualizzazione: serverTimestamp()
+      });
+      
+      console.log('✅ Booking marked as viewed:', bookingId);
+    } catch (error) {
+      console.error('❌ Error marking booking as viewed:', error);
+    }
+    
     onNavigateToBooking?.(bookingId);
   };
 
-  const handleConsultationClick = (consultationId: string) => {
+  const handleConsultationClick = async (consultationId: string) => {
     setOpen(false);
+    
+    // Mark consultation as viewed in Firestore
+    try {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      
+      await updateDoc(doc(db, 'consultations', consultationId), {
+        dataVisualizzazione: serverTimestamp()
+      });
+      
+      console.log('✅ Consultation marked as viewed:', consultationId);
+    } catch (error) {
+      console.error('❌ Error marking consultation as viewed:', error);
+    }
+    
     onNavigateToConsultation?.(consultationId);
   };
 
