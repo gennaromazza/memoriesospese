@@ -187,9 +187,32 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
     
     console.log(`📅 Creazione evento Google Calendar: "${data.title}"`);
     
-    // 1. Crea evento su Google Calendar
+    // 1. Fetch cliente se necessario (per attendees Google Calendar)
+    let clienteEmail: string | undefined;
+    
+    if (data.clienteId) {
+      try {
+        const clienteDoc = await db.collection('clienti').doc(data.clienteId).get();
+        
+        if (clienteDoc.exists) {
+          const cliente = clienteDoc.data();
+          clienteEmail = cliente?.email;
+          console.log(`👤 Cliente trovato: ${cliente?.nome} ${cliente?.cognome} (${clienteEmail})`);
+        } else {
+          console.warn(`⚠️ Cliente ${data.clienteId} non trovato`);
+        }
+      } catch (clienteError) {
+        console.error('⚠️ Errore fetch cliente:', clienteError);
+      }
+    }
+    
+    // 2. Crea evento su Google Calendar con attendees se notifyCliente
     const startDate = new Date(data.start);
     const endDate = new Date(data.end);
+    
+    const attendees = (data.notifyCliente && clienteEmail) 
+      ? [clienteEmail] 
+      : undefined;
     
     const event = await createEvent('primary', {
       summary: data.title,
@@ -197,28 +220,13 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
       start: startDate,
       end: endDate,
       location: data.location,
-      attendees: data.clienteId ? [] : undefined, // Popolato dopo se necessario
+      attendees,
     });
 
     console.log(`✅ Evento creato su Google Calendar: ${event.id}`);
-
-    // 2. Notifica email cliente (se richiesto)
-    if (data.clienteId && data.notifyCliente) {
-      try {
-        const clienteDoc = await db.collection('clienti').doc(data.clienteId).get();
-        
-        if (clienteDoc.exists) {
-          const cliente = clienteDoc.data();
-          
-          // TODO: Implementare invio email notifica evento
-          // Pattern da usare: sendGmailEmail() da email-routes.ts
-          console.log(`📧 TODO: Invia email notifica evento a ${cliente?.email}`);
-        } else {
-          console.warn(`⚠️ Cliente ${data.clienteId} non trovato per notifica email`);
-        }
-      } catch (emailError) {
-        console.error('⚠️ Errore invio notifica email (evento creato comunque):', emailError);
-      }
+    
+    if (attendees && attendees.length > 0) {
+      console.log(`📧 Invito Google Calendar inviato a: ${clienteEmail}`);
     }
 
     res.json({ 

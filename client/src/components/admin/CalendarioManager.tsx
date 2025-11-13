@@ -72,6 +72,16 @@ export default function CalendarioManager() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventDTO | null>(null);
   
+  const safeParseISO = (dateString: string | undefined): Date | null => {
+    if (!dateString || dateString.trim() === '') return null;
+    try {
+      const parsed = parseISO(dateString);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    } catch {
+      return null;
+    }
+  };
+  
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDescription, setNewEventDescription] = useState('');
   const [newEventStartDate, setNewEventStartDate] = useState('');
@@ -87,6 +97,18 @@ export default function CalendarioManager() {
 
   const { data: eventsData, isLoading: eventsLoading } = useQuery<CalendarEventDTO[]>({
     queryKey: ['/api/calendar/events', monthStart.toISOString(), monthEnd.toISOString()],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: monthStart.toISOString(),
+        endDate: monthEnd.toISOString()
+      });
+      const response = await fetch(`/api/calendar/events?${params}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch calendar events');
+      }
+      const data = await response.json();
+      return data.events;
+    },
     enabled: true,
   });
 
@@ -107,11 +129,11 @@ export default function CalendarioManager() {
     mutationFn: async (eventData: {
       title: string;
       description?: string;
-      startDateTime: string;
-      endDateTime: string;
+      start: string;
+      end: string;
       location?: string;
-      clientId?: string;
-      sendEmail: boolean;
+      clienteId?: string;
+      notifyCliente: boolean;
     }) => {
       return await apiRequest('POST', '/api/calendar/create-event', eventData);
     },
@@ -154,8 +176,8 @@ export default function CalendarioManager() {
 
   const eventsForSelectedDate = useMemo(() => {
     return filteredEvents.filter(event => {
-      const eventStart = parseISO(event.start);
-      return isSameDay(eventStart, selectedDate);
+      const eventStart = safeParseISO(event.start);
+      return eventStart && isSameDay(eventStart, selectedDate);
     });
   }, [filteredEvents, selectedDate]);
 
@@ -163,17 +185,23 @@ export default function CalendarioManager() {
     const grouped: Record<string, CalendarEventDTO[]> = {};
     
     filteredEvents.forEach(event => {
-      const dateKey = format(parseISO(event.start), 'yyyy-MM-dd');
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = [];
+      const eventStart = safeParseISO(event.start);
+      if (eventStart) {
+        const dateKey = format(eventStart, 'yyyy-MM-dd');
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = [];
+        }
+        grouped[dateKey].push(event);
       }
-      grouped[dateKey].push(event);
     });
     
     Object.keys(grouped).forEach(dateKey => {
-      grouped[dateKey].sort((a, b) => 
-        parseISO(a.start).getTime() - parseISO(b.start).getTime()
-      );
+      grouped[dateKey].sort((a, b) => {
+        const aStart = safeParseISO(a.start);
+        const bStart = safeParseISO(b.start);
+        if (!aStart || !bStart) return 0;
+        return aStart.getTime() - bStart.getTime();
+      });
     });
     
     return grouped;
@@ -189,17 +217,17 @@ export default function CalendarioManager() {
       return;
     }
 
-    const startDateTime = `${newEventStartDate}T${newEventStartTime}:00`;
-    const endDateTime = `${newEventEndDate}T${newEventEndTime}:00`;
+    const startDate = new Date(`${newEventStartDate}T${newEventStartTime}:00`);
+    const endDate = new Date(`${newEventEndDate}T${newEventEndTime}:00`);
 
     createEventMutation.mutate({
       title: newEventTitle,
       description: newEventDescription || undefined,
-      startDateTime,
-      endDateTime,
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
       location: newEventLocation || undefined,
-      clientId: newEventClientId || undefined,
-      sendEmail: sendNotification,
+      clienteId: newEventClientId && newEventClientId !== 'none' ? newEventClientId : undefined,
+      notifyCliente: sendNotification,
     });
   };
 
@@ -230,7 +258,9 @@ export default function CalendarioManager() {
   };
 
   const datesWithEvents = useMemo(() => {
-    return Object.keys(eventsByDate).map(dateStr => parseISO(dateStr));
+    return Object.keys(eventsByDate)
+      .map(dateStr => safeParseISO(dateStr))
+      .filter((date): date is Date => date !== null);
   }, [eventsByDate]);
 
   return (
@@ -392,7 +422,7 @@ export default function CalendarioManager() {
                             <div className="flex flex-col gap-1 text-sm text-gray-500">
                               <div className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
-                                {format(parseISO(event.start), 'HH:mm')} - {format(parseISO(event.end), 'HH:mm')}
+                                {safeParseISO(event.start) ? format(safeParseISO(event.start)!, 'HH:mm') : 'N/A'} - {safeParseISO(event.end) ? format(safeParseISO(event.end)!, 'HH:mm') : 'N/A'}
                               </div>
                               
                               {event.location && (
@@ -531,7 +561,7 @@ export default function CalendarioManager() {
                   <SelectValue placeholder="Seleziona cliente (opzionale)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessun cliente</SelectItem>
+                  <SelectItem value="none">Nessun cliente</SelectItem>
                   {clientiData.map(cliente => (
                     <SelectItem key={cliente.id} value={cliente.id}>
                       {cliente.cognome} {cliente.nome} - {cliente.email}
@@ -597,14 +627,18 @@ export default function CalendarioManager() {
                 <div>
                   <Label className="text-xs text-gray-500">Data/Ora Inizio</Label>
                   <p className="text-sm">
-                    {format(parseISO(selectedEvent.start), 'dd MMM yyyy HH:mm', { locale: it })}
+                    {safeParseISO(selectedEvent.start) 
+                      ? format(safeParseISO(selectedEvent.start)!, 'dd MMM yyyy HH:mm', { locale: it })
+                      : 'Data non disponibile'}
                   </p>
                 </div>
 
                 <div>
                   <Label className="text-xs text-gray-500">Data/Ora Fine</Label>
                   <p className="text-sm">
-                    {format(parseISO(selectedEvent.end), 'dd MMM yyyy HH:mm', { locale: it })}
+                    {safeParseISO(selectedEvent.end) 
+                      ? format(safeParseISO(selectedEvent.end)!, 'dd MMM yyyy HH:mm', { locale: it })
+                      : 'Data non disponibile'}
                   </p>
                 </div>
               </div>
