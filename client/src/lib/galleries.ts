@@ -229,6 +229,123 @@ export class GalleryService {
   }
 
   /**
+   * Aggiorna stato workflow galleria + invia email automatica cliente
+   */
+  static async updateWorkflowState(
+    galleryId: string,
+    newState: WorkflowState,
+    clientData?: {
+      clienteNome: string;
+      clienteEmail: string;
+      galleryName?: string;
+    }
+  ): Promise<void> {
+    console.log(`🔄 Aggiornamento workflow galleria ${galleryId} → ${newState}`);
+
+    try {
+      // Validazione enum strict
+      if (!Object.values(WorkflowState).includes(newState)) {
+        throw new Error(`Invalid workflow state: ${newState}`);
+      }
+
+      // Update Firestore
+      await updateDoc(doc(db, 'galleries', galleryId), {
+        workflowState: newState,
+        updatedAt: serverTimestamp()
+      });
+
+      console.log(`✅ Stato workflow aggiornato a ${newState}`);
+
+      // Invia email automatica se dati cliente forniti
+      if (clientData && clientData.clienteEmail) {
+        await this.sendWorkflowStateEmail(newState, clientData);
+      }
+
+    } catch (error) {
+      console.error('❌ Errore aggiornamento stato workflow:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Invia email automatica in base al nuovo stato workflow
+   */
+  private static async sendWorkflowStateEmail(
+    stato: WorkflowState,
+    dati: {
+      clienteNome: string;
+      clienteEmail: string;
+      galleryName?: string;
+    }
+  ): Promise<void> {
+    try {
+      // Ottieni Firebase ID token per autenticazione
+      const { auth } = await import('./firebase');
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        console.error("❌ Utente non autenticato");
+        return;
+      }
+
+      const idToken = await currentUser.getIdToken();
+
+      let endpoint = '';
+      let payload: any = {
+        recipientEmail: dati.clienteEmail,
+        clienteName: dati.clienteNome,
+        galleryName: dati.galleryName || 'La tua galleria'
+      };
+
+      switch (stato) {
+        case WorkflowState.SHOOTING_COMPLETATO:
+          endpoint = '/api/email/shooting-completed';
+          payload.campaignName = dati.galleryName || 'Shooting';
+          break;
+
+        case WorkflowState.IN_LAVORAZIONE:
+          endpoint = '/api/email/order-processing';
+          payload.prodottoNome = dati.galleryName || 'Le tue foto';
+          break;
+
+        case WorkflowState.COMPLETATO:
+          endpoint = '/api/email/order-ready';
+          payload.prodottoNome = dati.galleryName || 'Le tue foto';
+          break;
+
+        default:
+          // Stati senza email automatica
+          console.log(`ℹ️ Stato ${stato} non richiede email automatica`);
+          return;
+      }
+
+      const baseUrl = window.location.origin;
+      const apiUrl = `${baseUrl}${endpoint}`;
+
+      console.log(`📧 Invio email workflow ${stato} a ${dati.clienteEmail}...`);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(`Errore invio email: ${errorData.error || response.statusText}`);
+      }
+
+      console.log(`✅ Email workflow inviata per stato ${stato} a ${dati.clienteEmail}`);
+    } catch (error: any) {
+      console.error('⚠️ Errore invio email workflow (non bloccante):', error);
+      // Non lanciamo l'errore per non bloccare il cambio stato
+    }
+  }
+
+  /**
    * Aggiorna domanda di sicurezza (admin only)
    */
   static async updateSecurityQuestion(

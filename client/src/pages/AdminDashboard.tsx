@@ -734,7 +734,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleWorkflowStateChange = async (galleryId: string, galleryName: string, newState: string) => {
+  const handleWorkflowStateChange = async (gallery: GalleryItem, newState: string) => {
     // Guard: Solo WorkflowState validi (NO empty string, NO undefined)
     if (!newState || !Object.values(WorkflowState).includes(newState as WorkflowState)) {
       console.warn('Invalid workflow state:', newState);
@@ -742,15 +742,42 @@ export default function AdminDashboard() {
     }
 
     try {
-      await GalleryService.updateGallery(galleryId, {
-        workflowState: newState as WorkflowState
-      });
+      // Prepara dati cliente per email (se bookingId presente)
+      let clientData: { clienteNome: string; clienteEmail: string; galleryName?: string } | undefined;
+
+      if (gallery.bookingId) {
+        try {
+          const bookingSnap = await getDoc(doc(db, 'bookings', gallery.bookingId));
+          if (bookingSnap.exists()) {
+            const booking = bookingSnap.data();
+            clientData = {
+              clienteNome: `${booking.cliente?.nome || ''} ${booking.cliente?.cognome || ''}`.trim(),
+              clienteEmail: booking.cliente?.email || '',
+              galleryName: gallery.name
+            };
+          }
+        } catch (error) {
+          console.warn('Impossibile recuperare dati cliente per email:', error);
+          // Continua senza email
+        }
+      }
+
+      // Aggiorna workflow + invia email automatica (se clientData presente)
+      await GalleryService.updateWorkflowState(
+        gallery.id,
+        newState as WorkflowState,
+        clientData
+      );
 
       queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
 
       toast({
         title: "✅ Stato workflow aggiornato",
-        description: `Il workflow di "${galleryName}" è stato aggiornato con successo.`
+        description: clientData?.clienteEmail
+          ? `Il workflow di "${gallery.name}" è stato aggiornato. Email inviata a ${clientData.clienteEmail}.`
+          : gallery.bookingId 
+            ? `Il workflow di "${gallery.name}" è stato aggiornato (dati cliente non disponibili, nessuna email inviata).`
+            : `Il workflow di "${gallery.name}" è stato aggiornato (galleria senza cliente, nessuna email inviata).`
       });
     } catch (error) {
       console.error('Errore aggiornamento workflow:', error);
@@ -1425,7 +1452,7 @@ export default function AdminDashboard() {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <Select
                                 value={gallery.workflowState || undefined}
-                                onValueChange={(value) => handleWorkflowStateChange(gallery.id, gallery.name, value)}
+                                onValueChange={(value) => handleWorkflowStateChange(gallery, value)}
                                 data-testid={`select-workflow-${gallery.id}`}
                               >
                                 <SelectTrigger className="w-[220px]">

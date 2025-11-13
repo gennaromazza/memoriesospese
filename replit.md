@@ -38,7 +38,8 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 - **Data Import:** Excel-based import system for clients and jobs, supporting structured field parsing and Firebase Storage integration.
 - **Deployment:** Designed for subfolder deployment with dynamic base path detection, aiming for Firebase-only.
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and informative toast notifications.
-- **Admin Dashboard:** Enhanced navigation with dropdown menus for key modules (Consulenze, Prenotazioni, Impostazioni), and a Notification Center for unread activity.
+- **Admin Dashboard:** Enhanced navigation with dropdown menus for key modules (Consulenze, Prenotazioni, Impostazioni), and a Notification Center for unread activity. **Notification Deeplinks:** Click-to-open integration for approved photo selections and bookings with automatic scroll and highlight.
+- **Workflow State Management (MVP):** Gallery workflow tracking system with 6 states (shooting da svolgere → shooting completato → in lavorazione → in attesa selezione → completato → consegnato). Admin can update states via dropdown in Galleries tab. Automatic email notifications to clients planned for next release via Firebase Cloud Functions.
 
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting
