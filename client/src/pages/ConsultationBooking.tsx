@@ -546,35 +546,45 @@ export default function ConsultationBooking() {
                 Riceverai a breve una email di conferma con tutti i dettagli della tua prenotazione.
               </p>
 
-              {/* Instagram Follow Invitation */}
+              {/* Instagram CTA */}
               {studioSettings?.socialLinks?.instagram && (
                 <div className="mt-6 pt-6 border-t border-beige/30">
-                  <p className="text-sm text-gray-600 mb-3">
-                    Seguici su Instagram per rimanere aggiornato e scoprire i nostri lavori!
-                  </p>
-                  <a
-                    href={
-                      studioSettings.socialLinks.instagram.startsWith("http")
-                        ? studioSettings.socialLinks.instagram
-                        : `https://instagram.com/${studioSettings.socialLinks.instagram}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600 mb-4">
+                      Seguici su Instagram per scoprire i nostri lavori e rimanere aggiornato!
+                    </p>
+                    <a
+                      href={(() => {
+                        const normalized = studioSettings.socialLinks.instagram
+                          .replace(/^https?:\/\/(www\.)?instagram\.com\//, '')
+                          .replace(/^@/, '')
+                          .replace(/\/$/, '')
+                          .replace(/[?#].*$/, '');
+                        // Fallback to original URL if normalized handle is empty
+                        return normalized 
+                          ? `https://www.instagram.com/${normalized}`
+                          : (studioSettings.socialLinks.instagram.startsWith('http') 
+                              ? studioSettings.socialLinks.instagram 
+                              : `https://www.instagram.com/${studioSettings.socialLinks.instagram}`);
+                      })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-sage to-dark-sage hover:from-dark-sage hover:to-sage text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
                     >
-                      <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
-                      <circle cx="12" cy="12" r="3.2" />
-                      <circle cx="17" cy="7" r="0.9" />
-                    </svg>
-                    Seguici su Instagram
-                  </a>
+                      <svg
+                        className="w-5 h-5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <path d="M7.5 2h9a5.5 5.5 0 0 1 5.5 5.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2z" />
+                        <circle cx="12" cy="12" r="3.2" />
+                        <circle cx="17" cy="7" r="0.9" />
+                      </svg>
+                      Seguici su Instagram
+                    </a>
+                  </div>
                 </div>
               )}
             </DialogDescription>
