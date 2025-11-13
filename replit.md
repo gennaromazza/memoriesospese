@@ -6,6 +6,12 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 **Vision:** Essere il punto di riferimento per i fotografi professionisti, offrendo una piattaforma completa che gestisce ogni aspetto del business fotografico - dal primo contatto alla consegna finale.
 
 ## Recent Changes (November 2025)
+- **CalendarioManager Enhancements & Bug Fixes (November 13):** Critical fixes and improvements to calendar system:
+  1. **Auth Fix (401 Bug):** Fixed Missing Authorization Bearer token error on `/api/calendar/create-event` and `/api/calendar/events` by adding `/api/calendar/` to `firebaseAuthEndpoints` whitelist in `client/src/lib/queryClient.ts`; replaced bare `fetch()` with `apiRequest()` for consistent auth header injection
+  2. **Enhanced Error Handling:** Backend `/api/calendar/events` now returns `{ events: [], warnings: [] }` response; Google Calendar/Consulenze/Jobs fetch failures captured as warnings with specific error messages; frontend displays informational toasts for each warning; graceful degradation allows calendar to continue working even if Google Calendar integration fails
+  3. **ClientAutocomplete Integration:** Replaced Select dropdown with searchable ClientAutocomplete component for cliente selection in event creation dialog; debounced search (min 2 chars) with Quick Add functionality matching existing booking system UX
+  4. **Google Calendar Sync:** Unified calendar view aggregates events from 3 sources (Google Calendar, Consulenze confermate, Jobs attivi); backend properly handles timezone-safe ISO strings; frontend uses robust `safeParseISO()` helper to prevent crashes from malformed dates
+  
 - **Post-Rollback Feature Restoration (November 13):** Restored 6 features lost in rollback with enhancements:
   1. **Admin Dashboard Navigation:** Dropdown menus for Consulenze (consulenze/templates), Prenotazioni (bookings/commesse), Impostazioni (Prodotti/Categorie); improved state management with sessionStorage sync
   2. **Calendar & Scheduling:** New default Calendario tab with CalendarioManager component, backend routes (/api/calendar/events, /api/calendar/create-event), Google Calendar integration, schema updates with reminderEmailSent field for 24h notifications

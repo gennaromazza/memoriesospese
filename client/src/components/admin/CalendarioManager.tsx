@@ -126,7 +126,7 @@ export default function CalendarioManager() {
       return await apiRequest('POST', '/api/calendar/create-event', eventData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/calendar/events'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/calendar/events'], exact: false });
       toast({
         title: 'Evento creato',
         description: 'L\'evento è stato aggiunto al calendario con successo',
