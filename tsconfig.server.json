@@ -1,3 +1,4 @@
+
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -10,12 +11,8 @@
     "skipLibCheck": true,
     "strict": true,
     "declaration": false,
-    "sourceMap": false,
-    "rootDir": "."
+    "sourceMap": false
   },
-  "include": [
-    "server/**/*",
-    "shared/**/*"
-  ],
+  "include": ["server/**/*", "shared/**/*"],
   "exclude": ["node_modules", "client/**/*", "dist/**/*"]
 }

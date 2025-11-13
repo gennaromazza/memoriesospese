@@ -41,11 +41,6 @@ import JobTypesManager from "@/components/job-types/JobTypesManager";
 import ProductCategoriesManager from "@/components/product-categories/ProductCategoriesManager";
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
-import CalendarioManager from "@/components/CalendarioManager";
-import NotificationBell from "@/components/NotificationBell";
-
-// Type per tab validi
-type ValidTab = 'galleries' | 'users' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'products' | 'product-categories' | 'commesse' | 'calendario';
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -215,8 +210,7 @@ export default function AdminDashboard() {
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<ValidTab>('calendario');
-  const [bookingsSubTab, setBookingsSubTab] = useState('bookings-list');
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates'>('galleries');
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
@@ -528,25 +522,12 @@ export default function AdminDashboard() {
   const handleOpenBooking = (bookingId: string) => {
     setHighlightBookingId(bookingId);
     setActiveTab('bookings');
-    setBookingsSubTab('bookings-list'); // Assicura che il sub-tab sia corretto
-    // Non è più necessario il setTimeout, poiché state gestisce il sub-tab
-  };
-
-  // Handler: Apri consulenza specifica e scroll + highlight
-  const handleOpenConsultation = (consultationId: string) => {
-    setActiveTab('consulenze');
-    // Scroll verso la consulenza dopo il cambio tab
-    setTimeout(() => {
-      const element = document.querySelector(`[data-consultation-id="${consultationId}"]`);
-      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
   };
 
   // Handler: Apri ordine specifico e scroll + highlight
   const handleOpenOrder = (orderId: string) => {
     setHighlightOrderId(orderId);
     setActiveTab('bookings'); // OrdersManager è dentro BookingsManager
-    setBookingsSubTab('orders'); // Assicura che il sub-tab sia corretto
   };
 
   // Handler: Apri gestione selezioni foto
@@ -917,15 +898,7 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto py-4 px-4 sm:py-6 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-blue-gray">Dashboard amministratore</h1>
-            <div className="flex items-center space-x-3">
-              <NotificationBell 
-                onNavigateToBooking={handleOpenBooking}
-                onNavigateToConsultation={handleOpenConsultation}
-                onNavigateToGallery={(galleryCode) => {
-                  // Naviga alla galleria
-                  navigate(createUrl(`/gallery/${galleryCode}`));
-                }}
-              />
+            <div className="flex space-x-3">
               <Link href={createUrl("/")}>
                 <Button variant="outline" size="sm" className="flex items-center space-x-1">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -989,7 +962,7 @@ export default function AdminDashboard() {
 
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <Tabs defaultValue="calendario" value={activeTab} onValueChange={(v) => setActiveTab(v as ValidTab)}>
+          <Tabs defaultValue="galleries" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
             <TabsList className="mb-6 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto">
               {/* Core: Gallerie con dropdown sottomenu */}
               <DropdownMenu>
@@ -1041,6 +1014,13 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">Jobs</span>
               </TabsTrigger>
 
+              {/* Workflow Management: Gestione Commesse */}
+              <TabsTrigger value="commesse" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
+                <FolderOpen className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Gestione Commesse</span>
+                <span className="sm:hidden">Comm.</span>
+              </TabsTrigger>
+
               {/* Financial Management: Cassa */}
               <TabsTrigger value="cassa" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-cassa">
                 <Wallet className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -1048,39 +1028,18 @@ export default function AdminDashboard() {
                 <span className="sm:hidden">💰</span>
               </TabsTrigger>
 
-              {/* Consulenze con dropdown sottomenu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant={activeTab === 'consulenze' || activeTab === 'consulenze-templates' ? 'default' : 'ghost'}
-                    className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
-                  >
-                    <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Consulenze</span>
-                    <span className="sm:hidden">Cons.</span>
-                    <ChevronRight className="h-3 w-3 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem onClick={() => setActiveTab('consulenze')}>
-                    <CalendarCheck className="h-4 w-4 mr-2" />
-                    Prenotazioni Consulenze
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('consulenze-templates')}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Template Consulenze
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Consulenze: Prenotazioni */}
+              <TabsTrigger value="consulenze" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-consulenze">
+                <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Consulenze</span>
+                <span className="sm:hidden">Cons.</span>
+              </TabsTrigger>
 
-              {/* Separatore visivo */}
-              <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
-
-              {/* Calendario */}
-              <TabsTrigger value="calendario" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
-                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Calendario</span>
-                <span className="sm:hidden">📅</span>
+              {/* Consulenze: Template */}
+              <TabsTrigger value="consulenze-templates" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-consulenze-templates">
+                <FileText className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Template Consulenze</span>
+                <span className="sm:hidden">Tmpl</span>
               </TabsTrigger>
 
               {/* Separatore visivo */}
@@ -1090,7 +1049,7 @@ export default function AdminDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
-                    variant={activeTab === 'settings' || activeTab === 'slideshow' || activeTab === 'products' || activeTab === 'product-categories' ? 'default' : 'ghost'}
+                    variant={activeTab === 'settings' || activeTab === 'slideshow' ? 'default' : 'ghost'}
                     className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
                   >
                     <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -1107,14 +1066,6 @@ export default function AdminDashboard() {
                   <DropdownMenuItem onClick={() => setActiveTab('slideshow')}>
                     <Play className="h-4 w-4 mr-2" />
                     Slideshow Homepage
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('products')}>
-                    <Package className="h-4 w-4 mr-2" />
-                    Prodotti
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('product-categories')}>
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    Categorie Prodotti
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1532,8 +1483,8 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Prenotazioni con Sub-Tabs */}
             <TabsContent value="bookings">
-              <Tabs value={bookingsSubTab} onValueChange={setBookingsSubTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4 mb-6">
+              <Tabs defaultValue="bookings-list" className="w-full">
+                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
                   <TabsTrigger value="bookings-list" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <CalendarCheck className="h-4 w-4 flex-shrink-0" />
                     Prenotazioni
@@ -1542,13 +1493,17 @@ export default function AdminDashboard() {
                     <Calendar className="h-4 w-4 flex-shrink-0" />
                     Campagne
                   </TabsTrigger>
+                  <TabsTrigger value="products" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <Package className="h-4 w-4 flex-shrink-0" />
+                    Prodotti
+                  </TabsTrigger>
+                  <TabsTrigger value="product-categories" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="tab-product-categories">
+                    <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                    Categorie Prodotti
+                  </TabsTrigger>
                   <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <ShoppingBag className="h-4 w-4 flex-shrink-0" />
                     Ordini
-                  </TabsTrigger>
-                  <TabsTrigger value="commesse" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                    <FolderOpen className="h-4 w-4 flex-shrink-0" />
-                    Gestione Commesse
                   </TabsTrigger>
                 </TabsList>
 
@@ -1565,21 +1520,16 @@ export default function AdminDashboard() {
                   <CampaignsManager />
                 </TabsContent>
 
-                <TabsContent value="orders">
-                  <OrdersManager />
+                <TabsContent value="products">
+                  <ProductsManager />
                 </TabsContent>
 
-                <TabsContent value="commesse">
-                  <div className="bg-white shadow sm:rounded-lg p-5">
-                    <GestioneCommesse 
-                      onNavigateToTab={setActiveTab}
-                      onEditGallery={openEditModal}
-                      onCreateGallery={openModal}
-                      onOpenBooking={handleOpenBooking}
-                      onOpenOrder={handleOpenOrder}
-                      onOpenPhotoSelection={handleOpenPhotoSelection}
-                    />
-                  </div>
+                <TabsContent value="product-categories">
+                  <ProductCategoriesManager />
+                </TabsContent>
+
+                <TabsContent value="orders">
+                  <OrdersManager />
                 </TabsContent>
               </Tabs>
             </TabsContent>
@@ -1635,6 +1585,20 @@ export default function AdminDashboard() {
               </Tabs>
             </TabsContent>
 
+            {/* Contenuto Tab Gestione Commesse */}
+            <TabsContent value="commesse">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <GestioneCommesse 
+                  onNavigateToTab={setActiveTab}
+                  onEditGallery={openEditModal}
+                  onCreateGallery={openModal}
+                  onOpenBooking={handleOpenBooking}
+                  onOpenOrder={handleOpenOrder}
+                  onOpenPhotoSelection={handleOpenPhotoSelection}
+                />
+              </div>
+            </TabsContent>
+
             {/* Contenuto Tab Cassa */}
             <TabsContent value="cassa">
               <CashDashboard />
@@ -1648,27 +1612,6 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Consulenze Templates */}
             <TabsContent value="consulenze-templates">
               <ConsultationTemplatesManager />
-            </TabsContent>
-
-            {/* Contenuto Tab Prodotti */}
-            <TabsContent value="products">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <ProductsManager />
-              </div>
-            </TabsContent>
-
-            {/* Contenuto Tab Categorie Prodotti */}
-            <TabsContent value="product-categories">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <ProductCategoriesManager />
-              </div>
-            </TabsContent>
-
-            {/* Contenuto Tab Calendario */}
-            <TabsContent value="calendario">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <CalendarioManager />
-              </div>
             </TabsContent>
 
             {/* Contenuto Tab Impostazioni */}

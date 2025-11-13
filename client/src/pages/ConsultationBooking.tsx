@@ -30,8 +30,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useStudio } from '@/context/StudioContext';
-import Navigation from "@/components/Navigation";
-import Footer from "@/components/Footer";
 
 export default function ConsultationBooking() {
   const params = useParams<{ tipo: string; id: string }>();
@@ -209,8 +207,7 @@ export default function ConsultationBooking() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-off-white to-white">
-      <Navigation />
+    <div className="min-h-screen bg-gradient-to-b from-off-white to-white py-6 sm:py-8">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
         {/* Breadcrumb */}
         <div className="mb-4 sm:mb-6">
@@ -525,16 +522,15 @@ export default function ConsultationBooking() {
           </CardFooter>
         </Card>
       </div>
-      <Footer />
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
         <DialogContent className="sm:max-w-md border-beige">
           <DialogHeader className="text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mx-auto mb-4">
               <CheckCircle2 className="h-10 w-10 text-green-600" />
             </div>
-            <CardTitle className="text-2xl font-playfair text-blue-gray">
+            <DialogTitle className="text-2xl font-playfair text-blue-gray">
               Prenotazione Completata!
-            </CardTitle>
+            </DialogTitle>
             <DialogDescription className="text-center space-y-4">
               <p className="text-lg">
                 La tua consulenza è stata prenotata con successo per il{' '}

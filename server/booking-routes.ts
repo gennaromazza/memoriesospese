@@ -81,10 +81,10 @@ async function linkBookingToClienteServer(
             .limit(500); // Batch size ragionevole
           
           let hasMore = true;
-          let lastDoc: any = null;
+          let lastDoc = null;
           
           while (hasMore) {
-            const snapshot: FirebaseFirestore.QuerySnapshot = lastDoc 
+            const snapshot = lastDoc 
               ? await query.startAfter(lastDoc).get()
               : await query.get();
             
@@ -94,7 +94,7 @@ async function linkBookingToClienteServer(
             }
             
             // Cerca match in questo batch
-            const match = snapshot.docs.find((doc: FirebaseFirestore.QueryDocumentSnapshot) => {
+            const match = snapshot.docs.find(doc => {
               const docEmail = doc.data()?.email;
               return docEmail && normalizeEmail(docEmail) === normalizedEmail;
             });

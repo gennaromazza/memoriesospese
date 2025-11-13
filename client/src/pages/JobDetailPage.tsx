@@ -35,16 +35,6 @@ import EditJobModal from '@/components/jobs/EditJobModal';
 import EditClienteModal from '@/components/jobs/EditClienteModal';
 import { updateCliente } from '@/lib/clienti';
 
-// Calendar event type
-interface CalendarEvent {
-  id: string;
-  summary: string;
-  start: { dateTime?: string; date?: string };
-  end: { dateTime?: string; date?: string };
-  description?: string;
-  location?: string;
-}
-
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [, navigate] = useLocation();
@@ -77,57 +67,6 @@ export default function JobDetailPage() {
     queryKey: ['jobType', job?.jobType],
     queryFn: () => getJobTypeBySlug(job!.jobType),
     enabled: !!job
-  });
-
-  // Query per eventi calendario associati a questo Job
-  const { data: calendarEvents = [] } = useQuery<CalendarEvent[]>({
-    queryKey: ['calendar-events-job', jobId],
-    queryFn: async () => {
-      if (!job?.eventDate) return [];
-      
-      const eventDate = job.eventDate.toDate();
-      const startOfDay = new Date(eventDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      
-      const endOfDay = new Date(eventDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      
-      try {
-        const response = await fetch('/api/calendar/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            timeMin: startOfDay.toISOString(),
-            timeMax: endOfDay.toISOString(),
-          }),
-        });
-        
-        if (!response.ok) return [];
-        const events = await response.json();
-        
-        // Filtra eventi che contengono il nome del job o dei clienti
-        return events.filter((event: CalendarEvent) => {
-          const summary = event.summary?.toLowerCase() || '';
-          const description = event.description?.toLowerCase() || '';
-          const jobName = job.nomeEvento.toLowerCase();
-          
-          // Check se l'evento menziona il job o i clienti
-          const clientiNames = clienti.map(c => 
-            `${c.nome} ${c.cognome}`.toLowerCase()
-          );
-          
-          return summary.includes(jobName) || 
-                 description.includes(jobName) ||
-                 clientiNames.some(name => 
-                   summary.includes(name) || description.includes(name)
-                 );
-        });
-      } catch (error) {
-        console.error('Error fetching calendar events:', error);
-        return [];
-      }
-    },
-    enabled: !!job && !!job.eventDate && clienti.length > 0
   });
 
   // Delete mutation
@@ -455,67 +394,6 @@ export default function JobDetailPage() {
                 />
               </CardContent>
             </Card>
-
-            {/* Eventi Calendario */}
-            {calendarEvents.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    📅 Eventi Calendario Associati
-                    <Badge variant="secondary">{calendarEvents.length}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {calendarEvents.map((event) => {
-                      const start = event.start.dateTime 
-                        ? new Date(event.start.dateTime)
-                        : new Date(event.start.date!);
-                      const end = event.end.dateTime
-                        ? new Date(event.end.dateTime)
-                        : new Date(event.end.date!);
-                      
-                      return (
-                        <div 
-                          key={event.id}
-                          className="p-4 border rounded-lg hover:bg-gray-50 transition"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-sm">{event.summary}</h4>
-                              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  📅 {format(start, 'dd/MM/yyyy', { locale: it })}
-                                </span>
-                                {event.start.dateTime && (
-                                  <span className="flex items-center gap-1">
-                                    🕐 {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
-                                  </span>
-                                )}
-                                {event.location && (
-                                  <span className="flex items-center gap-1">
-                                    📍 {event.location}
-                                  </span>
-                                )}
-                              </div>
-                              {event.description && (
-                                <div 
-                                  className="mt-2 text-xs text-muted-foreground prose prose-sm max-w-none"
-                                  dangerouslySetInnerHTML={{ __html: event.description }}
-                                />
-                              )}
-                            </div>
-                            <Badge variant="outline" className="ml-2">
-                              Google Calendar
-                            </Badge>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           {/* Sidebar - Workflow */}

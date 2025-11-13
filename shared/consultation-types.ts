@@ -201,10 +201,6 @@ export interface Consultation {
   // Tracking visualizzazione admin
   dataVisualizzazione?: Timestamp;        // Timestamp prima visualizzazione admin
   
-  // Tracking reminder email (24h prima)
-  reminderEmailSent?: boolean;            // true se reminder 24h prima è stato inviato
-  reminderEmailSentAt?: Timestamp;        // Timestamp invio reminder
-  
   // Conversione in job
   jobCreated: boolean;                    // Flag conversione effettuata
   jobId?: string;                         // ID job creato da consulenza
