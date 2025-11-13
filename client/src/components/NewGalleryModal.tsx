@@ -347,7 +347,7 @@ export default function NewGalleryModal({
 
       // Add photo selection fields if selection is enabled
       if (selectionEnabled) {
-        // Multi-Product Mode: Save productRequirements array
+        // Product-based selection (from availableProducts)
         if (
           prePopulate?.availableProducts &&
           selectedProductIndices.length > 0
@@ -365,21 +365,44 @@ export default function NewGalleryModal({
             return req;
           });
 
-          galleryData.productRequirements = productReqs;
-          galleryData.photoAssignments = {}; // Empty initially - client will populate during selection
-          galleryData.selectionStatus = "pending";
-          galleryData.selectedPhotoIds = []; // Legacy field - mantieni per compatibility
+          // 🔥 FIX Task 5-6: Distingui single-product (1 prodotto) vs multi-product (2+ prodotti)
+          const hasSingleProduct = productReqs.length === 1;
+          const hasMultipleProducts = productReqs.length > 1;
 
-          console.log(
-            "💾 Salvando galleria multi-prodotto con productRequirements:",
-            productReqs,
-          );
+          if (hasSingleProduct) {
+            // Single-Product Mode: Save as requiredPhotoCount (compatible with Gallery.tsx refactor)
+            galleryData.requiredPhotoCount = productReqs[0].prodottoNumeroFoto || 0;
+            galleryData.selectionStatus = "pending";
+            galleryData.selectedPhotoIds = [];
+            // NON salvare productRequirements per single-product
+            console.log(
+              "💾 Salvando galleria single-product con requiredPhotoCount:",
+              galleryData.requiredPhotoCount,
+              "(da prodotto:",
+              productReqs[0].prodottoNome,
+              ")",
+            );
+          } else if (hasMultipleProducts) {
+            // Multi-Product Mode: Save productRequirements array
+            galleryData.productRequirements = productReqs;
+            galleryData.photoAssignments = {}; // Empty initially - client will populate during selection
+            galleryData.selectionStatus = "pending";
+            galleryData.selectedPhotoIds = []; // Legacy field - mantieni per compatibility
+            console.log(
+              "💾 Salvando galleria multi-prodotto con productRequirements:",
+              productReqs,
+            );
+          }
         }
-        // Legacy Single-Product Mode: Save requiredPhotoCount
+        // Legacy Single-Product Mode: Save requiredPhotoCount (manual input)
         else if (requiredPhotoCount > 0) {
           galleryData.requiredPhotoCount = requiredPhotoCount;
           galleryData.selectionStatus = "pending";
           galleryData.selectedPhotoIds = [];
+          console.log(
+            "💾 Salvando galleria legacy single-product con requiredPhotoCount:",
+            requiredPhotoCount,
+          );
         }
 
         // Deadline applies to both modes

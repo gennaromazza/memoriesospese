@@ -355,7 +355,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       // Popola campi Photo Selection Workflow (Task 2)
       setSelectionEnabled((gallery as any).selectionEnabled || false);
-      setRequiredPhotoCount((gallery as any).requiredPhotoCount || 50);
+      // 🔥 FIX Task 8: NON usare default 50, lascia 0 se undefined (evita sovrascrittura dati)
+      setRequiredPhotoCount((gallery as any).requiredPhotoCount || 0);
       setSelectionDeadlineEnforced((gallery as any).selectionDeadlineEnforced !== false); // default true
       setSelectionStatus((gallery as any).selectionStatus || 'pending');
       setSelectedPhotoIds((gallery as any).selectedPhotoIds || []);
@@ -416,6 +417,20 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       // Fetch prodotti associati da ordine se esiste bookingId (MULTI-PRODUCT)
       const fetchAssociatedProduct = async () => {
+        // 🔥 FIX Task 7: PRIORITY 1 - Carica productRequirements se esiste nella galleria
+        if ((gallery as any).productRequirements && (gallery as any).productRequirements.length > 0) {
+          const productReqs = (gallery as any).productRequirements;
+          const products = productReqs.map((prod: any) => ({
+            nome: prod.prodottoNome || 'Prodotto Sconosciuto',
+            numeroFoto: prod.prodottoNumeroFoto || 0,
+            isCustom: !prod.prodottoId || prod.prodottoId === ''
+          }));
+          setAssociatedProducts(products);
+          console.log(`✅ ${products.length} prodotti caricati da gallery.productRequirements`);
+          return; // STOP qui se productRequirements esiste
+        }
+        
+        // PRIORITY 2 - Se NO productRequirements, cerca da orders/bookings (legacy)
         const bookingId = (gallery as any).bookingId;
         if (!bookingId) {
           setAssociatedProducts([]);
