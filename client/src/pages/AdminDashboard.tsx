@@ -42,6 +42,7 @@ import ProductCategoriesManager from "@/components/product-categories/ProductCat
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 import CalendarioManager from "@/components/admin/CalendarioManager";
+import { NotificationBell } from "@/components/NotificationBell";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -930,7 +931,7 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto py-4 px-4 sm:py-6 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-blue-gray">Dashboard amministratore</h1>
-            <div className="flex space-x-3">
+            <div className="flex items-center space-x-3">
               <Link href={createUrl("/")}>
                 <Button variant="outline" size="sm" className="flex items-center space-x-1">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -939,6 +940,7 @@ export default function AdminDashboard() {
                   <span>Vai alla Home</span>
                 </Button>
               </Link>
+              <NotificationBell />
               <Button variant="destructive" size="sm" onClick={handleLogout}>
                 Logout
               </Button>
