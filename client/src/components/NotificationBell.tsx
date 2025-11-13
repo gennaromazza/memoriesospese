@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, MessageCircle, CheckCircle } from 'lucide-react';
+import { Bell, MessageCircle, CheckCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -157,6 +157,40 @@ export default function NotificationBell({
     }
   }, [totalUnviewed]);
 
+  const handleDismissBooking = async (e: React.MouseEvent, bookingId: string) => {
+    e.stopPropagation();
+    
+    try {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      
+      await updateDoc(doc(db, 'bookings', bookingId), {
+        dataVisualizzazione: serverTimestamp()
+      });
+      
+      console.log('✅ Booking dismissed:', bookingId);
+    } catch (error) {
+      console.error('❌ Error dismissing booking:', error);
+    }
+  };
+
+  const handleDismissConsultation = async (e: React.MouseEvent, consultationId: string) => {
+    e.stopPropagation();
+    
+    try {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      
+      await updateDoc(doc(db, 'consultations', consultationId), {
+        dataVisualizzazione: serverTimestamp()
+      });
+      
+      console.log('✅ Consultation dismissed:', consultationId);
+    } catch (error) {
+      console.error('❌ Error dismissing consultation:', error);
+    }
+  };
+
   const handleBookingClick = async (bookingId: string) => {
     setOpen(false);
     
@@ -276,35 +310,48 @@ export default function NotificationBell({
                     </p>
                   </div>
                   {unviewedBookings.map((booking) => (
-                    <button
+                    <div
                       key={booking.id}
-                      onClick={() => handleBookingClick(booking.id)}
-                      className="w-full text-left p-3 hover:bg-muted/50 transition-colors"
-                      data-testid={`notification-booking-${booking.id}`}
+                      className="relative group"
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">
-                            {booking.cliente.nome} {booking.cliente.cognome}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {format(
-                              booking.dataShootingInizio?.toDate?.() || new Date(),
-                              "dd MMM yyyy 'alle' HH:mm",
-                              { locale: it }
-                            )}
-                          </p>
-                          {booking.prodottoNome && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              📦 {booking.prodottoNome}
+                      <button
+                        onClick={() => handleBookingClick(booking.id)}
+                        className="w-full text-left p-3 pr-10 hover:bg-muted/50 transition-colors"
+                        data-testid={`notification-booking-${booking.id}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">
+                              {booking.cliente.nome} {booking.cliente.cognome}
                             </p>
-                          )}
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {format(
+                                booking.dataShootingInizio?.toDate?.() || new Date(),
+                                "dd MMM yyyy 'alle' HH:mm",
+                                { locale: it }
+                              )}
+                            </p>
+                            {booking.prodottoNome && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                📦 {booking.prodottoNome}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => handleDismissBooking(e, booking.id)}
+                        data-testid={`dismiss-booking-${booking.id}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -318,33 +365,46 @@ export default function NotificationBell({
                     </p>
                   </div>
                   {unviewedConsultations.map((consultation) => (
-                    <button
+                    <div
                       key={consultation.id}
-                      onClick={() => handleConsultationClick(consultation.id)}
-                      className="w-full text-left p-3 hover:bg-muted/50 transition-colors"
-                      data-testid={`notification-consultation-${consultation.id}`}
+                      className="relative group"
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                      <button
+                        onClick={() => handleConsultationClick(consultation.id)}
+                        className="w-full text-left p-3 pr-10 hover:bg-muted/50 transition-colors"
+                        data-testid={`notification-consultation-${consultation.id}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">
+                              {consultation.cliente.nome} {consultation.cliente.cognome}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {format(
+                                consultation.dataConsulenza?.toDate?.() || new Date(),
+                                "dd MMM yyyy 'alle' HH:mm",
+                                { locale: it }
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              💼 {consultation.templateNome}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">
-                            {consultation.cliente.nome} {consultation.cliente.cognome}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {format(
-                              consultation.dataConsulenza?.toDate?.() || new Date(),
-                              "dd MMM yyyy 'alle' HH:mm",
-                              { locale: it }
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            💼 {consultation.templateNome}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => handleDismissConsultation(e, consultation.id)}
+                        data-testid={`dismiss-consultation-${consultation.id}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
               )}
