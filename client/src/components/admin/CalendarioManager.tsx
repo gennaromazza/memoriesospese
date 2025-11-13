@@ -95,10 +95,7 @@ export default function CalendarioManager() {
         startDate: monthStart.toISOString(),
         endDate: monthEnd.toISOString()
       });
-      const response = await fetch(`/api/calendar/events?${params}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch calendar events');
-      }
+      const response = await apiRequest('GET', `/api/calendar/events?${params}`);
       const data = await response.json();
       
       if (data.warnings && data.warnings.length > 0) {

@@ -84,7 +84,8 @@ export async function apiRequest(
     '/api/import/',
     '/api/email/',
     '/api/quote/',
-    '/api/booking/'
+    '/api/booking/',
+    '/api/calendar/'
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici
