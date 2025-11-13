@@ -133,6 +133,56 @@ export function useNotifications() {
         }
       }
       
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        
+        const galleriesRef = collection(db, 'galleries');
+        const completedSelectionsQuery = query(
+          galleriesRef,
+          where('selectionStatus', '==', 'completed')
+        );
+        
+        const completedSnap = await getDocs(completedSelectionsQuery);
+        completedSnap.forEach(doc => {
+          const data = doc.data();
+          const updatedDate = data.updatedAt?.toDate ? data.updatedAt.toDate() : null;
+          
+          if (!updatedDate || updatedDate < todayStart) return;
+          
+          const bookingId = data.bookingId;
+          
+          if (bookingId) {
+            let photoCount = 0;
+            let requiredCount = 0;
+            
+            if (data.photoAssignments && Object.keys(data.photoAssignments).length > 0) {
+              photoCount = Object.keys(data.photoAssignments).length;
+              requiredCount = data.productRequirements?.reduce((sum: number, p: any) => 
+                sum + (p.prodottoNumeroFoto || 0), 0) || 0;
+            } else {
+              photoCount = data.selectedPhotoIds?.length || 0;
+              requiredCount = data.requiredPhotoCount || 0;
+            }
+            
+            const clientName = data.clientName || 'Cliente';
+            
+            notifications.push({
+              id: `approved-selection-${doc.id}`,
+              type: 'selection',
+              title: '✅ Selezione Approvata',
+              description: `${clientName} ha confermato la selezione: ${photoCount}/${requiredCount} foto`,
+              createdAt: data.updatedAt || null,
+              isRead: false,
+              resourceId: bookingId,
+              deepLink: `/admin?tab=prenotazioni&section=bookings&booking=${bookingId}`
+            });
+          }
+        });
+      } catch (error: any) {
+        console.error('[Notifications] Errore fetch approved selections:', error);
+      }
+      
       return notifications.sort((a, b) => {
         const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
         const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
