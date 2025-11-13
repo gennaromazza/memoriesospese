@@ -39,7 +39,7 @@ export function useNotifications() {
             createdAt: data.createdAt || null,
             isRead: false,
             resourceId: doc.id,
-            deepLink: `/admin?tab=prenotazioni&section=bookings&booking=${doc.id}`
+            deepLink: `/admin/dashboard?tab=prenotazioni&section=bookings&booking=${doc.id}`
           });
         });
       } catch (error) {
@@ -63,7 +63,7 @@ export function useNotifications() {
             createdAt: data.createdAt || null,
             isRead: false,
             resourceId: doc.id,
-            deepLink: `/admin?tab=consulenze&consultation=${doc.id}`
+            deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
           });
         });
       } catch (error) {
@@ -175,7 +175,7 @@ export function useNotifications() {
               createdAt: data.updatedAt || null,
               isRead: false,
               resourceId: bookingId,
-              deepLink: `/admin?tab=prenotazioni&section=bookings&booking=${bookingId}`
+              deepLink: `/admin/dashboard?tab=prenotazioni&section=bookings&booking=${bookingId}`
             });
           }
         });

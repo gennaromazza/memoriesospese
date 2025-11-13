@@ -210,6 +210,7 @@ export default function AdminDashboard() {
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
+  const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all'); // 📸 Filtro selezioni approvate
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario'>(() => {
