@@ -142,48 +142,53 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
 
   // Default navigation bar (home page)
   return (
-    <nav className="sticky top-0 z-50 bg-off-white/80 backdrop-blur-md border-b border-beige/20 shadow-sm">
+    <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-lg border-b border-sage/10 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           <div className="flex-shrink-0 flex items-center">
-            <Link to={createUrl("/")} className="flex items-center">
+            <Link to={createUrl("/")} className="flex items-center group">
               {studioSettings.logo ? (
                 <img 
                   src={studioSettings.logo} 
                   alt={`${studioSettings.name} Logo`} 
-                  className="h-12 w-auto"
+                  className="h-12 w-auto transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <h1 className="text-blue-gray font-playfair font-semibold text-2xl cursor-pointer">
+                <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 group-hover:text-sage">
                   {studioSettings.name || "Memorie Sospese"}
                 </h1>
               )}
             </Link>
           </div>
           <div className="hidden md:block">
-            <div className="ml-10 flex items-center space-x-2">
-              <Link to={createUrl("/")} className="font-medium text-blue-gray hover:bg-light-mint/50 px-3 py-2 rounded-lg transition-all">
-                Home
+            <div className="ml-10 flex items-center space-x-1">
+              <Link to={createUrl("/")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                <span className="relative z-10">Home</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Link>
-              <Link to={createUrl("/prenota")} className="font-medium text-blue-gray hover:bg-light-mint/50 px-3 py-2 rounded-lg transition-all">
-                Prenotazioni
+              <Link to={createUrl("/prenota")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                <span className="relative z-10">Prenotazioni</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Link>
-              <a href="#contact" className="font-medium text-blue-gray hover:bg-light-mint/50 px-3 py-2 rounded-lg transition-all">Contatti</a>
+              <a href="#contact" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                <span className="relative z-10">Contatti</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              </a>
               
-              <div className="w-px h-6 bg-beige/30 mx-2"></div>
+              <div className="w-px h-6 bg-sage/20 mx-3"></div>
 
               {/* Sezione utente e admin */}
-              <div className="hidden md:flex md:items-center md:ml-6 space-x-4">
+              <div className="hidden md:flex md:items-center md:ml-2 space-x-2">
                 {userInfo.isAuthenticated && userInfo.email ? (
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-light-mint/30 rounded-full">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-sage/5 to-sage/10 rounded-full border border-sage/20 shadow-sm">
                       <UserAvatar 
                         userEmail={userInfo.email}
                         userName={userInfo.displayName}
                         userProfileImageUrl={userInfo.profileImageUrl}
                         size="sm"
                       />
-                      <span className="text-sm font-medium text-blue-gray">
+                      <span className="text-sm font-semibold text-blue-gray">
                         {userInfo.displayName || 'Ospite'}
                       </span>
                     </div>
@@ -191,7 +196,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate(createUrl("/profile"))}
-                      className="text-blue-gray hover:text-dark-sage"
+                      className="text-blue-gray hover:text-sage hover:bg-sage/5 transition-all duration-300"
                     >
                       <User className="h-4 w-4" />
                       <span className="ml-2">Profilo</span>
@@ -200,14 +205,14 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                       variant="ghost"
                       size="sm"
                       onClick={handleLogout}
-                      className="text-blue-gray hover:text-dark-sage"
+                      className="text-blue-gray hover:text-terracotta hover:bg-terracotta/5 transition-all duration-300"
                     >
                       <LogOut className="h-4 w-4" />
                       <span className="ml-2">Esci</span>
                     </Button>
                   </div>
                 ) : (
-                  <Link to={createUrl("/admin")} className="px-4 py-2 rounded-md text-off-white bg-blue-gray hover:bg-dark-sage transition">
+                  <Link to={createUrl("/admin")} className="px-5 py-2.5 rounded-xl text-white bg-gradient-to-r from-sage to-dark-sage hover:from-dark-sage hover:to-sage shadow-md hover:shadow-lg transition-all duration-300 font-medium">
                     Admin
                   </Link>
                 )}
@@ -228,20 +233,20 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
       </div>
 
       {/* Mobile menu */}
-      <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-off-white/95 backdrop-blur-md border-t border-beige/20`}>
-        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-          <Link to={createUrl("/")} className="block px-3 py-2 text-base font-medium text-blue-gray hover:bg-light-mint/50 rounded-lg transition-all">
+      <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-white/95 backdrop-blur-lg border-t border-sage/10 shadow-lg`}>
+        <div className="px-3 pt-3 pb-4 space-y-2">
+          <Link to={createUrl("/")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
             Home
           </Link>
-          <Link to={createUrl("/prenota")} className="block px-3 py-2 text-base font-medium text-blue-gray hover:bg-light-mint/50 rounded-lg transition-all">
+          <Link to={createUrl("/prenota")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
             Prenotazioni
           </Link>
-          <a href="#contact" className="block px-3 py-2 text-base font-medium text-blue-gray hover:bg-light-mint/50 rounded-lg transition-all">Contatti</a>
+          <a href="#contact" className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">Contatti</a>
 
           {/* Sezione utente mobile */}
           {userInfo.isAuthenticated && userInfo.email ? (
-            <div className="border-t border-gray-200 pt-4 pb-3">
-              <div className="flex items-center px-5">
+            <div className="border-t border-sage/10 pt-4 pb-3 mt-2">
+              <div className="flex items-center px-4 py-3 bg-gradient-to-r from-sage/5 to-sage/10 rounded-xl mb-3">
                 <UserAvatar 
                   userEmail={userInfo.email}
                   userName={userInfo.displayName}
@@ -249,11 +254,11 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                   size="md"
                 />
                 <div className="ml-3">
-                  <div className="text-base font-medium text-blue-gray">{userInfo.displayName || 'Ospite'}</div>
-                  <div className="text-sm font-medium text-gray-500">{userInfo.email}</div>
+                  <div className="text-base font-semibold text-blue-gray">{userInfo.displayName || 'Ospite'}</div>
+                  <div className="text-sm font-medium text-gray-600">{userInfo.email}</div>
                 </div>
               </div>
-              <div className="mt-3 px-2 space-y-1">
+              <div className="space-y-2">
                 {/* Pulsante Richiedi Password mobile */}
                 {galleryCode && (
                   <button
@@ -261,7 +266,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                       navigate(createUrl(`/request-password/${galleryCode}`));
                       setIsMenuOpen(false);
                     }}
-                    className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-white bg-terracotta hover:bg-terracotta-dark"
+                    className="block w-full text-left px-4 py-3 rounded-xl text-base font-medium text-white bg-gradient-to-r from-terracotta to-terracotta/90 hover:from-terracotta/90 hover:to-terracotta shadow-sm hover:shadow-md transition-all duration-300"
                   >
                     <svg className="h-4 w-4 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -271,14 +276,14 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 )}
                 <Link
                   to={createUrl("/profile")}
-                  className="block px-3 py-2 rounded-md text-base font-medium text-blue-gray hover:bg-gray-50"
+                  className="block px-4 py-3 rounded-xl text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 transition-all duration-300"
                 >
                   <User className="h-4 w-4 inline mr-2" />
                   Il Mio Profilo
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-blue-gray hover:bg-gray-50"
+                  className="block w-full text-left px-4 py-3 rounded-xl text-base font-medium text-blue-gray hover:text-terracotta hover:bg-gradient-to-r hover:from-terracotta/5 hover:to-terracotta/10 transition-all duration-300"
                 >
                   <LogOut className="h-4 w-4 inline mr-2" />
                   Esci
@@ -286,7 +291,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               </div>
             </div>
           ) : (
-            <Link to={createUrl("/admin")} className="block px-3 py-2 text-base font-medium text-blue-gray">
+            <Link to={createUrl("/admin")} className="block px-4 py-3 text-base font-medium text-white bg-gradient-to-r from-sage to-dark-sage hover:from-dark-sage hover:to-sage rounded-xl shadow-md hover:shadow-lg transition-all duration-300 text-center mt-2">
               Admin
             </Link>
           )}

@@ -269,12 +269,12 @@ export default function Home() {
       <Navigation />
 
       {/* Hero Section */}
-      <div className="relative bg-light-mint">
+      <div className="relative bg-gradient-to-br from-sage/5 via-off-white to-light-mint/20">
         <HeroSlideshow />
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-gray/30 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-gray/40 via-blue-gray/20 to-transparent"></div>
         <div className="relative max-w-7xl mx-auto py-24 px-4 sm:py-32 sm:px-6 lg:px-8">
-          <div className="relative z-10 backdrop-blur-sm bg-white/5 p-6 sm:p-8 rounded-lg shadow-lg inline-block">
-            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl font-playfair animate-slide-up drop-shadow-md">
+          <div className="relative z-10 backdrop-blur-md bg-white/10 p-8 sm:p-12 rounded-2xl shadow-2xl inline-block border border-white/20">
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl font-playfair animate-slide-up drop-shadow-lg">
               {studioSettings.heroTitle
                 .split(" <br> ")
                 .map((part, index, array) =>
@@ -289,7 +289,7 @@ export default function Home() {
                 )}
             </h1>
             <p
-              className="mt-6 text-xl text-white max-w-2xl font-sans animate-slide-up drop-shadow"
+              className="mt-6 text-xl text-white max-w-2xl font-sans animate-slide-up drop-shadow-md"
               style={{ animationDelay: "100ms" }}
             >
               {studioSettings.heroSubtitle}
@@ -300,7 +300,7 @@ export default function Home() {
             >
               <a
                 href="#access-gallery"
-                className="px-8 py-3 bg-sage text-white font-medium rounded-md shadow-md hover:bg-dark-sage transition-all hover:shadow-lg inline-block text-center"
+                className="px-8 py-4 bg-gradient-to-r from-sage to-dark-sage text-white font-semibold rounded-xl shadow-lg hover:from-dark-sage hover:to-sage transition-all duration-300 hover:shadow-xl inline-block text-center transform hover:scale-105"
               >
                 {studioSettings.heroButtonText}
               </a>
@@ -310,37 +310,38 @@ export default function Home() {
       </div>
 
       {/* Servizi Principali Section - NEW */}
-      <section className="py-16 bg-gradient-to-b from-off-white to-white">
+      <section className="py-20 bg-gradient-to-b from-white via-off-white to-light-mint/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-blue-gray font-playfair mb-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl sm:text-5xl font-bold text-blue-gray font-playfair mb-4">
               I Nostri Servizi
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Scopri come possiamo aiutarti a catturare e rivivere i tuoi momenti speciali
             </p>
-            <div className="w-32 h-0.5 bg-gradient-to-r from-transparent via-sage to-transparent mx-auto mt-4"></div>
+            <div className="w-24 h-1 bg-gradient-to-r from-transparent via-sage to-transparent mx-auto mt-6 rounded-full"></div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Card 1: Prenota uno Shooting */}
             <Link href={createUrl("/prenota")}>
-              <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-beige hover:border-sage cursor-pointer h-full">
-                <div className="bg-gradient-to-br from-sage/10 to-sage/5 p-8 flex justify-center">
-                  <div className="w-20 h-20 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <Camera className="h-12 w-12 text-sage" />
+              <div className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-sage/10 hover:border-sage/30 cursor-pointer h-full transform hover:-translate-y-2">
+                <div className="bg-gradient-to-br from-sage/15 to-sage/5 p-10 flex justify-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-transparent to-sage/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="w-24 h-24 bg-gradient-to-br from-sage/30 to-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-500 shadow-lg relative z-10">
+                    <Camera className="h-14 w-14 text-sage" />
                   </div>
                 </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-blue-gray font-playfair mb-3 group-hover:text-sage transition-colors">
+                <div className="p-8">
+                  <h3 className="text-2xl font-bold text-blue-gray font-playfair mb-4 group-hover:text-sage transition-colors duration-300">
                     Prenota uno Shooting
                   </h3>
-                  <p className="text-gray-600 leading-relaxed">
+                  <p className="text-gray-600 leading-relaxed text-base">
                     Campagne di shooting stagionali e su richiesta per immortalare i tuoi momenti più importanti
                   </p>
-                  <div className="mt-4 flex items-center text-sage font-medium group-hover:translate-x-2 transition-transform duration-300">
+                  <div className="mt-6 flex items-center text-sage font-semibold group-hover:translate-x-2 transition-transform duration-300">
                     <span>Scopri di più</span>
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 ml-2 group-hover:ml-3 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -350,22 +351,23 @@ export default function Home() {
 
             {/* Card 2: Consulenza Gratuita */}
             <Link href={createUrl("/consulenze")}>
-              <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-beige hover:border-sage cursor-pointer h-full">
-                <div className="bg-gradient-to-br from-sage/10 to-sage/5 p-8 flex justify-center">
-                  <div className="w-20 h-20 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <MessageCircle className="h-12 w-12 text-sage" />
+              <div className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-sage/10 hover:border-sage/30 cursor-pointer h-full transform hover:-translate-y-2">
+                <div className="bg-gradient-to-br from-sage/15 to-sage/5 p-10 flex justify-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-transparent to-sage/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="w-24 h-24 bg-gradient-to-br from-sage/30 to-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-500 shadow-lg relative z-10">
+                    <MessageCircle className="h-14 w-14 text-sage" />
                   </div>
                 </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-blue-gray font-playfair mb-3 group-hover:text-sage transition-colors">
+                <div className="p-8">
+                  <h3 className="text-2xl font-bold text-blue-gray font-playfair mb-4 group-hover:text-sage transition-colors duration-300">
                     Consulenza Gratuita
                   </h3>
-                  <p className="text-gray-600 leading-relaxed">
+                  <p className="text-gray-600 leading-relaxed text-base">
                     Pianifica il tuo evento con una consulenza gratuita personalizzata con i nostri esperti
                   </p>
-                  <div className="mt-4 flex items-center text-sage font-medium group-hover:translate-x-2 transition-transform duration-300">
+                  <div className="mt-6 flex items-center text-sage font-semibold group-hover:translate-x-2 transition-transform duration-300">
                     <span>Prenota ora</span>
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 ml-2 group-hover:ml-3 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -375,22 +377,23 @@ export default function Home() {
 
             {/* Card 3: Gallerie Online */}
             <a href="#access-gallery">
-              <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-beige hover:border-sage cursor-pointer h-full">
-                <div className="bg-gradient-to-br from-sage/10 to-sage/5 p-8 flex justify-center">
-                  <div className="w-20 h-20 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <Eye className="h-12 w-12 text-sage" />
+              <div className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-sage/10 hover:border-sage/30 cursor-pointer h-full transform hover:-translate-y-2">
+                <div className="bg-gradient-to-br from-sage/15 to-sage/5 p-10 flex justify-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-transparent to-sage/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="w-24 h-24 bg-gradient-to-br from-sage/30 to-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-500 shadow-lg relative z-10">
+                    <Eye className="h-14 w-14 text-sage" />
                   </div>
                 </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-blue-gray font-playfair mb-3 group-hover:text-sage transition-colors">
+                <div className="p-8">
+                  <h3 className="text-2xl font-bold text-blue-gray font-playfair mb-4 group-hover:text-sage transition-colors duration-300">
                     Gallerie Online
                   </h3>
-                  <p className="text-gray-600 leading-relaxed">
+                  <p className="text-gray-600 leading-relaxed text-base">
                     Accedi alle tue foto private e condividile con amici e familiari in tutta sicurezza
                   </p>
-                  <div className="mt-4 flex items-center text-sage font-medium group-hover:translate-x-2 transition-transform duration-300">
+                  <div className="mt-6 flex items-center text-sage font-semibold group-hover:translate-x-2 transition-transform duration-300">
                     <span>Accedi alle foto</span>
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 ml-2 group-hover:ml-3 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
