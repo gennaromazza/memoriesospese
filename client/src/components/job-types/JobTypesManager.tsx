@@ -6,7 +6,7 @@ import {
   updateJobType
 } from '@/lib/job-types';
 import { storage } from '@/lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject, refFromURL } from 'firebase/storage';
 import {
   getJobProvenances,
   createJobProvenance,
@@ -249,7 +249,7 @@ function JobEntityForm({ entityType, entity, onSuccess, onCancel }: JobEntityFor
     if (!imageUrl) return;
 
     try {
-      const imageRef = ref(storage, imageUrl);
+      const imageRef = refFromURL(imageUrl);
       await deleteObject(imageRef);
 
       form.setValue('imageUrl', '');
