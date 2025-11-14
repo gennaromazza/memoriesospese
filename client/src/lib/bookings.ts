@@ -17,7 +17,8 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Booking, WorkflowState } from '@shared/booking-types';
+import type { Booking } from '@shared/booking-types';
+import { WorkflowState } from '@shared/schema';
 
 const COLLECTION = 'bookings';
 

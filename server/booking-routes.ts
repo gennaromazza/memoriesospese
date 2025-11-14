@@ -84,7 +84,7 @@ async function linkBookingToClienteServer(
           let lastDoc = null;
           
           while (hasMore) {
-            const snapshot = lastDoc 
+            const snapshot: FirebaseFirestore.QuerySnapshot = lastDoc 
               ? await query.startAfter(lastDoc).get()
               : await query.get();
             
@@ -94,7 +94,7 @@ async function linkBookingToClienteServer(
             }
             
             // Cerca match in questo batch
-            const match = snapshot.docs.find(doc => {
+            const match = snapshot.docs.find((doc: FirebaseFirestore.QueryDocumentSnapshot) => {
               const docEmail = doc.data()?.email;
               return docEmail && normalizeEmail(docEmail) === normalizedEmail;
             });
