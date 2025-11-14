@@ -70,6 +70,12 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -94,6 +100,7 @@ import {
   X,
   CalendarX,
   Image as ImageIcon,
+  Copy,
 } from "lucide-react";
 import { getJobTypes } from "@/lib/job-types";
 import type { JobType as JobTypeDoc } from "@shared/job-types";
@@ -106,6 +113,7 @@ export default function ConsultationTemplatesManager() {
     useState<ConsultationTemplate | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [openJobTypes, setOpenJobTypes] = useState<string[]>([]);
 
   // Form state
   const [formData, setFormData] = useState<Partial<InsertConsultationTemplate>>(
@@ -255,6 +263,38 @@ export default function ConsultationTemplatesManager() {
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Operazione fallita";
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: errorMessage,
+      });
+    }
+  };
+
+  const handleDuplicate = async (template: ConsultationTemplate) => {
+    try {
+      const duplicatedTemplate: InsertConsultationTemplate = {
+        nome: `(Copia) ${template.nome}`,
+        jobType: template.jobType,
+        durataMinuti: template.durataMinuti,
+        descrizione: template.descrizione,
+        jobDataFields: template.jobDataFields || [],
+        excludedDays: template.excludedDays || [],
+        customWorkingHours: template.customWorkingHours,
+        imageUrls: template.imageUrls || [],
+        attiva: false,
+        ordine: (template.ordine || 0) + 1,
+      };
+
+      await createMutation.mutateAsync(duplicatedTemplate);
+      
+      toast({
+        title: "Template duplicato",
+        description: `"${duplicatedTemplate.nome}" creato con successo`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Duplicazione fallita";
       toast({
         variant: "destructive",
         title: "Errore",
@@ -470,14 +510,39 @@ export default function ConsultationTemplatesManager() {
     }
   };
 
-  const sortedTemplates = [...templates].sort(
-    (a: ConsultationTemplate, b: ConsultationTemplate) => {
-      if (a.jobType !== b.jobType) {
-        return a.jobType.localeCompare(b.jobType);
+  // Raggruppa template per jobType
+  const templatesByJobType = React.useMemo(() => {
+    const map = new Map<string, ConsultationTemplate[]>();
+    
+    templates.forEach((template) => {
+      const jobType = template.jobType;
+      if (!map.has(jobType)) {
+        map.set(jobType, []);
       }
-      return (a.ordine || 0) - (b.ordine || 0);
-    },
-  );
+      map.get(jobType)!.push(template);
+    });
+    
+    // Ordina i template dentro ogni gruppo per ordine
+    map.forEach((templates) => {
+      templates.sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
+    });
+    
+    return map;
+  }, [templates]);
+  
+  // Ordina i jobTypes alfabeticamente
+  const sortedJobTypes = React.useMemo(() => {
+    return Array.from(templatesByJobType.keys()).sort((a, b) => 
+      a.localeCompare(b)
+    );
+  }, [templatesByJobType]);
+  
+  // Aggiorna accordion state quando i jobTypes vengono caricati
+  useEffect(() => {
+    if (sortedJobTypes.length > 0 && openJobTypes.length === 0) {
+      setOpenJobTypes(sortedJobTypes);
+    }
+  }, [sortedJobTypes, openJobTypes.length]);
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -525,20 +590,38 @@ export default function ConsultationTemplatesManager() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Tipo Lavoro</TableHead>
-                  <TableHead>Durata</TableHead>
-                  <TableHead>Campi Job</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedTemplates.map((template) => (
+            <Accordion type="multiple" value={openJobTypes} onValueChange={setOpenJobTypes} className="w-full">
+              {sortedJobTypes.map((jobType) => {
+                const jobTypeTemplates = templatesByJobType.get(jobType) || [];
+                const jobTypeName = jobTypes.find((jt: JobTypeDoc) => jt.slug === jobType)?.nome || jobType;
+                const activeCount = jobTypeTemplates.filter(t => t.attiva).length;
+                
+                return (
+                  <AccordionItem key={jobType} value={jobType} className="border-b">
+                    <AccordionTrigger className="hover:no-underline py-4">
+                      <div className="flex items-center gap-3 text-left">
+                        <Badge variant="outline" className="text-sm px-3 py-1">
+                          {jobTypeName}
+                        </Badge>
+                        <span className="text-sm text-gray-600">
+                          {activeCount}/{jobTypeTemplates.length} attivi
+                        </span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12"></TableHead>
+                            <TableHead>Nome</TableHead>
+                            <TableHead>Durata</TableHead>
+                            <TableHead>Campi Job</TableHead>
+                            <TableHead>Stato</TableHead>
+                            <TableHead className="text-right">Azioni</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {jobTypeTemplates.map((template) => (
                   <React.Fragment key={template.id}>
                     <TableRow
                       className="cursor-pointer hover:bg-gray-50"
@@ -556,13 +639,6 @@ export default function ConsultationTemplatesManager() {
                       </TableCell>
                       <TableCell className="font-medium">
                         {template.nome}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {jobTypes.find(
-                            (jt: JobTypeDoc) => jt.slug === template.jobType,
-                          )?.nome || template.jobType}
-                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm text-gray-600">
@@ -591,6 +667,18 @@ export default function ConsultationTemplatesManager() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDuplicate(template);
+                            }}
+                            data-testid={`button-duplicate-${template.id}`}
+                            title="Duplica template"
+                          >
+                            <Copy className="w-4 h-4 text-blue-600" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -633,7 +721,7 @@ export default function ConsultationTemplatesManager() {
                     </TableRow>
                     {expandedRows.has(template.id) && (
                       <TableRow className="bg-gray-50">
-                        <TableCell colSpan={7} className="py-4">
+                        <TableCell colSpan={6} className="py-4">
                           <div className="pl-8 space-y-2">
                             <p className="text-sm text-gray-700">
                               <strong>Descrizione:</strong>{" "}
@@ -685,9 +773,14 @@ export default function ConsultationTemplatesManager() {
                       </TableRow>
                     )}
                   </React.Fragment>
-                ))}
-              </TableBody>
-            </Table>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
           )}
         </CardContent>
       </Card>
