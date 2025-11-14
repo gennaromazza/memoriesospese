@@ -147,6 +147,135 @@ export async function deleteTemplate(id: string): Promise<void> {
 }
 
 /**
+ * MIGRATION: Aggiorna customWorkingHours per abilitare sabato
+ * Supporta dry-run mode per test senza modifiche
+ */
+export async function migrateSaturdayHours(options: { dryRun?: boolean; force?: boolean } = {}) {
+  const { dryRun = false, force = false } = options;
+  
+  const templates = await getAllTemplates();
+  
+  const report = {
+    total: templates.length,
+    updated: 0,
+    skipped: 0,
+    excluded: 0,
+    missingSaturday: 0,
+    details: [] as Array<{
+      id: string;
+      nome: string;
+      action: 'updated' | 'skipped' | 'excluded' | 'missing-saturday';
+      reason: string;
+      before?: any;
+      after?: any;
+    }>
+  };
+  
+  for (const template of templates) {
+    // Skip template senza customWorkingHours (usano DEFAULT)
+    if (!template.customWorkingHours || template.customWorkingHours.length === 0) {
+      report.skipped++;
+      report.details.push({
+        id: template.id,
+        nome: template.nome,
+        action: 'skipped',
+        reason: 'Usa orari di default (nessun customWorkingHours)'
+      });
+      continue;
+    }
+    
+    // Skip template che escludono sabato intenzionalmente (a meno che force=true)
+    if (!force && template.excludedDays && template.excludedDays.includes(6)) {
+      report.excluded++;
+      report.details.push({
+        id: template.id,
+        nome: template.nome,
+        action: 'excluded',
+        reason: 'Sabato escluso intenzionalmente in excludedDays'
+      });
+      continue;
+    }
+    
+    // Cerca configurazione sabato (giornoSettimana: 6)
+    const saturdayIndex = template.customWorkingHours.findIndex(h => h.giornoSettimana === 6);
+    
+    if (saturdayIndex === -1) {
+      report.missingSaturday++;
+      report.details.push({
+        id: template.id,
+        nome: template.nome,
+        action: 'missing-saturday',
+        reason: 'customWorkingHours non contiene sabato (giornoSettimana: 6)'
+      });
+      continue;
+    }
+    
+    const saturdayConfig = template.customWorkingHours[saturdayIndex];
+    
+    // Skip se sabato già attivo
+    if (saturdayConfig.attivo) {
+      report.skipped++;
+      report.details.push({
+        id: template.id,
+        nome: template.nome,
+        action: 'skipped',
+        reason: 'Sabato già attivo'
+      });
+      continue;
+    }
+    
+    // AGGIORNA: sabato da attivo=false a attivo=true con pausa pranzo
+    const updatedSaturday: ConsultationWorkingHours = {
+      ...saturdayConfig,
+      attivo: true,
+      pausaInizio: '13:00',
+      pausaFine: '14:30'
+    };
+    
+    const updatedWorkingHours = [...template.customWorkingHours];
+    updatedWorkingHours[saturdayIndex] = updatedSaturday;
+    
+    // Se force=true E sabato era in excludedDays, rimuovilo
+    const hadExcludedSaturday = template.excludedDays && template.excludedDays.includes(6);
+    const updatedExcludedDays = hadExcludedSaturday && force 
+      ? template.excludedDays!.filter(day => day !== 6)
+      : template.excludedDays;
+    
+    let reason = 'Sabato abilitato (attivo: false → true) con pausa pranzo 13:00-14:30';
+    if (hadExcludedSaturday && force) {
+      reason += ' + rimosso da excludedDays (force=true)';
+    }
+    
+    report.details.push({
+      id: template.id,
+      nome: template.nome,
+      action: 'updated',
+      reason,
+      before: saturdayConfig,
+      after: updatedSaturday
+    });
+    
+    // Applica modifica solo se non in dry-run
+    if (!dryRun) {
+      const updates: any = {
+        customWorkingHours: updatedWorkingHours
+      };
+      
+      // Aggiorna excludedDays solo se modificato
+      if (hadExcludedSaturday && force) {
+        updates.excludedDays = updatedExcludedDays;
+      }
+      
+      await updateTemplate(template.id, updates);
+    }
+    
+    report.updated++;
+  }
+  
+  return report;
+}
+
+/**
  * CONSULTATION OPERATIONS
  */
 

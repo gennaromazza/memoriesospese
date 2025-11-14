@@ -1047,6 +1047,47 @@ router.patch('/:id/mark-viewed', authenticateFirebase, async (req: AuthRequest, 
 
 /**
  * ========================================
+ * TEMPLATE MIGRATION ENDPOINTS
+ * ========================================
+ */
+
+/**
+ * PATCH /api/consultations/migrate-saturday-hours
+ * Migration endpoint: aggiorna customWorkingHours per abilitare sabato (admin only)
+ * Query params: dryRun=true (test senza modifiche), force=true (aggiorna anche template con sabato escluso)
+ */
+router.patch('/migrate-saturday-hours', authenticateFirebase, async (req: AuthRequest, res) => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Solo gli amministratori possono eseguire migrazioni' });
+    }
+
+    const dryRun = req.query.dryRun === 'true';
+    const force = req.query.force === 'true';
+
+    console.log(`[MIGRATE] Inizio migrazione sabato - dryRun: ${dryRun}, force: ${force}`);
+
+    const report = await consultationService.migrateSaturdayHours({ dryRun, force });
+
+    console.log(`[MIGRATE] Completato - Updated: ${report.updated}, Skipped: ${report.skipped}, Excluded: ${report.excluded}, Missing: ${report.missingSaturday}`);
+
+    res.json({
+      success: true,
+      dryRun,
+      message: dryRun 
+        ? 'Dry-run completato - nessuna modifica applicata' 
+        : `Migrazione completata - ${report.updated} template aggiornati`,
+      report
+    });
+  } catch (error: any) {
+    console.error('[PATCH /migrate-saturday-hours] Errore:', error.message);
+    res.status(500).json({ error: 'Errore migrazione template' });
+  }
+});
+
+/**
+ * ========================================
  * TEMPLATE IMAGE UPLOAD ENDPOINTS
  * ========================================
  */
