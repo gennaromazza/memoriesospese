@@ -128,7 +128,7 @@ export default function ConsultationsManager({
   const { toast } = useToast();
   const [, navigate] = useLocation();
   
-  const [filterStatus, setFilterStatus] = useState<string>('confermata');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
   const [approveConfirmId, setApproveConfirmId] = useState<string | null>(null);
@@ -138,6 +138,7 @@ export default function ConsultationsManager({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [bulkDeleteRifiutateOpen, setBulkDeleteRifiutateOpen] = useState(false);
   
   // Refs per scroll deeplink
   const consultationRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -160,6 +161,48 @@ export default function ConsultationsManager({
   const markViewedMutation = useMarkConsultationViewed();
   const deleteMutation = useDeleteConsultation();
   
+  // Mutation bulk delete consultazioni rifiutate
+  const bulkDeleteRifiutateMutation = useMutation({
+    mutationFn: async () => {
+      const rifiutate = consultations.filter(c => c.stato === 'rifiutata');
+      
+      if (rifiutate.length === 0) {
+        throw new Error('Nessuna consultazione rifiutata da eliminare');
+      }
+      
+      // Elimina sequenzialmente per evitare race conditions
+      const errors: string[] = [];
+      for (const c of rifiutate) {
+        try {
+          await apiRequest('DELETE', `/api/consultations/${c.id}`);
+        } catch (error: any) {
+          errors.push(`${c.id}: ${error.message}`);
+        }
+      }
+      
+      if (errors.length > 0) {
+        throw new Error(`Errori durante eliminazione: ${errors.join(', ')}`);
+      }
+      
+      return rifiutate.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
+      toast({
+        title: 'Pulizia completata',
+        description: `${count} consultazione/i rifiutata/e eliminata/e con successo`,
+      });
+      setBulkDeleteRifiutateOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore eliminazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+  
   const templatesMap = useMemo(() => {
     const map: Record<string, ConsultationTemplate> = {};
     templates.forEach(t => {
@@ -167,6 +210,18 @@ export default function ConsultationsManager({
     });
     return map;
   }, [templates]);
+  
+  // 🎯 Filtro smart: default 'in_attesa' se esistono consultazioni da confermare, altrimenti 'all'
+  useEffect(() => {
+    if (!consultations || consultations.length === 0) return;
+    
+    const hasInAttesa = consultations.some(c => c.stato === 'in_attesa');
+    
+    // Setta filtro solo al primo caricamento (quando filterStatus è ancora 'all')
+    if (filterStatus === 'all' && hasInAttesa) {
+      setFilterStatus('in_attesa');
+    }
+  }, [consultations, filterStatus]);
   
   // 🔔 Auto-mark consulenze in_attesa come visualizzate (per notifiche)
   useEffect(() => {
@@ -453,7 +508,7 @@ export default function ConsultationsManager({
       {/* Filters */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="space-y-2">
               <Label>Stato</Label>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -480,6 +535,21 @@ export default function ConsultationsManager({
               />
             </div>
           </div>
+          
+          {consultations.filter(c => c.stato === 'rifiutata').length > 0 && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkDeleteRifiutateOpen(true)}
+                className="text-red-600 hover:bg-red-50"
+                data-testid="button-cleanup-rifiutate"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Pulisci consultazioni rifiutate ({consultations.filter(c => c.stato === 'rifiutata').length})
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
       
@@ -903,6 +973,37 @@ export default function ConsultationsManager({
               data-testid="button-confirm-delete"
             >
               Cancella Consulenza
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Bulk Delete Rifiutate Confirmation */}
+      <AlertDialog open={bulkDeleteRifiutateOpen} onOpenChange={setBulkDeleteRifiutateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pulizia Consultazioni Rifiutate</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare definitivamente tutte le consultazioni rifiutate ({consultations.filter(c => c.stato === 'rifiutata').length} totali).
+              Questa operazione è irreversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-bulk-delete">Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bulkDeleteRifiutateMutation.mutate()}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={bulkDeleteRifiutateMutation.isPending}
+              data-testid="button-confirm-bulk-delete"
+            >
+              {bulkDeleteRifiutateMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Eliminazione...
+                </>
+              ) : (
+                'Elimina Tutto'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
