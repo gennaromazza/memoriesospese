@@ -15,7 +15,8 @@ import {
   MapPin,
   Mail,
   Loader2,
-  Eye
+  Eye,
+  Trash2
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +58,8 @@ interface CalendarEventDTO {
   clientName?: string;
   clientEmail?: string;
   googleEventId?: string;
+  entityStatus?: string;
+  entityId?: string;
 }
 
 export default function CalendarioManager() {
@@ -142,6 +145,32 @@ export default function CalendarioManager() {
       toast({
         title: 'Errore',
         description: error.message || 'Impossibile creare l\'evento',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: async ({ entityId, type }: { entityId: string; type: string }) => {
+      if (type === 'consulenza') {
+        return await apiRequest('DELETE', `/api/consultations/${entityId}`);
+      } else {
+        throw new Error('Tipo evento non supportato per cancellazione dal calendario');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/calendar/events'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/consultations'], exact: false });
+      toast({
+        title: 'Evento eliminato',
+        description: 'L\'evento è stato rimosso dal calendario',
+      });
+      setSelectedEvent(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message || 'Impossibile eliminare l\'evento',
         variant: 'destructive',
       });
     },
@@ -738,7 +767,27 @@ export default function CalendarioManager() {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex justify-between">
+            <div>
+              {selectedEvent && selectedEvent.entityId && selectedEvent.entityStatus === 'rifiutata' && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (selectedEvent.entityId && confirm('Sei sicuro di voler eliminare questa consulenza rifiutata?')) {
+                      deleteEventMutation.mutate({
+                        entityId: selectedEvent.entityId,
+                        type: selectedEvent.type
+                      });
+                    }
+                  }}
+                  disabled={deleteEventMutation.isPending}
+                >
+                  {deleteEventMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Elimina
+                </Button>
+              )}
+            </div>
             <Button onClick={() => setSelectedEvent(null)}>Chiudi</Button>
           </DialogFooter>
         </DialogContent>

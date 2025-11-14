@@ -128,7 +128,7 @@ export default function ConsultationsManager({
   const { toast } = useToast();
   const [, navigate] = useLocation();
   
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('confermata');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
   const [approveConfirmId, setApproveConfirmId] = useState<string | null>(null);
@@ -639,6 +639,18 @@ export default function ConsultationsManager({
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </>
+                          )}
+                          
+                          {consultation.stato === 'rifiutata' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteConfirmId(consultation.id)}
+                              className="text-red-600 hover:text-red-700"
+                              data-testid={`button-delete-${consultation.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           )}
                           
                           {consultation.jobCreated && consultation.jobId && (

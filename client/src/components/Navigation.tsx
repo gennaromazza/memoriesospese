@@ -195,7 +195,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                     {isAdmin && (
                       <Link
                         to={createUrl("/admin/dashboard")}
-                        className="px-4 py-2 rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg transition-all duration-300 font-medium"
+                        className="px-4 py-2 rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all duration-300 font-medium"
                         data-testid="link-admin-dashboard"
                       >
                         Pannello Admin

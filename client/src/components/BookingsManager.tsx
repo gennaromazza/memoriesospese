@@ -1244,6 +1244,8 @@ export default function BookingsManager({
                 const isApproved =
                   booking.stato === "confermata" ||
                   booking.stato === "completata";
+                const canDelete = 
+                  isApproved || booking.stato === "rifiutata";
 
                 const isHighlighted = highlightedId === booking.id;
 
@@ -1638,7 +1640,7 @@ export default function BookingsManager({
                                   <Button
                                     variant="outline"
                                     size="icon"
-                                    disabled={!isApproved}
+                                    disabled={!canDelete}
                                     onClick={() =>
                                       handleRequestCascadeDelete(booking.id)
                                     }

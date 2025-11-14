@@ -18,7 +18,7 @@ const router = express.Router();
  * DTO per evento unificato calendario
  */
 interface CalendarEventDTO {
-  id: string;
+  id: string; // ID prefissato per display: g-xxx, c-xxx, j-xxx
   title: string;
   description?: string;
   start: string; // ISO date
@@ -28,6 +28,8 @@ interface CalendarEventDTO {
   clientName?: string;
   clientEmail?: string;
   googleEventId?: string;
+  entityStatus?: string; // Stato entità (consulenza/booking): in_attesa, confermata, rifiutata, annullata, etc
+  entityId?: string; // ID puro dell'entità (senza prefix) per API delete
 }
 
 /**
@@ -86,12 +88,11 @@ router.get('/events', authenticateFirebase, async (req, res) => {
       warnings.push(`Google Calendar non disponibile: ${errorMessage}`);
     }
 
-    // 2. Consulenze confermate nel range di date
+    // 2. Consulenze nel range di date (tutte, incluse rifiutate per gestione cancellazione)
     try {
-      console.log(`🗓️ Fetching consulenze confermate (${startDate} → ${endDate})`);
+      console.log(`🗓️ Fetching consulenze (${startDate} → ${endDate})`);
       
       const consultazioniSnap = await db.collection('consultations')
-        .where('stato', '==', 'confermata')
         .where('dataConsulenza', '>=', timeMin)
         .where('dataConsulenza', '<=', timeMax)
         .get();
@@ -101,7 +102,7 @@ router.get('/events', authenticateFirebase, async (req, res) => {
         const clienteNome = `${c.cliente?.nome || ''} ${c.cliente?.cognome || ''}`.trim() || 'Cliente';
         
         events.push({
-          id: `c-${doc.id}`,
+          id: `c-${doc.id}`, // ID prefissato per display
           title: `Consulenza: ${clienteNome}`,
           description: c.note || undefined,
           start: c.dataConsulenza?.toDate?.()?.toISOString() || c.dataConsulenza,
@@ -109,6 +110,8 @@ router.get('/events', authenticateFirebase, async (req, res) => {
           type: 'consulenza',
           clientName: clienteNome,
           clientEmail: c.cliente?.email || undefined,
+          entityStatus: c.stato || undefined,
+          entityId: doc.id, // ID puro per delete API
         });
       });
 
