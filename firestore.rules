@@ -345,7 +345,7 @@ service cloud.firestore {
     
     // Job Types - Dynamic configurable job types (matrimoni, battesimi, etc.)
     match /jobTypes/{jobTypeId} {
-      allow read: if isSignedIn(); // Authenticated users can read job types (needed for quotes UI)
+      allow read: if true; // Public read access (needed for public consultation booking page)
       allow create: if isAdmin(); // Only admin can create new job types
       allow update: if isAdmin(); // Only admin can update job types
       allow delete: if isAdmin(); // Only admin can delete job types
