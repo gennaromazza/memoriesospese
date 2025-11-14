@@ -1103,22 +1103,8 @@ export default function BookingsManager({
                   </Button>
                 </div>
 
-                {/* Barra di ricerca */}
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                      placeholder="Cerca per nome, email o campagna..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 h-10"
-                      data-testid="input-search-bookings"
-                    />
-                  </div>
-                </div>
-
                 {/* Pulsanti azione */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 ml-auto">
                   <Button
                     variant="outline"
                     size="default"
@@ -1139,6 +1125,18 @@ export default function BookingsManager({
                     Nuova Prenotazione
                   </Button>
                 </div>
+              </div>
+
+              {/* Seconda riga - Barra di ricerca */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Cerca per nome, email o campagna..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-10"
+                  data-testid="input-search-bookings"
+                />
               </div>
 
               {/* Badge contatore risultati */}
