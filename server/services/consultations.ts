@@ -65,15 +65,16 @@ export async function getActiveTemplatesByJobType(jobType: string): Promise<Cons
   const snapshot = await db.collection('consultationTemplates')
     .where('jobType', '==', jobType)
     .where('attiva', '==', true)
-    .orderBy('nome', 'asc')
     .get();
   
-  return snapshot.docs.map(doc => ({
+  const templates = snapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data(),
     createdAt: doc.data().createdAt || Timestamp.now(),
     updatedAt: doc.data().updatedAt || Timestamp.now(),
   })) as ConsultationTemplate[];
+  
+  return templates.sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
 /**
