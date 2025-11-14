@@ -1106,36 +1106,12 @@ export default function AdminDashboard() {
               {/* Separatore visivo */}
               <div className="w-px h-8 bg-border mx-1 hidden sm:block" />
 
-              {/* Booking System con dropdown sottomenu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant={activeTab === 'bookings' ? 'default' : 'ghost'}
-                    className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2 h-10"
-                  >
-                    <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Prenotazioni</span>
-                    <span className="sm:hidden">Book</span>
-                    <ChevronRight className="h-3 w-3 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('bookings');
-                    setActiveBookingSection('bookings-list');
-                  }}>
-                    <CalendarCheck className="h-4 w-4 mr-2" />
-                    Prenotazioni
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('bookings');
-                    setActiveBookingSection('orders');
-                  }}>
-                    <ShoppingBag className="h-4 w-4 mr-2" />
-                    Ordini
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Booking System: Prenotazioni con sub-tabs interne */}
+              <TabsTrigger value="bookings" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2" data-testid="tab-bookings">
+                <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Prenotazioni</span>
+                <span className="sm:hidden">Book</span>
+              </TabsTrigger>
 
               {/* Jobs System: Lavori Fotografici */}
               <TabsTrigger value="lavori" className="flex-shrink-0 px-2 py-1.5 text-xs sm:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-2">
