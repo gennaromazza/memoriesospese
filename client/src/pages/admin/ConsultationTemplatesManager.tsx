@@ -198,6 +198,14 @@ export default function ConsultationTemplatesManager() {
         return;
       }
 
+      // 🔍 DEBUG: Log customWorkingHours prima dell'invio al backend
+      console.log('[handleSave] 🔍 DEBUG - formData.customWorkingHours:', formData.customWorkingHours);
+      if (formData.customWorkingHours) {
+        console.log('[handleSave] 🔍 DEBUG - customWorkingHours length:', formData.customWorkingHours.length);
+        const mondayConfig = formData.customWorkingHours.find(h => h.giornoSettimana === 1);
+        console.log('[handleSave] 🔍 DEBUG - Monday config (giornoSettimana: 1):', mondayConfig);
+      }
+
       if (editingTemplate) {
         await updateMutation.mutateAsync({
           id: editingTemplate.id,
