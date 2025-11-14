@@ -428,7 +428,7 @@ export interface ConsultationWorkingHours {
   attivo: boolean;          // Giorno attivo per consulenze
 }
 
-// Configurazione default orari consulenze (Lun-Ven 9-18 con pausa 13-14:30)
+// Configurazione default orari consulenze (Lun-Sab 9-18 con pausa 13-14:30)
 export const DEFAULT_CONSULTATION_HOURS: ConsultationWorkingHours[] = [
   { giornoSettimana: 0, apertura: '09:00', chiusura: '18:00', attivo: false }, // Dom
   { giornoSettimana: 1, apertura: '09:00', pausaInizio: '13:00', pausaFine: '14:30', chiusura: '18:00', attivo: true }, // Lun
@@ -436,5 +436,5 @@ export const DEFAULT_CONSULTATION_HOURS: ConsultationWorkingHours[] = [
   { giornoSettimana: 3, apertura: '09:00', pausaInizio: '13:00', pausaFine: '14:30', chiusura: '18:00', attivo: true }, // Mer
   { giornoSettimana: 4, apertura: '09:00', pausaInizio: '13:00', pausaFine: '14:30', chiusura: '18:00', attivo: true }, // Gio
   { giornoSettimana: 5, apertura: '09:00', pausaInizio: '13:00', pausaFine: '14:30', chiusura: '18:00', attivo: true }, // Ven
-  { giornoSettimana: 6, apertura: '09:00', chiusura: '18:00', attivo: false }, // Sab
+  { giornoSettimana: 6, apertura: '09:00', pausaInizio: '13:00', pausaFine: '14:30', chiusura: '18:00', attivo: true }, // Sab
 ];
