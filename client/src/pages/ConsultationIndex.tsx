@@ -84,7 +84,7 @@ export default function ConsultationIndex() {
               const hasImage = !!jobType.imageUrl;
               
               return (
-                <Link key={jobType.id} href={`/consulenze/${encodeURIComponent(jobType.nome)}`}>
+                <Link key={jobType.id} href={`/consulenze/${jobType.slug}`}>
                   <Card 
                     className="h-full transition-all duration-300 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer border-beige bg-white group overflow-hidden"
                     data-testid={`card-job-type-${jobType.nome}`}
