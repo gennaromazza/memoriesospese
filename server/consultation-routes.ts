@@ -844,6 +844,7 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
     // Crea job (riutilizza logica jobs esistente)
     const jobRef = await db.collection('jobs').add({
       ...jobData,
+      consultationId: id, // Riferimento bidirezionale per cleanup
       status: 'lead',
       financials: {
         totalePreventivato: 0,
@@ -945,6 +946,28 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
         console.log(`📅 Evento Google Calendar ${consultation.googleCalendarEventId} eliminato`);
       } catch (calError: any) {
         console.warn('[DELETE] Errore eliminazione evento Calendar:', calError.message);
+        // Continua comunque con eliminazione consultation
+      }
+    }
+
+    // FIX #1: Cleanup riferimento bidirezionale job → consultation
+    if (consultation.jobCreated && consultation.jobId) {
+      try {
+        const jobRef = db.collection('jobs').doc(consultation.jobId);
+        const jobSnap = await jobRef.get();
+        
+        if (jobSnap.exists) {
+          // Rimuovi consultationId dal job
+          await jobRef.update({
+            consultationId: FieldValue.delete(),
+            updatedAt: Timestamp.now(),
+          });
+          console.log(`✅ Riferimento consultationId rimosso dal job ${consultation.jobId}`);
+        } else {
+          console.warn(`⚠️ Job ${consultation.jobId} non trovato per cleanup`);
+        }
+      } catch (jobError: any) {
+        console.warn('[DELETE] Errore cleanup job reference:', jobError.message);
         // Continua comunque con eliminazione consultation
       }
     }

@@ -4,6 +4,8 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
+import { useMutation } from '@tanstack/react-query';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 
 interface ConsultationsManagerProps {
   highlightConsultationId?: string | null;
@@ -77,7 +79,8 @@ import {
   FileText,
   ExternalLink,
   Briefcase,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -85,8 +88,9 @@ import { it } from 'date-fns/locale';
 const STATUS_CONFIG: Record<ConsultationStatus, { label: string; variant: string; icon: typeof Clock }> = {
   in_attesa: { label: 'In Attesa', variant: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: Clock },
   confermata: { label: 'Confermata', variant: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle },
+  rifiutata: { label: 'Rifiutata', variant: 'bg-red-100 text-red-700 border-red-200', icon: XCircle },
   completata: { label: 'Completata', variant: 'bg-blue-100 text-blue-700 border-blue-200', icon: FileText },
-  annullata: { label: 'Annullata', variant: 'bg-red-100 text-red-700 border-red-200', icon: XCircle }
+  annullata: { label: 'Annullata', variant: 'bg-gray-100 text-gray-700 border-gray-200', icon: XCircle }
 };
 
 /**

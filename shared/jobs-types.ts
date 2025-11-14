@@ -84,6 +84,7 @@ export interface Job {
   // Riferimenti
   clientiIds: string[];         // Array clienti collegati (OBBLIGATORIO - almeno 1)
   bookingId?: string;           // Link opzionale a booking (se da campagna)
+  consultationId?: string;      // Link opzionale a consultation (se da consulenza) - Fix #1
   orderIds: string[];           // Array ordini collegati
   galleryIds: string[];         // Array gallerie collegate
   quoteIds: string[];           // Array preventivi collegati

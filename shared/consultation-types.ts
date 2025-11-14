@@ -90,6 +90,7 @@ export type ConsultationJobFieldValue =
 export type ConsultationStatus = 
   | 'in_attesa'    // Prenotazione ricevuta, in attesa approvazione
   | 'confermata'   // Approvata da admin, evento creato su Google Calendar
+  | 'rifiutata'    // Rifiutata da admin
   | 'completata'   // Consulenza svolta
   | 'annullata';   // Annullata
 
