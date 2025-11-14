@@ -3593,6 +3593,120 @@ router.post("/saldo-received", async (req, res) => {
 });
 
 /**
+ * POST /api/email/send-admin-consultation-notification
+ * Invia email di notifica admin quando arriva una nuova richiesta consulenza
+ * Include: dati cliente, tipo lavoro, data/orario richiesti, link dashboard
+ */
+router.post("/send-admin-consultation-notification", async (req, res) => {
+  try {
+    const {
+      clienteName,
+      clienteEmail,
+      clienteWhatsApp,
+      jobType,
+      consultationDate,
+      consultationTime,
+      jobDataCollected,
+      note
+    } = req.body;
+
+    // Validazioni
+    if (!clienteName || !clienteEmail || !jobType || !consultationDate || !consultationTime) {
+      return res.status(400).json({
+        error: "Parametri mancanti per invio notifica admin consulenza"
+      });
+    }
+
+    // Recupera dati contatto studio (per email admin)
+    const studioInfo = await getStudioContactInfo();
+    const adminEmail = studioInfo.email; // Email admin per notifica
+
+    // Template email notifica admin
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #dc3545; text-align: center;">🔔 Nuova Richiesta Consulenza</h2>
+        <div style="background: #fff3cd; padding: 20px; border-radius: 10px; margin: 20px 0; border: 2px solid #ffc107;">
+          <p style="font-size: 16px; margin-bottom: 15px;">
+            <strong>Attenzione Admin!</strong>
+          </p>
+          <p style="font-size: 16px; margin-bottom: 20px;">
+            È stata ricevuta una <strong>nuova richiesta di consulenza</strong> per <strong style="color: #8b5a3c;">${jobType}</strong>.
+          </p>
+          
+          <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">👤 Dati Cliente</h3>
+            <p style="margin: 8px 0;"><strong>Nome:</strong> ${clienteName}</p>
+            <p style="margin: 8px 0;"><strong>📧 Email:</strong> <a href="mailto:${clienteEmail}">${clienteEmail}</a></p>
+            <p style="margin: 8px 0;"><strong>📱 WhatsApp:</strong> <a href="https://wa.me/${clienteWhatsApp.replace(/[^0-9]/g, '')}">${clienteWhatsApp}</a></p>
+          </div>
+
+          <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Richiesta</h3>
+            <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${consultationDate}</p>
+            <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${consultationTime}</p>
+            ${note ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${note}</p>` : ''}
+            ${jobDataCollected && Object.keys(jobDataCollected).length > 0 ? `
+            <div style="margin-top: 15px; padding: 10px; background: #f9f7f4; border-radius: 5px;">
+              <p style="margin: 0 0 8px 0; font-weight: bold;">Dati raccolti:</p>
+              ${Object.entries(jobDataCollected).map(([key, value]) => 
+                `<p style="margin: 4px 0; font-size: 14px;">• <strong>${key}:</strong> ${value}</p>`
+              ).join('')}
+            </div>
+            ` : ''}
+          </div>
+
+          <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #0c5460;">
+              <strong>⏰ Azione Richiesta</strong><br>
+              Accedi alla dashboard admin per <strong>approvare o gestire</strong> questa richiesta. 
+              Il cliente ha ricevuto una email di conferma ricezione e attende la tua risposta.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${studioInfo.address ? `https://${req.get('host')}/admin/consultations` : `https://${req.get('host')}/admin/consultations`}" 
+               style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+              📋 Vai alla Dashboard
+            </a>
+          </div>
+
+          <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+            Gestisci questa richiesta dalla dashboard admin.
+          </p>
+        </div>
+        
+        <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+          <p style="margin: 5px 0; font-weight: 600;">${studioInfo.name}</p>
+          ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ''}
+          <p style="margin: 5px 0;">Email: ${studioInfo.email}</p>
+          <p style="margin: 5px 0;">Tel: ${studioInfo.phone}</p>
+        </div>
+      </div>
+    `;
+
+    const subject = `🔔 Nuova Consulenza: ${jobType} - ${clienteName}`;
+
+    await sendGmailEmail(adminEmail, subject, htmlContent);
+
+    console.log(
+      `✅ Email notifica admin inviata a ${adminEmail} per nuova consulenza ${jobType}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Admin notification email sent successfully",
+      recipientEmail: adminEmail
+    });
+  } catch (error) {
+    console.error("❌ Errore send-admin-consultation-notification:", error);
+    res.status(500).json({
+      error: "Errore invio email notifica admin"
+    });
+  }
+});
+
+/**
  * POST /api/email/special-gallery-pin-notification
  * Invia email al cliente con PIN di accesso alla galleria speciale
  * Include: nome galleria, tema, PIN, link di accesso, istruzioni

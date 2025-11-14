@@ -447,7 +447,7 @@ router.post('/create', async (req, res) => {
       template
     );
 
-    // Invia email conferma ricezione (task 13)
+    // Invia email conferma ricezione al cliente (task 13)
     let emailStatus = 'sent';
     try {
       const { sendGmailEmail, getStudioContactInfo, createConsultationReceivedEmailHTML } = await import('./email-routes.js');
@@ -480,6 +480,37 @@ router.post('/create', async (req, res) => {
     } catch (emailError: any) {
       console.error('⚠️ Errore invio email consulenza ricevuta:', emailError.message);
       emailStatus = 'failed';
+    }
+
+    // Invia email notifica admin (nuova richiesta consulenza)
+    try {
+      const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+      const host = req.get('x-forwarded-host') || req.get('host') || 'memoriesospese.replit.app';
+      const baseUrl = `${protocol}://${host}`;
+
+      const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
+      const formattedDate = validatedData.dataConsulenza.toLocaleDateString('it-IT', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+
+      await axios.post(`${baseUrl}/api/email/send-admin-consultation-notification`, {
+        clienteName,
+        clienteEmail: validatedData.cliente.email,
+        clienteWhatsApp: validatedData.cliente.whatsapp,
+        jobType: template.jobType,
+        consultationDate: formattedDate,
+        consultationTime: `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+        jobDataCollected: validatedData.jobDataCollected,
+        note: validatedData.note
+      });
+
+      console.log(`✅ Email notifica admin inviata per nuova consulenza ${template.jobType}`);
+    } catch (adminEmailError: any) {
+      console.error('⚠️ Errore invio email notifica admin:', adminEmailError.message);
+      // Non bloccare la creazione se email admin fallisce
     }
 
     res.status(201).json({ 
