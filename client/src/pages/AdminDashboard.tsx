@@ -34,7 +34,6 @@ import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
 import { OrdersManager } from "@/components/OrdersManager";
 import CashDashboard from "@/components/CashDashboard";
-import GestioneCommesse from "@/components/GestioneCommesse";
 import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
@@ -1684,10 +1683,6 @@ export default function AdminDashboard() {
                     <Calendar className="h-4 w-4 flex-shrink-0" />
                     Campagne
                   </TabsTrigger>
-                  <TabsTrigger value="commesse" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                    <FolderOpen className="h-4 w-4 flex-shrink-0" />
-                    Gestione Commesse
-                  </TabsTrigger>
                   <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <ShoppingBag className="h-4 w-4 flex-shrink-0" />
                     Ordini
@@ -1705,19 +1700,6 @@ export default function AdminDashboard() {
 
                 <TabsContent value="campaigns">
                   <CampaignsManager />
-                </TabsContent>
-
-                <TabsContent value="commesse">
-                  <div className="bg-white shadow sm:rounded-lg p-5">
-                    <GestioneCommesse 
-                      onNavigateToTab={setActiveTab}
-                      onEditGallery={openEditModal}
-                      onCreateGallery={openModal}
-                      onOpenBooking={handleOpenBooking}
-                      onOpenOrder={handleOpenOrder}
-                      onOpenPhotoSelection={handleOpenPhotoSelection}
-                    />
-                  </div>
                 </TabsContent>
 
                 <TabsContent value="orders">
