@@ -1106,15 +1106,6 @@ export default function BookingsManager({
                 {/* Pulsanti azione */}
                 <div className="flex gap-2 ml-auto">
                   <Button
-                    variant="outline"
-                    size="default"
-                    onClick={() => refetch()}
-                    data-testid="button-refresh"
-                    className="h-10"
-                  >
-                    Aggiorna
-                  </Button>
-                  <Button
                     variant="default"
                     size="default"
                     onClick={() => setShowManualBookingModal(true)}
