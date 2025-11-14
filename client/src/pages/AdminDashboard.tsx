@@ -216,8 +216,13 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario'>(() => {
     return (sessionStorage.getItem('activeTab') as any) || 'calendario';
   });
-  const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'commesse'>(() => {
-    return (sessionStorage.getItem('activeBookingSection') as any) || 'bookings-list';
+  const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'campaigns' | 'orders'>(() => {
+    const stored = sessionStorage.getItem('activeBookingSection') as any;
+    // Sanitize legacy values
+    if (stored === 'commesse' || !['bookings-list', 'campaigns', 'orders'].includes(stored)) {
+      return 'bookings-list';
+    }
+    return stored || 'bookings-list';
   });
   const [activeConsultationSection, setActiveConsultationSection] = useState<'consulenze' | 'consulenze-templates'>(() => {
     return (sessionStorage.getItem('activeConsultationSection') as any) || 'consulenze';
@@ -325,7 +330,10 @@ export default function AdminDashboard() {
       
       const sectionMapping: Record<string, string> = {
         'bookings': 'bookings-list',
-        'commesse': 'commesse'
+        'commesse': 'orders', // Legacy mapping for backward compatibility
+        'bookings-list': 'bookings-list', // Valid pass-through
+        'campaigns': 'campaigns', // Valid pass-through
+        'orders': 'orders' // Valid pass-through
       };
       
       const mappedTab = tabMapping[tab] || tab;
@@ -607,7 +615,8 @@ export default function AdminDashboard() {
   // Handler: Apri ordine specifico e scroll + highlight
   const handleOpenOrder = (orderId: string) => {
     setHighlightOrderId(orderId);
-    setActiveTab('bookings'); // OrdersManager è dentro BookingsManager
+    setActiveTab('bookings');
+    setActiveBookingSection('orders');
   };
 
   // Handler: Apri gestione selezioni foto
@@ -1120,10 +1129,10 @@ export default function AdminDashboard() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => {
                     setActiveTab('bookings');
-                    setActiveBookingSection('commesse');
+                    setActiveBookingSection('orders');
                   }}>
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    Gestione Commesse
+                    <ShoppingBag className="h-4 w-4 mr-2" />
+                    Ordini
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1691,8 +1700,10 @@ export default function AdminDashboard() {
                   <BookingsManager 
                     highlightBookingId={highlightBookingId}
                     onHighlightComplete={() => setHighlightBookingId(null)}
-                    highlightOrderId={highlightOrderId}
-                    onOrderHighlightComplete={() => setHighlightOrderId(null)}
+                    onRequestOpenOrdersTab={(orderId) => {
+                      setActiveBookingSection('orders');
+                      setHighlightOrderId(orderId);
+                    }}
                   />
                 </TabsContent>
 
@@ -1701,7 +1712,10 @@ export default function AdminDashboard() {
                 </TabsContent>
 
                 <TabsContent value="orders">
-                  <OrdersManager />
+                  <OrdersManager 
+                    highlightOrderId={highlightOrderId}
+                    onHighlightComplete={() => setHighlightOrderId(null)}
+                  />
                 </TabsContent>
               </Tabs>
             </TabsContent>

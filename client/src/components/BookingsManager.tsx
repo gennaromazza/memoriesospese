@@ -168,20 +168,17 @@ function getStatoBadge(stato: string) {
 interface BookingsManagerProps {
   highlightBookingId?: string | null;
   onHighlightComplete?: () => void;
-  highlightOrderId?: string | null;
-  onOrderHighlightComplete?: () => void;
+  onRequestOpenOrdersTab?: (orderId: string) => void;
 }
 
 export default function BookingsManager({
   highlightBookingId,
   onHighlightComplete,
-  highlightOrderId,
-  onOrderHighlightComplete,
+  onRequestOpenOrdersTab,
 }: BookingsManagerProps = {}) {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<"bookings" | "orders">("bookings");
   const [selectedStato, setSelectedStato] = useState<string>("all");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -190,10 +187,6 @@ export default function BookingsManager({
     useState<Booking | null>(null);
   const [selectedBookingForGallery, setSelectedBookingForGallery] =
     useState<Booking | null>(null);
-  const [filterBookingId, setFilterBookingId] = useState<string | null>(null);
-  const [localHighlightOrderId, setLocalHighlightOrderId] = useState<
-    string | null
-  >(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
   const [selectedGalleryForEdit, setSelectedGalleryForEdit] =
@@ -495,9 +488,6 @@ export default function BookingsManager({
       onHighlightComplete?.();
       return;
     }
-
-    // Assicura che la tab corretta sia attiva
-    setActiveTab("bookings");
 
     // Calcola la pagina dove si trova il booking PRIMA di resettare i filtri
     // Usa allBookings direttamente (equivalente a filtri='all', search='')
@@ -1007,33 +997,8 @@ export default function BookingsManager({
 
   return (
     <div className="space-y-6">
-      {/* Tabs Prenotazioni/Ordini */}
-      <div className="flex gap-2 border-b pb-2">
-        <Button
-          variant={activeTab === "bookings" ? "default" : "ghost"}
-          className={
-            activeTab === "bookings" ? "bg-sage hover:bg-dark-sage" : ""
-          }
-          onClick={() => setActiveTab("bookings")}
-          data-testid="tab-bookings"
-        >
-          <Calendar className="w-4 h-4 mr-2" />
-          Prenotazioni
-        </Button>
-        <Button
-          variant={activeTab === "orders" ? "default" : "ghost"}
-          className={activeTab === "orders" ? "bg-sage hover:bg-dark-sage" : ""}
-          onClick={() => setActiveTab("orders")}
-          data-testid="tab-orders"
-        >
-          <Receipt className="w-4 h-4 mr-2" />
-          Ordini
-        </Button>
-      </div>
-
-      {/* Contenuto Tab Prenotazioni */}
-      {activeTab === "bookings" && (
-        <>
+      {/* Contenuto Prenotazioni */}
+      <>
           {/* Header e filtri */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             {/* Header */}
@@ -1573,10 +1538,8 @@ export default function BookingsManager({
                                       if (!order) {
                                         setSelectedBookingForOrder(booking);
                                       } else {
-                                        // Navigazione intelligente con scroll e highlight
-                                        setFilterBookingId(null); // Reset filtro
-                                        setLocalHighlightOrderId(order.id); // Imposta highlight per scroll automatico
-                                        setActiveTab("orders");
+                                        // Richiedi apertura tab Ordini con highlight
+                                        onRequestOpenOrdersTab?.(order.id);
                                       }
                                     }}
                                     data-testid={`button-order-${booking.id}`}
@@ -2383,41 +2346,6 @@ export default function BookingsManager({
               );
             })()}
         </>
-      )}
-
-      {/* Contenuto Tab Ordini */}
-      {activeTab === "orders" && (
-        <>
-          {filterBookingId && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-blue-600" />
-                <span className="text-sm font-medium text-blue-800">
-                  Filtrando ordini per prenotazione selezionata
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setFilterBookingId(null)}
-                className="text-blue-600 hover:text-blue-800"
-              >
-                Mostra tutti gli ordini
-              </Button>
-            </div>
-          )}
-          <OrdersManager
-            filterBookingId={filterBookingId}
-            highlightOrderId={highlightOrderId || localHighlightOrderId}
-            onHighlightComplete={() => {
-              // Callback esterno se presente
-              onOrderHighlightComplete?.();
-              // Pulisci highlight locale
-              setLocalHighlightOrderId(null);
-            }}
-          />
-        </>
-      )}
 
       {/* Manual Booking Modal */}
       <ManualBookingModal
