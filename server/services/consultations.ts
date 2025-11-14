@@ -389,9 +389,11 @@ export async function updateConsultation(id: string, data: UpdateConsultation): 
     updatedAt: Timestamp.now(),
   };
   
-  // Converti Date a Timestamp se presente
-  if (data.dataConsulenza) {
-    updates.dataConsulenza = Timestamp.fromDate(new Date(data.dataConsulenza as any));
+  // Converti Date a Timestamp combinando data + orario
+  if (data.dataConsulenza && data.orarioInizio) {
+    // Costruisci ISO string completa per evitare ambiguità timezone
+    const combinedDate = new Date(`${data.dataConsulenza}T${data.orarioInizio}:00`);
+    updates.dataConsulenza = Timestamp.fromDate(combinedDate);
   }
   
   await docRef.update(updates);
