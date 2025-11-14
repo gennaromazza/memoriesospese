@@ -102,11 +102,22 @@ export async function getJobTypesWithActiveTemplates(): Promise<string[]> {
 export async function createTemplate(data: InsertConsultationTemplate): Promise<string> {
   const now = Timestamp.now();
   
+  // 🔍 DEBUG: Log del payload prima del salvataggio
+  console.log('[createTemplate] 🔍 DEBUG - Payload in ingresso:');
+  console.log('[createTemplate] 🔍 customWorkingHours:', data.customWorkingHours);
+  if (data.customWorkingHours) {
+    console.log('[createTemplate] 🔍 customWorkingHours length:', data.customWorkingHours.length);
+    const mondayConfig = data.customWorkingHours.find(h => h.giornoSettimana === 1);
+    console.log('[createTemplate] 🔍 Monday config (giornoSettimana: 1):', mondayConfig);
+  }
+  
   const docRef = await db.collection('consultationTemplates').add({
     ...data,
     createdAt: now,
     updatedAt: now,
   });
+  
+  console.log('[createTemplate] 🔍 Template salvato con ID:', docRef.id);
   
   return docRef.id;
 }
@@ -122,10 +133,21 @@ export async function updateTemplate(id: string, data: UpdateConsultationTemplat
     throw new Error(`Template ${id} non trovato`);
   }
   
+  // 🔍 DEBUG: Log del payload prima dell'aggiornamento
+  console.log('[updateTemplate] 🔍 DEBUG - Payload update per template ID:', id);
+  console.log('[updateTemplate] 🔍 customWorkingHours:', data.customWorkingHours);
+  if (data.customWorkingHours) {
+    console.log('[updateTemplate] 🔍 customWorkingHours length:', data.customWorkingHours.length);
+    const mondayConfig = data.customWorkingHours.find(h => h.giornoSettimana === 1);
+    console.log('[updateTemplate] 🔍 Monday config (giornoSettimana: 1):', mondayConfig);
+  }
+  
   await docRef.update({
     ...data,
     updatedAt: Timestamp.now(),
   });
+  
+  console.log('[updateTemplate] 🔍 Template aggiornato con successo');
 }
 
 /**
