@@ -6,6 +6,8 @@ export interface JobType {
   icona: string;
   colore: string;
   ordine: number;
+  descrizione?: string;
+  imageUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }

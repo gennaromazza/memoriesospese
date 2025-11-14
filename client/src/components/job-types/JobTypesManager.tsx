@@ -5,6 +5,8 @@ import {
   createJobType,
   updateJobType
 } from '@/lib/job-types';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   getJobProvenances,
   createJobProvenance,
@@ -52,6 +54,7 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -62,7 +65,10 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
-  Palette
+  Palette,
+  Upload,
+  X,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -78,7 +84,9 @@ const formSchema = z.object({
   icona: z.string().min(1, 'Icona richiesta'),
   colore: z
     .string()
-    .regex(/^#[0-9A-Fa-f]{6}$/, 'Formato colore non valido (es. #ec4899)')
+    .regex(/^#[0-9A-Fa-f]{6}$/, 'Formato colore non valido (es. #ec4899)'),
+  descrizione: z.string().optional(),
+  imageUrl: z.string().optional()
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -102,6 +110,8 @@ function JobEntityForm({ entityType, entity, onSuccess, onCancel }: JobEntityFor
   const getAllFn = entityType === 'jobType' ? getJobTypes : getJobProvenances;
   const entityLabel = entityType === 'jobType' ? 'Tipo lavoro' : 'Provenienza';
 
+  const [uploadingImage, setUploadingImage] = useState(false);
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: entity
@@ -110,14 +120,18 @@ function JobEntityForm({ entityType, entity, onSuccess, onCancel }: JobEntityFor
           slug: entity.slug,
           attivo: entity.attivo,
           icona: entity.icona,
-          colore: entity.colore
+          colore: entity.colore,
+          descrizione: (entity as JobType).descrizione || '',
+          imageUrl: (entity as JobType).imageUrl || ''
         }
       : {
           nome: '',
           slug: '',
           attivo: true,
           icona: '📸',
-          colore: '#6366f1'
+          colore: '#6366f1',
+          descrizione: '',
+          imageUrl: ''
         }
   });
 
@@ -165,6 +179,91 @@ function JobEntityForm({ entityType, entity, onSuccess, onCancel }: JobEntityFor
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
       form.setValue('slug', slug);
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        variant: 'destructive',
+        title: 'Tipo file non valido',
+        description: 'Carica solo file immagine',
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        variant: 'destructive',
+        title: 'File troppo grande',
+        description: 'Dimensione massima: 5MB',
+      });
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      const timestamp = Date.now();
+      const filename = `${timestamp}_${file.name}`;
+      const storageRef = ref(storage, `job-types/${filename}`);
+      
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      uploadTask.on('state_changed',
+        () => {},
+        (error) => {
+          console.error('Upload error:', error);
+          toast({
+            variant: 'destructive',
+            title: 'Errore upload',
+            description: error.message,
+          });
+          setUploadingImage(false);
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          form.setValue('imageUrl', downloadURL);
+          toast({
+            title: 'Immagine caricata',
+            description: 'Immagine caricata con successo',
+          });
+          setUploadingImage(false);
+        }
+      );
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Errore upload',
+        description: error.message,
+      });
+      setUploadingImage(false);
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    const imageUrl = form.getValues('imageUrl');
+    if (!imageUrl) return;
+
+    try {
+      const imageRef = ref(storage, imageUrl);
+      await deleteObject(imageRef);
+
+      form.setValue('imageUrl', '');
+      toast({
+        title: 'Immagine eliminata',
+        description: 'Immagine rimossa con successo',
+      });
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: 'Impossibile eliminare immagine',
+      });
     }
   };
 
@@ -264,6 +363,94 @@ function JobEntityForm({ entityType, entity, onSuccess, onCancel }: JobEntityFor
             )}
           />
         </div>
+
+        {entityType === 'jobType' && (
+          <>
+            <FormField
+              control={form.control}
+              name="descrizione"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descrizione</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      placeholder="Breve descrizione del tipo di servizio (visualizzata nella pagina consulenze)"
+                      rows={3}
+                      data-testid="textarea-descrizione"
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Descrizione mostrata ai clienti nella pagina di prenotazione consulenze
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="imageUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Immagine</FormLabel>
+                  <FormControl>
+                    <div className="space-y-3">
+                      {field.value ? (
+                        <div className="relative inline-block">
+                          <img
+                            src={field.value}
+                            alt="Preview"
+                            className="h-32 w-32 object-cover rounded-lg border"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                            onClick={handleDeleteImage}
+                            data-testid="button-delete-image"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <label
+                          htmlFor="image-upload"
+                          className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            {uploadingImage ? (
+                              <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+                            ) : (
+                              <>
+                                <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
+                                <p className="text-sm text-gray-600">Clicca per caricare immagine</p>
+                              </>
+                            )}
+                          </div>
+                          <input
+                            id="image-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageUpload}
+                            disabled={uploadingImage}
+                            data-testid="input-image-upload"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Immagine rappresentativa mostrata nella pagina consulenze (opzionale)
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        )}
 
         <FormField
           control={form.control}

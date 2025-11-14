@@ -5,14 +5,22 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useJobTypes } from '@/lib/consultations';
+import { useQuery } from '@tanstack/react-query';
+import { getActiveJobTypes } from '@/lib/job-types';
 import { Link } from 'wouter';
 import { Calendar, ArrowRight, Loader2, Heart, Baby, Cake, Briefcase, User, Camera } from 'lucide-react';
 import { useStudio } from '@/context/StudioContext';
 import Navigation from '@/components/Navigation';
 
 export default function ConsultationIndex() {
-  const { data: jobTypes, isLoading } = useJobTypes();
+  const { data: jobTypesData, isLoading } = useQuery({
+    queryKey: ['jobTypes'],
+    queryFn: getActiveJobTypes,
+  });
+  
+  // Estrae solo i nomi per compatibilità
+  const jobTypes = jobTypesData?.map(jt => jt.nome) || [];
+  
   const { studioSettings } = useStudio();
 
   const getJobTypeIcon = (jobType: string) => {
@@ -71,33 +79,47 @@ export default function ConsultationIndex() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {jobTypes.map((jobType) => {
-              const IconComponent = getJobTypeIcon(jobType);
+            {jobTypesData?.map((jobType) => {
+              const IconComponent = getJobTypeIcon(jobType.nome);
+              const hasImage = !!jobType.imageUrl;
+              
               return (
-                <Link key={jobType} href={`/consulenze/${encodeURIComponent(jobType)}`}>
+                <Link key={jobType.id} href={`/consulenze/${encodeURIComponent(jobType.nome)}`}>
                   <Card 
-                    className="h-full transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer border-beige bg-white group"
-                    data-testid={`card-job-type-${jobType}`}
+                    className="h-full transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer border-beige bg-white group overflow-hidden"
+                    data-testid={`card-job-type-${jobType.nome}`}
                   >
                     <CardHeader className="pb-3">
-                      <div className="flex justify-center mb-4">
-                        <div className="w-16 h-16 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                          <IconComponent className="h-8 w-8 text-sage" />
+                      {hasImage ? (
+                        <div className="flex justify-center mb-4 -mx-6 -mt-6">
+                          <div className="w-full h-40 overflow-hidden">
+                            <img 
+                              src={jobType.imageUrl} 
+                              alt={jobType.nome}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="flex justify-center mb-4">
+                          <div className="w-16 h-16 bg-sage/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                            <IconComponent className="h-8 w-8 text-sage" />
+                          </div>
+                        </div>
+                      )}
                       <CardTitle className="text-lg sm:text-xl font-playfair text-blue-gray flex items-center justify-between gap-2">
-                        <span className="line-clamp-2">{jobType}</span>
+                        <span className="line-clamp-2">{jobType.nome}</span>
                         <ArrowRight className="h-5 w-5 text-sage flex-shrink-0 transition-transform group-hover:translate-x-1" />
                       </CardTitle>
                       <CardDescription className="text-sm text-gray-600 line-clamp-2">
-                        Prenota una consulenza preliminare per {jobType.toLowerCase()}
+                        {jobType.descrizione || `Prenota una consulenza preliminare per ${jobType.nome.toLowerCase()}`}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <Button 
                         variant="outline" 
                         className="w-full border-sage text-sage hover:bg-sage hover:text-white transition-colors"
-                        data-testid={`button-view-templates-${jobType}`}
+                        data-testid={`button-view-templates-${jobType.nome}`}
                       >
                         Visualizza Opzioni
                       </Button>
