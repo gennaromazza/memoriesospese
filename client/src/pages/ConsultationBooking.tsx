@@ -301,7 +301,14 @@ export default function ConsultationBooking() {
                       mode="single"
                       selected={selectedDate}
                       onSelect={handleDateSelect}
-                      disabled={(date) => date < new Date()}
+                      disabled={(date) => {
+                        // Blocca date passate
+                        if (date < new Date()) return true;
+                        
+                        // Blocca giorni esclusi dal template (es. sabato/domenica)
+                        const dayOfWeek = date.getDay(); // 0=domenica, 1=lunedì, ..., 6=sabato
+                        return template?.excludedDays?.includes(dayOfWeek) || false;
+                      }}
                       locale={it}
                       className="rounded-md border border-beige"
                     />

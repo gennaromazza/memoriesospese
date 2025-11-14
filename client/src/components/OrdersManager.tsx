@@ -449,7 +449,7 @@ export function OrdersManager({
     });
   }, [ordersWithBookings, statoFilter, searchQuery, filterBookingId]);
 
-  // Scroll e highlight ordine quando richiesto da GestioneCommesse
+  // Scroll e highlight ordine quando richiesto
   useEffect(() => {
     // Cleanup dei timeout precedenti
     if (highlightTimeoutRef.current) {

@@ -431,7 +431,7 @@ export default function BookingsManager({
     setCurrentPage(1);
   }, [selectedStato, searchQuery, timeFilter, selectionFilter]);
 
-  // Scroll e highlight booking quando richiesto da GestioneCommesse
+  // Scroll e highlight booking quando richiesto
   useEffect(() => {
     // Cleanup dei timeout precedenti
     if (highlightTimeoutRef.current) {
