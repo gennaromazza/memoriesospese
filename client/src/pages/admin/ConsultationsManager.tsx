@@ -95,15 +95,20 @@ const STATUS_CONFIG: Record<ConsultationStatus, { label: string; variant: string
 
 /**
  * Helper: Normalizza Firestore Timestamp in Date
- * Supporta: { seconds }, .toDate(), ISO string, Date object
+ * Supporta: { seconds }, { _seconds }, .toDate(), ISO string, Date object
  */
 const normalizeTimestampToDate = (timestamp: any): Date | null => {
   try {
     if (!timestamp) return null;
     
-    // Firestore Timestamp con proprietà seconds
+    // Firestore Timestamp con proprietà seconds (formato standard)
     if (typeof timestamp === 'object' && typeof timestamp.seconds === 'number') {
       return new Date(timestamp.seconds * 1000);
+    }
+    
+    // Firestore Timestamp con proprietà _seconds (formato admin SDK)
+    if (typeof timestamp === 'object' && typeof timestamp._seconds === 'number') {
+      return new Date(timestamp._seconds * 1000);
     }
     
     // Firestore Timestamp con metodo .toDate()
@@ -115,7 +120,7 @@ const normalizeTimestampToDate = (timestamp: any): Date | null => {
     const date = new Date(timestamp);
     return isNaN(date.getTime()) ? null : date;
   } catch (error) {
-    console.error('[normalizeTimestampToDate] Error:', error);
+    console.error('[normalizeTimestampToDate] Error:', error, 'timestamp:', timestamp);
     return null;
   }
 };
@@ -597,6 +602,11 @@ export default function ConsultationsManager({
                   const jobDataCount = Object.keys(consultation.jobDataCollected || {}).length;
                   const isHighlighted = highlightedId === consultation.id;
                   
+                  // 🔍 DEBUG: Log formato dataConsulenza
+                  console.log('🔍 [DEBUG] consultation.dataConsulenza:', consultation.dataConsulenza);
+                  console.log('🔍 [DEBUG] consultation.dataConsulenza type:', typeof consultation.dataConsulenza);
+                  console.log('🔍 [DEBUG] consultation object:', consultation);
+                  
                   return (
                     <TableRow 
                       key={consultation.id} 
@@ -612,6 +622,7 @@ export default function ConsultationsManager({
                             <Calendar className="w-3 h-3" />
                             {(() => {
                               const date = normalizeTimestampToDate(consultation.dataConsulenza);
+                              console.log('🔍 [DEBUG] normalized date:', date);
                               return date ? format(date, 'dd MMM yyyy', { locale: it }) : 'Data non valida';
                             })()}
                           </div>
