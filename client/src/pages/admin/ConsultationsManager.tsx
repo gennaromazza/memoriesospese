@@ -144,6 +144,9 @@ export default function ConsultationsManager({
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Ref per throttling auto-mark (evita chiamate ripetute)
+  const autoMarkTriggeredRef = useRef(false);
+  
   // Auth state
   const { user, isLoading: authLoading } = useFirebaseAuth();
   const authReady = !authLoading && !!user;
@@ -165,8 +168,36 @@ export default function ConsultationsManager({
     return map;
   }, [templates]);
   
-  // TODO: Implementare batch mark-all-viewed per evitare N chiamate API
-  // useEffect con throttling per auto-mark consulenze pendenti
+  // 🔔 Auto-mark consulenze in_attesa come visualizzate (per notifiche)
+  useEffect(() => {
+    if (!consultations || !authReady || consultations.length === 0) return;
+    
+    const pendingConsultations = consultations.filter(
+      c => c.stato === 'in_attesa' && !c.dataVisualizzazione
+    );
+    
+    if (pendingConsultations.length === 0) {
+      autoMarkTriggeredRef.current = false; // Reset se nessun pending
+      return;
+    }
+    
+    if (autoMarkTriggeredRef.current) return; // Già eseguito
+    
+    // Marca flag per evitare re-trigger
+    autoMarkTriggeredRef.current = true;
+    
+    // Sequential mark (evita race conditions con mutateAsync)
+    (async () => {
+      try {
+        for (const c of pendingConsultations) {
+          await markViewedMutation.mutateAsync(c.id);
+        }
+      } catch (error) {
+        console.error('[Auto-mark] Errore mark viewed:', error);
+        autoMarkTriggeredRef.current = false; // Reset su errore per retry
+      }
+    })();
+  }, [consultations, authReady, markViewedMutation]);
   
   // 🎯 Deeplink: scroll + highlight consultation da URL param
   useEffect(() => {

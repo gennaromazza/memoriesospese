@@ -204,6 +204,10 @@ export default function BookingsManager({
   const bookingRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Ref per throttling auto-mark (evita chiamate ripetute)
+  const autoMarkTriggeredRef = useRef(false);
+  
   const [expandedProducts, setExpandedProducts] = useState<
     Record<string, boolean>
   >({});
@@ -430,6 +434,39 @@ export default function BookingsManager({
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedStato, searchQuery, timeFilter, selectionFilter]);
+
+  // 🔔 Auto-mark bookings in_attesa come visualizzati (per notifiche)
+  useEffect(() => {
+    if (!allBookings || !user || allBookings.length === 0) return;
+    
+    const pendingBookings = allBookings.filter(
+      b => b.stato === 'in_attesa' && !b.dataVisualizzazione
+    );
+    
+    if (pendingBookings.length === 0) {
+      autoMarkTriggeredRef.current = false; // Reset se nessun pending
+      return;
+    }
+    
+    if (autoMarkTriggeredRef.current) return; // Già eseguito
+    
+    // Marca flag per evitare re-trigger
+    autoMarkTriggeredRef.current = true;
+    
+    // Sequential mark con cache invalidation
+    (async () => {
+      try {
+        for (const b of pendingBookings) {
+          await markBookingAsViewed(b.id);
+        }
+        // Invalida cache per refresh UI
+        queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      } catch (error) {
+        console.error('[Auto-mark] Errore mark viewed bookings:', error);
+        autoMarkTriggeredRef.current = false; // Reset su errore per retry
+      }
+    })();
+  }, [allBookings, user]);
 
   // Scroll e highlight booking quando richiesto
   useEffect(() => {
