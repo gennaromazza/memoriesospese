@@ -883,7 +883,7 @@ router.patch('/:id/approve', async (req, res) => {
     // Aggiorna stato a "confermata" con ID evento Calendar - con rollback su errore
     try {
       // Fix #2: Calcola nuovo statoWorkflow basato su stato esistente (spread-safe)
-      const currentWorkflowState = existingBooking.data()?.statoWorkflow;
+      const currentWorkflowState = bookingDoc.data()?.statoWorkflow;
       const workflowUpdate = syncBookingWorkflowState('confermata', currentWorkflowState);
       
       await bookingRef.update({
