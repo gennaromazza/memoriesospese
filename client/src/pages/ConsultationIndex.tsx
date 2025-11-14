@@ -118,7 +118,7 @@ export default function ConsultationIndex() {
                     <CardContent className="p-4 sm:p-6 pt-0">
                       <Button 
                         variant="outline" 
-                        className="w-full border-sage text-sage hover:bg-sage hover:text-white transition-colors text-sm sm:text-base h-9 sm:h-10"
+                        className="w-full border-sage text-sage hover:bg-sage hover:text-white transition-colors text-sm sm:text-base min-h-[44px] sm:h-10"
                         data-testid={`button-view-templates-${jobType.nome}`}
                       >
                         Visualizza Opzioni
