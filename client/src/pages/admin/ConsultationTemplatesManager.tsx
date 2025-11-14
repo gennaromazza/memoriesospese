@@ -942,9 +942,9 @@ export default function ConsultationTemplatesManager() {
                   <p className="text-sm text-gray-500 mt-1 mb-3">
                     Seleziona i giorni in cui NON accettare prenotazioni
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                     {['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'].map((day, idx) => (
-                      <div key={idx} className="flex items-center space-x-2 border rounded-md px-3 py-2 hover:bg-gray-50">
+                      <div key={idx} className="flex items-center space-x-2 border rounded-md px-3 py-2 min-h-[44px] hover:bg-gray-50 transition-colors">
                         <Checkbox
                           id={`day-${idx}`}
                           checked={formData.excludedDays?.includes(idx)}
@@ -953,7 +953,7 @@ export default function ConsultationTemplatesManager() {
                         />
                         <Label
                           htmlFor={`day-${idx}`}
-                          className="text-sm font-medium leading-none cursor-pointer"
+                          className="text-sm font-medium leading-none cursor-pointer flex-1"
                         >
                           {day}
                         </Label>

@@ -49,7 +49,13 @@ export function useTemplate(id: string | undefined) {
     queryFn: async () => {
       const res = await fetch(`/api/consultations/templates/${id}`);
       if (!res.ok) throw new Error('Failed to fetch template');
-      return res.json();
+      const template = await res.json();
+      
+      // FIX: Garantisci che excludedDays sia sempre un array (fix clonazione template)
+      return {
+        ...template,
+        excludedDays: template.excludedDays || []
+      };
     },
     enabled: !!id
   });
@@ -61,7 +67,13 @@ export function useTemplatesByJobType(jobType: string | undefined) {
     queryFn: async () => {
       const res = await fetch(`/api/consultations/templates/by-job-type/${jobType}`);
       if (!res.ok) throw new Error('Failed to fetch templates');
-      return res.json();
+      const templates = await res.json();
+      
+      // FIX: Garantisci che excludedDays sia sempre un array per tutti i template
+      return templates.map((template: ConsultationTemplate) => ({
+        ...template,
+        excludedDays: template.excludedDays || []
+      }));
     },
     enabled: !!jobType
   });

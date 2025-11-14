@@ -477,6 +477,35 @@ router.post('/create', async (req, res) => {
       );
 
       console.log(`✅ Email "Consulenza Ricevuta" inviata a ${validatedData.cliente.email}`);
+      
+      // 2. Invia email notifica admin (nuova richiesta consulenza)
+      try {
+        const { createAdminNotificationEmailHTML } = await import('./email-routes.js');
+        
+        const adminEmail = studioInfo.email; // Email admin dallo studio
+        const adminEmailHTML = createAdminNotificationEmailHTML(
+          clienteName,
+          validatedData.cliente.email,
+          validatedData.cliente.whatsapp,
+          template.jobType,
+          formattedDate,
+          `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+          null, // productName (non applicabile per consulenze)
+          validatedData.note,
+          studioInfo
+        );
+        
+        await sendGmailEmail(
+          adminEmail,
+          `Nuova Richiesta Consulenza - ${template.jobType}`,
+          adminEmailHTML
+        );
+        
+        console.log(`✅ Email notifica admin consulenza inviata a ${adminEmail}`);
+      } catch (adminEmailError) {
+        console.error('⚠️ Errore invio email notifica admin consulenza:', adminEmailError);
+        // Non bloccare la creazione se email admin fallisce
+      }
     } catch (emailError: any) {
       console.error('⚠️ Errore invio email consulenza ricevuta:', emailError.message);
       emailStatus = 'failed';
