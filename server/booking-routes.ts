@@ -8,6 +8,8 @@ import express from 'express';
 import { getAvailableSlots, type WorkingHours } from './google-calendar.js';
 import { db, FieldValue } from './firebase-admin.js';
 import { Timestamp } from 'firebase-admin/firestore';
+import { syncBookingWorkflowState } from '../shared/workflow-helpers.js';
+import { WorkflowState } from '../shared/schema.js';
 
 const router = express.Router();
 
@@ -593,6 +595,9 @@ router.post('/create', async (req, res) => {
     // 3. NON creare evento Google Calendar qui - verrà creato solo all'approvazione admin
     // Questo previene che prenotazioni non confermate appaiano sul calendario
     
+    // Fix #2: Calc workflow state sync (spread-safe)
+    const workflowUpdate = syncBookingWorkflowState('in_attesa');
+    
     const bookingData: any = {
       campaignId,
       cliente: {
@@ -608,6 +613,7 @@ router.post('/create', async (req, res) => {
       prodotti: prodotti || null, // Multi-product support (OrderItem[])
       note: note || '',
       stato: 'in_attesa',
+      ...workflowUpdate, // Fix #2: Spread workflow state (omits field if {})
       emailRicevutaInviata: false,
       emailConfermataInviata: false,
       googleCalendarEventId: null, // Evento Calendar sarà creato solo all'approvazione
@@ -876,8 +882,13 @@ router.patch('/:id/approve', async (req, res) => {
 
     // Aggiorna stato a "confermata" con ID evento Calendar - con rollback su errore
     try {
+      // Fix #2: Calcola nuovo statoWorkflow basato su stato esistente (spread-safe)
+      const currentWorkflowState = existingBooking.data()?.statoWorkflow;
+      const workflowUpdate = syncBookingWorkflowState('confermata', currentWorkflowState);
+      
       await bookingRef.update({
         stato: 'confermata',
+        ...workflowUpdate, // Fix #2: Spread workflow (omits if {})
         googleCalendarEventId: calendarEventId,
         confermataDa: adminUid || 'admin',
         confermatail: FieldValue.serverTimestamp(),
@@ -1024,8 +1035,13 @@ router.patch('/:id/reject', async (req, res) => {
     }
 
     // Prepara update data
+    // Fix #2: Preserva statoWorkflow esistente per booking annullate (spread-safe)
+    const currentWorkflowState = bookingData.statoWorkflow;
+    const workflowUpdate = syncBookingWorkflowState('annullata', currentWorkflowState);
+    
     let updateData: any = {
       stato: 'annullata',
+      ...workflowUpdate, // Fix #2: Spread workflow (omits if {} for legacy)
       rifiutataDa: adminUid || 'admin',
       rifiutataIl: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -1256,9 +1272,14 @@ router.patch('/:id/status', async (req, res) => {
     
     const oldStato = bookingData.stato;
 
+    // Fix #2: Sync statoWorkflow basato su nuovo stato (spread-safe)
+    const currentWorkflowState = bookingData.statoWorkflow;
+    const workflowUpdate = syncBookingWorkflowState(stato, currentWorkflowState);
+    
     // Se la prenotazione viene annullata e ha un evento Google Calendar, cancellalo
     let updateData: any = {
       stato,
+      ...workflowUpdate, // Fix #2: Spread workflow (omits if {} for legacy/annullata)
       updatedAt: FieldValue.serverTimestamp(),
     };
 
