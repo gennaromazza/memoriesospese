@@ -450,7 +450,7 @@ router.post('/create', async (req, res) => {
     // Invia email conferma ricezione (task 13)
     let emailStatus = 'sent';
     try {
-      const { sendGmailEmail, getStudioContactInfo, createConsultationReceivedEmailHTML } = await import('./email-routes.js');
+      const { sendGmailEmail, getStudioContactInfo, createConsultationReceivedEmailHTML, createAdminNotificationEmailHTML } = await import('./email-routes.js');
       const studioInfo = await getStudioContactInfo();
 
       const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
@@ -461,6 +461,7 @@ router.post('/create', async (req, res) => {
         day: 'numeric' 
       });
 
+      // 1. Email cliente
       const htmlContent = createConsultationReceivedEmailHTML(
         clienteName,
         template.jobType,
@@ -478,10 +479,8 @@ router.post('/create', async (req, res) => {
 
       console.log(`✅ Email "Consulenza Ricevuta" inviata a ${validatedData.cliente.email}`);
       
-      // 2. Invia email notifica admin (nuova richiesta consulenza)
+      // 2. Email notifica admin (nuova richiesta consulenza)
       try {
-        const { createAdminNotificationEmailHTML } = await import('./email-routes.js');
-        
         const adminEmail = studioInfo.email; // Email admin dallo studio
         const adminEmailHTML = createAdminNotificationEmailHTML(
           clienteName,
