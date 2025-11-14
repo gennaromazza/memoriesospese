@@ -14,6 +14,7 @@ import Home from "./pages/Home";
 import GalleryAccess from "./pages/GalleryAccess";
 import Gallery from "./pages/Gallery";
 import SpecialGalleryAccess from "./pages/SpecialGalleryAccess";
+import AdminGalleryAccess from "./pages/AdminGalleryAccess";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import Faq from "./pages/admin/Faq";
@@ -41,7 +42,7 @@ import ConsultationIndex from "./pages/ConsultationIndex";
 import ConsultationTemplates from "./pages/ConsultationTemplates";
 import ConsultationBooking from "./pages/ConsultationBooking";
 import ConsultationTemplatesManager from "./pages/admin/ConsultationTemplatesManager";
-import ConsultationsManager from "./pages/admin/ConsultationsManager";
+import AdminConsultationsRoute from "./pages/admin/AdminConsultationsRoute";
 
 // Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
 import './scripts/seed-job-types';
@@ -86,6 +87,7 @@ function AppRoutes() {
       <Route path="/admin" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/admin/faq" component={Faq} />
+      <Route path="/admin/galleries/:galleryId" component={AdminGalleryAccess} />
       <Route path="/admin/galleries/:galleryId/questionnaire" component={QuestionnaireManager} />
       <Route path="/admin/gallery/:galleryId/manage" component={GalleryManagementWorkspace} />
       <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
@@ -93,7 +95,7 @@ function AppRoutes() {
       <Route path="/admin/jobs/:jobId" component={JobDetailPage} />
       <Route path="/admin/import" component={ImportDataPage} />
       <Route path="/admin/consulenze/templates" component={ConsultationTemplatesManager} />
-      <Route path="/admin/consulenze" component={ConsultationsManager} />
+      <Route path="/admin/consulenze" component={AdminConsultationsRoute} />
       
       {/* Public questionnaire route with noindex/nofollow */}
       <Route path="/q/:galleryId" component={QuestionnaireForm} />
