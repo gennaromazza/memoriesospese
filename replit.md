@@ -40,6 +40,7 @@ Image Studio è una piattaforma all-in-one per fotografi professionisti che rivo
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and informative toast notifications.
 - **Admin Dashboard:** Enhanced navigation with dropdown menus for key modules (Consulenze, Prenotazioni, Impostazioni), and a Notification Center for unread activity. **Notification Deeplinks:** Click-to-open integration for approved photo selections and bookings with automatic scroll and highlight.
 - **Workflow State Management:** Booking/Order workflow tracking system with unified WorkflowState enum (6 states: shooting_da_svolgere → shooting_completato → in_lavorazione → in_attesa_selezione → completato → consegnato). Admin manages states via touch-friendly dropdown with confirmation dialog in BookingsManager. Email notifications to clients integrated (email delivery via server endpoints). **Mobile-First UI:** Touch-friendly buttons (h-12), responsive card layout, optimized spacing for smartphone usage.
+- **Multi-Product Booking Support:** Backend `/api/booking/create` now supports `prodotti: OrderItem[]` array for bookings with multiple products. Server-side validation ensures products belong to campaign. Maintains backward compatibility with legacy `prodottoId/prodottoNome` fields. Prevents data loss when admin creates bookings with product bundles.
 
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting

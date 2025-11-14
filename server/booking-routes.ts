@@ -422,8 +422,9 @@ router.post('/available-slots', async (req, res) => {
  *   cliente: { nome, cognome, email, whatsapp },
  *   dataShootingInizio: ISO string,
  *   dataShootingFine: ISO string,
- *   prodottoId?: string,
- *   prodottoNome?: string,
+ *   prodottoId?: string (legacy - single product),
+ *   prodottoNome?: string (legacy - single product),
+ *   prodotti?: OrderItem[] (multi-product support - preferred),
  *   note: string,
  *   workingHours: { apertura, pausaInizio, pausaFine, chiusura },
  *   durataMinuti: number
@@ -438,6 +439,7 @@ router.post('/create', async (req, res) => {
       dataShootingFine,
       prodottoId,
       prodottoNome,
+      prodotti,
       note,
       workingHours,
       durataMinuti,
@@ -494,6 +496,38 @@ router.post('/create', async (req, res) => {
           message: 'Il giorno selezionato non è disponibile per le prenotazioni in questa campagna.'
         });
       }
+    }
+
+    // VALIDATION: Verifica che i prodotti selezionati appartengano alla campagna
+    const prodottiDisponibili = campaign?.prodottiDisponibili || [];
+    
+    // Normalizza prodottiDisponibili a array di ID (supporta sia oggetti che stringhe)
+    const prodottiDisponibiliIds = prodottiDisponibili.map((p: any) => 
+      typeof p === 'string' ? p : p.id
+    );
+    
+    // Validazione multi-prodotto (se fornito)
+    if (prodotti && Array.isArray(prodotti) && prodotti.length > 0) {
+      const invalidProducts = prodotti.filter((item: any) => 
+        !prodottiDisponibiliIds.includes(item.prodottoId)
+      );
+      
+      if (invalidProducts.length > 0) {
+        console.warn(`⚠️ Prodotti non validi per campagna ${campaignId}:`, invalidProducts);
+        return res.status(400).json({ 
+          error: 'Prodotti non validi',
+          message: 'Alcuni prodotti selezionati non sono disponibili per questa campagna.'
+        });
+      }
+    }
+    
+    // Validazione legacy single-product (se fornito)
+    if (prodottoId && !prodottiDisponibiliIds.includes(prodottoId)) {
+      console.warn(`⚠️ Prodotto legacy non valido per campagna ${campaignId}: ${prodottoId}`);
+      return res.status(400).json({ 
+        error: 'Prodotto non valido',
+        message: 'Il prodotto selezionato non è disponibile per questa campagna.'
+      });
     }
 
     // 1. Ricontrolla disponibilità slot via Google Calendar
@@ -569,8 +603,9 @@ router.post('/create', async (req, res) => {
       },
       dataShootingInizio: Timestamp.fromDate(slotStart),
       dataShootingFine: Timestamp.fromDate(slotEnd),
-      prodottoId: prodottoId || null,
-      prodottoNome: prodottoNome || null,
+      prodottoId: prodottoId || null, // Legacy single-product support
+      prodottoNome: prodottoNome || null, // Legacy single-product support
+      prodotti: prodotti || null, // Multi-product support (OrderItem[])
       note: note || '',
       stato: 'in_attesa',
       emailRicevutaInviata: false,
@@ -579,6 +614,13 @@ router.post('/create', async (req, res) => {
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
+    
+    console.log(`✅ Booking data prepared:`, {
+      campaignId,
+      hasLegacyProduct: !!prodottoId,
+      hasMultiProduct: !!prodotti,
+      productsCount: prodotti?.length || 0
+    });
 
     // Aggiungi flag prenotazione manuale se presente
     if (isManual) {
