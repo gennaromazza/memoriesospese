@@ -42,6 +42,29 @@ interface AuthRequest extends Request {
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
 /**
+ * Helper: Normalizza Firestore Timestamp in Date
+ * Gestisce: { seconds, nanoseconds }, .toDate(), ISO string, Date object
+ */
+function normalizeTimestampToDate(timestamp: any): Date {
+  if (!timestamp) {
+    throw new Error('Timestamp is null or undefined');
+  }
+  
+  // Firestore Timestamp serializzato come { seconds, nanoseconds }
+  if (typeof timestamp === 'object' && 'seconds' in timestamp) {
+    return new Date(timestamp.seconds * 1000);
+  }
+  
+  // Firestore Timestamp con metodo .toDate()
+  if (typeof timestamp.toDate === 'function') {
+    return timestamp.toDate();
+  }
+  
+  // ISO string o Date object
+  return new Date(timestamp);
+}
+
+/**
  * Multer setup per upload immagini template
  */
 const upload = multer({
@@ -505,7 +528,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
     }
 
     // Crea evento Google Calendar
-    const consultationDate = consultation.dataConsulenza.toDate();
+    const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
     const [startHour, startMin] = consultation.orarioInizio.split(':').map(Number);
     const [endHour, endMin] = consultation.orarioFine.split(':').map(Number);
 
@@ -670,7 +693,7 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
       const studioInfo = await getStudioContactInfo();
 
       const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
-      const rawDate = consultation.dataConsulenza.toDate();
+      const rawDate = normalizeTimestampToDate(consultation.dataConsulenza);
       const formattedDate = rawDate.toLocaleDateString('it-IT', { 
         weekday: 'long', 
         year: 'numeric', 
@@ -779,7 +802,7 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
       ? new Date(consultation.jobDataCollected.eventDate as string)
       : (() => {
           // Fallback: data consulenza + 3 mesi
-          const estimatedDate = consultation.dataConsulenza.toDate();
+          const estimatedDate = normalizeTimestampToDate(consultation.dataConsulenza);
           estimatedDate.setMonth(estimatedDate.getMonth() + 3);
           return estimatedDate;
         })();

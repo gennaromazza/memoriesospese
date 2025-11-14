@@ -50,6 +50,7 @@ export function useNotifications() {
         const consultationsRef = collection(db, 'consultations');
         const consultationsQuery = query(
           consultationsRef,
+          where('stato', '==', 'in_attesa'),
           where('dataVisualizzazione', '==', null)
         );
         const consultationsSnap = await getDocs(consultationsQuery);
@@ -106,8 +107,9 @@ export function useNotifications() {
       // Se necessario riabilitare, usare deeplink corretto con bookingId della gallery associata.
       
       try {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        const sevenDaysAgoForSelections = new Date();
+        sevenDaysAgoForSelections.setDate(sevenDaysAgoForSelections.getDate() - 7);
+        sevenDaysAgoForSelections.setHours(0, 0, 0, 0);
         
         const galleriesRef = collection(db, 'galleries');
         const completedSelectionsQuery = query(
@@ -120,7 +122,7 @@ export function useNotifications() {
           const data = doc.data();
           const updatedDate = data.updatedAt?.toDate ? data.updatedAt.toDate() : null;
           
-          if (!updatedDate || updatedDate < todayStart) return;
+          if (!updatedDate || updatedDate < sevenDaysAgoForSelections) return;
           
           const bookingId = data.bookingId;
           

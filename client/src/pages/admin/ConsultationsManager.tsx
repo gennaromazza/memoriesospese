@@ -2,8 +2,13 @@
  * Consultations Manager - Admin page per gestione prenotazioni consulenze
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
+
+interface ConsultationsManagerProps {
+  highlightConsultationId?: string | null;
+  onHighlightComplete?: () => void;
+}
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import {
   useConsultations,
@@ -84,34 +89,42 @@ const STATUS_CONFIG: Record<ConsultationStatus, { label: string; variant: string
   annullata: { label: 'Annullata', variant: 'bg-red-100 text-red-700 border-red-200', icon: XCircle }
 };
 
-const formatDataCreazione = (dataCreazione: any) => {
+/**
+ * Helper: Normalizza Firestore Timestamp in Date
+ * Supporta: { seconds }, .toDate(), ISO string, Date object
+ */
+const normalizeTimestampToDate = (timestamp: any): Date | null => {
   try {
-    if (!dataCreazione) return 'Data non disponibile';
+    if (!timestamp) return null;
     
-    // Firestore Timestamp serializzato con proprietà seconds
-    if (dataCreazione.seconds) {
-      return format(new Date(dataCreazione.seconds * 1000), 'd MMM yyyy', { locale: it });
+    // Firestore Timestamp con proprietà seconds
+    if (typeof timestamp === 'object' && typeof timestamp.seconds === 'number') {
+      return new Date(timestamp.seconds * 1000);
     }
     
-    // Firestore Timestamp con metodo toDate()
-    if (typeof dataCreazione.toDate === 'function') {
-      return format(dataCreazione.toDate(), 'd MMM yyyy', { locale: it });
+    // Firestore Timestamp con metodo .toDate()
+    if (typeof timestamp.toDate === 'function') {
+      return timestamp.toDate();
     }
     
-    // Stringa ISO o Date object
-    const date = new Date(dataCreazione);
-    if (!isNaN(date.getTime())) {
-      return format(date, 'd MMM yyyy', { locale: it });
-    }
-    
-    return 'Data non disponibile';
+    // ISO string o Date object
+    const date = new Date(timestamp);
+    return isNaN(date.getTime()) ? null : date;
   } catch (error) {
-    console.error('Error parsing dataCreazione:', error);
-    return 'Data non disponibile';
+    console.error('[normalizeTimestampToDate] Error:', error);
+    return null;
   }
 };
 
-export default function ConsultationsManager() {
+const formatDataCreazione = (dataCreazione: any) => {
+  const date = normalizeTimestampToDate(dataCreazione);
+  return date ? format(date, 'd MMM yyyy', { locale: it }) : 'Data non disponibile';
+};
+
+export default function ConsultationsManager({
+  highlightConsultationId,
+  onHighlightComplete
+}: ConsultationsManagerProps = {}) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   
@@ -124,6 +137,12 @@ export default function ConsultationsManager() {
   const [convertConfirmId, setConvertConfirmId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  
+  // Refs per scroll deeplink
+  const consultationRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Auth state
   const { user, isLoading: authLoading } = useFirebaseAuth();
@@ -145,6 +164,74 @@ export default function ConsultationsManager() {
     });
     return map;
   }, [templates]);
+  
+  // TODO: Implementare batch mark-all-viewed per evitare N chiamate API
+  // useEffect con throttling per auto-mark consulenze pendenti
+  
+  // 🎯 Deeplink: scroll + highlight consultation da URL param
+  useEffect(() => {
+    // Cleanup timeout precedenti
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    if (clearHighlightTimeoutRef.current) {
+      clearTimeout(clearHighlightTimeoutRef.current);
+      clearHighlightTimeoutRef.current = null;
+    }
+
+    if (!highlightConsultationId) return;
+
+    // Attendi caricamento dati
+    if (isLoading) return;
+
+    // Cerca consultation nel dataset
+    const targetConsultation = consultations.find((c) => c.id === highlightConsultationId);
+
+    if (!targetConsultation) {
+      console.warn(`Consultation ${highlightConsultationId} non trovata`);
+      onHighlightComplete?.();
+      return;
+    }
+
+    // Reset filtri per mostrare tutte le consulenze
+    setFilterStatus('all');
+    setSearchQuery('');
+
+    // Timeout per assicurarsi che il DOM sia renderizzato
+    highlightTimeoutRef.current = setTimeout(() => {
+      const element = consultationRefs.current[highlightConsultationId];
+      if (element) {
+        // Scroll smooth
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+
+        // Aggiungi highlight temporaneo
+        setHighlightedId(highlightConsultationId);
+
+        // Rimuovi highlight dopo 3 secondi
+        clearHighlightTimeoutRef.current = setTimeout(() => {
+          setHighlightedId(null);
+          onHighlightComplete?.();
+        }, 3000);
+      } else {
+        console.warn(`DOM element per consultation ${highlightConsultationId} non trovato`);
+        onHighlightComplete?.();
+      }
+    }, 300);
+
+    // Cleanup
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+      if (clearHighlightTimeoutRef.current) {
+        clearTimeout(clearHighlightTimeoutRef.current);
+      }
+    };
+  }, [highlightConsultationId, consultations, isLoading, onHighlightComplete]);
   
   const handleViewDetails = async (consultation: Consultation) => {
     setSelectedConsultation(consultation);
@@ -278,13 +365,8 @@ export default function ConsultationsManager() {
   
   const sortedConsultations = useMemo(() => {
     return [...filteredConsultations].sort((a, b) => {
-      const dateA = typeof a.dataConsulenza.toDate === 'function' 
-        ? a.dataConsulenza.toDate().getTime()
-        : new Date(a.dataConsulenza as any).getTime();
-      const dateB = typeof b.dataConsulenza.toDate === 'function' 
-        ? b.dataConsulenza.toDate().getTime()
-        : new Date(b.dataConsulenza as any).getTime();
-      
+      const dateA = normalizeTimestampToDate(a.dataConsulenza)?.getTime() || 0;
+      const dateB = normalizeTimestampToDate(b.dataConsulenza)?.getTime() || 0;
       return dateB - dateA;
     });
   }, [filteredConsultations]);
@@ -408,39 +490,24 @@ export default function ConsultationsManager() {
                   const template = templatesMap[consultation.templateId];
                   const config = STATUS_CONFIG[consultation.stato];
                   const jobDataCount = Object.keys(consultation.jobDataCollected || {}).length;
+                  const isHighlighted = highlightedId === consultation.id;
                   
                   return (
-                    <TableRow key={consultation.id} data-testid={`row-consultation-${consultation.id}`}>
+                    <TableRow 
+                      key={consultation.id} 
+                      data-testid={`row-consultation-${consultation.id}`}
+                      ref={(el) => {
+                        consultationRefs.current[consultation.id] = el;
+                      }}
+                      className={isHighlighted ? 'bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-500 shadow-lg transition-all' : ''}
+                    >
                       <TableCell>
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1 text-sm font-medium">
                             <Calendar className="w-3 h-3" />
                             {(() => {
-                              try {
-                                if (!consultation.dataConsulenza) return 'Data non disponibile';
-                                
-                                let date: Date;
-                                
-                                // Handle Firestore Timestamp with seconds property
-                                if (typeof (consultation.dataConsulenza as any).seconds === 'number') {
-                                  date = new Date((consultation.dataConsulenza as any).seconds * 1000);
-                                }
-                                // Handle Firestore Timestamp with toDate method
-                                else if (typeof (consultation.dataConsulenza as any).toDate === 'function') {
-                                  date = (consultation.dataConsulenza as any).toDate();
-                                }
-                                // Handle ISO string or Date object
-                                else {
-                                  date = new Date(consultation.dataConsulenza as any);
-                                }
-                                
-                                if (isNaN(date.getTime())) return 'Data non valida';
-                                
-                                return format(date, 'dd MMM yyyy', { locale: it });
-                              } catch (error) {
-                                console.error('[ConsultationsManager] Errore parsing data:', error, consultation);
-                                return 'Errore data';
-                              }
+                              const date = normalizeTimestampToDate(consultation.dataConsulenza);
+                              return date ? format(date, 'dd MMM yyyy', { locale: it }) : 'Data non valida';
                             })()}
                           </div>
                           <div className="flex items-center gap-1 text-xs text-gray-500">
@@ -605,36 +672,8 @@ export default function ConsultationsManager() {
                   <Label className="text-xs text-gray-500">Data</Label>
                   <p className="font-medium">
                     {(() => {
-                      try {
-                        if (!selectedConsultation.dataConsulenza) {
-                          return 'Data non disponibile';
-                        }
-                        
-                        let consultationDate: Date;
-                        
-                        // Handle Firestore Timestamp serialized as plain object { seconds, nanoseconds }
-                        if (typeof (selectedConsultation.dataConsulenza as any).seconds === 'number') {
-                          const seconds = (selectedConsultation.dataConsulenza as any).seconds;
-                          consultationDate = new Date(seconds * 1000);
-                        }
-                        // Handle Firestore Timestamp with toDate method
-                        else if (typeof (selectedConsultation.dataConsulenza as any).toDate === 'function') {
-                          consultationDate = (selectedConsultation.dataConsulenza as any).toDate();
-                        }
-                        // Handle ISO string or Date object
-                        else {
-                          consultationDate = new Date(selectedConsultation.dataConsulenza as any);
-                        }
-                        
-                        if (isNaN(consultationDate.getTime())) {
-                          return 'Data non disponibile';
-                        }
-                        
-                        return format(consultationDate, 'dd MMMM yyyy', { locale: it });
-                      } catch (error) {
-                        console.error('[ConsultationsManager] Error formatting date:', error);
-                        return 'Data non disponibile';
-                      }
+                      const date = normalizeTimestampToDate(selectedConsultation.dataConsulenza);
+                      return date ? format(date, 'dd MMMM yyyy', { locale: it }) : 'Data non disponibile';
                     })()}
                   </p>
                 </div>

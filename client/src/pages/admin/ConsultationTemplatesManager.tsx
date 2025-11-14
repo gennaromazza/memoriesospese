@@ -492,7 +492,7 @@ export default function ConsultationTemplatesManager() {
         </div>
         <Button
           onClick={handleOpenCreate}
-          className="bg-[hsl(var(--terra))] hover:bg-[hsl(var(--terra))]/90"
+          className="bg-terracotta hover:bg-terracotta/90 text-white"
           data-testid="button-create-template"
         >
           <Plus className="w-4 h-4 mr-2" />

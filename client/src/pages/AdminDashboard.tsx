@@ -227,6 +227,7 @@ export default function AdminDashboard() {
   });
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
+  const [highlightConsultationId, setHighlightConsultationId] = useState<string | null>(null);
 
   // Detect if admin came from a specific gallery
   const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
@@ -338,10 +339,7 @@ export default function AdminDashboard() {
       if (mappedTab === 'consulenze') {
         setActiveConsultationSection('consulenze');
         if (consultation) {
-          setTimeout(() => {
-            const consultationElement = document.querySelector(`[data-consultation-id="${consultation}"]`);
-            consultationElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 500);
+          setHighlightConsultationId(consultation);
         }
       }
     }
@@ -1780,7 +1778,10 @@ export default function AdminDashboard() {
                 </TabsList>
 
                 <TabsContent value="consulenze">
-                  <ConsultationsManager />
+                  <ConsultationsManager 
+                    highlightConsultationId={highlightConsultationId}
+                    onHighlightComplete={() => setHighlightConsultationId(null)}
+                  />
                 </TabsContent>
 
                 <TabsContent value="consulenze-templates">
