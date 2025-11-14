@@ -700,6 +700,9 @@ export async function getAvailableSlotsForDate(
 ): Promise<ConsultationSlot[]> {
   const dayOfWeek = date.getDay();
   
+  // 🔍 DEBUG: Log dettagliato per diagnosi bug lunedì
+  console.log(`[getAvailableSlotsForDate] 🔍 DEBUG - Date: ${date.toISOString()}, dayOfWeek: ${dayOfWeek}`);
+  
   // Check 1: Giorno escluso dal template?
   if (template?.excludedDays && template.excludedDays.includes(dayOfWeek)) {
     console.log(`[getAvailableSlotsForDate] Giorno ${dayOfWeek} escluso dal template ${template.nome}`);
@@ -708,9 +711,20 @@ export async function getAvailableSlotsForDate(
   
   // Check 2: Determina working hours (priorità: template > parameter > default)
   const hours = template?.customWorkingHours || workingHours || DEFAULT_CONSULTATION_HOURS;
+  console.log(`[getAvailableSlotsForDate] 🔍 Working hours array length: ${hours.length}`);
+  console.log(`[getAvailableSlotsForDate] 🔍 Looking for giornoSettimana: ${dayOfWeek}`);
+  
   const dayConfig = hours.find(h => h.giornoSettimana === dayOfWeek);
   
+  console.log(`[getAvailableSlotsForDate] 🔍 dayConfig found:`, dayConfig ? {
+    giornoSettimana: dayConfig.giornoSettimana,
+    attivo: dayConfig.attivo,
+    orarioInizio: dayConfig.orarioInizio,
+    orarioFine: dayConfig.orarioFine
+  } : 'NOT FOUND');
+  
   if (!dayConfig || !dayConfig.attivo) {
+    console.log(`[getAvailableSlotsForDate] ⚠️ Giorno ${dayOfWeek} non disponibile - dayConfig:`, dayConfig);
     return []; // Giorno non disponibile
   }
   
