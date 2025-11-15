@@ -1,0 +1,27 @@
+chunk-6EHJDARK.js?v=f8b41a95:1762 Uncaught RangeError: Invalid time value
+    at JobDetailPage.tsx:483:53
+    at Array.map (<anonymous>)
+    at JobDetailPage (JobDetailPage.tsx:456:29)
+chunk-SP6A6TOT.js?v=f8b41a95:14032 The above error occurred in the <JobDetailPage> component:
+
+    at JobDetailPage (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/pages/JobDetailPage.tsx:56:21)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=f8b41a95:206:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=f8b41a95:262:17)
+    at AppRoutes (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/App.tsx:78:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+    at FirebaseAuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-R66E4UXK.js?v=f8b41a95:38:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=f8b41a95:65:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=f8b41a95:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=f8b41a95:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=f8b41a95:2763:3)
+    at ErrorBoundary (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=f8b41a95:161:17)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:55:34)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+logger.ts:88 [2025-11-15T12:15:17.200Z] [ERROR] [ErrorBoundary] React Error Boundary catturato errore RangeError: Invalid time value
+    at JobDetailPage.tsx:483:53
+    at Array.map (<anonymous>)
+    at JobDetailPage (JobDetailPage.tsx:456:29)

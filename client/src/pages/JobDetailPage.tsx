@@ -90,15 +90,15 @@ export default function JobDetailPage() {
         return {
           id: doc.id,
           ...data,
-          // Normalize Firestore Timestamps to Date objects
-          createdAt: data.createdAt?.toDate ? data.createdAt : data.createdAt,
-          updatedAt: data.updatedAt?.toDate ? data.updatedAt : data.updatedAt,
-          sentAt: data.sentAt?.toDate ? data.sentAt : data.sentAt,
-          viewedAt: data.viewedAt?.toDate ? data.viewedAt : data.viewedAt,
-          expiresAt: data.expiresAt?.toDate ? data.expiresAt : data.expiresAt,
+          // Normalize Firestore Timestamps to Date objects (CALL .toDate())
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+          sentAt: data.sentAt?.toDate ? data.sentAt.toDate() : data.sentAt,
+          viewedAt: data.viewedAt?.toDate ? data.viewedAt.toDate() : data.viewedAt,
+          expiresAt: data.expiresAt?.toDate ? data.expiresAt.toDate() : data.expiresAt,
           signature: data.signature ? {
             ...data.signature,
-            signedAt: data.signature.signedAt?.toDate ? data.signature.signedAt : data.signature.signedAt
+            signedAt: data.signature.signedAt?.toDate ? data.signature.signedAt.toDate() : data.signature.signedAt
           } : undefined
         } as Quote;
       });
