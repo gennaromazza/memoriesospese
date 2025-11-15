@@ -219,6 +219,21 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       return res.status(404).json({ error: 'Dati template consulenza non trovati' });
     }
     
+    // Validazione sicurezza: template deve essere attivo e del tipo giusto
+    if (!templateData.attiva) {
+      return res.status(400).json({ 
+        error: 'Template consulenza non attivo',
+        details: 'Il template selezionato è stato disattivato' 
+      });
+    }
+    
+    if (templateData.jobType !== job.jobType) {
+      return res.status(400).json({ 
+        error: 'Template consulenza non compatibile',
+        details: `Template per "${templateData.jobType}" non compatibile con job tipo "${job.jobType}"` 
+      });
+    }
+    
     const template = {
       id: templateDoc.id,
       data: templateData
