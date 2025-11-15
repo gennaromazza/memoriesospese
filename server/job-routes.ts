@@ -171,11 +171,10 @@ router.post('/:id/send-consultation-request', async (req, res) => {
     }
     
     // 3. Trova template consulenza per jobType (prendo il primo attivo)
+    // Query semplificata per evitare indice composito - ordiniamo lato server
     const templatesSnapshot = await db.collection('consultation_templates')
       .where('jobType', '==', job.jobType)
       .where('attiva', '==', true)
-      .orderBy('ordine', 'asc')
-      .limit(1)
       .get();
     
     if (templatesSnapshot.empty) {
@@ -184,7 +183,12 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       });
     }
     
-    const template = templatesSnapshot.docs[0];
+    // Ordina lato server per evitare indice composito Firestore
+    const sortedTemplates = templatesSnapshot.docs
+      .map(doc => ({ id: doc.id, data: doc.data() }))
+      .sort((a, b) => (a.data.ordine || 0) - (b.data.ordine || 0));
+    
+    const template = sortedTemplates[0];
     const templateId = template.id;
     
     // 4. Genera link consulenza pre-compilato
@@ -197,7 +201,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
     // 5. Invia notifica
     let eventMetadata: any = {
       templateId,
-      templateNome: template.data().nome,
+      templateNome: template.data.nome,
       channel,
       consultationLink
     };
@@ -206,7 +210,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       // Invia email
       const studioInfo = await getStudioContactInfo();
       
-      const subject = `Prenota la tua consulenza - ${template.data().nome}`;
+      const subject = `Prenota la tua consulenza - ${template.data.nome}`;
       const htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -228,7 +232,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
             </div>
             <div class="content">
               <p>Ciao <strong>${cliente.nome}</strong>,</p>
-              <p>È arrivato il momento di organizzare la tua <strong>${template.data().nome}</strong> per il tuo evento <strong>${job.nomeEvento}</strong>!</p>
+              <p>È arrivato il momento di organizzare la tua <strong>${template.data.nome}</strong> per il tuo evento <strong>${job.nomeEvento}</strong>!</p>
               <p>Clicca sul pulsante qui sotto per prenotare l'appuntamento che preferisci:</p>
               <div style="text-align: center;">
                 <a href="${consultationLink}" class="button">Prenota Consulenza</a>
@@ -260,7 +264,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       eventMetadata.emailSent = true;
     } else {
       // WhatsApp
-      const message = `Ciao ${cliente.nome}! 📸\n\nÈ arrivato il momento di prenotare la tua ${template.data().nome} per ${job.nomeEvento}.\n\nClicca qui per scegliere l'appuntamento: ${consultationLink}`;
+      const message = `Ciao ${cliente.nome}! 📸\n\nÈ arrivato il momento di prenotare la tua ${template.data.nome} per ${job.nomeEvento}.\n\nClicca qui per scegliere l'appuntamento: ${consultationLink}`;
       const whatsappNumber = cliente.whatsapp?.replace(/[^0-9]/g, '') || '';
       
       if (!whatsappNumber) {
@@ -275,7 +279,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       jobId: id,
       tipo: 'consulenza_inviata',
-      descrizione: `Richiesta consulenza "${template.data().nome}" inviata tramite ${channel}`,
+      descrizione: `Richiesta consulenza "${template.data.nome}" inviata tramite ${channel}`,
       data: Timestamp.now(),
       metadata: eventMetadata
     };
