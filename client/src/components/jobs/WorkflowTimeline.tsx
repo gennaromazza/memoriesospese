@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Job, JobTimelineEvent } from '@shared/jobs-types';
 import { DEFAULT_WORKFLOW_STEPS, WorkflowStep } from '@shared/job-workflow-types';
+import { ConsultationTemplate } from '@shared/consultation-types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { 
@@ -27,9 +29,12 @@ import {
   LucideIcon,
   Send,
   MessageCircle,
-  Mail
+  Mail,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 interface WorkflowTimelineProps {
   job: Job;
@@ -60,8 +65,16 @@ export default function WorkflowTimeline({
   isAdmin = false 
 }: WorkflowTimelineProps) {
   const { toast } = useToast();
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showConsultationDialog, setShowConsultationDialog] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [sendingConsultation, setSendingConsultation] = useState(false);
+
+  // Fetch consultation templates per questo jobType
+  const { data: templates = [], isLoading: loadingTemplates } = useQuery<ConsultationTemplate[]>({
+    queryKey: ['/api/consultation-templates', job.jobType],
+    enabled: showTemplateSelector && !!job.jobType,
+  });
 
   const steps = workflowSteps || DEFAULT_WORKFLOW_STEPS.map(config => ({
     id: config.id,
@@ -87,11 +100,39 @@ export default function WorkflowTimeline({
     }
   };
 
+  const handleOpenTemplateSelector = () => {
+    setShowTemplateSelector(true);
+    setSelectedTemplateId(null);
+  };
+
+  const handleSelectTemplate = () => {
+    if (!selectedTemplateId) {
+      toast({
+        title: 'Selezione mancante',
+        description: 'Seleziona un template consulenza',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setShowTemplateSelector(false);
+    setShowConsultationDialog(true);
+  };
+
   const handleSendConsultation = async (channel: 'email' | 'whatsapp') => {
+    if (!selectedTemplateId) {
+      toast({
+        title: 'Errore',
+        description: 'Template consulenza non selezionato',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSendingConsultation(true);
     try {
       const response = await apiRequest('POST', `/api/jobs/${job.id}/send-consultation-request`, {
-        channel
+        channel,
+        templateId: selectedTemplateId
       });
       const data = await response.json();
       
@@ -108,6 +149,7 @@ export default function WorkflowTimeline({
       });
       
       setShowConsultationDialog(false);
+      setSelectedTemplateId(null);
       onEventAdded?.();
     } catch (error: any) {
       toast({
@@ -230,11 +272,11 @@ export default function WorkflowTimeline({
               <Button
                 variant="outline"
                 className="w-full justify-start"
-                onClick={() => setShowConsultationDialog(true)}
+                onClick={handleOpenTemplateSelector}
                 data-testid="button-send-consultation"
               >
                 <Eye className="h-4 w-4 mr-2" />
-                Appuntamento Visione File
+                Appuntamento Consulenza
               </Button>
               <Button
                 variant="outline"
@@ -250,11 +292,82 @@ export default function WorkflowTimeline({
         )}
       </div>
 
-      {/* Dialog: Scelta canale invio consulenza */}
+      {/* Dialog 1: Selezione template consulenza */}
+      <Dialog open={showTemplateSelector} onOpenChange={setShowTemplateSelector}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Seleziona Tipo Consulenza</DialogTitle>
+            <DialogDescription>
+              Scegli quale consulenza inviare al cliente per {job.nomeEvento}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {loadingTemplates ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-sm text-muted-foreground">Caricamento template...</div>
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-sm text-muted-foreground">
+                  Nessun template consulenza disponibile per {job.jobType}
+                </div>
+              </div>
+            ) : (
+              <RadioGroup value={selectedTemplateId || ''} onValueChange={setSelectedTemplateId}>
+                <div className="space-y-3">
+                  {templates.map((template) => (
+                    <div
+                      key={template.id}
+                      className={cn(
+                        "flex items-start space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-colors",
+                        selectedTemplateId === template.id
+                          ? "border-primary bg-primary/5"
+                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                      )}
+                      onClick={() => setSelectedTemplateId(template.id)}
+                    >
+                      <RadioGroupItem value={template.id} id={template.id} />
+                      <Label htmlFor={template.id} className="flex-1 cursor-pointer">
+                        <div className="font-medium text-sm">{template.nome}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {template.descrizione}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            {template.durataMinuti} minuti
+                          </span>
+                        </div>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </RadioGroup>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowTemplateSelector(false)}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleSelectTemplate}
+              disabled={!selectedTemplateId || loadingTemplates}
+              data-testid="button-confirm-template"
+            >
+              Continua
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog 2: Scelta canale invio consulenza */}
       <Dialog open={showConsultationDialog} onOpenChange={setShowConsultationDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invia Richiesta Consulenza Visione</DialogTitle>
+            <DialogTitle>Invia Richiesta Consulenza</DialogTitle>
             <DialogDescription>
               Scegli come inviare la richiesta di appuntamento al cliente
             </DialogDescription>

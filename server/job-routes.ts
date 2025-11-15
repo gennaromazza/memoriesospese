@@ -11,6 +11,40 @@ import { sendGmailEmail, getStudioContactInfo } from './email-routes.js';
 const router = express.Router();
 
 /**
+ * GET /api/consultation-templates?jobType=Matrimonio
+ * Recupera tutti i template di consulenza attivi per un jobType specifico
+ */
+router.get('/consultation-templates', async (req, res) => {
+  try {
+    const { jobType } = req.query;
+    
+    if (!jobType) {
+      return res.status(400).json({ error: 'jobType query parameter richiesto' });
+    }
+    
+    const templatesSnapshot = await db.collection('consultation_templates')
+      .where('jobType', '==', jobType)
+      .where('attiva', '==', true)
+      .get();
+    
+    const templates = templatesSnapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .sort((a: any, b: any) => (a.ordine || 0) - (b.ordine || 0));
+    
+    res.json(templates);
+  } catch (error: any) {
+    console.error('[Get Consultation Templates] Error:', error);
+    res.status(500).json({ 
+      error: 'Errore durante recupero template consulenza',
+      details: error.message 
+    });
+  }
+});
+
+/**
  * GET /api/jobs/check-calendar
  * Controlla conflitti su Google Calendar e bookings per una data/orario specifico
  * 
@@ -141,10 +175,14 @@ router.get('/check-calendar', async (req, res) => {
 router.post('/:id/send-consultation-request', async (req, res) => {
   try {
     const { id } = req.params;
-    const { channel } = req.body;
+    const { channel, templateId } = req.body;
     
     if (!channel || !['email', 'whatsapp'].includes(channel)) {
       return res.status(400).json({ error: 'channel richiesto (email | whatsapp)' });
+    }
+    
+    if (!templateId) {
+      return res.status(400).json({ error: 'templateId richiesto' });
     }
     
     // 1. Recupera job
@@ -170,26 +208,16 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       return res.status(404).json({ error: 'Dati cliente non trovati' });
     }
     
-    // 3. Trova template consulenza per jobType (prendo il primo attivo)
-    // Query semplificata per evitare indice composito - ordiniamo lato server
-    const templatesSnapshot = await db.collection('consultation_templates')
-      .where('jobType', '==', job.jobType)
-      .where('attiva', '==', true)
-      .get();
-    
-    if (templatesSnapshot.empty) {
-      return res.status(404).json({ 
-        error: `Nessun template consulenza attivo trovato per tipo lavoro: ${job.jobType}` 
-      });
+    // 3. Recupera template consulenza tramite ID
+    const templateDoc = await db.collection('consultation_templates').doc(templateId).get();
+    if (!templateDoc.exists) {
+      return res.status(404).json({ error: 'Template consulenza non trovato' });
     }
     
-    // Ordina lato server per evitare indice composito Firestore
-    const sortedTemplates = templatesSnapshot.docs
-      .map(doc => ({ id: doc.id, data: doc.data() }))
-      .sort((a, b) => (a.data.ordine || 0) - (b.data.ordine || 0));
-    
-    const template = sortedTemplates[0];
-    const templateId = template.id;
+    const template = {
+      id: templateDoc.id,
+      data: templateDoc.data()
+    };
     
     // 4. Genera link consulenza pre-compilato
     const baseUrl = process.env.REPL_SLUG 
