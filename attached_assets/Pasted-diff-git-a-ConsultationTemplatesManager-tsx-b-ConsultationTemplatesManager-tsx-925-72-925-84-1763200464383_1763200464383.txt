@@ -1,0 +1,239 @@
+diff --git a/ConsultationTemplatesManager.tsx b/ConsultationTemplatesManager.tsx
+@@ -925,72 +925,84 @@
+                       {formData.customWorkingHours && (
+                         <div className="border-t pt-4">
+                           <div className="space-y-4 md:space-y-5">
+-                          {['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'].map((dayName, dayIdx) => {
+-                            const dayConfig = formData.customWorkingHours?.find(h => h.giornoSettimana === dayIdx);
+-                            
+-                            return (
+-                              <Card key={dayIdx} className="p-5 md:p-6">
+-                                <div className="space-y-4 md:space-y-5">
+-                                  <div className="flex items-center justify-between min-h-[44px]">
+-                                    <Label className="text-sm sm:text-base font-medium">{dayName}</Label>
+-                                    <div className="flex items-center gap-3 touch-manipulation">
+-                                      <Switch
+-                                        checked={dayConfig?.attivo ?? false}
+-                                        onCheckedChange={(checked) => {
+-                                          setFormData((prev) => ({
+-                                            ...prev,
+-                                            customWorkingHours: prev.customWorkingHours?.map((h) =>
+-                                              h.giornoSettimana === dayIdx
+-                                                ? { ...h, attivo: checked }
+-                                                : h
+-                                            ),
+-                                          }));
+-                                        }}
+-                                      />
+-                                      <span className="text-xs sm:text-sm text-gray-500 min-w-[50px]">
+-                                        {dayConfig?.attivo ? "Attivo" : "Chiuso"}
+-                                      </span>
+-                                    </div>
+-                                  </div>
+-
+-                                  {dayConfig?.attivo && (
+-                                    <div className="flex flex-col md:grid md:grid-cols-4 gap-4 md:gap-5">
+-                                      <div className="space-y-2">
+-                                        <Label className="text-sm font-medium">Apertura</Label>
+-                                        <Input
+-                                          type="time"
+-                                          value={dayConfig.apertura}
+-                                          onChange={(e) => {
+-                                            setFormData((prev) => ({
+-                                              ...prev,
+-                                              customWorkingHours: prev.customWorkingHours?.map((h) =>
+-                                                h.giornoSettimana === dayIdx
+-                                                  ? { ...h, apertura: e.target.value }
+-                                                  : h
+-                                              ),
+-                                            }));
+-                                          }}
+-                                          className="min-h-[48px] text-base touch-manipulation"
+-                                        />
+-                                      </div>
+-
+-                                      <div className="space-y-2">
+-                                        <Label className="text-sm font-medium">Pausa Inizio</Label>
+-                                        <Input
+-                                          type="time"
+-                                          value={dayConfig.pausaInizio || ""}
+-                                          onChange={(e) => {
+-                                            setFormData((prev) => ({
+-                                              ...prev,
+-                                              customWorkingHours: prev.customWorkingHours?.map((h) =>
+-                                                h.giornoSettimana === dayIdx
+-                                                  ? { ...h, pausaInizio: e.target.value || undefined }
+-                                                  : h
+-                                              ),
+-                                            }));
+-                                          }}
+-                                          className="min-h-[48px] text-base touch-manipulation"
+-                                        />
+-                                      </div>
+-
+-                                      <div className="space-y-2">
+-                                        <Label className="text-sm font-medium">Pausa Fine</Label>
+-                                        <Input
+-                                          type="time"
+-                                          value={dayConfig.pausaFine || ""}
+-                                          onChange={(e) => {
+-                                            setFormData((prev) => ({
+-                                              ...prev,
+-                                              customWorkingHours: prev.customWorkingHours?.map((h) =>
+-                                                h.giornoSettimana === dayIdx
+-                                                  ? { ...h, pausaFine: e.target.value || undefined }
+-                                                  : h
+-                                              ),
+-                                            }));
+-                                          }}
+-                                          className="min-h-[48px] text-base touch-manipulation"
+-                                        />
+-                                      </div>
+-
+-                                      <div className="space-y-2">
+-                                        <Label className="text-sm font-medium">Chiusura</Label>
+-                                        <Input
+-                                          type="time"
+-                                          value={dayConfig.chiusura}
+-                                          onChange={(e) => {
+-                                            setFormData((prev) => ({
+-                                              ...prev,
+-                                              customWorkingHours: prev.customWorkingHours?.map((h) =>
+-                                                h.giornoSettimana === dayIdx
+-                                                  ? { ...h, chiusura: e.target.value }
+-                                                  : h
+-                                              ),
+-                                            }));
+-                                          }}
+-                                          className="min-h-[48px] text-base touch-manipulation"
+-                                        />
+-                                      </div>
+-                                    </div>
+-                                  )}
+-                                </div>
+-                              </Card>
+-                            );
+-                          })}
++                          {['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'].map((dayName, dayIdx) => {
++                            const dayConfig = formData.customWorkingHours?.find(h => h.giornoSettimana === dayIdx);
++
++                            return (
++                              <Card 
++                                key={dayIdx} 
++                                className="p-4 md:p-5 border border-gray-200 shadow-sm"
++                              >
++                                {/* Header */}
++                                <div className="flex items-center justify-between mb-3">
++                                  <Label className="text-sm font-semibold">{dayName}</Label>
++
++                                  <div className="flex items-center gap-2">
++                                    <Switch
++                                      checked={dayConfig?.attivo ?? false}
++                                      onCheckedChange={(checked) => {
++                                        setFormData(prev => ({
++                                          ...prev,
++                                          customWorkingHours: prev.customWorkingHours?.map((h) =>
++                                            h.giornoSettimana === dayIdx
++                                              ? { ...h, attivo: checked }
++                                              : h
++                                          ),
++                                        }));
++                                      }}
++                                    />
++                                    <span className="text-xs text-gray-500">
++                                      {dayConfig?.attivo ? "Attivo" : "Chiuso"}
++                                    </span>
++                                  </div>
++                                </div>
++
++                                {/* Body */}
++                                {dayConfig?.attivo && (
++                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
++
++                                    {/* Apertura */}
++                                    <div className="space-y-1">
++                                      <Label className="text-xs font-medium">Apertura</Label>
++                                      <Input
++                                        type="time"
++                                        value={dayConfig.apertura}
++                                        onChange={(e) =>
++                                          setFormData(prev => ({
++                                            ...prev,
++                                            customWorkingHours: prev.customWorkingHours?.map((h) =>
++                                              h.giornoSettimana === dayIdx
++                                                ? { ...h, apertura: e.target.value }
++                                                : h
++                                            ),
++                                          }))
++                                        }
++                                        className="h-10 text-sm"
++                                      />
++                                    </div>
++
++                                    {/* Pausa Inizio */}
++                                    <div className="space-y-1">
++                                      <Label className="text-xs font-medium">Pausa Inizio</Label>
++                                      <Input
++                                        type="time"
++                                        value={dayConfig.pausaInizio || ""}
++                                        onChange={(e) =>
++                                          setFormData(prev => ({
++                                            ...prev,
++                                            customWorkingHours: prev.customWorkingHours?.map((h) =>
++                                              h.giornoSettimana === dayIdx
++                                                ? { ...h, pausaInizio: e.target.value || undefined }
++                                                : h
++                                            ),
++                                          }))
++                                        }
++                                        className="h-10 text-sm"
++                                      />
++                                    </div>
++
++                                    {/* Pausa Fine */}
++                                    <div className="space-y-1">
++                                      <Label className="text-xs font-medium">Pausa Fine</Label>
++                                      <Input
++                                        type="time"
++                                        value={dayConfig.pausaFine || ""}
++                                        onChange={(e) =>
++                                          setFormData(prev => ({
++                                            ...prev,
++                                            customWorkingHours: prev.customWorkingHours?.map((h) =>
++                                              h.giornoSettimana === dayIdx
++                                                ? { ...h, pausaFine: e.target.value || undefined }
++                                                : h
++                                            ),
++                                          }))
++                                        }
++                                        className="h-10 text-sm"
++                                      />
++                                    </div>
++
++                                    {/* Chiusura */}
++                                    <div className="space-y-1">
++                                      <Label className="text-xs font-medium">Chiusura</Label>
++                                      <Input
++                                        type="time"
++                                        value={dayConfig.chiusura}
++                                        onChange={(e) =>
++                                          setFormData(prev => ({
++                                            ...prev,
++                                            customWorkingHours: prev.customWorkingHours?.map((h) =>
++                                              h.giornoSettimana === dayIdx
++                                                ? { ...h, chiusura: e.target.value }
++                                                : h
++                                            ),
++                                          }))
++                                        }
++                                        className="h-10 text-sm"
++                                      />
++                                    </div>
++                                  </div>
++                                )}
++                              </Card>
++                            );
++                          })}
+                           </div>
+                         </div>
+                       )}
