@@ -1209,6 +1209,68 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/quotes/:id/status/validate
+ * Valida cambio stato PRIMA di applicarlo (preflight check)
+ * Ritorna warnings e blocchi senza modificare il preventivo
+ * Admin-only
+ */
+router.get('/:id/status/validate', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { newStatus } = req.query;
+    const adminEmail = req.headers['x-admin-email'] as string;
+
+    // 1. Validate admin
+    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
+      return res.status(403).json({
+        error: 'Non autorizzato',
+        message: 'Solo gli admin possono validare stati preventivi'
+      });
+    }
+
+    // 2. Validate newStatus
+    const validStatuses = ['bozza', 'inviato', 'visionato', 'firmato', 'rifiutato', 'scaduto', 'annullato'];
+    if (!newStatus || !validStatuses.includes(newStatus as string)) {
+      return res.status(400).json({
+        error: 'Stato non valido',
+        message: `Lo stato deve essere uno tra: ${validStatuses.join(', ')}`
+      });
+    }
+
+    // 3. Fetch quote
+    const quoteDoc = await db.collection('quotes').doc(id).get();
+
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: 'Il preventivo specificato non esiste'
+      });
+    }
+
+    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+    // 4. Validazioni finanziarie (senza modificare nulla)
+    const validation = await validateQuoteStatusChange(quote, newStatus as string);
+
+    return res.status(200).json({
+      success: true,
+      allowed: validation.allowed,
+      warnings: validation.warnings || [],
+      error: validation.error || null,
+      currentStatus: quote.status,
+      requestedStatus: newStatus
+    });
+
+  } catch (error) {
+    console.error('❌ Errore validazione stato preventivo:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
  * PATCH /api/quotes/:id/status
  * Cambio manuale stato preventivo con validazioni finanziarie e rigenerazione token
  * Admin-only

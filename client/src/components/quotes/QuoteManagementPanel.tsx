@@ -181,8 +181,46 @@ export default function QuoteManagementPanel({ quote }: QuoteManagementPanelProp
     }
   });
 
-  const handleStatusChange = (newStatus: QuoteStatus) => {
+  const handleStatusChange = async (newStatus: QuoteStatus) => {
     setSelectedStatus(newStatus);
+    
+    // Preflight validation: ottieni warnings prima di mostrare dialog
+    try {
+      const data = await apiRequest<{
+        allowed: boolean;
+        warnings?: string[];
+        error?: string;
+      }>(`/api/quotes/${quote.id}/status/validate?newStatus=${newStatus}`, {
+        method: 'GET',
+        headers: {
+          'x-admin-email': user?.email || ''
+        }
+      });
+      
+      if (!data.allowed) {
+        // Blocco hard: mostra errore e non aprire dialog
+        toast({
+          title: '❌ Cambio stato bloccato',
+          description: data.error || 'Cambio stato non consentito',
+          variant: 'destructive'
+        });
+        setSelectedStatus(quote.status); // Reset
+        return;
+      }
+      
+      // Imposta warnings se presenti
+      setWarnings(data.warnings || []);
+    } catch (error) {
+      console.error('Errore preflight validation:', error);
+      toast({
+        title: '⚠️ Errore validazione',
+        description: error instanceof Error ? error.message : 'Impossibile validare il cambio stato',
+        variant: 'destructive'
+      });
+      setSelectedStatus(quote.status); // Reset
+      return;
+    }
+    
     setShowConfirmDialog(true);
   };
 
