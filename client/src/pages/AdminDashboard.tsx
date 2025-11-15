@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -43,6 +43,8 @@ import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { BarChart3, Clock } from "lucide-react";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -177,6 +179,8 @@ interface GalleryItem {
   password?: string;
   specialTheme?: string;
   specialPin?: string;
+  selectionStatus?: string; // Aggiunto per il filtro selezioni
+  selectionEnabled?: boolean; // Aggiunto per il filtro selezioni
 }
 
 interface StudioSettings {
@@ -233,6 +237,13 @@ export default function AdminDashboard() {
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
   const [highlightConsultationId, setHighlightConsultationId] = useState<string | null>(null);
+
+  // Stati per la gestione dei Collapsible
+  const [galleriesExpanded, setGalleriesExpanded] = useState(true);
+  const [clientiExpanded, setClientiExpanded] = useState(true);
+  const [bookingsExpanded, setBookingsExpanded] = useState(true);
+  const [emailExpanded, setEmailExpanded] = useState(true);
+  const [requestsExpanded, setRequestsExpanded] = useState(true);
 
   // Detect if admin came from a specific gallery
   const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
@@ -312,12 +323,12 @@ export default function AdminDashboard() {
     const section = params.get('section');
     const booking = params.get('booking');
     const consultation = params.get('consultation');
-    
+
     if (booking && tab === 'prenotazioni') {
       setTimeout(() => handleOpenBooking(booking), 300);
       return;
     }
-    
+
     if (tab) {
       const tabMapping: Record<string, string> = {
         'prenotazioni': 'bookings',
@@ -327,7 +338,7 @@ export default function AdminDashboard() {
         'impostazioni': 'settings',
         'calendario': 'calendario'
       };
-      
+
       const sectionMapping: Record<string, string> = {
         'bookings': 'bookings-list',
         'commesse': 'orders', // Legacy mapping for backward compatibility
@@ -335,15 +346,15 @@ export default function AdminDashboard() {
         'campaigns': 'campaigns', // Valid pass-through
         'orders': 'orders' // Valid pass-through
       };
-      
+
       const mappedTab = tabMapping[tab] || tab;
       setActiveTab(mappedTab as any);
-      
+
       if (mappedTab === 'bookings' && section) {
         const mappedSection = sectionMapping[section] || section;
         setActiveBookingSection(mappedSection as any);
       }
-      
+
       if (mappedTab === 'consulenze') {
         setActiveConsultationSection('consulenze');
         if (consultation) {
@@ -1212,354 +1223,294 @@ export default function AdminDashboard() {
               <CalendarioManager />
             </TabsContent>
 
-            {/* Contenuto Tab Gallerie */}
+            {/* Gallerie Tab */}
             <TabsContent value="galleries">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                  <div className="w-full sm:w-auto">
-                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Gallerie Eventi</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Crea, modifica e gestisci le gallerie fotografiche.
-                    </p>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <div className="relative w-full sm:w-60">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Cerca gallerie..."
-                        className="pl-8"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                    <Button onClick={openModal} className="whitespace-nowrap">
-                      <Plus className="mr-2 h-4 w-4" /> Nuova Galleria Evento
-                    </Button>
-                  </div>
-                </div>
-
-                {/* 🎨 Filtri Tipo Galleria */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <div className="flex gap-2">
-                    <Button
-                      variant={galleryTypeFilter === 'generic' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setGalleryTypeFilter('generic')}
-                      className="flex items-center gap-2"
-                      data-testid="filter-generic-galleries"
-                    >
-                      🏠 Generiche
-                    </Button>
-                    <Button
-                      variant={galleryTypeFilter === 'special' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setGalleryTypeFilter('special')}
-                      className="flex items-center gap-2"
-                      data-testid="filter-special-galleries"
-                    >
-                      🎨 Special/Tematiche
-                    </Button>
-                    <Button
-                      variant={galleryTypeFilter === 'all' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setGalleryTypeFilter('all')}
-                      className="flex items-center gap-2"
-                      data-testid="filter-all-galleries"
-                    >
-                      📋 Tutte
-                    </Button>
-                  </div>
-                  
-                  <div className="h-6 w-px bg-gray-300" />
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      variant={selectionFilter === 'all' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setSelectionFilter('all')}
-                      className="flex items-center gap-2"
-                      data-testid="filter-all-selections"
-                    >
-                      📷 Tutte
-                    </Button>
-                    <Button
-                      variant={selectionFilter === 'approved' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setSelectionFilter('approved')}
-                      className="flex items-center gap-2 bg-green-50 hover:bg-green-100 border-green-200"
-                      data-testid="filter-approved-selections"
-                    >
-                      ✅ Solo Selezioni Approvate
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Skeleton loader durante il caricamento */}
-                {isLoading ? (
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="mb-4">
-                        <Skeleton className="h-10 w-full mb-2" />
-                        <Skeleton className="h-6 w-4/5"                />
-                      </div>
-                    ))}
-                  </div>
-                ) : galleries.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <p className="text-gray-500">Nessuna galleria eventi trovata.</p>
-                    <Button
-                      onClick={openModal}
-                      variant="outline"
-                      className="mt-4"
-                    >
-                      <Plus className="mr-2 h-4 w-4" /> Crea la tua prima galleria evento
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Nome
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Codice
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Data
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Foto
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Selezione
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Stato
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Azioni
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {currentGalleries.map((gallery) => (
-                          <tr key={gallery.id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">{gallery.name}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-500">{gallery.code}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-500">{gallery.date}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-500">{gallery.photoCount || 0}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {gallery.selectionStatus === 'completed' ? (
-                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                  ✅ Completata
-                                </span>
-                              ) : gallery.selectionEnabled ? (
-                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                  ⏳ In attesa
-                                </span>
-                              ) : (
-                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-500">
-                                  -
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                gallery.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {gallery.active ? 'Attiva' : 'Disattivata'}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-1">
-                              <div className="flex space-x-1 flex-wrap">
-                                <Link to={createUrl(`/gallery/${gallery.code}`)} target="_blank">
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 bg-green-50 hover:bg-green-100 border-green-200"
-                                    title="Visualizza galleria"
-                                  >
-                                    <Eye className="h-4 w-4 text-green-600" />
-                                  </Button>
-                                </Link>
-                                {isCurrentUserAdmin() && (
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => openEditModal(gallery)}
-                                    title="Modifica galleria"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {isCurrentUserAdmin() && (
-                                  <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)}>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
-                                      title="Gestisci galleria"
-                                      data-testid="button-manage-gallery"
-                                    >
-                                      <FolderOpen className="h-4 w-4 text-blue-600" />
-                                    </Button>
-                                  </Link>
-                                )}
-                                <Button
-                                  variant={gallery.active ? "destructive" : "default"}
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => toggleGalleryStatus(gallery)}
-                                  title={gallery.active ? "Disattiva galleria" : "Attiva galleria"}
-                                >
-                                  {gallery.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </Button>
-                                <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 bg-purple-50 hover:bg-purple-100 border-purple-200"
-                                    title="Gestisci questionario"
-                                  >
-                                    <HelpCircle className="h-4 w-4 text-purple-600" />
-                                  </Button>
-                                </Link>
-                                <Button
-                                  variant="destructive"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => deleteGallery(gallery)}
-                                  title="Elimina galleria"
-                                >
-                                  <Trash className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-
-                    {/* Controlli di paginazione per le gallerie */}
-                    <PaginationControls
-                      currentPage={currentGalleryPage}
-                      totalPages={totalGalleryPages}
-                      onPageChange={paginateGalleries}
-                      onPrevious={goToPreviousGalleryPage}
-                      onNext={goToNextGalleryPage}
-                    />
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-
-
-
-
-            {/* Contenuto Tab Richieste Password */}
-            <TabsContent value="requests">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-blue-gray mb-2">Richieste password</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Visualizza tutte le richieste di password ricevute.
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={exportPasswordRequests}
-                    disabled={passwordRequests.length === 0}
-                  >
-                    <Download className="mr-2 h-4 w-4" /> Esporta in Excel
-                  </Button>
-                </div>
-
-                {passwordRequests.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <p className="text-gray-500">Nessuna richiesta di password ricevuta.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Data
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Nome
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Email
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Galleria
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Azioni
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {currentRequests.map((request) => (
-                          <tr key={request.id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-500">
-                                {request.timestamp.toLocaleDateString()}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {request.firstName} {request.lastName}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-500">{request.email}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                {request.galleryCode}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deletePasswordRequest(request.id)}
-                                className="text-red-600 hover:text-red-900"
+              <div className="space-y-4">
+                {/* Header con statistiche - Collapsibile */}
+                <Collapsible open={galleriesExpanded} onOpenChange={setGalleriesExpanded}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="p-0 h-auto">
+                          {galleriesExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <div>
+                        <h2 className="text-2xl font-bold text-blue-gray">📸 Gestione Gallerie</h2>
+                        <p className="text-sm text-muted-foreground">
+                          {referrerGallery && (
+                            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium mb-2">
+                              <span>🔗 Collegato da: {referrerGallery.name}</span>
+                              {referrerGallery.code && <code className="text-[10px] bg-blue-100 px-1.5 py-0.5 rounded">{referrerGallery.code}</code>}
+                              <button 
+                                onClick={() => {
+                                  sessionStorage.removeItem('adminReferrerGallery');
+                                  setReferrerGallery(null);
+                                }}
+                                className="ml-1 hover:text-blue-900"
+                                title="Rimuovi collegamento"
                               >
-                                <Trash className="h-4 w-4 mr-1" />
-                                <span>Elimina</span>
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-
-                    {/* Controlli di paginazione per le richieste password */}
-                    <PaginationControls
-                      currentPage={currentRequestPage}
-                      totalPages={totalRequestPages}
-                      onPageChange={paginateRequests}
-                      onPrevious={goToPreviousRequestPage}
-                      onNext={goToNextRequestPage}
-                    />
+                                ✕
+                              </button>
+                            </span>
+                          )}
+                          {galleries.length} gallerie totali
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  <CollapsibleContent>
+                    <div className="bg-white shadow sm:rounded-lg p-5">
+                      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                        <div className="w-full sm:w-auto">
+                          <h3 className="text-xl font-semibold text-blue-gray mb-2">Gallerie Eventi</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Crea, modifica e gestisci le gallerie fotografiche.
+                          </p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                          <div className="relative w-full sm:w-60">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Cerca gallerie..."
+                              className="pl-8"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                          </div>
+                          <Button onClick={openModal} className="whitespace-nowrap">
+                            <Plus className="mr-2 h-4 w-4" /> Nuova Galleria Evento
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* 🎨 Filtri Tipo Galleria */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <div className="flex gap-2">
+                          <Button
+                            variant={galleryTypeFilter === 'generic' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setGalleryTypeFilter('generic')}
+                            className="flex items-center gap-2"
+                            data-testid="filter-generic-galleries"
+                          >
+                            🏠 Generiche
+                          </Button>
+                          <Button
+                            variant={galleryTypeFilter === 'special' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setGalleryTypeFilter('special')}
+                            className="flex items-center gap-2"
+                            data-testid="filter-special-galleries"
+                          >
+                            🎨 Special/Tematiche
+                          </Button>
+                          <Button
+                            variant={galleryTypeFilter === 'all' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setGalleryTypeFilter('all')}
+                            className="flex items-center gap-2"
+                            data-testid="filter-all-galleries"
+                          >
+                            📋 Tutte
+                          </Button>
+                        </div>
+
+                        <div className="h-6 w-px bg-gray-300" />
+
+                        <div className="flex gap-2">
+                          <Button
+                            variant={selectionFilter === 'all' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setSelectionFilter('all')}
+                            className="flex items-center gap-2"
+                            data-testid="filter-all-selections"
+                          >
+                            📷 Tutte
+                          </Button>
+                          <Button
+                            variant={selectionFilter === 'approved' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setSelectionFilter('approved')}
+                            className="flex items-center gap-2 bg-green-50 hover:bg-green-100 border-green-200"
+                            data-testid="filter-approved-selections"
+                          >
+                            ✅ Solo Selezioni Approvate
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Skeleton loader durante il caricamento */}
+                      {isLoading ? (
+                        <div className="space-y-4">
+                          {[...Array(3)].map((_, i) => (
+                            <div key={i} className="mb-4">
+                              <Skeleton className="h-10 w-full mb-2" />
+                              <Skeleton className="h-6 w-4/5"                />
+                            </div>
+                          ))}
+                        </div>
+                      ) : galleries.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <p className="text-gray-500">Nessuna galleria eventi trovata.</p>
+                          <Button
+                            onClick={openModal}
+                            variant="outline"
+                            className="mt-4"
+                          >
+                            <Plus className="mr-2 h-4 w-4" /> Crea la tua prima galleria evento
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Nome
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Codice
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Data
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Foto
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Selezione
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Stato
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Azioni
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {currentGalleries.map((gallery) => (
+                                <tr key={gallery.id}>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm font-medium text-gray-900">{gallery.name}</div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-500">{gallery.code}</div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-500">{gallery.date}</div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-500">{gallery.photoCount || 0}</div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    {gallery.selectionStatus === 'completed' ? (
+                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                        ✅ Completata
+                                      </span>
+                                    ) : gallery.selectionEnabled ? (
+                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                        ⏳ In attesa
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-500">
+                                        -
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                      gallery.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`}>
+                                      {gallery.active ? 'Attiva' : 'Disattivata'}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-1">
+                                    <div className="flex space-x-1 flex-wrap">
+                                      <Link to={createUrl(`/gallery/${gallery.code}`)} target="_blank">
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8 bg-green-50 hover:bg-green-100 border-green-200"
+                                          title="Visualizza galleria"
+                                        >
+                                          <Eye className="h-4 w-4 text-green-600" />
+                                        </Button>
+                                      </Link>
+                                      {isCurrentUserAdmin() && (
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          onClick={() => openEditModal(gallery)}
+                                          title="Modifica galleria"
+                                        >
+                                          <Edit className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                      {isCurrentUserAdmin() && (
+                                        <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)}>
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                                            title="Gestisci galleria"
+                                            data-testid="button-manage-gallery"
+                                          >
+                                            <FolderOpen className="h-4 w-4 text-blue-600" />
+                                          </Button>
+                                        </Link>
+                                      )}
+                                      <Button
+                                        variant={gallery.active ? "destructive" : "default"}
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => toggleGalleryStatus(gallery)}
+                                        title={gallery.active ? "Disattiva galleria" : "Attiva galleria"}
+                                      >
+                                        {gallery.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                      </Button>
+                                      <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8 bg-purple-50 hover:bg-purple-100 border-purple-200"
+                                          title="Gestisci questionario"
+                                        >
+                                          <HelpCircle className="h-4 w-4 text-purple-600" />
+                                        </Button>
+                                      </Link>
+                                      <Button
+                                        variant="destructive"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => deleteGallery(gallery)}
+                                        title="Elimina galleria"
+                                      >
+                                        <Trash className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+
+                          {/* Controlli di paginazione per le gallerie */}
+                          <PaginationControls
+                            currentPage={currentGalleryPage}
+                            totalPages={totalGalleryPages}
+                            onPageChange={paginateGalleries}
+                            onPrevious={goToPreviousGalleryPage}
+                            onNext={goToNextGalleryPage}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </TabsContent>
 
@@ -1654,52 +1605,180 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
+            {/* Contenuto Tab Richieste Password */}
+            <TabsContent value="requests">
+              <div className="space-y-4">
+                <Collapsible open={requestsExpanded} onOpenChange={setRequestsExpanded}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="p-0 h-auto">
+                          {requestsExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <div>
+                        <h2 className="text-2xl font-bold text-blue-gray">🔑 Richieste Password</h2>
+                        <p className="text-sm text-muted-foreground">
+                          {passwordRequests.length} richieste totali
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={exportPasswordRequests}
+                      disabled={passwordRequests.length === 0}
+                    >
+                      <Download className="mr-2 h-4 w-4" /> Esporta in Excel
+                    </Button>
+                  </div>
+
+                  <CollapsibleContent>
+                    <div className="bg-white shadow sm:rounded-lg p-5">
+                      {passwordRequests.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <p className="text-gray-500">Nessuna richiesta di password ricevuta.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Data
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Nome
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Email
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Galleria
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Azioni
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {currentRequests.map((request) => (
+                                <tr key={request.id}>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-500">
+                                      {request.timestamp.toLocaleDateString()}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {request.firstName} {request.lastName}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-500">{request.email}</div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                      {request.galleryCode}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => deletePasswordRequest(request.id)}
+                                      className="text-red-600 hover:text-red-900"
+                                    >
+                                      <Trash className="h-4 w-4 mr-1" />
+                                      <span>Elimina</span>
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+
+                          {/* Paginazione */}
+                          <PaginationControls
+                            currentPage={currentRequestPage}
+                            totalPages={totalRequestPages}
+                            onPageChange={setCurrentRequestPage}
+                            onPrevious={() => setCurrentRequestPage(p => Math.max(1, p - 1))}
+                            onNext={() => setCurrentRequestPage(p => Math.min(totalRequestPages, p + 1))}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            </TabsContent>
+
             {/* Contenuto Tab Prenotazioni con Sub-Tabs */}
             <TabsContent value="bookings">
-              <Tabs value={activeBookingSection} onValueChange={(v) => setActiveBookingSection(v as any)} className="w-full">
-                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-                  <TabsTrigger value="bookings-list" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                    <CalendarCheck className="h-4 w-4 flex-shrink-0" />
-                    Prenotazioni
-                  </TabsTrigger>
-                  <TabsTrigger value="campaigns" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                    <Calendar className="h-4 w-4 flex-shrink-0" />
-                    Campagne
-                  </TabsTrigger>
-                  <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                    <ShoppingBag className="h-4 w-4 flex-shrink-0" />
-                    Ordini
-                  </TabsTrigger>
-                </TabsList>
+              <div className="space-y-6">
+                <Collapsible open={bookingsExpanded} onOpenChange={setBookingsExpanded}>
+                  <Tabs value={activeBookingSection} onValueChange={(value: any) => setActiveBookingSection(value)}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="p-0 h-auto">
+                            {bookingsExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
+                          </Button>
+                        </CollapsibleTrigger>
+                        <div>
+                          <h2 className="text-2xl font-bold text-blue-gray">📅 Gestione Prenotazioni</h2>
+                          <p className="text-sm text-muted-foreground">
+                            Gestisci prenotazioni booking, campagne e ordini
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
-                <TabsContent value="bookings-list">
-                  <BookingsManager 
-                    highlightBookingId={highlightBookingId}
-                    onHighlightComplete={() => setHighlightBookingId(null)}
-                    onRequestOpenOrdersTab={(orderId) => {
-                      setActiveBookingSection('orders');
-                      setHighlightOrderId(orderId);
-                    }}
-                  />
-                </TabsContent>
+                    <TabsList className="grid w-full grid-cols-3 gap-1 mb-4">
+                      <TabsTrigger value="bookings-list" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                        <CalendarCheck className="h-4 w-4 flex-shrink-0" />
+                        Prenotazioni
+                      </TabsTrigger>
+                      <TabsTrigger value="campaigns" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                        <Calendar className="h-4 w-4 flex-shrink-0" />
+                        Campagne
+                      </TabsTrigger>
+                      <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                        <ShoppingBag className="h-4 w-4 flex-shrink-0" />
+                        Ordini
+                      </TabsTrigger>
+                    </TabsList>
 
-                <TabsContent value="campaigns">
-                  <CampaignsManager />
-                </TabsContent>
+                    <TabsContent value="bookings-list">
+                      <BookingsManager 
+                        highlightBookingId={highlightBookingId}
+                        onHighlightComplete={() => setHighlightBookingId(null)}
+                        onRequestOpenOrdersTab={(orderId) => {
+                          setActiveBookingSection('orders');
+                          setHighlightOrderId(orderId);
+                        }}
+                      />
+                    </TabsContent>
 
-                <TabsContent value="orders">
-                  <OrdersManager 
-                    highlightOrderId={highlightOrderId}
-                    onHighlightComplete={() => setHighlightOrderId(null)}
-                  />
-                </TabsContent>
-              </Tabs>
+                    <TabsContent value="campaigns">
+                      <CampaignsManager />
+                    </TabsContent>
+
+                    <TabsContent value="orders">
+                      <OrdersManager 
+                        highlightOrderId={highlightOrderId}
+                        onHighlightComplete={() => setHighlightOrderId(null)}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </Collapsible>
+              </div>
             </TabsContent>
 
             {/* Contenuto Tab Lavori */}
             <TabsContent value="lavori">
               <Tabs defaultValue="jobs-list" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 gap-1 mb-4">
                   <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
                     Lista Lavori
                   </TabsTrigger>
@@ -1724,7 +1803,29 @@ export default function AdminDashboard() {
                 </TabsContent>
 
                 <TabsContent value="clienti">
-                  <ClientiManager />
+                  <div className="space-y-4">
+                    <Collapsible open={clientiExpanded} onOpenChange={setClientiExpanded}>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="p-0 h-auto">
+                              {clientiExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
+                            </Button>
+                          </CollapsibleTrigger>
+                          <div>
+                            <h2 className="text-2xl font-bold text-blue-gray">👥 Gestione Clienti</h2>
+                            <p className="text-sm text-muted-foreground">
+                              Gestisci i clienti dello studio
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <CollapsibleContent>
+                        <ClientiManager />
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="job-types">
