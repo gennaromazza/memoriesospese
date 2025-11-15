@@ -60,6 +60,7 @@ import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy } fr
 import type { Quote } from '@shared/quotes-types';
 import { apiRequest } from '@/lib/queryClient';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
+import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -70,7 +71,7 @@ export default function JobDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
-  
+
   // Calendar event modal state
   const [showCalendarDialog, setShowCalendarDialog] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
@@ -118,7 +119,7 @@ export default function JobDetailPage() {
       // Remove orderBy to avoid composite index requirement
       const q = fbQuery(quotesRef, where('jobId', '==', jobId));
       const snapshot = await getDocs(q);
-      
+
       // Normalize Timestamps and sort client-side
       const normalizedQuotes = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -137,7 +138,7 @@ export default function JobDetailPage() {
           } : undefined
         } as Quote;
       });
-      
+
       // Sort by createdAt descending (most recent first) - client-side
       return normalizedQuotes.sort((a, b) => {
         const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
@@ -195,7 +196,7 @@ export default function JobDetailPage() {
   // Costi handlers
   const handleAddCosto = async (costo: Omit<CostoLavoro, 'id'>) => {
     if (!job || !user) return;
-    
+
     try {
       const newCosto: CostoLavoro = {
         id: nanoid(),
@@ -206,10 +207,10 @@ export default function JobDetailPage() {
         note: costo.note,
         createdBy: user.uid
       };
-      
+
       const updatedCosti = [...(job.costi || []), newCosto];
       await updateJob(jobId!, { costi: updatedCosti }, user.uid);
-      
+
       queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       toast({
         title: 'Costo aggiunto',
@@ -226,17 +227,17 @@ export default function JobDetailPage() {
 
   const handleUpdateCosto = async (id: string, updates: Partial<CostoLavoro>) => {
     if (!job || !user) return;
-    
+
     try {
       // Sanitize updates: omit 'data' field (creation date should not be modified)
       // and ensure valid Firestore types
       const { data, ...safeUpdates } = updates;
-      
+
       const updatedCosti = (job.costi || []).map(c =>
         c.id === id ? { ...c, ...safeUpdates } : c
       );
       await updateJob(jobId!, { costi: updatedCosti }, user.uid);
-      
+
       queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       toast({
         title: 'Costo aggiornato',
@@ -253,11 +254,11 @@ export default function JobDetailPage() {
 
   const handleDeleteCosto = async (id: string) => {
     if (!job || !user) return;
-    
+
     try {
       const updatedCosti = (job.costi || []).filter(c => c.id !== id);
       await updateJob(jobId!, { costi: updatedCosti }, user.uid);
-      
+
       queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       toast({
         title: 'Costo eliminato',
@@ -289,7 +290,7 @@ export default function JobDetailPage() {
     },
     onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/calendar/events'], exact: false });
-      
+
       // Salva evento timeline nel job
       try {
         await apiRequest('POST', `/api/jobs/${jobId}/timeline-events`, {
@@ -306,7 +307,7 @@ export default function JobDetailPage() {
       } catch (error) {
         console.error('Errore salvataggio timeline:', error);
       }
-      
+
       toast({
         title: 'Evento creato',
         description: 'L\'appuntamento è stato aggiunto al calendario',
@@ -376,9 +377,9 @@ export default function JobDetailPage() {
       });
     } else {
       const startDate = new Date(`${newEventStartDate}T${newEventStartTime}:00`);
-      
+
       let durationMinutes: number;
-      
+
       if (durationPreset === 'custom') {
         const customHours = parseFloat(customDurationHours);
         if (isNaN(customHours) || customHours <= 0) {
@@ -399,7 +400,7 @@ export default function JobDetailPage() {
         };
         durationMinutes = durationMap[durationPreset];
       }
-      
+
       const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
 
       createEventMutation.mutate({
@@ -498,7 +499,7 @@ export default function JobDetailPage() {
               <Badge data-testid="badge-status">
                 {job.status}
               </Badge>
-              
+
               {/* Actions Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -692,6 +693,9 @@ export default function JobDetailPage() {
             {/* Note e Personalizzazioni */}
             <JobNotesSection jobId={job.id} isAdmin={true} />
 
+            {/* Collaboratori */}
+            <JobCollaboratoriSection jobId={job.id} />
+
             {/* Costi */}
             <Card>
               <CardHeader>
@@ -842,7 +846,7 @@ export default function JobDetailPage() {
                       <SelectItem value="custom">Personalizzata</SelectItem>
                     </SelectContent>
                   </Select>
-                  
+
                   {durationPreset === 'custom' && (
                     <Input
                       type="number"

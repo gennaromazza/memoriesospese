@@ -45,6 +45,7 @@ import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { BarChart3, Clock } from "lucide-react";
+import { CollaboratoriManager } from '@/components/collaboratori/CollaboratoriManager';
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -206,6 +207,8 @@ interface StudioSettings {
   whatsappSubtitle: string;
   whatsappText: string;
   whatsappButtonText: string;
+  partitaIVA?: string;
+  codiceFiscale?: string;
 }
 
 export default function AdminDashboard() {
@@ -217,7 +220,7 @@ export default function AdminDashboard() {
   const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all'); // 📸 Filtro selezioni approvate
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario'>(() => {
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori'>(() => {
     return (sessionStorage.getItem('activeTab') as any) || 'calendario';
   });
   const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'campaigns' | 'orders'>(() => {
@@ -287,9 +290,9 @@ export default function AdminDashboard() {
   const { user, isLoading: authLoading, isAdmin: isFirebaseAdmin } = useFirebaseAuth();
 
   // Query React Query per gallerie (solo quando auth è pronto)
-  const { 
-    data: galleries = [], 
-    isLoading, 
+  const {
+    data: galleries = [],
+    isLoading,
     error: galleriesError
   } = useQuery<Gallery[]>({
     queryKey: ['galleries', 'admin'],
@@ -1008,7 +1011,7 @@ export default function AdminDashboard() {
               <span className="hidden sm:inline">Dashboard amministratore</span>
               <span className="sm:hidden">Admin</span>
             </h1>
-            
+
             {/* Azioni header - Mobile Optimized */}
             <div className="flex items-center gap-1.5 sm:gap-3">
               <Link href={createUrl("/")}>
@@ -1089,7 +1092,7 @@ export default function AdminDashboard() {
               {/* Core: Gallerie con dropdown sottomenu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button 
+                  <Button
                     variant={activeTab === 'galleries' || activeTab === 'questionnaire' || activeTab === 'themes' || activeTab === 'requests' ? 'default' : 'ghost'}
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
@@ -1142,7 +1145,7 @@ export default function AdminDashboard() {
               {/* Consulenze con dropdown sottomenu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button 
+                  <Button
                     variant={activeTab === 'consulenze' ? 'default' : 'ghost'}
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
@@ -1175,7 +1178,7 @@ export default function AdminDashboard() {
               {/* Settings con dropdown sottomenu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button 
+                  <Button
                     variant={activeTab === 'settings' ? 'default' : 'ghost'}
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
@@ -1215,6 +1218,15 @@ export default function AdminDashboard() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Separatore visivo - nascosto su mobile */}
+              <div className="w-px h-6 sm:h-8 bg-border mx-0.5 sm:mx-1 hidden md:block" />
+
+              {/* Collaboratori Tab */}
+              <TabsTrigger value="collaboratori" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
+                <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                <span>Collaboratori</span>
+              </TabsTrigger>
             </TabsList>
 
             {/* Contenuto Tab Calendario */}
@@ -1241,7 +1253,7 @@ export default function AdminDashboard() {
                             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium mb-2">
                               <span>🔗 Collegato da: {referrerGallery.name}</span>
                               {referrerGallery.code && <code className="text-[10px] bg-blue-100 px-1.5 py-0.5 rounded">{referrerGallery.code}</code>}
-                              <button 
+                              <button
                                 onClick={() => {
                                   sessionStorage.removeItem('adminReferrerGallery');
                                   setReferrerGallery(null);
@@ -1683,8 +1695,8 @@ export default function AdminDashboard() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                           <div className="flex items-center gap-2 text-sm">
-                            <div 
-                              className="w-4 h-4 rounded-full border" 
+                            <div
+                              className="w-4 h-4 rounded-full border"
                               style={{ backgroundColor: theme.colors.primary }}
                             />
                             <span className="text-xs text-muted-foreground">Colore principale</span>
@@ -1877,7 +1889,7 @@ export default function AdminDashboard() {
                     </TabsList>
 
                     <TabsContent value="bookings-list">
-                      <BookingsManager 
+                      <BookingsManager
                         highlightBookingId={highlightBookingId}
                         onHighlightComplete={() => setHighlightBookingId(null)}
                         onRequestOpenOrdersTab={(orderId) => {
@@ -1892,7 +1904,7 @@ export default function AdminDashboard() {
                     </TabsContent>
 
                     <TabsContent value="orders">
-                      <OrdersManager 
+                      <OrdersManager
                         highlightOrderId={highlightOrderId}
                         onHighlightComplete={() => setHighlightOrderId(null)}
                       />
@@ -1975,7 +1987,6 @@ export default function AdminDashboard() {
               </Tabs>
             </TabsContent>
 
-
             {/* Contenuto Tab Cassa */}
             <TabsContent value="cassa">
               <CashDashboard />
@@ -1996,7 +2007,7 @@ export default function AdminDashboard() {
                 </TabsList>
 
                 <TabsContent value="consulenze">
-                  <ConsultationsManager 
+                  <ConsultationsManager
                     highlightConsultationId={highlightConsultationId}
                     onHighlightComplete={() => setHighlightConsultationId(null)}
                   />
@@ -2045,258 +2056,258 @@ export default function AdminDashboard() {
                       </Button>
                     </div>
 
-                {isSettingsLoading ? (
-                  <div className="space-y-4">
-                    {[...Array(6)].map((_, i) => (
-                      <Skeleton key={i} className="h-10 w-full" />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {isSettingsLoading ? (
                       <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-name">Nome dello Studio</Label>
-                          <Input
-                            id="studio-name"
-                            value={studioSettings.name}
-                            onChange={(e) => handleSettingsChange('name', e.target.value)}
-                            placeholder="Nome del tuo studio fotografico"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-slogan">Slogan</Label>
-                          <Input
-                            id="studio-slogan"
-                            value={studioSettings.slogan}
-                            onChange={(e) => handleSettingsChange('slogan', e.target.value)}
-                            placeholder="Slogan del tuo studio"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-address">Indirizzo</Label>
-                          <Input
-                            id="studio-address"
-                            value={studioSettings.address}
-                            onChange={(e) => handleSettingsChange('address', e.target.value)}
-                            placeholder="Indirizzo fisico dello studio"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-phone">Telefono</Label>
-                          <Input
-                            id="studio-phone"
-                            value={studioSettings.phone}
-                            onChange={(e) => handleSettingsChange('phone', e.target.value)}
-                            placeholder="Numero di telefono"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-email">Email</Label>
-                          <Input
-                            id="studio-email"
-                            value={studioSettings.email}
-                            onChange={(e) => handleSettingsChange('email', e.target.value)}
-                            placeholder="Indirizzo email"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-partita-iva">Partita IVA (per ricevute)</Label>
-                          <Input
-                            id="studio-partita-iva"
-                            value={studioSettings.partitaIVA || ''}
-                            onChange={(e) => handleSettingsChange('partitaIVA', e.target.value)}
-                            placeholder="IT12345678901"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-codice-fiscale">Codice Fiscale (per ricevute)</Label>
-                          <Input
-                            id="studio-codice-fiscale"
-                            value={studioSettings.codiceFiscale || ''}
-                            onChange={(e) => handleSettingsChange('codiceFiscale', e.target.value)}
-                            placeholder="RSSMRA80A01H501Z"
-                            type="email"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-website">Sito Web</Label>
-                          <Input
-                            id="studio-website"
-                            value={studioSettings.websiteUrl}
-                            onChange={(e) => handleSettingsChange('websiteUrl', e.target.value)}
-                            placeholder="URL del sito web"
-                            type="url"
-                          />
-                        </div>
+                        {[...Array(6)].map((_, i) => (
+                          <Skeleton key={i} className="h-10 w-full" />
+                        ))}
                       </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-name">Nome dello Studio</Label>
+                              <Input
+                                id="studio-name"
+                                value={studioSettings.name}
+                                onChange={(e) => handleSettingsChange('name', e.target.value)}
+                                placeholder="Nome del tuo studio fotografico"
+                              />
+                            </div>
 
-                      <div className="space-y-4">
-                        <div>
-                          <Label>Logo</Label>
-                          <div className="mt-2">
-                            {studioSettings.logo ? (
-                              <div className="mb-2">
-                                <img
-                                  src={studioSettings.logo}
-                                  alt="Logo dello studio"
-                                  className="h-24 w-auto object-contain rounded-md"
-                                  onError={(e) => {
-                                    console.error('Logo loading error:', e);
-                                    e.currentTarget.style.display = 'none';
-                                  }}
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-slogan">Slogan</Label>
+                              <Input
+                                id="studio-slogan"
+                                value={studioSettings.slogan}
+                                onChange={(e) => handleSettingsChange('slogan', e.target.value)}
+                                placeholder="Slogan del tuo studio"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-address">Indirizzo</Label>
+                              <Input
+                                id="studio-address"
+                                value={studioSettings.address}
+                                onChange={(e) => handleSettingsChange('address', e.target.value)}
+                                placeholder="Indirizzo fisico dello studio"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-phone">Telefono</Label>
+                              <Input
+                                id="studio-phone"
+                                value={studioSettings.phone}
+                                onChange={(e) => handleSettingsChange('phone', e.target.value)}
+                                placeholder="Numero di telefono"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-email">Email</Label>
+                              <Input
+                                id="studio-email"
+                                value={studioSettings.email}
+                                onChange={(e) => handleSettingsChange('email', e.target.value)}
+                                placeholder="Indirizzo email"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-partita-iva">Partita IVA (per ricevute)</Label>
+                              <Input
+                                id="studio-partita-iva"
+                                value={studioSettings.partitaIVA || ''}
+                                onChange={(e) => handleSettingsChange('partitaIVA', e.target.value)}
+                                placeholder="IT12345678901"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-codice-fiscale">Codice Fiscale (per ricevute)</Label>
+                              <Input
+                                id="studio-codice-fiscale"
+                                value={studioSettings.codiceFiscale || ''}
+                                onChange={(e) => handleSettingsChange('codiceFiscale', e.target.value)}
+                                placeholder="RSSMRA80A01H501Z"
+                                type="email"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-website">Sito Web</Label>
+                              <Input
+                                id="studio-website"
+                                value={studioSettings.websiteUrl}
+                                onChange={(e) => handleSettingsChange('websiteUrl', e.target.value)}
+                                placeholder="URL del sito web"
+                                type="url"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div>
+                              <Label>Logo</Label>
+                              <div className="mt-2">
+                                {studioSettings.logo ? (
+                                  <div className="mb-2">
+                                    <img
+                                      src={studioSettings.logo}
+                                      alt="Logo dello studio"
+                                      className="h-24 w-auto object-contain rounded-md"
+                                      onError={(e) => {
+                                        console.error('Logo loading error:', e);
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    />
+                                  </div>
+                                ) : null}
+
+                                <Label
+                                  htmlFor="logo-upload"
+                                  className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                                >
+                                  {studioSettings.logo ? "Cambia logo" : "Carica logo"}
+                                </Label>
+                                <Input
+                                  id="logo-upload"
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={handleLogoUpload}
                                 />
                               </div>
-                            ) : null}
-
-                            <Label
-                              htmlFor="logo-upload"
-                              className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-                            >
-                              {studioSettings.logo ? "Cambia logo" : "Carica logo"}
-                            </Label>
-                            <Input
-                              id="logo-upload"
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={handleLogoUpload}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="studio-about">Descrizione Studio</Label>
-                          <Textarea
-                            id="studio-about"
-                            value={studioSettings.about}
-                            onChange={(e) => handleSettingsChange('about', e.target.value)}
-                            placeholder="Descrizione del tuo studio fotografico"
-                            rows={4}
-                          />
-                        </div>
-
-                        <div className="space-y-4">
-                          <Label>Social Media</Label>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="social-instagram">Instagram (solo username)</Label>
-                            <Input
-                              id="social-instagram"
-                              value={studioSettings.socialLinks.instagram || ''}
-                              onChange={(e) => handleSettingsChange('socialLinks', e.target.value, 'instagram')}
-                              placeholder="username (senza @)"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="social-facebook">Facebook (solo username)</Label>
-                            <Input
-                              id="social-facebook"
-                              value={studioSettings.socialLinks.facebook || ''}
-                              onChange={(e) => handleSettingsChange('socialLinks', e.target.value, 'facebook')}
-                              placeholder="username o ID pagina"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="border-t pt-6 mt-6">
-                      <h3 className="text-lg font-medium mb-4">Testi personalizzabili</h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <h4 className="font-medium mb-3">Sezione Hero</h4>
-                          <div className="space-y-3">
-                            <div className="space-y-2">
-                              <Label htmlFor="hero-title">Titolo principale</Label>
-                              <Input
-                                id="hero-title"
-                                value={studioSettings.heroTitle || ''}
-                                onChange={(e) => handleSettingsChange('heroTitle', e.target.value)}
-                                placeholder="Titolo principale della pagina"
-                              />
                             </div>
 
                             <div className="space-y-2">
-                              <Label htmlFor="hero-subtitle">Sottotitolo</Label>
-                              <Input
-                                id="hero-subtitle"
-                                value={studioSettings.heroSubtitle || ''}
-                                onChange={(e) => handleSettingsChange('heroSubtitle', e.target.value)}
-                                placeholder="Sottotitolo della pagina"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="hero-button">Testo pulsante</Label>
-                              <Input
-                                id="hero-button"
-                                value={studioSettings.heroButtonText || ''}
-                                onChange={(e) => handleSettingsChange('heroButtonText', e.target.value)}
-                                placeholder="Testo del pulsante principale"
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="font-medium mb-3">Sezione WhatsApp</h4>
-                          <div className="space-y-3">
-                            <div className="space-y-2">
-                              <Label htmlFor="whatsapp-title">Titolo</Label>
-                              <Input
-                                id="whatsapp-title"
-                                value={studioSettings.whatsappTitle || ''}
-                                onChange={(e) => handleSettingsChange('whatsappTitle', e.target.value)}
-                                placeholder="Titolo sezione WhatsApp"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="whatsapp-subtitle">Sottotitolo</Label>
-                              <Input
-                                id="whatsapp-subtitle"
-                                value={studioSettings.whatsappSubtitle || ''}
-                                onChange={(e) => handleSettingsChange('whatsappSubtitle', e.target.value)}
-                                placeholder="Sottotitolo sezione WhatsApp"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="whatsapp-text">Testo descrittivo</Label>
+                              <Label htmlFor="studio-about">Descrizione Studio</Label>
                               <Textarea
-                                id="whatsapp-text"
-                                value={studioSettings.whatsappText || ''}
-                                onChange={(e) => handleSettingsChange('whatsappText', e.target.value)}
-                                placeholder="Testo descrittivo della sezione"
-                                rows={2}
+                                id="studio-about"
+                                value={studioSettings.about}
+                                onChange={(e) => handleSettingsChange('about', e.target.value)}
+                                placeholder="Descrizione del tuo studio fotografico"
+                                rows={4}
                               />
                             </div>
 
-                            <div className="space-y-2">
-                              <Label htmlFor="whatsapp-button">Testo pulsante</Label>
-                              <Input
-                                id="whatsapp-button"
-                                value={studioSettings.whatsappButtonText || ''}
-                                onChange={(e) => handleSettingsChange('whatsappButtonText', e.target.value)}
-                                placeholder="Testo del pulsante WhatsApp"
-                              />
+                            <div className="space-y-4">
+                              <Label>Social Media</Label>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="social-instagram">Instagram (solo username)</Label>
+                                <Input
+                                  id="social-instagram"
+                                  value={studioSettings.socialLinks.instagram || ''}
+                                  onChange={(e) => handleSettingsChange('socialLinks', e.target.value, 'instagram')}
+                                  placeholder="username (senza @)"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="social-facebook">Facebook (solo username)</Label>
+                                <Input
+                                  id="social-facebook"
+                                  value={studioSettings.socialLinks.facebook || ''}
+                                  onChange={(e) => handleSettingsChange('socialLinks', e.target.value, 'facebook')}
+                                  placeholder="username o ID pagina"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-6 mt-6">
+                          <h3 className="text-lg font-medium mb-4">Testi personalizzabili</h3>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <h4 className="font-medium mb-3">Sezione Hero</h4>
+                              <div className="space-y-3">
+                                <div className="space-y-2">
+                                  <Label htmlFor="hero-title">Titolo principale</Label>
+                                  <Input
+                                    id="hero-title"
+                                    value={studioSettings.heroTitle || ''}
+                                    onChange={(e) => handleSettingsChange('heroTitle', e.target.value)}
+                                    placeholder="Titolo principale della pagina"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor="hero-subtitle">Sottotitolo</Label>
+                                  <Input
+                                    id="hero-subtitle"
+                                    value={studioSettings.heroSubtitle || ''}
+                                    onChange={(e) => handleSettingsChange('heroSubtitle', e.target.value)}
+                                    placeholder="Sottotitolo della pagina"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor="hero-button">Testo pulsante</Label>
+                                  <Input
+                                    id="hero-button"
+                                    value={studioSettings.heroButtonText || ''}
+                                    onChange={(e) => handleSettingsChange('heroButtonText', e.target.value)}
+                                    placeholder="Testo del pulsante principale"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="font-medium mb-3">Sezione WhatsApp</h4>
+                              <div className="space-y-3">
+                                <div className="space-y-2">
+                                  <Label htmlFor="whatsapp-title">Titolo</Label>
+                                  <Input
+                                    id="whatsapp-title"
+                                    value={studioSettings.whatsappTitle || ''}
+                                    onChange={(e) => handleSettingsChange('whatsappTitle', e.target.value)}
+                                    placeholder="Titolo sezione WhatsApp"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor="whatsapp-subtitle">Sottotitolo</Label>
+                                  <Input
+                                    id="whatsapp-subtitle"
+                                    value={studioSettings.whatsappSubtitle || ''}
+                                    onChange={(e) => handleSettingsChange('whatsappSubtitle', e.target.value)}
+                                    placeholder="Sottotitolo sezione WhatsApp"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor="whatsapp-text">Testo descrittivo</Label>
+                                  <Textarea
+                                    id="whatsapp-text"
+                                    value={studioSettings.whatsappText || ''}
+                                    onChange={(e) => handleSettingsChange('whatsappText', e.target.value)}
+                                    placeholder="Testo descrittivo della sezione"
+                                    rows={2}
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor="whatsapp-button">Testo pulsante</Label>
+                                  <Input
+                                    id="whatsapp-button"
+                                    value={studioSettings.whatsappButtonText || ''}
+                                    onChange={(e) => handleSettingsChange('whatsappButtonText', e.target.value)}
+                                    placeholder="Testo del pulsante WhatsApp"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
                   </div>
                 </TabsContent>
 
@@ -2323,6 +2334,39 @@ export default function AdminDashboard() {
                 </TabsContent>
               </Tabs>
             </TabsContent>
+
+            {/* Contenuto Tab Consulenze con Sub-Tabs */}
+            <TabsContent value="consulenze">
+              <Tabs value={activeConsultationSection} onValueChange={(v) => setActiveConsultationSection(v as any)} className="w-full">
+                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
+                  <TabsTrigger value="consulenze" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <CalendarCheck className="h-4 w-4 flex-shrink-0" />
+                    Consulenze
+                  </TabsTrigger>
+                  <TabsTrigger value="consulenze-templates" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <FileText className="h-4 w-4 flex-shrink-0" />
+                    Template Consulenze
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="consulenze">
+                  <ConsultationsManager
+                    highlightConsultationId={highlightConsultationId}
+                    onHighlightComplete={() => setHighlightConsultationId(null)}
+                  />
+                </TabsContent>
+
+                <TabsContent value="consulenze-templates">
+                  <ConsultationTemplatesManager />
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+
+            {/* Contenuto Tab Collaboratori */}
+            <TabsContent value="collaboratori">
+              <CollaboratoriManager />
+            </TabsContent>
+
           </Tabs>
         </div>
       </main>
