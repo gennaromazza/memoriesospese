@@ -9,6 +9,8 @@ export interface StudioSettings {
   phone: string;
   email: string;
   websiteUrl: string;
+  partitaIVA?: string;
+  codiceFiscale?: string;
   socialLinks: {
     facebook?: string;
     instagram?: string;
@@ -34,6 +36,8 @@ const defaultSettings: StudioSettings = {
   phone: '',
   email: '',
   websiteUrl: '',
+  partitaIVA: '',
+  codiceFiscale: '',
   socialLinks: {
     facebook: '',
     instagram: '',

@@ -2102,6 +2102,26 @@ export default function AdminDashboard() {
                             value={studioSettings.email}
                             onChange={(e) => handleSettingsChange('email', e.target.value)}
                             placeholder="Indirizzo email"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-partita-iva">Partita IVA (per ricevute)</Label>
+                          <Input
+                            id="studio-partita-iva"
+                            value={studioSettings.partitaIVA || ''}
+                            onChange={(e) => handleSettingsChange('partitaIVA', e.target.value)}
+                            placeholder="IT12345678901"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="studio-codice-fiscale">Codice Fiscale (per ricevute)</Label>
+                          <Input
+                            id="studio-codice-fiscale"
+                            value={studioSettings.codiceFiscale || ''}
+                            onChange={(e) => handleSettingsChange('codiceFiscale', e.target.value)}
+                            placeholder="RSSMRA80A01H501Z"
                             type="email"
                           />
                         </div>

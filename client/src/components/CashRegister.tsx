@@ -32,11 +32,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash, TrendingUp, TrendingDown, Calendar } from "lucide-react";
+import { Plus, Edit, Trash, TrendingUp, TrendingDown, Calendar, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAllCashMovements, createCashMovement, updateCashMovement, deleteCashMovement } from "@/lib/cash";
 import { CASH_CATEGORIES } from "@shared/cash-types";
 import type { CashMovement, InsertCashMovement } from "@shared/cash-types";
+import SendReceiptDialog from "./SendReceiptDialog";
 
 export default function CashRegister() {
   const { toast } = useToast();
@@ -44,6 +45,8 @@ export default function CashRegister() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMovement, setEditingMovement] = useState<CashMovement | null>(null);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [selectedMovement, setSelectedMovement] = useState<CashMovement | null>(null);
   const [formData, setFormData] = useState<InsertCashMovement>({
     tipo: "entrata",
     categoria: "",
@@ -429,6 +432,22 @@ export default function CashRegister() {
                       <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm whitespace-nowrap">{mov.metodoPagamento}</td>
                       <td className="px-2 sm:px-4 py-2 text-right whitespace-nowrap">
                         <div className="flex justify-end gap-1 sm:gap-2">
+                          {/* Pulsante "Invia Ricevuta" solo per movimenti ENTRATA */}
+                          {mov.tipo === 'entrata' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedMovement(mov);
+                                setReceiptDialogOpen(true);
+                              }}
+                              className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-blue-600 hover:text-blue-800"
+                              title="Invia Ricevuta Fiscale"
+                            >
+                              <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
+                            </Button>
+                          )}
+                          
                           <Button
                             variant="ghost"
                             size="sm"
@@ -473,6 +492,15 @@ export default function CashRegister() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog Invio Ricevuta */}
+      {selectedMovement && (
+        <SendReceiptDialog
+          open={receiptDialogOpen}
+          onOpenChange={setReceiptDialogOpen}
+          movement={selectedMovement}
+        />
+      )}
     </div>
   );
 }
