@@ -581,31 +581,56 @@ export default function ConsultationTemplatesManager() {
     }
   };
 
-  // Colori e icone per categoria
-  const categoryStyles: Record<string, { color: string; bgLight: string; bgDark: string; icon: string }> = {
+  // Colori e icone per categoria - Palette uniforme Image Studio
+  const categoryStyles: Record<string, { 
+    color: string; 
+    bgLight: string; 
+    bgDark: string; 
+    bgCard: string;
+    borderColor: string;
+    icon: string;
+    badgeBg: string;
+    badgeText: string;
+  }> = {
     'battesimo': { 
-      color: 'text-blue-700', 
-      bgLight: 'bg-blue-50', 
-      bgDark: 'bg-blue-100',
-      icon: '👶'
+      color: 'text-blue-800', 
+      bgLight: 'bg-blue-50/50', 
+      bgDark: 'bg-blue-100/70',
+      bgCard: 'bg-white',
+      borderColor: 'border-blue-300',
+      icon: '👶',
+      badgeBg: 'bg-blue-100',
+      badgeText: 'text-blue-800'
     },
     'comunione': { 
-      color: 'text-purple-700', 
-      bgLight: 'bg-purple-50', 
-      bgDark: 'bg-purple-100',
-      icon: '⛪'
+      color: 'text-purple-800', 
+      bgLight: 'bg-purple-50/50', 
+      bgDark: 'bg-purple-100/70',
+      bgCard: 'bg-white',
+      borderColor: 'border-purple-300',
+      icon: '⛪',
+      badgeBg: 'bg-purple-100',
+      badgeText: 'text-purple-800'
     },
     'matrimonio': { 
-      color: 'text-pink-700', 
-      bgLight: 'bg-pink-50', 
-      bgDark: 'bg-pink-100',
-      icon: '💒'
+      color: 'text-pink-800', 
+      bgLight: 'bg-pink-50/50', 
+      bgDark: 'bg-pink-100/70',
+      bgCard: 'bg-white',
+      borderColor: 'border-pink-300',
+      icon: '💒',
+      badgeBg: 'bg-pink-100',
+      badgeText: 'text-pink-800'
     },
     'prima-comunione': { 
-      color: 'text-amber-700', 
-      bgLight: 'bg-amber-50', 
-      bgDark: 'bg-amber-100',
-      icon: '🕊️'
+      color: 'text-amber-800', 
+      bgLight: 'bg-amber-50/50', 
+      bgDark: 'bg-amber-100/70',
+      bgCard: 'bg-white',
+      borderColor: 'border-amber-300',
+      icon: '🕊️',
+      badgeBg: 'bg-amber-100',
+      badgeText: 'text-amber-800'
     },
   };
 
@@ -704,110 +729,111 @@ export default function ConsultationTemplatesManager() {
               </Button>
             </div>
           ) : (
-            <Accordion type="multiple" value={openJobTypes} onValueChange={setOpenJobTypes} className="w-full space-y-4">
+            <Accordion type="multiple" value={openJobTypes} onValueChange={setOpenJobTypes} className="w-full space-y-6">
               {sortedJobTypes.map((jobType) => {
                 const jobTypeTemplates = templatesByJobType.get(jobType) || [];
                 const jobTypeName = jobTypes.find((jt: JobTypeDoc) => jt.slug === jobType)?.nome || jobType;
                 const activeCount = jobTypeTemplates.filter(t => t.attiva).length;
-                const style = categoryStyles[jobType] || { color: 'text-gray-700', bgLight: 'bg-gray-50', bgDark: 'bg-gray-100', icon: '📋' };
+                const style = categoryStyles[jobType] || { 
+                  color: 'text-gray-700', 
+                  bgLight: 'bg-gray-50/50', 
+                  bgDark: 'bg-gray-100/70',
+                  bgCard: 'bg-white',
+                  borderColor: 'border-gray-300',
+                  icon: '📋',
+                  badgeBg: 'bg-gray-100',
+                  badgeText: 'text-gray-800'
+                };
                 
                 return (
                   <AccordionItem 
                     key={jobType} 
                     value={jobType} 
-                    className={`border-2 border-l-8 rounded-lg overflow-hidden shadow-sm ${style.bgLight} ${
-                      jobType === 'battesimo' ? 'border-l-blue-500' :
-                      jobType === 'comunione' ? 'border-l-purple-500' :
-                      jobType === 'matrimonio' ? 'border-l-pink-500' :
-                      jobType === 'prima-comunione' ? 'border-l-amber-500' :
-                      'border-l-gray-500'
-                    }`}
+                    className={`border-2 border-l-[6px] rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow ${style.borderColor} ${style.bgLight}`}
                   >
-                    <AccordionTrigger className={`hover:no-underline py-5 px-6 hover:${style.bgDark} transition-colors`}>
+                    <AccordionTrigger className={`hover:no-underline py-6 px-6 hover:${style.bgDark} transition-all duration-200`}>
                       <div className="flex items-center gap-4 text-left w-full">
-                        <span className="text-3xl flex-shrink-0">{style.icon}</span>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1">
-                          <Badge 
-                            variant="outline" 
-                            className={`text-base font-semibold px-4 py-1.5 ${style.color} border-2 ${
-                              jobType === 'battesimo' ? 'border-blue-300 bg-blue-100' :
-                              jobType === 'comunione' ? 'border-purple-300 bg-purple-100' :
-                              jobType === 'matrimonio' ? 'border-pink-300 bg-pink-100' :
-                              jobType === 'prima-comunione' ? 'border-amber-300 bg-amber-100' :
-                              'border-gray-300 bg-gray-100'
-                            }`}
-                          >
+                        <div className={`text-4xl flex-shrink-0 p-3 rounded-full ${style.bgDark}`}>
+                          {style.icon}
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-1">
+                          <h3 className={`text-lg font-bold ${style.color}`}>
                             {jobTypeName}
-                          </Badge>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm font-medium ${style.color}`}>
-                              {activeCount}/{jobTypeTemplates.length} attivi
-                            </span>
+                          </h3>
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Badge 
-                              variant="secondary" 
-                              className="text-xs"
+                              className={`${style.badgeBg} ${style.badgeText} border-0 font-semibold`}
                             >
-                              {jobTypeTemplates.length} template
+                              {activeCount}/{jobTypeTemplates.length} attivi
+                            </Badge>
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${style.borderColor}`}
+                            >
+                              {jobTypeTemplates.length} template totali
                             </Badge>
                           </div>
                         </div>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className={`${style.bgLight} pt-0`}>
-                      <div className="bg-white rounded-lg overflow-hidden border shadow-sm mx-4 mb-4">
+                    <AccordionContent className={`${style.bgLight} pt-2 pb-6`}>
+                      <div className={`${style.bgCard} rounded-lg overflow-hidden border-2 ${style.borderColor} shadow-sm mx-4 mb-2`}>
                         <Table>
                           <TableHeader>
-                            <TableRow className={style.bgDark}>
+                            <TableRow className={`${style.bgDark} border-b-2 ${style.borderColor}`}>
                               <TableHead className="w-12"></TableHead>
-                              <TableHead className={`font-semibold ${style.color}`}>Nome</TableHead>
-                              <TableHead className={`font-semibold ${style.color}`}>Durata</TableHead>
-                              <TableHead className={`font-semibold ${style.color}`}>Campi Job</TableHead>
-                              <TableHead className={`font-semibold ${style.color}`}>Stato</TableHead>
-                              <TableHead className={`text-right font-semibold ${style.color}`}>Azioni</TableHead>
+                              <TableHead className={`font-bold ${style.color}`}>Nome Template</TableHead>
+                              <TableHead className={`font-bold ${style.color}`}>Durata</TableHead>
+                              <TableHead className={`font-bold ${style.color}`}>Campi Job</TableHead>
+                              <TableHead className={`font-bold ${style.color}`}>Stato</TableHead>
+                              <TableHead className={`text-right font-bold ${style.color}`}>Azioni</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                          {jobTypeTemplates.map((template) => (
+                          {jobTypeTemplates.map((template, idx) => (
                   <React.Fragment key={template.id}>
                     <TableRow
-                      className="cursor-pointer hover:bg-gray-50"
+                      className={`cursor-pointer transition-colors ${
+                        idx % 2 === 0 ? 'bg-white' : style.bgLight
+                      } hover:${style.bgDark}`}
                       data-testid={`row-template-${template.id}`}
                     >
                       <TableCell
                         onClick={() => toggleRowExpanded(template.id)}
                         data-testid={`button-expand-${template.id}`}
+                        className="py-4"
                       >
                         {expandedRows.has(template.id) ? (
-                          <ChevronDown className="w-4 h-4 text-gray-500" />
+                          <ChevronDown className={`w-5 h-5 ${style.color}`} />
                         ) : (
-                          <ChevronRight className="w-4 h-4 text-gray-500" />
+                          <ChevronRight className={`w-5 h-5 ${style.color}`} />
                         )}
                       </TableCell>
-                      <TableCell className="font-medium">
+                      <TableCell className={`font-semibold ${style.color} py-4`}>
                         {template.nome}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <Clock className="w-3 h-3" />
+                      <TableCell className="py-4">
+                        <div className={`flex items-center gap-2 text-sm font-medium ${style.color}`}>
+                          <Clock className="w-4 h-4" />
                           {template.durataMinuti} min
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">
+                      <TableCell className="py-4">
+                        <Badge className={`${style.badgeBg} ${style.badgeText} border-0`}>
                           {template.jobDataFields?.length || 0} campi
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-4">
                         {template.attiva ? (
-                          <Badge className="bg-green-100 text-green-700 border-green-200">
-                            Attivo
+                          <Badge className="bg-green-100 text-green-800 border-0 font-semibold">
+                            ✓ Attivo
                           </Badge>
                         ) : (
                           <Badge
                             variant="outline"
-                            className="bg-gray-100 text-gray-600"
+                            className="bg-gray-100 text-gray-600 border-gray-300"
                           >
-                            Inattivo
+                            ✕ Inattivo
                           </Badge>
                         )}
                       </TableCell>
@@ -866,20 +892,25 @@ export default function ConsultationTemplatesManager() {
                       </TableCell>
                     </TableRow>
                     {expandedRows.has(template.id) && (
-                      <TableRow className="bg-gray-50">
-                        <TableCell colSpan={6} className="py-4">
-                          <div className="pl-8 space-y-2">
-                            <p className="text-sm text-gray-700">
-                              <strong>Descrizione:</strong>{" "}
-                              {template.descrizione}
-                            </p>
+                      <TableRow className={`${style.bgDark} border-t-2 ${style.borderColor}`}>
+                        <TableCell colSpan={6} className="py-6">
+                          <div className="pl-8 space-y-4">
+                            <div className={`p-4 rounded-lg border-l-4 ${style.borderColor} bg-white`}>
+                              <p className={`text-sm font-semibold ${style.color} mb-1`}>
+                                Descrizione:
+                              </p>
+                              <p className="text-sm text-gray-700">
+                                {template.descrizione}
+                              </p>
+                            </div>
+                            
                             {template.jobDataFields &&
                               template.jobDataFields.length > 0 && (
-                                <div>
-                                  <p className="text-sm font-medium text-gray-700 mb-2">
-                                    Campi Job Data:
+                                <div className={`p-4 rounded-lg border-l-4 ${style.borderColor} bg-white`}>
+                                  <p className={`text-sm font-semibold ${style.color} mb-3`}>
+                                    Campi Job Data ({template.jobDataFields.length}):
                                   </p>
-                                  <div className="space-y-1">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                     {template.jobDataFields.map(
                                       (
                                         field: ConsultationJobField,
@@ -887,24 +918,23 @@ export default function ConsultationTemplatesManager() {
                                       ) => (
                                         <div
                                           key={idx}
-                                          className="text-sm text-gray-600 flex items-center gap-2"
+                                          className={`text-sm flex items-center gap-2 p-2 rounded ${style.bgLight}`}
                                         >
                                           <Badge
-                                            variant="outline"
-                                            className="text-xs"
+                                            className={`${style.badgeBg} ${style.badgeText} border-0 text-xs`}
                                           >
                                             {field.type}
                                           </Badge>
-                                          <span className="font-medium">
+                                          <span className={`font-medium ${style.color}`}>
                                             {field.label}
                                           </span>
                                           {field.required && (
-                                            <span className="text-red-500 text-xs">
+                                            <span className="text-red-600 text-xs font-bold">
                                               *
                                             </span>
                                           )}
                                           {field.placeholder && (
-                                            <span className="text-gray-400 text-xs">
+                                            <span className="text-gray-500 text-xs italic">
                                               ({field.placeholder})
                                             </span>
                                           )}
