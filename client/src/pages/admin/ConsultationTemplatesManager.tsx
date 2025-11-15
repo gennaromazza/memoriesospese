@@ -581,7 +581,7 @@ export default function ConsultationTemplatesManager() {
     }
   };
 
-  // Colori e icone per categoria - Palette uniforme Image Studio
+  // Colori e icone per categoria - Palette pastello October Mist
   const categoryStyles: Record<string, { 
     color: string; 
     bgLight: string; 
@@ -593,43 +593,43 @@ export default function ConsultationTemplatesManager() {
     badgeText: string;
   }> = {
     'battesimo': { 
-      color: 'text-blue-800', 
-      bgLight: 'bg-blue-50/50', 
-      bgDark: 'bg-blue-100/70',
-      bgCard: 'bg-white',
-      borderColor: 'border-blue-300',
+      color: 'text-blue-gray', // Usa il blu-grigio della palette
+      bgLight: 'bg-gradient-to-br from-slate-50/80 to-blue-50/60', 
+      bgDark: 'bg-slate-100/60',
+      bgCard: 'bg-off-white',
+      borderColor: 'border-slate-300',
       icon: '👶',
-      badgeBg: 'bg-blue-100',
-      badgeText: 'text-blue-800'
+      badgeBg: 'bg-slate-100',
+      badgeText: 'text-slate-700'
     },
     'comunione': { 
-      color: 'text-purple-800', 
-      bgLight: 'bg-purple-50/50', 
-      bgDark: 'bg-purple-100/70',
-      bgCard: 'bg-white',
-      borderColor: 'border-purple-300',
+      color: 'text-dark-sage', // Verde salvia scuro
+      bgLight: 'bg-gradient-to-br from-green-50/60 to-mint/40', 
+      bgDark: 'bg-sage/30',
+      bgCard: 'bg-off-white',
+      borderColor: 'border-sage',
       icon: '⛪',
-      badgeBg: 'bg-purple-100',
-      badgeText: 'text-purple-800'
+      badgeBg: 'bg-mint',
+      badgeText: 'text-dark-sage'
     },
     'matrimonio': { 
-      color: 'text-pink-800', 
-      bgLight: 'bg-pink-50/50', 
-      bgDark: 'bg-pink-100/70',
-      bgCard: 'bg-white',
-      borderColor: 'border-pink-300',
+      color: 'text-rose-800', // Rosa più tenue
+      bgLight: 'bg-gradient-to-br from-rose-50/60 to-pink-50/50', 
+      bgDark: 'bg-rose-100/50',
+      bgCard: 'bg-off-white',
+      borderColor: 'border-rose-200',
       icon: '💒',
-      badgeBg: 'bg-pink-100',
-      badgeText: 'text-pink-800'
+      badgeBg: 'bg-rose-100',
+      badgeText: 'text-rose-700'
     },
     'prima-comunione': { 
-      color: 'text-amber-800', 
-      bgLight: 'bg-amber-50/50', 
-      bgDark: 'bg-amber-100/70',
-      bgCard: 'bg-white',
-      borderColor: 'border-amber-300',
+      color: 'text-amber-700', // Ambra/beige caldo
+      bgLight: 'bg-gradient-to-br from-amber-50/50 to-cream/60', 
+      bgDark: 'bg-beige/60',
+      bgCard: 'bg-off-white',
+      borderColor: 'border-beige',
       icon: '🕊️',
-      badgeBg: 'bg-amber-100',
+      badgeBg: 'bg-cream',
       badgeText: 'text-amber-800'
     },
   };
