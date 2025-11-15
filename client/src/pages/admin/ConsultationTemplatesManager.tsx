@@ -873,8 +873,8 @@ export default function ConsultationTemplatesManager() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] w-full flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-2 border-b">
+        <DialogContent className="max-w-3xl max-h-[90vh] w-full flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-2 border-b shrink-0">
             <DialogTitle className="text-2xl font-playfair">
               {editingTemplate ? "Modifica Template" : "Nuovo Template"}
             </DialogTitle>
@@ -883,7 +883,7 @@ export default function ConsultationTemplatesManager() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-6 py-4 border-b flex justify-end gap-3">
+          <div className="px-6 py-4 border-b flex justify-end gap-3 shrink-0">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
@@ -904,15 +904,15 @@ export default function ConsultationTemplatesManager() {
             </Button>
           </div>
 
-          <Tabs defaultValue="general" className="flex-1 flex flex-col">
-            <TabsList className="mx-6 mt-4">
+          <Tabs defaultValue="general" className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="mx-6 mt-4 shrink-0">
               <TabsTrigger value="general">Generale</TabsTrigger>
               <TabsTrigger value="availability">Disponibilità</TabsTrigger>
               <TabsTrigger value="images">Immagini</TabsTrigger>
               <TabsTrigger value="fields">Campi Job</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="general" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+            <TabsContent value="general" className="flex-1 overflow-y-auto px-6 space-y-6 py-6 min-h-0">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="nome">Nome Template *</Label>
@@ -1021,7 +1021,7 @@ export default function ConsultationTemplatesManager() {
               </div>
             </TabsContent>
 
-            <TabsContent value="availability" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+            <TabsContent value="availability" className="flex-1 overflow-y-auto px-6 space-y-6 py-6 min-h-0">
               <div className="space-y-4">
                 <div>
                   <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -1207,7 +1207,7 @@ export default function ConsultationTemplatesManager() {
               </div>
             </TabsContent>
 
-            <TabsContent value="images" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
+            <TabsContent value="images" className="flex-1 overflow-y-auto px-6 space-y-6 py-6 min-h-0">
               {editingTemplate ? (
                 <div className="space-y-4">
                   <div>
@@ -1269,9 +1269,9 @@ export default function ConsultationTemplatesManager() {
               )}
             </TabsContent>
 
-            <TabsContent value="fields" className="flex-1 flex flex-col overflow-hidden">
+            <TabsContent value="fields" className="flex-1 flex flex-col overflow-hidden min-h-0">
               {/* Header fisso con pulsante */}
-              <div className="px-6 pt-6 pb-4 border-b bg-white shrink-0">
+              <div className="px-6 pt-6 pb-4 border-b bg-white shrink-0 z-10">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
                     <Label className="text-base font-medium text-blue-gray">
