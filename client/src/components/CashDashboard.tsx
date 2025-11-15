@@ -157,110 +157,133 @@ export default function CashDashboard() {
 
   return (
     <Tabs defaultValue="dashboard" className="w-full">
-      {/* Sub-Tabs Navigation */}
-      <TabsList className="mb-6 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-        <TabsTrigger value="dashboard" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 flex-shrink-0" />
-          Dashboard
+      {/* Sub-Tabs Navigation - Mobile Responsive */}
+      <TabsList className="mb-4 sm:mb-6 grid grid-cols-3 gap-1 h-auto p-1 bg-muted/50 rounded-lg">
+        <TabsTrigger value="dashboard" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
+          <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+          <span className="hidden sm:inline">Dashboard</span>
+          <span className="sm:hidden">💰</span>
         </TabsTrigger>
-        <TabsTrigger value="register" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-          <FileText className="h-4 w-4 flex-shrink-0" />
-          Registro Cassa
+        <TabsTrigger value="register" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
+          <FileText className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+          <span className="hidden sm:inline">Registro Cassa</span>
+          <span className="sm:hidden">📝</span>
         </TabsTrigger>
-        <TabsTrigger value="forecasts" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-          <Clock className="h-4 w-4 flex-shrink-0" />
-          Previsioni
+        <TabsTrigger value="forecasts" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
+          <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+          <span className="hidden sm:inline">Previsioni</span>
+          <span className="sm:hidden">📅</span>
         </TabsTrigger>
       </TabsList>
 
       {/* Dashboard Tab */}
       <TabsContent value="dashboard">
-        <div className="space-y-6">
-          {/* Header con filtri data */}
-          <div className="flex justify-between items-center">
+        <div className="space-y-4 sm:space-y-6">
+          {/* Header con filtri data - Mobile Responsive */}
+          <div className="space-y-3 sm:space-y-4">
             <div>
-              <h2 className="text-2xl font-bold text-blue-gray">💰 Dashboard Finanziaria</h2>
-              <p className="text-sm text-muted-foreground">
+              <h2 className="text-xl sm:text-2xl font-bold text-blue-gray">💰 Dashboard Finanziaria</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 Panoramica completa entrate, uscite e previsioni
               </p>
             </div>
 
-        <div className="flex gap-2 items-center">
-          <Button
-            variant="outline"
-            onClick={async () => {
-              const now = new Date();
-              let startDate: Date | undefined;
+            {/* Controlli azioni - Mobile First */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              {/* Filtri periodo - Mobile Grid */}
+              <div className="grid grid-cols-2 sm:flex gap-2 flex-1">
+                <Button
+                  variant={dateRange === "month" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDateRange("month")}
+                  className="text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <span className="hidden sm:inline">Questo Mese</span>
+                  <span className="sm:hidden">Mese</span>
+                </Button>
+                <Button
+                  variant={dateRange === "quarter" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDateRange("quarter")}
+                  className="text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <span className="hidden sm:inline">Trimestre</span>
+                  <span className="sm:hidden">Trim.</span>
+                </Button>
+                <Button
+                  variant={dateRange === "year" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDateRange("year")}
+                  className="text-xs sm:text-sm whitespace-nowrap"
+                >
+                  Anno
+                </Button>
+                <Button
+                  variant={dateRange === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDateRange("all")}
+                  className="text-xs sm:text-sm whitespace-nowrap"
+                >
+                  Tutto
+                </Button>
+              </div>
 
-              if (dateRange === "month") {
-                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-              } else if (dateRange === "quarter") {
-                const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-                startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
-              } else if (dateRange === "year") {
-                startDate = new Date(now.getFullYear(), 0, 1);
-              }
+              {/* Bottoni export - Mobile Stack */}
+              <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const now = new Date();
+                    let startDate: Date | undefined;
 
-              await exportFinancialData(startDate, now);
-            }}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Esporta Excel
-          </Button>
+                    if (dateRange === "month") {
+                      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                    } else if (dateRange === "quarter") {
+                      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                      startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+                    } else if (dateRange === "year") {
+                      startDate = new Date(now.getFullYear(), 0, 1);
+                    }
 
-          <Button
-            variant="outline"
-            onClick={() => window.print()}
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Stampa Estratto
-          </Button>
-          <Button
-            variant={dateRange === "month" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setDateRange("month")}
-          >
-            Questo Mese
-          </Button>
-          <Button
-            variant={dateRange === "quarter" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setDateRange("quarter")}
-          >
-            Trimestre
-          </Button>
-          <Button
-            variant={dateRange === "year" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setDateRange("year")}
-          >
-            Anno
-          </Button>
-          <Button
-            variant={dateRange === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setDateRange("all")}
-          >
-            Tutto
-          </Button>
-        </div>
-      </div>
+                    await exportFinancialData(startDate, now);
+                  }}
+                  className="text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <Download className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Esporta Excel</span>
+                  <span className="sm:hidden">Excel</span>
+                </Button>
 
-      {/* Card Riepilogo */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <FileText className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Stampa Estratto</span>
+                  <span className="sm:hidden">Stampa</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+      {/* Card Riepilogo - Mobile Optimized */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Entrate Totali */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-600" />
+        <Card className="touch-manipulation">
+          <CardHeader className="pb-2 sm:pb-3">
+            <CardDescription className="flex items-center gap-2 text-xs sm:text-sm">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-600 flex-shrink-0" />
               Entrate Totali
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-lg sm:text-2xl font-bold text-green-600">
               {formatCurrency(summary?.totaleEntrate || 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 leading-relaxed">
               Ordini: {formatCurrency(summary?.entrateOrdini || 0)}
               <br />
               Altre: {formatCurrency(summary?.entrateAltre || 0)}
@@ -269,56 +292,56 @@ export default function CashDashboard() {
         </Card>
 
         {/* Uscite Totali */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-red-600" />
+        <Card className="touch-manipulation">
+          <CardHeader className="pb-2 sm:pb-3">
+            <CardDescription className="flex items-center gap-2 text-xs sm:text-sm">
+              <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-600 flex-shrink-0" />
               Uscite Totali
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-lg sm:text-2xl font-bold text-red-600">
               {formatCurrency(summary?.totaleUscite || 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
               Spese cassa registrate
             </p>
           </CardContent>
         </Card>
 
         {/* Saldo Corrente */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-blue-600" />
+        <Card className="touch-manipulation">
+          <CardHeader className="pb-2 sm:pb-3">
+            <CardDescription className="flex items-center gap-2 text-xs sm:text-sm">
+              <Wallet className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 flex-shrink-0" />
               Saldo Netto
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${(summary?.saldo || 0) >= 0 ? "text-blue-600" : "text-red-600"}`}>
+            <div className={`text-lg sm:text-2xl font-bold ${(summary?.saldo || 0) >= 0 ? "text-blue-600" : "text-red-600"}`}>
               {formatCurrency(summary?.saldo || 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
               Entrate - Uscite
             </p>
           </CardContent>
         </Card>
 
         {/* Incassi Previsti */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
+        <Card className="touch-manipulation">
+          <CardHeader className="pb-2 sm:pb-3">
+            <CardDescription className="flex items-center gap-2 text-xs sm:text-sm">
+              <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600 flex-shrink-0" />
               Incassi Previsti
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-lg sm:text-2xl font-bold text-orange-600">
               {formatCurrency(
                 forecasts?.reduce((sum, f) => sum + f.importo, 0) || 0
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 leading-relaxed">
               {forecasts && forecasts.length > 0 ? (
                 <>
                   {forecasts.reduce((sum, f) => sum + f.ordini.length, 0)} ordini in sospeso
@@ -358,45 +381,45 @@ export default function CashDashboard() {
         </CardContent>
       </Card>
 
-      {/* Tabelle Movimenti e Pagamenti */}
+      {/* Tabelle Movimenti e Pagamenti - Mobile Responsive */}
       <Card>
         <CardHeader>
-          <CardTitle>📋 Dettaglio Movimenti</CardTitle>
+          <CardTitle className="text-base sm:text-lg">📋 Dettaglio Movimenti</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="payments">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="payments">Pagamenti Ordini</TabsTrigger>
-              <TabsTrigger value="cash">Movimenti Cassa</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="payments" className="text-xs sm:text-sm">Pagamenti Ordini</TabsTrigger>
+              <TabsTrigger value="cash" className="text-xs sm:text-sm">Movimenti Cassa</TabsTrigger>
             </TabsList>
 
             <TabsContent value="payments" className="mt-4">
-              <div className="rounded-md border">
-                <table className="w-full">
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full min-w-[600px]">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Cliente</th>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Tipo</th>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Importo</th>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Data</th>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Metodo</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Cliente</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Tipo</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Importo</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Data</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Metodo</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orders?.slice(0, 10).map((order) =>
                       (order.transactions || []).map((t, idx) => (
-                        <tr key={`${order.id}-${idx}`} className="border-t">
-                          <td className="px-4 py-2 text-sm">{order.nomeCliente}</td>
-                          <td className="px-4 py-2 text-sm">
-                            <span className={`px-2 py-1 rounded text-xs ${t.tipo === 'acconto' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                        <tr key={`${order.id}-${idx}`} className="border-t hover:bg-gray-50">
+                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">{order.nomeCliente}</td>
+                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
+                            <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs ${t.tipo === 'acconto' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
                               {t.tipo}
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-sm font-semibold">{formatCurrency(t.importo)}</td>
-                          <td className="px-4 py-2 text-sm">
+                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm font-semibold">{formatCurrency(t.importo)}</td>
+                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
                             {toDate(t.data).toLocaleDateString("it-IT")}
                           </td>
-                          <td className="px-4 py-2 text-sm">{t.metodo}</td>
+                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">{t.metodo}</td>
                         </tr>
                       ))
                     )}
@@ -406,31 +429,31 @@ export default function CashDashboard() {
             </TabsContent>
 
             <TabsContent value="cash" className="mt-4">
-              <div className="rounded-md border">
-                <table className="w-full">
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full min-w-[600px]">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Descrizione</th>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Categoria</th>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Tipo</th>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Importo</th>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">Data</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Descrizione</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Categoria</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Tipo</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Importo</th>
+                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Data</th>
                     </tr>
                   </thead>
                   <tbody>
                     {movements?.slice(0, 10).map((mov) => (
-                      <tr key={mov.id} className="border-t">
-                        <td className="px-4 py-2 text-sm">{mov.descrizione}</td>
-                        <td className="px-4 py-2 text-sm text-muted-foreground">{mov.categoria}</td>
-                        <td className="px-4 py-2 text-sm">
-                          <span className={`px-2 py-1 rounded text-xs ${mov.tipo === 'entrata' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      <tr key={mov.id} className="border-t hover:bg-gray-50">
+                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">{mov.descrizione}</td>
+                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-muted-foreground">{mov.categoria}</td>
+                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
+                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs ${mov.tipo === 'entrata' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                             {mov.tipo}
                           </span>
                         </td>
-                        <td className={`px-4 py-2 text-sm font-semibold ${mov.tipo === 'entrata' ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className={`px-2 sm:px-4 py-2 text-xs sm:text-sm font-semibold ${mov.tipo === 'entrata' ? 'text-green-600' : 'text-red-600'}`}>
                           {mov.tipo === 'entrata' ? '+' : '-'}{formatCurrency(mov.importo)}
                         </td>
-                        <td className="px-4 py-2 text-sm">
+                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
                           {toDate(mov.data).toLocaleDateString("it-IT")}
                         </td>
                       </tr>
@@ -439,7 +462,7 @@ export default function CashDashboard() {
                 </table>
               </div>
               {!movements || movements.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-8 text-xs sm:text-sm text-muted-foreground">
                   Nessun movimento cassa registrato. Aggiungi il primo movimento dalla sezione "Registro Cassa".
                 </div>
               )}
