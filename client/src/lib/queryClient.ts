@@ -84,6 +84,7 @@ export async function apiRequest(
     '/api/import/',
     '/api/email/',
     '/api/quote/',
+    '/api/quotes/',
     '/api/booking/',
     '/api/calendar/'
   ];
