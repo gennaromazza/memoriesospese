@@ -209,7 +209,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
     }
     
     // 3. Recupera template consulenza tramite ID
-    const templateDoc = await db.collection('consultation_templates').doc(templateId).get();
+    const templateDoc = await db.collection('consultationTemplates').doc(templateId).get();
     if (!templateDoc.exists) {
       return res.status(404).json({ error: 'Template consulenza non trovato' });
     }
