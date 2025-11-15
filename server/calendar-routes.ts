@@ -122,29 +122,37 @@ router.get('/events', authenticateFirebase, async (req, res) => {
       warnings.push(`Consulenze non disponibili: ${errorMessage}`);
     }
 
-    // 3. Jobs attivi con dataServizio nel range (opzionale)
-    // TODO: Implementare se necessario quando Jobs avranno campo dataServizio standard
+    // 3. Jobs con eventDate nel range
     try {
       console.log(`💼 Fetching jobs attivi (${startDate} → ${endDate})`);
       
       const jobsSnap = await db.collection('jobs')
-        .where('dataEvento', '>=', timeMin)
-        .where('dataEvento', '<=', timeMax)
+        .where('eventDate', '>=', timeMin)
+        .where('eventDate', '<=', timeMax)
         .get();
       
       jobsSnap.forEach(doc => {
         const job = doc.data();
-        const clienteNome = job.clienteNome || 'Cliente';
+        
+        // Recupera nome evento o tipo job
+        const jobTitle = job.nomeEvento || job.jobType || 'Job';
+        
+        // Recupera nome cliente (può essere in clienteNome o costruito da clienti array)
+        let clienteNome = job.clienteNome || 'Cliente';
+        if (!job.clienteNome && job.clientiIds && job.clientiIds.length > 0) {
+          // Se non c'è clienteNome ma ci sono clienti, usa "Cliente Multiplo"
+          clienteNome = job.clientiIds.length === 1 ? 'Cliente' : 'Clienti Multipli';
+        }
         
         events.push({
           id: `j-${doc.id}`,
-          title: `${job.tipoLavoro || 'Job'}: ${clienteNome}`,
-          description: job.note || undefined,
-          start: job.dataEvento?.toDate?.()?.toISOString() || job.dataEvento,
-          end: job.dataEvento?.toDate?.()?.toISOString() || job.dataEvento,
+          title: `${jobTitle}: ${clienteNome}`,
+          description: job.noteInterne || job.note || undefined,
+          start: job.eventDate?.toDate?.()?.toISOString() || job.eventDate,
+          end: job.eventDate?.toDate?.()?.toISOString() || job.eventDate,
           type: 'job',
           clientName: clienteNome,
-          clientEmail: job.cliente?.email || undefined,
+          clientEmail: job.clienteEmail || undefined,
         });
       });
 
