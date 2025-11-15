@@ -214,9 +214,14 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       return res.status(404).json({ error: 'Template consulenza non trovato' });
     }
     
+    const templateData = templateDoc.data();
+    if (!templateData) {
+      return res.status(404).json({ error: 'Dati template consulenza non trovati' });
+    }
+    
     const template = {
       id: templateDoc.id,
-      data: templateDoc.data()
+      data: templateData
     };
     
     // 4. Genera link consulenza pre-compilato
