@@ -335,35 +335,39 @@ export default function CalendarioManager() {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Calendario Appuntamenti</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Calendario Appuntamenti</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
             Gestisci tutti gli eventi e appuntamenti
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} data-testid="button-new-event">
+        <Button 
+          onClick={() => setShowCreateDialog(true)} 
+          data-testid="button-new-event"
+          className="w-full sm:w-auto"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Nuovo Evento
         </Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <Card 
           className="cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => setEventTypeFilter('google')}
           data-testid="card-google-events"
         >
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 px-4 sm:px-6">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">
                 Google Calendar
               </CardTitle>
-              <CalendarCheck className="w-4 h-4 text-blue-500" />
+              <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 flex-shrink-0" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{eventsByType.google}</div>
+          <CardContent className="px-4 sm:px-6">
+            <div className="text-xl sm:text-2xl font-bold">{eventsByType.google}</div>
           </CardContent>
         </Card>
 
@@ -372,16 +376,16 @@ export default function CalendarioManager() {
           onClick={() => setEventTypeFilter('consulenza')}
           data-testid="card-consulenze-events"
         >
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 px-4 sm:px-6">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">
                 Consulenze
               </CardTitle>
-              <Users className="w-4 h-4 text-green-500" />
+              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{eventsByType.consulenza}</div>
+          <CardContent className="px-4 sm:px-6">
+            <div className="text-xl sm:text-2xl font-bold">{eventsByType.consulenza}</div>
           </CardContent>
         </Card>
 
@@ -390,24 +394,24 @@ export default function CalendarioManager() {
           onClick={() => setEventTypeFilter('job')}
           data-testid="card-jobs-events"
         >
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 px-4 sm:px-6">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">
                 Jobs
               </CardTitle>
-              <Briefcase className="w-4 h-4 text-purple-500" />
+              <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500 flex-shrink-0" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{eventsByType.job}</div>
+          <CardContent className="px-4 sm:px-6">
+            <div className="text-xl sm:text-2xl font-bold">{eventsByType.job}</div>
           </CardContent>
         </Card>
       </div>
 
       <div className="mb-4">
-        <Label>Filtra per tipo</Label>
+        <Label className="text-sm sm:text-base">Filtra per tipo</Label>
         <Select value={eventTypeFilter} onValueChange={(value: any) => setEventTypeFilter(value)}>
-          <SelectTrigger className="w-[200px]" data-testid="select-event-type">
+          <SelectTrigger className="w-full sm:w-[200px] mt-1" data-testid="select-event-type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -419,16 +423,16 @@ export default function CalendarioManager() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
+        <div className="lg:col-span-4">
           <Card>
             <CardHeader>
-              <CardTitle>Seleziona Data</CardTitle>
+              <CardTitle className="text-lg lg:text-xl">Seleziona Data</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex justify-center">
               {eventsLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-[300px] w-full" />
+                <div className="space-y-2 w-full">
+                  <Skeleton className="h-[280px] sm:h-[300px] w-full" />
                 </div>
               ) : (
                 <Calendar
@@ -441,18 +445,20 @@ export default function CalendarioManager() {
                   modifiersClassNames={{
                     hasEvent: 'bg-blue-100 font-bold'
                   }}
-                  className="rounded-md border"
+                  className="rounded-md border w-full"
                 />
               )}
             </CardContent>
           </Card>
         </div>
 
-        <div className="col-span-8">
+        <div className="lg:col-span-8">
           <Card>
             <CardHeader>
-              <CardTitle>Eventi - {format(selectedDate, 'dd MMMM yyyy', { locale: it })}</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-lg lg:text-xl">
+                Eventi - <span className="text-base lg:text-lg">{format(selectedDate, 'dd MMMM yyyy', { locale: it })}</span>
+              </CardTitle>
+              <CardDescription className="text-sm">
                 {eventsForSelectedDate.length} {eventsForSelectedDate.length === 1 ? 'evento' : 'eventi'} in questa data
               </CardDescription>
             </CardHeader>
@@ -465,8 +471,8 @@ export default function CalendarioManager() {
                 </div>
               ) : eventsForSelectedDate.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p>Nessun evento per questa data</p>
+                  <CalendarIcon className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm sm:text-base">Nessun evento per questa data</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -477,48 +483,50 @@ export default function CalendarioManager() {
                       onClick={() => setSelectedEvent(event)}
                       data-testid={`event-card-${event.id}`}
                     >
-                      <CardContent className="pt-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h3 className="font-semibold">{event.title}</h3>
+                      <CardContent className="pt-3 sm:pt-4 px-3 sm:px-6">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-sm sm:text-base truncate">{event.title}</h3>
                               {getEventTypeBadge(event.type)}
                             </div>
                             
                             {event.description && (
-                              <p className="text-sm text-gray-600 mb-2">{event.description}</p>
+                              <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">{event.description}</p>
                             )}
                             
-                            <div className="flex flex-col gap-1 text-sm text-gray-500">
+                            <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
                               <div className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {safeParseISO(event.start) ? format(safeParseISO(event.start)!, 'HH:mm') : 'N/A'} - {safeParseISO(event.end) ? format(safeParseISO(event.end)!, 'HH:mm') : 'N/A'}
+                                <Clock className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">
+                                  {safeParseISO(event.start) ? format(safeParseISO(event.start)!, 'HH:mm') : 'N/A'} - {safeParseISO(event.end) ? format(safeParseISO(event.end)!, 'HH:mm') : 'N/A'}
+                                </span>
                               </div>
                               
                               {event.location && (
                                 <div className="flex items-center gap-1">
-                                  <MapPin className="w-3 h-3" />
-                                  {event.location}
+                                  <MapPin className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">{event.location}</span>
                                 </div>
                               )}
                               
                               {event.clientName && (
                                 <div className="flex items-center gap-1">
-                                  <Users className="w-3 h-3" />
-                                  {event.clientName}
+                                  <Users className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">{event.clientName}</span>
                                 </div>
                               )}
                               
                               {event.clientEmail && (
                                 <div className="flex items-center gap-1">
-                                  <Mail className="w-3 h-3" />
-                                  {event.clientEmail}
+                                  <Mail className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate text-xs">{event.clientEmail}</span>
                                 </div>
                               )}
                             </div>
                           </div>
                           
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" className="self-start sm:self-auto flex-shrink-0">
                             <Eye className="w-4 h-4" />
                           </Button>
                         </div>
@@ -533,15 +541,15 @@ export default function CalendarioManager() {
       </div>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuovo Evento</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Nuovo Evento</DialogTitle>
+            <DialogDescription className="text-sm">
               Crea un nuovo evento nel calendario
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-3 sm:gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="title">Titolo *</Label>
               <Input
@@ -580,20 +588,21 @@ export default function CalendarioManager() {
               </Label>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
-                <Label htmlFor="start-date">Data Inizio *</Label>
+                <Label htmlFor="start-date" className="text-sm">Data Inizio *</Label>
                 <Input
                   id="start-date"
                   type="date"
                   value={newEventStartDate}
                   onChange={(e) => setNewEventStartDate(e.target.value)}
                   data-testid="input-start-date"
+                  className="text-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="start-time">Ora Inizio {!isAllDay && '*'}</Label>
+                <Label htmlFor="start-time" className="text-sm">Ora Inizio {!isAllDay && '*'}</Label>
                 <Input
                   id="start-time"
                   type="time"
@@ -601,6 +610,7 @@ export default function CalendarioManager() {
                   onChange={(e) => setNewEventStartTime(e.target.value)}
                   disabled={isAllDay}
                   data-testid="input-start-time"
+                  className="text-sm"
                 />
               </div>
             </div>
