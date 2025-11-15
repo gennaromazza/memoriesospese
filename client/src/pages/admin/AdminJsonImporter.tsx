@@ -49,7 +49,7 @@ export default function AdminJsonImporter() {
   const [targetCollection, setTargetCollection] = useState("");
 
   useEffect(() => {
-    if (!isAdmin) navigate("/admin/login");
+    if (!isAdmin) navigate("/admin");
   }, [isAdmin, navigate]);
 
   if (!isAdmin) return null;
