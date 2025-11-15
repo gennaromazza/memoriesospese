@@ -242,7 +242,7 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
 
                     {/* Metadata colori/tessuti */}
                     {note.metadata && (
-                      <div className="grid grid-cols-2 gap-2 text-xs bg-white p-3 rounded border">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-white p-3 rounded border">
                         {note.metadata.coloreAlbum && (
                           <div>
                             <span className="font-semibold">Colore: </span>
@@ -262,7 +262,7 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                           </div>
                         )}
                         {note.metadata.personalizzazioni && (
-                          <div className="col-span-2">
+                          <div className="sm:col-span-2">
                             <span className="font-semibold">Personalizzazioni: </span>
                             {note.metadata.personalizzazioni}
                           </div>
@@ -272,13 +272,13 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
 
                     {/* Foto allegate */}
                     {note.foto && note.foto.length > 0 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                         {note.foto.map((url, idx) => (
                           <img
                             key={idx}
                             src={url}
                             alt={`Foto ${idx + 1}`}
-                            className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                            className="w-full h-24 sm:h-32 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                             onClick={() => window.open(url, '_blank')}
                           />
                         ))}
@@ -307,7 +307,7 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
           ) : (
             <div className="border rounded-lg p-4 space-y-4 bg-blue-50">
               {/* Tipo nota */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(Object.keys(TIPO_LABELS) as JobNote['tipo'][]).map(tipo => {
                   const config = TIPO_LABELS[tipo];
                   const Icon = config.icon;
@@ -317,10 +317,10 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                       variant={noteType === tipo ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setNoteType(tipo)}
-                      className={cn('justify-start', noteType === tipo && config.color)}
+                      className={cn('justify-start text-sm', noteType === tipo && config.color)}
                     >
                       <Icon className="h-4 w-4 mr-2" />
-                      {config.label}
+                      <span className="truncate">{config.label}</span>
                     </Button>
                   );
                 })}
@@ -394,13 +394,13 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                 <div className="space-y-3">
                   {/* Preview foto */}
                   {photosPreviews.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                       {photosPreviews.map((preview, idx) => (
                         <div key={idx} className="relative">
                           <img
                             src={preview}
                             alt={`Preview ${idx}`}
-                            className="w-full h-24 object-cover rounded"
+                            className="w-full h-20 sm:h-24 object-cover rounded"
                           />
                           <Button
                             variant="destructive"
@@ -416,13 +416,13 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                   )}
 
                   {/* Input foto */}
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Label
                       htmlFor="camera-input"
-                      className="flex-1 cursor-pointer border-2 border-dashed rounded-lg p-4 text-center hover:bg-gray-100 transition-colors"
+                      className="cursor-pointer border-2 border-dashed rounded-lg p-3 sm:p-4 text-center hover:bg-gray-100 transition-colors"
                     >
-                      <Camera className="h-6 w-6 mx-auto mb-2 text-gray-400" />
-                      <span className="text-sm text-gray-600">Fotocamera</span>
+                      <Camera className="h-5 w-5 sm:h-6 sm:w-6 mx-auto mb-2 text-gray-400" />
+                      <span className="text-xs sm:text-sm text-gray-600">Fotocamera</span>
                       <Input
                         id="camera-input"
                         type="file"
@@ -436,10 +436,10 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
 
                     <Label
                       htmlFor="gallery-input"
-                      className="flex-1 cursor-pointer border-2 border-dashed rounded-lg p-4 text-center hover:bg-gray-100 transition-colors"
+                      className="cursor-pointer border-2 border-dashed rounded-lg p-3 sm:p-4 text-center hover:bg-gray-100 transition-colors"
                     >
-                      <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
-                      <span className="text-sm text-gray-600">Galleria</span>
+                      <Upload className="h-5 w-5 sm:h-6 sm:w-6 mx-auto mb-2 text-gray-400" />
+                      <span className="text-xs sm:text-sm text-gray-600">Galleria</span>
                       <Input
                         id="gallery-input"
                         type="file"
@@ -454,11 +454,11 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Button
                   onClick={() => addNoteMutation.mutate()}
                   disabled={addNoteMutation.isPending || (!noteText.trim() && uploadingPhotos.length === 0)}
-                  className="flex-1"
+                  className="flex-1 w-full"
                 >
                   {addNoteMutation.isPending ? 'Salvataggio...' : 'Salva Nota'}
                 </Button>
@@ -470,6 +470,7 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                     setUploadingPhotos([]);
                     setPhotosPreviews([]);
                   }}
+                  className="w-full sm:w-auto"
                 >
                   Annulla
                 </Button>
