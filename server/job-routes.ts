@@ -6,6 +6,7 @@
 import express from 'express';
 import { getEvents } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
+import { sendGmailEmail, getStudioContactInfo } from './email-routes.js';
 
 const router = express.Router();
 
@@ -203,7 +204,6 @@ router.post('/:id/send-consultation-request', async (req, res) => {
     
     if (channel === 'email') {
       // Invia email
-      const { sendGmailEmail, getStudioContactInfo } = await import('./email-routes.js');
       const studioInfo = await getStudioContactInfo();
       
       const subject = `Prenota la tua consulenza - ${template.data().nome}`;
