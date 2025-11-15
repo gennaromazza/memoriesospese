@@ -25,7 +25,16 @@ export function NotificationBell() {
   };
   
   const handleNotificationClick = (deepLink: string) => {
-    navigate(deepLink);
+    // Estrai path e query params dal deepLink
+    const [path, queryString] = deepLink.split('?');
+    
+    if (queryString) {
+      // Per deepLink con query params, usa window.location per preservarli
+      window.location.href = deepLink;
+    } else {
+      // Per path semplici, usa navigate
+      navigate(deepLink);
+    }
   };
   
   return (

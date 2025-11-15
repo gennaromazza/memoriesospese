@@ -39,7 +39,7 @@ export function useNotifications() {
             createdAt: data.createdAt || null,
             isRead: false,
             resourceId: doc.id,
-            deepLink: `/admin/dashboard?tab=prenotazioni&section=bookings&booking=${doc.id}`
+            deepLink: `/admin/dashboard?tab=prenotazioni&booking=${doc.id}`
           });
         });
       } catch (error) {
@@ -50,21 +50,22 @@ export function useNotifications() {
         const consultationsRef = collection(db, 'consultations');
         const consultationsQuery = query(
           consultationsRef,
-          where('stato', '==', 'in_attesa'),
-          where('dataVisualizzazione', '==', null)
+          where('stato', '==', 'in_attesa')
         );
         const consultationsSnap = await getDocs(consultationsQuery);
         consultationsSnap.forEach(doc => {
           const data = doc.data();
+          
+          // Mostra solo consulenze in_attesa (non ancora approvate/rifiutate)
           notifications.push({
             id: `consultation-${doc.id}`,
             type: 'consultation',
             title: 'Nuova Consulenza',
             description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${data.jobType || 'Servizio non specificato'}`,
             createdAt: data.createdAt || null,
-            isRead: false,
+            isRead: !!data.dataVisualizzazione, // Segna come letta se visualizzata
             resourceId: doc.id,
-            deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
+            deepLink: `/admin/consultations?consultation=${doc.id}`
           });
         });
       } catch (error) {
@@ -149,7 +150,7 @@ export function useNotifications() {
               createdAt: data.updatedAt || null,
               isRead: false,
               resourceId: bookingId,
-              deepLink: `/admin/dashboard?tab=prenotazioni&section=bookings&booking=${bookingId}`
+              deepLink: `/admin/dashboard?tab=prenotazioni&booking=${bookingId}`
             });
           }
         });
