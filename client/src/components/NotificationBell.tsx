@@ -32,17 +32,38 @@ export const NotificationBell = React.memo(function NotificationBell() {
     }
   }, []);
   
+  const [open, setOpen] = React.useState(false);
+  
   const handleNotificationClick = useCallback((deepLink: string) => {
-    navigate(deepLink);
+    // Chiudi popover immediatamente
+    setOpen(false);
     
-    // Invalida query notifiche per refresh (debounced)
+    // Navigazione con fallback multiplo per browser Replit
+    try {
+      // 1. Prova navigazione client-side
+      navigate(deepLink);
+      
+      // 2. Fallback: forza reload se client-side non funziona (Replit webview)
+      setTimeout(() => {
+        const currentPath = window.location.pathname + window.location.search;
+        if (!currentPath.includes(deepLink.split('?')[0])) {
+          // Se dopo 300ms non siamo sulla pagina corretta, forza reload
+          window.location.href = deepLink;
+        }
+      }, 300);
+    } catch (error) {
+      console.error('Navigazione fallita, uso fallback:', error);
+      window.location.href = deepLink;
+    }
+    
+    // Invalida query notifiche per refresh
     setTimeout(() => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
     }, 500);
   }, [navigate, queryClient]);
   
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"

@@ -54,6 +54,7 @@ import EditJobModal from '@/components/jobs/EditJobModal';
 import EditClienteModal from '@/components/jobs/EditClienteModal';
 import { updateCliente } from '@/lib/clienti';
 import QuoteManagementPanel from '@/components/quotes/QuoteManagementPanel';
+import JobNotesSection from '@/components/jobs/JobNotesSection';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy } from 'firebase/firestore';
 import type { Quote } from '@shared/quotes-types';
@@ -687,6 +688,9 @@ export default function JobDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Note e Personalizzazioni */}
+            <JobNotesSection jobId={job.id} isAdmin={true} />
 
             {/* Costi */}
             <Card>
