@@ -489,7 +489,7 @@ router.post('/create', async (req, res) => {
           template.jobType,
           formattedDate,
           `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
-          null, // productName (non applicabile per consulenze)
+          undefined, // productName (non applicabile per consulenze)
           validatedData.note,
           studioInfo
         );
@@ -1081,8 +1081,8 @@ router.get('/audit-working-hours', authenticateFirebase, async (req: AuthRequest
 
 /**
  * PATCH /api/consultations/migrate-initialize-working-hours
- * Migration endpoint: inizializza customWorkingHours per template legacy senza configurazione (admin only)
- * Query params: dryRun=true (test senza modifiche)
+ * Migration endpoint: inizializza customWorkingHours per template legacy + sincronizza excludedDays (admin only)
+ * Query params: dryRun=true (test senza modifiche), syncAll=true (sincronizza excludedDays per TUTTI i template)
  */
 router.patch('/migrate-initialize-working-hours', authenticateFirebase, async (req: AuthRequest, res) => {
   try {
@@ -1092,19 +1092,21 @@ router.patch('/migrate-initialize-working-hours', authenticateFirebase, async (r
     }
 
     const dryRun = req.query.dryRun === 'true';
+    const syncAll = req.query.syncAll === 'true';
 
-    console.log(`[MIGRATE] Inizio inizializzazione customWorkingHours - dryRun: ${dryRun}`);
+    console.log(`[MIGRATE] Inizio inizializzazione customWorkingHours - dryRun: ${dryRun}, syncAll: ${syncAll}`);
 
-    const report = await consultationService.migrateInitializeWorkingHours({ dryRun });
+    const report = await consultationService.migrateInitializeWorkingHours({ dryRun, syncAll });
 
-    console.log(`[MIGRATE] Completato - Initialized: ${report.initialized}, Skipped: ${report.skipped}`);
+    console.log(`[MIGRATE] Completato - Initialized: ${report.initialized}, Synced: ${report.syncedOnly}, Skipped: ${report.skipped}`);
 
     res.json({
       success: true,
       dryRun,
+      syncAll,
       message: dryRun 
         ? 'Dry-run completato - nessuna modifica applicata' 
-        : `Migrazione completata - ${report.initialized} template inizializzati`,
+        : `Migrazione completata - ${report.initialized} inizializzati, ${report.syncedOnly} sincronizzati`,
       report
     });
   } catch (error: any) {

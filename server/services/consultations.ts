@@ -207,78 +207,120 @@ export async function auditTemplateWorkingHours() {
 }
 
 /**
- * MIGRATION: Inizializza customWorkingHours per template che non ce l'hanno
- * Usa DEFAULT_CONSULTATION_HOURS come base E sincronizza excludedDays
+ * MIGRATION: Inizializza customWorkingHours per template che non ce l'hanno E sincronizza excludedDays per TUTTI
+ * Usa DEFAULT_CONSULTATION_HOURS come base
  * 
  * BUG FIX: Template legacy hanno giorni in excludedDays che bloccano slot anche se customWorkingHours li attiva
- * Soluzione: rimuovere da excludedDays tutti i giorni attivi in customWorkingHours
+ * Soluzione: rimuovere da excludedDays tutti i giorni attivi in customWorkingHours (per TUTTI i template)
  */
-export async function migrateInitializeWorkingHours(options: { dryRun?: boolean } = {}) {
-  const { dryRun = false } = options;
+export async function migrateInitializeWorkingHours(options: { dryRun?: boolean; syncAll?: boolean } = {}) {
+  const { dryRun = false, syncAll = false } = options;
   
   const templates = await getAllTemplates();
   
   const report = {
     total: templates.length,
     initialized: 0,
+    syncedOnly: 0,
     skipped: 0,
     details: [] as Array<{
       id: string;
       nome: string;
-      action: 'initialized' | 'skipped';
+      action: 'initialized' | 'synced' | 'skipped';
       reason: string;
       before?: { excludedDays?: number[]; hasCustomHours: boolean };
-      after?: { excludedDays: number[]; customWorkingHours: number };
+      after?: { excludedDays: number[]; customWorkingHours?: number };
     }>
   };
   
   for (const template of templates) {
-    // Skip template che hanno già customWorkingHours
-    if (template.customWorkingHours && template.customWorkingHours.length > 0) {
+    const before = {
+      excludedDays: template.excludedDays || [],
+      hasCustomHours: !!(template.customWorkingHours && template.customWorkingHours.length > 0)
+    };
+    
+    // Caso 1: Template SENZA customWorkingHours -> inizializza + sincronizza
+    if (!template.customWorkingHours || template.customWorkingHours.length === 0) {
+      const activeDays = DEFAULT_CONSULTATION_HOURS
+        .filter(h => h.attivo)
+        .map(h => h.giornoSettimana);
+      
+      const cleanedExcludedDays = (template.excludedDays || [])
+        .filter(day => !activeDays.includes(day));
+      
+      if (!dryRun) {
+        await db.collection('consultationTemplates').doc(template.id).update({
+          customWorkingHours: DEFAULT_CONSULTATION_HOURS,
+          excludedDays: cleanedExcludedDays,
+          updatedAt: Timestamp.now()
+        });
+      }
+      
+      report.initialized++;
+      report.details.push({
+        id: template.id,
+        nome: template.nome,
+        action: 'initialized',
+        reason: 'Inizializzato customWorkingHours + sincronizzato excludedDays',
+        before,
+        after: {
+          excludedDays: cleanedExcludedDays,
+          customWorkingHours: DEFAULT_CONSULTATION_HOURS.length
+        }
+      });
+      continue;
+    }
+    
+    // Caso 2: Template CON customWorkingHours -> sincronizza solo excludedDays (se syncAll=true)
+    if (syncAll) {
+      const activeDays = template.customWorkingHours
+        .filter(h => h.attivo)
+        .map(h => h.giornoSettimana);
+      
+      const cleanedExcludedDays = (template.excludedDays || [])
+        .filter(day => !activeDays.includes(day));
+      
+      // Solo aggiorna se excludedDays cambia
+      const needsSync = JSON.stringify(before.excludedDays.sort()) !== JSON.stringify(cleanedExcludedDays.sort());
+      
+      if (needsSync) {
+        if (!dryRun) {
+          await db.collection('consultationTemplates').doc(template.id).update({
+            excludedDays: cleanedExcludedDays,
+            updatedAt: Timestamp.now()
+          });
+        }
+        
+        report.syncedOnly++;
+        report.details.push({
+          id: template.id,
+          nome: template.nome,
+          action: 'synced',
+          reason: 'Sincronizzato excludedDays con customWorkingHours esistenti',
+          before,
+          after: {
+            excludedDays: cleanedExcludedDays,
+            customWorkingHours: template.customWorkingHours.length
+          }
+        });
+      } else {
+        report.skipped++;
+        report.details.push({
+          id: template.id,
+          nome: template.nome,
+          action: 'skipped',
+          reason: 'customWorkingHours ed excludedDays già sincronizzati'
+        });
+      }
+    } else {
       report.skipped++;
       report.details.push({
         id: template.id,
         nome: template.nome,
         action: 'skipped',
-        reason: 'Ha già customWorkingHours configurato'
-      });
-      continue;
-    }
-    
-    const before = {
-      excludedDays: template.excludedDays || [],
-      hasCustomHours: false
-    };
-    
-    // INIZIALIZZA con DEFAULT_CONSULTATION_HOURS
-    // E sincronizza excludedDays: rimuovi giorni attivi in DEFAULT_CONSULTATION_HOURS
-    const activeDays = DEFAULT_CONSULTATION_HOURS
-      .filter(h => h.attivo)
-      .map(h => h.giornoSettimana);
-    
-    const cleanedExcludedDays = (template.excludedDays || [])
-      .filter(day => !activeDays.includes(day));
-    
-    if (!dryRun) {
-      await db.collection('consultationTemplates').doc(template.id).update({
-        customWorkingHours: DEFAULT_CONSULTATION_HOURS,
-        excludedDays: cleanedExcludedDays,
-        updatedAt: Timestamp.now()
+        reason: 'Ha già customWorkingHours (usa syncAll=true per sincronizzare excludedDays)'
       });
     }
-    
-    report.initialized++;
-    report.details.push({
-      id: template.id,
-      nome: template.nome,
-      action: 'initialized',
-      reason: 'Inizializzato customWorkingHours e sincronizzato excludedDays (rimossi giorni attivi)',
-      before,
-      after: {
-        excludedDays: cleanedExcludedDays,
-        customWorkingHours: DEFAULT_CONSULTATION_HOURS.length
-      }
-    });
   }
   
   return report;
@@ -864,8 +906,8 @@ export async function getAvailableSlotsForDate(
   console.log(`[getAvailableSlotsForDate] 🔍 dayConfig found:`, dayConfig ? {
     giornoSettimana: dayConfig.giornoSettimana,
     attivo: dayConfig.attivo,
-    orarioInizio: dayConfig.orarioInizio,
-    orarioFine: dayConfig.orarioFine
+    apertura: dayConfig.apertura,
+    chiusura: dayConfig.chiusura
   } : 'NOT FOUND');
   
   if (!dayConfig || !dayConfig.attivo) {
