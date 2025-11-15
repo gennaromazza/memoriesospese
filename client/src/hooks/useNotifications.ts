@@ -65,7 +65,7 @@ export function useNotifications() {
             createdAt: data.createdAt || null,
             isRead: !!data.dataVisualizzazione, // Segna come letta se visualizzata
             resourceId: doc.id,
-            deepLink: `/admin/consultations?consultation=${doc.id}`
+            deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
           });
         });
       } catch (error) {

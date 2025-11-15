@@ -1,6 +1,7 @@
 import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useQueryClient } from '@tanstack/react-query';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -11,6 +12,7 @@ import { it } from 'date-fns/locale';
 export function NotificationBell() {
   const { data: notifications = [], isLoading } = useNotifications();
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   
   const unreadCount = notifications.filter(n => !n.isRead).length;
   
@@ -25,16 +27,11 @@ export function NotificationBell() {
   };
   
   const handleNotificationClick = (deepLink: string) => {
-    // Estrai path e query params dal deepLink
-    const [path, queryString] = deepLink.split('?');
+    // Naviga usando wouter (supporta query params)
+    navigate(deepLink);
     
-    if (queryString) {
-      // Per deepLink con query params, usa window.location per preservarli
-      window.location.href = deepLink;
-    } else {
-      // Per path semplici, usa navigate
-      navigate(deepLink);
-    }
+    // Invalida query notifiche per refresh
+    queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
   };
   
   return (
