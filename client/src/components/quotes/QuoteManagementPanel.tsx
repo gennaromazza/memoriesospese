@@ -111,17 +111,11 @@ export default function QuoteManagementPanel({ quote }: QuoteManagementPanelProp
   // Mutation cambio stato
   const changeStatusMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest<any>(`/api/quotes/${quote.id}/status`, {
-        method: 'PATCH',
-        body: {
-          newStatus: selectedStatus,
-          reason: confirmReason || undefined
-        },
-        headers: {
-          'x-admin-email': user?.email || ''
-        }
+      const res = await apiRequest('PATCH', `/api/quotes/${quote.id}/status`, {
+        newStatus: selectedStatus,
+        reason: confirmReason || undefined
       });
-      return res;
+      return res.json();
     },
     onSuccess: (data) => {
       toast({
@@ -154,14 +148,8 @@ export default function QuoteManagementPanel({ quote }: QuoteManagementPanelProp
   // Mutation firma manuale
   const signatureManualMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest<any>(`/api/quotes/${quote.id}/signature/manual`, {
-        method: 'PATCH',
-        body: signatureData,
-        headers: {
-          'x-admin-email': user?.email || ''
-        }
-      });
-      return res;
+      const res = await apiRequest('PATCH', `/api/quotes/${quote.id}/signature/manual`, signatureData);
+      return res.json();
     },
     onSuccess: (data) => {
       toast({
@@ -186,16 +174,8 @@ export default function QuoteManagementPanel({ quote }: QuoteManagementPanelProp
     
     // Preflight validation: ottieni warnings prima di mostrare dialog
     try {
-      const data = await apiRequest<{
-        allowed: boolean;
-        warnings?: string[];
-        error?: string;
-      }>(`/api/quotes/${quote.id}/status/validate?newStatus=${newStatus}`, {
-        method: 'GET',
-        headers: {
-          'x-admin-email': user?.email || ''
-        }
-      });
+      const res = await apiRequest('GET', `/api/quotes/${quote.id}/status/validate?newStatus=${newStatus}`);
+      const data = await res.json();
       
       if (!data.allowed) {
         // Blocco hard: mostra errore e non aprire dialog
