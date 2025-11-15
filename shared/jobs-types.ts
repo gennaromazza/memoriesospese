@@ -113,6 +113,9 @@ export interface Job {
   // Costi lavoro
   costi: CostoLavoro[];
   
+  // Eventi workflow timeline (consulenze inviate, appuntamenti creati)
+  workflowEvents: JobTimelineEvent[];
+  
   // Note interne admin
   noteInterne?: string;
   
@@ -176,11 +179,13 @@ export interface JobTimelineEvent {
     | 'pagamento_ricevuto'
     | 'galleria_creata'
     | 'pdf_caricato'
-    | 'nota_aggiunta';
+    | 'nota_aggiunta'
+    | 'consulenza_inviata'      // Richiesta consulenza visione file inviata
+    | 'appuntamento_creato';     // Appuntamento calendario creato
   descrizione: string;
   data: Timestamp;
   userId?: string;              // UID admin che ha eseguito l'azione
-  metadata?: Record<string, any>; // Dati extra (es. importo pagamento, ID preventivo)
+  metadata?: Record<string, any>; // Dati extra (es. importo pagamento, ID preventivo, link consulenza, canale notifica)
 }
 
 /**

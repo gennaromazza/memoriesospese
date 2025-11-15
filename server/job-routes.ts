@@ -5,8 +5,7 @@
 
 import express from 'express';
 import { getEvents } from './google-calendar.js';
-import { db } from './firebase-admin.js';
-import { Timestamp } from 'firebase-admin/firestore';
+import { db, Timestamp, FieldValue } from './firebase-admin.js';
 
 const router = express.Router();
 
@@ -126,6 +125,236 @@ router.get('/check-calendar', async (req, res) => {
     console.error('[Check Calendar] Error:', error);
     return res.status(500).json({ 
       error: 'Errore durante il controllo calendario',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/jobs/:id/send-consultation-request
+ * Genera link consulenza pre-compilato e invia notifica al cliente
+ * 
+ * Body:
+ * - channel: 'email' | 'whatsapp'
+ */
+router.post('/:id/send-consultation-request', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { channel } = req.body;
+    
+    if (!channel || !['email', 'whatsapp'].includes(channel)) {
+      return res.status(400).json({ error: 'channel richiesto (email | whatsapp)' });
+    }
+    
+    // 1. Recupera job
+    const jobDoc = await db.collection('jobs').doc(id).get();
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Job non trovato' });
+    }
+    
+    const job: any = { id: jobDoc.id, ...jobDoc.data() };
+    
+    // 2. Recupera primo cliente
+    if (!job.clientiIds || job.clientiIds.length === 0) {
+      return res.status(400).json({ error: 'Job senza clienti associati' });
+    }
+    
+    const clienteDoc = await db.collection('clienti').doc(job.clientiIds[0]).get();
+    if (!clienteDoc.exists) {
+      return res.status(404).json({ error: 'Cliente non trovato' });
+    }
+    
+    const cliente: any = clienteDoc.data();
+    if (!cliente) {
+      return res.status(404).json({ error: 'Dati cliente non trovati' });
+    }
+    
+    // 3. Trova template consulenza per jobType (prendo il primo attivo)
+    const templatesSnapshot = await db.collection('consultation_templates')
+      .where('jobType', '==', job.jobType)
+      .where('attiva', '==', true)
+      .orderBy('ordine', 'asc')
+      .limit(1)
+      .get();
+    
+    if (templatesSnapshot.empty) {
+      return res.status(404).json({ 
+        error: `Nessun template consulenza attivo trovato per tipo lavoro: ${job.jobType}` 
+      });
+    }
+    
+    const template = templatesSnapshot.docs[0];
+    const templateId = template.id;
+    
+    // 4. Genera link consulenza pre-compilato
+    const baseUrl = process.env.REPL_SLUG 
+      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+      : 'http://localhost:5000';
+    
+    const consultationLink = `${baseUrl}/consulenza/${templateId}?nome=${encodeURIComponent(cliente.nome)}&cognome=${encodeURIComponent(cliente.cognome)}&email=${encodeURIComponent(cliente.email)}&whatsapp=${encodeURIComponent(cliente.whatsapp || '')}&jobId=${id}`;
+    
+    // 5. Invia notifica
+    let eventMetadata: any = {
+      templateId,
+      templateNome: template.data().nome,
+      channel,
+      consultationLink
+    };
+    
+    if (channel === 'email') {
+      // Invia email
+      const { sendGmailEmail, getStudioContactInfo } = await import('./email-routes.js');
+      const studioInfo = await getStudioContactInfo();
+      
+      const subject = `Prenota la tua consulenza - ${template.data().nome}`;
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #8b5a3c 0%, #6d4c3a 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .button { display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📸 Prenota la tua consulenza</h1>
+            </div>
+            <div class="content">
+              <p>Ciao <strong>${cliente.nome}</strong>,</p>
+              <p>È arrivato il momento di organizzare la tua <strong>${template.data().nome}</strong> per il tuo evento <strong>${job.nomeEvento}</strong>!</p>
+              <p>Clicca sul pulsante qui sotto per prenotare l'appuntamento che preferisci:</p>
+              <div style="text-align: center;">
+                <a href="${consultationLink}" class="button">Prenota Consulenza</a>
+              </div>
+              <p>Durante la consulenza potremo:</p>
+              <ul>
+                <li>Discutere i dettagli del tuo evento</li>
+                <li>Pianificare insieme il servizio fotografico</li>
+                <li>Rispondere a tutte le tue domande</li>
+              </ul>
+              <p>Non vedo l'ora di vederti!</p>
+              <p>A presto,<br><strong>${studioInfo.name}</strong></p>
+            </div>
+            <div class="footer">
+              <p>${studioInfo.name}<br>
+              📧 ${studioInfo.email} | 📱 ${studioInfo.phone}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      await sendGmailEmail(
+        cliente.email,
+        subject,
+        htmlContent
+      );
+      
+      eventMetadata.emailSent = true;
+    } else {
+      // WhatsApp
+      const message = `Ciao ${cliente.nome}! 📸\n\nÈ arrivato il momento di prenotare la tua ${template.data().nome} per ${job.nomeEvento}.\n\nClicca qui per scegliere l'appuntamento: ${consultationLink}`;
+      const whatsappNumber = cliente.whatsapp?.replace(/[^0-9]/g, '') || '';
+      
+      if (!whatsappNumber) {
+        return res.status(400).json({ error: 'Cliente senza numero WhatsApp' });
+      }
+      
+      eventMetadata.whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+    }
+    
+    // 6. Salva evento timeline
+    const timelineEvent = {
+      id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      jobId: id,
+      tipo: 'consulenza_inviata',
+      descrizione: `Richiesta consulenza "${template.data().nome}" inviata tramite ${channel}`,
+      data: Timestamp.now(),
+      metadata: eventMetadata
+    };
+    
+    await db.collection('jobs').doc(id).update({
+      workflowEvents: FieldValue.arrayUnion(timelineEvent),
+      updatedAt: Timestamp.now()
+    });
+    
+    console.log(`✅ [Job ${id}] Richiesta consulenza inviata via ${channel}`);
+    
+    res.json({ 
+      success: true,
+      channel,
+      consultationLink,
+      whatsappLink: eventMetadata.whatsappLink,
+      event: timelineEvent
+    });
+    
+  } catch (error: any) {
+    console.error('[Send Consultation Request] Error:', error);
+    return res.status(500).json({ 
+      error: 'Errore durante invio richiesta consulenza',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/jobs/:id/timeline-events
+ * Aggiunge evento generico alla timeline job
+ * 
+ * Body:
+ * - tipo: string (es. 'appuntamento_creato')
+ * - descrizione: string
+ * - metadata: object (opzionale)
+ */
+router.post('/:id/timeline-events', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tipo, descrizione, metadata } = req.body;
+    
+    if (!tipo || !descrizione) {
+      return res.status(400).json({ error: 'tipo e descrizione richiesti' });
+    }
+    
+    // Verifica che job esista
+    const jobDoc = await db.collection('jobs').doc(id).get();
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Job non trovato' });
+    }
+    
+    // Crea evento timeline
+    const timelineEvent = {
+      id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      jobId: id,
+      tipo,
+      descrizione,
+      data: Timestamp.now(),
+      metadata: metadata || {}
+    };
+    
+    // Salva in Firestore
+    await db.collection('jobs').doc(id).update({
+      workflowEvents: FieldValue.arrayUnion(timelineEvent),
+      updatedAt: Timestamp.now()
+    });
+    
+    console.log(`✅ [Job ${id}] Evento timeline aggiunto: ${tipo}`);
+    
+    res.json({ 
+      success: true,
+      event: timelineEvent
+    });
+    
+  } catch (error: any) {
+    console.error('[Add Timeline Event] Error:', error);
+    return res.status(500).json({ 
+      error: 'Errore durante aggiunta evento timeline',
       details: error.message 
     });
   }

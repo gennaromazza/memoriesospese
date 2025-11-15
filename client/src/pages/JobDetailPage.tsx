@@ -6,6 +6,25 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +57,8 @@ import QuoteManagementPanel from '@/components/quotes/QuoteManagementPanel';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy } from 'firebase/firestore';
 import type { Quote } from '@shared/quotes-types';
+import { apiRequest } from '@/lib/queryClient';
+import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -48,6 +69,19 @@ export default function JobDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
+  
+  // Calendar event modal state
+  const [showCalendarDialog, setShowCalendarDialog] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDescription, setNewEventDescription] = useState('');
+  const [newEventStartDate, setNewEventStartDate] = useState('');
+  const [newEventStartTime, setNewEventStartTime] = useState('');
+  const [newEventLocation, setNewEventLocation] = useState('');
+  const [selectedClienteForEvent, setSelectedClienteForEvent] = useState<Cliente | null>(null);
+  const [sendNotification, setSendNotification] = useState(true);
+  const [isAllDay, setIsAllDay] = useState(false);
+  const [durationPreset, setDurationPreset] = useState<'30min' | '1h' | '2h' | '3h' | 'custom'>('1h');
+  const [customDurationHours, setCustomDurationHours] = useState('1');
 
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
@@ -233,6 +267,149 @@ export default function JobDetailPage() {
         title: 'Errore',
         description: error instanceof Error ? error.message : 'Impossibile eliminare il costo',
         variant: 'destructive'
+      });
+    }
+  };
+
+  // Calendar event creation mutation
+  const createEventMutation = useMutation({
+    mutationFn: async (eventData: {
+      title: string;
+      description?: string;
+      start: string;
+      end: string;
+      location?: string;
+      clienteId?: string;
+      notifyCliente: boolean;
+      isAllDay?: boolean;
+    }) => {
+      const response = await apiRequest('POST', '/api/calendar/create-event', eventData);
+      return response.json();
+    },
+    onSuccess: async (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/calendar/events'], exact: false });
+      
+      // Salva evento timeline nel job
+      try {
+        await apiRequest('POST', `/api/jobs/${jobId}/timeline-events`, {
+          tipo: 'appuntamento_creato',
+          descrizione: `Appuntamento creato: ${variables.title}`,
+          metadata: {
+            calendarEventId: data.eventId,
+            clienteId: variables.clienteId,
+            eventTitle: variables.title,
+            eventDate: variables.start
+          }
+        });
+        queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      } catch (error) {
+        console.error('Errore salvataggio timeline:', error);
+      }
+      
+      toast({
+        title: 'Evento creato',
+        description: 'L\'appuntamento è stato aggiunto al calendario',
+      });
+      handleCloseCalendarDialog();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message || 'Impossibile creare l\'evento',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleRequestCreateAppointment = (job: Job) => {
+    // Pre-popola cliente dal job
+    if (clienti.length > 0) {
+      setSelectedClienteForEvent(clienti[0]);
+    }
+    setNewEventTitle(`Appuntamento - ${job.nomeEvento}`);
+    setShowCalendarDialog(true);
+  };
+
+  const handleCloseCalendarDialog = () => {
+    setShowCalendarDialog(false);
+    setNewEventTitle('');
+    setNewEventDescription('');
+    setNewEventStartDate('');
+    setNewEventStartTime('');
+    setNewEventLocation('');
+    setSelectedClienteForEvent(null);
+    setSendNotification(true);
+    setIsAllDay(false);
+    setDurationPreset('1h');
+  };
+
+  const handleCreateEvent = () => {
+    if (!newEventTitle.trim() || !newEventStartDate) {
+      toast({
+        title: 'Campi obbligatori',
+        description: 'Compila titolo e data inizio',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!isAllDay && !newEventStartTime) {
+      toast({
+        title: 'Ora richiesta',
+        description: 'Specifica ora inizio o seleziona "Tutto il giorno"',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (isAllDay) {
+      createEventMutation.mutate({
+        title: newEventTitle,
+        description: newEventDescription || undefined,
+        start: newEventStartDate,
+        end: newEventStartDate,
+        location: newEventLocation || undefined,
+        clienteId: selectedClienteForEvent?.id,
+        notifyCliente: sendNotification,
+        isAllDay: true,
+      });
+    } else {
+      const startDate = new Date(`${newEventStartDate}T${newEventStartTime}:00`);
+      
+      let durationMinutes: number;
+      
+      if (durationPreset === 'custom') {
+        const customHours = parseFloat(customDurationHours);
+        if (isNaN(customHours) || customHours <= 0) {
+          toast({
+            title: 'Durata non valida',
+            description: 'Inserisci una durata valida (es. 1.5)',
+            variant: 'destructive',
+          });
+          return;
+        }
+        durationMinutes = customHours * 60;
+      } else {
+        const durationMap = {
+          '30min': 30,
+          '1h': 60,
+          '2h': 120,
+          '3h': 180,
+        };
+        durationMinutes = durationMap[durationPreset];
+      }
+      
+      const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+
+      createEventMutation.mutate({
+        title: newEventTitle,
+        description: newEventDescription || undefined,
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        location: newEventLocation || undefined,
+        clienteId: selectedClienteForEvent?.id,
+        notifyCliente: sendNotification,
+        isAllDay: false,
       });
     }
   };
@@ -539,6 +716,8 @@ export default function JobDetailPage() {
                 <WorkflowTimeline
                   job={job}
                   isAdmin={true}
+                  onRequestCreateAppointment={handleRequestCreateAppointment}
+                  onEventAdded={() => queryClient.invalidateQueries({ queryKey: ['jobs', jobId] })}
                 />
               </CardContent>
             </Card>
@@ -565,6 +744,172 @@ export default function JobDetailPage() {
           isPending={updateClienteMutation.isPending}
         />
       )}
+
+      {/* Create Calendar Event Modal */}
+      <Dialog open={showCalendarDialog} onOpenChange={setShowCalendarDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nuovo Evento</DialogTitle>
+            <DialogDescription>
+              Crea un nuovo evento nel calendario
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Titolo *</Label>
+              <Input
+                id="title"
+                value={newEventTitle}
+                onChange={(e) => setNewEventTitle(e.target.value)}
+                placeholder="Es. Consulenza con cliente"
+                data-testid="input-event-title"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrizione</Label>
+              <Textarea
+                id="description"
+                value={newEventDescription}
+                onChange={(e) => setNewEventDescription(e.target.value)}
+                placeholder="Dettagli dell'evento..."
+                rows={3}
+                data-testid="textarea-event-description"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <Checkbox
+                id="all-day"
+                checked={isAllDay}
+                onCheckedChange={(checked) => setIsAllDay(checked as boolean)}
+                data-testid="checkbox-all-day"
+              />
+              <Label 
+                htmlFor="all-day" 
+                className="text-sm font-normal cursor-pointer"
+              >
+                Evento di tutta la giornata
+              </Label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start-date">Data Inizio *</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={newEventStartDate}
+                  onChange={(e) => setNewEventStartDate(e.target.value)}
+                  data-testid="input-start-date"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="start-time">Ora Inizio {!isAllDay && '*'}</Label>
+                <Input
+                  id="start-time"
+                  type="time"
+                  value={newEventStartTime}
+                  onChange={(e) => setNewEventStartTime(e.target.value)}
+                  disabled={isAllDay}
+                  data-testid="input-start-time"
+                />
+              </div>
+            </div>
+
+            {!isAllDay && (
+              <div className="space-y-2">
+                <Label htmlFor="duration">Durata</Label>
+                <div className="flex gap-2">
+                  <Select 
+                    value={durationPreset} 
+                    onValueChange={(val) => setDurationPreset(val as any)}
+                  >
+                    <SelectTrigger className="w-full" data-testid="select-duration">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30min">30 minuti</SelectItem>
+                      <SelectItem value="1h">1 ora</SelectItem>
+                      <SelectItem value="2h">2 ore</SelectItem>
+                      <SelectItem value="3h">3 ore</SelectItem>
+                      <SelectItem value="custom">Personalizzata</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {durationPreset === 'custom' && (
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={customDurationHours}
+                      onChange={(e) => setCustomDurationHours(e.target.value)}
+                      placeholder="Ore"
+                      className="w-24"
+                      data-testid="input-custom-duration"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Luogo</Label>
+              <Input
+                id="location"
+                value={newEventLocation}
+                onChange={(e) => setNewEventLocation(e.target.value)}
+                placeholder="Es. Studio, Online, etc"
+                data-testid="input-location"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <ClientAutocomplete
+                value={selectedClienteForEvent?.id}
+                onSelect={setSelectedClienteForEvent}
+                placeholder="Cerca cliente (opzionale)"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <Checkbox
+                id="notify"
+                checked={sendNotification}
+                onCheckedChange={(checked) => setSendNotification(checked as boolean)}
+                data-testid="checkbox-notify"
+              />
+              <Label 
+                htmlFor="notify" 
+                className="text-sm font-normal cursor-pointer"
+              >
+                Invia notifica al cliente
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={handleCloseCalendarDialog}
+              disabled={createEventMutation.isPending}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleCreateEvent}
+              disabled={createEventMutation.isPending}
+              data-testid="button-create-event"
+            >
+              {createEventMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Crea Evento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
