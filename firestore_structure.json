@@ -1,0 +1,1248 @@
+[
+  {
+    "collection": "booking_campaigns",
+    "documentCount": 1,
+    "sample": {
+      "id": "2insmUQMdg793DRxHeSt",
+      "data": {
+        "nome": "Natale 2025",
+        "code": "L9Y84CWO",
+        "temaStagionale": "natale",
+        "orarioApertura": "09:00",
+        "orarioPausaInizio": "13:00",
+        "orarioPausaFine": "14:30",
+        "orarioChiusura": "19:00",
+        "durataShootingMinuti": 30,
+        "attiva": true,
+        "createdAt": {
+          "_seconds": 1761995571,
+          "_nanoseconds": 227000000
+        },
+        "excludedDays": [
+          0
+        ],
+        "prodottiDisponibili": [
+          "do2FKBXAbKinTlCFYLlR",
+          "QoKfaiIKasJgHniZaTfy",
+          "JnITSH2iT1rKCKwuJVTf",
+          "DpWIZw8oIsg6hy9LYBrQ",
+          "KgwPTDmR5fUHoUkMoCGd",
+          "C0bv9ihh612GGqFzwvmD",
+          "iN0Nr1pMJazYgWxEFaVX",
+          "Ja5TA3eOTlOBu82ZOSHh"
+        ],
+        "dataInizio": {
+          "_seconds": 1763337600,
+          "_nanoseconds": 0
+        },
+        "dataFine": {
+          "_seconds": 1766534400,
+          "_nanoseconds": 0
+        },
+        "bloccaPrenotazioniPrimaInizio": false,
+        "giorniAnticipoSlider": 12,
+        "immagineSlider": "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/campaigns%2F2insmUQMdg793DRxHeSt%2Fslider_1762361069635.jpg?alt=media&token=1a012760-8459-4920-ad31-2b9cd783d7ac",
+        "immaginePaginaBooking": "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/campaigns%2F2insmUQMdg793DRxHeSt%2Fbooking_1762361075082.jpg?alt=media&token=3d24a1e9-ed4c-424f-95b7-15aed18df4c3",
+        "descrizione": "Tra luci calde, sorrisi e atmosfera di festa, ogni scatto diventa un ricordo prezioso.\nVivi l’esperienza del nostro set natalizio e regala un’emozione che durerà per sempre."
+      }
+    }
+  },
+  {
+    "collection": "bookings",
+    "documentCount": 22,
+    "sample": {
+      "id": "20sJOlviMXSbbW9tBYB9",
+      "data": {
+        "campaignId": "2insmUQMdg793DRxHeSt",
+        "cliente": {
+          "nome": "Naomi",
+          "cognome": "Fabozzi",
+          "email": "naomi.fabozzi96@gmail.com",
+          "whatsapp": "3462118547"
+        },
+        "dataShootingInizio": {
+          "_seconds": 1765036800,
+          "_nanoseconds": 0
+        },
+        "dataShootingFine": {
+          "_seconds": 1765038600,
+          "_nanoseconds": 0
+        },
+        "prodottoId": "JnITSH2iT1rKCKwuJVTf",
+        "prodottoNome": "Pochette 2 foto + Galleria Digitale",
+        "note": "",
+        "stato": "in_attesa",
+        "emailConfermataInviata": false,
+        "googleCalendarEventId": null,
+        "createdAt": {
+          "_seconds": 1763150905,
+          "_nanoseconds": 157000000
+        },
+        "updatedAt": {
+          "_seconds": 1763150905,
+          "_nanoseconds": 157000000
+        },
+        "emailRicevutaInviata": true,
+        "emailAdminInviata": true
+      }
+    }
+  },
+  {
+    "collection": "cashMovements",
+    "documentCount": 1,
+    "sample": {
+      "id": "mbFwWnhJA4CHfpQuSzEP",
+      "data": {
+        "tipo": "entrata",
+        "categoria": "Vendita diretta",
+        "importo": 5,
+        "descrizione": "Fototessera",
+        "data": {
+          "_seconds": 1762819200,
+          "_nanoseconds": 0
+        },
+        "metodoPagamento": "contante",
+        "note": "",
+        "createdAt": {
+          "_seconds": 1762954829,
+          "_nanoseconds": 831000000
+        },
+        "updatedAt": {
+          "_seconds": 1762954829,
+          "_nanoseconds": 831000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "clienti",
+    "documentCount": 792,
+    "sample": {
+      "id": "0IEl4VosKU3VrVzUlLBt",
+      "data": {
+        "nome": "Michele",
+        "cognome": "Alarico",
+        "email": "mikialar@libero.it",
+        "cellulare1": "3385903768",
+        "tags": [
+          "import_csv"
+        ],
+        "status": "lead",
+        "sourceRefs": {
+          "bookingIds": [],
+          "orderIds": [],
+          "galleryIds": [],
+          "passwordRequestIds": [],
+          "userIds": []
+        },
+        "financials": {
+          "totalRevenue": 0,
+          "outstandingBalance": 0,
+          "totalOrders": 0
+        },
+        "lifecycle": {
+          "status": "lead",
+          "lastInteractionAt": {
+            "_seconds": 1762524768,
+            "_nanoseconds": 97000000
+          },
+          "firstContactAt": {
+            "_seconds": 1762524768,
+            "_nanoseconds": 97000000
+          }
+        },
+        "createdAt": {
+          "_seconds": 1762524768,
+          "_nanoseconds": 97000000
+        },
+        "updatedAt": {
+          "_seconds": 1762524768,
+          "_nanoseconds": 97000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "comments",
+    "documentCount": 34,
+    "sample": {
+      "id": "2dQQrM3gya9UNyI8hJVe",
+      "data": {
+        "galleryId": "miiluNo1cpB2hyOilg8U",
+        "photoId": "dVorXR5Sjul9tAc5vvXa",
+        "userId": "DxtcdOtOhJNLW5TbVHP0yyuSGhA2",
+        "userEmail": "provolone@gmail.com",
+        "userName": "Provolone",
+        "text": "weeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "createdAt": {
+          "_seconds": 1752174136,
+          "_nanoseconds": 879000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "consultationTemplates",
+    "documentCount": 5,
+    "sample": {
+      "id": "5SZkH5lyhjymmaMN6Xsh",
+      "data": {
+        "durataMinuti": 30,
+        "descrizione": "Un incontro informale per capire insieme il tipo di servizio che desiderate:  Parliamo dello stile che preferite, dei tempi e di ciò che vi serve davvero, così possiamo organizzare tutto nel modo più semplice e naturale",
+        "jobDataFields": [],
+        "excludedDays": [
+          0
+        ],
+        "imageUrls": [
+          "https://storage.googleapis.com/wedding-gallery-397b6.firebasestorage.app/consultation-templates/N4x5vqnoUkedEJtIJ6yi/1763120042719_Titolo.png?GoogleAccessId=firebase-adminsdk-fbsvc%40wedding-gallery-397b6.iam.gserviceaccount.com&Expires=1920800043&Signature=Ho%2BggO6ZLP3KGU0wkclTvkfOnTQ9yBWbFj1JizBJhi47%2F4y9IvBLBLEcZ1146kj9HeuN8NTd2yvmhXquIbX7BPJC1myVmF689HDyzFPjYJrLO%2FlJENpcsYeT2eaXp1Ye%2FHa7C%2FQEPYCZsGvazHgQ%2BqHwJAQf110gZkcjf8oM%2BHEf2B96z52PbIq9NI29wa2g10UMh44lVqeREA8oJsoaA4%2BnD2N1BGJpovHjDJr%2FhG2O7nr%2F4YxVy5fhXaXBsomTuXX8R4OiEF1%2Fsv440Hu9vBFZD0tAphi%2FMzoZI2FgZJk7%2Ft8RaOWfqxvqAaRFfQAyRNpYAxJqDDhsyrKccBfhkQ%3D%3D"
+        ],
+        "ordine": 3,
+        "createdAt": {
+          "_seconds": 1763130806,
+          "_nanoseconds": 961000000
+        },
+        "jobType": "primo-compleanno",
+        "attiva": true,
+        "nome": "Prima Chiacchierata – Compleanno/smash",
+        "customWorkingHours": [
+          {
+            "giornoSettimana": 0,
+            "apertura": "09:00",
+            "chiusura": "18:00",
+            "attivo": false
+          },
+          {
+            "giornoSettimana": 1,
+            "apertura": "09:00",
+            "pausaInizio": "13:00",
+            "pausaFine": "14:30",
+            "chiusura": "18:00",
+            "attivo": true
+          },
+          {
+            "giornoSettimana": 2,
+            "apertura": "09:00",
+            "pausaInizio": "13:00",
+            "pausaFine": "14:30",
+            "chiusura": "18:00",
+            "attivo": true
+          },
+          {
+            "giornoSettimana": 3,
+            "apertura": "09:00",
+            "pausaInizio": "13:00",
+            "pausaFine": "14:30",
+            "chiusura": "18:00",
+            "attivo": true
+          },
+          {
+            "giornoSettimana": 4,
+            "apertura": "09:00",
+            "pausaInizio": "13:00",
+            "pausaFine": "14:30",
+            "chiusura": "18:00",
+            "attivo": true
+          },
+          {
+            "giornoSettimana": 5,
+            "apertura": "09:00",
+            "pausaInizio": "13:00",
+            "pausaFine": "14:30",
+            "chiusura": "18:00",
+            "attivo": true
+          },
+          {
+            "giornoSettimana": 6,
+            "apertura": "09:00",
+            "pausaInizio": "13:00",
+            "pausaFine": "14:30",
+            "chiusura": "18:00",
+            "attivo": true
+          }
+        ],
+        "updatedAt": {
+          "_seconds": 1763197760,
+          "_nanoseconds": 333000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "consultations",
+    "documentCount": 6,
+    "sample": {
+      "id": "3FItHfEAQRQ19xXTRczZ",
+      "data": {
+        "templateId": "Eh7PEbwgYkzZlyHyYko0",
+        "templateNome": "Chiacchierata",
+        "jobType": "matrimonio",
+        "durataMinuti": 45,
+        "jobDataFieldsSnapshot": [
+          {
+            "fieldKey": "eventDate",
+            "label": "Data del Matrimonio ",
+            "required": false,
+            "placeholder": "",
+            "helperText": "",
+            "type": "date"
+          },
+          {
+            "fieldKey": "eventLocation",
+            "label": "Location/Ristorante",
+            "required": false,
+            "placeholder": "",
+            "helperText": "",
+            "type": "text"
+          },
+          {
+            "fieldKey": "campo_3",
+            "label": "Numero Ospiti",
+            "required": false,
+            "placeholder": "",
+            "helperText": "",
+            "type": "text"
+          }
+        ],
+        "cliente": {
+          "nome": "gennaro",
+          "cognome": "mazzacane",
+          "email": "gennaro.mazzacane@gmail.com",
+          "whatsapp": "3274656179"
+        },
+        "dataConsulenza": {
+          "_seconds": 1763631000,
+          "_nanoseconds": 0
+        },
+        "orarioInizio": "10:30",
+        "orarioFine": "11:15",
+        "jobDataCollected": {
+          "eventDate": "2025-12-06",
+          "eventLocation": "dd",
+          "campo_3": "45"
+        },
+        "emailRicevutaInviata": false,
+        "emailConfermataInviata": false,
+        "emailAdminInviata": false,
+        "jobCreated": false,
+        "createdAt": {
+          "_seconds": 1762965002,
+          "_nanoseconds": 226000000
+        },
+        "clienteId": "IGsCE3GvieK0bZohbpEE",
+        "note": "\n[RIFIUTATA] Nessun motivo specificato",
+        "stato": "annullata",
+        "updatedAt": {
+          "_seconds": 1762973388,
+          "_nanoseconds": 106000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "contractClauses",
+    "documentCount": 1,
+    "sample": {
+      "id": "fM6dCQiyqxeC9FyrEkPk",
+      "data": {
+        "jobType": "matrimonio",
+        "titolo": "Matrimonio 2 standard",
+        "attivo": true,
+        "clauses": [
+          {
+            "text": "Conferma e Prenotazione\n\nLa prenotazione del servizio si considera confermata solo al momento del versamento dell’acconto concordato.\nFino a tale momento la data resta disponibile per altri clienti.",
+            "required": false,
+            "ordine": 1,
+            "id": "ueb2eMh2A4_uhW14iSA-7"
+          },
+          {
+            "text": "2. Pagamenti\n\nLe modalità e le scadenze di pagamento sono specificate nel modulo di prenotazione compilato al momento della conferma del servizio.\nEventuali ritardi nei pagamenti potranno comportare il rinvio della consegna del materiale fotografico fino al saldo completo.\nTutti i pagamenti dovranno essere effettuati secondo le condizioni indicate nel modulo, salvo diversi accordi scritti tra le parti.",
+            "required": false,
+            "ordine": 2,
+            "id": "wpf8wB-5-BY0o8dcGp9mo"
+          },
+          {
+            "text": "3. Cancellazioni e Rinunce\n\nIn caso di rinuncia da parte degli sposi:\n\nFino a 90 giorni prima della data: l’acconto verrà trattenuto a titolo di caparra.\n\nOltre i 90 giorni: potrà essere richiesto un rimborso spese proporzionale al lavoro già svolto (es. incontri, sopralluoghi, pianificazione).\nIn caso di annullamento dell’evento per cause di forza maggiore (malattia, emergenze, calamità), si potrà concordare una nuova data compatibilmente con la disponibilità del fotografo.",
+            "required": false,
+            "ordine": 3,
+            "id": "eExuEDVtfvYwb4hI6gOY4"
+          },
+          {
+            "text": "4. Orari e Copertura del Servizio\n\nIl servizio coprirà la giornata secondo le modalità concordate nel preventivo (preparazione, cerimonia, ricevimento, ecc.).\nEventuali ore aggiuntive richieste il giorno dell’evento saranno conteggiate a parte, previa approvazione verbale o scritta degli sposi.",
+            "required": false,
+            "ordine": 4,
+            "id": "MsOkz5j-RVIqxjrVId4AW"
+          },
+          {
+            "text": "5. Selezione e Consegna del Materiale\n\nLe foto vengono accuratamente selezionate e post-prodotte secondo lo stile artistico del fotografo.\nNon vengono consegnati file non selezionati o non editati.\nI tempi medi di consegna variano da 60 a 120 giorni, in base al periodo e alla tipologia di servizio.",
+            "required": false,
+            "ordine": 5,
+            "id": "rJu7HpMRpb3RsCNMPtnBF"
+          },
+          {
+            "text": "5. Selezione e Consegna del Materiale\n\nLe foto vengono accuratamente selezionate e post-prodotte secondo lo stile artistico del fotografo.\nNon vengono consegnati file non selezionati o non editati.\nI tempi medi di consegna variano da 60 a 120 giorni, in base al periodo e alla tipologia di servizio.",
+            "required": false,
+            "ordine": 6,
+            "id": "cWXfboWyzskjORNYzEtiT"
+          },
+          {
+            "text": "7. Conservazione dei File\n\nIl fotografo conserverà una copia dei file digitali per un periodo minimo di 12 mesi dalla consegna.\nSi consiglia comunque agli sposi di effettuare una copia di backup personale dei file ricevuti.\n\n8. Responsabilità e Forza Maggiore\n\nIn caso di eventi imprevisti che impediscano la presenza del fotografo (malattia grave, incidenti, cause di forza maggiore), verrà garantita, ove possibile, la sostituzione con un collega di pari livello professionale o, in alternativa, il rimborso dell’importo versato.\nIl fotografo non potrà essere ritenuto responsabile per ritardi o limitazioni dovuti a condizioni meteo, restrizioni di location, o comportamenti di terzi.",
+            "required": false,
+            "ordine": 7,
+            "id": "VMN6J6hBRyUmOGmBPmVmr"
+          },
+          {
+            "text": "9. Privacy\n\nTutti i dati personali forniti dagli sposi verranno trattati nel rispetto della normativa vigente (GDPR UE 2016/679) e utilizzati esclusivamente per finalità legate all’erogazione del servizio.",
+            "required": false,
+            "ordine": 8,
+            "id": "shRjE4RtnGJ4CQeTTGf-G"
+          }
+        ],
+        "createdBy": "ZVxEFbvKNhUoDrlTmzxkDzKcN7A3",
+        "createdAt": {
+          "_seconds": 1762730191,
+          "_nanoseconds": 159000000
+        },
+        "predefinito": true,
+        "updatedAt": {
+          "_seconds": 1762787093,
+          "_nanoseconds": 799000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "coupleStories",
+    "documentCount": 2,
+    "sample": {
+      "id": "lHVL_9v5",
+      "data": {
+        "prologo": {
+          "testo": "La storia di Lucrezia e Giuseppe iniziò in due tempi che si rincorsero. Prima, lui la vide in centro, arrivò col motorino e sentì che quel vento addosso aveva il suo nome. Poi, una sera, si sedettero su un muretto con due birre fredde: lei rise, lui parlò piano, e il mondo sembrò più semplice. Non sapevano ancora che quelle mani, appoggiate al bordo ruvido della pietra, stavano imparando a reggere anche il peso dei giorni difficili. Tra un sorso e una promessa non detta, la scintilla prese forma, e la strada cominciò.",
+          "posizione": "Prima pagina dell'album"
+        },
+        "capitolo_1_lattesa": [
+          {
+            "testo": "La mattina del 12 settembre, Lucrezia si svegliò con il cuore che batteva due volte: una per la paura buona, una per la gioia. Il rosa pesco scelto per il matrimonio scaldò la stanza come un’alba gentile. Si chiese se avrebbe ricordato ogni dettaglio o se la felicità avrebbe sfocato i contorni. Aprì la finestra, respirò l’aria fresca e pensò al muretto, a quella birra che aveva cambiato la traiettoria delle sue giornate. Non sapeva ancora che quel colore, rosa come una carezza, l’avrebbe accompagnata fino al sì."
+          },
+          {
+            "testo": "Dall’altra parte della città, Giuseppe guardò il completo e sorrise all’idea che, pur odiando le foto, avrebbe amato farsi guardare da lei. Pensò al motorino, all’odore di benzina e di strada, a come tutto fosse cominciato correndo. Si disse che il coraggio è restare quando la paura morde. Mentre allacciava i bottoni, sentì il telefono vibrare: un messaggio breve della madre, uno del padre. Li lesse come benedizioni semplici. Si fermò un istante, ascoltò il respiro salire e scendere: stava per accadere tutto."
+          },
+          {
+            "testo": "Le sei sorelle di Lucrezia la circondarono come fate premurose. Tra risate e sussurri, fissarono veli, sistemarono nastri, aggiustarono spilli ribelli. Ogni gesto era un modo per dirle: siamo qui. La madre entrò con passo lento, portando con sé il profumo di casa e di domeniche lunghe. Lucrezia pensò che la famiglia è un cerchio che si allarga senza rompersi. Mentre il trucco asciugava, provò il suono del suo nome nella voce di Giuseppe e lo sentì forte, preciso, come una chiave che apre la porta giusta."
+          },
+          {
+            "testo": "Giuseppe accarezzò il cane, che inclinò la testa come per capire l’importanza del giorno. Il padre gli sistemò la cravatta con una cura antica; la madre, da dietro, gli posò una mano sulla spalla. Ricordò quando era caduto e qualcuno lo aveva rialzato: la memoria gli arrivò addosso come un’onda che non spaventa più. Pensò a Lucrezia, alla sua forza gentile durante la malattia: capì che il loro sì nasceva molto prima della cerimonia, in quelle stanze dove si impara a restare."
+          },
+          {
+            "testo": "Davanti allo specchio, Lucrezia cercò la propria versione più vera. Si vide imperfetta e bellissima, come sanno essere le cose che hanno attraversato la tempesta. Il rosa pesco del bouquet le scaldò le dita; il cuore rallentò e prese un ritmo nuovo. «Sarò all’altezza?», si chiese appena. Poi ricordò la frase di lui, sussurrata una sera: “Per sempre insieme, nonostante tutto”. L’eco di quelle parole la fece sorridere: la promessa era già una casa in cui sentirsi al sicuro."
+          },
+          {
+            "testo": "Fuori, i motori delle auto mormoravano partenze. Le damigelle, sei costellazioni di affetto, aprirono la strada tra tessuti chiari e passi misurati. Lucrezia strinse il braccio del padre e gli sentì tremare appena la mano. Giuseppe, intanto, respirò a fondo e ripassò, in silenzio, il loro piccolo rituale: un bacio al giorno e mai a letto arrabbiati. Era arrivato il momento di muovere il primo passo verso la stessa direzione. La porta si aprì: la luce entrò, e con lei la giornata."
+          }
+        ],
+        "capitolo_2_incontro": [
+          {
+            "testo": "Quando Lucrezia apparve, Giuseppe sentì il mondo trattenere il respiro. La stessa scossa del muretto, lo stesso vento del motorino, ma stavolta addolciti dal rosa pesco. Pensò che certe visioni non chiedono prove: arrivano e basta. Lei avanzò lenta, il padre al fianco, e in quel tremito della sua mano riconobbe un amore che cede il passo a un altro amore, senza scomparire. Gli occhi di lei cercarono i suoi; il resto si fece cornice."
+          },
+          {
+            "testo": "I loro occhi si incontrarono e, per un istante, tutto sembrò fermo e chiarissimo. Lucrezia sentì la stanza dilatarsi: gli ospiti come luci soffuse, il coro un respiro unico. “Siamo qui”, si disse, “e siamo arrivati interi”. Giuseppe pensò alla strada fatta, agli inciampi e alle risalite condivise. Sorrise appena: il coraggio, oggi, era semplice come tenere la posizione accanto a lei e dire parole che avesse già nell’anima."
+          },
+          {
+            "testo": "Giuseppe prese le mani di Lucrezia e le trovò calde, vive, con quel tremito che precede le cose importanti. Le promesse gli vennero alle labbra come passi ricordati: per sempre insieme, nonostante tutto. Lei ascoltò e pensò alla sua promessa: restare, scegliere, costruire. Nelle pause tra una frase e l’altra, sentirono il silenzio come un alleato, non come uno spazio vuoto. Ogni sillaba posava un mattone invisibile."
+          },
+          {
+            "testo": "Arrivò il momento del sì. Le voci si abbassarono, persino gli orologi parvero educati. Lucrezia sentì il cuore indossare la misura esatta del coraggio. Giuseppe, guardandola, capì che la strada non sarebbe stata solo diritta né solo in discesa, ma loro l’avrebbero percorsa insieme. Il sì uscì netto, senza incertezze: una parola breve capace di contenere stagioni."
+          },
+          {
+            "testo": "Intorno a loro, gli invitati si fecero mare: sguardi lucidi, sorrisi larghi, qualcuno che si soffiava il naso di nascosto. Le sorelle di lei, come un coro affettuoso, trattennero l’emozione con dita intrecciate. I genitori fissarono quell’istante per non perderlo più. Anche il cane, nella memoria di Giuseppe, alzò le orecchie: l’idea bastò a fargli brillare gli occhi."
+          },
+          {
+            "testo": "Il primo bacio da sposi arrivò come si aspettano le cose vere: senza effetto speciale, ma con una forza che cambia l’aria. Lucrezia pensò al loro segreto più folle, a quell’aereo complice di una risata lunga, e si disse che la vita sa essere anche gioco. Giuseppe assaporò il gusto di lei e sentì che la leggerezza può convivere con la profondità, se la scegli ogni giorno."
+          },
+          {
+            "testo": "Uscirono mano nella mano, tra petali e voci sovrapposte. Il rosa pesco divenne cielo portatile; i passi, una musica discreta. Tra applausi e abbracci, Lucrezia percepì la trama invisibile che li sosteneva. Giuseppe ricevette pacche sulle spalle, consigli, battute. Sorrise a tutto, ma soprattutto a lei: ogni strada comincia da una porta aperta, e la loro si era appena spalancata."
+          },
+          {
+            "testo": "Le congratulazioni si trasformarono in invito al movimento: auto che ripartivano, itinerari brevi verso la festa. Dal finestrino, scorrevano case note con un significato diverso. Lucrezia appoggiò la testa e chiuse gli occhi un istante. Giuseppe avviò il motore come un rito antico. Poco dopo, la musica lontana li chiamò per nome."
+          }
+        ],
+        "capitolo_3_festa": [
+          {
+            "testo": "L’aperitivo iniziò con bicchieri che tintinnavano e voci che si accavallavano in una gioia ordinata. Il profumo degli agrumi si mescolò a quello dei fiori, e il rosa pesco tornò a farsi segnale gentile sulle tovaglie. Lucrezia, tenendo la mano di Giuseppe, sentì il ritmo della festa entrare nel petto: era il battito che chiede di danzare, non di correre."
+          },
+          {
+            "testo": "Durante le foto di gruppo, le sei sorelle la avvolsero in abbracci che sapevano di infanzia: un ventaglio di voci, richiami, piccole ironie. Giuseppe, che preferiva restare ai margini dell’obiettivo, accettò la luce con una pazienza sorridente: per lei, avrebbe attraversato qualsiasi inquadratura. Ogni scatto fu un tassello, non un obbligo."
+          },
+          {
+            "testo": "Il ricevimento prese vita quando le sedie trovarono le persone giuste e le storie si sedettero accanto ai piatti. I genitori raccontarono episodi che nessuno ricordava uguali, e fu bello così. Lucrezia si scoprì a ridere con la testa all’indietro; Giuseppe si sorprese a parlare più del previsto. La serata trovò il proprio passo, morbido e deciso."
+          },
+          {
+            "testo": "I brindisi si susseguirono come piccole onde: parole semplici, promesse in eco, qualche voce rotta. In un bicchiere, Lucrezia vide riflettersi una versione di sé che le piacque: forte, tenera, presente. Giuseppe alzò il calice e pensò alla strada percorsa: cadute, risalite, attese. Nessuna di quelle cose mancava, tutte servivano a dire grazie."
+          },
+          {
+            "testo": "Quando iniziò la loro canzone, Zero Assoluto sussurrò nel locale una memoria condivisa. Lucrezia sentì la pelle ricordare un’estate lontana; Giuseppe trovò il passo su cui avevano imparato a camminare insieme. Ballarono stretti, lasciando che i versi cucissero il tempo. Per un momento furono solo due respiri in ascolto, e bastò."
+          },
+          {
+            "testo": "La festa esplose quando la musica cambiò marcia e le scarpe decisero di non comandare più. Mattafix aprì una finestra sul vento: Big City Life trasformò la pista in strada senza semafori. Risero, si persero, si ritrovarono. Lucrezia pensò che la felicità fa rumore buono; Giuseppe che l’amore tiene il tempo meglio di qualsiasi batteria."
+          },
+          {
+            "testo": "Tra una risata e l’altra, tornarono i loro segreti come lampi gentili. Un invitato raccontò dell’aereo e la sala, complice, scoppiò in un coro di oh e di finti rimproveri. Lucrezia arrossì con grazia, Giuseppe alzò le mani come chi si arrende alla gioia. La leggerezza fece posto sul tavolo principale, accanto ai fiori."
+          },
+          {
+            "testo": "Anche quando le stelle si affacciarono, la serata non calò ma si fece più intima. Le luci divennero più calde, i passi più lenti. Qualcuno aprì una finestra e l’aria fresca entrò con delicatezza. Lucrezia appoggiò la fronte a quella di Giuseppe e, senza dirlo, gli promise ancora una volta: domani, e poi domani, e tutti i giorni dopo."
+          }
+        ],
+        "citazioni_poetiche": [
+          {
+            "testo": "Sul muretto, tra una birra e un sorriso, impararono il peso dolce dei giorni veri.",
+            "uso": "Per foto ritratto sposi"
+          },
+          {
+            "testo": "Sei sorelle come un coro: mani che sistemano veli, cuori che reggono il passo.",
+            "uso": "Per foto famiglia"
+          },
+          {
+            "testo": "Quando apparve, il mondo fece silenzio per ascoltare i loro occhi.",
+            "uso": "Per foto cerimonia"
+          },
+          {
+            "testo": "Il primo bacio da sposi non fece rumore: cambiò l’aria.",
+            "uso": "Per foto primo bacio"
+          },
+          {
+            "testo": "La festa è una mappa di risate: ci si perde per ritrovarsi più uniti.",
+            "uso": "Per foto festa"
+          },
+          {
+            "testo": "Ballarono sulla loro canzone come su un filo sicuro teso tra ieri e domani.",
+            "uso": "Per foto primo ballo"
+          },
+          {
+            "testo": "Le cose vere non brillano: scaldano.",
+            "uso": "Per foto spontanea"
+          },
+          {
+            "testo": "Al tramonto, il rosa pesco insegnò alla luce a parlare piano.",
+            "uso": "Per foto tramonto"
+          },
+          {
+            "testo": "Nei dettagli vive la promessa: un bottone, una mano, un respiro.",
+            "uso": "Per foto dettagli"
+          },
+          {
+            "testo": "Gli amici sono il rumore buono che allarga la stanza del cuore.",
+            "uso": "Per foto gruppo amici"
+          },
+          {
+            "testo": "Nel silenzio, si dissero ancora sì: restiamo, scegliamoci, domani.",
+            "uso": "Per foto momento intimo"
+          },
+          {
+            "testo": "Da un motorino al sempre: la strada è la stessa, cambia la compagnia.",
+            "uso": "Per foto finale"
+          }
+        ],
+        "metadata": {
+          "titolo": "La nosrra Storia",
+          "stile": "elegante",
+          "colore_principale": "#6d7e6d"
+        },
+        "galleryId": "lHVL_9v5",
+        "id": "lHVL_9v5",
+        "updatedAt": 1760719037047,
+        "updatedBy": "gennaro.mazzacane@gmail.com",
+        "createdAt": 1760719037047,
+        "createdBy": "gennaro.mazzacane@gmail.com"
+      }
+    }
+  },
+  {
+    "collection": "emailQueue",
+    "documentCount": 9,
+    "sample": {
+      "id": "D2nnZBIzFw3jUPgMO25F",
+      "data": {
+        "type": "new_photos_notification",
+        "galleryId": "miiluNo1cpB2hyOilg8U",
+        "galleryName": "test",
+        "newPhotosCount": 1,
+        "uploaderName": "Gennaro Mazzacane",
+        "galleryUrl": "https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/gallery/miiluNo1cpB2hyOilg8U",
+        "recipients": [
+          "image.studio.fotografico@gmail.com",
+          "gennaro.mazzacane@gmail.com",
+          "gennaro.mazzacane@gmail.com",
+          "gennaro.mazzacane@gmail.com",
+          "gennaro.mazzacane@gmail.com",
+          "gennaro.mazzacane@gmail.com",
+          "gennaro.mazzacane@gmail.com"
+        ],
+        "status": "pending",
+        "createdAt": {
+          "_seconds": 1752499098,
+          "_nanoseconds": 166000000
+        },
+        "error": "internal"
+      }
+    }
+  },
+  {
+    "collection": "faqSets",
+    "documentCount": 2,
+    "sample": {
+      "id": "hqqZuoVu2EvCgK8SLnx4",
+      "data": {
+        "title": "Set Domande Standard v1",
+        "active": true,
+        "version": 1,
+        "questions": [
+          {
+            "key": "q1",
+            "text": "Il Momento della Scintilla",
+            "type": "textarea"
+          },
+          {
+            "key": "q2",
+            "text": "Una Difficoltà Superata Insieme",
+            "type": "textarea"
+          },
+          {
+            "key": "q3",
+            "text": "Il Momento più Divertente o Folle",
+            "type": "textarea"
+          },
+          {
+            "key": "q4",
+            "text": "La Vostra Canzone del Cuore",
+            "type": "textarea"
+          },
+          {
+            "key": "q5",
+            "text": "La Promessa per il Futuro",
+            "type": "textarea"
+          },
+          {
+            "key": "q6",
+            "text": "Il Vostro Piccolo Rituale di Coppia",
+            "type": "textarea"
+          },
+          {
+            "key": "q7",
+            "text": "Il Colore o Tema del Matrimonio",
+            "type": "textarea"
+          },
+          {
+            "key": "q8",
+            "text": "Un Aggettivo per il Vostro Giorno Perfetto",
+            "type": "textarea"
+          },
+          {
+            "key": "q9",
+            "text": "Le Persone Importanti (famiglia/cerchia, ruoli speciali)",
+            "type": "textarea"
+          },
+          {
+            "key": "q10",
+            "text": "Spazio Libero (qualsiasi cosa vogliate aggiungere)",
+            "type": "textarea"
+          }
+        ],
+        "createdBy": "system",
+        "createdAt": 1756312398279,
+        "updatedAt": 1756312398279
+      }
+    }
+  },
+  {
+    "collection": "galleries",
+    "documentCount": 38,
+    "sample": {
+      "id": "39WNMH8uZkJPKYq5O2SM",
+      "data": {
+        "name": "Matrimonio Gennaro e Ludovica",
+        "code": "iC-W-Tkc",
+        "date": "2025-10-31",
+        "location": "Casale dei Baroni",
+        "description": "",
+        "password": "LudovicaGennaro",
+        "userId": "ZVxEFbvKNhUoDrlTmzxkDzKcN7A3",
+        "createdAt": {
+          "_seconds": 1759570002,
+          "_nanoseconds": 59000000
+        },
+        "photoCount": 279,
+        "selectionStatus": "pending",
+        "clientEmail": null,
+        "clientName": null,
+        "coverImageUrl": "",
+        "selectionDeadline": null,
+        "coverImageDesktop": null,
+        "selectedPhotoIds": [],
+        "selectionDeadlineEnforced": true,
+        "hasPassword": true,
+        "youtubeUrls": null,
+        "specialTheme": null,
+        "selectionEnabled": false,
+        "hasChapters": false,
+        "coverImageMobile": null,
+        "requiredPhotoCount": null,
+        "updatedAt": {
+          "_seconds": 1762358019,
+          "_nanoseconds": 108000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "gallery-photos",
+    "documentCount": 9915,
+    "sample": {
+      "id": "00fgc1BoP01R9LFJOskD",
+      "data": {
+        "galleryId": "D6dlpUHDKZYpF4OgXyPq",
+        "galleryCode": "RxAJpN6d",
+        "name": "1747645751732_f01ad21c-5b8e-4bd2-b81c-5e4c88f0211d.jpg",
+        "url": "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/gallery-photos%2FD6dlpUHDKZYpF4OgXyPq%2F1747645751732_f01ad21c-5b8e-4bd2-b81c-5e4c88f0211d.jpg?alt=media&token=1e5ec66d-3193-4caa-9c13-ef1dcaa13e46",
+        "contentType": "image/jpeg",
+        "size": 239552,
+        "createdAt": {
+          "_seconds": 1747651872,
+          "_nanoseconds": 475000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "gallerySecrets",
+    "documentCount": 31,
+    "sample": {
+      "id": "39WNMH8uZkJPKYq5O2SM",
+      "data": {
+        "password": "LudovicaGennaro",
+        "specialPin": null,
+        "updatedAt": {
+          "_seconds": 1762358019,
+          "_nanoseconds": 201000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "jobProvenances",
+    "documentCount": 3,
+    "sample": {
+      "id": "C2gHdpBDfJHiRvYdbBNP",
+      "data": {
+        "nome": "Mia sposa 2025",
+        "slug": "mia-sposa-2025",
+        "attivo": true,
+        "icona": "📸",
+        "colore": "#6366f1",
+        "ordine": 1,
+        "createdAt": {
+          "_seconds": 1762599372,
+          "_nanoseconds": 85000000
+        },
+        "updatedAt": {
+          "_seconds": 1762599372,
+          "_nanoseconds": 85000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "jobTypes",
+    "documentCount": 5,
+    "sample": {
+      "id": "WVY1AHLs3c1JLkcHYGW3",
+      "data": {
+        "nome": "Battesimo",
+        "slug": "battesimo",
+        "attivo": true,
+        "icona": "📸",
+        "ordine": 2,
+        "createdAt": {
+          "_seconds": 1762848943,
+          "_nanoseconds": 934000000
+        },
+        "colore": "#c5c67b",
+        "descrizione": "",
+        "imageUrl": "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/job-types%2F1763133067525_DSCF1908%20(FULL).jpg?alt=media&token=c0194106-379a-4221-a971-65b578da7227",
+        "updatedAt": {
+          "_seconds": 1763133073,
+          "_nanoseconds": 959000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "likes",
+    "documentCount": 187,
+    "sample": {
+      "id": "0VEQMtxG0t6y6tzqp2gd_ZVxEFbvKNhUoDrlTmzxkDzKcN7A3",
+      "data": {
+        "photoId": "0VEQMtxG0t6y6tzqp2gd",
+        "userId": "ZVxEFbvKNhUoDrlTmzxkDzKcN7A3",
+        "userEmail": "gennaro.mazzacane@gmail.com",
+        "userName": "Gennaro Mazzacane",
+        "createdAt": {
+          "_seconds": 1753039620,
+          "_nanoseconds": 28000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "passwordRequests",
+    "documentCount": 144,
+    "sample": {
+      "id": "11SA3N6GsJXqMM9IPxfg",
+      "data": {
+        "lastName": "Volpicelli",
+        "galleryId": "xitCEo1kn6zgM36WQbqk",
+        "email": "angela.volpicelli97@gmail.com",
+        "relation": "friend",
+        "status": "completed",
+        "galleryCode": "ncpLhic8",
+        "firstName": "Angela",
+        "galleryName": "Vincenzo e Ilenya",
+        "createdAt": {
+          "_seconds": 1749668557,
+          "_nanoseconds": 663000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "photos",
+    "documentCount": 10051,
+    "sample": {
+      "id": "00JGgPKrbO02MWbzpk0V",
+      "data": {
+        "name": "DSC04888.jpg",
+        "url": "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/gallery-photos%2FpzRoE2WDpWu9bIKsJtsl%2F1747649310084_9b334ba4-5f9b-4255-85e2-ac110db289f5.jpg?alt=media&token=b639ed24-2890-48d3-a636-a88c677bd62f",
+        "size": 360538,
+        "contentType": "image/jpeg",
+        "sortOrder": 94,
+        "galleryId": "pzRoE2WDpWu9bIKsJtsl",
+        "path": "gallery-photos/pzRoE2WDpWu9bIKsJtsl/1747649310084_9b334ba4-5f9b-4255-85e2-ac110db289f5.jpg",
+        "createdAt": {
+          "_seconds": 1747649312,
+          "_nanoseconds": 277000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "productCategories",
+    "documentCount": 1,
+    "sample": {
+      "id": "GfVbWDmRRLzuT3y359kT",
+      "data": {
+        "nome": "Matrimonio",
+        "value": "matrimonio",
+        "attivo": true,
+        "displayOrder": 1,
+        "createdAt": {
+          "_seconds": 1762952350,
+          "_nanoseconds": 869000000
+        },
+        "updatedAt": {
+          "_seconds": 1762952496,
+          "_nanoseconds": 638000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "products",
+    "documentCount": 7,
+    "sample": {
+      "id": "C0bv9ihh612GGqFzwvmD",
+      "data": {
+        "nome": "Album Scrigno + Galleria Digitale + Video",
+        "descrizione": "Album fotografico 20x20 cm con copertina in legno inciso e packaging in similpelle rossa\n\n20 facciate con 20–25 foto accuratamente selezionate e impaginate\n\nGalleria Digitale su Memorie Sospese per condividere i tuoi scatti ovunque\n\nMini Video Backstage dello shooting, per rivivere i momenti più autentici dietro le quinte\n\nUn cofanetto prezioso che racchiude emozione, eleganza e ricordo — da custodire, condividere e riscoprire ogni Natale.",
+        "prezzo": 250,
+        "sconto": 0,
+        "numeroFoto": 25,
+        "categoria": "pacchetto",
+        "attivo": true,
+        "immagini": [
+          "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762352045032_kz8cvg.jpg?alt=media&token=27c5d75b-4dda-425e-b4f0-962dfe95cd09",
+          "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762352069588_pav56e.jpg?alt=media&token=9fd47470-77e8-478d-9d2b-37538d9d82e1"
+        ],
+        "prezzoFinale": 250,
+        "createdAt": {
+          "_seconds": 1762352155,
+          "_nanoseconds": 653000000
+        },
+        "updatedAt": {
+          "_seconds": 1762352155,
+          "_nanoseconds": 653000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "questionnaireTokens",
+    "documentCount": 18,
+    "sample": {
+      "id": "1dc32f24b6195882371091fe062d8c48e115677df8c4b99ccac7a40301bb5ada",
+      "data": {
+        "id": "1dc32f24b6195882371091fe062d8c48e115677df8c4b99ccac7a40301bb5ada",
+        "tokenHash": "4f6b98f3abc255b96b0e60a3e77f9a0753db19047b19c9b8412f458358ae2b06",
+        "galleryId": "nmlPNhtYmXe9RuXOyzHt",
+        "questionnaireId": "HYiULgBTUtaU0roZcNey",
+        "role": "bride",
+        "expiresAt": 1765619985254,
+        "createdAt": 1757843985254
+      }
+    }
+  },
+  {
+    "collection": "quotes",
+    "documentCount": 14,
+    "sample": {
+      "id": "0v68SmerVGkfyCLnWcU1",
+      "data": {
+        "clienteId": "IGsCE3GvieK0bZohbpEE",
+        "type": "fisso",
+        "theme": {
+          "primaryColor": "#8B9A8B",
+          "secondaryColor": "#C8B8A8",
+          "footerText": "Image Studio - Fotografia professionale"
+        },
+        "products": [
+          {
+            "productId": "iN0Nr1pMJazYgWxEFaVX",
+            "nome": "ImageFold 8 foto + Galleria Digitale + Video Backastage",
+            "descrizione": "n ricordo autentico che unisce tradizione e tecnologia.\nL’Image Fold è un mini album pieghevole elegante e compatto, pensato per custodire i momenti più belli del tuo servizio natalizio. insieme al video backstage\n\n✨ Contenuto della bundle:\n\nMini album pieghevole con 8 foto stampate su carta fotografica di alta qualità\n\nCopertina in tessuto naturale con chiusura in cordino e bottone in legno\n\nGalleria Digitale su Memorie Sospese per rivedere e condividere le immagini in ogni momento\n\nMini Video Backstage dello shooting natalizio, per rivivere le emozioni dietro le quinte",
+            "prezzo": 120,
+            "selectable": false,
+            "selected": true,
+            "numeroFoto": 8,
+            "categoria": "pacchetto",
+            "immagini": [
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762354220554_a2kwe.jpg?alt=media&token=8135cda0-65f1-48fe-a729-3fbed9c70fb3",
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762354227958_33z6tc.jpg?alt=media&token=d27e0c58-ff6f-4917-998c-31e1304a39ac"
+            ]
+          },
+          {
+            "productId": "Ja5TA3eOTlOBu82ZOSHh",
+            "nome": "Image Fold  8 foto + Galleria Digitale",
+            "descrizione": "Mini album pieghevole con 8 foto stampate su carta fotografica di qualità\n\nCopertina in tessuto naturale con chiusura a cordino e bottone in legno\n\nGalleria Digitale su Memorie Sospese per rivedere e condividere le immagini anche online",
+            "prezzo": 100,
+            "selectable": false,
+            "selected": true,
+            "numeroFoto": 8,
+            "categoria": "pacchetto",
+            "immagini": [
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762352900358_8f5yew.jpg?alt=media&token=a4ff7f2b-7f2b-4fb4-9391-aefe0608818e"
+            ]
+          },
+          {
+            "productId": "C0bv9ihh612GGqFzwvmD",
+            "nome": "Album Scrigno + Galleria Digitale + Video",
+            "descrizione": "Album fotografico 20x20 cm con copertina in legno inciso e packaging in similpelle rossa\n\n20 facciate con 20–25 foto accuratamente selezionate e impaginate\n\nGalleria Digitale su Memorie Sospese per condividere i tuoi scatti ovunque\n\nMini Video Backstage dello shooting, per rivivere i momenti più autentici dietro le quinte\n\nUn cofanetto prezioso che racchiude emozione, eleganza e ricordo — da custodire, condividere e riscoprire ogni Natale.",
+            "prezzo": 250,
+            "selectable": false,
+            "selected": true,
+            "numeroFoto": 25,
+            "categoria": "pacchetto",
+            "immagini": [
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762352045032_kz8cvg.jpg?alt=media&token=27c5d75b-4dda-425e-b4f0-962dfe95cd09",
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762352069588_pav56e.jpg?alt=media&token=9fd47470-77e8-478d-9d2b-37538d9d82e1"
+            ]
+          },
+          {
+            "productId": "JnITSH2iT1rKCKwuJVTf",
+            "nome": "Pochette 2 foto + Galleria Digitale",
+            "descrizione": "Cofanetto natalizio in similpelle rossa con chiusura in corda.\nInclude 2 foto 10x15 cm stampate e una Galleria Digitale che include almeno 20 foto su Memorie Sospese, per rivivere e condividere i tuoi ricordi anche online.",
+            "prezzo": 60,
+            "selectable": false,
+            "selected": true,
+            "numeroFoto": 2,
+            "categoria": "pacchetto",
+            "immagini": [
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762342914088_bax9eo.jpg?alt=media&token=8efd25d6-9f6a-454c-9b3c-e32a37fc13d9",
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762342919430_0gd11o.jpg?alt=media&token=5f8dbf40-51fa-4e7e-8466-02dd0573179d"
+            ]
+          },
+          {
+            "productId": "QoKfaiIKasJgHniZaTfy",
+            "nome": "Pochette 2 foto + Galleria Digitale + Video",
+            "descrizione": "📸 Pochette in similpelle rossa con 2 foto 10x15 cm stampate, eleganti e pronte da regalare.\n💻 Galleria Digitale su Memorie Sospese con 20+ scatti professionali, per rivivere la magia del servizio fotografico ovunque.\n🎥 Mini Video Natalizio realizzato durante lo shooting, perfetto per condividere l’emozione del momento con amici e famiglia.",
+            "prezzo": 80,
+            "selectable": false,
+            "selected": true,
+            "numeroFoto": 2,
+            "categoria": "album",
+            "immagini": [
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762343834787_7n3shv.jpg?alt=media&token=6fe4fbaf-77f5-4e42-9b5b-251b240c4dc5"
+            ]
+          },
+          {
+            "productId": "KgwPTDmR5fUHoUkMoCGd",
+            "nome": "Album Scrigno + Galleria Digitale ",
+            "descrizione": "L’album Christmas Day è pensato per custodire la magia delle feste in un formato prezioso e senza tempo.\n\n✨ Contenuto della bundle:\n\nAlbum fotografico 20x20 cm con 20 facciate (min. 20 – max 25 foto)\n\nPackaging in legno inciso, con finitura naturale e dettagli raffinati\n\nCopertina personalizzata con incisione “Christmas Day”\n\nGalleria Digitale su Memorie Sospese per rivivere e condividere i ricordi in ogni momento",
+            "prezzo": 200,
+            "selectable": false,
+            "selected": true,
+            "numeroFoto": 25,
+            "categoria": "pacchetto",
+            "immagini": [
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762350207655_3dqq.jpg?alt=media&token=4d141778-8c36-4463-84bd-d7e9606a31ec",
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762350214772_kriboq.jpg?alt=media&token=52bfcc66-0877-40e6-aded-44c22cebeec3",
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762350221523_2t5y7v.jpg?alt=media&token=b20ee6ed-765a-439c-aa3b-3f9d0d977898",
+              "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/products%2Ftemp%2Fproduct_1762350555706_t3gc4t.jpg?alt=media&token=9780d817-5633-4ecc-a492-79bd45aed502"
+            ]
+          }
+        ],
+        "discountType": "amount",
+        "discountValue": 300,
+        "totalBeforeDiscount": 810,
+        "totalAfterDiscount": 510,
+        "totaleBase": 810,
+        "totaleSelezionato": 510,
+        "contractClauses": [
+          {
+            "id": "aHyjJ5acnO9ffx9MymfIr",
+            "text": "Conferma e Prenotazione\n\nLa prenotazione del servizio si considera confermata solo al momento del versamento dell’acconto concordato.\nFino a tale momento la data resta disponibile per altri clienti.",
+            "required": false,
+            "ordine": 1
+          },
+          {
+            "id": "bloRwlS46aOePL7Z21Uas",
+            "text": "2. Pagamenti\n\nLe modalità e le scadenze di pagamento sono specificate nel modulo di prenotazione compilato al momento della conferma del servizio.\nEventuali ritardi nei pagamenti potranno comportare il rinvio della consegna del materiale fotografico fino al saldo completo.\nTutti i pagamenti dovranno essere effettuati secondo le condizioni indicate nel modulo, salvo diversi accordi scritti tra le parti.",
+            "required": false,
+            "ordine": 2
+          },
+          {
+            "id": "dL2u9O-q_Tdu1lVBfWnZE",
+            "text": "3. Cancellazioni e Rinunce\n\nIn caso di rinuncia da parte degli sposi:\n\nFino a 90 giorni prima della data: l’acconto verrà trattenuto a titolo di caparra.\n\nOltre i 90 giorni: potrà essere richiesto un rimborso spese proporzionale al lavoro già svolto (es. incontri, sopralluoghi, pianificazione).\nIn caso di annullamento dell’evento per cause di forza maggiore (malattia, emergenze, calamità), si potrà concordare una nuova data compatibilmente con la disponibilità del fotografo.",
+            "required": false,
+            "ordine": 3
+          },
+          {
+            "id": "trCLUHviCDxu6Di4MRt7u",
+            "text": "4. Orari e Copertura del Servizio\n\nIl servizio coprirà la giornata secondo le modalità concordate nel preventivo (preparazione, cerimonia, ricevimento, ecc.).\nEventuali ore aggiuntive richieste il giorno dell’evento saranno conteggiate a parte, previa approvazione verbale o scritta degli sposi.",
+            "required": false,
+            "ordine": 4
+          },
+          {
+            "id": "AAasuxw-v8GDlG5SjIhFz",
+            "text": "5. Selezione e Consegna del Materiale\n\nLe foto vengono accuratamente selezionate e post-prodotte secondo lo stile artistico del fotografo.\nNon vengono consegnati file non selezionati o non editati.\nI tempi medi di consegna variano da 60 a 120 giorni, in base al periodo e alla tipologia di servizio.",
+            "required": false,
+            "ordine": 5
+          },
+          {
+            "id": "C5OYBvgWwcOC3f7MYBof9",
+            "text": "5. Selezione e Consegna del Materiale\n\nLe foto vengono accuratamente selezionate e post-prodotte secondo lo stile artistico del fotografo.\nNon vengono consegnati file non selezionati o non editati.\nI tempi medi di consegna variano da 60 a 120 giorni, in base al periodo e alla tipologia di servizio.",
+            "required": false,
+            "ordine": 6
+          },
+          {
+            "id": "RXMuHEdbh1pBEcFp8DpnB",
+            "text": "7. Conservazione dei File\n\nIl fotografo conserverà una copia dei file digitali per un periodo minimo di 12 mesi dalla consegna.\nSi consiglia comunque agli sposi di effettuare una copia di backup personale dei file ricevuti.\n\n8. Responsabilità e Forza Maggiore\n\nIn caso di eventi imprevisti che impediscano la presenza del fotografo (malattia grave, incidenti, cause di forza maggiore), verrà garantita, ove possibile, la sostituzione con un collega di pari livello professionale o, in alternativa, il rimborso dell’importo versato.\nIl fotografo non potrà essere ritenuto responsabile per ritardi o limitazioni dovuti a condizioni meteo, restrizioni di location, o comportamenti di terzi.",
+            "required": false,
+            "ordine": 7
+          },
+          {
+            "id": "PbzXwZcTIby8LWhbJLN4v",
+            "text": "9. Privacy\n\nTutti i dati personali forniti dagli sposi verranno trattati nel rispetto della normativa vigente (GDPR UE 2016/679) e utilizzati esclusivamente per finalità legate all’erogazione del servizio.",
+            "required": false,
+            "ordine": 8
+          }
+        ],
+        "publicToken": "6rqysEBKXpE7wqWegZDyFQ9qqGfTLRA4",
+        "jobInfo": {
+          "nomeEvento": "matrimonio gennaro e debora",
+          "eventDate": {
+            "_seconds": 1770937200,
+            "_nanoseconds": 0
+          },
+          "rito": "ddd",
+          "location": "dddd"
+        },
+        "clientiInfo": [
+          {
+            "id": "IGsCE3GvieK0bZohbpEE",
+            "nome": "Gennaro",
+            "cognome": "Mazzacane",
+            "email": "gennaro.mazzacane@gmail.com",
+            "telefono": "3274656179",
+            "indirizzo": "vaaxaaaaa",
+            "cap": "80014",
+            "citta": "napoli"
+          },
+          {
+            "id": "mzNEUKoH9aOdRxqBTi8f",
+            "nome": "Debora",
+            "cognome": "Di Bellucci",
+            "email": "debora.dibellucci12@gmail.com",
+            "telefono": "3274671667",
+            "indirizzo": "",
+            "cap": "81030",
+            "citta": "Cesa"
+          }
+        ],
+        "createdAt": {
+          "_seconds": 1762971502,
+          "_nanoseconds": 307000000
+        },
+        "createdBy": "ZVxEFbvKNhUoDrlTmzxkDzKcN7A3",
+        "sentTo": "gennaro.mazzacane@gmail.com, debora.dibellucci12@gmail.com",
+        "sentAt": {
+          "_seconds": 1762971495,
+          "_nanoseconds": 203000000
+        },
+        "status": "inviato",
+        "jobId": null,
+        "updatedAt": {
+          "_seconds": 1763028997,
+          "_nanoseconds": 196000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "rateLimits",
+    "documentCount": 2,
+    "sample": {
+      "id": "TW96aWxsYS81LjAgKExpbnV4OyBBbmRy",
+      "data": {
+        "identifier": "TW96aWxsYS81LjAgKExpbnV4OyBBbmRy",
+        "blocked": false,
+        "windowStart": 1758014224044,
+        "lastAttempt": 1758014224475,
+        "attempts": 2
+      }
+    }
+  },
+  {
+    "collection": "settings",
+    "documentCount": 1,
+    "sample": {
+      "id": "studio",
+      "data": {
+        "name": "Image Studios",
+        "slogan": "è tutta questione di ImaGe",
+        "address": "Via Quinto Orazio flacco 5 - Aversa",
+        "phone": "3274656179",
+        "email": "image.studio.fotografico@gmail.com",
+        "websiteUrl": "www.gennaromazzacane.it",
+        "socialLinks": {
+          "twitter": "",
+          "facebook": "",
+          "instagram": "image_studio_fotografico"
+        },
+        "about": "",
+        "logo": "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/settings%2Flogo?alt=media&token=f89c49cd-488f-4e60-a820-c7742963a771",
+        "heroTitle": "Catturiamo i momenti più preziosi",
+        "heroSubtitle": "Ogni scatto racconta una storia unica",
+        "heroButtonText": "Trova la tua galleria",
+        "whatsappTitle": "Contattaci su WhatsApp",
+        "whatsappSubtitle": "Siamo qui per te",
+        "whatsappText": "Hai domande sulle nostre gallerie o vuoi prenotare un servizio? Scrivici su WhatsApp!",
+        "whatsappButtonText": "Scrivici su WhatsApp"
+      }
+    }
+  },
+  {
+    "collection": "slideshow",
+    "documentCount": 5,
+    "sample": {
+      "id": "44NwSRD4L0Sc0WTYHX7Q",
+      "data": {
+        "url": "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/slideshow%2F1747119649564_pexels-262056625-12885759.jpg?alt=media&token=61eb6232-3e10-45ac-aa4b-7ba9cc44eb25",
+        "alt": "pexels-262056625-12885759.jpg",
+        "active": true,
+        "position": 2,
+        "createdAt": {
+          "_seconds": 1747119659,
+          "_nanoseconds": 379000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "subscriptions",
+    "documentCount": 14,
+    "sample": {
+      "id": "33hvwKzPEyulVdmnFhdS",
+      "data": {
+        "galleryId": "qZbsBZt1uMASZ5zHfsy5",
+        "galleryName": "Gennaro e Debora",
+        "email": "gmail.com@enacazzagennaro.m.oranneganneg",
+        "active": true,
+        "lastNotified": null,
+        "subscribedAt": {
+          "_seconds": 1761838561,
+          "_nanoseconds": 599000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "users",
+    "documentCount": 18,
+    "sample": {
+      "id": "0SaFPtPefYY9t3euwY4ZmQ6qvKP2",
+      "data": {
+        "email": "dod_dina@hotmail.it",
+        "displayName": "Giorgia Recano",
+        "role": "user",
+        "galleries": [
+          "39WNMH8uZkJPKYq5O2SM"
+        ],
+        "createdAt": {
+          "_seconds": 1761931022,
+          "_nanoseconds": 145000000
+        },
+        "lastLoginAt": {
+          "_seconds": 1761931022,
+          "_nanoseconds": 145000000
+        }
+      }
+    }
+  },
+  {
+    "collection": "validationSessions",
+    "documentCount": 15,
+    "sample": {
+      "id": "0LFEOcoAM6LCrNOs3FGG",
+      "data": {
+        "galleryId": "EIteSfShx9Gk9nEQWXLW",
+        "questionnaireId": "HXDjUTHtMYniRGeb8bhj",
+        "role": "bride",
+        "tokenId": "a28ea4ed673e901eb1b9f3fcbdd08b5b7f40f42a88f1ff99d7ef8a6a385ab774",
+        "ipAddress": "TW96aWxsYS81LjAgKFdpbmRvd3MgTlQg",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+        "validatedAt": 1756392389414,
+        "expiresAt": 1756393289414
+      }
+    }
+  },
+  {
+    "collection": "voiceMemos",
+    "documentCount": 15,
+    "sample": {
+      "id": "1p82V9KJrYt386xNX7Vd",
+      "data": {
+        "fileName": "recording_1750241171174.webm",
+        "message": "ggggggggggggg",
+        "fileSize": 31073,
+        "unlockDate": "2025-06-20",
+        "duration": 1,
+        "galleryId": "hiuk67M93pJYv2B8YVJo",
+        "audioUrl": "https://firebasestorage.googleapis.com/v0/b/wedding-gallery-397b6.firebasestorage.app/o/voice-memos%2Fhiuk67M93pJYv2B8YVJo%2Frecording_1750241171174.webm?alt=media&token=8ed71fe9-c2e6-4e56-92fd-fcfe41f62356",
+        "guestName": "ggg",
+        "createdAt": {
+          "_seconds": 1750241173,
+          "_nanoseconds": 213000000
+        },
+        "isUnlocked": true
+      }
+    }
+  }
+]
