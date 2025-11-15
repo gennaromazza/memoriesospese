@@ -108,7 +108,7 @@ export default function SendReceiptDialog({
 
     if (!recipient.trim()) {
       toast({
-        title: "❌ Destinatario mancante",
+        title: "Destinatario mancante",
         description: `Inserisci ${sendMethod === "email" ? "un'email" : "un numero WhatsApp"} valido.`,
         variant: "destructive",
       });
@@ -141,12 +141,12 @@ export default function SendReceiptDialog({
       if (sendMethod === "whatsapp" && result.whatsappLink) {
         window.open(result.whatsappLink, "_blank");
         toast({
-          title: "✅ WhatsApp aperto",
+          title: "WhatsApp aperto",
           description: `Messaggio precompilato pronto per ${recipient}. Clicca 'Invia' su WhatsApp.`,
         });
       } else {
         toast({
-          title: "✅ Ricevuta inviata",
+          title: "Ricevuta inviata",
           description: `Ricevuta inviata con successo via email a ${recipient}`,
         });
       }
@@ -156,7 +156,7 @@ export default function SendReceiptDialog({
     } catch (error) {
       console.error("Errore invio ricevuta:", error);
       toast({
-        title: "❌ Errore",
+        title: "Errore",
         description: "Impossibile inviare la ricevuta. Riprova.",
         variant: "destructive",
       });
@@ -178,7 +178,7 @@ export default function SendReceiptDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl">📄 Invia Ricevuta Fiscale</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">Invia Ricevuta</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
             Invia ricevuta per movimento di{" "}
             <strong className="text-green-600">

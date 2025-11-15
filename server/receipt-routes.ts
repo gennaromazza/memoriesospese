@@ -69,7 +69,7 @@ async function getStudioInfo() {
 }
 
 /**
- * Template HTML ricevuta fiscale
+ * Template HTML ricevuta
  */
 function createReceiptHTML(receiptData: any): string {
   const formatCurrency = (amount: number) => {
@@ -90,47 +90,191 @@ function createReceiptHTML(receiptData: any): string {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Ricevuta Fiscale N° ${receiptData.numero}</title>
+      <title>Ricevuta N° ${receiptData.numero}</title>
       <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        .container { max-width: 800px; margin: 0 auto; padding: 20px; border: 2px solid #8b5a3c; box-sizing: border-box; }
-        .header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #8b5a3c; padding-bottom: 15px; }
-        .header h1 { color: #8b5a3c; margin: 0; font-size: 28px; }
-        .header p { margin: 10px 0 0 0; font-size: 16px; color: #666; }
-        .section { margin-bottom: 20px; background: #f9f7f4; padding: 15px; border-radius: 8px; }
-        .section h3 { color: #8b5a3c; margin: 0 0 10px 0; font-size: 18px; }
-        .section p { margin: 5px 0; font-size: 14px; }
-        .client-section { margin-bottom: 20px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th { padding: 10px; text-align: left; background: #8b5a3c; color: white; border: 1px solid #6b4530; font-size: 14px; }
-        td { padding: 10px; border: 1px solid #e0e0e0; font-size: 14px; }
-        .total-section { text-align: right; margin-bottom: 20px; padding: 15px; background: #f9f7f4; border-radius: 8px; }
-        .total-section p { margin: 5px 0; font-size: 14px; }
-        .total-amount { font-size: 24px; color: #8b5a3c; font-weight: bold; margin-top: 10px; }
-        .note { margin-bottom: 15px; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; }
-        .note p { margin: 0; font-size: 13px; color: #856404; }
-        .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; }
-        .footer p { margin: 5px 0; font-size: 12px; color: #999; }
+        body { 
+          margin: 0; 
+          padding: 0; 
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          background: #f9f7f4;
+          color: #333;
+        }
+        .print-button {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #8b5a3c;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 14px;
+          box-shadow: 0 2px 8px rgba(139, 90, 60, 0.3);
+          transition: all 0.3s ease;
+        }
+        .print-button:hover {
+          background: #6b4530;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(139, 90, 60, 0.4);
+        }
+        .container { 
+          max-width: 800px; 
+          margin: 40px auto; 
+          padding: 40px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .header { 
+          text-align: center; 
+          margin-bottom: 30px; 
+          padding-bottom: 20px;
+          border-bottom: 2px solid #8b5a3c;
+        }
+        .header h1 { 
+          color: #8b5a3c; 
+          margin: 0 0 10px 0; 
+          font-size: 32px;
+          font-weight: 700;
+          letter-spacing: 1px;
+        }
+        .header p { 
+          margin: 0; 
+          font-size: 18px; 
+          color: #666;
+          font-weight: 500;
+        }
+        .section { 
+          margin-bottom: 25px; 
+          background: #f9f7f4; 
+          padding: 20px; 
+          border-radius: 8px;
+          border-left: 4px solid #8b5a3c;
+        }
+        .section h3 { 
+          color: #8b5a3c; 
+          margin: 0 0 15px 0; 
+          font-size: 18px;
+          font-weight: 600;
+        }
+        .section p { 
+          margin: 8px 0; 
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .client-section { 
+          margin-bottom: 25px; 
+          padding: 20px; 
+          background: #fff;
+          border: 2px solid #e8d5c4; 
+          border-radius: 8px;
+        }
+        table { 
+          width: 100%; 
+          border-collapse: collapse; 
+          margin-bottom: 25px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        th { 
+          padding: 12px; 
+          text-align: left; 
+          background: #8b5a3c; 
+          color: white; 
+          font-size: 14px;
+          font-weight: 600;
+        }
+        td { 
+          padding: 12px; 
+          border-bottom: 1px solid #e0e0e0; 
+          font-size: 14px;
+        }
+        tr:last-child td {
+          border-bottom: none;
+        }
+        .total-section { 
+          text-align: right; 
+          margin-bottom: 25px; 
+          padding: 20px; 
+          background: #f9f7f4; 
+          border-radius: 8px;
+          border: 2px solid #e8d5c4;
+        }
+        .total-section p { 
+          margin: 8px 0; 
+          font-size: 15px;
+        }
+        .total-amount { 
+          font-size: 28px; 
+          color: #8b5a3c; 
+          font-weight: 700; 
+          margin-top: 15px;
+        }
+        .note { 
+          margin-bottom: 20px; 
+          padding: 15px; 
+          background: #fff3e0; 
+          border-left: 4px solid #ff9800; 
+          border-radius: 4px;
+        }
+        .note p { 
+          margin: 0; 
+          font-size: 13px; 
+          color: #e65100;
+          line-height: 1.6;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 40px; 
+          padding-top: 20px; 
+          border-top: 2px solid #e0e0e0;
+        }
+        .footer p { 
+          margin: 5px 0; 
+          font-size: 12px; 
+          color: #999;
+        }
+
+        /* Print Styles */
+        @media print {
+          body { background: white; }
+          .print-button { display: none; }
+          .container { 
+            margin: 0; 
+            padding: 20px;
+            box-shadow: none;
+            border-radius: 0;
+          }
+        }
 
         /* Mobile Responsive */
         @media only screen and (max-width: 600px) {
-          .container { padding: 15px; border-width: 1px; }
-          .header h1 { font-size: 22px; }
-          .header p { font-size: 14px; }
-          .section { padding: 12px; margin-bottom: 15px; }
+          .print-button {
+            position: static;
+            width: 100%;
+            margin-bottom: 20px;
+          }
+          .container { 
+            margin: 20px;
+            padding: 20px; 
+          }
+          .header h1 { font-size: 24px; }
+          .header p { font-size: 16px; }
+          .section { padding: 15px; margin-bottom: 15px; }
           .section h3 { font-size: 16px; }
           .section p, td, th { font-size: 12px; }
           th, td { padding: 8px; }
-          .total-amount { font-size: 20px; }
-          table { font-size: 12px; }
+          .total-amount { font-size: 22px; }
         }
       </style>
     </head>
     <body>
+      <button class="print-button" onclick="window.print()">Stampa Ricevuta</button>
       <div class="container">
         <!-- Header -->
         <div class="header">
-          <h1>RICEVUTA FISCALE</h1>
+          <h1>RICEVUTA</h1>
           <p>N° ${receiptData.numero}</p>
         </div>
 
@@ -192,7 +336,7 @@ function createReceiptHTML(receiptData: any): string {
       <!-- Footer -->
         <div class="footer">
           <p>Documento emesso elettronicamente</p>
-          <p>Ricevuta non valida ai fini fiscali - Documento informativo</p>
+          <p>Grazie per la fiducia</p>
         </div>
       </div>
     </body>
@@ -279,13 +423,13 @@ router.post('/send', async (req, res) => {
       // Import dinamico per evitare circular dependency
       const { sendGmailEmail } = await import('./email-routes');
       
-      const subject = `Ricevuta Fiscale N° ${numeroRicevuta} - ${studioInfo.name}`;
+      const subject = `Ricevuta N° ${numeroRicevuta} - ${studioInfo.name}`;
       await sendGmailEmail(recipient, subject, htmlContent);
       
       console.log(`✅ Ricevuta N° ${numeroRicevuta} inviata via email a ${recipient}`);
     } else {
       // WhatsApp: genera link wa.me con messaggio precompilato
-      const whatsappMessage = `Ciao${clienteNome ? ' ' + clienteNome : ''}! 🧾\n\nEcco la tua *Ricevuta Fiscale N° ${numeroRicevuta}*\n\n📅 Data: ${new Date(receiptData.data.toDate ? receiptData.data.toDate() : receiptData.data).toLocaleDateString('it-IT')}\n💶 Importo: €${receiptData.importo.toFixed(2)}\n📝 Descrizione: ${receiptData.descrizione}\n💳 Pagamento: ${receiptData.metodoPagamento.toUpperCase()}\n\n${receiptData.studioName}\n${receiptData.studioPhone}`;
+      const whatsappMessage = `Ciao${clienteNome ? ' ' + clienteNome : ''}!\n\nEcco la tua *Ricevuta N° ${numeroRicevuta}*\n\nData: ${new Date(receiptData.data.toDate ? receiptData.data.toDate() : receiptData.data).toLocaleDateString('it-IT')}\nImporto: €${receiptData.importo.toFixed(2)}\nDescrizione: ${receiptData.descrizione}\nPagamento: ${receiptData.metodoPagamento.toUpperCase()}\n\n${receiptData.studioName}\n${receiptData.studioPhone}`;
       
       const whatsappNumber = recipient.replace(/[^0-9+]/g, '');
       const whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`;
