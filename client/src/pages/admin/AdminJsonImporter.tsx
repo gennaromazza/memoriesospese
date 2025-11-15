@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import useIsAdmin from "@/hooks/useIsAdmin";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 const FIRESTORE_COLLECTIONS = [
   "bookings",
@@ -39,7 +39,7 @@ const FIRESTORE_COLLECTIONS = [
 ];
 
 export default function AdminJsonImporter() {
-  const { isAdmin, loading } = useIsAdmin();
+  const isAdmin = useIsAdmin();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -50,8 +50,8 @@ export default function AdminJsonImporter() {
   const [targetCollection, setTargetCollection] = useState("");
 
   useEffect(() => {
-    if (!loading && !isAdmin) navigate("/admin/login");
-  }, [loading, isAdmin, navigate]);
+    if (!isAdmin) navigate("/admin/login");
+  }, [isAdmin, navigate]);
 
   if (!isAdmin) return null;
 
