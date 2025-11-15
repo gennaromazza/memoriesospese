@@ -26,8 +26,7 @@ import DeleteGalleryPage from "./pages/DeleteGalleryPage";
 import UserProfile from "./pages/UserProfile";
 import BookingIndex from "./pages/BookingIndex";
 import BookingPage from "./pages/BookingPage";
-import QuoteSignedPortalPage from "./pages/QuoteSignedPortalPage";
-import QuotePublicViewPage from "./pages/QuotePublicViewPage";
+import QuotePortal from "./pages/QuotePortal";
 import GalleryManagementWorkspace from "./pages/GalleryManagementWorkspace";
 import JobDetailPage from "./pages/JobDetailPage";
 import JobsListPage from "./pages/JobsListPage";
@@ -77,10 +76,8 @@ function AppRoutes() {
       <Route path="/consulenze/:tipo/:id/prenota" component={ConsultationBooking} />
       <Route path="/consulenze/:tipo" component={ConsultationTemplates} />
 
-      {/* Quote portale pubblico */}
-      <Route path="/quote/:token" component={QuotePublicViewPage} />
-      <Route path="/quote/view/:token" component={QuotePublicViewPage} />
-      <Route path="/quote/signed/:token" component={QuoteSignedPortalPage} />
+      {/* Quote portale pubblico - Link unico che si adatta allo stato */}
+      <Route path="/quote/:token" component={QuotePortal} />
 
       {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
       <Route path="/special-gallery" component={SpecialGalleryAccess} />
