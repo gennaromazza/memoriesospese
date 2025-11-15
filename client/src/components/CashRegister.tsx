@@ -364,46 +364,46 @@ export default function CashRegister() {
         </Dialog>
       </div>
 
-      {/* Tabella Movimenti */}
+      {/* Tabella Movimenti - Responsive */}
       <Card>
         <CardHeader>
-          <CardTitle>Tutti i Movimenti</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-base sm:text-lg">Tutti i Movimenti</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
             {movements?.length || 0} movimenti registrati
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0 sm:p-6">
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-xs sm:text-sm text-muted-foreground">
               Caricamento movimenti...
             </div>
           ) : !movements || movements.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 px-4 text-xs sm:text-sm text-muted-foreground">
               Nessun movimento registrato. Aggiungi il primo movimento cliccando "Nuovo Movimento".
             </div>
           ) : (
-            <div className="rounded-md border">
-              <table className="w-full">
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full min-w-[800px]">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-2 text-left text-sm font-semibold">Data</th>
-                    <th className="px-4 py-2 text-left text-sm font-semibold">Tipo</th>
-                    <th className="px-4 py-2 text-left text-sm font-semibold">Categoria</th>
-                    <th className="px-4 py-2 text-left text-sm font-semibold">Descrizione</th>
-                    <th className="px-4 py-2 text-left text-sm font-semibold">Importo</th>
-                    <th className="px-4 py-2 text-left text-sm font-semibold">Metodo</th>
-                    <th className="px-4 py-2 text-right text-sm font-semibold">Azioni</th>
+                    <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Data</th>
+                    <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Tipo</th>
+                    <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Categoria</th>
+                    <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Descrizione</th>
+                    <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Importo</th>
+                    <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Metodo</th>
+                    <th className="px-2 sm:px-4 py-2 text-right text-xs sm:text-sm font-semibold whitespace-nowrap">Azioni</th>
                   </tr>
                 </thead>
                 <tbody>
                   {movements.map((mov) => (
                     <tr key={mov.id} className="border-t hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm">
+                      <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm whitespace-nowrap">
                         {toDate(mov.data).toLocaleDateString("it-IT")}
                       </td>
-                      <td className="px-4 py-2 text-sm">
+                      <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
                         <span
-                          className={`px-2 py-1 rounded text-xs ${
+                          className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs whitespace-nowrap ${
                             mov.tipo === "entrata"
                               ? "bg-green-100 text-green-800"
                               : "bg-red-100 text-red-800"
@@ -412,48 +412,51 @@ export default function CashRegister() {
                           {mov.tipo === "entrata" ? "⬆️ Entrata" : "⬇️ Uscita"}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-sm text-muted-foreground">
+                      <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
                         {mov.categoria}
                       </td>
-                      <td className="px-4 py-2 text-sm">{mov.descrizione}</td>
+                      <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm max-w-[200px] truncate" title={mov.descrizione}>
+                        {mov.descrizione}
+                      </td>
                       <td
-                        className={`px-4 py-2 text-sm font-semibold ${
+                        className={`px-2 sm:px-4 py-2 text-xs sm:text-sm font-semibold whitespace-nowrap ${
                           mov.tipo === "entrata" ? "text-green-600" : "text-red-600"
                         }`}
                       >
                         {mov.tipo === "entrata" ? "+" : "-"}
                         {formatCurrency(mov.importo)}
                       </td>
-                      <td className="px-4 py-2 text-sm">{mov.metodoPagamento}</td>
-                      <td className="px-4 py-2 text-right">
-                        <div className="flex justify-end gap-2">
+                      <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm whitespace-nowrap">{mov.metodoPagamento}</td>
+                      <td className="px-2 sm:px-4 py-2 text-right whitespace-nowrap">
+                        <div className="flex justify-end gap-1 sm:gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleOpenDialog(mov)}
+                            className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
 
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-red-600">
-                                <Trash className="h-4 w-4" />
+                              <Button variant="ghost" size="sm" className="text-red-600 h-7 w-7 sm:h-8 sm:w-8 p-0">
+                                <Trash className="h-3 w-3 sm:h-4 sm:w-4" />
                               </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent>
+                            <AlertDialogContent className="w-[95vw] max-w-md">
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
-                                <AlertDialogDescription>
+                                <AlertDialogTitle className="text-base sm:text-lg">Conferma Eliminazione</AlertDialogTitle>
+                                <AlertDialogDescription className="text-xs sm:text-sm">
                                   Sei sicuro di voler eliminare questo movimento? Questa
                                   azione non può essere annullata.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+                                <AlertDialogCancel className="w-full sm:w-auto text-xs sm:text-sm">Annulla</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => deleteMutation.mutate(mov.id)}
-                                  className="bg-red-600 hover:bg-red-700"
+                                  className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-xs sm:text-sm"
                                 >
                                   Elimina
                                 </AlertDialogAction>
