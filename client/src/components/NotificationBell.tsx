@@ -1,3 +1,4 @@
+import React, { useMemo, useCallback } from 'react';
 import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -9,14 +10,19 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-export function NotificationBell() {
+export const NotificationBell = React.memo(function NotificationBell() {
   const { data: notifications = [], isLoading } = useNotifications();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  // 🚀 Memoizza il conteggio non letti
+  const unreadCount = useMemo(() => 
+    notifications.filter(n => !n.isRead).length,
+    [notifications]
+  );
   
-  const getIcon = (type: string) => {
+  // 🚀 Memoizza la funzione getIcon per evitare ricreazioni
+  const getIcon = useCallback((type: string) => {
     switch (type) {
       case 'booking': return <Camera className="h-4 w-4" />;
       case 'consultation': return <MessageCircle className="h-4 w-4" />;
@@ -24,15 +30,16 @@ export function NotificationBell() {
       case 'selection': return <CheckSquare className="h-4 w-4" />;
       default: return <Bell className="h-4 w-4" />;
     }
-  };
+  }, []);
   
-  const handleNotificationClick = (deepLink: string) => {
-    // Naviga usando wouter (supporta query params)
+  const handleNotificationClick = useCallback((deepLink: string) => {
     navigate(deepLink);
     
-    // Invalida query notifiche per refresh
-    queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-  };
+    // Invalida query notifiche per refresh (debounced)
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+    }, 500);
+  }, [navigate, queryClient]);
   
   return (
     <Popover>
@@ -117,4 +124,4 @@ export function NotificationBell() {
       </PopoverContent>
     </Popover>
   );
-}
+});
