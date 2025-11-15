@@ -239,10 +239,21 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       data: templateData
     };
     
-    // 4. Genera link consulenza pre-compilato
-    const baseUrl = process.env.REPL_SLUG 
-      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
-      : 'http://localhost:5000';
+    // 4. Genera link consulenza pre-compilato con dominio corretto
+    let baseUrl = 'https://memoriesospese.gennaromazzacane.it';
+    
+    // Override con dominio primario se configurato
+    if (process.env.REPLIT_DOMAINS) {
+      try {
+        const domains = JSON.parse(process.env.REPLIT_DOMAINS);
+        const primaryDomain = domains.find((d: any) => d.is_primary)?.domain;
+        if (primaryDomain) {
+          baseUrl = `https://${primaryDomain}`;
+        }
+      } catch (error) {
+        console.warn('Errore parsing REPLIT_DOMAINS, uso default');
+      }
+    }
     
     const consultationLink = `${baseUrl}/consulenza/${templateId}?nome=${encodeURIComponent(cliente.nome)}&cognome=${encodeURIComponent(cliente.cognome)}&email=${encodeURIComponent(cliente.email)}&whatsapp=${encodeURIComponent(cliente.whatsapp || '')}&jobId=${id}`;
     
@@ -260,47 +271,50 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       
       const subject = `Prenota la tua consulenza - ${template.data.nome}`;
       const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #8b5a3c 0%, #6d4c3a 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-            .button { display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>📸 Prenota la tua consulenza</h1>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #8b5a3c; text-align: center;">📸 Prenota la tua Consulenza</h2>
+          <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+            <p style="font-size: 16px; margin-bottom: 15px;">
+              Ciao <strong>${cliente.nome}</strong>,
+            </p>
+            <p style="font-size: 16px; margin-bottom: 20px;">
+              È arrivato il momento di organizzare la tua <strong style="color: #8b5a3c;">${template.data.nome}</strong> 
+              per il tuo evento <strong>${job.nomeEvento}</strong>!
+            </p>
+            
+            <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">💬 Cosa faremo insieme</h3>
+              <p style="margin: 8px 0;">✨ Discutere i dettagli del tuo evento</p>
+              <p style="margin: 8px 0;">📸 Pianificare insieme il servizio fotografico</p>
+              <p style="margin: 8px 0;">❓ Rispondere a tutte le tue domande</p>
+              <p style="margin: 8px 0;"><strong>⏱️ Durata:</strong> ${template.data.durataMinuti} minuti</p>
             </div>
-            <div class="content">
-              <p>Ciao <strong>${cliente.nome}</strong>,</p>
-              <p>È arrivato il momento di organizzare la tua <strong>${template.data.nome}</strong> per il tuo evento <strong>${job.nomeEvento}</strong>!</p>
-              <p>Clicca sul pulsante qui sotto per prenotare l'appuntamento che preferisci:</p>
-              <div style="text-align: center;">
-                <a href="${consultationLink}" class="button">Prenota Consulenza</a>
-              </div>
-              <p>Durante la consulenza potremo:</p>
-              <ul>
-                <li>Discutere i dettagli del tuo evento</li>
-                <li>Pianificare insieme il servizio fotografico</li>
-                <li>Rispondere a tutte le tue domande</li>
-              </ul>
-              <p>Non vedo l'ora di vederti!</p>
-              <p>A presto,<br><strong>${studioInfo.name}</strong></p>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${consultationLink}" 
+                 style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
+                        text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                📅 Prenota Consulenza
+              </a>
             </div>
-            <div class="footer">
-              <p>${studioInfo.name}<br>
-              📧 ${studioInfo.email} | 📱 ${studioInfo.phone}</p>
-            </div>
+
+            <p style="font-size: 14px; color: #666; margin-top: 20px;">
+              Non vedo l'ora di vederti! Se hai domande, non esitare a contattarmi.
+            </p>
+
+            <p style="font-size: 14px; margin-top: 20px;">
+              A presto,<br>
+              <strong>${studioInfo.name}</strong>
+            </p>
           </div>
-        </body>
-        </html>
+          
+          <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+            <p style="margin: 5px 0; font-weight: 600;">${studioInfo.name}</p>
+            ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ''}
+            <p style="margin: 5px 0;">Email: ${studioInfo.email}</p>
+            <p style="margin: 5px 0;">Tel: ${studioInfo.phone}</p>
+          </div>
+        </div>
       `;
       
       await sendGmailEmail(
