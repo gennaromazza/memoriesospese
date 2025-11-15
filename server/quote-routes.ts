@@ -4,6 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import { db, FieldValue } from './firebase-admin.js';
+import { getAuth } from 'firebase-admin/auth';
 import type { Quote, RevokedToken } from '../shared/quotes-types.js';
 import type { PaymentSchedule } from '../shared/payment-schedule-types.js';
 import { 
@@ -16,6 +17,69 @@ import {
 import { nanoid } from 'nanoid';
 
 const router = Router();
+
+/**
+ * Middleware: Verifica autenticazione Firebase e permessi admin
+ * Protegge endpoint admin da accesso non autorizzato
+ * SICUREZZA: Verifica solo il token Firebase, NON il header x-admin-email (spoofable)
+ */
+async function verifyAdminAuth(req: Request, res: Response, next: Function) {
+  try {
+    const authHeader = req.headers.authorization;
+
+    // 1. Verifica presenza token
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        error: 'Non autorizzato',
+        message: 'Token di autenticazione mancante'
+      });
+    }
+
+    // 2. Verifica Firebase ID token
+    const idToken = authHeader.split('Bearer ')[1];
+    let decodedToken;
+    
+    try {
+      decodedToken = await getAuth().verifyIdToken(idToken);
+    } catch (error) {
+      console.error('❌ Token Firebase non valido:', error);
+      return res.status(403).json({
+        error: 'Accesso negato',
+        message: 'Token di autenticazione non valido o scaduto'
+      });
+    }
+
+    // 3. Verifica che il token appartenga all'admin
+    // SICUREZZA: Usa SOLO decodedToken.email (verificato da Firebase)
+    // NON fidarsi di req.headers['x-admin-email'] (può essere spoofato)
+    const ADMIN_EMAIL = 'gennaro.mazzacane@gmail.com';
+    const verifiedEmail = decodedToken.email;
+    
+    if (verifiedEmail !== ADMIN_EMAIL) {
+      console.warn(`⚠️ Tentativo accesso admin non autorizzato: ${verifiedEmail}`);
+      return res.status(403).json({
+        error: 'Accesso negato',
+        message: 'Solo gli admin possono accedere a questa risorsa'
+      });
+    }
+
+    // 4. Inietta identità verificata in req per downstream handlers
+    (req as any).verifiedAdmin = {
+      email: verifiedEmail,
+      uid: decodedToken.uid
+    };
+
+    // Token valido e utente admin: procedi
+    next();
+    
+  } catch (error) {
+    console.error('❌ Errore verifica autenticazione:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: 'Errore durante la verifica dell\'autenticazione'
+    });
+  }
+}
 
 /**
  * Helper: Converte Firestore Timestamp in ISO string per serializzazione JSON
@@ -1212,21 +1276,13 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
  * GET /api/quotes/:id/status/validate
  * Valida cambio stato PRIMA di applicarlo (preflight check)
  * Ritorna warnings e blocchi senza modificare il preventivo
- * Admin-only
+ * Admin-only + Firebase Auth
  */
-router.get('/:id/status/validate', async (req: Request, res: Response) => {
+router.get('/:id/status/validate', verifyAdminAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { newStatus } = req.query;
-    const adminEmail = req.headers['x-admin-email'] as string;
-
-    // 1. Validate admin
-    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
-      return res.status(403).json({
-        error: 'Non autorizzato',
-        message: 'Solo gli admin possono validare stati preventivi'
-      });
-    }
+    const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
 
     // 2. Validate newStatus
     const validStatuses = ['bozza', 'inviato', 'visionato', 'firmato', 'rifiutato', 'scaduto', 'annullato'];
@@ -1273,21 +1329,13 @@ router.get('/:id/status/validate', async (req: Request, res: Response) => {
 /**
  * PATCH /api/quotes/:id/status
  * Cambio manuale stato preventivo con validazioni finanziarie e rigenerazione token
- * Admin-only
+ * Admin-only + Firebase Auth
  */
-router.patch('/:id/status', async (req: Request, res: Response) => {
+router.patch('/:id/status', verifyAdminAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { newStatus, reason } = req.body;
-    const adminEmail = req.headers['x-admin-email'] as string;
-
-    // 1. Validate admin
-    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
-      return res.status(403).json({
-        error: 'Non autorizzato',
-        message: 'Solo gli admin possono modificare lo stato dei preventivi'
-      });
-    }
+    const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
 
     // 2. Validate newStatus
     const validStatuses = ['bozza', 'inviato', 'visionato', 'firmato', 'rifiutato', 'scaduto', 'annullato'];
@@ -1395,21 +1443,13 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 /**
  * PATCH /api/quotes/:id/signature/manual
  * Inserimento manuale firma cliente (retroattiva o forzata)
- * Admin-only
+ * Admin-only + Firebase Auth
  */
-router.patch('/:id/signature/manual', async (req: Request, res: Response) => {
+router.patch('/:id/signature/manual', verifyAdminAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { clientName, signedAt, reason } = req.body;
-    const adminEmail = req.headers['x-admin-email'] as string;
-
-    // 1. Validate admin
-    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
-      return res.status(403).json({
-        error: 'Non autorizzato',
-        message: 'Solo gli admin possono inserire firme manuali'
-      });
-    }
+    const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
 
     // 2. Validate input
     if (!clientName || !signedAt) {
