@@ -281,7 +281,7 @@ export default function CashRegister() {
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.importo}
+                  value={formData.importo === 0 ? '' : formData.importo}
                   onChange={(e) => setFormData({ ...formData, importo: parseFloat(e.target.value) || 0 })}
                   placeholder="0.00"
                   className="h-10"
