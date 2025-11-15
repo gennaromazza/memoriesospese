@@ -162,7 +162,7 @@ export default function ConsultationTemplatesManager() {
       descrizione: "",
       jobDataFields: [],
       excludedDays: [],
-      customWorkingHours: undefined,
+      customWorkingHours: JSON.parse(JSON.stringify(DEFAULT_CONSULTATION_HOURS)), // Deep clone per evitare riferimenti
       imageUrls: [],
       attiva: true,
       ordine: 0,
@@ -286,10 +286,12 @@ export default function ConsultationTemplatesManager() {
         jobType: template.jobType,
         durataMinuti: template.durataMinuti,
         descrizione: template.descrizione,
-        jobDataFields: template.jobDataFields || [],
-        excludedDays: template.excludedDays || [],
-        customWorkingHours: template.customWorkingHours,
-        imageUrls: template.imageUrls || [],
+        jobDataFields: JSON.parse(JSON.stringify(template.jobDataFields || [])), // Deep clone
+        excludedDays: [...(template.excludedDays || [])], // Shallow ok per primitivi
+        customWorkingHours: template.customWorkingHours 
+          ? JSON.parse(JSON.stringify(template.customWorkingHours)) // Deep clone
+          : JSON.parse(JSON.stringify(DEFAULT_CONSULTATION_HOURS)), // Fallback con default
+        imageUrls: [...(template.imageUrls || [])], // Shallow ok per strings
         attiva: false,
         ordine: (template.ordine || 0) + 1,
       };

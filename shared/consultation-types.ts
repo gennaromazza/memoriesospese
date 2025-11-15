@@ -333,7 +333,7 @@ export const InsertConsultationTemplateSchema = z.object({
   descrizione: z.string().min(1, "Descrizione obbligatoria"),
   jobDataFields: z.array(ConsultationJobFieldSchema),
   excludedDays: z.array(z.number().min(0).max(6)).optional(),
-  customWorkingHours: z.array(ConsultationWorkingHoursSchema).optional(),
+  customWorkingHours: z.array(ConsultationWorkingHoursSchema).min(7, "Orari personalizzati obbligatori (7 giorni)"), // OBBLIGATORIO
   imageUrls: z.array(z.string().url()).optional(),
   attiva: z.boolean(),
   ordine: z.number().int().default(0),

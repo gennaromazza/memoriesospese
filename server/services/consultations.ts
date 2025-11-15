@@ -208,7 +208,10 @@ export async function auditTemplateWorkingHours() {
 
 /**
  * MIGRATION: Inizializza customWorkingHours per template che non ce l'hanno
- * Usa DEFAULT_CONSULTATION_HOURS come base
+ * Usa DEFAULT_CONSULTATION_HOURS come base E sincronizza excludedDays
+ * 
+ * BUG FIX: Template legacy hanno giorni in excludedDays che bloccano slot anche se customWorkingHours li attiva
+ * Soluzione: rimuovere da excludedDays tutti i giorni attivi in customWorkingHours
  */
 export async function migrateInitializeWorkingHours(options: { dryRun?: boolean } = {}) {
   const { dryRun = false } = options;
@@ -224,6 +227,8 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean 
       nome: string;
       action: 'initialized' | 'skipped';
       reason: string;
+      before?: { excludedDays?: number[]; hasCustomHours: boolean };
+      after?: { excludedDays: number[]; customWorkingHours: number };
     }>
   };
   
@@ -240,10 +245,24 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean 
       continue;
     }
     
+    const before = {
+      excludedDays: template.excludedDays || [],
+      hasCustomHours: false
+    };
+    
     // INIZIALIZZA con DEFAULT_CONSULTATION_HOURS
+    // E sincronizza excludedDays: rimuovi giorni attivi in DEFAULT_CONSULTATION_HOURS
+    const activeDays = DEFAULT_CONSULTATION_HOURS
+      .filter(h => h.attivo)
+      .map(h => h.giornoSettimana);
+    
+    const cleanedExcludedDays = (template.excludedDays || [])
+      .filter(day => !activeDays.includes(day));
+    
     if (!dryRun) {
       await db.collection('consultationTemplates').doc(template.id).update({
         customWorkingHours: DEFAULT_CONSULTATION_HOURS,
+        excludedDays: cleanedExcludedDays,
         updatedAt: Timestamp.now()
       });
     }
@@ -253,7 +272,12 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean 
       id: template.id,
       nome: template.nome,
       action: 'initialized',
-      reason: 'Inizializzato con DEFAULT_CONSULTATION_HOURS'
+      reason: 'Inizializzato customWorkingHours e sincronizzato excludedDays (rimossi giorni attivi)',
+      before,
+      after: {
+        excludedDays: cleanedExcludedDays,
+        customWorkingHours: DEFAULT_CONSULTATION_HOURS.length
+      }
     });
   }
   
@@ -823,8 +847,15 @@ export async function getAvailableSlotsForDate(
     return []; // Giorno bloccato da template
   }
   
-  // Check 2: Determina working hours (priorità: template > parameter > default)
-  const hours = template?.customWorkingHours || workingHours || DEFAULT_CONSULTATION_HOURS;
+  // Check 2: Determina working hours (priorità: template > parameter)
+  // NOTA: customWorkingHours è ora OBBLIGATORIO per tutti i template (post-migration)
+  const hours = template?.customWorkingHours || workingHours;
+  
+  if (!hours || hours.length === 0) {
+    console.log(`[getAvailableSlotsForDate] ⚠️ Nessun orario configurato per template/parametri`);
+    return []; // Nessun orario configurato
+  }
+  
   console.log(`[getAvailableSlotsForDate] 🔍 Working hours array length: ${hours.length}`);
   console.log(`[getAvailableSlotsForDate] 🔍 Looking for giornoSettimana: ${dayOfWeek}`);
   
