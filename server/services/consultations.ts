@@ -169,6 +169,98 @@ export async function deleteTemplate(id: string): Promise<void> {
 }
 
 /**
+ * AUDIT: Controlla quanti template hanno customWorkingHours undefined/missing
+ */
+export async function auditTemplateWorkingHours() {
+  const templates = await getAllTemplates();
+  
+  const report = {
+    total: templates.length,
+    withCustomHours: 0,
+    withoutCustomHours: 0,
+    templates: [] as Array<{
+      id: string;
+      nome: string;
+      hasCustomWorkingHours: boolean;
+      customWorkingHoursLength?: number;
+    }>
+  };
+  
+  for (const template of templates) {
+    const hasCustom = !!(template.customWorkingHours && template.customWorkingHours.length > 0);
+    
+    if (hasCustom) {
+      report.withCustomHours++;
+    } else {
+      report.withoutCustomHours++;
+    }
+    
+    report.templates.push({
+      id: template.id,
+      nome: template.nome,
+      hasCustomWorkingHours: hasCustom,
+      customWorkingHoursLength: template.customWorkingHours?.length
+    });
+  }
+  
+  return report;
+}
+
+/**
+ * MIGRATION: Inizializza customWorkingHours per template che non ce l'hanno
+ * Usa DEFAULT_CONSULTATION_HOURS come base
+ */
+export async function migrateInitializeWorkingHours(options: { dryRun?: boolean } = {}) {
+  const { dryRun = false } = options;
+  
+  const templates = await getAllTemplates();
+  
+  const report = {
+    total: templates.length,
+    initialized: 0,
+    skipped: 0,
+    details: [] as Array<{
+      id: string;
+      nome: string;
+      action: 'initialized' | 'skipped';
+      reason: string;
+    }>
+  };
+  
+  for (const template of templates) {
+    // Skip template che hanno già customWorkingHours
+    if (template.customWorkingHours && template.customWorkingHours.length > 0) {
+      report.skipped++;
+      report.details.push({
+        id: template.id,
+        nome: template.nome,
+        action: 'skipped',
+        reason: 'Ha già customWorkingHours configurato'
+      });
+      continue;
+    }
+    
+    // INIZIALIZZA con DEFAULT_CONSULTATION_HOURS
+    if (!dryRun) {
+      await db.collection('consultationTemplates').doc(template.id).update({
+        customWorkingHours: DEFAULT_CONSULTATION_HOURS,
+        updatedAt: Timestamp.now()
+      });
+    }
+    
+    report.initialized++;
+    report.details.push({
+      id: template.id,
+      nome: template.nome,
+      action: 'initialized',
+      reason: 'Inizializzato con DEFAULT_CONSULTATION_HOURS'
+    });
+  }
+  
+  return report;
+}
+
+/**
  * MIGRATION: Aggiorna customWorkingHours per abilitare sabato
  * Supporta dry-run mode per test senza modifiche
  */

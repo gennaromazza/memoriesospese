@@ -1052,6 +1052,68 @@ router.patch('/:id/mark-viewed', authenticateFirebase, async (req: AuthRequest, 
  */
 
 /**
+ * GET /api/consultations/audit-working-hours
+ * Audit endpoint: conta quanti template hanno customWorkingHours vs quanti usano default (admin only)
+ */
+router.get('/audit-working-hours', authenticateFirebase, async (req: AuthRequest, res) => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Solo gli amministratori possono eseguire audit' });
+    }
+
+    console.log('[AUDIT] Inizio audit customWorkingHours');
+
+    const report = await consultationService.auditTemplateWorkingHours();
+
+    console.log(`[AUDIT] Completato - Total: ${report.total}, With custom: ${report.withCustomHours}, Without: ${report.withoutCustomHours}`);
+
+    res.json({
+      success: true,
+      message: `Audit completato - ${report.total} template analizzati`,
+      report
+    });
+  } catch (error: any) {
+    console.error('[GET /audit-working-hours] Errore:', error.message);
+    res.status(500).json({ error: 'Errore audit template' });
+  }
+});
+
+/**
+ * PATCH /api/consultations/migrate-initialize-working-hours
+ * Migration endpoint: inizializza customWorkingHours per template legacy senza configurazione (admin only)
+ * Query params: dryRun=true (test senza modifiche)
+ */
+router.patch('/migrate-initialize-working-hours', authenticateFirebase, async (req: AuthRequest, res) => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Solo gli amministratori possono eseguire migrazioni' });
+    }
+
+    const dryRun = req.query.dryRun === 'true';
+
+    console.log(`[MIGRATE] Inizio inizializzazione customWorkingHours - dryRun: ${dryRun}`);
+
+    const report = await consultationService.migrateInitializeWorkingHours({ dryRun });
+
+    console.log(`[MIGRATE] Completato - Initialized: ${report.initialized}, Skipped: ${report.skipped}`);
+
+    res.json({
+      success: true,
+      dryRun,
+      message: dryRun 
+        ? 'Dry-run completato - nessuna modifica applicata' 
+        : `Migrazione completata - ${report.initialized} template inizializzati`,
+      report
+    });
+  } catch (error: any) {
+    console.error('[PATCH /migrate-initialize-working-hours] Errore:', error.message);
+    res.status(500).json({ error: 'Errore migrazione template' });
+  }
+});
+
+/**
  * PATCH /api/consultations/migrate-saturday-hours
  * Migration endpoint: aggiorna customWorkingHours per abilitare sabato (admin only)
  * Query params: dryRun=true (test senza modifiche), force=true (aggiorna anche template con sabato escluso)
