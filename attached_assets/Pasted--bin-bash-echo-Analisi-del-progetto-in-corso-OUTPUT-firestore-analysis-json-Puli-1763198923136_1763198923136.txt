@@ -1,0 +1,75 @@
+#!/bin/bash
+
+echo "Analisi del progetto in corso..."
+
+OUTPUT="firestore_analysis.json"
+
+# Pulisci file se esiste già
+echo "{}" > $OUTPUT
+
+# Funzione per appendere JSON al file
+append_json() {
+  KEY=$1
+  VALUE=$2
+  jq --arg key "$KEY" --argjson val "$VALUE" '.[$key] = $val' "$OUTPUT" > tmp.$$.json && mv tmp.$$.json "$OUTPUT"
+}
+
+###########################################
+# 1) Estrai collezioni Firestore usate
+###########################################
+echo "→ Estrazione collezioni Firestore..."
+
+COLLECTIONS=$(grep -Rho "collection\s*([^)]+)" -n src server | sed 's/collection(//;s/)//' | sed "s/['\"]//g" | sort | uniq | jq -R . | jq -s .)
+
+append_json "firestore_collections" "$COLLECTIONS"
+
+###########################################
+# 2) Estrai funzioni Firestore usate
+###########################################
+echo "→ Estrazione funzioni Firestore..."
+
+FUNCTIONS=$(grep -Rho "from 'firebase/firestore'" -n src server \
+  | sed 's/.*import {//;s/}.*//' \
+  | tr ',' '\n' | tr -d ' ' \
+  | sort | uniq | jq -R . | jq -s .)
+
+append_json "firestore_functions" "$FUNCTIONS"
+
+###########################################
+# 3) Estrai percorsi pagine admin
+###########################################
+echo "→ Estrazione pagine Admin..."
+
+ADMIN_PAGES=$(find src -type f | grep -i "admin" | jq -R . | jq -s .)
+
+append_json "admin_pages" "$ADMIN_PAGES"
+
+###########################################
+# 4) Estrai componenti UI principali
+###########################################
+echo "→ Estrazione componenti UI..."
+
+UI_COMPONENTS=$(grep -Rho "<[A-Z][A-Za-z0-9]*" -n src/components | sed 's/<//' | sort | uniq | jq -R . | jq -s .)
+
+append_json "ui_components" "$UI_COMPONENTS"
+
+###########################################
+# 5) Estrai definizioni API Server (Express o simili)
+###########################################
+echo "→ Estrazione route lato server..."
+
+SERVER_ROUTES=$(grep -Rho "app\.\(get\|post\|put\|delete\)" -n server | jq -R . | jq -s .)
+
+append_json "server_routes" "$SERVER_ROUTES"
+
+###########################################
+# 6) Estrai file con funzioni Firestore custom (lib/)
+###########################################
+echo "→ Identificazione lib/*.ts Firestore..."
+
+LIB_FILES=$(grep -Rl "firebase/firestore" src/lib | jq -R . | jq -s .)
+
+append_json "firestore_lib_files" "$LIB_FILES"
+
+echo "Analisi completata!"
+echo "File generato: $OUTPUT"
