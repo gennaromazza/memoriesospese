@@ -3035,6 +3035,132 @@ export function createQuoteAcceptedEmailHTML(
 }
 
 /**
+ * Template HTML per notifica ADMIN firma preventivo
+ * Email creativa e social-ready per Instagram Stories
+ * ESPORTATA per uso in quote-routes.ts
+ */
+export function createAdminQuoteSignedNotificationHTML(
+  clienteName: string,
+  nomeEvento: string,
+  totalAmount: number,
+  signedAt: string,
+  quoteType: 'fisso' | 'variabile',
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+  
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; max-width: 650px; margin: 0 auto; background: #ffffff;">
+      
+      <!-- Hero Header - Instagram Stories Style -->
+      <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 60px 40px; text-align: center; position: relative;">
+        <div style="position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.2); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-size: 32px;">
+          🎉
+        </div>
+        
+        <h1 style="color: #ffffff; font-size: 48px; font-weight: 900; margin: 0 0 15px 0; letter-spacing: -1px; text-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+          CONTRATTO<br/>FIRMATO! 🎊
+        </h1>
+        
+        <p style="color: rgba(255,255,255,0.95); font-size: 22px; margin: 0; font-weight: 500;">
+          Nuovo cliente confermato ✨
+        </p>
+      </div>
+
+      <!-- Main Content Card -->
+      <div style="padding: 40px 35px; background: linear-gradient(to bottom, #ffffff 0%, #fef9f6 100%);">
+        
+        <!-- Client Info Highlight -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; padding: 35px; margin-bottom: 35px; box-shadow: 0 8px 25px rgba(102, 126, 234, 0.25); text-align: center;">
+          <div style="background: rgba(255,255,255,0.15); border-radius: 12px; padding: 25px; backdrop-filter: blur(10px);">
+            <p style="color: rgba(255,255,255,0.8); font-size: 14px; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">
+              CLIENTE
+            </p>
+            <h2 style="color: #ffffff; font-size: 32px; font-weight: 900; margin: 0 0 15px 0; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+              ${clienteName}
+            </h2>
+            <p style="color: rgba(255,255,255,0.9); font-size: 20px; margin: 0; font-weight: 500;">
+              ${nomeEvento}
+            </p>
+          </div>
+        </div>
+
+        <!-- Stats Grid - Instagram Style -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 35px 0;">
+          <!-- Importo Card -->
+          <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border-radius: 16px; padding: 25px; text-align: center; box-shadow: 0 6px 20px rgba(79, 172, 254, 0.3);">
+            <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;">
+              💰 Importo
+            </p>
+            <p style="color: #ffffff; font-size: 28px; font-weight: 900; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+              ${formatCurrency(totalAmount)}
+            </p>
+          </div>
+          
+          <!-- Tipo Card -->
+          <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); border-radius: 16px; padding: 25px; text-align: center; box-shadow: 0 6px 20px rgba(250, 112, 154, 0.3);">
+            <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;">
+              📋 Tipo
+            </p>
+            <p style="color: #ffffff; font-size: 28px; font-weight: 900; margin: 0; text-transform: uppercase; text-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+              ${quoteType === 'fisso' ? 'Fisso' : 'Variabile'}
+            </p>
+          </div>
+        </div>
+
+        <!-- Signature Time Badge -->
+        <div style="background: linear-gradient(to right, #ffecd2 0%, #fcb69f 100%); border-radius: 50px; padding: 18px 30px; text-align: center; margin: 30px 0; box-shadow: 0 4px 15px rgba(252, 182, 159, 0.4);">
+          <p style="margin: 0; font-size: 15px; color: #8b5a3c; font-weight: 700; letter-spacing: 0.5px;">
+            ✍️ Firmato il: <span style="font-weight: 900;">${signedAt}</span>
+          </p>
+        </div>
+
+        <!-- Call-to-Action for Social -->
+        <div style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); border-radius: 20px; padding: 35px; margin: 35px 0; text-align: center; box-shadow: 0 8px 25px rgba(106, 17, 203, 0.3);">
+          <p style="color: #ffffff; font-size: 24px; font-weight: 900; margin: 0 0 12px 0; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            📸 Pronto per Instagram?
+          </p>
+          <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0; line-height: 1.6;">
+            Condividi la notizia con il tuo pubblico!<br/>
+            <span style="font-weight: 700; font-size: 18px;">Un nuovo progetto sta per iniziare 🚀</span>
+          </p>
+        </div>
+
+        <!-- Motivational Quote -->
+        <div style="text-align: center; margin: 40px 0; padding: 30px; background: linear-gradient(to right, rgba(139, 90, 60, 0.05), rgba(201, 169, 97, 0.05)); border-left: 4px solid #c9a961; border-right: 4px solid #c9a961; border-radius: 8px;">
+          <p style="font-size: 20px; color: #8b5a3c; font-style: italic; line-height: 1.7; margin: 0; font-weight: 500;">
+            "Ogni nuovo cliente è l'inizio di una storia unica da raccontare" ✨
+          </p>
+        </div>
+
+      </div>
+      
+      <!-- Footer -->
+      <div style="background: #2d2d2d; padding: 30px; text-align: center;">
+        <p style="margin: 0 0 10px 0; font-weight: 700; font-size: 16px; color: #c9a961; letter-spacing: 1.5px;">
+          ${studio.name}
+        </p>
+        <p style="margin: 5px 0; font-size: 13px; color: #999;">
+          Dashboard Admin - Notifica Automatica
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Template HTML per email promemoria pagamento
  * Inviata al cliente X giorni prima della scadenza
  * ESPORTATA per uso in quote-routes.ts e payment-schedule-routes.ts

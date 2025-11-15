@@ -12,7 +12,8 @@ import {
   getStudioContactInfo,
   createQuoteSentEmailHTML,
   createQuoteAcceptedEmailHTML,
-  createPaymentReminderEmailHTML
+  createPaymentReminderEmailHTML,
+  createAdminQuoteSignedNotificationHTML
 } from './email-routes.js';
 import { nanoid } from 'nanoid';
 
@@ -1122,6 +1123,99 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
 
   } catch (error) {
     console.error('❌ Errore quote-signed-notification:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * POST /api/quotes/admin-quote-signed-notification
+ * Invia email ADMIN quando cliente firma preventivo
+ * Email creativa e social-ready per Instagram Stories
+ * PUBBLICO - chiamato automaticamente dopo firma preventivo
+ */
+router.post('/admin-quote-signed-notification', async (req: Request, res: Response) => {
+  try {
+    const { quoteId } = req.body;
+
+    if (!quoteId) {
+      return res.status(400).json({
+        error: 'Quote ID mancante',
+        message: 'Il parametro quoteId è richiesto'
+      });
+    }
+
+    // Fetch quote
+    const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+    
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: 'Il preventivo specificato non esiste'
+      });
+    }
+
+    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+    // Verifica che sia firmato
+    if (quote.status !== 'firmato' || !quote.signature) {
+      return res.status(400).json({
+        error: 'Preventivo non firmato',
+        message: 'Il preventivo deve essere firmato per inviare la notifica'
+      });
+    }
+
+    // Email admin hardcoded
+    const ADMIN_EMAIL = 'gennaro.mazzacane@gmail.com';
+
+    // Nome cliente
+    let clienteName = 'Cliente';
+    if (quote.signature?.clientName) {
+      clienteName = quote.signature.clientName;
+    } else if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      const firstCliente = quote.clientiInfo[0];
+      clienteName = `${firstCliente.nome || ''} ${firstCliente.cognome || ''}`.trim();
+    }
+
+    // Data firma
+    const signedAt = quote.signature.signedAt.toDate().toLocaleDateString('it-IT', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Recupera dati studio
+    const studioInfo = await getStudioContactInfo();
+
+    // Crea HTML email CREATIVA per admin
+    const htmlContent = createAdminQuoteSignedNotificationHTML(
+      clienteName,
+      quote.jobInfo?.nomeEvento || 'Nuovo Evento',
+      quote.totaleSelezionato || quote.totalAfterDiscount,
+      signedAt,
+      quote.type,
+      studioInfo
+    );
+
+    const subject = `🎉 CONTRATTO FIRMATO! ${clienteName} - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
+
+    // Invia email all'admin
+    await sendGmailEmail([ADMIN_EMAIL], subject, htmlContent);
+
+    console.log(`✅ Notifica ADMIN firma preventivo ${quoteId} inviata a ${ADMIN_EMAIL}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Notifica admin inviata con successo',
+      adminEmail: ADMIN_EMAIL
+    });
+
+  } catch (error) {
+    console.error('❌ Errore admin-quote-signed-notification:', error);
     return res.status(500).json({
       error: 'Errore server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto'

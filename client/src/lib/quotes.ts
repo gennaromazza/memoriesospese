@@ -461,7 +461,7 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       }
     }
     
-    // Invia email conferma firma automaticamente
+    // Invia email conferma firma al cliente
     try {
       const response = await fetch('/api/quotes/quote-signed-notification', {
         method: 'POST',
@@ -478,6 +478,25 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     } catch (emailError) {
       console.error('⚠️ Errore invio email conferma firma:', emailError);
       // Non bloccare la firma se l'email fallisce
+    }
+    
+    // Invia email notifica admin (Instagram-ready)
+    try {
+      const adminResponse = await fetch('/api/quotes/admin-quote-signed-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteId: data.quoteId })
+      });
+
+      if (!adminResponse.ok) {
+        const errorData = await adminResponse.json();
+        throw new Error(errorData.message || 'Errore invio email admin');
+      }
+
+      console.log('✅ Email notifica admin inviata (Instagram-ready)');
+    } catch (adminEmailError) {
+      console.error('⚠️ Errore invio email admin:', adminEmailError);
+      // Non bloccare la firma se l'email admin fallisce
     }
     
     console.log('✅ Preventivo accettato e firmato');
