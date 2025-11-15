@@ -72,7 +72,7 @@ export default function WorkflowTimeline({
 
   // Fetch consultation templates per questo jobType
   const { data: templates = [], isLoading: loadingTemplates } = useQuery<ConsultationTemplate[]>({
-    queryKey: ['/api/consultation-templates', job.jobType],
+    queryKey: [`/api/jobs/consultation-templates?jobType=${job.jobType}`],
     enabled: showTemplateSelector && !!job.jobType,
   });
 
