@@ -130,7 +130,6 @@ export default function ConsultationTemplatesManager() {
       durataMinuti: 60,
       descrizione: "",
       jobDataFields: [],
-      excludedDays: [],
       customWorkingHours: undefined,
       imageUrls: [],
       attiva: true,
@@ -168,7 +167,6 @@ export default function ConsultationTemplatesManager() {
       durataMinuti: 60,
       descrizione: "",
       jobDataFields: [],
-      excludedDays: [],
       customWorkingHours: JSON.parse(JSON.stringify(DEFAULT_CONSULTATION_HOURS)), // Deep clone per evitare riferimenti
       imageUrls: [],
       attiva: true,
@@ -185,7 +183,6 @@ export default function ConsultationTemplatesManager() {
       durataMinuti: template.durataMinuti,
       descrizione: template.descrizione,
       jobDataFields: template.jobDataFields || [],
-      excludedDays: template.excludedDays || [],
       customWorkingHours: template.customWorkingHours,
       imageUrls: template.imageUrls || [],
       attiva: template.attiva,
@@ -294,7 +291,6 @@ export default function ConsultationTemplatesManager() {
         durataMinuti: template.durataMinuti,
         descrizione: template.descrizione,
         jobDataFields: JSON.parse(JSON.stringify(template.jobDataFields || [])), // Deep clone
-        excludedDays: [...(template.excludedDays || [])], // Shallow ok per primitivi
         customWorkingHours: template.customWorkingHours 
           ? JSON.parse(JSON.stringify(template.customWorkingHours)) // Deep clone
           : JSON.parse(JSON.stringify(DEFAULT_CONSULTATION_HOURS)), // Fallback con default
@@ -380,7 +376,7 @@ export default function ConsultationTemplatesManager() {
       });
       
       // Ricarica template
-      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates() });
       setMigrationDialogOpen(false);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Migrazione fallita';
@@ -459,23 +455,7 @@ export default function ConsultationTemplatesManager() {
     }));
   };
 
-  // Availability handlers
-  const toggleExcludedDay = (dayIndex: number) => {
-    setFormData((prev) => {
-      const current = prev.excludedDays || [];
-      if (current.includes(dayIndex)) {
-        return {
-          ...prev,
-          excludedDays: current.filter((d) => d !== dayIndex),
-        };
-      } else {
-        return {
-          ...prev,
-          excludedDays: [...current, dayIndex],
-        };
-      }
-    });
-  };
+  // Availability handlers (excludedDays removed - now managed via customWorkingHours)
 
   // Image upload handlers
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1044,39 +1024,22 @@ export default function ConsultationTemplatesManager() {
             <TabsContent value="availability" className="flex-1 overflow-y-auto px-6 space-y-6 py-6">
               <div className="space-y-4">
                 <div>
-                  <Label className="text-base font-medium">Giorni Esclusi</Label>
-                  <p className="text-sm text-gray-500 mt-1 mb-3">
-                    Seleziona i giorni in cui NON accettare prenotazioni
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'].map((day, idx) => (
-                      <div key={idx} className="flex items-center space-x-2 border rounded-md px-3 py-2 min-h-[44px] hover:bg-gray-50 transition-colors">
-                        <Checkbox
-                          id={`day-${idx}`}
-                          checked={formData.excludedDays?.includes(idx)}
-                          onCheckedChange={() => toggleExcludedDay(idx)}
-                          data-testid={`checkbox-day-${idx}`}
-                        />
-                        <Label
-                          htmlFor={`day-${idx}`}
-                          className="text-sm font-medium leading-none cursor-pointer flex-1"
-                        >
-                          {day}
-                        </Label>
-                      </div>
-                    ))}
+                  <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <Clock className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <strong>Gestione Orari e Giorni:</strong> Configura gli orari di lavoro per ogni giorno della settimana. 
+                      Per disabilitare un giorno, deseleziona il toggle "Attivo".
+                    </div>
                   </div>
-                </div>
 
-                <div className="border-t pt-4">
-                  <Collapsible>
+                  <Collapsible defaultOpen>
                     <CollapsibleTrigger className="flex items-center gap-2 text-base font-medium hover:underline">
                       <Clock className="w-4 h-4" />
-                      Orari Personalizzati (opzionale)
+                      Orari Personalizzati
                     </CollapsibleTrigger>
                     <CollapsibleContent className="mt-4 space-y-4">
                       <p className="text-sm text-gray-500">
-                        Configura orari specifici per questo template. Se non configurato, verranno usati gli orari predefiniti (Lun-Ven 9-18, pausa 13-14:30).
+                        Configura gli orari di lavoro per ogni giorno della settimana. Usa il toggle "Attivo" per abilitare/disabilitare giorni specifici.
                       </p>
                       
                       <div className="space-y-2">
