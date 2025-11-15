@@ -1626,17 +1626,16 @@ export default function AdminDashboard() {
                             ))}
                           </div>
                         </>
-
-                          {/* Controlli di paginazione per le gallerie */}
-                          <PaginationControls
-                            currentPage={currentGalleryPage}
-                            totalPages={totalGalleryPages}
-                            onPageChange={paginateGalleries}
-                            onPrevious={goToPreviousGalleryPage}
-                            onNext={goToNextGalleryPage}
-                          />
-                        </div>
                       )}
+
+                      {/* Controlli di paginazione per le gallerie */}
+                      <PaginationControls
+                        currentPage={currentGalleryPage}
+                        totalPages={totalGalleryPages}
+                        onPageChange={paginateGalleries}
+                        onPrevious={goToPreviousGalleryPage}
+                        onNext={goToNextGalleryPage}
+                      />
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
