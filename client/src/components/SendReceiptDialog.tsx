@@ -4,7 +4,7 @@
  * Con ricerca cliente integrata per recuperare contatti
  */
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -19,12 +19,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Mail, MessageCircle, Search, Loader2, Send } from "lucide-react";
 import { getAllClienti } from "@/lib/clienti";
 import { useToast } from "@/hooks/use-toast";
@@ -46,21 +47,43 @@ export default function SendReceiptDialog({
   const [sendMethod, setSendMethod] = useState<"email" | "whatsapp">("email");
   const [searchMode, setSearchMode] = useState<"manual" | "search">("manual");
   const [selectedClienteId, setSelectedClienteId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [manualEmail, setManualEmail] = useState("");
   const [manualWhatsApp, setManualWhatsApp] = useState("");
   const [manualNome, setManualNome] = useState("");
   const [manualCognome, setManualCognome] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Query clienti per ricerca
-  const { data: clienti, isLoading: loadingClienti } = useQuery({
+  // Query clienti per ricerca (solo con almeno 2 caratteri)
+  const { data: allClienti = [], isLoading: loadingClienti } = useQuery({
     queryKey: ["clienti-for-receipt"],
     queryFn: getAllClienti,
-    enabled: open && searchMode === "search",
+    enabled: open && searchMode === "search" && searchQuery.length >= 2,
   });
 
+  // Filtra clienti in base alla query
+  const filteredClienti = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 2) return [];
+    const query = searchQuery.toLowerCase();
+    return allClienti.filter(c => 
+      c.nome.toLowerCase().includes(query) ||
+      c.cognome.toLowerCase().includes(query) ||
+      c.email.toLowerCase().includes(query) ||
+      c.cellulare1?.includes(query) ||
+      c.whatsapp?.includes(query)
+    );
+  }, [allClienti, searchQuery]);
+
   // Cliente selezionato
-  const selectedCliente = clienti?.find((c) => c.id === selectedClienteId);
+  const selectedCliente = allClienti.find((c) => c.id === selectedClienteId);
+
+  // Reset search quando si chiude il dialog
+  useEffect(() => {
+    if (!open) {
+      setSearchQuery("");
+      setSelectedClienteId("");
+    }
+  }, [open]);
 
   const handleSendReceipt = async () => {
     let recipient = "";
@@ -112,10 +135,21 @@ export default function SendReceiptDialog({
         throw new Error("Errore invio ricevuta");
       }
 
-      toast({
-        title: "✅ Ricevuta inviata",
-        description: `Ricevuta inviata con successo via ${sendMethod === "email" ? "email" : "WhatsApp"} a ${recipient}`,
-      });
+      const result = await response.json();
+
+      // Se WhatsApp, apri automaticamente il link wa.me
+      if (sendMethod === "whatsapp" && result.whatsappLink) {
+        window.open(result.whatsappLink, "_blank");
+        toast({
+          title: "✅ WhatsApp aperto",
+          description: `Messaggio precompilato pronto per ${recipient}. Clicca 'Invia' su WhatsApp.`,
+        });
+      } else {
+        toast({
+          title: "✅ Ricevuta inviata",
+          description: `Ricevuta inviata con successo via email a ${recipient}`,
+        });
+      }
 
       onOpenChange(false);
       resetForm();
@@ -228,26 +262,37 @@ export default function SendReceiptDialog({
 
             {/* Ricerca cliente */}
             <TabsContent value="search" className="space-y-3">
-              {loadingClienti ? (
-                <div className="text-center py-4 text-sm text-muted-foreground">
-                  <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                  Caricamento clienti...
-                </div>
-              ) : !clienti || clienti.length === 0 ? (
-                <div className="text-center py-4 text-sm text-muted-foreground">
-                  Nessun cliente trovato. Usa inserimento manuale.
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label className="text-xs sm:text-sm">Seleziona Cliente</Label>
-                    <Select value={selectedClienteId} onValueChange={setSelectedClienteId}>
-                      <SelectTrigger className="text-sm">
-                        <SelectValue placeholder="Cerca e seleziona cliente..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clienti.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id}>
+              <div className="space-y-2">
+                <Label className="text-xs sm:text-sm">Cerca Cliente</Label>
+                <Command className="rounded-lg border">
+                  <CommandInput
+                    placeholder="Digita nome, cognome o email (min 2 caratteri)..."
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
+                  />
+                  <CommandList>
+                    {searchQuery.length < 2 ? (
+                      <CommandEmpty>
+                        Digita almeno 2 caratteri per cercare
+                      </CommandEmpty>
+                    ) : loadingClienti ? (
+                      <div className="p-4 text-center">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">Ricerca in corso...</p>
+                      </div>
+                    ) : filteredClienti.length === 0 ? (
+                      <CommandEmpty>
+                        Nessun cliente trovato per "{searchQuery}"
+                      </CommandEmpty>
+                    ) : (
+                      <CommandGroup>
+                        {filteredClienti.map((cliente) => (
+                          <CommandItem
+                            key={cliente.id}
+                            value={cliente.id}
+                            onSelect={() => setSelectedClienteId(cliente.id)}
+                            className="cursor-pointer"
+                          >
                             <div className="flex flex-col">
                               <span className="font-medium">
                                 {cliente.nome} {cliente.cognome}
@@ -255,34 +300,40 @@ export default function SendReceiptDialog({
                               <span className="text-xs text-muted-foreground">
                                 {cliente.email}
                               </span>
+                              {(cliente.whatsapp || cliente.cellulare1) && (
+                                <span className="text-xs text-muted-foreground">
+                                  Tel: {cliente.whatsapp || cliente.cellulare1}
+                                </span>
+                              )}
                             </div>
-                          </SelectItem>
+                          </CommandItem>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </div>
 
-                  {/* Anteprima cliente selezionato */}
-                  {selectedCliente && (
-                    <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm">
-                      <p>
-                        <strong>Nome:</strong> {selectedCliente.nome}{" "}
-                        {selectedCliente.cognome}
-                      </p>
-                      {sendMethod === "email" && (
-                        <p>
-                          <strong>Email:</strong> {selectedCliente.email}
-                        </p>
-                      )}
-                      {sendMethod === "whatsapp" && (
-                        <p>
-                          <strong>WhatsApp:</strong>{" "}
-                          {selectedCliente.whatsapp || selectedCliente.cellulare1 || "N/D"}
-                        </p>
-                      )}
-                    </div>
+              {/* Anteprima cliente selezionato */}
+              {selectedCliente && (
+                <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm border border-sage/20">
+                  <p className="font-semibold text-sage">✓ Cliente Selezionato</p>
+                  <p>
+                    <strong>Nome:</strong> {selectedCliente.nome}{" "}
+                    {selectedCliente.cognome}
+                  </p>
+                  {sendMethod === "email" && (
+                    <p>
+                      <strong>Email:</strong> {selectedCliente.email}
+                    </p>
                   )}
-                </>
+                  {sendMethod === "whatsapp" && (
+                    <p>
+                      <strong>WhatsApp:</strong>{" "}
+                      {selectedCliente.whatsapp || selectedCliente.cellulare1 || "N/D"}
+                    </p>
+                  )}
+                </div>
               )}
             </TabsContent>
           </Tabs>

@@ -85,80 +85,118 @@ function createReceiptHTML(receiptData: any): string {
   };
   
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; border: 2px solid #8b5a3c;">
-      <!-- Header -->
-      <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #8b5a3c; padding-bottom: 20px;">
-        <h1 style="color: #8b5a3c; margin: 0; font-size: 32px;">RICEVUTA FISCALE</h1>
-        <p style="margin: 10px 0 0 0; font-size: 18px; color: #666;">N° ${receiptData.numero}</p>
-      </div>
+    <!DOCTYPE html>
+    <html lang="it">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Ricevuta Fiscale N° ${receiptData.numero}</title>
+      <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; border: 2px solid #8b5a3c; box-sizing: border-box; }
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #8b5a3c; padding-bottom: 15px; }
+        .header h1 { color: #8b5a3c; margin: 0; font-size: 28px; }
+        .header p { margin: 10px 0 0 0; font-size: 16px; color: #666; }
+        .section { margin-bottom: 20px; background: #f9f7f4; padding: 15px; border-radius: 8px; }
+        .section h3 { color: #8b5a3c; margin: 0 0 10px 0; font-size: 18px; }
+        .section p { margin: 5px 0; font-size: 14px; }
+        .client-section { margin-bottom: 20px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th { padding: 10px; text-align: left; background: #8b5a3c; color: white; border: 1px solid #6b4530; font-size: 14px; }
+        td { padding: 10px; border: 1px solid #e0e0e0; font-size: 14px; }
+        .total-section { text-align: right; margin-bottom: 20px; padding: 15px; background: #f9f7f4; border-radius: 8px; }
+        .total-section p { margin: 5px 0; font-size: 14px; }
+        .total-amount { font-size: 24px; color: #8b5a3c; font-weight: bold; margin-top: 10px; }
+        .note { margin-bottom: 15px; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; }
+        .note p { margin: 0; font-size: 13px; color: #856404; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; }
+        .footer p { margin: 5px 0; font-size: 12px; color: #999; }
+
+        /* Mobile Responsive */
+        @media only screen and (max-width: 600px) {
+          .container { padding: 15px; border-width: 1px; }
+          .header h1 { font-size: 22px; }
+          .header p { font-size: 14px; }
+          .section { padding: 12px; margin-bottom: 15px; }
+          .section h3 { font-size: 16px; }
+          .section p, td, th { font-size: 12px; }
+          th, td { padding: 8px; }
+          .total-amount { font-size: 20px; }
+          table { font-size: 12px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <!-- Header -->
+        <div class="header">
+          <h1>RICEVUTA FISCALE</h1>
+          <p>N° ${receiptData.numero}</p>
+        </div>
 
       <!-- Dati Studio -->
-      <div style="margin-bottom: 30px; background: #f9f7f4; padding: 20px; border-radius: 8px;">
-        <h3 style="color: #8b5a3c; margin: 0 0 15px 0;">Emesso da:</h3>
+        <div class="section">
+          <h3>Emesso da:</h3>
         <p style="margin: 5px 0; font-size: 16px;"><strong>${receiptData.studioName}</strong></p>
         ${receiptData.studioAddress ? `<p style="margin: 5px 0; font-size: 14px;">${receiptData.studioAddress}</p>` : ''}
         <p style="margin: 5px 0; font-size: 14px;">Tel: ${receiptData.studioPhone}</p>
         <p style="margin: 5px 0; font-size: 14px;">Email: ${receiptData.studioEmail}</p>
         ${receiptData.studioPartitaIVA ? `<p style="margin: 5px 0; font-size: 14px;">P.IVA: ${receiptData.studioPartitaIVA}</p>` : ''}
-        ${receiptData.studioCodiceFiscale ? `<p style="margin: 5px 0; font-size: 14px;">C.F.: ${receiptData.studioCodiceFiscale}</p>` : ''}
-      </div>
+        ${receiptData.studioCodiceFiscale ? `<p>C.F.: ${receiptData.studioCodiceFiscale}</p>` : ''}
+        </div>
 
       <!-- Dati Cliente (se presenti) -->
-      ${receiptData.clienteNome || receiptData.clienteCognome ? `
-      <div style="margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <h3 style="color: #8b5a3c; margin: 0 0 15px 0;">Intestato a:</h3>
+        ${receiptData.clienteNome || receiptData.clienteCognome ? `
+        <div class="client-section">
+          <h3>Intestato a:</h3>
         <p style="margin: 5px 0; font-size: 16px;">
           <strong>${receiptData.clienteNome || ''} ${receiptData.clienteCognome || ''}</strong>
         </p>
         ${receiptData.clienteEmail ? `<p style="margin: 5px 0; font-size: 14px;">Email: ${receiptData.clienteEmail}</p>` : ''}
-        ${receiptData.clienteCellulare ? `<p style="margin: 5px 0; font-size: 14px;">Tel: ${receiptData.clienteCellulare}</p>` : ''}
-      </div>
-      ` : ''}
+        ${receiptData.clienteCellulare ? `<p>Tel: ${receiptData.clienteCellulare}</p>` : ''}
+        </div>
+        ` : ''}
 
       <!-- Dettagli Ricevuta -->
-      <div style="margin-bottom: 30px;">
-        <table style="width: 100%; border-collapse: collapse;">
+        <table>
           <thead>
-            <tr style="background: #8b5a3c; color: white;">
-              <th style="padding: 12px; text-align: left; border: 1px solid #6b4530;">Data</th>
-              <th style="padding: 12px; text-align: left; border: 1px solid #6b4530;">Categoria</th>
-              <th style="padding: 12px; text-align: left; border: 1px solid #6b4530;">Descrizione</th>
-              <th style="padding: 12px; text-align: right; border: 1px solid #6b4530;">Importo</th>
+            <tr>
+              <th>Data</th>
+              <th>Categoria</th>
+              <th>Descrizione</th>
+              <th style="text-align: right;">Importo</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style="padding: 12px; border: 1px solid #e0e0e0;">${formatDate(receiptData.data)}</td>
-              <td style="padding: 12px; border: 1px solid #e0e0e0;">${receiptData.categoria}</td>
-              <td style="padding: 12px; border: 1px solid #e0e0e0;">${receiptData.descrizione}</td>
-              <td style="padding: 12px; text-align: right; border: 1px solid #e0e0e0; font-weight: bold; font-size: 18px;">
-                ${formatCurrency(receiptData.importo)}
-              </td>
+              <td>${formatDate(receiptData.data)}</td>
+              <td>${receiptData.categoria}</td>
+              <td>${receiptData.descrizione}</td>
+              <td style="text-align: right; font-weight: bold;">${formatCurrency(receiptData.importo)}</td>
             </tr>
           </tbody>
         </table>
-      </div>
 
       <!-- Totale -->
-      <div style="text-align: right; margin-bottom: 30px; padding: 20px; background: #f9f7f4; border-radius: 8px;">
-        <p style="margin: 0; font-size: 14px; color: #666;">Metodo di Pagamento: <strong>${receiptData.metodoPagamento.toUpperCase()}</strong></p>
-        <p style="margin: 10px 0 0 0; font-size: 28px; color: #8b5a3c; font-weight: bold;">
-          TOTALE: ${formatCurrency(receiptData.importo)}
-        </p>
-      </div>
+        <div class="total-section">
+          <p>Metodo di Pagamento: <strong>${receiptData.metodoPagamento.toUpperCase()}</strong></p>
+          <p class="total-amount">TOTALE: ${formatCurrency(receiptData.importo)}</p>
+        </div>
 
-      ${receiptData.note ? `
-      <div style="margin-bottom: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
-        <p style="margin: 0; font-size: 13px; color: #856404;"><strong>Note:</strong> ${receiptData.note}</p>
-      </div>
-      ` : ''}
+        ${receiptData.note ? `
+        <div class="note">
+          <p><strong>Note:</strong> ${receiptData.note}</p>
+        </div>
+        ` : ''}
 
       <!-- Footer -->
-      <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
-        <p style="margin: 5px 0; font-size: 12px; color: #999;">Documento emesso elettronicamente</p>
-        <p style="margin: 5px 0; font-size: 12px; color: #999;">Ricevuta non valida ai fini fiscali - Documento informativo</p>
+        <div class="footer">
+          <p>Documento emesso elettronicamente</p>
+          <p>Ricevuta non valida ai fini fiscali - Documento informativo</p>
+        </div>
       </div>
-    </div>
+    </body>
+    </html>
   `;
 }
 
@@ -246,20 +284,19 @@ router.post('/send', async (req, res) => {
       
       console.log(`✅ Ricevuta N° ${numeroRicevuta} inviata via email a ${recipient}`);
     } else {
-      // WhatsApp: genera link wa.me con testo
-      const whatsappMessage = `Ciao${clienteNome ? ' ' + clienteNome : ''}! Ti invio la ricevuta fiscale N° ${numeroRicevuta} per il pagamento di ${receiptData.importo.toFixed(2)}€. Puoi visualizzarla qui: [link generato]`;
+      // WhatsApp: genera link wa.me con messaggio precompilato
+      const whatsappMessage = `Ciao${clienteNome ? ' ' + clienteNome : ''}! 🧾\n\nEcco la tua *Ricevuta Fiscale N° ${numeroRicevuta}*\n\n📅 Data: ${new Date(receiptData.data.toDate ? receiptData.data.toDate() : receiptData.data).toLocaleDateString('it-IT')}\n💶 Importo: €${receiptData.importo.toFixed(2)}\n📝 Descrizione: ${receiptData.descrizione}\n💳 Pagamento: ${receiptData.metodoPagamento.toUpperCase()}\n\n${receiptData.studioName}\n${receiptData.studioPhone}`;
       
-      // Nota: l'invio vero e proprio via WhatsApp richiede un servizio terzo (es. Twilio, WhatsApp Business API)
-      // Per ora ritorniamo il link wa.me che l'utente può usare manualmente
-      const whatsappNumber = recipient.replace(/[^0-9]/g, '');
+      const whatsappNumber = recipient.replace(/[^0-9+]/g, '');
       const whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`;
       
       console.log(`📱 Link WhatsApp generato per ricevuta N° ${numeroRicevuta}: ${whatsappLink}`);
       
+      // Ritorna il link che il frontend aprirà automaticamente
       return res.status(200).json({
         success: true,
-        message: 'Ricevuta generata',
-        whatsappLink, // Frontend può aprire questo link o mostrarlo all'utente
+        message: 'Link WhatsApp generato',
+        whatsappLink,
         receiptNumber: numeroRicevuta,
       });
     }
