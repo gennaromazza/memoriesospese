@@ -156,18 +156,18 @@ export default function CashDashboard() {
   }
 
   return (
-    <Tabs defaultValue="dashboard" className="w-full">
+    <Tabs defaultValue="register" className="w-full">
       {/* Sub-Tabs Navigation - Mobile Responsive */}
       <TabsList className="mb-4 sm:mb-6 grid grid-cols-3 gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-        <TabsTrigger value="dashboard" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
-          <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-          <span className="hidden sm:inline">Dashboard</span>
-          <span className="sm:hidden">💰</span>
-        </TabsTrigger>
         <TabsTrigger value="register" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
           <FileText className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
           <span className="hidden sm:inline">Registro Cassa</span>
           <span className="sm:hidden">📝</span>
+        </TabsTrigger>
+        <TabsTrigger value="dashboard" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
+          <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+          <span className="hidden sm:inline">Dashboard</span>
+          <span className="sm:hidden">💰</span>
         </TabsTrigger>
         <TabsTrigger value="forecasts" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
           <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -175,6 +175,11 @@ export default function CashDashboard() {
           <span className="sm:hidden">📅</span>
         </TabsTrigger>
       </TabsList>
+
+      {/* Registro Cassa Tab */}
+      <TabsContent value="register">
+        <CashRegister />
+      </TabsContent>
 
       {/* Dashboard Tab */}
       <TabsContent value="dashboard">
@@ -471,11 +476,6 @@ export default function CashDashboard() {
         </CardContent>
       </Card>
         </div>
-      </TabsContent>
-
-      {/* Registro Cassa Tab */}
-      <TabsContent value="register">
-        <CashRegister />
       </TabsContent>
 
       {/* Previsioni Tab */}
