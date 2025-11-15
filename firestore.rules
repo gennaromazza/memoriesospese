@@ -400,6 +400,14 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Only admin can delete quotes
     }
     
+    // Quote Audit Log - Complete history of manual status changes and signature overrides (November 2025)
+    match /quoteAuditLog/{eventId} {
+      allow read: if isAdmin(); // Only admin can view audit trail (contains sensitive admin operations)
+      allow create: if isAdmin(); // Only admin can create audit events (via manual status changes)
+      allow update: if false; // Audit events are immutable once created
+      allow delete: if false; // Audit events cannot be deleted (compliance & traceability)
+    }
+    
     // Job Timeline - Event log/history for jobs (November 2025)
     match /jobTimeline/{eventId} {
       allow read: if isAdmin(); // Admin can read all timeline events
