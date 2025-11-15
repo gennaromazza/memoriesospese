@@ -101,6 +101,8 @@ import {
   CalendarX,
   Image as ImageIcon,
   Copy,
+  RefreshCw,
+  Database,
 } from "lucide-react";
 import { getJobTypes } from "@/lib/job-types";
 import type { JobType as JobTypeDoc } from "@shared/job-types";
@@ -114,6 +116,11 @@ export default function ConsultationTemplatesManager() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [openJobTypes, setOpenJobTypes] = useState<string[]>([]);
+  
+  // Migration state
+  const [migrationDialogOpen, setMigrationDialogOpen] = useState(false);
+  const [migrationReport, setMigrationReport] = useState<any>(null);
+  const [isMigrating, setIsMigrating] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<Partial<InsertConsultationTemplate>>(
@@ -310,6 +317,80 @@ export default function ConsultationTemplatesManager() {
         title: "Errore",
         description: errorMessage,
       });
+    }
+  };
+
+  // Migration handlers
+  const handleOpenMigration = async () => {
+    setIsMigrating(true);
+    setMigrationReport(null);
+    
+    try {
+      // Esegui dry-run per preview
+      const token = await user?.getIdToken();
+      const response = await fetch('/api/consultations/migrate-initialize-working-hours?dryRun=true&syncAll=true', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Errore caricamento preview migrazione');
+      }
+      
+      const data = await response.json();
+      setMigrationReport(data.report);
+      setMigrationDialogOpen(true);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Errore preview migrazione';
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: errorMessage
+      });
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
+  const handleExecuteMigration = async () => {
+    setIsMigrating(true);
+    
+    try {
+      const token = await user?.getIdToken();
+      const response = await fetch('/api/consultations/migrate-initialize-working-hours?dryRun=false&syncAll=true', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Errore esecuzione migrazione');
+      }
+      
+      const data = await response.json();
+      
+      toast({
+        title: 'Migrazione completata',
+        description: `${data.report.initialized} template inizializzati, ${data.report.syncedOnly} sincronizzati`,
+      });
+      
+      // Ricarica template
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.templates });
+      setMigrationDialogOpen(false);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Migrazione fallita';
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: errorMessage
+      });
+    } finally {
+      setIsMigrating(false);
     }
   };
 
@@ -565,14 +646,29 @@ export default function ConsultationTemplatesManager() {
             Gestisci i template di consulenza per ogni tipo di lavoro
           </p>
         </div>
-        <Button
-          onClick={handleOpenCreate}
-          className="bg-terracotta hover:bg-terracotta/90 text-white"
-          data-testid="button-create-template"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nuovo Template
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            onClick={handleOpenMigration}
+            variant="outline"
+            disabled={isMigrating}
+            data-testid="button-migrate-templates"
+          >
+            {isMigrating ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Database className="w-4 h-4 mr-2" />
+            )}
+            Migra Template
+          </Button>
+          <Button
+            onClick={handleOpenCreate}
+            className="bg-terracotta hover:bg-terracotta/90 text-white"
+            data-testid="button-create-template"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nuovo Template
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -1592,6 +1688,100 @@ export default function ConsultationTemplatesManager() {
             >
               Elimina
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Migration Dialog */}
+      <AlertDialog
+        open={migrationDialogOpen}
+        onOpenChange={setMigrationDialogOpen}
+      >
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Database className="w-5 h-5 text-terracotta" />
+              Migrazione Template Consulenze
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa operazione inizializza <code>customWorkingHours</code> per template legacy
+              e sincronizza <code>excludedDays</code> per tutti i template.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {migrationReport && (
+            <div className="space-y-4 py-4">
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Template da inizializzare:</span>
+                  <Badge variant={migrationReport.initialized > 0 ? "default" : "outline"}>
+                    {migrationReport.initialized}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Template da sincronizzare:</span>
+                  <Badge variant={migrationReport.syncedOnly > 0 ? "default" : "outline"}>
+                    {migrationReport.syncedOnly}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Template già OK:</span>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    {migrationReport.skipped}
+                  </Badge>
+                </div>
+              </div>
+
+              {(migrationReport.initialized > 0 || migrationReport.syncedOnly > 0) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex gap-2">
+                    <AlertDialogDescription className="text-sm text-amber-800 m-0">
+                      <strong>Nota importante:</strong> Da ora in poi, l'esclusione giorni si gestisce 
+                      solo via <code className="bg-amber-100 px-1 rounded">customWorkingHours</code> 
+                      (impostando <code className="bg-amber-100 px-1 rounded">attivo: false</code>). 
+                      L'array <code className="bg-amber-100 px-1 rounded">excludedDays</code> non verrà più utilizzato.
+                    </AlertDialogDescription>
+                  </div>
+                </div>
+              )}
+
+              {migrationReport.initialized === 0 && migrationReport.syncedOnly === 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-800 text-center">
+                    ✅ Tutti i template sono già configurati correttamente. Nessuna migrazione necessaria.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              disabled={isMigrating}
+              data-testid="button-cancel-migration"
+            >
+              Annulla
+            </AlertDialogCancel>
+            {migrationReport && (migrationReport.initialized > 0 || migrationReport.syncedOnly > 0) && (
+              <AlertDialogAction
+                onClick={handleExecuteMigration}
+                disabled={isMigrating}
+                className="bg-terracotta hover:bg-terracotta/90"
+                data-testid="button-confirm-migration"
+              >
+                {isMigrating ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Migrazione in corso...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4 mr-2" />
+                    Esegui Migrazione
+                  </>
+                )}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
