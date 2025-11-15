@@ -239,7 +239,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       data: templateData
     };
     
-    // 4. Genera link consulenza pre-compilato con dominio corretto
+    // 4. Genera link consulenza con dominio corretto
     let baseUrl = 'https://memoriesospese.gennaromazzacane.it';
     
     // Override con dominio primario se configurato
@@ -255,7 +255,8 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       }
     }
     
-    const consultationLink = `${baseUrl}/consulenza/${templateId}?nome=${encodeURIComponent(cliente.nome)}&cognome=${encodeURIComponent(cliente.cognome)}&email=${encodeURIComponent(cliente.email)}&whatsapp=${encodeURIComponent(cliente.whatsapp || '')}&jobId=${id}`;
+    // Route corretto: /consulenze/:tipo/:id/prenota (senza parametri URL - il cliente li inserisce nel form)
+    const consultationLink = `${baseUrl}/consulenze/${encodeURIComponent(job.jobType)}/${templateId}/prenota`;
     
     // 5. Invia notifica
     let eventMetadata: any = {
