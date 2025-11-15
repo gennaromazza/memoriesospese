@@ -34,6 +34,10 @@ import PaymentScheduleSection from '@/components/jobs/PaymentScheduleSection';
 import EditJobModal from '@/components/jobs/EditJobModal';
 import EditClienteModal from '@/components/jobs/EditClienteModal';
 import { updateCliente } from '@/lib/clienti';
+import QuoteManagementPanel from '@/components/quotes/QuoteManagementPanel';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy } from 'firebase/firestore';
+import type { Quote } from '@shared/quotes-types';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -43,6 +47,7 @@ export default function JobDetailPage() {
   const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+  const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
 
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
@@ -68,6 +73,56 @@ export default function JobDetailPage() {
     queryFn: () => getJobTypeBySlug(job!.jobType),
     enabled: !!job
   });
+
+  // Fetch preventivi associati al job
+  const { data: quotes, isLoading: quotesLoading } = useQuery({
+    queryKey: ['quotes', jobId], // Aligned with QuoteManagementPanel mutations
+    queryFn: async () => {
+      if (!jobId) return [];
+      const quotesRef = collection(db, 'quotes');
+      // Remove orderBy to avoid composite index requirement
+      const q = fbQuery(quotesRef, where('jobId', '==', jobId));
+      const snapshot = await getDocs(q);
+      
+      // Normalize Timestamps and sort client-side
+      const normalizedQuotes = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Normalize Firestore Timestamps to Date objects
+          createdAt: data.createdAt?.toDate ? data.createdAt : data.createdAt,
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt : data.updatedAt,
+          sentAt: data.sentAt?.toDate ? data.sentAt : data.sentAt,
+          viewedAt: data.viewedAt?.toDate ? data.viewedAt : data.viewedAt,
+          expiresAt: data.expiresAt?.toDate ? data.expiresAt : data.expiresAt,
+          signature: data.signature ? {
+            ...data.signature,
+            signedAt: data.signature.signedAt?.toDate ? data.signature.signedAt : data.signature.signedAt
+          } : undefined
+        } as Quote;
+      });
+      
+      // Sort by createdAt descending (most recent first) - client-side
+      return normalizedQuotes.sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+        const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+        return dateB - dateA;
+      });
+    },
+    enabled: !!jobId
+  });
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'firmato': return 'default';
+      case 'inviato': return 'secondary';
+      case 'bozza': return 'outline';
+      case 'rifiutato': return 'destructive';
+      case 'annullato': return 'destructive';
+      default: return 'secondary';
+    }
+  };
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -375,6 +430,84 @@ export default function JobDetailPage() {
                   jobId={job.id}
                   isAdmin={true}
                 />
+              </CardContent>
+            </Card>
+
+            {/* Preventivi */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Preventivi ({quotes?.length || 0})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {quotesLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin" />
+                    Caricamento preventivi...
+                  </div>
+                ) : !quotes || quotes.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nessun preventivo associato a questo lavoro
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {quotes.map((quote) => (
+                      <div key={quote.id} className="border rounded-lg">
+                        {/* Quote Header - Clickable */}
+                        <button
+                          onClick={() => setExpandedQuoteId(expandedQuoteId === quote.id ? null : quote.id)}
+                          className="w-full text-left p-4 hover:bg-accent/50 transition-colors rounded-t-lg"
+                          data-testid={`button-toggle-quote-${quote.id}`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">
+                                  {quote.jobInfo?.nomeEvento || `Preventivo #${quote.id.slice(0, 8)}`}
+                                </span>
+                                <Badge variant={getStatusBadgeVariant(quote.status)}>
+                                  {quote.status}
+                                </Badge>
+                                {quote.type === 'variabile' && (
+                                  <Badge variant="outline">Variabile</Badge>
+                                )}
+                              </div>
+                              {quote.clientiInfo && quote.clientiInfo.length > 0 && (
+                                <p className="text-sm text-muted-foreground">
+                                  Cliente: {quote.clientiInfo.map(c => `${c.nome} ${c.cognome}`).join(', ')}
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                {quote.createdAt && format(
+                                  quote.createdAt instanceof Date ? quote.createdAt : new Date(quote.createdAt as any), 
+                                  'PPP', 
+                                  { locale: it }
+                                )}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold">
+                                €{(quote.totaleSelezionato || quote.totalAfterDiscount || 0).toFixed(2)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {expandedQuoteId === quote.id ? 'Chiudi ▲' : 'Gestisci ▼'}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Quote Management Panel - Expandable */}
+                        {expandedQuoteId === quote.id && (
+                          <div className="border-t p-4 bg-muted/20" data-testid={`panel-quote-management-${quote.id}`}>
+                            <QuoteManagementPanel quote={quote} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
