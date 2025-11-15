@@ -1285,59 +1285,70 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* 🎨 Filtri Tipo Galleria */}
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        <div className="flex gap-2">
-                          <Button
-                            variant={galleryTypeFilter === 'generic' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setGalleryTypeFilter('generic')}
-                            className="flex items-center gap-2"
-                            data-testid="filter-generic-galleries"
-                          >
-                            🏠 Generiche
-                          </Button>
-                          <Button
-                            variant={galleryTypeFilter === 'special' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setGalleryTypeFilter('special')}
-                            className="flex items-center gap-2"
-                            data-testid="filter-special-galleries"
-                          >
-                            🎨 Special/Tematiche
-                          </Button>
-                          <Button
-                            variant={galleryTypeFilter === 'all' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setGalleryTypeFilter('all')}
-                            className="flex items-center gap-2"
-                            data-testid="filter-all-galleries"
-                          >
-                            📋 Tutte
-                          </Button>
+                      {/* 🎨 Filtri Tipo Galleria - Migliorati per mobile */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                        {/* Filtro Tipo Galleria */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">Tipo Galleria</label>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant={galleryTypeFilter === 'generic' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setGalleryTypeFilter('generic')}
+                              className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
+                              data-testid="filter-generic-galleries"
+                            >
+                              <span className="text-base">🏠</span>
+                              <span className="text-xs sm:text-sm">Generiche</span>
+                            </Button>
+                            <Button
+                              variant={galleryTypeFilter === 'special' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setGalleryTypeFilter('special')}
+                              className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
+                              data-testid="filter-special-galleries"
+                            >
+                              <span className="text-base">🎨</span>
+                              <span className="text-xs sm:text-sm">Tematiche</span>
+                            </Button>
+                            <Button
+                              variant={galleryTypeFilter === 'all' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setGalleryTypeFilter('all')}
+                              className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
+                              data-testid="filter-all-galleries"
+                            >
+                              <span className="text-base">📋</span>
+                              <span className="text-xs sm:text-sm">Tutte</span>
+                            </Button>
+                          </div>
                         </div>
 
-                        <div className="h-6 w-px bg-gray-300" />
-
-                        <div className="flex gap-2">
-                          <Button
-                            variant={selectionFilter === 'all' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setSelectionFilter('all')}
-                            className="flex items-center gap-2"
-                            data-testid="filter-all-selections"
-                          >
-                            📷 Tutte
-                          </Button>
-                          <Button
-                            variant={selectionFilter === 'approved' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setSelectionFilter('approved')}
-                            className="flex items-center gap-2 bg-green-50 hover:bg-green-100 border-green-200"
-                            data-testid="filter-approved-selections"
-                          >
-                            ✅ Solo Selezioni Approvate
-                          </Button>
+                        {/* Filtro Selezioni */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">Selezioni Foto</label>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant={selectionFilter === 'all' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setSelectionFilter('all')}
+                              className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
+                              data-testid="filter-all-selections"
+                            >
+                              <span className="text-base">📷</span>
+                              <span className="text-xs sm:text-sm">Tutte</span>
+                            </Button>
+                            <Button
+                              variant={selectionFilter === 'approved' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setSelectionFilter('approved')}
+                              className="flex-1 sm:flex-initial min-w-[140px] flex items-center justify-center gap-2 transition-all bg-green-50 hover:bg-green-100 border-green-200"
+                              data-testid="filter-approved-selections"
+                            >
+                              <span className="text-base">✅</span>
+                              <span className="text-xs sm:text-sm">Approvate</span>
+                            </Button>
+                          </div>
                         </div>
                       </div>
 
@@ -1347,7 +1358,7 @@ export default function AdminDashboard() {
                           {[...Array(3)].map((_, i) => (
                             <div key={i} className="mb-4">
                               <Skeleton className="h-10 w-full mb-2" />
-                              <Skeleton className="h-6 w-4/5"                />
+                              <Skeleton className="h-6 w-4/5" />
                             </div>
                           ))}
                         </div>
@@ -1363,140 +1374,258 @@ export default function AdminDashboard() {
                           </Button>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Nome
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Codice
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Data
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Foto
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Selezione
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Stato
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Azioni
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {currentGalleries.map((gallery) => (
-                                <tr key={gallery.id}>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm font-medium text-gray-900">{gallery.name}</div>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-500">{gallery.code}</div>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-500">{gallery.date}</div>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-500">{gallery.photoCount || 0}</div>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    {gallery.selectionStatus === 'completed' ? (
-                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                        ✅ Completata
-                                      </span>
-                                    ) : gallery.selectionEnabled ? (
-                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                        ⏳ In attesa
-                                      </span>
-                                    ) : (
-                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-500">
-                                        -
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                      gallery.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                    }`}>
-                                      {gallery.active ? 'Attiva' : 'Disattivata'}
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-1">
-                                    <div className="flex space-x-1 flex-wrap">
-                                      <Link to={createUrl(`/gallery/${gallery.code}`)} target="_blank">
-                                        <Button
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-8 w-8 bg-green-50 hover:bg-green-100 border-green-200"
-                                          title="Visualizza galleria"
-                                        >
-                                          <Eye className="h-4 w-4 text-green-600" />
-                                        </Button>
-                                      </Link>
-                                      {isCurrentUserAdmin() && (
-                                        <Button
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-8 w-8"
-                                          onClick={() => openEditModal(gallery)}
-                                          title="Modifica galleria"
-                                        >
-                                          <Edit className="h-4 w-4" />
-                                        </Button>
+                        <>
+                          {/* Vista Desktop - Tabella */}
+                          <div className="hidden lg:block overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Nome
+                                  </th>
+                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Codice
+                                  </th>
+                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Data
+                                  </th>
+                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Foto
+                                  </th>
+                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Selezione
+                                  </th>
+                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Stato
+                                  </th>
+                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Azioni
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {currentGalleries.map((gallery) => (
+                                  <tr key={gallery.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-4 py-4">
+                                      <div className="text-sm font-medium text-gray-900">{gallery.name}</div>
+                                    </td>
+                                    <td className="px-4 py-4">
+                                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">{gallery.code}</code>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <div className="text-sm text-gray-500">{gallery.date}</div>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <span className="text-sm font-semibold text-gray-700">{gallery.photoCount || 0}</span>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      {gallery.selectionStatus === 'completed' ? (
+                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                          ✅ Completata
+                                        </span>
+                                      ) : gallery.selectionEnabled ? (
+                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                          ⏳ In attesa
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-500">
+                                          -
+                                        </span>
                                       )}
-                                      {isCurrentUserAdmin() && (
-                                        <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)}>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                        gallery.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {gallery.active ? 'Attiva' : 'Disattivata'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <div className="flex gap-1">
+                                        <Link to={createUrl(`/gallery/${gallery.code}`)} target="_blank">
                                           <Button
                                             variant="outline"
                                             size="icon"
-                                            className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
-                                            title="Gestisci galleria"
-                                            data-testid="button-manage-gallery"
+                                            className="h-9 w-9 bg-green-50 hover:bg-green-100 border-green-200 transition-colors"
+                                            title="Visualizza galleria"
                                           >
-                                            <FolderOpen className="h-4 w-4 text-blue-600" />
+                                            <Eye className="h-4 w-4 text-green-600" />
                                           </Button>
                                         </Link>
-                                      )}
-                                      <Button
-                                        variant={gallery.active ? "destructive" : "default"}
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => toggleGalleryStatus(gallery)}
-                                        title={gallery.active ? "Disattiva galleria" : "Attiva galleria"}
-                                      >
-                                        {gallery.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                      </Button>
-                                      <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
+                                        {isCurrentUserAdmin() && (
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-9 w-9 hover:bg-gray-100 transition-colors"
+                                            onClick={() => openEditModal(gallery)}
+                                            title="Modifica galleria"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                        {isCurrentUserAdmin() && (
+                                          <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)}>
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              className="h-9 w-9 bg-blue-50 hover:bg-blue-100 border-blue-200 transition-colors"
+                                              title="Gestisci galleria"
+                                              data-testid="button-manage-gallery"
+                                            >
+                                              <FolderOpen className="h-4 w-4 text-blue-600" />
+                                            </Button>
+                                          </Link>
+                                        )}
                                         <Button
-                                          variant="outline"
+                                          variant={gallery.active ? "destructive" : "default"}
                                           size="icon"
-                                          className="h-8 w-8 bg-purple-50 hover:bg-purple-100 border-purple-200"
-                                          title="Gestisci questionario"
+                                          className="h-9 w-9 transition-colors"
+                                          onClick={() => toggleGalleryStatus(gallery)}
+                                          title={gallery.active ? "Disattiva galleria" : "Attiva galleria"}
                                         >
-                                          <HelpCircle className="h-4 w-4 text-purple-600" />
+                                          {gallery.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                         </Button>
-                                      </Link>
-                                      <Button
-                                        variant="destructive"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => deleteGallery(gallery)}
-                                        title="Elimina galleria"
-                                      >
-                                        <Trash className="h-4 w-4" />
-                                      </Button>
+                                        <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-9 w-9 bg-purple-50 hover:bg-purple-100 border-purple-200 transition-colors"
+                                            title="Gestisci questionario"
+                                          >
+                                            <HelpCircle className="h-4 w-4 text-purple-600" />
+                                          </Button>
+                                        </Link>
+                                        <Button
+                                          variant="destructive"
+                                          size="icon"
+                                          className="h-9 w-9 transition-colors"
+                                          onClick={() => deleteGallery(gallery)}
+                                          title="Elimina galleria"
+                                        >
+                                          <Trash className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Vista Mobile/Tablet - Card */}
+                          <div className="lg:hidden space-y-4">
+                            {currentGalleries.map((gallery) => (
+                              <div key={gallery.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-base font-semibold text-gray-900 truncate">{gallery.name}</h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">{gallery.code}</code>
+                                      <span className={`px-2 py-1 inline-flex text-xs font-semibold rounded-full ${
+                                        gallery.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {gallery.active ? '✓ Attiva' : '✕ Off'}
+                                      </span>
                                     </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                                  <div>
+                                    <span className="text-gray-500">Data:</span>
+                                    <p className="font-medium text-gray-900">{gallery.date}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Foto:</span>
+                                    <p className="font-semibold text-gray-900">{gallery.photoCount || 0}</p>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <span className="text-gray-500 block mb-1">Selezione:</span>
+                                    {gallery.selectionStatus === 'completed' ? (
+                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                        ✅ Completata
+                                      </span>
+                                    ) : gallery.selectionEnabled ? (
+                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                        ⏳ In attesa
+                                      </span>
+                                    ) : (
+                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-gray-100 text-gray-500">
+                                        Non attiva
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-200">
+                                  <Link to={createUrl(`/gallery/${gallery.code}`)} target="_blank" className="flex-1 min-w-[120px]">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+                                    >
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      Visualizza
+                                    </Button>
+                                  </Link>
+                                  {isCurrentUserAdmin() && (
+                                    <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)} className="flex-1 min-w-[120px]">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+                                        data-testid="button-manage-gallery"
+                                      >
+                                        <FolderOpen className="h-4 w-4 mr-1" />
+                                        Gestisci
+                                      </Button>
+                                    </Link>
+                                  )}
+                                  {isCurrentUserAdmin() && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="flex-1 min-w-[100px]"
+                                      onClick={() => openEditModal(gallery)}
+                                    >
+                                      <Edit className="h-4 w-4 mr-1" />
+                                      Modifica
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant={gallery.active ? "destructive" : "default"}
+                                    size="sm"
+                                    className="flex-1 min-w-[100px]"
+                                    onClick={() => toggleGalleryStatus(gallery)}
+                                  >
+                                    {gallery.active ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
+                                    {gallery.active ? 'Disattiva' : 'Attiva'}
+                                  </Button>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="outline" size="sm" className="flex-1 min-w-[80px]">
+                                        Altro
+                                        <ChevronRight className="h-4 w-4 ml-1" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem asChild>
+                                        <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
+                                          <HelpCircle className="h-4 w-4 mr-2" />
+                                          Questionario
+                                        </Link>
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => deleteGallery(gallery)} className="text-red-600">
+                                        <Trash className="h-4 w-4 mr-2" />
+                                        Elimina
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
 
                           {/* Controlli di paginazione per le gallerie */}
                           <PaginationControls
