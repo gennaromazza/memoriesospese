@@ -22,7 +22,8 @@ export type QuoteStatus =
   | 'visionato'   // Cliente ha aperto il link
   | 'firmato'     // Cliente ha firmato
   | 'rifiutato'   // Cliente ha rifiutato
-  | 'scaduto';    // Link scaduto
+  | 'scaduto'     // Link scaduto
+  | 'annullato';  // Annullato dall'admin
 
 /**
  * Prodotto nel preventivo
@@ -59,6 +60,31 @@ export interface QuoteSignature {
   ipAddress: string;
   userAgent: string;
   clientName: string;           // Nome firmato
+}
+
+/**
+ * Token revocato (per audit trail)
+ */
+export interface RevokedToken {
+  token: string;                // Token revocato
+  revokedAt: Timestamp;         // Data revoca
+  revokedBy: string;            // Email admin che ha revocato
+  reason: string;               // Motivo: "status_change", "manual_regeneration", etc.
+}
+
+/**
+ * Evento audit log preventivo
+ */
+export interface QuoteAuditEvent {
+  id: string;
+  quoteId: string;
+  timestamp: Timestamp;
+  adminEmail: string;
+  action: 'status_change' | 'signature_override' | 'token_regenerated' | 'quote_created' | 'quote_deleted';
+  previousValue?: any;
+  newValue?: any;
+  reason?: string;
+  metadata?: Record<string, any>;
 }
 
 /**
@@ -135,6 +161,7 @@ export interface Quote {
   // Link pubblico
   publicToken: string;          // Token sicuro per URL pubblico
   expiresAt?: Timestamp;        // Scadenza link (opzionale)
+  revokedTokens?: RevokedToken[]; // Storico token revocati (audit)
   
   // Email tracking
   sentAt?: Timestamp;

@@ -4,7 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import { db, FieldValue } from './firebase-admin.js';
-import type { Quote } from '../shared/quotes-types.js';
+import type { Quote, RevokedToken } from '../shared/quotes-types.js';
 import type { PaymentSchedule } from '../shared/payment-schedule-types.js';
 import { 
   sendGmailEmail, 
@@ -13,6 +13,7 @@ import {
   createQuoteAcceptedEmailHTML,
   createPaymentReminderEmailHTML
 } from './email-routes.js';
+import { nanoid } from 'nanoid';
 
 const router = Router();
 
@@ -31,6 +32,97 @@ function serializeTimestamp(timestamp: any): string | null {
 }
 
 /**
+ * Registra evento audit log preventivo
+ */
+async function logAuditEvent(data: {
+  quoteId: string;
+  adminEmail: string;
+  action: 'status_change' | 'signature_override' | 'token_regenerated' | 'quote_created' | 'quote_deleted';
+  previousValue?: any;
+  newValue?: any;
+  reason?: string;
+  metadata?: Record<string, any>;
+}): Promise<void> {
+  try {
+    await db.collection('quoteAuditLog').add({
+      quoteId: data.quoteId,
+      adminEmail: data.adminEmail,
+      action: data.action,
+      previousValue: data.previousValue || null,
+      newValue: data.newValue || null,
+      reason: data.reason || '',
+      metadata: data.metadata || {},
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('❌ Errore logging audit event:', error);
+    // Non blocca l'operazione se logging fallisce
+  }
+}
+
+/**
+ * Valida cambio stato preventivo con controlli finanziari
+ */
+async function validateQuoteStatusChange(
+  quote: Quote,
+  newStatus: string
+): Promise<{ allowed: boolean; error?: string; warnings?: string[] }> {
+  
+  const warnings: string[] = [];
+  
+  try {
+    // Fetch payment schedule collegato
+    const scheduleSnapshot = await db.collection('paymentSchedules')
+      .where('quoteId', '==', quote.id)
+      .limit(1)
+      .get();
+
+    let schedule: PaymentSchedule | null = null;
+    if (!scheduleSnapshot.empty) {
+      const scheduleDoc = scheduleSnapshot.docs[0];
+      schedule = { id: scheduleDoc.id, ...scheduleDoc.data() } as PaymentSchedule;
+    }
+
+    // BLOCCO HARD: Preventivo firmato con pagamenti ricevuti
+    // Non è possibile riportare il preventivo a stati pre-firma se ci sono incassi registrati
+    if (quote.status === 'firmato' && schedule?.totalePagato && schedule.totalePagato > 0) {
+      const statiPreFirma = ['bozza', 'inviato', 'visionato', 'rifiutato', 'annullato', 'scaduto'];
+      if (statiPreFirma.includes(newStatus)) {
+        return {
+          allowed: false,
+          error: `Impossibile riportare il preventivo a stato "${newStatus}": sono già stati incassati ${schedule.totalePagato}€. Il preventivo deve rimanere "firmato".`
+        };
+      }
+    }
+
+    // WARNING: Pagamenti schedulati (ma non ancora ricevuti)
+    if (schedule?.payments && schedule.payments.length > 0) {
+      const paymentsScheduled = schedule.payments.filter((p: any) => p.stato !== 'pagato').length;
+      if (paymentsScheduled > 0) {
+        warnings.push(`⚠️ Ci sono ${paymentsScheduled} pagamenti schedulati nel piano. Verificare l'impatto del cambio stato.`);
+      }
+    }
+
+    // BLOCCO: Firma mancante per stato "firmato"
+    if (newStatus === 'firmato' && !quote.signature) {
+      return {
+        allowed: false,
+        error: 'Inserisci prima la firma del cliente per impostare lo stato "firmato"'
+      };
+    }
+
+    return { allowed: true, warnings };
+    
+  } catch (error) {
+    console.error('❌ Errore validazione cambio stato:', error);
+    return {
+      allowed: false,
+      error: 'Errore durante la validazione. Riprova.'
+    };
+  }
+}
+
+/**
  * GET /api/quotes/public/:token
  * Portale pubblico per preview e firma preventivo (NON richiede status='firmato')
  */
@@ -45,13 +137,35 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       });
     }
 
-    // 1. Cerca quote tramite publicToken
+    // 1. Cerca quote tramite publicToken ATTIVO (non revocato)
     const quotesSnapshot = await db.collection('quotes')
       .where('publicToken', '==', token)
       .limit(1)
       .get();
 
     if (quotesSnapshot.empty) {
+      // Token non trovato come publicToken attivo, verifica se è revocato
+      const allQuotesSnapshot = await db.collection('quotes').get();
+      let isRevoked = false;
+      
+      for (const doc of allQuotesSnapshot.docs) {
+        const data = doc.data();
+        if (data.revokedTokens && Array.isArray(data.revokedTokens)) {
+          const revoked = data.revokedTokens.find((rt: any) => rt.token === token);
+          if (revoked) {
+            isRevoked = true;
+            break;
+          }
+        }
+      }
+
+      if (isRevoked) {
+        return res.status(410).json({
+          error: 'Link revocato',
+          message: 'Questo link è stato revocato. Richiedi un nuovo link aggiornato.'
+        });
+      }
+
       return res.status(404).json({
         error: 'Preventivo non trovato',
         message: 'Il link non è valido o è scaduto'
@@ -245,13 +359,35 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       });
     }
 
-    // 1. Cerca quote tramite publicToken
+    // 1. Cerca quote tramite publicToken ATTIVO (non revocato)
     const quotesSnapshot = await db.collection('quotes')
       .where('publicToken', '==', token)
       .limit(1)
       .get();
 
     if (quotesSnapshot.empty) {
+      // Token non trovato come publicToken attivo, verifica se è revocato
+      const allQuotesSnapshot = await db.collection('quotes').get();
+      let isRevoked = false;
+      
+      for (const doc of allQuotesSnapshot.docs) {
+        const data = doc.data();
+        if (data.revokedTokens && Array.isArray(data.revokedTokens)) {
+          const revoked = data.revokedTokens.find((rt: any) => rt.token === token);
+          if (revoked) {
+            isRevoked = true;
+            break;
+          }
+        }
+      }
+
+      if (isRevoked) {
+        return res.status(410).json({
+          error: 'Link revocato',
+          message: 'Questo link è stato revocato. Richiedi un nuovo link aggiornato.'
+        });
+      }
+
       return res.status(404).json({
         error: 'Preventivo non trovato',
         message: 'Il link non è valido o è scaduto'
@@ -1065,6 +1201,219 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('❌ Errore payment-reminder:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * PATCH /api/quotes/:id/status
+ * Cambio manuale stato preventivo con validazioni finanziarie e rigenerazione token
+ * Admin-only
+ */
+router.patch('/:id/status', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { newStatus, reason } = req.body;
+    const adminEmail = req.headers['x-admin-email'] as string;
+
+    // 1. Validate admin
+    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
+      return res.status(403).json({
+        error: 'Non autorizzato',
+        message: 'Solo gli admin possono modificare lo stato dei preventivi'
+      });
+    }
+
+    // 2. Validate newStatus
+    const validStatuses = ['bozza', 'inviato', 'visionato', 'firmato', 'rifiutato', 'scaduto', 'annullato'];
+    if (!newStatus || !validStatuses.includes(newStatus)) {
+      return res.status(400).json({
+        error: 'Stato non valido',
+        message: `Lo stato deve essere uno tra: ${validStatuses.join(', ')}`
+      });
+    }
+
+    // 3. Fetch quote
+    const quoteRef = db.collection('quotes').doc(id);
+    const quoteDoc = await quoteRef.get();
+
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: 'Il preventivo specificato non esiste'
+      });
+    }
+
+    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+    const oldStatus = quote.status;
+
+    // 4. Validazioni finanziarie
+    const validation = await validateQuoteStatusChange(quote, newStatus);
+    
+    if (!validation.allowed) {
+      return res.status(400).json({
+        error: 'Cambio stato bloccato',
+        message: validation.error,
+        warnings: validation.warnings
+      });
+    }
+
+    // 5. Determina se rigenerare token
+    const shouldRegenerateToken = ['annullato', 'bozza', 'scaduto'].includes(newStatus);
+    
+    const updateData: any = {
+      status: newStatus,
+      updatedAt: new Date()
+    };
+
+    // 6. Rigenerazione token se necessario
+    if (shouldRegenerateToken && quote.publicToken) {
+      const oldToken = quote.publicToken;
+      const newToken = nanoid(32);
+      
+      // Crea entry per token revocato
+      const revokedEntry: RevokedToken = {
+        token: oldToken,
+        revokedAt: new Date() as any,
+        revokedBy: adminEmail,
+        reason: `status_change: ${oldStatus} → ${newStatus}`
+      };
+
+      updateData.publicToken = newToken;
+      updateData.revokedTokens = FieldValue.arrayUnion(revokedEntry);
+
+      // Log rigenerazione token
+      await logAuditEvent({
+        quoteId: id,
+        adminEmail,
+        action: 'token_regenerated',
+        previousValue: oldToken,
+        newValue: newToken,
+        reason: `Cambio stato: ${oldStatus} → ${newStatus}`
+      });
+    }
+
+    // 7. Update preventivo
+    await quoteRef.update(updateData);
+
+    // 8. Log cambio stato
+    await logAuditEvent({
+      quoteId: id,
+      adminEmail,
+      action: 'status_change',
+      previousValue: oldStatus,
+      newValue: newStatus,
+      reason: reason || 'Cambio manuale admin',
+      metadata: {
+        tokenRegenerated: shouldRegenerateToken,
+        warnings: validation.warnings
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Stato aggiornato da "${oldStatus}" a "${newStatus}"`,
+      warnings: validation.warnings,
+      tokenRegenerated: shouldRegenerateToken,
+      newToken: shouldRegenerateToken ? updateData.publicToken : undefined
+    });
+
+  } catch (error) {
+    console.error('❌ Errore cambio stato preventivo:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * PATCH /api/quotes/:id/signature/manual
+ * Inserimento manuale firma cliente (retroattiva o forzata)
+ * Admin-only
+ */
+router.patch('/:id/signature/manual', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { clientName, signedAt, reason } = req.body;
+    const adminEmail = req.headers['x-admin-email'] as string;
+
+    // 1. Validate admin
+    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
+      return res.status(403).json({
+        error: 'Non autorizzato',
+        message: 'Solo gli admin possono inserire firme manuali'
+      });
+    }
+
+    // 2. Validate input
+    if (!clientName || !signedAt) {
+      return res.status(400).json({
+        error: 'Dati incompleti',
+        message: 'Nome cliente e data firma sono obbligatori'
+      });
+    }
+
+    // 3. Fetch quote
+    const quoteRef = db.collection('quotes').doc(id);
+    const quoteDoc = await quoteRef.get();
+
+    if (!quoteDoc.exists) {
+      return res.status(404).json({
+        error: 'Preventivo non trovato',
+        message: 'Il preventivo specificato non esiste'
+      });
+    }
+
+    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+    // 4. Crea oggetto firma manuale
+    const manualSignature = {
+      clientName: clientName.trim(),
+      signedAt: new Date(signedAt),
+      ipAddress: 'admin-manual-override',
+      userAgent: `Admin: ${adminEmail}`
+      // imageUrl non presente per firme manuali
+    };
+
+    // 5. Update preventivo con firma + stato firmato
+    await quoteRef.update({
+      signature: manualSignature,
+      status: 'firmato',
+      updatedAt: new Date()
+    });
+
+    // 6. Log inserimento firma manuale
+    await logAuditEvent({
+      quoteId: id,
+      adminEmail,
+      action: 'signature_override',
+      newValue: {
+        clientName,
+        signedAt
+      },
+      reason: reason || 'Inserimento manuale firma admin',
+      metadata: {
+        previousStatus: quote.status,
+        hadPreviousSignature: !!quote.signature
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Firma inserita manualmente con successo',
+      signature: {
+        clientName,
+        signedAt,
+        insertedBy: adminEmail
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Errore inserimento firma manuale:', error);
     return res.status(500).json({
       error: 'Errore server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto'

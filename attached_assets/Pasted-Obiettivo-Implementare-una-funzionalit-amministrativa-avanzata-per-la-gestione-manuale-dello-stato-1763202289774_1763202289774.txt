@@ -1,0 +1,64 @@
+Obiettivo:
+Implementare una funzionalità amministrativa avanzata per la gestione manuale dello stato di un contratto o modulo digitale all'interno del mio gestionale fotografico.
+
+✅ Funzionalità richieste
+
+Aggiornamento manuale dello stato contratto/modulo
+
+Permettere a un operatore/admin di aggiornare manualmente lo status (es: "da firmare", "firmato", "scaduto", "non firmato", ecc.).
+
+Al cambio dello stato, il sistema deve rigenerare il link univoco al documento, basandosi sul nuovo stato, garantendo che il link rifletta sempre lo stato attuale e che eventuali versioni obsolete siano invalidate (es. token nel path, o parametro hash/UUID in query).
+
+Inserimento manuale firma cliente
+
+Aggiungere un'interfaccia che permetta all’operatore di inserire manualmente:
+
+Nome e cognome del cliente
+
+Data di firma
+
+Questo campo è fondamentale in caso di importazione contratti pregressi o per forzare uno stato firmato retroattivo.
+
+Controlli avanzati sul comparto finanziario
+
+Se sul contratto risultano acconti versati, devono essere previsti controlli e limitazioni:
+
+Es. Non permettere l’impostazione dello stato “non firmato” se è già stato registrato un pagamento.
+
+Mostrare un warning o bloccare l’azione se ci sono incongruenze (es. contratto “annullato” ma con pagamenti già effettuati).
+
+In generale: ogni mutazione di stato dovrebbe passare per una funzione di validazione centralizzata che tenga conto delle condizioni economiche del lavoro.
+
+Logging / audit
+
+Ogni cambiamento manuale andrebbe tracciato (utente che ha effettuato il cambio, data, stato precedente e nuovo, motivazione se possibile).
+
+🔍 Richiesta specifica prima di iniziare
+
+⚠️ È richiesta un'analisi tecnica approfondita prima di procedere con lo sviluppo.
+
+Nello specifico, vanno valutati:
+
+I possibili effetti collaterali sui workflow esistenti (es. firma digitale, invio email automatica, notifiche cliente)
+
+L'impatto sul sistema dei pagamenti e degli stati del lavoro (es. rischio di inconsistenza tra "firma" e "pagamento")
+
+La rigenerazione del link: deve essere sicura, invalidare il precedente se necessario, e supportare fallback in caso di errore.
+
+L’esperienza utente lato admin: flusso coerente, chiaro, con validazioni e conferme per evitare modifiche involontarie o distruttive.
+
+📦 Output atteso (prima dell’implementazione)
+
+Una scheda tecnica (spec) con:
+
+Logica proposta per lo stato
+
+Strategia per rigenerazione link
+
+Validazioni lato pagamento
+
+Mockup dell’interfaccia lato admin
+
+Considerazioni di retrocompatibilità
+
+Piano di rollout (flag dietro feature toggle se serve)
