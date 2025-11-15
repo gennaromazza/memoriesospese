@@ -423,7 +423,7 @@ router.post('/send', async (req, res) => {
       // Import dinamico per evitare circular dependency
       const { sendGmailEmail } = await import('./email-routes');
       
-      const subject = `Ricevuta N° ${numeroRicevuta} - ${studioInfo.name}`;
+      const subject = `Ricevuta N ${numeroRicevuta} - ${studioInfo.name}`;
       await sendGmailEmail(recipient, subject, htmlContent);
       
       console.log(`✅ Ricevuta N° ${numeroRicevuta} inviata via email a ${recipient}`);

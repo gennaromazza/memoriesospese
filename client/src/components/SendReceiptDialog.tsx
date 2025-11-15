@@ -289,8 +289,11 @@ export default function SendReceiptDialog({
                         {filteredClienti.map((cliente) => (
                           <CommandItem
                             key={cliente.id}
-                            value={cliente.id}
-                            onSelect={() => setSelectedClienteId(cliente.id)}
+                            value={`${cliente.nome} ${cliente.cognome} ${cliente.email}`}
+                            onSelect={() => {
+                              setSelectedClienteId(cliente.id);
+                              setSearchQuery(`${cliente.nome} ${cliente.cognome}`);
+                            }}
                             className="cursor-pointer"
                           >
                             <div className="flex flex-col">

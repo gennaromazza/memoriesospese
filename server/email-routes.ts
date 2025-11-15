@@ -2095,7 +2095,7 @@ router.post("/gallery-ready", async (req, res) => {
       productRequirements
     );
 
-    const subject = `La tua galleria è pronta - Seleziona le ${requiredPhotoCount} foto!`;
+    const subject = `La tua galleria e pronta - Seleziona le ${requiredPhotoCount} foto`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
