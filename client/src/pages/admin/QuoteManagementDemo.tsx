@@ -4,26 +4,31 @@
  * Può essere integrata nella JobDetailPage o usata standalone
  */
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams, useLocation } from 'wouter';
+import { useLocation } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, FileText, Search } from 'lucide-react';
 import QuoteManagementPanel from '@/components/quotes/QuoteManagementPanel';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { Quote } from '@shared/quotes-types';
 
 export default function QuoteManagementDemo() {
-  const params = useParams();
   const [, navigate] = useLocation();
-  const quoteId = params.id as string;
+  const [quoteId, setQuoteId] = useState<string>('');
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
 
   // Fetch quote
   const { data: quote, isLoading, error } = useQuery({
-    queryKey: ['/api/quotes', quoteId],
+    queryKey: ['/api/quotes', selectedQuoteId],
     queryFn: async () => {
-      const quoteRef = doc(db, 'quotes', quoteId);
+      if (!selectedQuoteId) throw new Error('ID preventivo mancante');
+      
+      const quoteRef = doc(db, 'quotes', selectedQuoteId);
       const quoteDoc = await getDoc(quoteRef);
       
       if (!quoteDoc.exists()) {
@@ -32,8 +37,76 @@ export default function QuoteManagementDemo() {
       
       return { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
     },
-    enabled: !!quoteId
+    enabled: !!selectedQuoteId
   });
+
+  const handleLoadQuote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (quoteId.trim()) {
+      setSelectedQuoteId(quoteId.trim());
+    }
+  };
+
+  const handleReset = () => {
+    setSelectedQuoteId(null);
+    setQuoteId('');
+  };
+
+  // Mostra form per inserire ID preventivo
+  if (!selectedQuoteId) {
+    return (
+      <div className="container mx-auto py-12">
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Gestione Preventivi - Demo
+            </CardTitle>
+            <CardDescription>
+              Inserisci l'ID di un preventivo esistente per testare il pannello di gestione
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLoadQuote} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="quote-id">ID Preventivo</Label>
+                <Input
+                  id="quote-id"
+                  data-testid="input-quote-id"
+                  placeholder="es. abc123xyz..."
+                  value={quoteId}
+                  onChange={(e) => setQuoteId(e.target.value)}
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">
+                  Puoi trovare l'ID preventivo nel database Firebase (collection 'quotes')
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  type="submit" 
+                  className="flex-1"
+                  disabled={!quoteId.trim()}
+                  data-testid="button-load-quote"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Carica Preventivo
+                </Button>
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  onClick={() => navigate('/admin')}
+                  data-testid="button-back-admin"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -77,10 +150,15 @@ export default function QuoteManagementDemo() {
             Preventivo #{quote.id}
           </p>
         </div>
-        <Button variant="outline" onClick={() => navigate('/admin')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Indietro
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleReset} data-testid="button-change-quote">
+            Cambia Preventivo
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/admin')} data-testid="button-back">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Indietro
+          </Button>
+        </div>
       </div>
 
       {/* Quote Info Card */}
