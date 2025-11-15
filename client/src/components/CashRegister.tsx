@@ -214,27 +214,27 @@ export default function CashRegister() {
             </Button>
           </DialogTrigger>
 
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-lg sm:text-xl">
                 {editingMovement ? "Modifica Movimento" : "Nuovo Movimento Cassa"}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-sm">
                 Registra entrate o uscite non legate agli ordini
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
               {/* Tipo */}
-              <div className="space-y-2">
-                <Label>Tipo Movimento *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Tipo Movimento *</Label>
                 <Select
                   value={formData.tipo}
                   onValueChange={(value: "entrata" | "uscita") => {
                     setFormData({ ...formData, tipo: value, categoria: "" });
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -255,13 +255,13 @@ export default function CashRegister() {
               </div>
 
               {/* Categoria */}
-              <div className="space-y-2">
-                <Label>Categoria *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Categoria *</Label>
                 <Select
                   value={formData.categoria}
                   onValueChange={(value) => setFormData({ ...formData, categoria: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue placeholder="Seleziona categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -275,8 +275,8 @@ export default function CashRegister() {
               </div>
 
               {/* Importo */}
-              <div className="space-y-2">
-                <Label>Importo (€) *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Importo (€) *</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -284,37 +284,40 @@ export default function CashRegister() {
                   value={formData.importo}
                   onChange={(e) => setFormData({ ...formData, importo: parseFloat(e.target.value) || 0 })}
                   placeholder="0.00"
+                  className="h-10"
                 />
               </div>
 
               {/* Descrizione */}
-              <div className="space-y-2">
-                <Label>Descrizione *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Descrizione *</Label>
                 <Input
                   value={formData.descrizione}
                   onChange={(e) => setFormData({ ...formData, descrizione: e.target.value })}
                   placeholder="Es: Acquisto obiettivo 50mm"
+                  className="h-10"
                 />
               </div>
 
               {/* Data */}
-              <div className="space-y-2">
-                <Label>Data *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Data *</Label>
                 <Input
                   type="date"
                   value={formData.data.toISOString().split("T")[0]}
                   onChange={(e) => setFormData({ ...formData, data: new Date(e.target.value) })}
+                  className="h-10"
                 />
               </div>
 
               {/* Metodo Pagamento */}
-              <div className="space-y-2">
-                <Label>Metodo Pagamento</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Metodo Pagamento</Label>
                 <Select
                   value={formData.metodoPagamento}
                   onValueChange={(value: any) => setFormData({ ...formData, metodoPagamento: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -328,23 +331,30 @@ export default function CashRegister() {
               </div>
 
               {/* Note */}
-              <div className="space-y-2">
-                <Label>Note</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Note</Label>
                 <Textarea
                   value={formData.note}
                   onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   placeholder="Note aggiuntive (opzionali)"
-                  rows={3}
+                  rows={2}
+                  className="resize-none text-sm"
                 />
               </div>
 
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={handleCloseDialog}>
+              <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0 pt-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleCloseDialog}
+                  className="w-full sm:w-auto"
+                >
                   Annulla
                 </Button>
                 <Button 
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
+                  className="w-full sm:w-auto"
                 >
                   {editingMovement ? "Salva Modifiche" : "Registra Movimento"}
                 </Button>
