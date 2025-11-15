@@ -214,27 +214,27 @@ export default function CashRegister() {
             </Button>
           </DialogTrigger>
 
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-lg sm:text-xl">
+          <DialogContent className="w-[95vw] max-w-md max-h-[95vh] overflow-y-auto p-4 sm:p-6">
+            <DialogHeader className="space-y-1.5 sm:space-y-2">
+              <DialogTitle className="text-base sm:text-lg md:text-xl">
                 {editingMovement ? "Modifica Movimento" : "Nuovo Movimento Cassa"}
               </DialogTitle>
-              <DialogDescription className="text-sm">
+              <DialogDescription className="text-xs sm:text-sm">
                 Registra entrate o uscite non legate agli ordini
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-2.5 sm:space-y-3 md:space-y-4">
               {/* Tipo */}
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label className="text-sm">Tipo Movimento *</Label>
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-xs sm:text-sm font-medium">Tipo Movimento *</Label>
                 <Select
                   value={formData.tipo}
                   onValueChange={(value: "entrata" | "uscita") => {
                     setFormData({ ...formData, tipo: value, categoria: "" });
                   }}
                 >
-                  <SelectTrigger className="h-10">
+                  <SelectTrigger className="h-9 sm:h-10 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -255,13 +255,13 @@ export default function CashRegister() {
               </div>
 
               {/* Categoria */}
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label className="text-sm">Categoria *</Label>
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-xs sm:text-sm font-medium">Categoria *</Label>
                 <Select
                   value={formData.categoria}
                   onValueChange={(value) => setFormData({ ...formData, categoria: value })}
                 >
-                  <SelectTrigger className="h-10">
+                  <SelectTrigger className="h-9 sm:h-10 text-sm">
                     <SelectValue placeholder="Seleziona categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -275,8 +275,8 @@ export default function CashRegister() {
               </div>
 
               {/* Importo */}
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label className="text-sm">Importo (€) *</Label>
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-xs sm:text-sm font-medium">Importo (€) *</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -284,40 +284,40 @@ export default function CashRegister() {
                   value={formData.importo === 0 ? '' : formData.importo}
                   onChange={(e) => setFormData({ ...formData, importo: parseFloat(e.target.value) || 0 })}
                   placeholder="0.00"
-                  className="h-10"
+                  className="h-9 sm:h-10 text-sm"
                 />
               </div>
 
               {/* Descrizione */}
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label className="text-sm">Descrizione *</Label>
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-xs sm:text-sm font-medium">Descrizione *</Label>
                 <Input
                   value={formData.descrizione}
                   onChange={(e) => setFormData({ ...formData, descrizione: e.target.value })}
                   placeholder="Es: Acquisto obiettivo 50mm"
-                  className="h-10"
+                  className="h-9 sm:h-10 text-sm"
                 />
               </div>
 
               {/* Data */}
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label className="text-sm">Data *</Label>
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-xs sm:text-sm font-medium">Data *</Label>
                 <Input
                   type="date"
                   value={formData.data.toISOString().split("T")[0]}
                   onChange={(e) => setFormData({ ...formData, data: new Date(e.target.value) })}
-                  className="h-10"
+                  className="h-9 sm:h-10 text-sm"
                 />
               </div>
 
               {/* Metodo Pagamento */}
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label className="text-sm">Metodo Pagamento</Label>
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-xs sm:text-sm font-medium">Metodo Pagamento</Label>
                 <Select
                   value={formData.metodoPagamento}
                   onValueChange={(value: any) => setFormData({ ...formData, metodoPagamento: value })}
                 >
-                  <SelectTrigger className="h-10">
+                  <SelectTrigger className="h-9 sm:h-10 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -331,30 +331,30 @@ export default function CashRegister() {
               </div>
 
               {/* Note */}
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label className="text-sm">Note</Label>
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-xs sm:text-sm font-medium">Note</Label>
                 <Textarea
                   value={formData.note}
                   onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   placeholder="Note aggiuntive (opzionali)"
                   rows={2}
-                  className="resize-none text-sm"
+                  className="resize-none text-xs sm:text-sm"
                 />
               </div>
 
-              <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0 pt-2">
+              <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2 pt-3 sm:pt-4">
                 <Button 
                   type="button" 
                   variant="outline" 
                   onClick={handleCloseDialog}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto h-9 sm:h-10 text-sm"
                 >
                   Annulla
                 </Button>
                 <Button 
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto h-9 sm:h-10 text-sm"
                 >
                   {editingMovement ? "Salva Modifiche" : "Registra Movimento"}
                 </Button>
