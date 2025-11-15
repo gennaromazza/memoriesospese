@@ -15,6 +15,8 @@ import importRoutes from './import-routes.js';
 import consultationRoutes from './consultation-routes.js';
 import calendarRoutes from './calendar-routes.js';
 import receiptRoutes from './receipt-routes.js';
+import collaboratoriRoutes from './collaboratori-routes';
+
 
 async function startServer() {
   const start = Date.now();
@@ -90,6 +92,10 @@ async function startServer() {
 
     app.use('/api/receipts', receiptRoutes);
     console.log('🧾 Receipt API routes mounted at /api/receipts');
+
+    // Registra routes collaboratori
+    app.use('/api', collaboratoriRoutes);
+    console.log('👥 Collaboratori API routes mounted at /api');
 
     // Health check
     app.get('/api/health', (req, res) => {
