@@ -581,6 +581,34 @@ export default function ConsultationTemplatesManager() {
     }
   };
 
+  // Colori e icone per categoria
+  const categoryStyles: Record<string, { color: string; bgLight: string; bgDark: string; icon: string }> = {
+    'battesimo': { 
+      color: 'text-blue-700', 
+      bgLight: 'bg-blue-50', 
+      bgDark: 'bg-blue-100',
+      icon: '👶'
+    },
+    'comunione': { 
+      color: 'text-purple-700', 
+      bgLight: 'bg-purple-50', 
+      bgDark: 'bg-purple-100',
+      icon: '⛪'
+    },
+    'matrimonio': { 
+      color: 'text-pink-700', 
+      bgLight: 'bg-pink-50', 
+      bgDark: 'bg-pink-100',
+      icon: '💒'
+    },
+    'prima-comunione': { 
+      color: 'text-amber-700', 
+      bgLight: 'bg-amber-50', 
+      bgDark: 'bg-amber-100',
+      icon: '🕊️'
+    },
+  };
+
   // Raggruppa template per jobType
   const templatesByJobType = React.useMemo(() => {
     const map = new Map<string, ConsultationTemplate[]>();
@@ -676,37 +704,69 @@ export default function ConsultationTemplatesManager() {
               </Button>
             </div>
           ) : (
-            <Accordion type="multiple" value={openJobTypes} onValueChange={setOpenJobTypes} className="w-full">
+            <Accordion type="multiple" value={openJobTypes} onValueChange={setOpenJobTypes} className="w-full space-y-4">
               {sortedJobTypes.map((jobType) => {
                 const jobTypeTemplates = templatesByJobType.get(jobType) || [];
                 const jobTypeName = jobTypes.find((jt: JobTypeDoc) => jt.slug === jobType)?.nome || jobType;
                 const activeCount = jobTypeTemplates.filter(t => t.attiva).length;
+                const style = categoryStyles[jobType] || { color: 'text-gray-700', bgLight: 'bg-gray-50', bgDark: 'bg-gray-100', icon: '📋' };
                 
                 return (
-                  <AccordionItem key={jobType} value={jobType} className="border-b">
-                    <AccordionTrigger className="hover:no-underline py-4">
-                      <div className="flex items-center gap-3 text-left">
-                        <Badge variant="outline" className="text-sm px-3 py-1">
-                          {jobTypeName}
-                        </Badge>
-                        <span className="text-sm text-gray-600">
-                          {activeCount}/{jobTypeTemplates.length} attivi
-                        </span>
+                  <AccordionItem 
+                    key={jobType} 
+                    value={jobType} 
+                    className={`border-2 border-l-8 rounded-lg overflow-hidden shadow-sm ${style.bgLight} ${
+                      jobType === 'battesimo' ? 'border-l-blue-500' :
+                      jobType === 'comunione' ? 'border-l-purple-500' :
+                      jobType === 'matrimonio' ? 'border-l-pink-500' :
+                      jobType === 'prima-comunione' ? 'border-l-amber-500' :
+                      'border-l-gray-500'
+                    }`}
+                  >
+                    <AccordionTrigger className={`hover:no-underline py-5 px-6 hover:${style.bgDark} transition-colors`}>
+                      <div className="flex items-center gap-4 text-left w-full">
+                        <span className="text-3xl flex-shrink-0">{style.icon}</span>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-base font-semibold px-4 py-1.5 ${style.color} border-2 ${
+                              jobType === 'battesimo' ? 'border-blue-300 bg-blue-100' :
+                              jobType === 'comunione' ? 'border-purple-300 bg-purple-100' :
+                              jobType === 'matrimonio' ? 'border-pink-300 bg-pink-100' :
+                              jobType === 'prima-comunione' ? 'border-amber-300 bg-amber-100' :
+                              'border-gray-300 bg-gray-100'
+                            }`}
+                          >
+                            {jobTypeName}
+                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${style.color}`}>
+                              {activeCount}/{jobTypeTemplates.length} attivi
+                            </span>
+                            <Badge 
+                              variant="secondary" 
+                              className="text-xs"
+                            >
+                              {jobTypeTemplates.length} template
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-12"></TableHead>
-                            <TableHead>Nome</TableHead>
-                            <TableHead>Durata</TableHead>
-                            <TableHead>Campi Job</TableHead>
-                            <TableHead>Stato</TableHead>
-                            <TableHead className="text-right">Azioni</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                    <AccordionContent className={`${style.bgLight} pt-0`}>
+                      <div className="bg-white rounded-lg overflow-hidden border shadow-sm mx-4 mb-4">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className={style.bgDark}>
+                              <TableHead className="w-12"></TableHead>
+                              <TableHead className={`font-semibold ${style.color}`}>Nome</TableHead>
+                              <TableHead className={`font-semibold ${style.color}`}>Durata</TableHead>
+                              <TableHead className={`font-semibold ${style.color}`}>Campi Job</TableHead>
+                              <TableHead className={`font-semibold ${style.color}`}>Stato</TableHead>
+                              <TableHead className={`text-right font-semibold ${style.color}`}>Azioni</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                           {jobTypeTemplates.map((template) => (
                   <React.Fragment key={template.id}>
                     <TableRow
@@ -862,6 +922,7 @@ export default function ConsultationTemplatesManager() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </AccordionContent>
                   </AccordionItem>
                 );
