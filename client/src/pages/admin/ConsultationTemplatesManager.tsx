@@ -1077,13 +1077,13 @@ export default function ConsultationTemplatesManager() {
 
                       {formData.customWorkingHours && (
                         <div className="border-t pt-4">
-                          <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3 -mr-2">
+                          <div className="space-y-4 md:space-y-5">
                           {['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'].map((dayName, dayIdx) => {
                             const dayConfig = formData.customWorkingHours?.find(h => h.giornoSettimana === dayIdx);
                             
                             return (
-                              <Card key={dayIdx} className="p-4 sm:p-5">
-                                <div className="space-y-4">
+                              <Card key={dayIdx} className="p-5 md:p-6">
+                                <div className="space-y-4 md:space-y-5">
                                   <div className="flex items-center justify-between min-h-[44px]">
                                     <Label className="text-sm sm:text-base font-medium">{dayName}</Label>
                                     <div className="flex items-center gap-3 touch-manipulation">
@@ -1107,9 +1107,9 @@ export default function ConsultationTemplatesManager() {
                                   </div>
 
                                   {dayConfig?.attivo && (
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                                    <div className="flex flex-col md:grid md:grid-cols-4 gap-4 md:gap-5">
                                       <div className="space-y-2">
-                                        <Label className="text-xs sm:text-sm">Apertura</Label>
+                                        <Label className="text-sm font-medium">Apertura</Label>
                                         <Input
                                           type="time"
                                           value={dayConfig.apertura}
@@ -1123,12 +1123,12 @@ export default function ConsultationTemplatesManager() {
                                               ),
                                             }));
                                           }}
-                                          className="h-11 text-sm touch-manipulation"
+                                          className="min-h-[48px] text-base touch-manipulation"
                                         />
                                       </div>
 
                                       <div className="space-y-2">
-                                        <Label className="text-xs sm:text-sm">Pausa Inizio</Label>
+                                        <Label className="text-sm font-medium">Pausa Inizio</Label>
                                         <Input
                                           type="time"
                                           value={dayConfig.pausaInizio || ""}
@@ -1142,12 +1142,12 @@ export default function ConsultationTemplatesManager() {
                                               ),
                                             }));
                                           }}
-                                          className="h-11 text-sm touch-manipulation"
+                                          className="min-h-[48px] text-base touch-manipulation"
                                         />
                                       </div>
 
                                       <div className="space-y-2">
-                                        <Label className="text-xs sm:text-sm">Pausa Fine</Label>
+                                        <Label className="text-sm font-medium">Pausa Fine</Label>
                                         <Input
                                           type="time"
                                           value={dayConfig.pausaFine || ""}
@@ -1161,12 +1161,12 @@ export default function ConsultationTemplatesManager() {
                                               ),
                                             }));
                                           }}
-                                          className="h-11 text-sm touch-manipulation"
+                                          className="min-h-[48px] text-base touch-manipulation"
                                         />
                                       </div>
 
                                       <div className="space-y-2">
-                                        <Label className="text-xs sm:text-sm">Chiusura</Label>
+                                        <Label className="text-sm font-medium">Chiusura</Label>
                                         <Input
                                           type="time"
                                           value={dayConfig.chiusura}
@@ -1180,7 +1180,7 @@ export default function ConsultationTemplatesManager() {
                                               ),
                                             }));
                                           }}
-                                          className="h-11 text-sm touch-manipulation"
+                                          className="min-h-[48px] text-base touch-manipulation"
                                         />
                                       </div>
                                     </div>
