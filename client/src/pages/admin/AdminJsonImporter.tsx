@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
@@ -48,11 +48,17 @@ export default function AdminJsonImporter() {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [targetCollection, setTargetCollection] = useState("");
 
-  useEffect(() => {
-    if (!isAdmin) navigate("/admin");
-  }, [isAdmin, navigate]);
-
-  if (!isAdmin) return null;
+  if (!isAdmin) {
+    return (
+      <div className="max-w-7xl mx-auto py-6 px-4 text-center">
+        <h1 className="text-2xl font-bold text-red-600">Accesso Negato</h1>
+        <p className="mt-4">Solo gli amministratori possono accedere a questa pagina.</p>
+        <Button onClick={() => navigate("/admin")} className="mt-4">
+          Vai alla Dashboard Admin
+        </Button>
+      </div>
+    );
+  }
 
   const handleParse = () => {
     try {
