@@ -78,6 +78,7 @@ function AppRoutes() {
       <Route path="/consulenze/:tipo" component={ConsultationTemplates} />
 
       {/* Quote portale pubblico */}
+      <Route path="/quote/:token" component={QuotePublicViewPage} />
       <Route path="/quote/view/:token" component={QuotePublicViewPage} />
       <Route path="/quote/signed/:token" component={QuoteSignedPortalPage} />
 
