@@ -433,12 +433,12 @@ export default function JobDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Preventivi */}
+            {/* Gestione Firme */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Preventivi ({quotes?.length || 0})
+                  Gestione Firme ({quotes?.length || 0})
                 </CardTitle>
               </CardHeader>
               <CardContent>
