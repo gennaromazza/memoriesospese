@@ -44,6 +44,7 @@ import ConsultationBooking from "./pages/ConsultationBooking";
 import ConsultationTemplatesManager from "./pages/admin/ConsultationTemplatesManager";
 import AdminConsultationsRoute from "./pages/admin/AdminConsultationsRoute";
 import AdminJsonImporter from "./pages/admin/AdminJsonImporter";
+import QuoteManagementDemo from "./pages/admin/QuoteManagementDemo";
 
 // Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
 import './scripts/seed-job-types';
@@ -98,6 +99,7 @@ function AppRoutes() {
       <Route path="/admin/consulenze/templates" component={ConsultationTemplatesManager} />
       <Route path="/admin/consulenze" component={AdminConsultationsRoute} />
       <Route path="/admin/importer" component={AdminJsonImporter} />
+      <Route path="/quote-management-demo" component={QuoteManagementDemo} />
 
       {/* Public questionnaire route with noindex/nofollow */}
       <Route path="/q/:galleryId" component={QuestionnaireForm} />
