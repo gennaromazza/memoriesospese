@@ -1016,13 +1016,12 @@ export default function AdminDashboard() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                   </svg>
-                  <span className="hidden sm:inline text-xs sm:text-sm">Home</span>
+                  <span className="text-xs sm:text-sm">Home</span>
                 </Button>
               </Link>
               <NotificationBell />
               <Button variant="destructive" size="sm" onClick={handleLogout} className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm">
-                <span className="hidden sm:inline">Logout</span>
-                <span className="sm:hidden">Exit</span>
+                Logout
               </Button>
             </div>
           </div>
@@ -1081,8 +1080,7 @@ export default function AdminDashboard() {
               {/* Calendario Tab - prima di tutto */}
               <TabsTrigger value="calendario" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
                 <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Calendario</span>
-                <span className="sm:hidden">📅</span>
+                <span>Calendario</span>
               </TabsTrigger>
 
               {/* Separatore visivo - nascosto su mobile */}
@@ -1096,8 +1094,7 @@ export default function AdminDashboard() {
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
                     <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Gallerie</span>
-                    <span className="sm:hidden">📸</span>
+                    <span>Gallerie</span>
                     <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1127,22 +1124,19 @@ export default function AdminDashboard() {
               {/* Booking System: Prenotazioni con sub-tabs interne */}
               <TabsTrigger value="bookings" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]" data-testid="tab-bookings">
                 <CalendarCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Prenotazioni</span>
-                <span className="sm:hidden">📅</span>
+                <span>Prenotazioni</span>
               </TabsTrigger>
 
               {/* Jobs System: Lavori Fotografici */}
               <TabsTrigger value="lavori" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
                 <Briefcase className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Lavori</span>
-                <span className="sm:hidden">💼</span>
+                <span>Lavori</span>
               </TabsTrigger>
 
               {/* Financial Management: Cassa */}
               <TabsTrigger value="cassa" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]" data-testid="tab-cassa">
                 <Wallet className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Cassa</span>
-                <span className="sm:hidden">💰</span>
+                <span>Cassa</span>
               </TabsTrigger>
 
               {/* Consulenze con dropdown sottomenu */}
@@ -1153,8 +1147,7 @@ export default function AdminDashboard() {
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
                     <CalendarCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Consulenze</span>
-                    <span className="sm:hidden">🗓️</span>
+                    <span>Consulenze</span>
                     <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1187,8 +1180,7 @@ export default function AdminDashboard() {
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
                     <Settings className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Impostazioni</span>
-                    <span className="sm:hidden">⚙️</span>
+                    <span>Impostazioni</span>
                     <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
