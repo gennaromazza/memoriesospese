@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
