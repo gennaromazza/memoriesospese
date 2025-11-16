@@ -31,7 +31,7 @@ import GalleryManagementWorkspace from "./pages/GalleryManagementWorkspace";
 import JobDetailPage from "./pages/JobDetailPage";
 import JobsListPage from "./pages/JobsListPage";
 import ImportDataPage from "./pages/ImportDataPage";
-import NotFound from "./pages/not-found";
+import NotFound from "./pages/NotFound";
 import PathDebugInfo from "./components/PathDebugInfo";
 import AuthDebugPanel from "./components/AuthDebugPanel";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
@@ -44,6 +44,7 @@ import ConsultationTemplatesManager from "./pages/admin/ConsultationTemplatesMan
 import AdminConsultationsRoute from "./pages/admin/AdminConsultationsRoute";
 import AdminJsonImporter from "./pages/admin/AdminJsonImporter";
 import QuoteManagementDemo from "./pages/admin/QuoteManagementDemo";
+import CollaboratorAssignmentResponse from "./pages/CollaboratorAssignmentResponse";
 
 // Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
 import './scripts/seed-job-types';
@@ -71,10 +72,17 @@ function AppRoutes() {
       <Route path="/prenota" component={BookingIndex} />
       <Route path="/prenota/:code" component={BookingPage} />
 
-      {/* Consultations pubbliche */}
+      {/* Consultations pubbliche (italiano) */}
       <Route path="/consulenze" component={ConsultationIndex} />
       <Route path="/consulenze/:tipo/:id/prenota" component={ConsultationBooking} />
       <Route path="/consulenze/:tipo" component={ConsultationTemplates} />
+      
+      {/* Consultations pubbliche (inglese - backward compatibility) */}
+      <Route path="/consultations" component={ConsultationIndex} />
+      <Route path="/consultations/book" component={ConsultationBooking} />
+      
+      {/* Collaboratori assignment */}
+      <Route path="/collaboratori/assignment/:assignmentId/:action" component={CollaboratorAssignmentResponse} />
 
       {/* Quote portale pubblico - Link unico che si adatta allo stato */}
       <Route path="/quote/:token" component={QuotePortal} />
