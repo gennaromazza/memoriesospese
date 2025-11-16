@@ -138,8 +138,30 @@ router.post('/collaboratori/assign-to-job', async (req, res) => {
     
     const docRef = await db.collection('jobCollaboratoreAssignments').add(assignmentData);
     
-    // Invia email al collaboratore
-    // TODO: Implementare invio email
+    // Recupera dati collaboratore e job per email
+    const collaboratoreDoc = await db.collection('collaboratori').doc(data.collaboratoreId).get();
+    const jobDoc = await db.collection('jobs').doc(data.jobId).get();
+    
+    if (collaboratoreDoc.exists && jobDoc.exists) {
+      const collaboratore = collaboratoreDoc.data();
+      const job = jobDoc.data();
+      
+      // Invia email notifica (fire-and-forget, non blocca risposta)
+      fetch(`${process.env.VITE_APP_URL || 'http://localhost:5000'}/api/email/collaborator-assignment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collaboratoreEmail: collaboratore?.email,
+          collaboratoreNome: `${collaboratore?.nome} ${collaboratore?.cognome}`,
+          jobNome: job?.nomeEvento,
+          jobData: job?.eventDate ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT') : null,
+          ruolo: data.ruoloInJob,
+          compenso: data.compenso,
+          noteAdmin: data.noteAdmin,
+          assignmentId: docRef.id
+        })
+      }).catch(err => console.error('❌ Email invio fallito (non bloccante):', err));
+    }
     
     res.json({ id: docRef.id, ...assignmentData });
   } catch (error: any) {
@@ -282,6 +304,83 @@ router.get('/collaboratori/:id/stats', async (req, res) => {
     res.json(stats);
   } catch (error: any) {
     console.error('❌ Error fetching collaboratore stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/collaboratori/public/assignment/:id
+ * Ottieni dettagli assegnazione (pubblico, per link email)
+ */
+router.get('/public/assignment/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    if (!assignmentDoc.exists) {
+      return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+    
+    const assignment = assignmentDoc.data();
+    
+    // Recupera dati collaboratore e job
+    const [collaboratoreDoc, jobDoc] = await Promise.all([
+      db.collection('collaboratori').doc(assignment!.collaboratoreId).get(),
+      db.collection('jobs').doc(assignment!.jobId).get()
+    ]);
+    
+    res.json({
+      id: assignmentDoc.id,
+      ...assignment,
+      collaboratore: collaboratoreDoc.exists ? collaboratoreDoc.data() : null,
+      job: jobDoc.exists ? jobDoc.data() : null
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching assignment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/collaboratori/public/assignment/:id/accept
+ * Accetta assegnazione (pubblico, da link email)
+ */
+router.post('/public/assignment/:id/accept', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await db.collection('jobCollaboratoreAssignments').doc(id).update({
+      status: 'accepted',
+      dataRisposta: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    });
+    
+    res.json({ success: true, message: 'Assegnazione accettata' });
+  } catch (error: any) {
+    console.error('❌ Error accepting assignment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/collaboratori/public/assignment/:id/decline
+ * Rifiuta assegnazione (pubblico, da link email)
+ */
+router.post('/public/assignment/:id/decline', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { noteRifiuto } = req.body;
+    
+    await db.collection('jobCollaboratoreAssignments').doc(id).update({
+      status: 'declined',
+      dataRisposta: Timestamp.now(),
+      noteRifiuto: noteRifiuto || '',
+      updatedAt: Timestamp.now()
+    });
+    
+    res.json({ success: true, message: 'Assegnazione rifiutata' });
+  } catch (error: any) {
+    console.error('❌ Error declining assignment:', error);
     res.status(500).json({ error: error.message });
   }
 });
