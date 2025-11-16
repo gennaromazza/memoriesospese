@@ -68,13 +68,14 @@ export async function createCollaboratore(data: InsertCollaboratore): Promise<st
  */
 export async function getCollaboratore(id: string): Promise<Collaboratore | null> {
   try {
-    const docSnap = await getDoc(doc(db, COLLABORATORI_COLLECTION, id));
-    if (!docSnap.exists()) return null;
+    const response = await apiRequest('GET', `/api/collaboratori/${id}`);
     
-    return {
-      id: docSnap.id,
-      ...docSnap.data()
-    } as Collaboratore;
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error('Errore caricamento collaboratore');
+    }
+    
+    return await response.json();
   } catch (error) {
     console.error('❌ Errore get collaboratore:', error);
     throw error;
@@ -86,20 +87,14 @@ export async function getCollaboratore(id: string): Promise<Collaboratore | null
  */
 export async function getAllCollaboratori(attiviOnly = false): Promise<Collaboratore[]> {
   try {
-    let q = query(
-      collection(db, COLLABORATORI_COLLECTION),
-      orderBy('cognome', 'asc')
-    );
+    const url = attiviOnly ? '/api/collaboratori?attiviOnly=true' : '/api/collaboratori';
+    const response = await apiRequest('GET', url);
     
-    if (attiviOnly) {
-      q = query(q, where('attivo', '==', true));
+    if (!response.ok) {
+      throw new Error('Errore caricamento collaboratori');
     }
     
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Collaboratore[];
+    return await response.json();
   } catch (error) {
     console.error('❌ Errore get collaboratori:', error);
     throw error;
