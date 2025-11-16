@@ -37,19 +37,21 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
     }).format(amount);
   };
 
-  const statoLabel = {
+  const statoLabels: Record<string, string> = {
     'bozza': 'Bozza',
     'in_lavorazione': 'In Lavorazione',
     'completato': 'Completato',
     'annullato': 'Annullato'
-  }[stato] || stato;
+  };
+  const statoLabel = statoLabels[stato] || stato;
 
-  const statoColor = {
+  const statoColors: Record<string, string> = {
     'bozza': '#f59e0b',
     'in_lavorazione': '#0056b3',
     'completato': '#28a745',
     'annullato': '#dc3545'
-  }[stato] || '#6c757d';
+  };
+  const statoColor = statoColors[stato] || '#6c757d';
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -308,7 +310,8 @@ router.post('/payment-received-notification', async (req: Request, res: Response
 
     // 5. Fetch studio info
     const studioDoc = await db.collection('settings').doc('studio').get();
-    const studioInfo = studioDoc.exists ? studioDoc.data() : {};
+    const studioData = studioDoc.exists ? studioDoc.data() : {};
+    const studioInfo = studioData as { name: string; email: string; phone: string; address: string } | undefined;
 
     // 6. Get nome evento (fallback a nomeCliente)
     const nomeEvento = orderData.nomeEvento || orderData.nomeCliente || 'il tuo ordine';

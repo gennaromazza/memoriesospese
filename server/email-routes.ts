@@ -1749,6 +1749,123 @@ export function createOrderAccontoRicevutoEmailHTML(
 }
 
 /**
+ * Template HTML generico per email pagamento ricevuto (acconto o saldo)
+ * ESPORTATA per uso in order-routes.ts
+ */
+export function createOrderPaymentReceivedEmailHTML(
+  clienteName: string,
+  nomeEvento: string,
+  paymentType: 'acconto' | 'saldo',
+  paymentAmount: number,
+  paymentMethod: string,
+  formattedDate: string,
+  remainingBalance: number,
+  nextPaymentDate?: string,
+  notes?: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+
+  const formatMethod = (method: string) => {
+    const methods: Record<string, string> = {
+      'contante': 'Contante',
+      'carta': 'Carta',
+      'bonifico': 'Bonifico',
+      'paypal': 'PayPal'
+    };
+    return methods[method.toLowerCase()] || method;
+  };
+
+  const isAcconto = paymentType === 'acconto';
+  const titleColor = isAcconto ? '#28a745' : '#0d6efd';
+  const titleText = isAcconto ? '✅ Acconto Ricevuto' : '🎉 Saldo Finale Ricevuto';
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: ${titleColor}; text-align: center;">${titleText}</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          ${isAcconto 
+            ? `Abbiamo ricevuto con successo il tuo acconto per <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Grazie per la tua fiducia!`
+            : `Abbiamo ricevuto il saldo finale per <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Il pagamento è stato completato con successo! 🎉`
+          }
+        </p>
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: ${titleColor}; margin-top: 0; margin-bottom: 15px;">💰 Dettagli Pagamento</h3>
+          <div style="background: ${isAcconto ? '#d4edda' : '#cfe2ff'}; border-left: 4px solid ${titleColor}; padding: 15px; margin: 10px 0;">
+            <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: ${isAcconto ? '#155724' : '#084298'};">
+              ${formatCurrency(paymentAmount)}
+            </p>
+            <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">
+              <strong>Metodo:</strong> ${formatMethod(paymentMethod)}
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #666;">
+              <strong>Data:</strong> ${formattedDate}
+            </p>
+            ${notes ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-style: italic;">${notes}</p>` : ''}
+          </div>
+        </div>
+
+        ${remainingBalance > 0 ? `
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">📋 Saldo Rimanente</h4>
+          <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold; color: #856404;">
+            ${formatCurrency(remainingBalance)}
+          </p>
+          ${nextPaymentDate ? `
+            <p style="margin: 0; font-size: 14px; color: #856404;">
+              Prossima scadenza: ${nextPaymentDate}
+            </p>
+          ` : ''}
+        </div>
+        ` : `
+        <div style="background: #d1e7dd; border-left: 4px solid #0f5132; padding: 15px; margin: 20px 0; text-align: center;">
+          <p style="margin: 0; font-size: 16px; font-weight: bold; color: #0f5132;">
+            ✅ Pagamento Completato
+          </p>
+          <p style="margin: 8px 0 0 0; font-size: 14px; color: #0f5132;">
+            Non ci sono importi residui da saldare.
+          </p>
+        </div>
+        `}
+
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0056b3; text-align: center;">
+            ${isAcconto 
+              ? 'Grazie per il tuo pagamento! Ti contatteremo presto per i prossimi passi.'
+              : 'Grazie per aver scelto Image Studio! È stato un piacere lavorare con te.'
+            }
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Template HTML per email saldo pendente (ordine completato)
  * ESPORTATA per uso in order management
  */

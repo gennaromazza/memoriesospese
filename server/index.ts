@@ -15,7 +15,7 @@ import importRoutes from './import-routes.js';
 import consultationRoutes from './consultation-routes.js';
 import calendarRoutes from './calendar-routes.js';
 import receiptRoutes from './receipt-routes.js';
-import collaboratoriRoutes from './collaboratori-routes';
+import collaboratoriRoutes from './collaboratori-routes.js';
 
 
 async function startServer() {
