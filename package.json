@@ -15,6 +15,7 @@
     "serve": "vite preview --port 5000 --host 0.0.0.0 --base=/basepath/"
   },
   "dependencies": {
+    "@ckeditor/ckeditor5-react": "^11.0.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -59,6 +60,7 @@
     "archiver": "^7.0.1",
     "axios": "^1.13.2",
     "browser-image-compression": "^2.0.2",
+    "ckeditor5": "^47.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^0.2.1",
