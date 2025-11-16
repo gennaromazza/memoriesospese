@@ -569,13 +569,10 @@ export default function CampaignsManager() {
               {/* Descrizione */}
               <div className="space-y-2">
                 <Label htmlFor="descrizione">Descrizione</Label>
-                <Textarea
-                  id="descrizione"
+                <RichTextEditor
                   value={formData.descrizione}
-                  onChange={e => setFormData({ ...formData, descrizione: e.target.value })}
+                  onChange={value => setFormData({ ...formData, descrizione: value })}
                   placeholder="Descrivi la campagna..."
-                  rows={3}
-                  data-testid="textarea-campaign-description"
                 />
               </div>
 
