@@ -26,6 +26,29 @@ export type JobAcceptanceStatus =
   | 'declined';    // Rifiutato
 
 /**
+ * Tipo pagamento collaboratore
+ */
+export type CollaboratorPaymentType = 'acconto' | 'saldo';
+
+/**
+ * Metodo pagamento
+ */
+export type PaymentMethod = 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro';
+
+/**
+ * Singolo pagamento a collaboratore
+ */
+export interface CollaboratorPayment {
+  id: string;
+  tipo: CollaboratorPaymentType;
+  importo: number;
+  data: Timestamp;
+  metodo: PaymentMethod;
+  note?: string;
+  cashMovementId?: string;  // ID del movimento cassa collegato
+}
+
+/**
  * Collaboratore
  */
 export interface Collaboratore {
@@ -43,6 +66,7 @@ export interface Collaboratore {
   // Credenziali accesso dashboard
   hasAccess: boolean;           // Se può accedere alla dashboard
   userId?: string;              // UID Firebase Auth (se registrato)
+  dashboardToken?: string;      // Token univoco per accesso dashboard via link magico
   
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -72,6 +96,8 @@ export interface JobCollaboratoreAssignment {
   // Pagamento
   isPagato: boolean;
   dataPagamento?: Timestamp;
+  pagamenti: CollaboratorPayment[];  // Array pagamenti ricevuti
+  saldoResiduo: number;              // Compenso - somma pagamenti
   
   // Note
   noteAdmin?: string;

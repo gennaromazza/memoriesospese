@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Check, X, Euro, Clock, Calendar, Trash2 } from 'lucide-react';
+import { Plus, Check, X, Euro, Clock, Calendar, Trash2, Link2, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,12 +35,15 @@ import {
   getJobAssignments,
   assignCollaboratoreToJob,
   markAssignmentAsPaid,
+  addPaymentToAssignment,
 } from '@/lib/collaboratori';
 import type {
   Collaboratore,
   JobCollaboratoreAssignment,
   InsertJobCollaboratoreAssignment,
   CollaboratoreRole,
+  CollaboratorPaymentType,
+  PaymentMethod,
 } from '@shared/collaboratori-types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -68,6 +71,8 @@ export function JobCollaboratoriSection({ jobId }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<JobCollaboratoreAssignment | null>(null);
   const [formData, setFormData] = useState<InsertJobCollaboratoreAssignment>({
     jobId,
     collaboratoreId: '',
@@ -77,6 +82,13 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     oreStimate: undefined,
     giorniStimati: undefined,
     noteAdmin: '',
+  });
+  const [paymentFormData, setPaymentFormData] = useState({
+    importo: 0,
+    tipo: 'acconto' as CollaboratorPaymentType,
+    metodo: 'bonifico' as PaymentMethod,
+    note: '',
+    data: new Date().toISOString().split('T')[0],
   });
 
   const { data: collaboratori = [] } = useQuery({

@@ -2,16 +2,29 @@
 import express from 'express';
 import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { nanoid } from 'nanoid';
 import type {
   Collaboratore,
   InsertCollaboratore,
   UpdateCollaboratore,
   JobCollaboratoreAssignment,
   InsertJobCollaboratoreAssignment,
-  CollaboratoreStats
+  CollaboratoreStats,
+  CollaboratorPayment,
+  CollaboratorPaymentType,
+  PaymentMethod
 } from '@shared/collaboratori-types';
 
 const router = express.Router();
+
+/**
+ * Genera token univoco per dashboard collaboratore
+ */
+function generateCollaboratorToken(): string {
+  return Math.random().toString(36).substring(2, 15) + 
+         Math.random().toString(36).substring(2, 15) +
+         Date.now().toString(36);
+}
 
 /**
  * GET /api/collaboratori
@@ -79,6 +92,7 @@ router.post('/collaboratori', async (req, res) => {
       note: data.note,
       attivo: true,
       hasAccess: data.hasAccess || false,
+      dashboardToken: generateCollaboratorToken(),
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     };
@@ -132,6 +146,8 @@ router.post('/collaboratori/assign-to-job', async (req, res) => {
       status: 'pending',
       dataRichiesta: Timestamp.now(),
       isPagato: false,
+      pagamenti: [],
+      saldoResiduo: data.compenso,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     };
@@ -381,6 +397,170 @@ router.post('/public/assignment/:id/decline', async (req, res) => {
     res.json({ success: true, message: 'Assegnazione rifiutata' });
   } catch (error: any) {
     console.error('❌ Error declining assignment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/collaboratori/assignments/:id/add-payment
+ * Registra pagamento (acconto/saldo) per assegnazione collaboratore
+ */
+router.post('/assignments/:id/add-payment', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { importo, tipo, metodo, note, data } = req.body as {
+      importo: number;
+      tipo: CollaboratorPaymentType;
+      metodo: PaymentMethod;
+      note?: string;
+      data?: string;
+    };
+    
+    // Validazione input
+    if (!importo || importo <= 0) {
+      return res.status(400).json({ error: 'Importo non valido' });
+    }
+    if (!tipo || !['acconto', 'saldo'].includes(tipo)) {
+      return res.status(400).json({ error: 'Tipo pagamento non valido' });
+    }
+    if (!metodo) {
+      return res.status(400).json({ error: 'Metodo pagamento richiesto' });
+    }
+    
+    // Recupera assegnazione
+    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    if (!assignmentDoc.exists) {
+      return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+    const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+    
+    // Recupera collaboratore e job per descrizione movimento cassa
+    const [collaboratoreDoc, jobDoc] = await Promise.all([
+      db.collection('collaboratori').doc(assignment.collaboratoreId).get(),
+      db.collection('jobs').doc(assignment.jobId).get()
+    ]);
+    
+    const collaboratore = collaboratoreDoc.data();
+    const job = jobDoc.data();
+    const nomeCollaboratore = `${collaboratore?.nome || ''} ${collaboratore?.cognome || ''}`.trim();
+    const nomeJob = job?.nomeEvento || 'Lavoro senza nome';
+    const ruolo = assignment.ruoloInJob;
+    
+    // Mappa ruoli per categoria
+    const ruoliLabels: Record<string, string> = {
+      fotografo_secondario: 'Fotografo Secondario',
+      videomaker: 'Videomaker',
+      assistente: 'Assistente',
+      photo_editor: 'Photo Editor',
+      album_designer: 'Album Designer',
+      altro: 'Altro'
+    };
+    
+    const categoriaMovimento = `Collaboratori - ${ruoliLabels[ruolo] || 'Altro'}`;
+    const descrizioneMovimento = `Pagamento ${nomeCollaboratore} - ${nomeJob}`;
+    
+    // Crea movimento cassa (uscita)
+    const cashMovementData = {
+      tipo: 'uscita' as const,
+      categoria: categoriaMovimento,
+      importo: importo,
+      descrizione: descrizioneMovimento,
+      data: data ? Timestamp.fromDate(new Date(data)) : Timestamp.now(),
+      metodoPagamento: metodo,
+      note: note || null,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    };
+    
+    const cashMovementRef = await db.collection('cashMovements').add(cashMovementData);
+    
+    // Crea record pagamento per assegnazione
+    const pagamento: Omit<CollaboratorPayment, 'data'> & { data: any } = {
+      id: nanoid(10),
+      tipo: tipo,
+      importo: importo,
+      data: data ? Timestamp.fromDate(new Date(data)) : Timestamp.now(),
+      metodo: metodo,
+      note: note,
+      cashMovementId: cashMovementRef.id
+    };
+    
+    // Aggiorna array pagamenti e ricalcola saldo
+    const pagamentiAttuali = assignment.pagamenti || [];
+    const nuoviPagamenti = [...pagamentiAttuali, pagamento];
+    
+    const totalePagato = nuoviPagamenti.reduce((sum, p) => sum + p.importo, 0);
+    const nuovoSaldoResiduo = assignment.compenso - totalePagato;
+    const isPagato = nuovoSaldoResiduo <= 0;
+    
+    // Aggiorna assegnazione
+    await db.collection('jobCollaboratoreAssignments').doc(id).update({
+      pagamenti: nuoviPagamenti,
+      saldoResiduo: nuovoSaldoResiduo,
+      isPagato: isPagato,
+      dataPagamento: isPagato ? Timestamp.now() : assignment.dataPagamento,
+      updatedAt: Timestamp.now()
+    });
+    
+    res.json({ 
+      success: true,
+      saldoResiduo: nuovoSaldoResiduo,
+      isPagato: isPagato,
+      cashMovementId: cashMovementRef.id
+    });
+  } catch (error: any) {
+    console.error('❌ Error adding payment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/collaboratori/dashboard/:token
+ * Dashboard collaboratore via link magico (pubblico)
+ */
+router.get('/dashboard/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    // Trova collaboratore con questo token
+    const collaboratoriSnapshot = await db.collection('collaboratori')
+      .where('dashboardToken', '==', token)
+      .limit(1)
+      .get();
+    
+    if (collaboratoriSnapshot.empty) {
+      return res.status(404).json({ error: 'Token non valido o collaboratore non trovato' });
+    }
+    
+    const collaboratoreDoc = collaboratoriSnapshot.docs[0];
+    const collaboratore = { id: collaboratoreDoc.id, ...collaboratoreDoc.data() };
+    
+    // Recupera tutte le assegnazioni del collaboratore
+    const assignmentsSnapshot = await db.collection('jobCollaboratoreAssignments')
+      .where('collaboratoreId', '==', collaboratoreDoc.id)
+      .orderBy('dataRichiesta', 'desc')
+      .get();
+    
+    // Per ogni assegnazione, recupera i dati del job
+    const assignments = await Promise.all(
+      assignmentsSnapshot.docs.map(async (assignmentDoc) => {
+        const assignment = assignmentDoc.data();
+        const jobDoc = await db.collection('jobs').doc(assignment.jobId).get();
+        
+        return {
+          id: assignmentDoc.id,
+          ...assignment,
+          job: jobDoc.exists ? { id: jobDoc.id, ...jobDoc.data() } : null
+        };
+      })
+    );
+    
+    res.json({
+      collaboratore,
+      assignments
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching collaborator dashboard:', error);
     res.status(500).json({ error: error.message });
   }
 });

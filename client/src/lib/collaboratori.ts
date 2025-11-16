@@ -18,6 +18,7 @@ import {
   Timestamp,
   serverTimestamp
 } from 'firebase/firestore';
+import { apiRequest } from './queryClient';
 import type {
   Collaboratore,
   InsertCollaboratore,
@@ -25,7 +26,9 @@ import type {
   JobCollaboratoreAssignment,
   InsertJobCollaboratoreAssignment,
   CollaboratoreStats,
-  JobAcceptanceStatus
+  JobAcceptanceStatus,
+  CollaboratorPaymentType,
+  PaymentMethod
 } from '@shared/collaboratori-types';
 
 const COLLABORATORI_COLLECTION = 'collaboratori';
@@ -271,4 +274,65 @@ export async function getCollaboratoreStats(collaboratoreId: string): Promise<Co
     console.error('❌ Errore get stats:', error);
     throw error;
   }
+}
+
+/**
+ * Aggiungi pagamento a assegnazione
+ */
+export async function addPaymentToAssignment(
+  assignmentId: string,
+  data: {
+    importo: number;
+    tipo: CollaboratorPaymentType;
+    metodo: PaymentMethod;
+    note?: string;
+    data?: string;
+  }
+): Promise<void> {
+  try {
+    const response = await apiRequest(
+      'POST',
+      `/api/collaboratori/assignments/${assignmentId}/add-payment`,
+      data
+    );
+    
+    if (!response.ok) {
+      throw new Error('Errore registrazione pagamento');
+    }
+    
+    console.log('✅ Pagamento registrato per assegnazione:', assignmentId);
+  } catch (error) {
+    console.error('❌ Errore add payment:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get collaboratore by dashboard token
+ */
+export async function getCollaboratorByToken(token: string): Promise<{
+  collaboratore: Collaboratore;
+  assignments: JobCollaboratoreAssignment[];
+} | null> {
+  try {
+    const response = await apiRequest('GET', `/api/collaboratori/dashboard/${token}`);
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('❌ Errore get collaborator by token:', error);
+    return null;
+  }
+}
+
+/**
+ * Genera link dashboard collaboratore
+ */
+export function generateDashboardLink(collaboratore: Collaboratore): string {
+  if (!collaboratore.dashboardToken) {
+    return '';
+  }
+  const baseUrl = window.location.origin;
+  return `${baseUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`;
 }
