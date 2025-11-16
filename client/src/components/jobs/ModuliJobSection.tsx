@@ -52,6 +52,7 @@ const STATUS_LABELS: Record<QuoteStatus, string> = {
   visionato: 'Visionato',
   firmato: 'Firmato',
   rifiutato: 'Rifiutato',
+  annullato: 'Annullato',
   scaduto: 'Scaduto'
 };
 
@@ -61,6 +62,7 @@ const STATUS_COLORS: Record<QuoteStatus, string> = {
   visionato: 'bg-yellow-100 text-yellow-700',
   firmato: 'bg-green-100 text-green-700',
   rifiutato: 'bg-red-100 text-red-700',
+  annullato: 'bg-gray-200 text-gray-800',
   scaduto: 'bg-orange-100 text-orange-700'
 };
 
@@ -69,11 +71,10 @@ const TYPE_LABELS = {
   variabile: 'Modulo Variabile'
 };
 
-// Utility: genera URL intelligente basato su status
+// Utility: genera URL unificato portale preventivo (auto-adatta rendering a status)
 const getQuoteUrl = (quote: Quote) => {
   const baseUrl = window.location.origin;
-  const path = quote.status === 'firmato' ? '/quote/signed' : '/quote/view';
-  return `${baseUrl}${path}/${quote.publicToken}`;
+  return `${baseUrl}/quote/${quote.publicToken}`;
 };
 
 export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isAdmin = false }: ModuliJobSectionProps) {

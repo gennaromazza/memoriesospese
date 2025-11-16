@@ -10,10 +10,8 @@ import type { PaymentSchedule } from '../shared/payment-schedule-types.js';
 import { 
   sendGmailEmail, 
   getStudioContactInfo,
-  createQuoteSentEmailHTML,
-  createQuoteAcceptedEmailHTML,
-  createPaymentReminderEmailHTML,
-  createAdminQuoteSignedNotificationHTML
+  createQuoteSignedEmailHTML,
+  createPaymentReminderEmailHTML
 } from './email-routes.js';
 import { nanoid } from 'nanoid';
 
@@ -941,7 +939,8 @@ router.post('/send-quote', async (req: Request, res: Response) => {
     // Formato data evento
     let eventDate: string | undefined;
     if (quote.jobInfo?.eventDate) {
-      const date = quote.jobInfo.eventDate.toDate ? quote.jobInfo.eventDate.toDate() : new Date(quote.jobInfo.eventDate);
+      const timestamp = quote.jobInfo.eventDate as any;
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
       eventDate = date.toLocaleDateString('it-IT', { 
         day: '2-digit', 
         month: 'long', 
@@ -952,16 +951,16 @@ router.post('/send-quote', async (req: Request, res: Response) => {
     // Recupera dati studio
     const studioInfo = await getStudioContactInfo();
 
-    // Crea HTML email
-    const htmlContent = createQuoteSentEmailHTML(
+    // Crea HTML email (TODO: creare template specifico per invio preventivo)
+    const htmlContent = createQuoteSignedEmailHTML(
       clienteName,
+      quote.type || 'fisso',
       quote.jobInfo?.nomeEvento || 'Evento',
-      quote.type,
-      quote.totalAfterDiscount,
-      quote.products.length,
+      quote.totalAfterDiscount || 0,
+      new Date(),
       quoteUrl,
-      eventDate,
-      quote.jobInfo?.location,
+      undefined,
+      undefined,
       studioInfo
     );
 
@@ -1075,7 +1074,7 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
       const scheduleDoc = await db.collection('paymentSchedules').doc(quote.paymentScheduleIds[0]).get();
       if (scheduleDoc.exists) {
         const schedule = scheduleDoc.data() as PaymentSchedule;
-        const nextPayment = schedule.payments.find(p => p.stato === 'da_pagare');
+        const nextPayment = schedule.payments.find(p => p.stato === 'atteso');
         if (nextPayment) {
           nextPaymentAmount = nextPayment.importo;
           nextPaymentDate = nextPayment.dataScadenza.toDate().toLocaleDateString('it-IT', { 
@@ -1087,24 +1086,31 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
       }
     }
 
-    // URL portale firmato
+    // URL portale unificato (auto-adatta a stato preventivo)
     const baseUrl = process.env.REPLIT_DOMAINS 
       ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
       : 'http://localhost:5000';
-    const portalUrl = `${baseUrl}/quote/signed/${quote.publicToken}`;
+    const portalUrl = `${baseUrl}/quote/${quote.publicToken}`;
 
     // Recupera dati studio
     const studioInfo = await getStudioContactInfo();
 
-    // Crea HTML email
-    const htmlContent = createQuoteAcceptedEmailHTML(
+    // Crea HTML email (TODO: creare template specifico per firma preventivo)  
+    const nextPaymentData = nextPaymentAmount && nextPaymentDate ? {
+      importo: nextPaymentAmount,
+      dataScadenza: new Date(nextPaymentDate),
+      descrizione: 'Prossimo pagamento'
+    } : undefined;
+    
+    const htmlContent = createQuoteSignedEmailHTML(
       clienteName,
+      quote.type || 'fisso',
       quote.jobInfo?.nomeEvento || 'Evento',
-      quote.totaleSelezionato || quote.totalAfterDiscount,
-      signedAt,
-      nextPaymentAmount,
-      nextPaymentDate,
+      quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+      new Date(signedAt),
       portalUrl,
+      nextPaymentData,
+      undefined,
       studioInfo
     );
 
@@ -1191,13 +1197,16 @@ router.post('/admin-quote-signed-notification', async (req: Request, res: Respon
     // Recupera dati studio
     const studioInfo = await getStudioContactInfo();
 
-    // Crea HTML email CREATIVA per admin
-    const htmlContent = createAdminQuoteSignedNotificationHTML(
+    // Crea HTML email per admin (riusa template standard)
+    const htmlContent = createQuoteSignedEmailHTML(
       clienteName,
+      quote.type || 'fisso',
       quote.jobInfo?.nomeEvento || 'Nuovo Evento',
-      quote.totaleSelezionato || quote.totalAfterDiscount,
-      signedAt,
-      quote.type,
+      quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+      quote.signature.signedAt.toDate(),
+      `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:5000'}/quote/${quote.publicToken}`,
+      undefined,
+      undefined,
       studioInfo
     );
 
@@ -1260,7 +1269,16 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
     }
 
     // Fetch quote per dati cliente ed evento
-    const quoteDoc = await db.collection('quotes').doc(schedule.quoteId).get();
+    // Note: quoteId non è ufficialmente nel tipo PaymentSchedule ma esiste in Firestore
+    const scheduleQuoteId = (schedule as any).quoteId as string | undefined;
+    if (!scheduleQuoteId) {
+      return res.status(400).json({
+        error: 'Quote ID mancante',
+        message: 'Il payment schedule non ha un quoteId collegato'
+      });
+    }
+    
+    const quoteDoc = await db.collection('quotes').doc(scheduleQuoteId).get();
     
     if (!quoteDoc.exists) {
       return res.status(404).json({
@@ -1318,11 +1336,11 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
       year: 'numeric' 
     });
 
-    // URL portale firmato
+    // URL portale unificato (auto-adatta a stato preventivo)
     const baseUrl = process.env.REPLIT_DOMAINS 
       ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
       : 'http://localhost:5000';
-    const portalUrl = `${baseUrl}/quote/signed/${quote.publicToken}`;
+    const portalUrl = `${baseUrl}/quote/${quote.publicToken}`;
 
     // Recupera dati studio
     const studioInfo = await getStudioContactInfo();
@@ -1333,7 +1351,7 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
       quote.jobInfo?.nomeEvento || 'Evento',
       payment.importo,
       paymentDueDate,
-      payment.descrizione || 'Rata',
+      (payment as any).descrizione || 'Rata',
       daysUntilDue,
       isOverdue,
       portalUrl,

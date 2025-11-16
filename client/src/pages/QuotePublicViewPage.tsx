@@ -138,9 +138,9 @@ export default function QuotePublicViewPage() {
         title: '✅ Preventivo firmato!',
         description: 'Il preventivo è stato accettato e firmato con successo',
       });
-      // Redirect to signed portal after 1.5s
+      // Redirect to unified portal after 1.5s (auto-renders signed view)
       setTimeout(() => {
-        navigate(`/quote/signed/${token}`);
+        navigate(`/quote/${token}`);
       }, 1500);
     },
     onError: (error: Error) => {
@@ -261,7 +261,7 @@ export default function QuotePublicViewPage() {
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">Preventivo già firmato</h2>
                 <p className="text-gray-600 mb-4">Questo preventivo è stato già firmato.</p>
-                <Button onClick={() => navigate(`/quote/signed/${token}`)}>
+                <Button onClick={() => navigate(`/quote/${token}`)}>
                   Visualizza Preventivo Firmato
                 </Button>
               </div>
