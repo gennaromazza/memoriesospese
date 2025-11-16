@@ -319,8 +319,9 @@ function validateTimeFormat(time: string, fieldName: string): void {
 /**
  * Crea Date in timezone Europe/Rome dalla stringa YYYY-MM-DD + orario HH:MM
  * NOTA: Gestisce correttamente timezone per evitare shift UTC
+ * Esportata per uso in consultation-routes e altri moduli
  */
-function createEuropeRomeDate(dateStr: string, time: string): Date {
+export function createEuropeRomeDate(dateStr: string, time: string): Date {
   const [hours, minutes] = time.split(':').map(Number);
   
   // Parse date in formato YYYY-MM-DD

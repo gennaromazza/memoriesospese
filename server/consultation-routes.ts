@@ -18,7 +18,7 @@ import {
   type ConsultationStatus
 } from '../shared/consultation-types.js';
 import { db, Timestamp, FieldValue, storage } from './firebase-admin.js';
-import { createEvent, deleteEvent } from './google-calendar.js';
+import { createEvent, deleteEvent, createEuropeRomeDate } from './google-calendar.js';
 import multer from 'multer';
 
 const router = express.Router();
@@ -467,8 +467,7 @@ router.post('/create', async (req, res) => {
         template.jobType,
         formattedDate,
         `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
-        studioInfo,
-        undefined  // No calendarLink for pending consultations
+        studioInfo
       );
 
       await sendGmailEmail(
@@ -555,16 +554,18 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
       });
     }
 
-    // Crea evento Google Calendar
+    // Crea evento Google Calendar con timezone Europe/Rome corretto
     const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
-    const [startHour, startMin] = consultation.orarioInizio.split(':').map(Number);
-    const [endHour, endMin] = consultation.orarioFine.split(':').map(Number);
+    
+    // Converti consultationDate in formato YYYY-MM-DD
+    const year = consultationDate.getFullYear();
+    const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
+    const day = String(consultationDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
 
-    const startDateTime = new Date(consultationDate);
-    startDateTime.setHours(startHour, startMin, 0, 0);
-
-    const endDateTime = new Date(consultationDate);
-    endDateTime.setHours(endHour, endMin, 0, 0);
+    // Usa createEuropeRomeDate per garantire il timezone corretto
+    const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
+    const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
 
     const calendarEvent = await createEvent('primary', {
       summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,

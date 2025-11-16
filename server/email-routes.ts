@@ -3075,7 +3075,8 @@ export function createConsultationApprovedEmailHTML(
   consultationDate: string,
   consultationTime: string,
   meetingLink: string | null,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  calendarLink?: string
 ): string {
   const studio = studioInfo || { 
     name: "Image Studio", 
@@ -3108,6 +3109,14 @@ export function createConsultationApprovedEmailHTML(
           <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">🔗 Link Incontro</h4>
           <a href="${meetingLink}" style="display: inline-block; background: #0056b3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">
             Unisciti alla consulenza
+          </a>
+        </div>
+        ` : ''}
+
+        ${calendarLink ? `
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${calendarLink}" style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            📅 Aggiungi al Calendario
           </a>
         </div>
         ` : ''}
