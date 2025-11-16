@@ -199,6 +199,7 @@ export interface Consultation {
   emailConfermataInviata: boolean;        // Email "Consulenza Confermata"
   emailAdminInviata: boolean;             // Notifica admin
   reminderEmailSent?: boolean;            // Email reminder inviata (es. promemoria 24h prima)
+  reminderSentAt?: Timestamp;             // Timestamp invio reminder
   
   // Tracking visualizzazione admin
   dataVisualizzazione?: Timestamp;        // Timestamp prima visualizzazione admin

@@ -3199,6 +3199,79 @@ export function createConsultationRejectedEmailHTML(
 }
 
 /**
+ * Template HTML per email Reminder Consulenza (24h prima)
+ */
+export function createConsultationReminderEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  calendarLink?: string
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #ff9800; text-align: center;">⏰ Promemoria Consulenza</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ti ricordiamo che <strong style="color: #8b5a3c;">domani</strong> hai la consulenza per <strong>${jobType}</strong>! 📸
+        </p>
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 2px solid #ff9800;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Appuntamento</h3>
+          <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${consultationDate}</p>
+          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${consultationTime}</p>
+          <p style="margin: 8px 0;"><strong>📸 Servizio:</strong> ${jobType}</p>
+          ${studio.address ? `<p style="margin: 8px 0;"><strong>📍 Luogo:</strong> ${studio.address}</p>` : ''}
+        </div>
+
+        ${calendarLink ? `
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${calendarLink}" style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            📅 Aggiungi al Calendario
+          </a>
+        </div>
+        ` : ''}
+
+        <div style="background: #fff3cd; border-left: 4px solid #ff9800; padding: 15px; margin: 20px 0;">
+          <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">💡 Suggerimenti</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
+            <li>Prepara eventuali domande o richieste specifiche</li>
+            <li>Se hai foto di riferimento, portale con te</li>
+            <li>Arriva qualche minuto in anticipo</li>
+            <li>In caso di impedimento, contattaci il prima possibile</li>
+          </ul>
+        </div>
+
+        <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+          <p style="margin: 0; font-size: 14px; color: #155724;">
+            <strong>Hai bisogno di modificare l'appuntamento?</strong><br>
+            Chiamaci al ${studio.phone} o rispondi a questa email
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Template HTML per email Consulenza Cancellata
  */
 export function createConsultationCancelledEmailHTML(

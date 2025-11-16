@@ -1296,4 +1296,130 @@ router.delete('/templates/:id/images', authenticateFirebase, async (req: AuthReq
   }
 });
 
+/**
+ * POST /api/consultations/send-reminders
+ * Invia reminder email per consulenze nelle prossime 24 ore (da schedulare con cron)
+ * NOTA: Questo endpoint può essere chiamato manualmente o via Cloud Function schedulata
+ */
+router.post('/send-reminders', async (req, res) => {
+  try {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Range: da ora a +48h per essere sicuri di non perdere consulenze
+    const in48Hours = new Date(now);
+    in48Hours.setDate(in48Hours.getDate() + 2);
+    
+    console.log(`[Reminder] Cerco consulenze confermate tra ${now.toISOString()} e ${in48Hours.toISOString()}`);
+    
+    // Cerca consulenze confermate nelle prossime 24-48h con reminder non ancora inviato
+    const consultationsSnap = await db.collection('consultations')
+      .where('stato', '==', 'confermata')
+      .where('reminderEmailSent', '!=', true)
+      .get();
+    
+    const consultations = consultationsSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as any[];
+    
+    console.log(`[Reminder] Trovate ${consultations.length} consulenze confermate senza reminder`);
+    
+    // Filtra solo quelle nelle prossime 24h (client-side perché Firestore non supporta range su Timestamp con !=)
+    const consultationsToRemind = consultations.filter(c => {
+      const consultationDate = normalizeTimestampToDate(c.dataConsulenza);
+      const hoursDiff = (consultationDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+      
+      // Invia reminder tra 20h e 28h prima (giorno prima)
+      return hoursDiff >= 20 && hoursDiff <= 28;
+    });
+    
+    console.log(`[Reminder] ${consultationsToRemind.length} consulenze richiedono reminder (20-28h prima)`);
+    
+    const results = {
+      total: consultationsToRemind.length,
+      sent: 0,
+      failed: 0,
+      errors: [] as string[]
+    };
+    
+    // Invia email reminder per ciascuna consultation
+    for (const consultation of consultationsToRemind) {
+      try {
+        const { sendGmailEmail, getStudioContactInfo, createConsultationReminderEmailHTML, generateGoogleCalendarLink } = await import('./email-routes.js');
+        const studioInfo = await getStudioContactInfo();
+        
+        const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
+        const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
+        const formattedDate = consultationDate.toLocaleDateString('it-IT', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+        
+        // Converti consultationDate in formato YYYY-MM-DD
+        const year = consultationDate.getFullYear();
+        const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
+        const day = String(consultationDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        
+        const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
+        const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+        
+        // Generate Google Calendar link
+        const calendarLink = generateGoogleCalendarLink({
+          title: `Consulenza ${consultation.jobType} - ${clienteName}`,
+          description: `Consulenza per ${consultation.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+          location: studioInfo.address,
+          startDate: startDateTime,
+          endDate: endDateTime,
+          isAllDay: false
+        });
+        
+        const htmlContent = createConsultationReminderEmailHTML(
+          clienteName,
+          consultation.jobType,
+          formattedDate,
+          `${consultation.orarioInizio} - ${consultation.orarioFine}`,
+          studioInfo,
+          calendarLink
+        );
+        
+        await sendGmailEmail(
+          consultation.cliente.email,
+          `Promemoria: Consulenza Domani - ${consultation.jobType}`,
+          htmlContent
+        );
+        
+        // Marca reminder come inviato
+        await db.collection('consultations').doc(consultation.id).update({
+          reminderEmailSent: true,
+          reminderSentAt: Timestamp.now()
+        });
+        
+        results.sent++;
+        console.log(`✅ Reminder inviato per consultation ${consultation.id} (${consultation.cliente.email})`);
+        
+      } catch (emailError: any) {
+        results.failed++;
+        results.errors.push(`${consultation.id}: ${emailError.message}`);
+        console.error(`❌ Errore invio reminder per ${consultation.id}:`, emailError.message);
+      }
+    }
+    
+    console.log(`[Reminder] Completato - Inviati: ${results.sent}, Falliti: ${results.failed}`);
+    
+    res.json({
+      message: 'Reminder process completed',
+      results
+    });
+    
+  } catch (error: any) {
+    console.error('[POST /send-reminders] Errore:', error.message);
+    res.status(500).json({ error: 'Errore invio reminder' });
+  }
+});
+
 export default router;
