@@ -2898,6 +2898,389 @@ function createOrderReadyEmailHTML(
 }
 
 /**
+ * Template HTML per email Consulenza Ricevuta
+ */
+export function createConsultationReceivedEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">Richiesta Consulenza Ricevuta!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Grazie per aver richiesto una consulenza pre-lavoro! Abbiamo ricevuto la tua richiesta per <strong style="color: #8b5a3c;">${jobType}</strong>.
+        </p>
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Richiesta</h3>
+          <p style="margin: 8px 0;"><strong>📅 Data preferita:</strong> ${consultationDate}</p>
+          <p style="margin: 8px 0;"><strong>🕐 Orario preferito:</strong> ${consultationTime}</p>
+          <p style="margin: 8px 0;"><strong>📸 Tipo servizio:</strong> ${jobType}</p>
+        </div>
+
+        <div style="background: #fff9c4; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 13px; color: #f57f17; text-align: center;">
+            <strong>In attesa di conferma:</strong> Riceverai una email di conferma non appena il nostro team avrà verificato la disponibilità.
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email Consulenza Approvata
+ */
+export function createConsultationApprovedEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  meetingLink: string | null,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #28a745; text-align: center;">✅ Consulenza Confermata!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ottima notizia! La tua consulenza per <strong style="color: #8b5a3c;">${jobType}</strong> 
+          è stata <strong style="color: #28a745;">confermata</strong>! 🎉
+        </p>
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Riepilogo Consulenza</h3>
+          <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${consultationDate}</p>
+          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${consultationTime}</p>
+          <p style="margin: 8px 0;"><strong>📸 Tipo servizio:</strong> ${jobType}</p>
+        </div>
+
+        ${meetingLink ? `
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">🔗 Link Incontro</h4>
+          <a href="${meetingLink}" style="display: inline-block; background: #0056b3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">
+            Unisciti alla consulenza
+          </a>
+        </div>
+        ` : ''}
+
+        <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #155724; margin-top: 0; margin-bottom: 10px;">💡 Cosa Aspettarsi</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
+            <li>Discussione delle tue esigenze fotografiche</li>
+            <li>Presentazione dei nostri servizi e pacchetti</li>
+            <li>Chiarimento di eventuali dubbi</li>
+            <li>Pianificazione dei prossimi passi</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email Consulenza Rifiutata
+ */
+export function createConsultationRejectedEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  rejectionReason: string | null,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #dc3545; text-align: center;">Aggiornamento Consulenza</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ci dispiace informarti che non siamo riusciti a confermare la consulenza per <strong>${jobType}</strong> nella data richiesta (${consultationDate} alle ${consultationTime}).
+        </p>
+
+        ${rejectionReason ? `
+        <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #721c24;">
+            <strong>Motivo:</strong> ${rejectionReason}
+          </p>
+        </div>
+        ` : ''}
+
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">💡 Cosa Puoi Fare</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
+            <li>Proponi una nuova data/orario per la consulenza</li>
+            <li>Contattaci direttamente per maggiori informazioni</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email Consulenza Cancellata
+ */
+export function createConsultationCancelledEmailHTML(
+  clienteName: string,
+  jobType: string,
+  consultationDate: string,
+  consultationTime: string,
+  cancellationReason: string | null,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #dc3545; text-align: center;">Consulenza Cancellata</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ti informiamo che la consulenza per <strong>${jobType}</strong> prevista il ${consultationDate} alle ${consultationTime} è stata cancellata.
+        </p>
+
+        ${cancellationReason ? `
+        <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #721c24;">
+            <strong>Motivo:</strong> ${cancellationReason}
+          </p>
+        </div>
+        ` : ''}
+
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0056b3; text-align: center;">
+            Se desideri riprogrammare, contattaci direttamente.
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email Acconto Cancellato
+ */
+export function createAccontoCancelledEmailHTML(
+  clienteName: string,
+  prodottoNome: string,
+  accontoImporto: number,
+  nuovoAccontoTotale: number,
+  nuovoSaldo: number,
+  motivo: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #dc3545; text-align: center;">Acconto Cancellato</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ti informiamo che un acconto di <strong style="color: #dc3545;">${formatCurrency(accontoImporto)}</strong> relativo all'ordine <strong>${prodottoNome}</strong> è stato cancellato.
+        </p>
+
+        <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0; font-size: 14px; color: #721c24;">
+            <strong>Motivo cancellazione:</strong> ${motivo}
+          </p>
+        </div>
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #333; margin-top: 0; margin-bottom: 15px;">💰 Situazione Pagamenti Aggiornata</h3>
+          <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #e0e0e0;">
+              <td style="padding: 8px 0;">Totale acconti versati:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${formatCurrency(nuovoAccontoTotale)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">Saldo rimanente:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #dc3545;">${formatCurrency(nuovoSaldo)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0056b3; text-align: center;">
+            Per ulteriori chiarimenti, contattaci direttamente.
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per notifica admin quote firmato (Instagram-ready)
+ */
+export function createAdminQuoteSignedNotificationHTML(
+  clienteName: string,
+  nomeEvento: string,
+  totalAmount: number,
+  signatureDate: string,
+  quoteType: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+      <div style="background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+        <h1 style="color: #667eea; text-align: center; margin: 0 0 20px 0; font-size: 28px;">
+          🎉 NUOVO CONTRATTO FIRMATO! 🎉
+        </h1>
+        
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; margin: 20px 0; text-align: center;">
+          <p style="color: white; font-size: 24px; font-weight: bold; margin: 0;">
+            ${clienteName}
+          </p>
+          <p style="color: rgba(255,255,255,0.9); font-size: 18px; margin: 10px 0 0 0;">
+            ${nomeEvento}
+          </p>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 10px 0; font-size: 16px; color: #666;">💰 Totale Contratto:</td>
+              <td style="padding: 10px 0; font-size: 24px; font-weight: bold; color: #667eea; text-align: right;">
+                ${formatCurrency(totalAmount)}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; font-size: 14px; color: #666;">📝 Tipo Preventivo:</td>
+              <td style="padding: 10px 0; font-size: 16px; font-weight: bold; text-align: right;">
+                ${quoteType === 'fisso' ? 'Pacchetto Fisso' : 'A Consumo'}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; font-size: 14px; color: #666;">📅 Firmato il:</td>
+              <td style="padding: 10px 0; font-size: 16px; text-align: right;">
+                ${signatureDate}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 5px;">
+          <p style="margin: 0; font-size: 14px; color: #155724;">
+            ✅ <strong>Prossimi passi:</strong> Controlla la dashboard admin per gestire il nuovo job e i pagamenti.
+          </p>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+          <p style="font-size: 12px; color: #999; margin: 0;">
+            Questa è una notifica automatica da ${studio.name}
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Template HTML per email contratto firmato (Modulo di Prenotazione)
  * ESPORTATA per uso in quote management
  */
@@ -3284,8 +3667,7 @@ router.post("/send-consultation-received", async (req, res) => {
       jobType,
       consultationDate,
       consultationTime,
-      studioInfo,
-      undefined  // No calendarLink for pending consultations
+      studioInfo
     );
 
     const subject = `Richiesta Consulenza Ricevuta - ${jobType}`;
@@ -3558,10 +3940,3 @@ export function createCalendarEventEmailHTML(
 }
 
 export default router;
-export { 
-  createConsultationReceivedEmailHTML,
-  createConsultationApprovedEmailHTML,
-  createConsultationRejectedEmailHTML,
-  createConsultationCancelledEmailHTML,
-  createCollaboratorAssignmentEmailHTML // Exported the new template
-};
