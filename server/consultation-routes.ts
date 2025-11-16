@@ -8,6 +8,7 @@ import { z } from 'zod';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { DateTime } from 'luxon';
 import * as consultationService from './services/consultations.js';
 import { authenticateFirebase } from './email-routes.js';
 import { 
@@ -1313,23 +1314,35 @@ router.post('/send-reminders', async (req, res) => {
     
     console.log(`[Reminder] Cerco consulenze confermate tra ${now.toISOString()} e ${in48Hours.toISOString()}`);
     
-    // Cerca consulenze confermate nelle prossime 24-48h con reminder non ancora inviato
+    // Cerca consulenze confermate (non filtriamo per reminderSentAt qui, lo facciamo in transazione)
     const consultationsSnap = await db.collection('consultations')
       .where('stato', '==', 'confermata')
-      .where('reminderEmailSent', '!=', true)
       .get();
     
     const consultations = consultationsSnap.docs.map(doc => ({
       id: doc.id,
+      ref: doc.ref,
       ...doc.data()
     })) as any[];
     
-    console.log(`[Reminder] Trovate ${consultations.length} consulenze confermate senza reminder`);
+    console.log(`[Reminder] Trovate ${consultations.length} consulenze confermate totali`);
     
-    // Filtra solo quelle nelle prossime 24h (client-side perché Firestore non supporta range su Timestamp con !=)
+    // Filtra solo quelle nelle prossime 20-28h (timezone-aware per Europe/Rome)
+    // Usa luxon per gestione timezone robusta e DST-safe
+    const nowRome = DateTime.now().setZone('Europe/Rome');
+    
     const consultationsToRemind = consultations.filter(c => {
+      // Skip quick read se reminder già inviato (ottimizzazione)
+      if (c.reminderEmailSent || c.reminderSentAt) {
+        return false;
+      }
+      
       const consultationDate = normalizeTimestampToDate(c.dataConsulenza);
-      const hoursDiff = (consultationDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+      // Converti consultationDate a Europe/Rome usando luxon (DST-safe)
+      const consultationRome = DateTime.fromJSDate(consultationDate).setZone('Europe/Rome');
+      
+      // Calcola differenza in ore (DST-aware)
+      const hoursDiff = consultationRome.diff(nowRome, 'hours').hours;
       
       // Invia reminder tra 20h e 28h prima (giorno prima)
       return hoursDiff >= 20 && hoursDiff <= 28;
@@ -1347,6 +1360,35 @@ router.post('/send-reminders', async (req, res) => {
     // Invia email reminder per ciascuna consultation
     for (const consultation of consultationsToRemind) {
       try {
+        // Atomic check-and-set: marca reminder come inviato solo se non già inviato
+        // Usa transazione per prevenire race conditions
+        const shouldSend = await db.runTransaction(async (transaction) => {
+          const consultationDoc = await transaction.get(consultation.ref);
+          
+          if (!consultationDoc.exists) {
+            return false; // Consultation eliminata nel frattempo
+          }
+          
+          const data = consultationDoc.data();
+          
+          // Skip se reminder già inviato
+          if (data?.reminderSentAt) {
+            return false;
+          }
+          
+          // Marca come inviato atomicamente
+          transaction.update(consultation.ref, {
+            reminderSentAt: Timestamp.now()
+          });
+          
+          return true;
+        });
+        
+        if (!shouldSend) {
+          console.log(`Reminder già inviato o consultation eliminata: ${consultation.id}`);
+          continue;
+        }
+        
         const { sendGmailEmail, getStudioContactInfo, createConsultationReminderEmailHTML, generateGoogleCalendarLink } = await import('./email-routes.js');
         const studioInfo = await getStudioContactInfo();
         
@@ -1393,19 +1435,18 @@ router.post('/send-reminders', async (req, res) => {
           htmlContent
         );
         
-        // Marca reminder come inviato
+        // Marca email come inviata con successo
         await db.collection('consultations').doc(consultation.id).update({
-          reminderEmailSent: true,
-          reminderSentAt: Timestamp.now()
+          reminderEmailSent: true
         });
         
         results.sent++;
-        console.log(`✅ Reminder inviato per consultation ${consultation.id} (${consultation.cliente.email})`);
+        console.log(`Reminder inviato per consultation ${consultation.id}`);
         
       } catch (emailError: any) {
         results.failed++;
         results.errors.push(`${consultation.id}: ${emailError.message}`);
-        console.error(`❌ Errore invio reminder per ${consultation.id}:`, emailError.message);
+        console.error(`Errore invio reminder consultation ${consultation.id}:`, emailError.message);
       }
     }
     

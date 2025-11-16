@@ -514,31 +514,57 @@ async function linkConsultationToCliente(
     }
     
     // Step 2: Upsert cliente
+    const now = Timestamp.now();
+    
     if (isNewClient) {
+      // Crea cliente completo conforme a interface Cliente
       await targetRef.set({
         nome: clienteData.nome,
         cognome: clienteData.cognome,
         email: normalizedEmail,
         whatsapp: clienteData.whatsapp,
         cellulare1: clienteData.whatsapp,
-        via: '',
-        citta: '',
-        cap: '',
-        orarioCasa: '',
-        createdAt: Timestamp.now(),
-        consultationIds: [consultationId],
+        sourceRefs: {
+          bookingIds: [],
+          orderIds: [],
+          galleryIds: [],
+          passwordRequestIds: [],
+          userIds: [],
+          consultationIds: [consultationId],
+        },
+        lifecycle: {
+          firstContactAt: now,
+          lastInteractionAt: now,
+          status: 'lead',
+        },
+        financials: {
+          totalRevenue: 0,
+          outstandingBalance: 0,
+          totalOrders: 0,
+        },
+        tags: [],
+        createdAt: now,
+        updatedAt: now,
       });
+      console.log(`[Link Consultation] Nuovo cliente creato da consultation ${consultationId}`);
     } else {
-      // Update cliente esistente (solo campi vuoti)
+      // Update cliente esistente
       const currentData = (await targetRef.get()).data();
       
-      await targetRef.update({
-        nome: currentData?.nome || clienteData.nome,
-        cognome: currentData?.cognome || clienteData.cognome,
-        whatsapp: currentData?.whatsapp || clienteData.whatsapp,
-        cellulare1: currentData?.cellulare1 || clienteData.whatsapp,
-        consultationIds: FieldValue.arrayUnion(consultationId),
-      });
+      const updates: any = {
+        'sourceRefs.consultationIds': FieldValue.arrayUnion(consultationId),
+        'lifecycle.lastInteractionAt': now,
+        updatedAt: now,
+      };
+      
+      // Aggiorna solo campi mancanti
+      if (!currentData?.nome) updates.nome = clienteData.nome;
+      if (!currentData?.cognome) updates.cognome = clienteData.cognome;
+      if (!currentData?.whatsapp && clienteData.whatsapp) updates.whatsapp = clienteData.whatsapp;
+      if (!currentData?.cellulare1 && clienteData.whatsapp) updates.cellulare1 = clienteData.whatsapp;
+      
+      await targetRef.update(updates);
+      console.log(`[Link Consultation] Cliente esistente aggiornato per consultation ${consultationId}`);
     }
     
     // Step 3: Link consultation a cliente

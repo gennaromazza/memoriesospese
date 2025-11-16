@@ -36,6 +36,7 @@ export interface Cliente {
     galleryIds: string[]; // Array ID gallerie
     passwordRequestIds?: string[]; // Array ID richieste password
     userIds?: string[]; // Array ID utenti registrati (Firebase Auth)
+    consultationIds?: string[]; // Array ID consulenze
   };
   
   // Analytics e lifecycle
