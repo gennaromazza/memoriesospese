@@ -630,10 +630,10 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                 <FormItem>
                   <FormLabel>Note Interne</FormLabel>
                   <FormControl>
-                    <RichTextEditor
-                      value={field.value}
-                      onChange={field.onChange}
+                    <Textarea
+                      {...field}
                       placeholder="Note private visibili solo in admin..."
+                      rows={4}
                     />
                   </FormControl>
                   <FormDescription>
