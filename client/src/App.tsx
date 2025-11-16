@@ -45,6 +45,7 @@ import AdminConsultationsRoute from "./pages/admin/AdminConsultationsRoute";
 import AdminJsonImporter from "./pages/admin/AdminJsonImporter";
 import QuoteManagementDemo from "./pages/admin/QuoteManagementDemo";
 import CollaboratorAssignmentResponse from "./pages/CollaboratorAssignmentResponse";
+import CollaboratoreDashboard from "./pages/CollaboratoreDashboard";
 
 // Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
 import './scripts/seed-job-types';
@@ -83,6 +84,9 @@ function AppRoutes() {
       
       {/* Collaboratori assignment */}
       <Route path="/collaboratori/assignment/:assignmentId/:action" component={CollaboratorAssignmentResponse} />
+      
+      {/* Collaboratori dashboard - Link magico */}
+      <Route path="/collaboratori/dashboard/:token" component={CollaboratoreDashboard} />
 
       {/* Quote portale pubblico - Link unico che si adatta allo stato */}
       <Route path="/quote/:token" component={QuotePortal} />

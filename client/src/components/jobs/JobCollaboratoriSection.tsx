@@ -121,6 +121,27 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     },
   });
 
+  const addPaymentMutation = useMutation({
+    mutationFn: ({ assignmentId, payload }: { assignmentId: string; payload: any }) =>
+      addPaymentToAssignment(assignmentId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] });
+      toast({ title: '✅ Pagamento registrato e movimento cassa creato' });
+      setIsPaymentModalOpen(false);
+      setSelectedAssignment(null);
+      setPaymentFormData({
+        importo: 0,
+        tipo: 'acconto',
+        metodo: 'bonifico',
+        note: '',
+        data: new Date().toISOString().split('T')[0],
+      });
+    },
+    onError: () => {
+      toast({ title: '❌ Errore registrazione pagamento', variant: 'destructive' });
+    },
+  });
+
   const handleOpenModal = () => {
     setFormData({
       jobId,
@@ -142,6 +163,47 @@ export function JobCollaboratoriSection({ jobId }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     assignMutation.mutate(formData);
+  };
+
+  const handleOpenPaymentModal = (assignment: JobCollaboratoreAssignment) => {
+    setSelectedAssignment(assignment);
+    setPaymentFormData({
+      importo: assignment.saldoResiduo || assignment.compenso,
+      tipo: 'acconto',
+      metodo: 'bonifico',
+      note: '',
+      data: new Date().toISOString().split('T')[0],
+    });
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleSubmitPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAssignment) return;
+    addPaymentMutation.mutate({
+      assignmentId: selectedAssignment.id,
+      payload: paymentFormData,
+    });
+  };
+
+  const handleCopyDashboardLink = async (collaboratoreId: string) => {
+    const collab = collaboratori.find((c) => c.id === collaboratoreId);
+    if (!collab || !collab.dashboardToken) {
+      toast({
+        title: '❌ Link non disponibile',
+        description: 'Il collaboratore non ha un token dashboard generato.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const link = `${window.location.origin}/collaboratori/dashboard/${collab.dashboardToken}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast({ title: '✅ Link copiato negli appunti!' });
+    } catch (error) {
+      toast({ title: '❌ Errore copia link', variant: 'destructive' });
+    }
   };
 
   const getCollaboratoreNome = (id: string) => {
@@ -234,21 +296,45 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                     </TableCell>
                     <TableCell>
                       {assignment.status === 'accepted' && (
-                        assignment.isPagato ? (
-                          <Badge variant="default">✅ Pagato</Badge>
-                        ) : (
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <div className="font-semibold text-green-600">
+                              Pagato: €{assignment.pagamenti?.reduce((sum, p) => sum + p.importo, 0).toFixed(2) || '0.00'}
+                            </div>
+                            <div className="font-semibold text-orange-600">
+                              Residuo: €{(assignment.saldoResiduo ?? assignment.compenso).toFixed(2)}
+                            </div>
+                          </div>
+                          {assignment.pagamenti && assignment.pagamenti.length > 0 && (
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              {assignment.pagamenti.slice(0, 2).map((pag) => (
+                                <div key={pag.id}>
+                                  {format(pag.data.toDate(), 'dd/MM/yy', { locale: it })} - €{pag.importo} ({pag.metodo})
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => markPaidMutation.mutate(assignment.id)}
+                            onClick={() => handleOpenPaymentModal(assignment)}
+                            data-testid={`button-registra-pagamento-${assignment.id}`}
                           >
-                            Segna Pagato
+                            <CreditCard className="w-3 h-3 mr-1" />
+                            Registra Pag
                           </Button>
-                        )
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {/* Futura funzionalità: rimuovi assegnazione */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleCopyDashboardLink(assignment.collaboratoreId)}
+                        data-testid={`button-copy-dashboard-link-${assignment.id}`}
+                      >
+                        <Link2 className="w-4 h-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -273,6 +359,112 @@ export function JobCollaboratoriSection({ jobId }: Props) {
             </div>
           </>
         )}
+
+        <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Registra Pagamento Collaboratore</DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmitPayment} className="space-y-4">
+              {selectedAssignment && (
+                <div className="text-sm text-muted-foreground">
+                  Compenso totale: €{selectedAssignment.compenso} • Saldo residuo: €{(selectedAssignment.saldoResiduo ?? selectedAssignment.compenso).toFixed(2)}
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="importo">Importo (€) *</Label>
+                <Input
+                  id="importo"
+                  type="number"
+                  step="0.01"
+                  value={paymentFormData.importo}
+                  onChange={(e) =>
+                    setPaymentFormData({ ...paymentFormData, importo: parseFloat(e.target.value) || 0 })
+                  }
+                  required
+                  data-testid="input-importo-pagamento"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="tipo">Tipo Pagamento *</Label>
+                <Select
+                  value={paymentFormData.tipo}
+                  onValueChange={(value: CollaboratorPaymentType) =>
+                    setPaymentFormData({ ...paymentFormData, tipo: value })
+                  }
+                >
+                  <SelectTrigger data-testid="select-tipo-pagamento">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="acconto">Acconto</SelectItem>
+                    <SelectItem value="saldo">Saldo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="metodo">Metodo Pagamento *</Label>
+                <Select
+                  value={paymentFormData.metodo}
+                  onValueChange={(value: PaymentMethod) =>
+                    setPaymentFormData({ ...paymentFormData, metodo: value })
+                  }
+                >
+                  <SelectTrigger data-testid="select-metodo-pagamento">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contante">Contante</SelectItem>
+                    <SelectItem value="carta">Carta</SelectItem>
+                    <SelectItem value="bonifico">Bonifico</SelectItem>
+                    <SelectItem value="paypal">PayPal</SelectItem>
+                    <SelectItem value="altro">Altro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="data">Data Pagamento *</Label>
+                <Input
+                  id="data"
+                  type="date"
+                  value={paymentFormData.data}
+                  onChange={(e) =>
+                    setPaymentFormData({ ...paymentFormData, data: e.target.value })
+                  }
+                  required
+                  data-testid="input-data-pagamento"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="note">Note</Label>
+                <Textarea
+                  id="note"
+                  value={paymentFormData.note}
+                  onChange={(e) =>
+                    setPaymentFormData({ ...paymentFormData, note: e.target.value })
+                  }
+                  rows={2}
+                  data-testid="textarea-note-pagamento"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsPaymentModalOpen(false)}>
+                  Annulla
+                </Button>
+                <Button type="submit" disabled={addPaymentMutation.isPending} data-testid="button-submit-pagamento">
+                  {addPaymentMutation.isPending ? 'Registrazione...' : 'Registra Pagamento'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="max-w-md">
