@@ -20,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -567,10 +567,13 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
           {/* Note */}
           <div className="space-y-2">
             <Label htmlFor="note">Note</Label>
-            <RichTextEditor
+            <Textarea
+              id="note"
+              data-testid="input-note"
               value={note}
-              onChange={setNote}
+              onChange={(e) => setNote(e.target.value)}
               placeholder="Note aggiuntive sulla prenotazione..."
+              rows={3}
             />
           </div>
 

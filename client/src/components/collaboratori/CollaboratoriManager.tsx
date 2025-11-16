@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -361,12 +361,13 @@ export function CollaboratoriManager() {
 
             <div>
               <Label htmlFor="note">Note</Label>
-              <RichTextEditor
+              <Textarea
+                id="note"
                 value={formData.note}
-                onChange={(value) =>
-                  setFormData({ ...formData, note: value })
+                onChange={(e) =>
+                  setFormData({ ...formData, note: e.target.value })
                 }
-                placeholder="Inserisci note sul collaboratore..."
+                rows={3}
               />
             </div>
 

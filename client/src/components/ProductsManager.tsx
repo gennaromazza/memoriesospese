@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
   getAllProducts,
@@ -586,10 +586,13 @@ export default function ProductsManager() {
             {/* Descrizione */}
             <div className="space-y-2">
               <Label htmlFor="descrizione">Descrizione</Label>
-              <RichTextEditor
+              <Textarea
+                id="descrizione"
                 value={formData.descrizione}
-                onChange={value => setFormData({ ...formData, descrizione: value })}
+                onChange={e => setFormData({ ...formData, descrizione: e.target.value })}
                 placeholder="Descrizione dettagliata del prodotto..."
+                rows={3}
+                data-testid="input-product-description"
               />
             </div>
 

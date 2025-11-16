@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { RichTextEditor } from '@/components/ui/rich-text-editor';
-import { RichTextDisplay } from '@/components/ui/rich-text-display';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -192,10 +191,13 @@ export default function CommentModal({
                 Scrivi un commento
               </Label>
               <div className="relative">
-                <RichTextEditor
-                  value={newComment}
-                  onChange={onNewCommentChange}
+                <Textarea
+                  id="comment-input"
                   placeholder="Condividi i tuoi pensieri..."
+                  value={newComment}
+                  onChange={(e) => onNewCommentChange(e.target.value)}
+                  className="min-h-[80px] resize-none pr-12"
+                  maxLength={500}
                   disabled={isSubmitting}
                 />
                 {/* Emoji picker button */}
@@ -302,7 +304,7 @@ export default function CommentModal({
                         </Button>
                       )}
                     </div>
-                    <RichTextDisplay content={comment.text} className="text-sm text-gray-700 leading-relaxed" />
+                    <p className="text-sm text-gray-700 leading-relaxed">{comment.text}</p>
                   </div>
                 ))
               )}

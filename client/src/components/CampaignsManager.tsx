@@ -19,7 +19,7 @@ import type { BookingCampaign, Product } from '@shared/booking-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Card,
   CardContent,
@@ -569,10 +569,13 @@ export default function CampaignsManager() {
               {/* Descrizione */}
               <div className="space-y-2">
                 <Label htmlFor="descrizione">Descrizione</Label>
-                <RichTextEditor
+                <Textarea
+                  id="descrizione"
                   value={formData.descrizione}
-                  onChange={value => setFormData({ ...formData, descrizione: value })}
+                  onChange={e => setFormData({ ...formData, descrizione: e.target.value })}
                   placeholder="Descrivi la campagna..."
+                  rows={3}
+                  data-testid="textarea-campaign-description"
                 />
               </div>
 

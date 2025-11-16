@@ -7,7 +7,6 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { RichTextEditor } from "./ui/rich-text-editor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useToast } from "../hooks/use-toast";
@@ -1272,10 +1271,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
             <div>
               <Label htmlFor="description">Descrizione</Label>
-              <RichTextEditor
+              <Textarea
+                id="description"
                 value={description}
-                onChange={setDescription}
+                onChange={(e) => setDescription(e.target.value)}
                 placeholder="Descrizione della galleria"
+                rows={3}
               />
             </div>
 

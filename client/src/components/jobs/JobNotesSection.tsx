@@ -3,8 +3,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RichTextEditor } from '@/components/ui/rich-text-editor';
-import { RichTextDisplay } from '@/components/ui/rich-text-display';
+import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -238,7 +237,7 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                     </div>
 
                     {note.testo && (
-                      <RichTextDisplay content={note.testo} className="text-sm text-gray-700" />
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.testo}</p>
                     )}
 
                     {/* Metadata colori/tessuti */}
@@ -330,10 +329,12 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
               {/* Testo nota */}
               <div>
                 <Label>Note</Label>
-                <RichTextEditor
+                <Textarea
                   value={noteText}
-                  onChange={setNoteText}
+                  onChange={(e) => setNoteText(e.target.value)}
                   placeholder="Scrivi qui le tue note..."
+                  rows={4}
+                  className="resize-none"
                 />
               </div>
 
@@ -376,10 +377,11 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                     </div>
                     <div className="sm:col-span-2">
                       <Label className="text-xs">Personalizzazioni Speciali</Label>
-                      <RichTextEditor
+                      <Textarea
                         value={personalizzazioni}
-                        onChange={setPersonalizzazioni}
+                        onChange={(e) => setPersonalizzazioni(e.target.value)}
                         placeholder="es. Iniziali ricamate, incisioni, decorazioni..."
+                        rows={2}
                       />
                     </div>
                   </div>

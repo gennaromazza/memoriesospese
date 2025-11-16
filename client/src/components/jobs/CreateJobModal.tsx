@@ -52,7 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -631,9 +631,11 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                   <FormLabel>Note Interne</FormLabel>
                   <FormControl>
                     <Textarea
-                      {...field}
                       placeholder="Note private visibili solo in admin..."
-                      rows={4}
+                      className="resize-none"
+                      rows={3}
+                      {...field}
+                      data-testid="textarea-notes"
                     />
                   </FormControl>
                   <FormDescription>

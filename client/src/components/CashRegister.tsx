@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -337,10 +336,12 @@ export default function CashRegister() {
               {/* Note */}
               <div className="space-y-1 sm:space-y-1.5">
                 <Label className="text-xs sm:text-sm font-medium">Note</Label>
-                <RichTextEditor
+                <Textarea
                   value={formData.note}
-                  onChange={(value) => setFormData({ ...formData, note: value })}
+                  onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   placeholder="Note aggiuntive (opzionali)"
+                  rows={2}
+                  className="resize-none text-xs sm:text-sm"
                 />
               </div>
 
