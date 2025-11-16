@@ -81,15 +81,11 @@ router.post('/collaboratori', async (req, res) => {
   try {
     const data: InsertCollaboratore = req.body;
     
-    const collaboratoreData: Omit<Collaboratore, 'id'> = {
+    const collaboratoreData: any = {
       nome: data.nome,
       cognome: data.cognome,
       email: data.email.toLowerCase(),
-      cellulare: data.cellulare,
       ruolo: data.ruolo,
-      tariffaOraria: data.tariffaOraria,
-      tariffaGiornaliera: data.tariffaGiornaliera,
-      note: data.note,
       attivo: true,
       hasAccess: data.hasAccess || false,
       dashboardToken: generateCollaboratorToken(),
@@ -97,8 +93,14 @@ router.post('/collaboratori', async (req, res) => {
       updatedAt: Timestamp.now()
     };
     
+    if (data.cellulare) collaboratoreData.cellulare = data.cellulare;
+    if (data.tariffaOraria !== undefined) collaboratoreData.tariffaOraria = data.tariffaOraria;
+    if (data.tariffaGiornaliera !== undefined) collaboratoreData.tariffaGiornaliera = data.tariffaGiornaliera;
+    if (data.note) collaboratoreData.note = data.note;
+    
     const docRef = await db.collection('collaboratori').add(collaboratoreData);
-    res.json({ id: docRef.id, ...collaboratoreData });
+    const created = { id: docRef.id, ...collaboratoreData };
+    res.json(created);
   } catch (error: any) {
     console.error('❌ Error creating collaboratore:', error);
     res.status(500).json({ error: error.message });
