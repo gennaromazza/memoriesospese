@@ -21,7 +21,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 **Architectural Decisions & Patterns:**
 - **Authentication:** Unified Firebase Auth with backend validation; admin access via hardcoded list.
 - **UI/UX:** Responsive design, consistent UI, centralized authentication dialogs, consistent color palette.
-- **Data Management:** Unified client management system with automatic booking-to-client linkage; dual collection support for backward compatibility.
+- **Data Management:** Unified client management system with automatic booking/consultation-to-client linkage (`sourceRefs.consultationIds`); dual collection support for backward compatibility. Clients from consultations are created with complete schema (lifecycle.status, financials, sourceRefs).
 - **Image Handling:** Automatic compression, watermarking, duplicate detection, advanced cropping, multi-image uploads using Firebase Storage and signed URLs.
 - **Galleries:** Professional galleries with client-side selection, real-time updates, and secure access via passwords and PINs. Support for modular seasonal galleries with dedicated CSS.
 - **Subscription System:** Stripe integration for tiered access control.
@@ -33,7 +33,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Photo Selection Workflow:** Enterprise-grade system with progress display, validation, deadline enforcement, automated email notifications, and admin review. Supports three modes: single-product, multi-product (using `productRequirements[]`), and legacy manual `requiredPhotoCount`.
 - **Transaction & Payment Tracking System:** Advanced payment tracking with `transactions` array, automated email notifications for payments, and dedicated registration buttons.
 - **Quote Management System:** Automated email notifications for quote lifecycle, robust backend protection for signed quotes, and admin-only reset signature. Unified client portal via `/quote/:token` adapts to quote status. Includes Instagram-ready admin notifications upon client signature. Advanced manual status management with Firebase-authenticated endpoints, preflight validation, token revocation tracking, comprehensive audit logging, and manual signature insertion. Integrated into JobDetailPage.
-- **Consultation System (Consulenze):** Pre-work consultation scheduling with admin-configurable templates, mandatory `customWorkingHours` per-template, Google Calendar integration with timezone-safe event creation (using `createEuropeRomeDate`), and automated email notifications. Consultations are standalone entities convertible to Jobs via API. Slot generation strictly requires `template.customWorkingHours`. Includes migration support for working hours.
+- **Consultation System (Consulenze):** Pre-work consultation scheduling with admin-configurable templates, mandatory `customWorkingHours` per-template, Google Calendar integration with timezone-safe event creation (using `createEuropeRomeDate`), and automated email notifications. Consultations are standalone entities convertible to Jobs via API. Slot generation strictly requires `template.customWorkingHours`. Includes migration support for working hours. **Reminder System:** Automated 24h advance reminder emails via POST /api/consultations/send-reminders endpoint (schedulable with Cloud Functions cron), using Luxon for DST-safe Europe/Rome timezone calculations and Firestore transactions for atomic duplicate prevention. Consultations linked to unified client collection via `linkConsultationToCliente` with full schema compliance (lifecycle, financials, sourceRefs).
 - **Data Import:** Excel-based import system for clients and jobs, supporting structured field parsing and Firebase Storage integration.
 - **Deployment:** Designed for subfolder deployment with dynamic base path detection, aiming for Firebase-only.
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and informative toast notifications.
@@ -54,3 +54,4 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **wouter:** React hook-based router
 - **browser-image-compression:** Client-side image compression
 - **html2pdf.js:** PDF generation from HTML
+- **luxon:** Timezone-aware date/time handling for DST-safe reminder scheduling
