@@ -1271,12 +1271,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
             <div>
               <Label htmlFor="description">Descrizione</Label>
-              <Textarea
-                id="description"
+              <RichTextEditor
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
                 placeholder="Descrizione della galleria"
-                rows={3}
               />
             </div>
 

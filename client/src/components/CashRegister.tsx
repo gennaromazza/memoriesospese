@@ -336,12 +336,10 @@ export default function CashRegister() {
               {/* Note */}
               <div className="space-y-1 sm:space-y-1.5">
                 <Label className="text-xs sm:text-sm font-medium">Note</Label>
-                <Textarea
+                <RichTextEditor
                   value={formData.note}
-                  onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                  onChange={(value) => setFormData({ ...formData, note: value })}
                   placeholder="Note aggiuntive (opzionali)"
-                  rows={2}
-                  className="resize-none text-xs sm:text-sm"
                 />
               </div>
 

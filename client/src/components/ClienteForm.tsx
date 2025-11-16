@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import {
   Select,
   SelectContent,
@@ -310,11 +310,10 @@ export default function ClienteForm({
             <FormItem>
               <FormLabel>Note</FormLabel>
               <FormControl>
-                <Textarea 
-                  {...field} 
+                <RichTextEditor
+                  value={field.value}
+                  onChange={field.onChange}
                   placeholder="Note interne..."
-                  rows={4}
-                  data-testid="textarea-note"
                 />
               </FormControl>
               <FormMessage />

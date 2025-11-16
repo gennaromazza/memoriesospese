@@ -54,7 +54,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -630,11 +630,10 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                   <FormItem>
                     <FormLabel>Note Interne</FormLabel>
                     <FormControl>
-                      <Textarea
-                        {...field}
-                        rows={3}
+                      <RichTextEditor
+                        value={field.value}
+                        onChange={field.onChange}
                         placeholder="Note private visibili solo in admin..."
-                        data-testid="textarea-note"
                       />
                     </FormControl>
                     <FormMessage />

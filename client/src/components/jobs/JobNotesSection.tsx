@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -329,12 +329,10 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
               {/* Testo nota */}
               <div>
                 <Label>Note</Label>
-                <Textarea
+                <RichTextEditor
                   value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
+                  onChange={setNoteText}
                   placeholder="Scrivi qui le tue note..."
-                  rows={4}
-                  className="resize-none"
                 />
               </div>
 
@@ -377,11 +375,10 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                     </div>
                     <div className="sm:col-span-2">
                       <Label className="text-xs">Personalizzazioni Speciali</Label>
-                      <Textarea
+                      <RichTextEditor
                         value={personalizzazioni}
-                        onChange={(e) => setPersonalizzazioni(e.target.value)}
+                        onChange={setPersonalizzazioni}
                         placeholder="es. Iniziali ricamate, incisioni, decorazioni..."
-                        rows={2}
                       />
                     </div>
                   </div>

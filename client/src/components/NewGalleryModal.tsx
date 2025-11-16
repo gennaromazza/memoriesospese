@@ -642,12 +642,10 @@ export default function NewGalleryModal({
 
             <div className="space-y-2">
               <Label htmlFor="description">Descrizione</Label>
-              <Textarea
-                id="description"
+              <RichTextEditor
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
                 placeholder="Una breve descrizione dell'evento..."
-                rows={3}
               />
             </div>
 
