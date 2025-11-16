@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { RichTextDisplay } from '@/components/ui/rich-text-display';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -237,7 +238,7 @@ export default function JobNotesSection({ jobId, isAdmin = false }: JobNotesSect
                     </div>
 
                     {note.testo && (
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.testo}</p>
+                      <RichTextDisplay content={note.testo} className="text-sm text-gray-700" />
                     )}
 
                     {/* Metadata colori/tessuti */}

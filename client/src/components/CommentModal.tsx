@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { RichTextDisplay } from '@/components/ui/rich-text-display';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -301,7 +302,7 @@ export default function CommentModal({
                         </Button>
                       )}
                     </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{comment.text}</p>
+                    <RichTextDisplay content={comment.text} className="text-sm text-gray-700 leading-relaxed" />
                   </div>
                 ))
               )}
