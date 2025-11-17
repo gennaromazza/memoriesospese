@@ -223,17 +223,6 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
 
-  // React Query hook for galleries
-  const { 
-    data: galleries = [], 
-    isLoading, 
-    error: galleriesError 
-  } = useQuery({
-    queryKey: ['galleries', 'admin'],
-    queryFn: () => GalleryService.getAllGalleriesForAdmin(),
-    enabled: !!user && !authLoading
-  });
-
   // Leggi il tab e bookingId dall'URL
   const urlParams = new URLSearchParams(window.location.search);
   const urlTab = urlParams.get('tab') || 'overview';
@@ -322,7 +311,7 @@ export default function AdminDashboard() {
 
   // 🔧 Deeplink handler - reagisce a navigate() da wouter usando location tuple
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.split('?')[1] || '');
     const tab = params.get('tab');
     const section = params.get('section');
     const booking = params.get('booking');
@@ -656,7 +645,7 @@ export default function AdminDashboard() {
         variant: "destructive",
       });
     }
-  }, [galleriesError]);
+  }, [galleriesError, toast]);
 
   // Elimina una richiesta di password
   const deletePasswordRequest = async (requestId: string) => {
