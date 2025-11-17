@@ -20,7 +20,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm install"
+args = "npm ci || npm install"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
