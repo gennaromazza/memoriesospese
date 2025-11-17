@@ -64,7 +64,7 @@ export default app;
 
 /**
  * Converte un Firestore Timestamp in Date nativa JavaScript
- * Gestisce: Timestamp Firebase, oggetti {seconds, nanoseconds}, Date, string ISO
+ * Gestisce: Timestamp Firebase, oggetti {seconds, nanoseconds}, oggetti {_seconds, _nanoseconds}, Date, string ISO
  */
 export function convertFirestoreTimestamp(timestamp: any): Date | null {
   if (!timestamp) return null;
@@ -74,9 +74,14 @@ export function convertFirestoreTimestamp(timestamp: any): Date | null {
     return timestamp.toDate();
   }
 
-  // Oggetto {seconds, nanoseconds}
+  // Oggetto {seconds, nanoseconds} (da Firestore SDK)
   if (timestamp.seconds !== undefined) {
     return new Date(timestamp.seconds * 1000);
+  }
+
+  // Oggetto {_seconds, _nanoseconds} (da serializzazione HTTP/JSON)
+  if (timestamp._seconds !== undefined) {
+    return new Date(timestamp._seconds * 1000);
   }
 
   // Già una Date
