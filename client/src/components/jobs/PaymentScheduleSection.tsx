@@ -112,7 +112,7 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
     payments: schedule.payments.map((payment: any) => {
       // DEBUG: Log dataScadenza originale per capire il problema
       if (payment.dataScadenza) {
-        console.log('🔍 DEBUG dataScadenza RAW:', payment.dataScadenza, 'tipo:', typeof payment.dataScadenza);
+        console.log('🔍 DEBUG dataScadenza RAW:', JSON.stringify(payment.dataScadenza), 'keys:', Object.keys(payment.dataScadenza));
       }
       
       const convertedDate = convertFirestoreTimestamp(payment.dataScadenza);
