@@ -66,6 +66,16 @@ export interface CostoLavoro {
 }
 
 /**
+ * Nota con foto allegata
+ */
+export interface NoteFotoItem {
+  id: string;
+  imageUrl: string;
+  nota: string;
+  createdAt: Timestamp;
+}
+
+/**
  * Snapshot economico job
  */
 export interface JobFinancials {
@@ -118,6 +128,8 @@ export interface Job {
   
   // Note interne admin
   noteInterne?: string;
+  note?: string;                // Nota generale (legacy/backward compatibility)
+  notePerFoto?: NoteFotoItem[]; // Note con foto allegate
   
   // Metadata
   createdAt: Timestamp;

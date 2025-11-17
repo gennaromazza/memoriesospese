@@ -34,13 +34,16 @@ router.get('/collaboratori', async (req, res) => {
   try {
     const { attiviOnly } = req.query;
     
-    let query = db.collection('collaboratori').orderBy('cognome', 'asc');
+    // 🔧 Fix: where() deve venire prima di orderBy() per evitare errore Firestore
+    let baseQuery = db.collection('collaboratori');
     
     if (attiviOnly === 'true') {
-      query = query.where('attivo', '==', true) as any;
+      baseQuery = baseQuery.where('attivo', '==', true);
     }
     
-    const snapshot = await query.get();
+    const queryWithOrder = baseQuery.orderBy('cognome', 'asc');
+    
+    const snapshot = await queryWithOrder.get();
     const collaboratori = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()

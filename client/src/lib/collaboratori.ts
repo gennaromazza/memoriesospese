@@ -138,6 +138,8 @@ export async function assignCollaboratoreToJob(
       status: 'pending',
       dataRichiesta: Timestamp.now(),
       isPagato: false,
+      pagamenti: [],
+      saldoResiduo: data.compenso || 0,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     };
@@ -152,21 +154,42 @@ export async function assignCollaboratoreToJob(
 }
 
 /**
- * Get assegnazioni per job
+ * Get assegnazioni per job (via API per evitare problemi permissions)
  */
 export async function getJobAssignments(jobId: string): Promise<JobCollaboratoreAssignment[]> {
   try {
-    const q = query(
-      collection(db, ASSIGNMENTS_COLLECTION),
-      where('jobId', '==', jobId),
-      orderBy('dataRichiesta', 'desc')
-    );
+    const response = await apiRequest('GET', `/api/collaboratori/assignments/job/${jobId}`);
     
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as JobCollaboratoreAssignment[];
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Reidrata Timestamp Firestore per compatibilità UI
+    return data.map((assignment: any) => ({
+      ...assignment,
+      dataRichiesta: assignment.dataRichiesta ? new Timestamp(
+        assignment.dataRichiesta._seconds,
+        assignment.dataRichiesta._nanoseconds
+      ) : null,
+      dataRisposta: assignment.dataRisposta ? new Timestamp(
+        assignment.dataRisposta._seconds,
+        assignment.dataRisposta._nanoseconds
+      ) : null,
+      createdAt: assignment.createdAt ? new Timestamp(
+        assignment.createdAt._seconds,
+        assignment.createdAt._nanoseconds
+      ) : null,
+      updatedAt: assignment.updatedAt ? new Timestamp(
+        assignment.updatedAt._seconds,
+        assignment.updatedAt._nanoseconds
+      ) : null,
+      pagamenti: assignment.pagamenti?.map((p: any) => ({
+        ...p,
+        data: p.data ? new Timestamp(p.data._seconds, p.data._nanoseconds) : null
+      })) || []
+    }));
   } catch (error) {
     console.error('❌ Errore get job assignments:', error);
     throw error;
