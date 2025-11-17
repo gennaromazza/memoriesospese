@@ -91,6 +91,7 @@ export default function Gallery() {
 
   // 🔒 Stato per tracciare quando l'accesso viene validato (trigger reattivo)
   const [accessValidatedTrigger, setAccessValidatedTrigger] = useState(0);
+  const hasDetectedAccessRef = useRef(false);
 
   // Stati per il preload completo delle immagini
   const [isPreloadingPhotos, setIsPreloadingPhotos] = useState(true);
@@ -1030,11 +1031,15 @@ export default function Gallery() {
   // 🔒 Ascolta eventi storage per rilevare quando la password viene validata
   useEffect(() => {
     // Se l'accesso è già validato, non serve polling
-    if (hasValidAccess) return;
+    if (hasValidAccess) {
+      hasDetectedAccessRef.current = true;
+      return;
+    }
 
     const handleStorageChange = (e: StorageEvent) => {
-      // Se il localStorage per questa galleria è stato settato, incrementa il trigger
-      if (e.key === `gallery_auth_${id}` && e.newValue) {
+      // Se il localStorage per questa galleria è stato settato, incrementa il trigger UNA VOLTA
+      if (e.key === `gallery_auth_${id}` && e.newValue && !hasDetectedAccessRef.current) {
+        hasDetectedAccessRef.current = true;
         setAccessValidatedTrigger(prev => prev + 1);
       }
     };
@@ -1044,7 +1049,8 @@ export default function Gallery() {
 
     // Controlla anche periodicamente il localStorage (per eventi same-tab)
     const interval = setInterval(() => {
-      if (localStorage.getItem(`gallery_auth_${id}`)) {
+      if (localStorage.getItem(`gallery_auth_${id}`) && !hasDetectedAccessRef.current) {
+        hasDetectedAccessRef.current = true;
         setAccessValidatedTrigger(prev => prev + 1);
       }
     }, 500);
