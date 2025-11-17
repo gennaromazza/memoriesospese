@@ -152,7 +152,18 @@ export default function Gallery() {
     staleTime: 30000 // Cache 30 secondi
   });
 
-  // 🔧 React Query: Carica foto fotografo (enabled solo quando galleryData esiste)
+  // 🔒 Verifica se l'utente ha l'accesso validato alla galleria
+  const hasValidAccess = useMemo(() => {
+    if (!id) return false;
+    // Admin ha sempre accesso
+    if (isAdmin) return true;
+    // Se la galleria non richiede password/PIN, l'accesso è libero
+    if (galleryData && !galleryData.password && !galleryData.pin) return true;
+    // Altrimenti verifica se c'è il token di autenticazione nel localStorage
+    return !!localStorage.getItem(`gallery_auth_${id}`);
+  }, [id, isAdmin, galleryData]);
+
+  // 🔧 React Query: Carica foto fotografo (enabled solo quando galleryData esiste E accesso validato)
   const {
     data: photos = [],
     isLoading: isLoadingPhotos,
@@ -160,12 +171,12 @@ export default function Gallery() {
   } = useQuery({
     queryKey: ['photos', galleryData?.id],
     queryFn: () => GalleryService.getPhotosByGalleryId(galleryData!.id),
-    enabled: !!galleryData?.id,
+    enabled: !!galleryData?.id && hasValidAccess,
     retry: 2,
     staleTime: 30000
   });
 
-  // 🔧 React Query: Carica foto ospiti (enabled solo quando galleryData esiste)
+  // 🔧 React Query: Carica foto ospiti (enabled solo quando galleryData esiste E accesso validato)
   const {
     data: guestPhotos = [],
     isLoading: isLoadingGuestPhotos,
@@ -173,7 +184,7 @@ export default function Gallery() {
   } = useQuery({
     queryKey: ['guestPhotos', galleryData?.id],
     queryFn: () => GalleryService.getGuestPhotosByGalleryId(galleryData!.id),
-    enabled: !!galleryData?.id,
+    enabled: !!galleryData?.id && hasValidAccess,
     retry: 2,
     staleTime: 30000
   });
