@@ -101,10 +101,37 @@ export default function GeneraPagamentiModal({
     },
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove: originalRemove, replace } = useFieldArray({
     control: form.control,
     name: 'payments',
   });
+
+  // Wrapper per remove che aggiorna anche dateModes/relativeDaysArray
+  const remove = (index: number) => {
+    originalRemove(index);
+    setDateModes(prev => prev.filter((_, i) => i !== index));
+    setRelativeDaysArray(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Sincronizza dateModes/relativeDaysArray quando si aggiungono nuove rate
+  useEffect(() => {
+    if (dateModes.length < fields.length) {
+      setDateModes(prev => [...prev, ...new Array(fields.length - prev.length).fill('absolute')]);
+      setRelativeDaysArray(prev => [...prev, ...new Array(fields.length - prev.length).fill(0)]);
+    }
+  }, [fields.length, dateModes.length]);
+
+  // Aggiorna data quando modalità relativa è attiva
+  useEffect(() => {
+    if (eventDate) {
+      dateModes.forEach((mode, index) => {
+        if (mode === 'relative') {
+          const calculatedDate = addDays(new Date(eventDate), relativeDaysArray[index] || 0);
+          form.setValue(`payments.${index}.dataScadenza`, calculatedDate);
+        }
+      });
+    }
+  }, [dateModes, relativeDaysArray, eventDate, form]);
 
   // Calcola totale rate
   const payments = form.watch('payments');
@@ -397,67 +424,149 @@ export default function GeneraPagamentiModal({
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <FormField
-                            control={form.control}
-                            name={`payments.${index}.importo`}
-                            render={({ field: formField }) => (
-                              <FormItem>
-                                <FormLabel>Importo (€)</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    {...formField}
-                                    onChange={(e) => formField.onChange(parseFloat(e.target.value) || 0)}
-                                    data-testid={`input-importo-${index}`}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                        <FormField
+                          control={form.control}
+                          name={`payments.${index}.importo`}
+                          render={({ field: formField }) => (
+                            <FormItem>
+                              <FormLabel>Importo (€)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  {...formField}
+                                  onChange={(e) => formField.onChange(parseFloat(e.target.value) || 0)}
+                                  data-testid={`input-importo-${index}`}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                          <FormField
-                            control={form.control}
-                            name={`payments.${index}.dataScadenza`}
-                            render={({ field: formField }) => (
-                              <FormItem>
-                                <FormLabel>Data Scadenza</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <FormControl>
-                                      <Button
-                                        variant="outline"
-                                        className={cn(
-                                          'w-full pl-3 text-left font-normal',
-                                          !formField.value && 'text-muted-foreground'
-                                        )}
-                                      >
-                                        {formField.value ? (
-                                          format(formField.value, 'dd/MM/yyyy', { locale: it })
-                                        ) : (
-                                          <span>Seleziona data</span>
-                                        )}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                      </Button>
-                                    </FormControl>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                      mode="single"
-                                      selected={formField.value}
-                                      onSelect={formField.onChange}
-                                      disabled={(date) => date < new Date()}
-                                      initialFocus
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                        {/* Data Scadenza con modalità relativa */}
+                        <div className="space-y-3 mt-3">
+                          {eventDate && (
+                            <RadioGroup
+                              value={dateModes[index] || 'absolute'}
+                              onValueChange={(value) => {
+                                const newModes = [...dateModes];
+                                newModes[index] = value as 'absolute' | 'relative';
+                                setDateModes(newModes);
+                              }}
+                              className="flex gap-4"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="absolute" id={`absolute-${index}`} />
+                                <Label htmlFor={`absolute-${index}`} className="font-normal cursor-pointer text-sm">
+                                  Data assoluta
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="relative" id={`relative-${index}`} />
+                                <Label htmlFor={`relative-${index}`} className="font-normal cursor-pointer text-sm">
+                                  Relativa all'evento
+                                </Label>
+                              </div>
+                            </RadioGroup>
+                          )}
+
+                          {(dateModes[index] === 'absolute' || !eventDate) && (
+                            <FormField
+                              control={form.control}
+                              name={`payments.${index}.dataScadenza`}
+                              render={({ field: formField }) => (
+                                <FormItem>
+                                  <FormLabel>Data Scadenza</FormLabel>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <FormControl>
+                                        <Button
+                                          variant="outline"
+                                          className={cn(
+                                            'w-full pl-3 text-left font-normal',
+                                            !formField.value && 'text-muted-foreground'
+                                          )}
+                                        >
+                                          {formField.value ? (
+                                            format(formField.value, 'dd/MM/yyyy', { locale: it })
+                                          ) : (
+                                            <span>Seleziona data</span>
+                                          )}
+                                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                      </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={formField.value}
+                                        onSelect={formField.onChange}
+                                        disabled={(date) => date < new Date()}
+                                        initialFocus
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          )}
+
+                          {eventDate && dateModes[index] === 'relative' && (
+                            <div className="space-y-2">
+                              <Label>Giorni dall'evento</Label>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newDays = [...relativeDaysArray];
+                                    newDays[index] = (newDays[index] || 0) - 1;
+                                    setRelativeDaysArray(newDays);
+                                  }}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  -
+                                </Button>
+                                <Input
+                                  type="number"
+                                  value={relativeDaysArray[index] || 0}
+                                  onChange={(e) => {
+                                    const newDays = [...relativeDaysArray];
+                                    newDays[index] = parseInt(e.target.value) || 0;
+                                    setRelativeDaysArray(newDays);
+                                  }}
+                                  className="text-center w-20"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newDays = [...relativeDaysArray];
+                                    newDays[index] = (newDays[index] || 0) + 1;
+                                    setRelativeDaysArray(newDays);
+                                  }}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  +
+                                </Button>
+                                <span className="text-sm text-muted-foreground ml-2">
+                                  {relativeDaysArray[index] === 0 ? 'giorno evento' : 
+                                   relativeDaysArray[index] > 0 ? `giorni dopo` : `giorni prima`}
+                                </span>
+                              </div>
+                              <div className="rounded-md bg-muted p-2 flex items-center gap-2">
+                                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-semibold">
+                                  {format(addDays(eventDate, relativeDaysArray[index] || 0), 'dd/MM/yyyy', { locale: it })}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <FormField
