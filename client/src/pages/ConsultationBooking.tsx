@@ -91,9 +91,35 @@ export default function ConsultationBooking() {
   }, [templateId, availableSlotsMutation, toast]);
 
   const handleSubmit = async () => {
-    if (!selectedSlot || !template) return;
+    if (!selectedSlot || !template || !selectedDate) return;
 
     try {
+      // 🔄 STEP 1: Refetch degli slot disponibili per verificare che lo slot sia ancora libero
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      
+      const refreshedSlots = await availableSlotsMutation.mutateAsync({
+        templateId: template.id,
+        date: dateStr
+      });
+
+      // 🔍 STEP 2: Verifica che lo slot selezionato sia ancora disponibile
+      const slotStillAvailable = refreshedSlots.slots?.some((slot: any) => {
+        const slotStart = new Date(slot.start);
+        return slotStart.getTime() === selectedSlot.start.getTime();
+      });
+
+      if (!slotStillAvailable) {
+        toast({
+          variant: 'destructive',
+          title: 'Slot non più disponibile',
+          description: 'Lo slot selezionato è stato prenotato da poco. Scegli un altro orario.',
+        });
+        // Reset slot selezionato per forzare utente a sceglierne un altro
+        setSelectedSlot(null);
+        return;
+      }
+
+      // ✅ STEP 3: Slot ancora disponibile → procedi con la prenotazione
       const consultationData = {
         templateId: template.id,
         cliente: {
