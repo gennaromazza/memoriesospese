@@ -18,7 +18,7 @@ export default function PublicHomepage() {
               <Link href="/portfolio" className="text-blue-gray hover:text-sage transition">Portfolio</Link>
               <Link href="/storie" className="text-blue-gray hover:text-sage transition">La Mia Storia</Link>
               <Link href="/blog" className="text-blue-gray hover:text-sage transition">Blog</Link>
-              <Link href="/consulenze" className="text-blue-gray hover:text-sage transition">Consulenze</Link>
+              <Link href="/consultations" className="text-blue-gray hover:text-sage transition">Consulenze</Link>
             </div>
             <div className="flex items-center gap-3">
               {studioSettings.socialLinks.instagram && (
@@ -33,7 +33,7 @@ export default function PublicHomepage() {
                 </a>
               )}
               <Link 
-                href="/consulenze"
+                href="/consultations"
                 className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-sage text-white hover:bg-dark-sage h-10 px-4 py-2"
                 data-testid="button-prenota-nav"
               >
@@ -60,7 +60,7 @@ export default function PublicHomepage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link 
-                  href="/consulenze"
+                  href="/consultations"
                   className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-sage text-white hover:bg-dark-sage h-11 px-8"
                   data-testid="button-prenota-hero"
                 >
@@ -232,7 +232,7 @@ export default function PublicHomepage() {
               <Link href="/portfolio" className="block text-gray-300 hover:text-white">Portfolio</Link>
               <Link href="/storie" className="block text-gray-300 hover:text-white">La Mia Storia</Link>
               <Link href="/blog" className="block text-gray-300 hover:text-white">Blog</Link>
-              <Link href="/consulenze" className="block text-gray-300 hover:text-white">Consulenze</Link>
+              <Link href="/consultations" className="block text-gray-300 hover:text-white">Consulenze</Link>
               <Link href="/accesso-galleria" className="block text-gray-300 hover:text-white">Accesso Galleria</Link>
               <Link href="/privacy" className="block text-gray-300 hover:text-white">Privacy</Link>
             </div>

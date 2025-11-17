@@ -7,11 +7,12 @@ export default function StoriePage() {
     <div className="min-h-screen bg-white">
       <nav className="border-b border-beige sticky top-0 bg-white/80 backdrop-blur-md z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/">
-            <Button variant="ghost" className="text-sage hover:text-dark-sage">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Home
-            </Button>
+          <Link 
+            href="/"
+            className="inline-flex items-center text-sage hover:text-dark-sage transition"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Home
           </Link>
         </div>
       </nav>
@@ -101,11 +102,12 @@ export default function StoriePage() {
         </div>
 
         <div className="mt-16 text-center">
-          <Link href="/lasciati-trasportare">
-            <Button size="lg" className="bg-sage hover:bg-dark-sage text-white">
-              <BookOpen className="mr-2 h-5 w-5" />
-              Leggi il Libro Completo
-            </Button>
+          <Link 
+            href="/lasciati-trasportare"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-sage text-white hover:bg-dark-sage h-11 px-8"
+          >
+            <BookOpen className="mr-2 h-5 w-5" />
+            Leggi il Libro Completo
           </Link>
         </div>
       </div>
