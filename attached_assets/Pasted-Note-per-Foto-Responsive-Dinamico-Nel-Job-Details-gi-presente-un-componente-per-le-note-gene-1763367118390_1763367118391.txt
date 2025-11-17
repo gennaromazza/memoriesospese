@@ -1,0 +1,112 @@
+Note per Foto (Responsive + Dinamico)
+
+Nel Job Details è già presente un componente per le note generali del lavoro.
+Devi modificare ed estendere questo componente esistente, senza crearne uno nuovo separato, per supportare una nuova modalità opzionale: note per foto.
+
+🎯 Obiettivo
+
+Rendere il componente attuale delle note capace di funzionare in due modalità:
+
+Modalità standard (già esistente)
+
+un unico blocco note generale
+
+Modalità “note per foto” (nuova)
+
+elenco di voci, ognuna con:
+
+foto caricata o scattata dal telefono
+
+nota testuale associata
+
+🧩 Requisiti e Modifiche da Applicare
+🔄 1. Estendere il componente note già esistente
+
+Non creare un nuovo componente.
+Il componente attuale deve essere modificato per supportare:
+
+toggle o selettore “Abilita note per foto”
+
+gestione dello stato per notePerFoto
+
+rendering condizionale tra le due modalità
+
+📷 2. Gestione foto + nota
+
+In modalità note-per-foto:
+
+L’utente deve poter:
+
+scattare una foto dal telefono (input type="file" + accept="image/*" + capture="environment")
+
+vedere la preview immediata
+
+scrivere una nota accanto
+
+aggiungere più foto con note
+
+modificare o cancellare ciascuna voce
+
+La struttura dati per ogni voce deve essere:
+
+{
+  id: string;
+  imageUrl: string;
+  nota: string;
+  createdAt: Timestamp;
+}
+
+
+E deve essere salvata in Firestore dentro il Job:
+
+job.notePerFoto: Array<NoteFotoItem>
+
+📱 3. Requisito fondamentale: UI MOLTO RESPONSIVE
+
+Il componente deve essere completamente mobile-first, poiché viene usato quasi sempre dal telefono.
+
+Linee guida obbligatorie:
+
+tutti i container devono essere dynamically sized
+
+niente larghezze fisse non necessarie
+
+usare classi Tailwind responsivissime (w-full, flex-wrap, grid-cols-1 md:grid-cols-2, ecc.)
+
+testi e textarea sempre adattivi
+
+foto scalabili e contenute (object-cover, aspect-video o ratio dinamici)
+
+layout che si adatta automaticamente in verticale su mobile e affiancato su desktop
+
+nessuna rottura visuale con contenuti lunghi
+
+scrolling facile anche con molte foto
+
+Lo scopo è permettere l’uso agevolissimo da smartphone durante l’incontro con i clienti.
+
+🔧 4. Requisiti Tecnici
+
+React + TypeScript
+
+TanStack Query con update ottimistici per una UX fluida
+
+Firestore per storage dei dati
+
+Firebase Storage per le immagini (riusando la logica già esistente nel sistema Jobs)
+
+Refactor del componente attuale, non nuova pagina
+
+📌 Deliverables Richiesti
+
+Refactor completo del componente Note esistente con supporto alle due modalità.
+
+UI responsive mobile-first, con div completamente dinamici.
+
+Nuove tipizzazioni TS per notePerFoto.
+
+CRUD Firestore + Storage per foto e note integrate nel flusso Jobs.
+
+Aggiornamento rules solo se servono.
+
+Testing visivo su schermi piccoli.
