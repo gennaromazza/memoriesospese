@@ -3,7 +3,7 @@
  * Modal per aggiungere o modificare una rata in un payment schedule
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -42,9 +42,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { CalendarIcon, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { CalendarIcon, Loader2, CalendarDays } from 'lucide-react';
+import { format, addDays } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
 
 const formSchema = z.object({
   tipo: z.enum(['acconto', 'rata', 'saldo']),
@@ -60,6 +63,7 @@ interface GestioneRataModalProps {
   onClose: () => void;
   scheduleId: string;
   jobId: string;
+  eventDate?: Date | null;
   payment?: {
     id: string;
     tipo: string;
@@ -75,10 +79,13 @@ export default function GestioneRataModal({
   onClose,
   scheduleId,
   jobId,
+  eventDate,
   payment,
   mode,
 }: GestioneRataModalProps) {
   const { toast } = useToast();
+  const [dateMode, setDateMode] = useState<'absolute' | 'relative'>('absolute');
+  const [relativeDays, setRelativeDays] = useState<number>(0);
 
   // Helper: converti dataScadenza in Date (gestisce Timestamp Firestore o Date già convertito)
   const getDateFromPayment = (dataScadenza: any): Date => {
@@ -112,8 +119,19 @@ export default function GestioneRataModal({
         dataScadenza: getDateFromPayment(payment?.dataScadenza),
         descrizione: payment?.descrizione || '',
       });
+      // Reset date mode to absolute when opening
+      setDateMode('absolute');
+      setRelativeDays(0);
     }
   }, [open, payment, form]);
+
+  // Calcola data quando modalità relativa è attiva
+  useEffect(() => {
+    if (dateMode === 'relative' && eventDate) {
+      const calculatedDate = addDays(new Date(eventDate), relativeDays);
+      form.setValue('dataScadenza', calculatedDate);
+    }
+  }, [dateMode, relativeDays, eventDate, form]);
 
   // Mutation: aggiungi/modifica rata
   const mutation = useMutation({
@@ -230,45 +248,131 @@ export default function GestioneRataModal({
             />
 
             {/* Data Scadenza */}
-            <FormField
-              control={form.control}
-              name="dataScadenza"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Data Scadenza</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            'w-full pl-3 text-left font-normal',
-                            !field.value && 'text-muted-foreground'
-                          )}
-                          data-testid="button-date-picker"
-                        >
-                          {field.value ? (
-                            format(field.value, 'dd/MM/yyyy', { locale: it })
-                          ) : (
-                            <span>Seleziona data</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
+            <div className="space-y-3">
+              <Label>Modalità Scadenza</Label>
+              
+              <RadioGroup
+                value={dateMode}
+                onValueChange={(value) => setDateMode(value as 'absolute' | 'relative')}
+                className="space-y-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="absolute" id="absolute" />
+                  <Label htmlFor="absolute" className="font-normal cursor-pointer">
+                    Data assoluta (calendario)
+                  </Label>
+                </div>
+                
+                {eventDate && (
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="relative" id="relative" />
+                    <Label htmlFor="relative" className="font-normal cursor-pointer">
+                      Relativa all'evento ({format(eventDate, 'dd/MM/yyyy', { locale: it })})
+                    </Label>
+                  </div>
+                )}
+              </RadioGroup>
+
+              {dateMode === 'absolute' && (
+                <FormField
+                  control={form.control}
+                  name="dataScadenza"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                'w-full pl-3 text-left font-normal',
+                                !field.value && 'text-muted-foreground'
+                              )}
+                              data-testid="button-date-picker"
+                            >
+                              {field.value ? (
+                                format(field.value, 'dd/MM/yyyy', { locale: it })
+                              ) : (
+                                <span>Seleziona data</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
-            />
+
+              {dateMode === 'relative' && eventDate && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Label htmlFor="relative-days" className="min-w-24">Giorni evento:</Label>
+                    <div className="flex items-center gap-2 flex-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRelativeDays(prev => prev - 1)}
+                        className="h-8 w-8 p-0"
+                      >
+                        -
+                      </Button>
+                      <Input
+                        id="relative-days"
+                        type="number"
+                        value={relativeDays}
+                        onChange={(e) => setRelativeDays(parseInt(e.target.value) || 0)}
+                        className="text-center w-20"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRelativeDays(prev => prev + 1)}
+                        className="h-8 w-8 p-0"
+                      >
+                        +
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        {relativeDays === 0 ? 'giorno evento' : 
+                         relativeDays > 0 ? `giorni dopo` : `giorni prima`}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="rounded-md bg-muted p-3 flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Scadenza calcolata: </span>
+                      <span className="font-semibold">
+                        {format(addDays(eventDate, relativeDays), 'dd/MM/yyyy', { locale: it })}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    💡 Esempi: <strong>-30</strong> = 30 giorni prima dell'evento (alla firma), <strong>-10</strong> = 10 giorni prima, <strong>0</strong> = giorno evento, <strong>+7</strong> = 7 giorni dopo
+                  </p>
+                </div>
+              )}
+
+              {!eventDate && dateMode === 'relative' && (
+                <p className="text-sm text-yellow-600">
+                  ⚠️ Data evento non disponibile. Seleziona modalità assoluta.
+                </p>
+              )}
+            </div>
 
             {/* Descrizione */}
             <FormField

@@ -45,6 +45,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface PaymentScheduleSectionProps {
   jobId: string;
+  eventDate?: Date | null;
   isAdmin?: boolean;
 }
 
@@ -75,7 +76,7 @@ const PAYMENT_STATUS_ICONS: Record<PaymentStatus, typeof CheckCircle2> = {
   scaduto: XCircle,
 };
 
-export default function PaymentScheduleSection({ jobId, isAdmin = false }: PaymentScheduleSectionProps) {
+export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false }: PaymentScheduleSectionProps) {
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; tipo: string; importo: number; scheduleId: string } | null>(null);
   const [gestioneRataState, setGestioneRataState] = useState<{
     open: boolean;
@@ -389,6 +390,7 @@ export default function PaymentScheduleSection({ jobId, isAdmin = false }: Payme
           onClose={() => setGestioneRataState(null)}
           scheduleId={gestioneRataState.scheduleId}
           jobId={jobId}
+          eventDate={eventDate}
           payment={gestioneRataState.payment}
           mode={gestioneRataState.mode}
         />
