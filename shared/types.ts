@@ -100,7 +100,7 @@ export interface AdminUser extends UserData {
   permissions: AdminPermission[];
 }
 
-export type AdminPermission = 
+export type AdminPermission =
   | 'gallery_create'
   | 'gallery_edit'
   | 'gallery_delete'
@@ -289,8 +289,8 @@ export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
 
-export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = 
-  Pick<T, Exclude<keyof T, Keys>> & 
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> =
+  Pick<T, Exclude<keyof T, Keys>> &
   { [K in Keys]-?: Required<Pick<T, K>> & Partial<Pick<T, Exclude<Keys, K>>> }[Keys];
 
 export type Prettify<T> = {
@@ -356,4 +356,25 @@ export interface SearchFilters {
   };
   location?: string;
   tags?: string[];
+}
+
+export interface NoteFotoItem {
+  id: string;
+  imageUrl: string;
+  nota: string;
+  createdAt: FirebaseTimestamp;
+}
+
+export interface Job {
+  id: string;
+  clienteId: string;
+  jobType: string;
+  titolo: string;
+  descrizione?: string;
+  dataEvento?: FirebaseTimestamp;
+  dataCreazione: FirebaseTimestamp;
+  stato: JobState;
+  workflowState?: WorkflowState;
+  note?: string;
+  notePerFoto?: NoteFotoItem[];
 }
