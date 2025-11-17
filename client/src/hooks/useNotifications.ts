@@ -23,28 +23,33 @@ export function useNotifications() {
       const fetchBookings = async () => {
         try {
           const bookingsRef = collection(db, 'bookings');
+          // 🔧 Fix: Firestore non trova campi undefined con == null
+          // Carica booking in_attesa o confermata, poi filtra lato client
           const bookingsQuery = query(
             bookingsRef,
-            where('dataVisualizzazione', '==', null)
+            where('stato', 'in', ['in_attesa', 'confermata'])
           );
           const bookingsSnap = await getDocs(bookingsQuery);
           
-          return bookingsSnap.docs.map(doc => {
-            const data = doc.data();
-            const dataInizio = data.dataShootingInizio?.toDate ? data.dataShootingInizio.toDate() : null;
-            const dataStr = dataInizio ? new Date(dataInizio).toLocaleDateString('it-IT') : 'Data non disponibile';
-            
-            return {
-              id: `booking-${doc.id}`,
-              type: 'booking' as const,
-              title: 'Nuova Prenotazione',
-              description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${dataStr}`,
-              createdAt: data.createdAt || null,
-              isRead: false,
-              resourceId: doc.id,
-              deepLink: `/admin/dashboard?tab=prenotazioni&booking=${doc.id}`
-            };
-          });
+          // Filtra solo quelli non visualizzati
+          return bookingsSnap.docs
+            .filter(doc => !doc.data().dataVisualizzazione)
+            .map(doc => {
+              const data = doc.data();
+              const dataInizio = data.dataShootingInizio?.toDate ? data.dataShootingInizio.toDate() : null;
+              const dataStr = dataInizio ? new Date(dataInizio).toLocaleDateString('it-IT') : 'Data non disponibile';
+              
+              return {
+                id: `booking-${doc.id}`,
+                type: 'booking' as const,
+                title: 'Nuova Prenotazione',
+                description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${dataStr}`,
+                createdAt: data.createdAt || null,
+                isRead: false,
+                resourceId: doc.id,
+                deepLink: `/admin/dashboard?tab=prenotazioni&booking=${doc.id}`
+              };
+            });
         } catch (error) {
           console.error('[Notifications] Errore fetch bookings:', error);
           return [];
@@ -54,26 +59,31 @@ export function useNotifications() {
       const fetchConsultations = async () => {
         try {
           const consultationsRef = collection(db, 'consultations');
+          // 🔧 Fix: Include sia in_attesa che confermata (finché non visualizzate)
           const consultationsQuery = query(
             consultationsRef,
-            where('stato', '==', 'in_attesa')
+            where('stato', 'in', ['in_attesa', 'confermata'])
           );
           const consultationsSnap = await getDocs(consultationsQuery);
           
-          return consultationsSnap.docs.map(doc => {
-            const data = doc.data();
-            
-            return {
-              id: `consultation-${doc.id}`,
-              type: 'consultation' as const,
-              title: 'Nuova Consulenza',
-              description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${data.jobType || 'Servizio non specificato'}`,
-              createdAt: data.createdAt || null,
-              isRead: !!data.dataVisualizzazione,
-              resourceId: doc.id,
-              deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
-            };
-          });
+          // Filtra solo quelle non visualizzate
+          return consultationsSnap.docs
+            .filter(doc => !doc.data().dataVisualizzazione)
+            .map(doc => {
+              const data = doc.data();
+              const statoLabel = data.stato === 'confermata' ? ' ✅' : '';
+              
+              return {
+                id: `consultation-${doc.id}`,
+                type: 'consultation' as const,
+                title: `Nuova Consulenza${statoLabel}`,
+                description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${data.jobType || 'Servizio non specificato'}`,
+                createdAt: data.createdAt || null,
+                isRead: false,
+                resourceId: doc.id,
+                deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
+              };
+            });
         } catch (error) {
           console.error('[Notifications] Errore fetch consultations:', error);
           return [];
@@ -109,9 +119,9 @@ export function useNotifications() {
                 isRead: true,
                 resourceId: data.galleryId || '',
                 deepLink: `/admin/galleries/${data.galleryId || ''}`
-              };
+              } as Notification;
             })
-            .filter((n): n is Notification => n !== null);
+            .filter((n): n is Notification => n !== null && n !== undefined);
         } catch (error) {
           console.error('[Notifications] Errore fetch comments:', error);
           return [];
@@ -160,9 +170,9 @@ export function useNotifications() {
                 isRead: false,
                 resourceId: data.bookingId,
                 deepLink: `/admin/dashboard?tab=prenotazioni&booking=${data.bookingId}`
-              };
+              } as Notification;
             })
-            .filter((n): n is Notification => n !== null);
+            .filter((n): n is Notification => n !== null && n !== undefined);
         } catch (error) {
           console.error('[Notifications] Errore fetch approved selections:', error);
           return [];
@@ -181,6 +191,7 @@ export function useNotifications() {
       const allNotifications = [...bookings, ...consultations, ...comments, ...selections];
       
       return allNotifications.sort((a, b) => {
+        if (!a || !b) return 0;
         const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
         const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
         return dateB.getTime() - dateA.getTime();

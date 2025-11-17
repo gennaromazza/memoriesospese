@@ -17,7 +17,7 @@ export const NotificationBell = React.memo(function NotificationBell() {
   
   // 🚀 Memoizza il conteggio non letti
   const unreadCount = useMemo(() => 
-    notifications.filter(n => !n.isRead).length,
+    notifications.filter(n => n && !n.isRead).length,
     [notifications]
   );
   
@@ -69,7 +69,7 @@ export const NotificationBell = React.memo(function NotificationBell() {
       const { doc, updateDoc } = await import('firebase/firestore');
       
       // Trova la notifica per tipo
-      const notification = notifications.find(n => n.resourceId === resourceId);
+      const notification = notifications.find(n => n && n.resourceId === resourceId);
       if (!notification) return;
       
       let collectionName = '';
@@ -127,7 +127,7 @@ export const NotificationBell = React.memo(function NotificationBell() {
             </div>
           ) : (
             <div className="divide-y">
-              {notifications.map(notification => (
+              {notifications.filter(n => n !== null && n !== undefined).map(notification => (
                 <div
                   key={notification.id}
                   className={`relative group ${
