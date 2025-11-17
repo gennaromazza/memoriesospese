@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import { WeddingImage } from '@/components/WeddingImages';
 import { Timestamp } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
@@ -37,8 +37,20 @@ export default function GalleryTabs({
     });
   };
 
+  // Reset immediato dello stato quando photos cambia (prima del paint)
+  useLayoutEffect(() => {
+    if (photos.length > 0) {
+      setIsPreloading(true);
+      setLoadedCount(0);
+      setAllPhotosReady(false);
+    }
+  }, [photos]);
+
   // Precarica tutte le foto al mount
   useEffect(() => {
+    // Flag per evitare race condition quando cambia la galleria
+    let cancelled = false;
+
     if (photos.length === 0) {
       setIsPreloading(false);
       setAllPhotosReady(true);
@@ -46,8 +58,6 @@ export default function GalleryTabs({
     }
 
     const loadAllPhotos = async () => {
-      setIsPreloading(true);
-      setLoadedCount(0);
       
       let loaded = 0;
       
@@ -55,25 +65,37 @@ export default function GalleryTabs({
       const BATCH_SIZE = 10;
       
       for (let i = 0; i < photos.length; i += BATCH_SIZE) {
+        // Se il componente è stato smontato o photos è cambiato, interrompi
+        if (cancelled) return;
+        
         const batch = photos.slice(i, i + BATCH_SIZE);
         
         // Carica batch in parallelo
         await Promise.allSettled(
           batch.map(photo => 
             preloadImage(photo.url).then(() => {
-              loaded++;
-              setLoadedCount(loaded);
+              if (!cancelled) {
+                loaded++;
+                setLoadedCount(loaded);
+              }
             })
           )
         );
       }
       
-      // Tutte le foto sono state tentate (alcune potrebbero essere fallite ma procediamo)
-      setIsPreloading(false);
-      setAllPhotosReady(true);
+      // Tutte le foto sono state tentate - aggiorna stato solo se non cancellato
+      if (!cancelled) {
+        setIsPreloading(false);
+        setAllPhotosReady(true);
+      }
     };
 
     loadAllPhotos();
+
+    // Cleanup: marca come cancellato se photos cambia o componente smonta
+    return () => {
+      cancelled = true;
+    };
   }, [photos]);
 
   // Se non ci sono foto, mostra un messaggio
