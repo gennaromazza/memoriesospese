@@ -135,11 +135,7 @@ export default function ConsultationsManager({
   onHighlightComplete
 }: ConsultationsManagerProps = {}) {
   const { toast } = useToast();
-  const [location, navigate] = useLocation();
-  
-  // 🔗 Leggi consultationId da URL query params per deeplink
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlConsultationId = urlParams.get('consultationId');
+  const [, navigate] = useLocation();
   
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -267,7 +263,7 @@ export default function ConsultationsManager({
     })();
   }, [consultations, authReady, markViewedMutation]);
   
-  // 🎯 Deeplink: scroll + highlight consultation da URL param o prop
+  // 🎯 Deeplink: scroll + highlight consultation da URL param
   useEffect(() => {
     // Cleanup timeout precedenti
     if (highlightTimeoutRef.current) {
@@ -279,25 +275,17 @@ export default function ConsultationsManager({
       clearHighlightTimeoutRef.current = null;
     }
 
-    // Usa consultationId da URL se presente, altrimenti da prop
-    const targetId = urlConsultationId || highlightConsultationId;
-    if (!targetId) return;
+    if (!highlightConsultationId) return;
 
     // Attendi caricamento dati
     if (isLoading) return;
 
     // Cerca consultation nel dataset
-    const targetConsultation = consultations.find((c) => c.id === targetId);
+    const targetConsultation = consultations.find((c) => c.id === highlightConsultationId);
 
     if (!targetConsultation) {
-      console.warn(`Consultation ${targetId} non trovata`);
+      console.warn(`Consultation ${highlightConsultationId} non trovata`);
       onHighlightComplete?.();
-      
-      // Pulisci URL se viene da query params
-      if (urlConsultationId) {
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, '', newUrl);
-      }
       return;
     }
 
@@ -307,7 +295,7 @@ export default function ConsultationsManager({
 
     // Timeout per assicurarsi che il DOM sia renderizzato
     highlightTimeoutRef.current = setTimeout(() => {
-      const element = consultationRefs.current[targetId];
+      const element = consultationRefs.current[highlightConsultationId];
       if (element) {
         // Scroll smooth
         element.scrollIntoView({
@@ -316,28 +304,16 @@ export default function ConsultationsManager({
         });
 
         // Aggiungi highlight temporaneo
-        setHighlightedId(targetId);
+        setHighlightedId(highlightConsultationId);
 
         // Rimuovi highlight dopo 3 secondi
         clearHighlightTimeoutRef.current = setTimeout(() => {
           setHighlightedId(null);
           onHighlightComplete?.();
-          
-          // Pulisci URL se viene da query params
-          if (urlConsultationId) {
-            const newUrl = window.location.pathname;
-            window.history.replaceState({}, '', newUrl);
-          }
         }, 3000);
       } else {
-        console.warn(`DOM element per consultation ${targetId} non trovato`);
+        console.warn(`DOM element per consultation ${highlightConsultationId} non trovato`);
         onHighlightComplete?.();
-        
-        // Pulisci URL se viene da query params
-        if (urlConsultationId) {
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, '', newUrl);
-        }
       }
     }, 300);
 
@@ -350,7 +326,7 @@ export default function ConsultationsManager({
         clearTimeout(clearHighlightTimeoutRef.current);
       }
     };
-  }, [urlConsultationId, highlightConsultationId, consultations, isLoading, onHighlightComplete]);
+  }, [highlightConsultationId, consultations, isLoading, onHighlightComplete]);
   
   const handleViewDetails = async (consultation: Consultation) => {
     setSelectedConsultation(consultation);

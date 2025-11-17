@@ -177,28 +177,11 @@ export default function BookingsManager({
   onRequestOpenOrdersTab,
 }: BookingsManagerProps = {}) {
   const { toast } = useToast();
-  const [location, navigate] = useLocation();
   const { user } = useFirebaseAuth();
-
-  // 🔗 Leggi bookingId da URL query params per deeplink
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlBookingId = urlParams.get('bookingId');
-
+  const [, navigate] = useLocation();
   const [selectedStato, setSelectedStato] = useState<string>("all");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [deleteCascade, setDeleteCascade] = useState(false);
-  const [relatedEntitiesCounts, setRelatedEntitiesCounts] = useState<{
-    ordersCount: number;
-    galleriesCount: number;
-  } | null>(null);
-
-  // 🎯 Deeplink: refs per scroll + highlight
-  const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const bookingRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedBookingForOrder, setSelectedBookingForOrder] =
     useState<Booking | null>(null);
@@ -210,6 +193,23 @@ export default function BookingsManager({
     useState<Gallery | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const bookingRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const clearHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Ref per throttling auto-mark (evita chiamate ripetute)
+  const autoMarkTriggeredRef = useRef(false);
+  
+  const [expandedProducts, setExpandedProducts] = useState<
+    Record<string, boolean>
+  >({});
+  const [timeFilter, setTimeFilter] = useState<
+    "all" | "today" | "tomorrow" | "next-week" | "next-month"
+  >("all");
+  const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
+    "all",
+  );
 
   // State per workflow state change con conferma
   const [workflowChangeBooking, setWorkflowChangeBooking] = useState<{
@@ -221,6 +221,10 @@ export default function BookingsManager({
   const [deleteBookingCascadeId, setDeleteBookingCascadeId] = useState<
     string | null
   >(null);
+  const [cascadeDeleteCounts, setCascadeDeleteCounts] = useState<{
+    ordersCount: number;
+    galleriesCount: number;
+  } | null>(null);
 
   // State form modifica prenotazione
   const [editNome, setEditNome] = useState("");
@@ -228,94 +232,6 @@ export default function BookingsManager({
   const [editEmail, setEditEmail] = useState("");
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [editNote, setEditNote] = useState("");
-
-  // 🎯 Deeplink: scroll + highlight booking da URL param
-  useEffect(() => {
-    // Cleanup timeout precedenti
-    if (highlightTimeoutRef.current) {
-      clearTimeout(highlightTimeoutRef.current);
-      highlightTimeoutRef.current = null;
-    }
-    if (clearHighlightTimeoutRef.current) {
-      clearTimeout(clearHighlightTimeoutRef.current);
-      clearHighlightTimeoutRef.current = null;
-    }
-
-    if (!urlBookingId) return;
-
-    // Attendi caricamento dati
-    if (isLoading) return;
-
-    // Cerca booking nel dataset
-    const targetBooking = bookings.find((b) => b.id === urlBookingId);
-
-    if (!targetBooking) {
-      console.warn(`Booking ${urlBookingId} non trovato`);
-
-      // Pulisci URL
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
-      return;
-    }
-
-    // Reset filtri per mostrare tutti i bookings
-    setSelectedStato('all');
-    setSearchQuery('');
-
-    // Timeout per assicurarsi che il DOM sia renderizzato
-    highlightTimeoutRef.current = setTimeout(() => {
-      const element = bookingRefs.current[urlBookingId];
-      if (element) {
-        // Scroll smooth
-        element.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-
-        // Aggiungi highlight temporaneo
-        setHighlightedId(urlBookingId);
-
-        // Rimuovi highlight dopo 3 secondi
-        clearHighlightTimeoutRef.current = setTimeout(() => {
-          setHighlightedId(null);
-
-          // Pulisci URL
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, '', newUrl);
-        }, 3000);
-      } else {
-        console.warn(`DOM element per booking ${urlBookingId} non trovato`);
-
-        // Pulisci URL
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, '', newUrl);
-      }
-    }, 300);
-
-    // Cleanup
-    return () => {
-      if (highlightTimeoutRef.current) {
-        clearTimeout(highlightTimeoutRef.current);
-      }
-      if (clearHighlightTimeoutRef.current) {
-        clearTimeout(clearHighlightTimeoutRef.current);
-      }
-    };
-  }, [urlBookingId, bookings, isLoading]);
-
-  // Ref per throttling auto-mark (evita chiamate ripetute)
-  const autoMarkTriggeredRef = useRef(false);
-
-  const [expandedProducts, setExpandedProducts] = useState<
-    Record<string, boolean>
-  >({});
-  const [timeFilter, setTimeFilter] = useState<
-    "all" | "today" | "tomorrow" | "next-week" | "next-month"
-  >("all");
-  const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
-    "all",
-  );
-
 
   // Query bookings - sempre tutti per permettere filtro client-side
   const {
@@ -515,21 +431,21 @@ export default function BookingsManager({
   // 🔔 Auto-mark bookings in_attesa come visualizzati (per notifiche)
   useEffect(() => {
     if (!allBookings || !user || allBookings.length === 0) return;
-
+    
     const pendingBookings = allBookings.filter(
       b => b.stato === 'in_attesa' && !b.dataVisualizzazione
     );
-
+    
     if (pendingBookings.length === 0) {
       autoMarkTriggeredRef.current = false; // Reset se nessun pending
       return;
     }
-
+    
     if (autoMarkTriggeredRef.current) return; // Già eseguito
-
+    
     // Marca flag per evitare re-trigger
     autoMarkTriggeredRef.current = true;
-
+    
     // Sequential mark con cache invalidation
     (async () => {
       try {

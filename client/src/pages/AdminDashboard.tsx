@@ -212,8 +212,6 @@ interface StudioSettings {
 }
 
 export default function AdminDashboard() {
-  const { user, isLoading: authLoading, isAdmin: isFirebaseAdmin } = useFirebaseAuth();
-  const [, navigate] = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
@@ -222,14 +220,9 @@ export default function AdminDashboard() {
   const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all'); // 📸 Filtro selezioni approvate
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-
-  // Leggi il tab e bookingId dall'URL
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlTab = urlParams.get('tab') || 'overview';
-  const urlBookingId = urlParams.get('bookingId');
-
-  // Se c'è un bookingId, forza il tab a 'bookings'
-  const [activeTab, setActiveTab] = useState<string>(urlBookingId ? 'bookings' : urlTab);
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori'>(() => {
+    return (sessionStorage.getItem('activeTab') as any) || 'calendario';
+  });
   const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'campaigns' | 'orders'>(() => {
     const stored = sessionStorage.getItem('activeBookingSection') as any;
     // Sanitize legacy values
@@ -244,7 +237,7 @@ export default function AdminDashboard() {
   const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories'>(() => {
     return (sessionStorage.getItem('settingsSection') as any) || 'studio';
   });
-  const [highlightBookingId, setHighlightBookingId] = useState<string | null>(urlBookingId);
+  const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
   const [highlightConsultationId, setHighlightConsultationId] = useState<string | null>(null);
 
@@ -289,8 +282,25 @@ export default function AdminDashboard() {
     whatsappText: 'Hai domande sulle nostre gallerie o vuoi prenotare un servizio? Scrivici su WhatsApp!',
     whatsappButtonText: 'Scrivici su WhatsApp'
   });
+  const [location, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Hook Firebase Auth per verifica autenticazione asincrona
+  const { user, isLoading: authLoading, isAdmin: isFirebaseAdmin } = useFirebaseAuth();
+
+  // Query React Query per gallerie (solo quando auth è pronto)
+  const {
+    data: galleries = [],
+    isLoading,
+    error: galleriesError
+  } = useQuery<Gallery[]>({
+    queryKey: ['galleries', 'admin'],
+    queryFn: GalleryService.getAllGalleriesForAdmin,
+    enabled: !authLoading && !!user, // Abilita solo quando auth è pronto e user esiste
+    retry: 2, // Riprova 2 volte in caso di errore
+    staleTime: 30000, // Cache valida per 30 secondi
+  });
 
   // Persist state changes to sessionStorage
   useEffect(() => {
