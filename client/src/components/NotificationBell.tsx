@@ -89,6 +89,36 @@ export const NotificationBell = React.memo(function NotificationBell() {
     }
   }, [notifications, queryClient]);
   
+  const handleClearAllNotifications = useCallback(async () => {
+    try {
+      const { db } = await import('@/lib/firebase');
+      const { doc, updateDoc } = await import('firebase/firestore');
+      
+      // Segna tutte le notifiche come visualizzate
+      const updatePromises = notifications.map(async (notification) => {
+        if (!notification) return;
+        
+        let collectionName = '';
+        if (notification.type === 'booking') collectionName = 'bookings';
+        else if (notification.type === 'consultation') collectionName = 'consultations';
+        
+        if (collectionName) {
+          await updateDoc(doc(db, collectionName, notification.resourceId), {
+            dataVisualizzazione: new Date()
+          });
+        }
+      });
+      
+      await Promise.all(updatePromises);
+      
+      // Refresh notifiche
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      setOpen(false);
+    } catch (error) {
+      console.error('Errore pulizia notifiche:', error);
+    }
+  }, [notifications, queryClient]);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -112,8 +142,18 @@ export const NotificationBell = React.memo(function NotificationBell() {
       </PopoverTrigger>
       
       <PopoverContent className="w-[calc(100vw-2rem)] sm:w-96 p-0" align="end">
-        <div className="border-b px-4 py-3">
+        <div className="border-b px-4 py-3 flex items-center justify-between">
           <h3 className="font-semibold">Notifiche</h3>
+          {notifications.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearAllNotifications}
+              className="h-7 text-xs"
+            >
+              Pulisci tutte
+            </Button>
+          )}
         </div>
         
         <ScrollArea className="max-h-[70vh] sm:max-h-96">
