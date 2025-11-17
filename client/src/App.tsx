@@ -11,6 +11,13 @@ import { trackPageView } from "./lib/analytics";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 import Home from "./pages/Home";
+import PublicHomepage from "./pages/public/PublicHomepage";
+import PortfolioPage from "./pages/public/PortfolioPage";
+import PortfolioCategoryPage from "./pages/public/PortfolioCategoryPage";
+import StoriePage from "./pages/public/StoriePage";
+import LasciatiTrasportarePage from "./pages/public/LasciatiTrasportarePage";
+import BlogPage from "./pages/public/BlogPage";
+import BlogPostPage from "./pages/public/BlogPostPage";
 import GalleryAccess from "./pages/GalleryAccess";
 import Gallery from "./pages/Gallery";
 import SpecialGalleryAccess from "./pages/SpecialGalleryAccess";
@@ -65,7 +72,18 @@ function AppRoutes() {
   useAnalytics();
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      {/* Public Website Routes - NEW */}
+      <Route path="/" component={PublicHomepage} />
+      <Route path="/portfolio" component={PortfolioPage} />
+      <Route path="/portfolio/:categoria" component={PortfolioCategoryPage} />
+      <Route path="/storie" component={StoriePage} />
+      <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
+      <Route path="/blog" component={BlogPage} />
+      <Route path="/blog/:slug" component={BlogPostPage} />
+      
+      {/* Gallery Access (moved from /) */}
+      <Route path="/accesso-galleria" component={Home} />
+      
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
 

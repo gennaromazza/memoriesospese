@@ -10,12 +10,24 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        playfair: ['"Playfair Display"', 'serif'],
+        sans: ['Raleway', 'sans-serif'],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
       colors: {
+        sage: "hsl(var(--sage))",
+        "dark-sage": "hsl(var(--dark-sage))",
+        "blue-gray": "hsl(var(--blue-gray))",
+        terracotta: "hsl(var(--terracotta))",
+        beige: "hsl(var(--beige))",
+        cream: "hsl(var(--cream))",
+        "off-white": "hsl(var(--off-white))",
+        mint: "hsl(var(--mint))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

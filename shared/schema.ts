@@ -799,3 +799,131 @@ export const insertSpecialThemeSchema = z.object({
 });
 
 export type InsertSpecialTheme = z.infer<typeof insertSpecialThemeSchema>;
+
+// ====== PUBLIC PORTFOLIO SYSTEM ======
+
+// Portfolio Selection interface - links gallery photos to public portfolio
+export interface PortfolioSelection {
+  id: string;
+  galleryId: string; // Link to source gallery
+  photoId: string; // Photo ID from gallery
+  photoUrl: string; // Direct URL to photo
+  jobType: string; // Category (Matrimonio, Battesimo, etc) - same as jobTypes
+  featured: boolean; // If true, shows in homepage carousel
+  sortOrder: number; // Manual ordering within category
+  caption?: string; // Optional caption for photo
+  clientName?: string; // Optional: "Matrimonio di Maria e Luca"
+  eventDate?: any; // Firebase Timestamp - Date of the event
+  createdAt: any; // Firebase Timestamp
+  createdBy: string; // Admin email
+}
+
+// Validation schema for Portfolio Selection
+export const insertPortfolioSelectionSchema = z.object({
+  galleryId: z.string().min(1, "Gallery ID è obbligatorio"),
+  photoId: z.string().min(1, "Photo ID è obbligatorio"),
+  photoUrl: z.string().url("URL foto non valido"),
+  jobType: z.string().min(1, "Categoria è obbligatoria"),
+  featured: z.boolean().default(false),
+  sortOrder: z.number().int().default(0),
+  caption: z.string().optional(),
+  clientName: z.string().optional(),
+  eventDate: z.any().optional()
+});
+
+export type InsertPortfolioSelection = z.infer<typeof insertPortfolioSelectionSchema>;
+
+// ====== BLOG SYSTEM ======
+
+// Blog Post Status
+export enum BlogPostStatus {
+  DRAFT = 'draft',
+  PUBLISHED = 'published',
+  ARCHIVED = 'archived'
+}
+
+// Blog Post interface
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string; // URL-friendly version (es. "sposarsi-costiera-amalfitana")
+  excerpt: string; // Short description for preview/SEO
+  content: string; // Full HTML content
+  coverImage?: string; // Featured image URL
+  status: BlogPostStatus;
+  category?: string; // Optional category (Matrimoni, Consigli, Tutorial...)
+  tags?: string[]; // SEO tags
+  author: string; // Admin name (default: "Gennaro Mazzacane")
+  publishedAt?: any; // Firebase Timestamp
+  createdAt: any; // Firebase Timestamp
+  updatedAt?: any; // Firebase Timestamp
+  // SEO fields
+  metaTitle?: string; // Custom SEO title (default: title)
+  metaDescription?: string; // Custom SEO description (default: excerpt)
+  // WordPress import metadata
+  wpPostId?: number; // Original WordPress post ID (for import tracking)
+  wpImportedAt?: any; // Firebase Timestamp when imported
+}
+
+// Validation schema for Blog Post
+export const insertBlogPostSchema = z.object({
+  title: z.string().min(1, "Il titolo è obbligatorio"),
+  slug: z.string().min(1, "Lo slug è obbligatorio").regex(/^[a-z0-9-]+$/, "Lo slug può contenere solo lettere minuscole, numeri e trattini"),
+  excerpt: z.string().min(1, "Il riassunto è obbligatorio"),
+  content: z.string().min(1, "Il contenuto è obbligatorio"),
+  coverImage: z.string().url("URL immagine non valido").optional(),
+  status: z.nativeEnum(BlogPostStatus).default(BlogPostStatus.DRAFT),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  author: z.string().default("Gennaro Mazzacane"),
+  metaTitle: z.string().optional(),
+  metaDescription: z.string().optional()
+});
+
+export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
+
+// ====== SITE CONTENT SYSTEM ======
+
+// Site Content Type - different sections of the website
+export enum SiteContentType {
+  HOMEPAGE_HERO = 'homepage_hero',
+  HOMEPAGE_ABOUT = 'homepage_about',
+  SERVICES = 'services',
+  BIOGRAPHY = 'biography',
+  TESTIMONIALS = 'testimonials',
+  CONTACT_INFO = 'contact_info',
+  SEO_SETTINGS = 'seo_settings'
+}
+
+// Site Content interface - CMS for public website content
+export interface SiteContent {
+  id: string;
+  type: SiteContentType;
+  title?: string;
+  subtitle?: string;
+  content?: string; // HTML or markdown content
+  imageUrl?: string;
+  ctaText?: string; // Call to action button text
+  ctaLink?: string; // Call to action button link
+  metadata?: Record<string, any>; // Flexible JSON for type-specific data
+  active: boolean;
+  sortOrder: number; // For ordering multiple items of same type
+  updatedAt: any; // Firebase Timestamp
+  updatedBy: string; // Admin email
+}
+
+// Validation schema for Site Content
+export const insertSiteContentSchema = z.object({
+  type: z.nativeEnum(SiteContentType),
+  title: z.string().optional(),
+  subtitle: z.string().optional(),
+  content: z.string().optional(),
+  imageUrl: z.string().url("URL immagine non valido").optional(),
+  ctaText: z.string().optional(),
+  ctaLink: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+  active: z.boolean().default(true),
+  sortOrder: z.number().int().default(0)
+});
+
+export type InsertSiteContent = z.infer<typeof insertSiteContentSchema>;
