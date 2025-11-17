@@ -7,7 +7,7 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "npm install && npm run build"]
+build = ["sh", "-c", "npm install && npm run build && npm start"]
 run = ["sh", "-c", "npm start"]
 
 [workflows]
@@ -29,7 +29,7 @@ waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Prod Build & Start"
-mode = "sequential"
+mode = "parallel"
 author = "agent"
 
 [[workflows.workflow.tasks]]
