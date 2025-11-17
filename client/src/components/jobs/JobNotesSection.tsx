@@ -418,14 +418,16 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
                     <div className="flex flex-col lg:flex-row gap-4">
                       {item.imageUrl && (
                         <div className="w-full lg:w-1/3">
-                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 group relative cursor-pointer">
+                          <div 
+                            className="aspect-video w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 group relative cursor-pointer"
+                            onClick={() => setLightboxImage(item.imageUrl)}
+                          >
                             <img
                               src={item.imageUrl}
                               alt={`Nota foto ${index + 1}`}
                               className="w-full h-full object-cover"
-                              onClick={() => setLightboxImage(item.imageUrl)}
                             />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none flex items-center justify-center">
                               <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                           </div>
@@ -471,14 +473,19 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
 
       {/* Lightbox per visualizzazione foto */}
       <Dialog open={!!lightboxImage} onOpenChange={() => setLightboxImage(null)}>
-        <DialogContent className="max-w-7xl w-[95vw] p-0 bg-black/95 border-none">
+        <DialogContent className="max-w-7xl w-[95vw] p-0 bg-black/95 border-none" aria-describedby="lightbox-description">
           <div className="relative w-full h-[90vh] flex items-center justify-center p-4">
             {lightboxImage && (
-              <img
-                src={lightboxImage}
-                alt="Foto ingrandita"
-                className="max-w-full max-h-full object-contain rounded-lg"
-              />
+              <>
+                <span id="lightbox-description" className="sr-only">
+                  Visualizzazione foto ingrandita
+                </span>
+                <img
+                  src={lightboxImage}
+                  alt="Foto ingrandita"
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                />
+              </>
             )}
             <Button
               variant="ghost"
