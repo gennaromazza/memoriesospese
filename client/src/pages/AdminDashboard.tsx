@@ -322,7 +322,7 @@ export default function AdminDashboard() {
 
   // 🔧 Deeplink handler - reagisce a navigate() da wouter usando location tuple
   useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
+    const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     const section = params.get('section');
     const booking = params.get('booking');
