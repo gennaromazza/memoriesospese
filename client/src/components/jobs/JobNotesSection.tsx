@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { Job } from '@shared/jobs-types';
-import { Pencil, Save, X, Camera, Trash2, Image as ImageIcon, FileText, Loader2 } from 'lucide-react';
+import { Pencil, Save, X, Camera, Trash2, Image as ImageIcon, FileText, Loader2, ZoomIn } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { nanoid } from 'nanoid';
 import { compressImage } from '@/lib/imageCompression';
@@ -36,6 +37,7 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
     (job as any)?.notePerFoto || []
   );
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -44,22 +46,46 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
     mutationFn: async (updates: { note?: string; notePerFoto?: NoteFotoItem[] }) => {
       const jobRef = doc(db, 'jobs', job.id);
       await updateDoc(jobRef, updates);
+      return updates;
+    },
+    onMutate: async (updates) => {
+      // Annulla eventuali refetch in corso
+      await queryClient.cancelQueries({ queryKey: [`/api/jobs/${job.id}`] });
+
+      // Snapshot dello stato precedente
+      const previousJob = queryClient.getQueryData([`/api/jobs/${job.id}`]);
+
+      // Aggiorna ottimisticamente la cache
+      queryClient.setQueryData([`/api/jobs/${job.id}`], (old: any) => {
+        if (!old) return old;
+        return { ...old, ...updates };
+      });
+
+      // Ritorna il contesto per il rollback in caso di errore
+      return { previousJob };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/jobs/${job.id}`] });
       setIsEditing(false);
       toast({
         title: 'Note aggiornate',
         description: 'Le modifiche sono state salvate con successo',
       });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      // Rollback in caso di errore
+      if (context?.previousJob) {
+        queryClient.setQueryData([`/api/jobs/${job.id}`], context.previousJob);
+      }
       console.error('Errore durante il salvataggio:', error);
       toast({
         title: 'Errore',
         description: 'Impossibile salvare le modifiche',
         variant: 'destructive',
       });
+    },
+    onSettled: () => {
+      // Refetch per assicurarsi che i dati siano sincronizzati con il server
+      queryClient.invalidateQueries({ queryKey: [`/api/jobs/${job.id}`] });
     },
   });
 
@@ -266,16 +292,20 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
                     {/* Foto Section */}
                     <div className="w-full lg:w-1/3">
                       {item.imageUrl ? (
-                        <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-gray-200">
+                        <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-gray-200 group">
                           <img
                             src={item.imageUrl}
                             alt={`Nota foto ${index + 1}`}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover cursor-pointer"
+                            onClick={() => setLightboxImage(item.imageUrl)}
                           />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none flex items-center justify-center">
+                            <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
                           <Button
                             variant="destructive"
                             size="icon"
-                            className="absolute top-2 right-2"
+                            className="absolute top-2 right-2 z-10"
                             onClick={() => {
                               const updated = [...notePerFoto];
                               updated[index].imageUrl = '';
@@ -388,13 +418,16 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
                     <div className="flex flex-col lg:flex-row gap-4">
                       {item.imageUrl && (
                         <div className="w-full lg:w-1/3">
-                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800">
+                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 group relative cursor-pointer">
                             <img
                               src={item.imageUrl}
                               alt={`Nota foto ${index + 1}`}
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => window.open(item.imageUrl, '_blank')}
+                              className="w-full h-full object-cover"
+                              onClick={() => setLightboxImage(item.imageUrl)}
                             />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
                           </div>
                         </div>
                       )}
@@ -435,6 +468,29 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
           </div>
         )}
       </CardContent>
+
+      {/* Lightbox per visualizzazione foto */}
+      <Dialog open={!!lightboxImage} onOpenChange={() => setLightboxImage(null)}>
+        <DialogContent className="max-w-7xl w-[95vw] p-0 bg-black/95 border-none">
+          <div className="relative w-full h-[90vh] flex items-center justify-center p-4">
+            {lightboxImage && (
+              <img
+                src={lightboxImage}
+                alt="Foto ingrandita"
+                className="max-w-full max-h-full object-contain rounded-lg"
+              />
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 text-white hover:bg-white/20"
+              onClick={() => setLightboxImage(null)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
