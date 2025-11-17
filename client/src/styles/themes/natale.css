@@ -1,20 +1,29 @@
-/* 🎄 Tema Natale Country - Eleganza Rustica con Palette October Mist ✨ */
-
-/* === SFONDO NEUTRO LEGGIBILE (Fix UX) === */
+/* === TEMA NATALE PALE, CLEAN & MODERNO === */
 .theme-natale {
-  background: #f5f0e8; /* Beige/crema caldo uniforme */
+  --sage: 127 42% 61%;
+  --white: 0 0% 100%;
+  --rose: 0 23% 60%;
+  --taupe: 0 22% 36%;
+  --peach: 30 93% 77%;
+  --orange: 18 78% 53%;
+
+  /* Sfondo chiaro pulito */
+  background: #faf7f5;
   background-attachment: fixed;
-  position: relative;
-  overflow-x: hidden;
   min-height: 100vh;
+  color: hsl(var(--taupe));
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding-bottom: 40px;
+  position: relative;
 }
 
-/* Dark mode - tonalità terrosa scura */
+/* Dark Mode soft */
 .theme-natale.dark {
-  background: #2a2520; /* Marrone scuro uniforme */
+  background: #2d2927;
+  color: #f2e9e4;
 }
 
-/* === TEXTURE LEGNO RUSTICO === */
+/* Texture sottile e pulita */
 .theme-natale::before {
   content: '';
   position: fixed;
@@ -22,359 +31,226 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: 
-    repeating-linear-gradient(90deg, 
-      transparent, 
-      transparent 2px, 
-      rgba(120, 111, 106, 0.03) 2px, 
-      rgba(120, 111, 106, 0.03) 4px
-    ),
-    radial-gradient(ellipse at 25% 30%, rgba(140, 123, 104, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 70%, rgba(200, 171, 147, 0.04) 0%, transparent 50%);
+  background: radial-gradient(circle at 25% 30%, rgba(127, 176, 178, 0.03) 0%, transparent 50%),
+              radial-gradient(circle at 75% 70%, rgba(180, 125, 125, 0.03) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* === NEVE RIMOSSA (Fix UX: troppo invasiva) === */
-/* Layer neve e accumulo rimossi per leggibilità */
-
-/* === DECORAZIONI COUNTRY CON PALETTE OCTOBER MIST === */
-.theme-natale .country-ornaments {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image:
-    radial-gradient(circle at 15% 20%, rgba(140, 123, 104, 0.15) 3px, transparent 3px),
-    radial-gradient(circle at 85% 30%, rgba(200, 171, 147, 0.12) 4px, transparent 4px),
-    radial-gradient(circle at 30% 70%, rgba(120, 111, 106, 0.1) 3px, transparent 3px),
-    radial-gradient(circle at 70% 80%, rgba(140, 123, 104, 0.13) 3px, transparent 3px);
-  animation: ornament-glow 8s ease-in-out infinite;
-  pointer-events: none;
+/* === TITOLI ELEGANTI === */
+.theme-natale .gallery-title {
+  position: relative;
+  color: hsl(var(--taupe));
+  font-family: 'Playfair Display', 'Georgia', serif;
+  font-weight: 700;
+  letter-spacing: -0.5px;
   z-index: 1;
 }
 
-@keyframes ornament-glow {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.8; }
-}
-
-/* === GHIRLANDA PINO NATURALE === */
-.theme-natale .pine-garland {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background: 
-    linear-gradient(to bottom, rgba(120, 111, 106, 0.3), transparent),
-    repeating-linear-gradient(90deg,
-      transparent,
-      transparent 80px,
-      rgba(140, 123, 104, 0.4) 80px,
-      rgba(140, 123, 104, 0.4) 100px
-    );
-  pointer-events: none;
-  z-index: 5;
-  border-bottom: 2px solid rgba(120, 111, 106, 0.2);
-}
-
-/* === CANDELE TREMOLANTI === */
-.theme-natale .candle-lights {
-  position: fixed;
-  top: 30px;
-  left: 0;
-  right: 0;
-  height: 20px;
-  background-image:
-    radial-gradient(ellipse at 10% 50%, rgba(200, 171, 147, 0.6) 4px, transparent 8px),
-    radial-gradient(ellipse at 30% 50%, rgba(200, 171, 147, 0.5) 4px, transparent 8px),
-    radial-gradient(ellipse at 50% 50%, rgba(200, 171, 147, 0.6) 4px, transparent 8px),
-    radial-gradient(ellipse at 70% 50%, rgba(200, 171, 147, 0.5) 4px, transparent 8px),
-    radial-gradient(ellipse at 90% 50%, rgba(200, 171, 147, 0.6) 4px, transparent 8px);
-  animation: candle-flicker 3s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 6;
-}
-
-@keyframes candle-flicker {
-  0%, 100% { opacity: 0.7; filter: brightness(1); }
-  50% { opacity: 0.9; filter: brightness(1.3); }
-}
-
-/* === TITOLI COUNTRY CHRISTMAS === */
-.theme-natale .gallery-title {
-  position: relative;
-  color: hsl(var(--dark-sage));
-  font-family: 'Georgia', 'Playfair Display', serif;
-  font-weight: 700;
-  text-shadow: 2px 2px 4px rgba(120, 111, 106, 0.3);
-  filter: drop-shadow(0 2px 6px rgba(140, 123, 104, 0.2));
-}
-
 .theme-natale.dark .gallery-title {
-  color: hsl(var(--cream));
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  color: hsl(var(--peach));
 }
 
-.theme-natale .gallery-title::before {
-  content: '🌲';
-  margin-right: 12px;
-  animation: tree-sway 4s ease-in-out infinite;
-  display: inline-block;
-  opacity: 0.8;
-}
-
-.theme-natale .gallery-title::after {
-  content: '🎄';
-  margin-left: 12px;
-  animation: tree-sway-reverse 4s ease-in-out infinite;
-  display: inline-block;
-  opacity: 0.8;
-}
-
-@keyframes tree-sway {
-  0%, 100% { transform: rotate(-3deg); }
-  50% { transform: rotate(3deg); }
-}
-
-@keyframes tree-sway-reverse {
-  0%, 100% { transform: rotate(3deg); }
-  50% { transform: rotate(-3deg); }
-}
-
-/* === HEADING ELEGANTI CON PALETTE === */
 .theme-natale h1,
 .theme-natale h2,
 .theme-natale h3 {
-  color: hsl(var(--blue-gray));
-  font-family: 'Georgia', 'Playfair Display', serif;
+  color: hsl(var(--taupe));
+  font-family: 'Playfair Display', 'Georgia', serif;
   font-weight: 700;
-  text-shadow: 1px 1px 3px rgba(120, 111, 106, 0.2);
+  letter-spacing: -0.5px;
 }
 
 .theme-natale.dark h1,
 .theme-natale.dark h2,
 .theme-natale.dark h3 {
-  color: hsl(var(--cream));
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+  color: hsl(var(--peach));
 }
 
-/* === CARD COUNTRY CON BORDO RUSTICO === */
+/* === CARD PULITA E MODERNA === */
 .theme-natale .photo-card,
 .theme-natale .card,
 .theme-natale [class*="card"] {
   position: relative;
-  background: rgba(245, 240, 232, 0.95);
-  border: 2px solid rgba(140, 123, 104, 0.3);
-  box-shadow: 
-    0 4px 12px rgba(120, 111, 106, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  transition: all 0.3s ease;
-}
-
-.theme-natale.dark .photo-card,
-.theme-natale.dark .card,
-.theme-natale.dark [class*="card"] {
-  background: rgba(42, 37, 32, 0.9);
-  border-color: rgba(140, 123, 104, 0.4);
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(200, 171, 147, 0.1);
-}
-
-.theme-natale .photo-card::before,
-.theme-natale .card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border: 2px solid transparent;
-  border-radius: inherit;
-  background: linear-gradient(135deg, 
-    rgba(140, 123, 104, 0.4), 
-    rgba(200, 171, 147, 0.4)
-  ) border-box;
-  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-
-.theme-natale .photo-card:hover::before,
-.theme-natale .card:hover::before {
-  opacity: 1;
+  background: hsl(var(--white));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1;
 }
 
 .theme-natale .photo-card:hover,
-.theme-natale .card:hover {
-  transform: translateY(-4px);
-  box-shadow: 
-    0 8px 24px rgba(120, 111, 106, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+.theme-natale .card:hover,
+.theme-natale [class*="card"]:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  border-color: rgba(127, 176, 178, 0.3);
 }
 
-/* === BOTTONI COUNTRY STYLE === */
+/* DARK MODE CARD */
+.theme-natale.dark .photo-card,
+.theme-natale.dark .card,
+.theme-natale.dark [class*="card"] {
+  background: #3a3532;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.theme-natale.dark .photo-card:hover,
+.theme-natale.dark .card:hover,
+.theme-natale.dark [class*="card"]:hover {
+  border-color: rgba(127, 176, 178, 0.4);
+}
+
+/* === BOTTONI MINIMAL CON PALETTE === */
 .theme-natale button,
 .theme-natale .button,
 .theme-natale [class*="button"] {
-  background: linear-gradient(135deg, 
-    hsl(var(--sage)) 0%, 
-    hsl(var(--dark-sage)) 100%
-  );
-  color: white;
-  border: 2px solid rgba(140, 123, 104, 0.4);
-  box-shadow: 
-    0 2px 8px rgba(120, 111, 106, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
+  background: hsl(var(--sage));
+  color: hsl(var(--white));
+  border-radius: 10px;
+  padding: 10px 18px;
   font-weight: 600;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  border: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .theme-natale button:hover,
-.theme-natale .button:hover {
-  background: linear-gradient(135deg, 
-    hsl(var(--blue-gray)) 0%, 
-    hsl(var(--sage)) 100%
-  );
-  transform: translateY(-2px);
-  box-shadow: 
-    0 4px 12px rgba(120, 111, 106, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  border-color: rgba(200, 171, 147, 0.6);
+.theme-natale .button:hover,
+.theme-natale [class*="button"]:hover {
+  background: hsl(var(--rose));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
 }
 
-/* === BADGE RUSTICO === */
+/* SECONDARY BUTTON */
+.theme-natale .button-secondary {
+  background: hsl(var(--peach));
+  color: hsl(var(--taupe));
+}
+
+.theme-natale .button-secondary:hover {
+  background: hsl(var(--orange));
+  color: hsl(var(--white));
+}
+
+/* === BADGE MINIMAL === */
 .theme-natale .badge {
-  background: linear-gradient(135deg, 
-    hsl(var(--terracotta)) 0%, 
-    hsl(var(--sage)) 100%
-  );
-  color: white;
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-weight: 700;
+  background: hsl(var(--sage));
+  color: hsl(var(--white));
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-weight: 600;
   font-size: 0.875rem;
-  box-shadow: 0 2px 8px rgba(120, 111, 106, 0.3);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-/* === DIVIDER RUSTICO === */
-.theme-natale .divider,
-.theme-natale hr {
-  background: linear-gradient(to right, 
-    transparent, 
-    rgba(140, 123, 104, 0.4) 20%, 
-    rgba(120, 111, 106, 0.5) 50%, 
-    rgba(140, 123, 104, 0.4) 80%, 
-    transparent
-  );
-  height: 3px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   border: none;
-  margin: 24px 0;
-  position: relative;
 }
 
-.theme-natale .divider::before,
-.theme-natale hr::before {
-  content: '🌿';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 18px;
-  background: hsl(var(--off-white));
-  padding: 4px 12px;
-  border-radius: 12px;
-  opacity: 0.9;
-}
-
-.theme-natale.dark .divider::before,
-.theme-natale.dark hr::before {
-  background: hsl(var(--dark-sage) / 0.3);
-}
-
-/* === TESTO MUTED CON TONALITÀ NATURALI === */
+/* === TESTO MUTED === */
 .theme-natale .text-muted {
-  color: hsl(var(--dark-sage)) !important;
-  font-weight: 500;
+  color: #8d837f !important;
+  font-weight: 400;
 }
 
 .theme-natale.dark .text-muted {
-  color: hsl(var(--beige)) !important;
+  color: #c8bdb8 !important;
 }
 
-/* === DECORAZIONI PIGNE E BACCHE === */
-.theme-natale .pine-cones {
-  position: fixed;
-  top: 15%;
-  left: 5%;
-  font-size: 40px;
-  opacity: 0.15;
-  pointer-events: none;
-  animation: gentle-swing 6s ease-in-out infinite;
-  z-index: 1;
+/* === DIVIDER MINIMAL === */
+.theme-natale .divider,
+.theme-natale hr {
+  border: none;
+  height: 2px;
+  background: linear-gradient(to right, 
+    transparent, 
+    rgba(0, 0, 0, 0.08) 20%, 
+    rgba(0, 0, 0, 0.08) 80%, 
+    transparent
+  );
+  margin: 24px 0;
 }
 
-.theme-natale .pine-cones::before {
-  content: '🌰';
+.theme-natale.dark .divider,
+.theme-natale.dark hr {
+  background: linear-gradient(to right, 
+    transparent, 
+    rgba(255, 255, 255, 0.15) 20%, 
+    rgba(255, 255, 255, 0.15) 80%, 
+    transparent
+  );
 }
 
-.theme-natale .berries {
-  position: fixed;
-  top: 25%;
-  right: 8%;
-  font-size: 35px;
-  opacity: 0.15;
-  pointer-events: none;
-  animation: gentle-swing-reverse 7s ease-in-out infinite;
-  z-index: 1;
-}
-
-.theme-natale .berries::before {
-  content: '🍂';
-}
-
-@keyframes gentle-swing {
-  0%, 100% { transform: rotate(-5deg) translateY(0); }
-  50% { transform: rotate(5deg) translateY(-10px); }
-}
-
-@keyframes gentle-swing-reverse {
-  0%, 100% { transform: rotate(5deg) translateY(0); }
-  50% { transform: rotate(-5deg) translateY(-10px); }
-}
-
-/* === SCROLLBAR RUSTICA === */
+/* === SCROLLBAR MINIMAL === */
 .theme-natale::-webkit-scrollbar {
-  width: 14px;
+  width: 8px;
 }
 
 .theme-natale::-webkit-scrollbar-track {
-  background: rgba(245, 240, 232, 0.3);
+  background: rgba(0, 0, 0, 0.03);
   border-radius: 10px;
 }
 
 .theme-natale::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, 
-    hsl(var(--sage)), 
-    hsl(var(--dark-sage))
-  );
+  background: hsl(var(--sage));
   border-radius: 10px;
-  border: 3px solid rgba(245, 240, 232, 0.3);
+  transition: background 0.2s ease;
 }
 
 .theme-natale::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, 
-    hsl(var(--blue-gray)), 
-    hsl(var(--sage))
-  );
+  background: hsl(var(--rose));
 }
 
+.theme-natale.dark::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* === ACCENTI NATALIZI SOTTILI === */
+.theme-natale .gallery-title::before {
+  content: '✨';
+  margin-right: 12px;
+  opacity: 0.6;
+  font-size: 0.9em;
+}
+
+.theme-natale .gallery-title::after {
+  content: '✨';
+  margin-left: 12px;
+  opacity: 0.6;
+  font-size: 0.9em;
+}
+
+/* === INPUT E FORM === */
+.theme-natale input,
+.theme-natale textarea,
+.theme-natale select {
+  background: hsl(var(--white));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  padding: 10px 14px;
+  transition: all 0.2s ease;
+}
+
+.theme-natale input:focus,
+.theme-natale textarea:focus,
+.theme-natale select:focus {
+  border-color: hsl(var(--sage));
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(127, 176, 178, 0.1);
+}
+
+.theme-natale.dark input,
+.theme-natale.dark textarea,
+.theme-natale.dark select {
+  background: #3a3532;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f2e9e4;
+}
+
+.theme-natale.dark input:focus,
+.theme-natale.dark textarea:focus,
+.theme-natale.dark select:focus {
+  border-color: hsl(var(--sage));
+  box-shadow: 0 0 0 3px rgba(127, 176, 178, 0.15);
+}
