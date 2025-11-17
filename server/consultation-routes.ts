@@ -341,7 +341,7 @@ router.get('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
 router.post('/available-slots', async (req, res) => {
   try {
     console.log('[POST /available-slots] Request body:', req.body);
-    const { date, templateId } = req.body;
+    const { date, templateId, clientEmail } = req.body;
 
     if (!date || !templateId) {
       console.log('[POST /available-slots] Parametri mancanti:', { date, templateId });
@@ -371,6 +371,38 @@ router.post('/available-slots', async (req, res) => {
       undefined, // workingHours - usa template customWorkingHours se presente
       template   // passa template per excludedDays e customWorkingHours
     );
+
+    // 🎯 FEATURE: Aggiungi info consulenze in attesa per questo cliente
+    if (clientEmail) {
+      const dateObj = new Date(date);
+      const startOfDay = new Date(dateObj);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(dateObj);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const pendingConsultations = await db.collection('consultations')
+        .where('cliente.email', '==', clientEmail)
+        .where('stato', '==', 'in_attesa')
+        .where('dataConsulenza', '>=', Timestamp.fromDate(startOfDay))
+        .where('dataConsulenza', '<=', Timestamp.fromDate(endOfDay))
+        .get();
+
+      const pendingSlotsMap = new Map<string, boolean>();
+      pendingConsultations.docs.forEach(doc => {
+        const data = doc.data();
+        const key = `${data.orarioInizio}-${data.orarioFine}`;
+        pendingSlotsMap.set(key, true);
+      });
+
+      slots.forEach((slot: any) => {
+        const slotStart = new Date(slot.start);
+        const slotEnd = new Date(slot.end);
+        const startTime = format(slotStart, 'HH:mm');
+        const endTime = format(slotEnd, 'HH:mm');
+        const key = `${startTime}-${endTime}`;
+        slot.hasPendingConsultation = pendingSlotsMap.has(key) || false;
+      });
+    }
 
     console.log('[POST /available-slots] Slot calcolati:', slots.length);
     res.json({ slots });
@@ -708,6 +740,18 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
         error: 'Consultation già processata',
         stato: consultation.stato
       });
+    }
+
+    // Elimina evento Google Calendar se presente (BUGFIX: libera lo slot!)
+    if (consultation.googleCalendarEventId) {
+      try {
+        const { deleteEvent } = await import('./calendar-routes.js');
+        await deleteEvent('primary', consultation.googleCalendarEventId);
+        console.log(`📅 Evento Google Calendar ${consultation.googleCalendarEventId} eliminato (consulenza rifiutata)`);
+      } catch (calError: any) {
+        console.warn('[REJECT] Errore eliminazione evento Calendar:', calError.message);
+        // Continua comunque con rifiuto consultation
+      }
     }
 
     // Aggiorna stato
