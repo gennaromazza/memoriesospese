@@ -1,0 +1,118 @@
+/* === TEMA NATALE PALE, CLEAN & MODERNO === */
+.theme-natale {
+  --sage: #7fb0b2;
+  --white: #ffffff;
+  --rose: #b47d7d;
+  --taupe: #6f4747;
+  --peach: #fac28f;
+  --orange: #ed6b21;
+
+  /* Sfondo chiaro pulito */
+  background: #faf7f5;
+  min-height: 100vh;
+  color: var(--taupe);
+  font-family: "Inter", sans-serif;
+  padding-bottom: 40px;
+}
+
+/* Dark Mode soft */
+.theme-natale.dark {
+  background: #2d2927;
+  color: #f2e9e4;
+}
+
+/* TITOLI */
+.theme-natale h1,
+.theme-natale h2,
+.theme-natale h3 {
+  color: var(--taupe);
+  font-family: "Playfair Display", serif;
+  letter-spacing: -0.5px;
+}
+
+.theme-natale.dark h1,
+.theme-natale.dark h2,
+.theme-natale.dark h3 {
+  color: var(--peach);
+}
+
+/* CARD PULITA */
+.theme-natale .card,
+.theme-natale .photo-card {
+  background: var(--white);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: all 0.25s ease;
+}
+
+.theme-natale .card:hover,
+.theme-natale .photo-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+/* DARK MODE CARD */
+.theme-natale.dark .card {
+  background: #3a3532;
+  border-color: rgba(255,255,255,0.1);
+}
+
+/* BOTTONI MINIMAL CON PALETTE */
+.theme-natale button,
+.theme-natale .button {
+  background: var(--sage);
+  color: var(--white);
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-weight: 600;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.theme-natale button:hover {
+  background: var(--rose);
+}
+
+/* SECONDARY BUTTON */
+.theme-natale .button-secondary {
+  background: var(--peach);
+  color: var(--taupe);
+}
+
+.theme-natale .button-secondary:hover {
+  background: var(--orange);
+  color: var(--white);
+}
+
+/* TESTO MUTED */
+.theme-natale .text-muted {
+  color: #8d837f;
+}
+
+.theme-natale.dark .text-muted {
+  color: #c8bdb8;
+}
+
+/* DIVIDER MINIMAL */
+.theme-natale hr {
+  border: none;
+  height: 2px;
+  background: rgba(0,0,0,0.08);
+  margin: 24px 0;
+}
+
+.theme-natale.dark hr {
+  background: rgba(255,255,255,0.15);
+}
+
+/* SCROLLBAR minimal */
+.theme-natale::-webkit-scrollbar {
+  width: 8px;
+}
+
+.theme-natale::-webkit-scrollbar-thumb {
+  background: var(--sage);
+  border-radius: 10px;
+}

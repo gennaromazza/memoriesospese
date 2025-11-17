@@ -41,7 +41,6 @@ import { PhotoData } from "@/hooks/use-gallery-data";
 import { useQuery } from "@tanstack/react-query";
 import GalleryService from "@/lib/galleries";
 import { queryClient } from "@/lib/queryClient";
-import GalleryLoadingProgress from "@/components/gallery/GalleryLoadingProgress";
 import GalleryFilter, {
   FilterCriteria,
 } from "@/components/gallery/GalleryFilter";
@@ -89,13 +88,6 @@ export default function Gallery() {
   const isAdmin = useIsAdmin();
   const userInfo = useUserInfo();
   const { toast } = useToast();
-
-  // Stato locale per il tracciamento del caricamento
-  const [loadingState, setLoadingState] = useState({
-    totalPhotos: 0,
-    loadedPhotos: 0,
-    progress: 0,
-  });
 
   // Stati per il preload completo delle immagini
   const [isPreloadingPhotos, setIsPreloadingPhotos] = useState(true);
@@ -1014,24 +1006,6 @@ export default function Gallery() {
     return null;
   }, [galleryData]);
 
-  // Aggiorna lo stato di caricamento
-  useEffect(() => {
-    // Aggiorna il conteggio delle foto caricate includendo quelle degli ospiti
-    const totalLoadedPhotos = photos.length + guestPhotos.length;
-    setLoadingState((prev) => ({
-      ...prev,
-      loadedPhotos: totalLoadedPhotos,
-      // Se c'è una galleria, usa il suo photoCount, altrimenti usa la lunghezza totale delle foto
-      totalPhotos: galleryData?.photoCount || totalLoadedPhotos,
-      progress: galleryData?.photoCount
-        ? Math.min(
-            100,
-            Math.round((totalLoadedPhotos / galleryData.photoCount) * 100),
-          )
-        : 100,
-    }));
-  }, [photos.length, guestPhotos.length, galleryData]);
-
   // 🔧 Storia caricata tramite React Query (vedi useQuery sopra) - vecchio useEffect rimosso
 
   // Verifica autenticazione
@@ -1311,22 +1285,6 @@ export default function Gallery() {
             Torna alla Home
           </button>
         </div>
-      </div>
-    );
-  }
-
-  // Mostra sempre l'indicatore di caricamento durante il caricamento iniziale
-  const showProgressIndicator = isLoadingPhotos || loadingState.progress < 100;
-
-  // Se siamo in stato di caricamento o se il progresso è inferiore a 100, mostra il componente di caricamento
-  if (isLoadingPhotos || loadingState.progress < 100) {
-    return (
-      <div className="min-h-screen bg-off-white">
-        <GalleryLoadingProgress
-          totalPhotos={loadingState.totalPhotos || 100}
-          loadedPhotos={loadingState.loadedPhotos || 0}
-          progress={loadingState.progress || 0}
-        />
       </div>
     );
   }
