@@ -1,7 +1,8 @@
+
 modules = ["nodejs-20", "web", "postgresql-16"]
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
-# Comando usato dal pulsante "Run" in Replit
+# Comando principale per lo sviluppo
 run = "npm run dev"
 
 [nix]
@@ -16,30 +17,26 @@ run = ["sh", "-c", "node dist/index.js"]
 runButton = "Dev Workflow"
 
 ###############################################
-# 🛠️ DEV WORKFLOW — Avvio veloce senza reinstallare
+# 🛠️ DEV WORKFLOW - Sviluppo con hot reload
 ###############################################
-
 [[workflows.workflow]]
 name = "Dev Workflow"
 mode = "sequential"
 author = "agent"
 
-# STEP 1 – Install solo se node_modules non esiste
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "if [ ! -d node_modules ]; then npm install; fi"
+args = "npm install --legacy-peer-deps"
+waitForExit = true
 
-# STEP 2 – Avvio Vite
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5173
 
-
 ###############################################
-# 🚀 PROD WORKFLOW — Build e avvio server
+# 🚀 PROD BUILD - Build e avvio produzione
 ###############################################
-
 [[workflows.workflow]]
 name = "Prod Build & Start"
 mode = "sequential"
@@ -47,76 +44,67 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm ci"
+args = "npm install --legacy-peer-deps"
+waitForExit = true
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run build"
+waitForExit = true
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node dist/index.js"
 
-[[ports]]
-localPort = 3000
-externalPort = 3000
+###############################################
+# 🔨 QUICK BUILD - Solo build senza install
+###############################################
+[[workflows.workflow]]
+name = "Quick Build"
+mode = "sequential"
+author = "agent"
 
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dist/index.js"
+
+###############################################
+# 🧹 CLEAN INSTALL - Ricostruzione completa
+###############################################
+[[workflows.workflow]]
+name = "Clean Install"
+mode = "sequential"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "rm -rf node_modules package-lock.json"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --legacy-peer-deps"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5173
+
+# Port mappings
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 5001
-externalPort = 3001
-
-[[ports]]
-localPort = 5002
-externalPort = 3002
-
-[[ports]]
-localPort = 5003
-externalPort = 4200
-
-[[ports]]
-localPort = 8143
-externalPort = 9000
-
-[[ports]]
-localPort = 9005
-externalPort = 3003
-
-[[ports]]
-localPort = 9006
-externalPort = 8081
-
-[[ports]]
-localPort = 33875
-externalPort = 8008
-
-[[ports]]
-localPort = 36705
-externalPort = 6800
-
-[[ports]]
-localPort = 38141
-externalPort = 8099
-
-[[ports]]
-localPort = 40305
+localPort = 5173
 externalPort = 5173
 
 [[ports]]
-localPort = 41217
-externalPort = 8000
-
-[[ports]]
-localPort = 43437
-externalPort = 8080
-
-[[ports]]
-localPort = 45059
-externalPort = 5000
-
-[[ports]]
-localPort = 46253
-externalPort = 6000
+localPort = 3000
+externalPort = 3000
