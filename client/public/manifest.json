@@ -1,24 +1,28 @@
-
 {
-  "name": "Memories Sospese - Wedding Gallery",
-  "short_name": "Memories Sospese",
-  "description": "Wedding photo gallery and management system",
-  "start_url": "/memoriesospese/",
+  "name": "Image Studio - Fotografia Professionale",
+  "short_name": "Image Studio",
+  "description": "Piattaforma completa per fotografi professionisti - gestione clienti, gallerie, prenotazioni e molto altro",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#F5F3EF",
+  "theme_color": "#86A889",
   "icons": [
     {
-      "src": "/memoriesospese/favicon.png",
+      "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/memoriesospese/favicon.png",
+      "src": "/android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }
