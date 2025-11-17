@@ -611,6 +611,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
             quoteTotale={totale}
             jobId={jobId}
             clienteId={clienteId}
+            eventDate={job?.eventDate ? job.eventDate.toDate() : null}
           />
         );
       })()}

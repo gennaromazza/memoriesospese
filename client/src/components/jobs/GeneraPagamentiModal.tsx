@@ -4,7 +4,7 @@
  * Dual-mode: Automatico (presets) + Manuale (custom rate)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -45,9 +45,11 @@ import {
 } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { Plus, Trash2, CalendarIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, CalendarIcon, Loader2, AlertCircle, CalendarDays } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const paymentSchema = z.object({
   importo: z.number().min(0.01, 'Importo obbligatorio'),
@@ -68,6 +70,7 @@ interface GeneraPagamentiModalProps {
   quoteTotale: number;
   jobId: string;
   clienteId: string;
+  eventDate?: Date | null;
 }
 
 export default function GeneraPagamentiModal({
@@ -77,10 +80,13 @@ export default function GeneraPagamentiModal({
   quoteTotale,
   jobId,
   clienteId,
+  eventDate,
 }: GeneraPagamentiModalProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'automatico' | 'manuale'>('automatico');
   const [selectedPreset, setSelectedPreset] = useState<'acconto-saldo' | '2-rate' | '3-rate'>('acconto-saldo');
+  const [dateModes, setDateModes] = useState<Array<'absolute' | 'relative'>>([]);
+  const [relativeDaysArray, setRelativeDaysArray] = useState<number[]>([]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
