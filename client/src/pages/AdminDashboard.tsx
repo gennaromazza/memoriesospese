@@ -223,6 +223,17 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
 
+  // React Query hook for galleries
+  const { 
+    data: galleries = [], 
+    isLoading, 
+    error: galleriesError 
+  } = useQuery({
+    queryKey: ['galleries', 'admin'],
+    queryFn: () => GalleryService.getAllGalleriesForAdmin(),
+    enabled: !!user && !authLoading
+  });
+
   // Leggi il tab e bookingId dall'URL
   const urlParams = new URLSearchParams(window.location.search);
   const urlTab = urlParams.get('tab') || 'overview';
@@ -645,7 +656,7 @@ export default function AdminDashboard() {
         variant: "destructive",
       });
     }
-  }, [galleriesError, toast]);
+  }, [galleriesError]);
 
   // Elimina una richiesta di password
   const deletePasswordRequest = async (requestId: string) => {
