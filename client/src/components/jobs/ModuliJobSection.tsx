@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Loader2, FileText, Plus, ExternalLink, CheckCircle2, XCircle, CreditCard, Copy, Check, MoreVertical, Trash2, AlertTriangle, Phone, Download } from 'lucide-react';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';

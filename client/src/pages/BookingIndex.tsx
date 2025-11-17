@@ -15,7 +15,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { Calendar, Clock, Package, ArrowRight, Sparkles, Camera, AlertCircle } from 'lucide-react';
 import { format, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import { createUrl } from '@/lib/basePath';
 import { FloralDivider } from '@/components/WeddingIllustrations';
 

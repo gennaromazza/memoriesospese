@@ -62,7 +62,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import { cn } from '@/lib/utils';
 
 const formSchema = z.object({

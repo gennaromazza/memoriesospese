@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table';
 import { getCollaboratorByToken } from '@/lib/collaboratori';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import type { JobAcceptanceStatus } from '@shared/collaboratori-types';
 
 const STATUS_LABELS = {

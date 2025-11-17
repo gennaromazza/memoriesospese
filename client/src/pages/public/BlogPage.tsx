@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { collection, getDocs, query, where, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import it from "date-fns/locale/it";
 
 interface BlogPost {
   id: string;

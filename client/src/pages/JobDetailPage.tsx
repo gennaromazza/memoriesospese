@@ -35,7 +35,7 @@ import {
 import { Job, CostoLavoro } from '@shared/jobs-types';
 import { Cliente } from '@shared/clienti-types';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import { getJob, deleteJob, updateJob } from '@/lib/jobs';
 import { nanoid } from 'nanoid';
 import { Timestamp } from 'firebase/firestore';

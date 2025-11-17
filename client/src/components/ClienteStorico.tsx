@@ -6,7 +6,7 @@ import type { Gallery } from '@/lib/galleries';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import { Calendar, ShoppingCart, Image as ImageIcon, ExternalLink, Lock, User } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';

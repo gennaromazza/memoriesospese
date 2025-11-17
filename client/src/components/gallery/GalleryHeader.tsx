@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale/it';
+import it from 'date-fns/locale/it';
 import { FloralCorner, BackgroundDecoration } from '@/components/WeddingIllustrations';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Expand } from 'lucide-react';

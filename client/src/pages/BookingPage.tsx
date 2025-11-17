@@ -49,7 +49,7 @@ import {
   X,
 } from "lucide-react";
 import { format, addDays, isBefore, isAfter, startOfDay } from "date-fns";
-import { it } from "date-fns/locale";
+import it from "date-fns/locale/it";
 import { isSundayOrHoliday } from "@/lib/italian-holidays";
 
 export default function BookingPage() {

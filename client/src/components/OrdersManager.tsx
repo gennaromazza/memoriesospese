@@ -59,7 +59,7 @@ import {
   Edit,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 
 type OrderWithBooking = Order & {
   booking?: Booking;

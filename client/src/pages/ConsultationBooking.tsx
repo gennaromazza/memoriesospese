@@ -18,7 +18,7 @@ import { useTemplate, useAvailableSlots, useCreateConsultation } from '@/lib/con
 import { useParams, Link, useLocation } from 'wouter';
 import { ArrowLeft, ArrowRight, Calendar as CalendarIcon, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import { useToast } from '@/hooks/use-toast';
 import type { ConsultationJobFieldValue } from '@shared/consultation-types';
 import {

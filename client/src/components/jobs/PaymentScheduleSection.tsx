@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Loader2, CreditCard, CheckCircle2, AlertCircle, Clock, XCircle, Plus, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import type { PaymentSchedule, PaymentStatus, PaymentType } from '@shared/payment-schedule-types';
 import RegistraPagamentoModal from './RegistraPagamentoModal';
 import GestioneRataModal from './GestioneRataModal';

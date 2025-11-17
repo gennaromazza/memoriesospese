@@ -7,7 +7,7 @@ import express, { Request, Response } from 'express';
 import { z } from 'zod';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import it from 'date-fns/locale/it';
 import { DateTime } from 'luxon';
 import * as consultationService from './services/consultations.js';
 import { authenticateFirebase } from './email-routes.js';
