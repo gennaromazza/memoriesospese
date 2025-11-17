@@ -10,9 +10,10 @@ import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { Job } from '@shared/jobs-types';
-import { Pencil, Save, X, Camera, Trash2, Image as ImageIcon, FileText } from 'lucide-react';
+import { Pencil, Save, X, Camera, Trash2, Image as ImageIcon, FileText, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { nanoid } from 'nanoid';
+import { compressImage } from '@/lib/imageCompression';
 
 interface NoteFotoItem {
   id: string;
@@ -28,7 +29,9 @@ interface JobNotesSectionProps {
 export default function JobNotesSection({ job }: JobNotesSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [noteText, setNoteText] = useState(job?.note || '');
-  const [modalitaFoto, setModalitaFoto] = useState(false);
+  const [modalitaFoto, setModalitaFoto] = useState(
+    (job as any)?.notePerFoto && (job as any)?.notePerFoto.length > 0
+  );
   const [notePerFoto, setNotePerFoto] = useState<NoteFotoItem[]>(
     (job as any)?.notePerFoto || []
   );
@@ -71,7 +74,24 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
   const handleCancel = () => {
     setNoteText(job?.note || '');
     setNotePerFoto((job as any)?.notePerFoto || []);
+    setModalitaFoto((job as any)?.notePerFoto && (job as any)?.notePerFoto.length > 0);
     setIsEditing(false);
+  };
+
+  const handleToggleModalita = (checked: boolean) => {
+    // Check if there's unsaved content in the current mode
+    if (!checked && notePerFoto.length > 0) {
+      const hasContent = notePerFoto.some(item => item.imageUrl || item.nota);
+      if (hasContent && !confirm('Passando alla modalità "Nota generale" perderai le note per foto non salvate. Continuare?')) {
+        return;
+      }
+    }
+    if (checked && noteText.trim()) {
+      if (!confirm('Passando alla modalità "Note per foto" perderai la nota generale non salvata. Continuare?')) {
+        return;
+      }
+    }
+    setModalitaFoto(checked);
   };
 
   const handleAddFotoNota = () => {
@@ -87,11 +107,27 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
   const handleFileChange = async (index: number, file: File) => {
     if (!file) return;
 
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Formato non valido',
+        description: 'Per favore seleziona un file immagine',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setUploadingIndex(index);
     try {
+      // Compress image before upload
+      const compressedFile = await compressImage(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+      });
+
       // Upload to Firebase Storage
       const storageRef = ref(storage, `jobs/${job.id}/note-foto/${nanoid()}-${file.name}`);
-      await uploadBytes(storageRef, file);
+      await uploadBytes(storageRef, compressedFile);
       const downloadURL = await getDownloadURL(storageRef);
 
       // Update local state
@@ -101,7 +137,7 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
 
       toast({
         title: 'Foto caricata',
-        description: 'La foto è stata caricata con successo',
+        description: 'La foto è stata compressa e caricata con successo',
       });
     } catch (error) {
       console.error('Errore durante il caricamento:', error);
@@ -117,6 +153,12 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
 
   const handleDeleteFotoNota = async (index: number) => {
     const item = notePerFoto[index];
+    
+    // Ask for confirmation
+    const hasContent = item.imageUrl || item.nota;
+    if (hasContent && !confirm('Sei sicuro di voler eliminare questa nota con foto?')) {
+      return;
+    }
 
     // Delete from Storage if exists
     if (item.imageUrl) {
@@ -131,6 +173,11 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
     // Remove from local state
     const updated = notePerFoto.filter((_, i) => i !== index);
     setNotePerFoto(updated);
+
+    toast({
+      title: 'Nota eliminata',
+      description: 'La nota con foto è stata eliminata',
+    });
   };
 
   const handleNotaChange = (index: number, nota: string) => {
@@ -153,7 +200,7 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
               <Switch
                 id="modalita-foto"
                 checked={modalitaFoto}
-                onCheckedChange={setModalitaFoto}
+                onCheckedChange={handleToggleModalita}
               />
               <Label htmlFor="modalita-foto" className="text-sm font-normal cursor-pointer">
                 {modalitaFoto ? (
@@ -241,12 +288,26 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
                       ) : (
                         <div 
                           className="aspect-video w-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                          onClick={() => fileInputRefs.current[index]?.click()}
+                          onClick={() => uploadingIndex !== index && fileInputRefs.current[index]?.click()}
                         >
-                          <Camera className="h-8 w-8 text-gray-400" />
-                          <span className="text-sm text-gray-500">
-                            {uploadingIndex === index ? 'Caricamento...' : 'Scatta o carica foto'}
-                          </span>
+                          {uploadingIndex === index ? (
+                            <>
+                              <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                              <span className="text-sm text-primary font-medium">
+                                Compressione e caricamento...
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Camera className="h-8 w-8 text-gray-400" />
+                              <span className="text-sm text-gray-500">
+                                Scatta o carica foto
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Le immagini verranno compresse automaticamente
+                              </span>
+                            </>
+                          )}
                           <input
                             ref={(el) => (fileInputRefs.current[index] = el)}
                             type="file"
@@ -315,40 +376,61 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
           <div>
             {(job as any).notePerFoto && (job as any).notePerFoto.length > 0 ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400">
-                  <ImageIcon className="h-4 w-4" />
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 pb-2 border-b">
+                  <Camera className="h-4 w-4" />
                   Note per foto ({(job as any).notePerFoto.length})
                 </div>
                 {(job as any).notePerFoto.map((item: NoteFotoItem, index: number) => (
                   <div 
                     key={item.id} 
-                    className="border rounded-lg p-3 sm:p-4 space-y-3"
+                    className="border rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-900/50"
                   >
                     <div className="flex flex-col lg:flex-row gap-4">
                       {item.imageUrl && (
                         <div className="w-full lg:w-1/3">
-                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-200">
+                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800">
                             <img
                               src={item.imageUrl}
                               alt={`Nota foto ${index + 1}`}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => window.open(item.imageUrl, '_blank')}
                             />
                           </div>
                         </div>
                       )}
-                      <div className="w-full lg:w-2/3">
-                        <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                          {item.nota || 'Nessuna descrizione'}
-                        </p>
+                      <div className={`w-full ${item.imageUrl ? 'lg:w-2/3' : ''}`}>
+                        {item.nota ? (
+                          <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                            {item.nota}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                            Nessuna descrizione
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                {job?.note || 'Nessuna nota'}
-              </p>
+              <div>
+                {job?.note ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 pb-2 border-b">
+                      <FileText className="h-4 w-4" />
+                      Nota generale
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                      {job.note}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                    Nessuna nota disponibile
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
