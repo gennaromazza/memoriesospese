@@ -27,10 +27,10 @@ interface JobNotesSectionProps {
 
 export default function JobNotesSection({ job }: JobNotesSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [noteText, setNoteText] = useState(job.note || '');
+  const [noteText, setNoteText] = useState(job?.note || '');
   const [modalitaFoto, setModalitaFoto] = useState(false);
   const [notePerFoto, setNotePerFoto] = useState<NoteFotoItem[]>(
-    (job as any).notePerFoto || []
+    (job as any)?.notePerFoto || []
   );
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
@@ -69,8 +69,8 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
   };
 
   const handleCancel = () => {
-    setNoteText(job.note || '');
-    setNotePerFoto((job as any).notePerFoto || []);
+    setNoteText(job?.note || '');
+    setNotePerFoto((job as any)?.notePerFoto || []);
     setIsEditing(false);
   };
 
@@ -138,6 +138,10 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
     updated[index].nota = nota;
     setNotePerFoto(updated);
   };
+
+  if (!job) {
+    return null;
+  }
 
   return (
     <Card>
@@ -343,7 +347,7 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
               </div>
             ) : (
               <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                {job.note || 'Nessuna nota'}
+                {job?.note || 'Nessuna nota'}
               </p>
             )}
           </div>
