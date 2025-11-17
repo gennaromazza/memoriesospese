@@ -14,11 +14,8 @@ build = ["sh", "-c", "npm ci && npm run build"]
 run = ["sh", "-c", "node dist/index.js"]
 
 [workflows]
-runButton = "Dev Workflow"
+runButton = "Clean Install & Dev"
 
-###############################################
-# 🛠️ DEV WORKFLOW - Sviluppo con hot reload
-###############################################
 [[workflows.workflow]]
 name = "Dev Workflow"
 mode = "sequential"
@@ -34,9 +31,6 @@ task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5173
 
-###############################################
-# 🚀 PROD BUILD - Build e avvio produzione
-###############################################
 [[workflows.workflow]]
 name = "Prod Build & Start"
 mode = "sequential"
@@ -56,9 +50,6 @@ waitForExit = true
 task = "shell.exec"
 args = "node dist/index.js"
 
-###############################################
-# 🔨 QUICK BUILD - Solo build senza install
-###############################################
 [[workflows.workflow]]
 name = "Quick Build"
 mode = "sequential"
@@ -73,9 +64,6 @@ waitForExit = true
 task = "shell.exec"
 args = "node dist/index.js"
 
-###############################################
-# 🧹 CLEAN INSTALL - Ricostruzione completa
-###############################################
 [[workflows.workflow]]
 name = "Clean Install"
 mode = "sequential"
@@ -95,6 +83,40 @@ waitForExit = true
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5173
+
+[[workflows.workflow]]
+name = "Clean Install & Dev"
+author = 41213760
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "rm -rf node_modules package-lock.json"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --legacy-peer-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+
+[[workflows.workflow]]
+name = "Fresh Build"
+author = 41213760
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --legacy-peer-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dist/index.js"
 
 # Port mappings
 [[ports]]
