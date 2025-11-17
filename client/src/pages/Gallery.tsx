@@ -89,6 +89,9 @@ export default function Gallery() {
   const userInfo = useUserInfo();
   const { toast } = useToast();
 
+  // 🔒 Stato per tracciare quando l'accesso viene validato (trigger reattivo)
+  const [accessValidatedTrigger, setAccessValidatedTrigger] = useState(0);
+
   // Stati per il preload completo delle immagini
   const [isPreloadingPhotos, setIsPreloadingPhotos] = useState(true);
   const [preloadedCount, setPreloadedCount] = useState(0);
@@ -153,7 +156,7 @@ export default function Gallery() {
     if (galleryData && !galleryData.password) return true;
     // Altrimenti verifica se c'è il token di autenticazione nel localStorage
     return !!localStorage.getItem(`gallery_auth_${id}`);
-  }, [id, isAdmin, galleryData]);
+  }, [id, isAdmin, galleryData, accessValidatedTrigger]);
 
   // 🔧 React Query: Carica foto fotografo (enabled solo quando galleryData esiste E accesso validato)
   const {
@@ -1023,6 +1026,45 @@ export default function Gallery() {
       checkAuth();
     }
   }, [id, isAdmin, navigate]);
+
+  // 🔒 Ascolta eventi storage per rilevare quando la password viene validata
+  useEffect(() => {
+    // Se l'accesso è già validato, non serve polling
+    if (hasValidAccess) return;
+
+    const handleStorageChange = (e: StorageEvent) => {
+      // Se il localStorage per questa galleria è stato settato, incrementa il trigger
+      if (e.key === `gallery_auth_${id}` && e.newValue) {
+        setAccessValidatedTrigger(prev => prev + 1);
+      }
+    };
+
+    // Ascolta eventi storage (cross-tab)
+    window.addEventListener('storage', handleStorageChange);
+
+    // Controlla anche periodicamente il localStorage (per eventi same-tab)
+    const interval = setInterval(() => {
+      if (localStorage.getItem(`gallery_auth_${id}`)) {
+        setAccessValidatedTrigger(prev => prev + 1);
+      }
+    }, 500);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [id, hasValidAccess]);
+
+  // 🔄 Reset flag preload quando l'accesso viene validato
+  useEffect(() => {
+    if (hasValidAccess && galleryData?.id) {
+      // Quando l'accesso diventa valido, resetta i flag di preload
+      // per forzare un nuovo ciclo di preload completo
+      setIsPreloadingPhotos(true);
+      setPreloadedCount(0);
+      setAllPhotosPreloaded(false);
+    }
+  }, [hasValidAccess, galleryData?.id]);
 
   // Scroll infinito come fallback
   useEffect(() => {
