@@ -118,7 +118,10 @@ args = "npm run build"
 task = "shell.exec"
 args = "node dist/index.js"
 
-# Port mappings
+[[ports]]
+localPort = 3000
+externalPort = 3000
+
 [[ports]]
 localPort = 5000
 externalPort = 80
@@ -128,5 +131,5 @@ localPort = 5173
 externalPort = 5173
 
 [[ports]]
-localPort = 3000
-externalPort = 3000
+localPort = 24678
+externalPort = 3001
