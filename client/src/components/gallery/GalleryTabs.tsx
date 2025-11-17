@@ -1,7 +1,8 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { WeddingImage } from '@/components/WeddingImages';
 import { Timestamp } from 'firebase/firestore';
+import { Loader2 } from 'lucide-react';
 
 interface PhotoData {
   id: string;
@@ -22,6 +23,59 @@ export default function GalleryTabs({
   photos,
   openLightbox
 }: GalleryTabsProps) {
+  const [isPreloading, setIsPreloading] = useState(true);
+  const [loadedCount, setLoadedCount] = useState(0);
+  const [allPhotosReady, setAllPhotosReady] = useState(false);
+
+  // Funzione per precaricare un'immagine
+  const preloadImage = (url: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = () => reject();
+      img.src = url;
+    });
+  };
+
+  // Precarica tutte le foto al mount
+  useEffect(() => {
+    if (photos.length === 0) {
+      setIsPreloading(false);
+      setAllPhotosReady(true);
+      return;
+    }
+
+    const loadAllPhotos = async () => {
+      setIsPreloading(true);
+      setLoadedCount(0);
+      
+      let loaded = 0;
+      
+      // Carica le foto in batch di 10 per evitare di sovraccaricare il browser
+      const BATCH_SIZE = 10;
+      
+      for (let i = 0; i < photos.length; i += BATCH_SIZE) {
+        const batch = photos.slice(i, i + BATCH_SIZE);
+        
+        // Carica batch in parallelo
+        await Promise.allSettled(
+          batch.map(photo => 
+            preloadImage(photo.url).then(() => {
+              loaded++;
+              setLoadedCount(loaded);
+            })
+          )
+        );
+      }
+      
+      // Tutte le foto sono state tentate (alcune potrebbero essere fallite ma procediamo)
+      setIsPreloading(false);
+      setAllPhotosReady(true);
+    };
+
+    loadAllPhotos();
+  }, [photos]);
+
   // Se non ci sono foto, mostra un messaggio
   if (photos.length === 0) {
     return (
@@ -36,6 +90,27 @@ export default function GalleryTabs({
           <p className="text-gray-500">
             Non ci sono ancora foto in questa galleria.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostra loading screen durante il preload
+  if (isPreloading || !allPhotosReady) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="h-12 w-12 animate-spin text-sage mb-4" />
+        <h3 className="text-lg font-medium text-gray-700 mb-2">
+          Caricamento foto in corso...
+        </h3>
+        <p className="text-sm text-gray-500">
+          {loadedCount} / {photos.length} foto caricate
+        </p>
+        <div className="w-64 h-2 bg-gray-200 rounded-full mt-4 overflow-hidden">
+          <div 
+            className="h-full bg-sage transition-all duration-300"
+            style={{ width: `${(loadedCount / photos.length) * 100}%` }}
+          />
         </div>
       </div>
     );
@@ -73,15 +148,12 @@ function PhotoGridItem({ photo, index, openLightbox }: {
       <img
         src={photo.url}
         alt={photo.name || `Foto ${index + 1}`}
-        className="w-full h-full object-cover transition-all duration-300 opacity-0"
-        loading="lazy"
-        onLoad={(e) => {
-          (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
-        }}
+        className="w-full h-full object-cover"
         style={{ 
           backgroundColor: '#f3f4f6',
           objectFit: 'cover',
         }}
+        data-testid={`gallery-photo-${index}`}
       />
     </div>
   );
