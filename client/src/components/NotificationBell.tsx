@@ -111,12 +111,12 @@ export const NotificationBell = React.memo(function NotificationBell() {
         </Button>
       </PopoverTrigger>
       
-      <PopoverContent className="w-96 p-0" align="end">
+      <PopoverContent className="w-[calc(100vw-2rem)] sm:w-96 p-0" align="end">
         <div className="border-b px-4 py-3">
           <h3 className="font-semibold">Notifiche</h3>
         </div>
         
-        <ScrollArea className="max-h-96">
+        <ScrollArea className="max-h-[70vh] sm:max-h-96">
           {isLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
               Caricamento...
@@ -136,11 +136,11 @@ export const NotificationBell = React.memo(function NotificationBell() {
                 >
                   <button
                     onClick={() => handleNotificationClick(notification.deepLink)}
-                    className="w-full p-4 text-left hover:bg-accent transition-colors"
+                    className="w-full p-3 sm:p-4 text-left hover:bg-accent transition-colors"
                     data-testid={`notification-${notification.type}-${notification.resourceId}`}
                   >
-                    <div className="flex items-start gap-3 pr-8">
-                      <div className={`p-2 rounded-full ${
+                    <div className="flex items-start gap-2 sm:gap-3 pr-10">
+                      <div className={`p-1.5 sm:p-2 rounded-full flex-shrink-0 ${
                         !notification.isRead ? 'bg-sage/20' : 'bg-muted'
                       }`}>
                         {getIcon(notification.type)}
@@ -150,7 +150,7 @@ export const NotificationBell = React.memo(function NotificationBell() {
                         <p className="font-medium text-sm">
                           {notification.title}
                         </p>
-                        <p className="text-sm text-muted-foreground truncate">
+                        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
                           {notification.description}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
@@ -169,11 +169,11 @@ export const NotificationBell = React.memo(function NotificationBell() {
                     </div>
                   </button>
                   
-                  {/* Pulsante chiudi notifica */}
+                  {/* Pulsante chiudi notifica - sempre visibile su mobile */}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 h-8 w-8 sm:h-6 sm:w-6 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-accent"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDismissNotification(notification.resourceId);
