@@ -9,7 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
-import { Job } from '@shared/types';
+import { Job } from '@shared/jobs-types';
 import { Pencil, Save, X, Camera, Trash2, Image as ImageIcon, FileText } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { nanoid } from 'nanoid';

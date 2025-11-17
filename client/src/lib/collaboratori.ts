@@ -167,7 +167,7 @@ export async function getJobAssignments(jobId: string): Promise<JobCollaboratore
     const data = await response.json();
     
     // Reidrata Timestamp Firestore per compatibilità UI
-    return data.map((assignment: any) => ({
+    const assignments = data.map((assignment: any) => ({
       ...assignment,
       dataRichiesta: assignment.dataRichiesta ? new Timestamp(
         assignment.dataRichiesta._seconds,
@@ -190,6 +190,13 @@ export async function getJobAssignments(jobId: string): Promise<JobCollaboratore
         data: p.data ? new Timestamp(p.data._seconds, p.data._nanoseconds) : null
       })) || []
     }));
+    
+    // Sort lato client per evitare indice composto Firestore
+    return assignments.sort((a, b) => {
+      const timeA = a.dataRichiesta?.toMillis() || 0;
+      const timeB = b.dataRichiesta?.toMillis() || 0;
+      return timeB - timeA; // desc
+    });
   } catch (error) {
     console.error('❌ Errore get job assignments:', error);
     throw error;
@@ -203,17 +210,24 @@ export async function getCollaboratoreAssignments(
   collaboratoreId: string
 ): Promise<JobCollaboratoreAssignment[]> {
   try {
+    // Rimosso orderBy per evitare requisito indice composto Firestore
     const q = query(
       collection(db, ASSIGNMENTS_COLLECTION),
-      where('collaboratoreId', '==', collaboratoreId),
-      orderBy('dataRichiesta', 'desc')
+      where('collaboratoreId', '==', collaboratoreId)
     );
     
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    const assignments = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as JobCollaboratoreAssignment[];
+    
+    // Sort lato client per evitare indice composto Firestore
+    return assignments.sort((a, b) => {
+      const timeA = a.dataRichiesta?.toMillis() || 0;
+      const timeB = b.dataRichiesta?.toMillis() || 0;
+      return timeB - timeA; // desc
+    });
   } catch (error) {
     console.error('❌ Errore get collaboratore assignments:', error);
     throw error;

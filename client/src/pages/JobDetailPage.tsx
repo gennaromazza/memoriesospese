@@ -691,7 +691,7 @@ export default function JobDetailPage() {
             </Card>
 
             {/* Note e Personalizzazioni */}
-            <JobNotesSection jobId={job.id} isAdmin={true} />
+            <JobNotesSection job={job} />
 
             {/* Collaboratori */}
             <JobCollaboratoriSection jobId={job.id} />

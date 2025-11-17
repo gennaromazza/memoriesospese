@@ -199,9 +199,10 @@ router.get('/collaboratori/assignments/job/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
     
+    // Rimosso orderBy per evitare requisito indice composto Firestore
+    // Sort gestito lato client se necessario
     const snapshot = await db.collection('jobCollaboratoreAssignments')
       .where('jobId', '==', jobId)
-      .orderBy('dataRichiesta', 'desc')
       .get();
     
     const assignments = snapshot.docs.map(doc => ({
@@ -224,9 +225,10 @@ router.get('/collaboratori/assignments/collaboratore/:collaboratoreId', async (r
   try {
     const { collaboratoreId } = req.params;
     
+    // Rimosso orderBy per evitare requisito indice composto Firestore
+    // Sort gestito lato client se necessario
     const snapshot = await db.collection('jobCollaboratoreAssignments')
       .where('collaboratoreId', '==', collaboratoreId)
-      .orderBy('dataRichiesta', 'desc')
       .get();
     
     const assignments = snapshot.docs.map(doc => ({
