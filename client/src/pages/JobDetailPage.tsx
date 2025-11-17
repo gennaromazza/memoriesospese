@@ -607,6 +607,7 @@ export default function JobDetailPage() {
               <CardContent>
                 <PaymentScheduleSection 
                   jobId={job.id}
+                  eventDate={job.eventDate ? job.eventDate.toDate() : null}
                   isAdmin={true}
                 />
               </CardContent>

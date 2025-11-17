@@ -113,19 +113,42 @@ export default function GestioneRataModal({
   // Reset form quando modal si apre con payment diverso
   useEffect(() => {
     if (open) {
+      const paymentDate = getDateFromPayment(payment?.dataScadenza);
+      
       form.reset({
         tipo: (payment?.tipo as 'acconto' | 'rata' | 'saldo') || 'acconto',
         importo: payment?.importo || 0,
-        dataScadenza: getDateFromPayment(payment?.dataScadenza),
+        dataScadenza: paymentDate,
         descrizione: payment?.descrizione || '',
       });
-      // Reset date mode to absolute when opening
-      setDateMode('absolute');
-      setRelativeDays(0);
-    }
-  }, [open, payment, form]);
 
-  // Calcola data quando modalità relativa è attiva
+      // Se c'è eventDate e payment, prova a calcolare l'offset relativo
+      if (eventDate && payment?.dataScadenza) {
+        const eventDateNormalized = new Date(eventDate);
+        eventDateNormalized.setHours(0, 0, 0, 0);
+        const paymentDateNormalized = new Date(paymentDate);
+        paymentDateNormalized.setHours(0, 0, 0, 0);
+        
+        const diffTime = paymentDateNormalized.getTime() - eventDateNormalized.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Se la differenza è "ragionevole" (es: entro ±365 giorni), mostra modalità relativa
+        if (Math.abs(diffDays) <= 365) {
+          setDateMode('relative');
+          setRelativeDays(diffDays);
+        } else {
+          setDateMode('absolute');
+          setRelativeDays(0);
+        }
+      } else {
+        // Nuovo payment o no eventDate: default assoluta
+        setDateMode('absolute');
+        setRelativeDays(0);
+      }
+    }
+  }, [open, payment, eventDate, form]);
+
+  // Calcola data quando modalità relativa è attiva E l'utente cambia relativeDays
   useEffect(() => {
     if (dateMode === 'relative' && eventDate) {
       const calculatedDate = addDays(new Date(eventDate), relativeDays);
@@ -251,6 +274,14 @@ export default function GestioneRataModal({
             <div className="space-y-3">
               <Label>Modalità Scadenza</Label>
               
+              {!eventDate && (
+                <div className="rounded-md bg-yellow-50 border border-yellow-200 p-3 mb-3">
+                  <p className="text-sm text-yellow-800">
+                    ℹ️ Data evento non disponibile. Puoi impostare solo scadenze assolute.
+                  </p>
+                </div>
+              )}
+              
               <RadioGroup
                 value={dateMode}
                 onValueChange={(value) => setDateMode(value as 'absolute' | 'relative')}
@@ -367,11 +398,6 @@ export default function GestioneRataModal({
                 </div>
               )}
 
-              {!eventDate && dateMode === 'relative' && (
-                <p className="text-sm text-yellow-600">
-                  ⚠️ Data evento non disponibile. Seleziona modalità assoluta.
-                </p>
-              )}
             </div>
 
             {/* Descrizione */}
