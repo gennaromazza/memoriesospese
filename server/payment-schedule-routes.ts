@@ -961,4 +961,202 @@ router.delete('/:scheduleId/payments/:paymentId', async (req: Request, res: Resp
   }
 });
 
+/**
+ * POST /api/payment-schedules/send-reminders
+ * Invia reminder email per pagamenti in scadenza (da schedulare con cron)
+ * Filtra pagamenti attesi con scadenza entro 7 giorni che non hanno reminder già inviato
+ */
+router.post('/send-reminders', async (req: Request, res: Response) => {
+  try {
+    const { DateTime } = await import('luxon');
+    
+    const now = new Date();
+    const in7Days = new Date(now);
+    in7Days.setDate(in7Days.getDate() + 7);
+    
+    console.log(`[Payment Reminder] Cerco pagamenti in scadenza tra ${now.toISOString()} e ${in7Days.toISOString()}`);
+    
+    // Recupera tutti i payment schedules
+    const schedulesSnap = await db.collection('paymentSchedules').get();
+    
+    const results = {
+      total: 0,
+      sent: 0,
+      failed: 0,
+      errors: [] as string[]
+    };
+    
+    // Per ogni schedule, controlla i pagamenti
+    for (const scheduleDoc of schedulesSnap.docs) {
+      const schedule = scheduleDoc.data();
+      const scheduleId = scheduleDoc.id;
+      
+      if (!schedule || !schedule.payments || !Array.isArray(schedule.payments)) {
+        continue;
+      }
+      
+      // Recupera job per info cliente e evento
+      const jobDoc = await db.collection('jobs').doc(schedule.jobId).get();
+      if (!jobDoc.exists) {
+        console.log(`Job non trovato per schedule ${scheduleId}`);
+        continue;
+      }
+      
+      const job = jobDoc.data();
+      if (!job) continue;
+      
+      // Recupera info clienti
+      const clientiIds = job.clientiIds || [];
+      if (clientiIds.length === 0) {
+        console.log(`Nessun cliente trovato per job ${job.id}`);
+        continue;
+      }
+      
+      // Prendi il primo cliente (primary contact)
+      const clienteDoc = await db.collection('clients').doc(clientiIds[0]).get();
+      if (!clienteDoc.exists) {
+        console.log(`Cliente non trovato: ${clientiIds[0]}`);
+        continue;
+      }
+      
+      const cliente = clienteDoc.data();
+      if (!cliente || !cliente.email) {
+        console.log(`Email cliente mancante per ${clientiIds[0]}`);
+        continue;
+      }
+      
+      // Filtra pagamenti in scadenza
+      const nowRome = DateTime.now().setZone('Europe/Rome');
+      
+      for (const payment of schedule.payments) {
+        // Skip se già pagato
+        if (payment.stato === 'pagato' || payment.stato === 'parziale') {
+          continue;
+        }
+        
+        // Skip se reminder già inviato
+        if (payment.reminderSentAt) {
+          continue;
+        }
+        
+        // Converti dataScadenza a Date
+        const dueDate = payment.dataScadenza.toDate ? payment.dataScadenza.toDate() : new Date(payment.dataScadenza);
+        const dueDateRome = DateTime.fromJSDate(dueDate).setZone('Europe/Rome');
+        
+        // Calcola giorni alla scadenza
+        const daysDiff = dueDateRome.diff(nowRome, 'days').days;
+        
+        // Invia reminder se:
+        // - Scadenza entro 7 giorni (0 <= daysDiff <= 7)
+        // - Già scaduto ma non più di 30 giorni fa (-30 <= daysDiff < 0)
+        const shouldRemind = (daysDiff >= -30 && daysDiff <= 7);
+        
+        if (shouldRemind) {
+          results.total++;
+          
+          try {
+            // Atomic check-and-set con transazione
+            const shouldSend = await db.runTransaction(async (transaction) => {
+              const scheduleRef = db.collection('paymentSchedules').doc(scheduleId);
+              const scheduleSnapshot = await transaction.get(scheduleRef);
+              
+              if (!scheduleSnapshot.exists) {
+                return false;
+              }
+              
+              const scheduleData = scheduleSnapshot.data();
+              if (!scheduleData) {
+                return false;
+              }
+              
+              const paymentToUpdate = scheduleData.payments?.find((p: any) => p.id === payment.id);
+              
+              if (!paymentToUpdate || paymentToUpdate.reminderSentAt) {
+                return false; // Già inviato
+              }
+              
+              // Marca come inviato atomicamente
+              const updatedPayments = scheduleData.payments.map((p: any) => 
+                p.id === payment.id 
+                  ? { ...p, reminderSentAt: Timestamp.now() }
+                  : p
+              );
+              
+              transaction.update(scheduleRef, {
+                payments: updatedPayments,
+                updatedAt: Timestamp.now()
+              });
+              
+              return true;
+            });
+            
+            if (!shouldSend) {
+              console.log(`Reminder già inviato per payment ${payment.id}`);
+              continue;
+            }
+            
+            // Invia email
+            const { sendGmailEmail, getStudioContactInfo, createPaymentReminderEmailHTML } = await import('./email-routes.js');
+            const studioInfo = await getStudioContactInfo();
+            
+            const clienteName = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
+            const formattedDueDate = dueDateRome.toFormat('dd/MM/yyyy');
+            
+            // Determina se pagamento è scaduto
+            const isOverdue = daysDiff < 0;
+            
+            // Calcola giorni usando ceil per arrotondare per eccesso
+            // Se daysDiff è 0.5 (12 ore) → daysUntilDue = 1 (manca 1 giorno)
+            // Se isOverdue, usa valore assoluto
+            const daysUntilDue = isOverdue 
+              ? Math.abs(Math.floor(daysDiff))  // Giorni di ritardo (floor per evitare arrotondamenti eccessivi)
+              : Math.ceil(daysDiff);             // Giorni rimanenti (ceil per sicurezza)
+            
+            const htmlContent = createPaymentReminderEmailHTML(
+              clienteName,
+              job.nomeEvento || 'Servizio fotografico',
+              payment.importo,
+              formattedDueDate,
+              payment.tipo,
+              daysUntilDue,
+              isOverdue,
+              undefined, // portalUrl - TODO: implementare portale cliente
+              studioInfo
+            );
+            
+            await sendGmailEmail(
+              cliente.email,
+              `Promemoria Pagamento - ${job.nomeEvento || 'Servizio'}`,
+              htmlContent
+            );
+            
+            results.sent++;
+            console.log(`✅ Reminder pagamento inviato a ${cliente.email} per ${payment.tipo} di €${payment.importo}`);
+            
+          } catch (emailError: any) {
+            results.failed++;
+            results.errors.push(`Payment ${payment.id}: ${emailError.message}`);
+            console.error(`❌ Errore invio reminder payment ${payment.id}:`, emailError.message);
+          }
+        }
+      }
+    }
+    
+    console.log(`[Payment Reminder] Completato - Totale: ${results.total}, Inviati: ${results.sent}, Falliti: ${results.failed}`);
+    
+    return res.json({
+      success: true,
+      message: 'Payment reminder process completed',
+      results
+    });
+    
+  } catch (error: any) {
+    console.error('[POST /send-reminders] Errore:', error.message);
+    return res.status(500).json({
+      error: 'Errore invio reminder pagamenti',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
 export default router;
