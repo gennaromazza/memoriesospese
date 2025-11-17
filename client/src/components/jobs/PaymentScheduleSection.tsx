@@ -109,13 +109,23 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
     saldoResiduo: Number(schedule.saldoResiduo ?? 0),
     createdAt: convertFirestoreTimestamp(schedule.createdAt),
     updatedAt: convertFirestoreTimestamp(schedule.updatedAt),
-    payments: schedule.payments.map((payment: any) => ({
-      ...payment,
-      importo: Number(payment.importo ?? 0),
-      importoPagato: payment.importoPagato ? Number(payment.importoPagato) : undefined,
-      dataScadenza: convertFirestoreTimestamp(payment.dataScadenza),
-      dataPagamento: payment.dataPagamento ? convertFirestoreTimestamp(payment.dataPagamento) : null,
-    })),
+    payments: schedule.payments.map((payment: any) => {
+      // DEBUG: Log dataScadenza originale per capire il problema
+      if (payment.dataScadenza) {
+        console.log('🔍 DEBUG dataScadenza RAW:', payment.dataScadenza, 'tipo:', typeof payment.dataScadenza);
+      }
+      
+      const convertedDate = convertFirestoreTimestamp(payment.dataScadenza);
+      console.log('🔍 DEBUG dataScadenza CONVERTITO:', convertedDate);
+      
+      return {
+        ...payment,
+        importo: Number(payment.importo ?? 0),
+        importoPagato: payment.importoPagato ? Number(payment.importoPagato) : undefined,
+        dataScadenza: convertedDate,
+        dataPagamento: payment.dataPagamento ? convertFirestoreTimestamp(payment.dataPagamento) : null,
+      };
+    }),
   }));
 
   // Calcola totali aggregati
