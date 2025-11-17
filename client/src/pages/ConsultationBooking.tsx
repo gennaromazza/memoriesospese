@@ -114,8 +114,9 @@ export default function ConsultationBooking() {
           title: 'Slot non più disponibile',
           description: 'Lo slot selezionato è stato prenotato da poco. Scegli un altro orario.',
         });
-        // Reset slot selezionato per forzare utente a sceglierne un altro
+        // Reset slot selezionato e riporta l'utente allo step 1 per sceglierne un altro
         setSelectedSlot(null);
+        setStep(1);
         return;
       }
 
