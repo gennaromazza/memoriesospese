@@ -1,6 +1,7 @@
 import React, {
   useState,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useCallback,
@@ -96,6 +97,11 @@ export default function Gallery() {
     progress: 0,
   });
 
+  // Stati per il preload completo delle immagini
+  const [isPreloadingPhotos, setIsPreloadingPhotos] = useState(true);
+  const [preloadedCount, setPreloadedCount] = useState(0);
+  const [allPhotosPreloaded, setAllPhotosPreloaded] = useState(false);
+
   // Stato per i filtri
   const [filters, setFilters] = useState<FilterCriteria>({
     startDate: undefined,
@@ -171,6 +177,83 @@ export default function Gallery() {
     retry: 2,
     staleTime: 30000
   });
+
+  // 🖼️ Sistema di preload completo delle immagini
+  // Funzione per precaricare un'immagine in memoria
+  const preloadImage = useCallback((url: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = () => reject();
+      img.src = url;
+    });
+  }, []);
+
+  // Reset immediato dello stato quando photos o activeTab cambiano (prima del paint)
+  useLayoutEffect(() => {
+    const totalPhotos = activeTab === 'photographer' ? photos.length : 
+                        activeTab === 'guests' ? guestPhotos.length : 0;
+    
+    if (totalPhotos > 0 && !isLoadingPhotos && !isLoadingGuestPhotos) {
+      setIsPreloadingPhotos(true);
+      setPreloadedCount(0);
+      setAllPhotosPreloaded(false);
+    }
+  }, [photos, guestPhotos, activeTab, isLoadingPhotos, isLoadingGuestPhotos]);
+
+  // Precarica tutte le foto quando cambiano
+  useEffect(() => {
+    // Flag per evitare race condition quando cambia la galleria
+    let cancelled = false;
+
+    const photosToPreload = activeTab === 'photographer' ? photos : 
+                            activeTab === 'guests' ? guestPhotos : [];
+
+    if (photosToPreload.length === 0 || isLoadingPhotos || isLoadingGuestPhotos) {
+      setIsPreloadingPhotos(false);
+      setAllPhotosPreloaded(true);
+      return;
+    }
+
+    const loadAllPhotos = async () => {
+      let loaded = 0;
+      
+      // Carica le foto in batch di 10 per evitare di sovraccaricare il browser
+      const BATCH_SIZE = 10;
+      
+      for (let i = 0; i < photosToPreload.length; i += BATCH_SIZE) {
+        // Se il componente è stato smontato o photos è cambiato, interrompi
+        if (cancelled) return;
+        
+        const batch = photosToPreload.slice(i, i + BATCH_SIZE);
+        
+        // Carica batch in parallelo
+        await Promise.allSettled(
+          batch.map(photo => 
+            preloadImage(photo.url).then(() => {
+              if (!cancelled) {
+                loaded++;
+                setPreloadedCount(loaded);
+              }
+            })
+          )
+        );
+      }
+      
+      // Tutte le foto sono state tentate - aggiorna stato solo se non cancellato
+      if (!cancelled) {
+        setIsPreloadingPhotos(false);
+        setAllPhotosPreloaded(true);
+      }
+    };
+
+    loadAllPhotos();
+
+    // Cleanup: marca come cancellato se photos cambia o componente smonta
+    return () => {
+      cancelled = true;
+    };
+  }, [photos, guestPhotos, activeTab, isLoadingPhotos, isLoadingGuestPhotos, preloadImage]);
 
   // Stati derivati
   const hasMorePhotos = false; // Semplificato: carica tutto in una volta
@@ -2509,8 +2592,26 @@ export default function Gallery() {
                         </div>
                       )}
 
-                      <div ref={galleryGridRef} className="masonry-grid">
-                        {displayPhotos.map((photo, index) => (
+                      {/* 🖼️ Loading screen durante preload immagini */}
+                      {(isPreloadingPhotos || !allPhotosPreloaded) && activeTab === 'photographer' && displayPhotos.length > 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20">
+                          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-sage mb-6"></div>
+                          <h3 className="text-xl font-medium text-gray-700 mb-3">
+                            Caricamento foto in corso...
+                          </h3>
+                          <p className="text-lg text-gray-600 mb-4">
+                            {preloadedCount} / {displayPhotos.length} foto caricate
+                          </p>
+                          <div className="w-80 h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                            <div 
+                              className="h-full bg-sage transition-all duration-300"
+                              style={{ width: `${(preloadedCount / displayPhotos.length) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div ref={galleryGridRef} className="masonry-grid">
+                          {displayPhotos.map((photo, index) => (
                           <React.Fragment key={photo.id}>
                             <div className="masonry-item">
                               <div
@@ -2729,7 +2830,8 @@ export default function Gallery() {
                               )}
                           </React.Fragment>
                         ))}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Pulsante "Carica altre foto" */}
                       {!areFiltersActive && (
@@ -2863,6 +2965,22 @@ export default function Gallery() {
                           Gli ospiti non hanno ancora caricato foto. Usa il
                           pulsante "Carica foto" sopra per aggiungerne.
                         </p>
+                      </div>
+                    </div>
+                  ) : (isPreloadingPhotos || !allPhotosPreloaded) ? (
+                    <div className="flex flex-col items-center justify-center py-20">
+                      <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-sage mb-6"></div>
+                      <h3 className="text-xl font-medium text-gray-700 mb-3">
+                        Caricamento foto in corso...
+                      </h3>
+                      <p className="text-lg text-gray-600 mb-4">
+                        {preloadedCount} / {guestPhotos.length} foto caricate
+                      </p>
+                      <div className="w-80 h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                        <div 
+                          className="h-full bg-sage transition-all duration-300"
+                          style={{ width: `${(preloadedCount / guestPhotos.length) * 100}%` }}
+                        />
                       </div>
                     </div>
                   ) : (
