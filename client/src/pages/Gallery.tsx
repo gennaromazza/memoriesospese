@@ -157,8 +157,8 @@ export default function Gallery() {
     if (!id) return false;
     // Admin ha sempre accesso
     if (isAdmin) return true;
-    // Se la galleria non richiede password/PIN, l'accesso è libero
-    if (galleryData && !galleryData.password && !galleryData.pin) return true;
+    // Se la galleria non richiede password, l'accesso è libero
+    if (galleryData && !galleryData.password) return true;
     // Altrimenti verifica se c'è il token di autenticazione nel localStorage
     return !!localStorage.getItem(`gallery_auth_${id}`);
   }, [id, isAdmin, galleryData]);
@@ -2657,17 +2657,9 @@ export default function Gallery() {
                                 <img
                                   src={photo.url}
                                   alt={photo.name || `Foto ${index + 1}`}
-                                  className="w-full h-auto object-cover transition-all duration-300 opacity-0 hover:opacity-95"
-                                  loading={index < 6 ? "eager" : "lazy"}
+                                  className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
+                                  loading="eager"
                                   decoding="async"
-                                  onLoad={(e) => {
-                                    (
-                                      e.target as HTMLImageElement
-                                    ).classList.replace(
-                                      "opacity-0",
-                                      "opacity-100",
-                                    );
-                                  }}
                                   title={
                                     photo.createdAt
                                       ? new Date(
@@ -3005,14 +2997,9 @@ export default function Gallery() {
                             <img
                               src={photo.url}
                               alt={photo.name || `Foto ospite ${index + 1}`}
-                              className="w-full h-auto object-cover transition-opacity duration-300 opacity-0 hover:opacity-95"
-                              loading={index < 6 ? "eager" : "lazy"}
+                              className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
+                              loading="eager"
                               decoding="async"
-                              onLoad={(e) => {
-                                (
-                                  e.target as HTMLImageElement
-                                ).classList.replace("opacity-0", "opacity-100");
-                              }}
                               style={{
                                 backgroundColor: "transparent",
                               }}
