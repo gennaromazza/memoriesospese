@@ -18,7 +18,7 @@ export function useNotifications() {
     queryKey: ['/api/notifications'],
     queryFn: async () => {
       const notifications: Notification[] = [];
-      
+
       // 🚀 Batching parallelo con gestione errori robusta
       const fetchBookings = async () => {
         try {
@@ -30,7 +30,7 @@ export function useNotifications() {
             where('stato', 'in', ['in_attesa', 'confermata'])
           );
           const bookingsSnap = await getDocs(bookingsQuery);
-          
+
           // Filtra solo quelli non visualizzati
           return bookingsSnap.docs
             .filter(doc => !doc.data().dataVisualizzazione)
@@ -38,7 +38,7 @@ export function useNotifications() {
               const data = doc.data();
               const dataInizio = data.dataShootingInizio?.toDate ? data.dataShootingInizio.toDate() : null;
               const dataStr = dataInizio ? new Date(dataInizio).toLocaleDateString('it-IT') : 'Data non disponibile';
-              
+
               return {
                 id: `booking-${doc.id}`,
                 type: 'booking' as const,
@@ -55,7 +55,7 @@ export function useNotifications() {
           return [];
         }
       };
-      
+
       const fetchConsultations = async () => {
         try {
           const consultationsRef = collection(db, 'consultations');
@@ -65,14 +65,14 @@ export function useNotifications() {
             where('stato', 'in', ['in_attesa', 'confermata'])
           );
           const consultationsSnap = await getDocs(consultationsQuery);
-          
+
           // Filtra solo quelle non visualizzate
           return consultationsSnap.docs
             .filter(doc => !doc.data().dataVisualizzazione)
             .map(doc => {
               const data = doc.data();
               const statoLabel = data.stato === 'confermata' ? ' ✅' : '';
-              
+
               return {
                 id: `consultation-${doc.id}`,
                 type: 'consultation' as const,
@@ -89,7 +89,7 @@ export function useNotifications() {
           return [];
         }
       };
-      
+
       const fetchComments = async () => {
         try {
           const sevenDaysAgo = new Date();
@@ -101,14 +101,14 @@ export function useNotifications() {
             limit(20)
           );
           const commentsSnap = await getDocs(commentsQuery);
-          
+
           return commentsSnap.docs
             .map(doc => {
               const data = doc.data();
               const commentDate = data.createdAt?.toDate ? data.createdAt.toDate() : null;
-              
+
               if (!commentDate || commentDate < sevenDaysAgo) return null;
-              
+
               const contentPreview = data.content ? data.content.substring(0, 50) : 'Nessun contenuto';
               return {
                 id: `comment-${doc.id}`,
@@ -127,31 +127,31 @@ export function useNotifications() {
           return [];
         }
       };
-      
+
       const fetchSelections = async () => {
         try {
           const sevenDaysAgo = new Date();
           sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
           sevenDaysAgo.setHours(0, 0, 0, 0);
-          
+
           const galleriesRef = collection(db, 'galleries');
           const completedSelectionsQuery = query(
             galleriesRef,
             where('selectionStatus', '==', 'completed')
           );
-          
+
           const completedSnap = await getDocs(completedSelectionsQuery);
-          
+
           return completedSnap.docs
             .map(doc => {
               const data = doc.data();
               const updatedDate = data.updatedAt?.toDate ? data.updatedAt.toDate() : null;
-              
+
               if (!updatedDate || updatedDate < sevenDaysAgo || !data.bookingId) return null;
-              
+
               let photoCount = 0;
               let requiredCount = 0;
-              
+
               if (data.photoAssignments && Object.keys(data.photoAssignments).length > 0) {
                 photoCount = Object.keys(data.photoAssignments).length;
                 requiredCount = data.productRequirements?.reduce((sum: number, p: any) => 
@@ -160,7 +160,7 @@ export function useNotifications() {
                 photoCount = data.selectedPhotoIds?.length || 0;
                 requiredCount = data.requiredPhotoCount || 0;
               }
-              
+
               return {
                 id: `approved-selection-${doc.id}`,
                 type: 'selection' as const,
@@ -178,7 +178,7 @@ export function useNotifications() {
           return [];
         }
       };
-      
+
       // 🚀 Esegui tutte le fetch in parallelo per massima performance
       const [bookings, consultations, comments, selections] = await Promise.all([
         fetchBookings(),
@@ -186,10 +186,10 @@ export function useNotifications() {
         fetchComments(),
         fetchSelections()
       ]);
-      
+
       // Combina e ordina tutte le notifiche
       const allNotifications = [...bookings, ...consultations, ...comments, ...selections];
-      
+
       return allNotifications.sort((a, b) => {
         if (!a || !b) return 0;
         const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
