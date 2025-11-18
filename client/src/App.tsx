@@ -16,7 +16,7 @@ import PortfolioPage from "./pages/public/PortfolioPage";
 import PortfolioCategoryPage from "./pages/public/PortfolioCategoryPage";
 import StoriePage from "./pages/public/StoriePage";
 import LasciatiTrasportarePage from "./pages/public/LasciatiTrasportarePage";
-import BlogPage from "./pages/public/BlogPage";
+import BlogListPage from "./pages/public/BlogListPage";
 import BlogPostPage from "./pages/public/BlogPostPage";
 import GalleryAccess from "./pages/GalleryAccess";
 import Gallery from "./pages/Gallery";
@@ -78,7 +78,7 @@ function AppRoutes() {
       <Route path="/portfolio/:categoria" component={PortfolioCategoryPage} />
       <Route path="/storie" component={StoriePage} />
       <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
-      <Route path="/blog" component={BlogPage} />
+      <Route path="/blog" component={BlogListPage} />
       <Route path="/blog/:slug" component={BlogPostPage} />
       
       {/* Gallery Access (moved from /) */}
