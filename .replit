@@ -43,10 +43,10 @@ args = "npm run build"
 task = "shell.exec"
 args = "node dist/index.js"
 
-# --- CONFIGURAZIONE PORTE CORRETTA ---
-
-# Questa è la tua porta principale (Express + Vite Middleware)
-# Mappiamo la porta interna 5000 sulla porta esterna 80 (Web)
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 33503
+externalPort = 3000
