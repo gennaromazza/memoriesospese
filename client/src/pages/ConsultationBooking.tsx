@@ -180,7 +180,7 @@ export default function ConsultationBooking() {
             </p>
             <Link href="/consulenze">
               <Button variant="outline" className="border-sage text-sage hover:bg-sage hover:text-white" data-testid="button-back-empty">
-                Torna alle Consulenze
+                Torna alle Richieste
               </Button>
             </Link>
           </CardContent>
@@ -225,7 +225,7 @@ export default function ConsultationBooking() {
           <CardFooter>
             <Link href="/consulenze" className="w-full">
               <Button className="w-full bg-sage hover:bg-dark-sage text-white">
-                Torna alle Consulenze
+                Torna alle Richieste
               </Button>
             </Link>
           </CardFooter>

@@ -170,7 +170,7 @@ export default function GalleryAccessPage() {
               Blog
             </Link>
             <Link href="/consulenze" className="text-gray-300 hover:text-white">
-              Consulenze
+              Contattami
             </Link>
           </div>
           <div className="mt-8 text-sm text-gray-400">

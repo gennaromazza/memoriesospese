@@ -673,10 +673,10 @@ export default function ConsultationTemplatesManager() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Template Consulenze
+            Template Richieste Info
           </h1>
           <p className="text-gray-600 mt-1">
-            Gestisci i template di consulenza per ogni tipo di lavoro
+            Gestisci i template di richiesta informazioni per ogni tipo di lavoro
           </p>
         </div>
         <div className="flex gap-3">
@@ -1766,7 +1766,7 @@ export default function ConsultationTemplatesManager() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Database className="w-5 h-5 text-terracotta" />
-              Migrazione Template Consulenze
+              Migrazione Template Richieste
             </AlertDialogTitle>
             <AlertDialogDescription>
               Questa operazione inizializza <code>customWorkingHours</code> per template legacy

@@ -202,7 +202,7 @@ export default function BlogListPage() {
               <Link href="/portfolio" className="block text-gray-300 hover:text-white">Portfolio</Link>
               <Link href="/storie" className="block text-gray-300 hover:text-white">La Mia Storia</Link>
               <Link href="/blog" className="block text-gray-300 hover:text-white">Blog</Link>
-              <Link href="/consulenze" className="block text-gray-300 hover:text-white">Consulenze</Link>
+              <Link href="/consulenze" className="block text-gray-300 hover:text-white">Contattami</Link>
             </div>
           </div>
           <div>

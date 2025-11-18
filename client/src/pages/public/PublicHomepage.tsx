@@ -225,13 +225,13 @@ export default function PublicHomepage() {
               </Link>
               <Link href="/consulenze">
                 <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                  <span className="relative z-10">Consulenze</span>
+                  <span className="relative z-10">Contattami</span>
                   <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                 </Button>
               </Link>
               <Link href="/prenota">
                 <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                  <span className="relative z-10">Prenotazioni</span>
+                  <span className="relative z-10">Prenota Ora</span>
                   <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                 </Button>
               </Link>
@@ -317,12 +317,12 @@ export default function PublicHomepage() {
               </Link>
               <Link href="/consulenze">
                 <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
-                  Consulenze
+                  Contattami
                 </Button>
               </Link>
               <Link href="/prenota">
                 <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
-                  Prenotazioni
+                  Prenota Ora
                 </Button>
               </Link>
               <Link href="/consulenze" className="block pt-2">
@@ -1075,7 +1075,7 @@ export default function PublicHomepage() {
                 href="/consulenze"
                 className="block text-gray-300 hover:text-white"
               >
-                Consulenze
+                Contattami
               </Link>
               <a
                 href="https://share.google/SW1hp2vnc9Csiwfkc"
