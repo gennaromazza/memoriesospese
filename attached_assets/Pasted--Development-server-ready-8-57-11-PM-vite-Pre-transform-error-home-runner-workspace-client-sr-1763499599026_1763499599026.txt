@@ -1,0 +1,107 @@
+✅ Development server ready!
+8:57:11 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank"
+8:57:11 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x2)
+8:57:11 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x3)
+8:57:11 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x4)
+8:57:11 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x5)
+8:57:11 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x6)
+8:57:11 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x7)
+8:57:12 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x8)
+8:57:12 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x9)
+8:57:13 PM [vite] Pre-transform error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank" (x10)
+8:57:18 PM [vite] Internal server error: /home/runner/workspace/client/src/components/Navigation.tsx: Unexpected token (288:14)
+
+  286 |           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287 |                 Consulenze
+> 288 |               </Link>
+      |               ^
+  289 |               <a
+  290 |                 href="https://share.google/SW1hp2vnc9Csiwfkc"
+  291 |                 target="_blank"
+  Plugin: vite:react-babel
+  File: /home/runner/workspace/client/src/components/Navigation.tsx:288:14
+  286|            <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+  287|                  Consulenze
+  288|                </Link>
+     |                ^
+  289|                <a
