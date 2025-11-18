@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon, Grid3x3 } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -44,8 +44,9 @@ import ConsultationsManager from "./admin/ConsultationsManager";
 import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BarChart3, Clock } from "lucide-react";
+import { BarChart3, Clock, Globe } from "lucide-react";
 import { CollaboratoriManager } from '@/components/collaboratori/CollaboratoriManager';
+import PortfolioManager from '@/components/admin/PortfolioManager';
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -220,7 +221,7 @@ export default function AdminDashboard() {
   const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all'); // 📸 Filtro selezioni approvate
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori'>(() => {
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori' | 'sitoPublico'>(() => {
     return (sessionStorage.getItem('activeTab') as any) || 'calendario';
   });
   const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'campaigns' | 'orders'>(() => {
@@ -1226,6 +1227,12 @@ export default function AdminDashboard() {
               <TabsTrigger value="collaboratori" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
                 <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Collaboratori</span>
+              </TabsTrigger>
+
+              {/* Sito Pubblico Tab */}
+              <TabsTrigger value="sitoPublico" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]" data-testid="tab-sito-pubblico">
+                <Globe className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                <span>Sito Pubblico</span>
               </TabsTrigger>
             </TabsList>
 
@@ -2365,6 +2372,34 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Collaboratori */}
             <TabsContent value="collaboratori">
               <CollaboratoriManager />
+            </TabsContent>
+
+            {/* Contenuto Tab Sito Pubblico */}
+            <TabsContent value="sitoPublico">
+              <Tabs defaultValue="portfolio" className="w-full">
+                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
+                  <TabsTrigger value="portfolio" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="subtab-portfolio">
+                    <Grid3x3 className="h-4 w-4 flex-shrink-0" />
+                    Portfolio Pubblico
+                  </TabsTrigger>
+                  <TabsTrigger value="blog" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="subtab-blog" disabled>
+                    <FileText className="h-4 w-4 flex-shrink-0" />
+                    Blog
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="portfolio">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <PortfolioManager />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="blog">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <p className="text-muted-foreground">Blog manager - Coming soon</p>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </TabsContent>
 
           </Tabs>
