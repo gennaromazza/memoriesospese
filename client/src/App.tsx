@@ -19,6 +19,7 @@ import StoriePage from "./pages/public/StoriePage";
 import LasciatiTrasportarePage from "./pages/public/LasciatiTrasportarePage";
 import BlogListPage from "./pages/public/BlogListPage";
 import BlogPostPage from "./pages/public/BlogPostPage";
+import WeddingVideosPage from "./pages/public/WeddingVideosPage";
 import GalleryAccess from "./pages/GalleryAccess";
 import Gallery from "./pages/Gallery";
 import SpecialGalleryAccess from "./pages/SpecialGalleryAccess";
@@ -81,10 +82,11 @@ function AppRoutes() {
       <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
       <Route path="/blog" component={BlogListPage} />
       <Route path="/blog/:slug" component={BlogPostPage} />
-      
+      <Route path="/video-matrimoni" component={WeddingVideosPage} />
+
       {/* Gallery Access (moved from /) */}
       <Route path="/accesso-galleria" component={GalleryAccessPage} />
-      
+
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
 
@@ -96,14 +98,14 @@ function AppRoutes() {
       <Route path="/consulenze" component={ConsultationIndex} />
       <Route path="/consulenze/:tipo/:id/prenota" component={ConsultationBooking} />
       <Route path="/consulenze/:tipo" component={ConsultationTemplates} />
-      
+
       {/* Consultations pubbliche (inglese - backward compatibility) */}
       <Route path="/consultations" component={ConsultationIndex} />
       <Route path="/consultations/book" component={ConsultationBooking} />
-      
+
       {/* Collaboratori assignment */}
       <Route path="/collaboratori/assignment/:assignmentId/:action" component={CollaboratorAssignmentResponse} />
-      
+
       {/* Collaboratori dashboard - Link magico */}
       <Route path="/collaboratori/dashboard/:token" component={CollaboratoreDashboard} />
 

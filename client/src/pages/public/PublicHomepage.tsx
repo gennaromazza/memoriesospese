@@ -201,18 +201,17 @@ export default function PublicHomepage() {
               >
                 La Mia Storia
               </Link>
-              <Link
-                href="/blog"
-                className="text-blue-gray hover:text-sage transition"
-              >
-                Blog
-              </Link>
-              <Link
-                href="/consulenze"
-                className="text-blue-gray hover:text-sage transition"
-              >
-                Consulenze
-              </Link>
+              <Link href="/blog">
+                    <Button variant="ghost" className="text-blue-gray hover:text-sage">
+                      Blog
+                    </Button>
+                  </Link>
+
+                  <Link href="/video-matrimoni">
+                    <Button variant="ghost" className="text-blue-gray hover:text-sage">
+                      Video
+                    </Button>
+                  </Link>
             </div>
             <div className="flex items-center gap-3">
               {studioSettings.socialLinks.instagram && (
@@ -841,7 +840,7 @@ export default function PublicHomepage() {
 
       {/* Google Reviews Section */}
       <ReviewsWidget />
-        
+
 
       {/* Instagram Feed */}
       {studioSettings.socialLinks?.instagram && (

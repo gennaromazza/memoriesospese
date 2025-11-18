@@ -833,6 +833,44 @@ export const insertPortfolioSelectionSchema = z.object({
 
 export type InsertPortfolioSelection = z.infer<typeof insertPortfolioSelectionSchema>;
 
+// ====== WEDDING VIDEOS SYSTEM ======
+
+// Wedding Video interface - Netflix-style video gallery
+export interface WeddingVideo {
+  id: string;
+  title: string;
+  slug: string; // URL-friendly version
+  description?: string;
+  thumbnailUrl: string; // Immagine copertina
+  youtubeUrl: string; // Link video YouTube
+  duration?: string; // Durata (es. "5:30")
+  category?: string; // Categoria (Matrimoni, Highlights, Behind the Scenes...)
+  tags?: string[]; // Tags per filtri
+  featured: boolean; // Se mostrare in evidenza
+  sortOrder: number; // Ordinamento manuale
+  views?: number; // Contatore visualizzazioni
+  active: boolean;
+  createdAt: any; // Firebase Timestamp
+  updatedAt?: any; // Firebase Timestamp
+  createdBy?: string; // Admin email
+}
+
+// Validation schema for Wedding Video
+export const insertWeddingVideoSchema = z.object({
+  title: z.string().min(1, "Il titolo è obbligatorio"),
+  slug: z.string().min(1, "Lo slug è obbligatorio").regex(/^[a-z0-9-]+$/, "Lo slug può contenere solo lettere minuscole, numeri e trattini"),
+  description: z.string().optional(),
+  thumbnailUrl: z.string().url("URL immagine non valido"),
+  youtubeUrl: z.string().url("URL YouTube non valido"),
+  duration: z.string().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  featured: z.boolean().default(false),
+  sortOrder: z.number().int().default(0)
+});
+
+export type InsertWeddingVideo = z.infer<typeof insertWeddingVideoSchema>;
+
 // ====== BLOG SYSTEM ======
 
 // Blog Post Status
