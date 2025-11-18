@@ -599,11 +599,12 @@ export default function PublicHomepage() {
       <section className="py-12 sm:py-16 md:py-20 bg-white px-4">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
-            <div className="relative h-[250px] sm:h-[300px] md:h-[400px] rounded-xl sm:rounded-2xl overflow-hidden shadow-lg animate-slide-up group bg-gray-900">
+            <div className="rounded-xl sm:rounded-2xl overflow-hidden shadow-lg animate-slide-up group">
               <img
                 src={gennaroProfile}
                 alt="Gennaro Mazzacane - Fotografo Professionista"
-                className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
               />
             </div>
             <div className="animate-fade-in">
