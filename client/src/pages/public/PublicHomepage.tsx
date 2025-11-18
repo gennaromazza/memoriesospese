@@ -180,7 +180,7 @@ export default function PublicHomepage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
+    <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6] overflow-x-hidden max-w-full">
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -241,7 +241,18 @@ export default function PublicHomepage() {
             <div className="flex items-center gap-3">
               {studioSettings.socialLinks.instagram && (
                 <a
-                  href={studioSettings.socialLinks.instagram}
+                  href={(() => {
+                    const normalized = studioSettings.socialLinks.instagram
+                      .replace(/^https?:\/\/(www\.)?instagram\.com\//, '')
+                      .replace(/^@/, '')
+                      .replace(/\/$/, '')
+                      .replace(/[?#].*$/, '');
+                    return normalized
+                      ? `https://www.instagram.com/${normalized}`
+                      : (studioSettings.socialLinks.instagram.startsWith('http')
+                          ? studioSettings.socialLinks.instagram
+                          : `https://www.instagram.com/${studioSettings.socialLinks.instagram}`);
+                  })()}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-gray hover:text-sage transition hidden sm:block"
@@ -326,9 +337,9 @@ export default function PublicHomepage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4">
+      <section className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 overflow-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-center">
+          <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-center max-w-full">
             <div className="animate-fade-in">
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6 leading-tight">
                 Lasciati <span className="text-[#C67B5C]">Trasportare</span>
