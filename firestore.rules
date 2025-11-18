@@ -453,6 +453,14 @@ service cloud.firestore {
       allow delete: if isAdmin(); // Only admin can remove photos from public portfolio
     }
     
+    // Wedding Videos - Netflix-style video gallery for public website
+    match /weddingVideos/{videoId} {
+      allow read: if true; // Public read access for video gallery page
+      allow create: if isAdmin(); // Only admin can add videos
+      allow update: if isAdmin(); // Only admin can update videos
+      allow delete: if isAdmin(); // Only admin can delete videos
+    }
+    
     // Blog Posts - Admin manages blog content, public can view published posts
     match /blogPosts/{postId} {
       allow read: if isAdmin() || 
