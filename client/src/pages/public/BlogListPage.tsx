@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
@@ -5,10 +6,12 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
+import { useStudio } from "@/context/StudioContext";
 
 export default function BlogListPage() {
+  const { studioSettings } = useStudio();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,19 +68,23 @@ export default function BlogListPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-terracotta" />
+      <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6] flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-sage" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-cream">
-      <nav className="border-b border-terracotta/20 sticky top-0 bg-white/80 backdrop-blur-md z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-beige">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <Link href="/" className="text-2xl font-playfair text-blue-gray">
+              iMaGe <span className="text-sage">Studio</span>
+            </Link>
             <Link href="/">
-              <Button variant="ghost" className="text-terracotta hover:text-terracotta/80" data-testid="button-back-home">
+              <Button variant="ghost" className="text-sage hover:text-dark-sage" data-testid="button-back-home">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Home
               </Button>
@@ -86,77 +93,144 @@ export default function BlogListPage() {
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-12">
-          <h1 className="font-serif text-5xl md:text-6xl text-dark mb-4">
+      {/* Hero Section */}
+      <section className="pt-24 sm:pt-28 md:pt-32 pb-8 sm:pb-12 px-4">
+        <div className="max-w-7xl mx-auto text-center animate-fade-in">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4">
             Blog
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto">
             Storie, riflessioni e consigli dal mondo della fotografia
           </p>
         </div>
+      </section>
 
-        {posts.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Nessun articolo pubblicato</p>
+      {/* Posts Grid */}
+      <section className="py-12 px-4">
+        <div className="max-w-7xl mx-auto">
+          {posts.length === 0 ? (
+            <div className="text-center py-24 bg-white rounded-2xl shadow-lg">
+              <p className="text-xl text-gray-500">Nessun articolo pubblicato al momento</p>
+              <p className="text-gray-400 mt-2">Torna presto per nuovi contenuti!</p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {posts.map((post) => (
+                <Card key={post.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 bg-white border-sage/10 animate-slide-up" data-testid={`card-post-${post.id}`}>
+                  {post.coverImage && (
+                    <div className="aspect-video overflow-hidden bg-beige">
+                      <img 
+                        src={post.coverImage} 
+                        alt={post.title}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <CardHeader>
+                    <div className="flex items-center gap-2 mb-3">
+                      {post.category && (
+                        <Badge variant="outline" className="text-sage border-sage">
+                          {post.category}
+                        </Badge>
+                      )}
+                      {post.tags?.slice(0, 2).map(tag => (
+                        <Badge key={tag} variant="secondary" className="text-xs bg-beige text-blue-gray">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                    <Link href={`/blog/${post.slug}`}>
+                      <CardTitle className="text-2xl font-playfair text-blue-gray hover:text-terracotta transition-colors cursor-pointer" data-testid={`title-${post.id}`}>
+                        {post.title}
+                      </CardTitle>
+                    </Link>
+                    <CardDescription className="flex items-center gap-4 text-sm mt-3">
+                      <span className="flex items-center gap-1 text-sage">
+                        <Calendar className="h-4 w-4" />
+                        {formatDate(post.publishedAt)}
+                      </span>
+                      <span className="flex items-center gap-1 text-sage">
+                        <Clock className="h-4 w-4" />
+                        {estimateReadTime(post.content)}
+                      </span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600 mb-4 line-clamp-3">
+                      {post.excerpt}
+                    </p>
+                    <Link href={`/blog/${post.slug}`}>
+                      <Button variant="link" className="text-sage hover:text-dark-sage p-0 font-semibold" data-testid={`button-read-${post.id}`}>
+                        Leggi articolo →
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-blue-gray text-white py-12 px-4 mt-20">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
+          <div>
+            <h3 className="text-2xl font-playfair mb-4">iMaGe Studio</h3>
+            <p className="text-gray-300 mb-4">
+              {studioSettings.about || "Studio fotografico per matrimoni ed eventi"}
+            </p>
+            {studioSettings.socialLinks?.instagram && (
+              <a
+                href={studioSettings.socialLinks.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition"
+              >
+                <Instagram className="h-5 w-5" />
+                Seguici su Instagram
+              </a>
+            )}
           </div>
-        ) : (
-          <div className="space-y-8">
-            {posts.map((post) => (
-              <Card key={post.id} className="overflow-hidden hover:shadow-lg transition-shadow" data-testid={`card-post-${post.id}`}>
-                {post.coverImage && (
-                  <div className="aspect-[21/9] overflow-hidden bg-cream">
-                    <img 
-                      src={post.coverImage} 
-                      alt={post.title}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                    />
-                  </div>
-                )}
-                <CardHeader>
-                  <div className="flex items-center gap-2 mb-2">
-                    {post.category && (
-                      <Badge variant="outline" className="text-terracotta border-terracotta">
-                        {post.category}
-                      </Badge>
-                    )}
-                    {post.tags?.map(tag => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                  <Link href={`/blog/${post.slug}`}>
-                    <CardTitle className="text-3xl font-serif hover:text-terracotta transition-colors cursor-pointer" data-testid={`title-${post.id}`}>
-                      {post.title}
-                    </CardTitle>
-                  </Link>
-                  <CardDescription className="flex items-center gap-4 text-sm mt-2">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {formatDate(post.publishedAt)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {estimateReadTime(post.content)}
-                    </span>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground mb-4">
-                    {post.excerpt}
-                  </p>
-                  <Link href={`/blog/${post.slug}`}>
-                    <Button variant="link" className="text-terracotta hover:text-terracotta/80 p-0" data-testid={`button-read-${post.id}`}>
-                      Leggi articolo →
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
+          <div>
+            <h4 className="font-semibold mb-4">Link Utili</h4>
+            <div className="space-y-2">
+              <Link href="/" className="block text-gray-300 hover:text-white">Home</Link>
+              <Link href="/portfolio" className="block text-gray-300 hover:text-white">Portfolio</Link>
+              <Link href="/storie" className="block text-gray-300 hover:text-white">La Mia Storia</Link>
+              <Link href="/blog" className="block text-gray-300 hover:text-white">Blog</Link>
+              <Link href="/consulenze" className="block text-gray-300 hover:text-white">Consulenze</Link>
+            </div>
           </div>
-        )}
-      </div>
+          <div>
+            <h4 className="font-semibold mb-4">Contatti</h4>
+            <div className="space-y-3">
+              {studioSettings.address && (
+                <div className="flex items-start gap-2 text-gray-300">
+                  <MapPin className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  <span>{studioSettings.address}</span>
+                </div>
+              )}
+              {studioSettings.phone && (
+                <a href={`tel:${studioSettings.phone}`} className="flex items-center gap-2 text-gray-300 hover:text-white transition">
+                  <Phone className="h-5 w-5 flex-shrink-0" />
+                  <span>{studioSettings.phone}</span>
+                </a>
+              )}
+              {studioSettings.email && (
+                <a href={`mailto:${studioSettings.email}`} className="flex items-center gap-2 text-gray-300 hover:text-white transition">
+                  <Mail className="h-5 w-5 flex-shrink-0" />
+                  <span>{studioSettings.email}</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-gray-400">
+          <p>© 2025 iMaGe Studio. Tutti i diritti riservati.</p>
+        </div>
+      </footer>
     </div>
   );
 }
