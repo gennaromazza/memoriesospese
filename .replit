@@ -53,13 +53,14 @@ args = "npm run build"
 task = "shell.exec"
 args = "node dist/index.js"
 
+[[ports]]
+localPort = 5000
+externalPort = 5000
 
-# ========== RIMOSSO WORKFLOW “Genny” ==========
-# Non serviva, creava conflitti enormi.
-
-
-# ========== PORTE NECESSARIE ==========
-# In realtà te ne serve una sola: quella di Vite
 [[ports]]
 localPort = 5173
 externalPort = 5173
+
+[[ports]]
+localPort = 24678
+externalPort = 80
