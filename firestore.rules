@@ -442,5 +442,32 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update consultations (approve, reject, convert to job)
       allow delete: if isAdmin(); // Only admin can delete consultations
     }
+    
+    // ====== PUBLIC WEBSITE SYSTEM RULES (November 2025) ======
+    
+    // Portfolio Selections - Admin curates public portfolio, anyone can view
+    match /portfolioSelections/{selectionId} {
+      allow read: if true; // Public read access for website portfolio page
+      allow create: if isAdmin(); // Only admin can add photos to public portfolio
+      allow update: if isAdmin(); // Only admin can update portfolio selections (featured, sortOrder, etc.)
+      allow delete: if isAdmin(); // Only admin can remove photos from public portfolio
+    }
+    
+    // Blog Posts - Admin manages blog content, public can view published posts
+    match /blogPosts/{postId} {
+      allow read: if isAdmin() || 
+        (resource.data.status != null && resource.data.status == 'published'); // Public can only read published posts, admin sees all
+      allow create: if isAdmin(); // Only admin can create blog posts
+      allow update: if isAdmin(); // Only admin can update blog posts
+      allow delete: if isAdmin(); // Only admin can delete blog posts
+    }
+    
+    // Site Content - CMS for public website sections (hero, about, services, etc.)
+    match /siteContent/{contentId} {
+      allow read: if true; // Public read access for website dynamic content
+      allow create: if isAdmin(); // Only admin can create site content sections
+      allow update: if isAdmin(); // Only admin can update site content
+      allow delete: if isAdmin(); // Only admin can delete site content
+    }
   }
 }
