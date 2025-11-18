@@ -537,10 +537,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     </div>
                   )}
 
-                  {/* WhatsApp Button - only for signed quotes with clients that have phone */}
+                  {/* WhatsApp Button - for all quotes with clients that have phone */}
                   {(() => {
-                    if (selectedQuote.status !== 'firmato') return null;
-                    
                     // Use whatsapp field if available, otherwise use cellulare1
                     const clientiConWhatsApp = clienti.filter(c => {
                       const phoneNumber = c.whatsapp || c.cellulare1;
@@ -551,11 +549,17 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     
                     return (
                       <div className="mt-3">
-                        <p className="text-xs text-muted-foreground mb-2">Invia preventivo su WhatsApp:</p>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          {selectedQuote.status === 'firmato' 
+                            ? 'Invia preventivo firmato su WhatsApp:' 
+                            : 'Invia preventivo su WhatsApp:'}
+                        </p>
                         <div className="flex flex-wrap gap-2">
                           {clientiConWhatsApp.map((cliente, index) => {
                             const nomeEvento = job?.nomeEvento || 'il tuo evento';
-                            const message = `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per poter vedere i dettagli e eventualmente confermare la prenotazione\n\n${getQuoteUrl(selectedQuote)}`;
+                            const message = selectedQuote.status === 'firmato'
+                              ? `Ecco il preventivo firmato per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli del contratto e i pagamenti\n\n${getQuoteUrl(selectedQuote)}`
+                              : `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli e firmare se sei d'accordo\n\n${getQuoteUrl(selectedQuote)}`;
                             const phoneNumber = (cliente.whatsapp || cliente.cellulare1 || '').replace(/\s+/g, '').replace(/^\+/, '');
                             const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
                             
