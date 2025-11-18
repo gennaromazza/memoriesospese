@@ -27,6 +27,9 @@ async function startServer() {
     const app = express();
     const PORT = parseInt(process.env.PORT || '5000', 10);
 
+    // IMPORTANTE: Trust proxy per far funzionare req.secure dietro Replit proxy
+    app.set('trust proxy', true);
+
     // Middleware per parsing JSON
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
