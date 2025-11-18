@@ -1,6 +1,7 @@
 modules = ["nodejs-20", "web", "postgresql-16"]
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
+# 🔥 Un solo comando DEV
 run = "npm run dev"
 
 [nix]
@@ -8,12 +9,17 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
+
+# 🔥 Build pulita, ZERO doppie installazioni
 build = ["sh", "-c", "npm ci && npm run build"]
+
+# 🔥 Start pulito
 run = ["sh", "-c", "node dist/index.js"]
 
 [workflows]
 runButton = "Prod Build & Start"
 
+# ========== DEV WORKFLOW ==========
 [[workflows.workflow]]
 name = "Dev Workflow"
 mode = "sequential"
@@ -21,13 +27,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm ci || npm install"
+args = "npm ci"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5173
 
+
+# ========== PROD WORKFLOW ==========
 [[workflows.workflow]]
 name = "Prod Build & Start"
 mode = "sequential"
@@ -45,79 +53,13 @@ args = "npm run build"
 task = "shell.exec"
 args = "node dist/index.js"
 
-[[workflows.workflow]]
-name = "Genny"
-mode = "sequential"
-author = 41213760
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm start"
+# ========== RIMOSSO WORKFLOW “Genny” ==========
+# Non serviva, creava conflitti enormi.
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
 
+# ========== PORTE NECESSARIE ==========
+# In realtà te ne serve una sola: quella di Vite
 [[ports]]
-localPort = 3000
-externalPort = 3000
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3001
-
-[[ports]]
-localPort = 5002
-externalPort = 3002
-
-[[ports]]
-localPort = 5003
-externalPort = 4200
-
-[[ports]]
-localPort = 8143
-externalPort = 9000
-
-[[ports]]
-localPort = 9005
-externalPort = 3003
-
-[[ports]]
-localPort = 9006
-externalPort = 8081
-
-[[ports]]
-localPort = 33875
-externalPort = 8008
-
-[[ports]]
-localPort = 36705
-externalPort = 6800
-
-[[ports]]
-localPort = 38141
-externalPort = 8099
-
-[[ports]]
-localPort = 40305
+localPort = 5173
 externalPort = 5173
-
-[[ports]]
-localPort = 41217
-externalPort = 8000
-
-[[ports]]
-localPort = 43437
-externalPort = 8080
-
-[[ports]]
-localPort = 45059
-externalPort = 5000
-
-[[ports]]
-localPort = 46253
-externalPort = 6000
