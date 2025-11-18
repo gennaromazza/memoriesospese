@@ -283,7 +283,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
           <Link to={createUrl("/vision")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
             iMaGe Vision
           </Link>
-          <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+          <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
                 Consulenze
               </Link>
               <a
