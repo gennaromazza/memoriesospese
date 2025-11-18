@@ -84,8 +84,16 @@
 
     <!-- Matrimonio.com Reviews Widget -->
     <script src="https://cdn1.matrimonio.com/js/wp-widget.js?symfnw-IT73-1-20251118-008_www_m_"></script>
+    
+    <!-- Facebook SDK for Page Plugin -->
+    <div id="fb-root"></div>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/it_IT/sdk.js#xfbml=1&version=v18.0"></script>
+    
+    <!-- Elfsight Platform -->
+    <script src="https://static.elfsight.com/platform/platform.js" data-use-service-core defer></script>
+    
     <script>
-      // Initialize widget when DOM is ready
+      // Initialize Matrimonio.com widget when DOM is ready
       if (typeof wpShowReviews !== 'undefined') {
         document.addEventListener('DOMContentLoaded', function() {
           setTimeout(function() {
