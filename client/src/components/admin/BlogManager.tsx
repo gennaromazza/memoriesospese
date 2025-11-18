@@ -47,7 +47,7 @@ export default function BlogManager() {
     excerpt: '',
     content: '',
     coverImage: '',
-    status: 'draft' as const,
+    status: BlogPostStatus.DRAFT,
     category: '',
     tags: '',
     author: 'Gennaro Mazzacane',
@@ -87,7 +87,7 @@ export default function BlogManager() {
       excerpt: '',
       content: '',
       coverImage: '',
-      status: 'draft',
+      status: BlogPostStatus.DRAFT,
       category: '',
       tags: '',
       author: 'Gennaro Mazzacane',
@@ -316,7 +316,7 @@ export default function BlogManager() {
                 Nuovo Post
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingPost ? 'Modifica Post' : 'Nuovo Post'}
@@ -383,14 +383,14 @@ export default function BlogManager() {
 
                   <div>
                     <Label>Stato</Label>
-                    <Select value={formData.status} onValueChange={(v) => setFormData(prev => ({ ...prev, status: v as any }))}>
+                    <Select value={formData.status} onValueChange={(v) => setFormData(prev => ({ ...prev, status: v as BlogPostStatus }))}>
                       <SelectTrigger data-testid="select-status">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="draft">Bozza</SelectItem>
-                        <SelectItem value="published">Pubblicato</SelectItem>
-                        <SelectItem value="archived">Archiviato</SelectItem>
+                        <SelectItem value={BlogPostStatus.DRAFT}>Bozza</SelectItem>
+                        <SelectItem value={BlogPostStatus.PUBLISHED}>Pubblicato</SelectItem>
+                        <SelectItem value={BlogPostStatus.ARCHIVED}>Archiviato</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -486,7 +486,6 @@ export default function BlogManager() {
               </Button>
             </DialogFooter>
           </DialogContent>
-          </Dialog>
         </Dialog>
       </div>
 
