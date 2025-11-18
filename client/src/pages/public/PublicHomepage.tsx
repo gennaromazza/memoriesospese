@@ -31,6 +31,8 @@ import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { FloralDivider, FloralCorner } from "@/components/WeddingIllustrations";
 import { useLocation } from "wouter";
+import libroCopertina from "@assets/libro-copertina.jpg";
+import libroPdf from "@assets/lasciati-trasportare.pdf";
 
 interface PortfolioPhoto {
   id: string;
@@ -709,26 +711,79 @@ export default function PublicHomepage() {
         </div>
       </section>
 
-      {/* CTA Book */}
-      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-sage to-dark-sage px-4">
-        <div className="max-w-4xl mx-auto text-center text-white">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">
-            Scarica GRATIS il Libro
-          </h2>
-          <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8">
-            "Lasciati Trasportare" - La guida completa per organizzare il tuo
-            matrimonio perfetto
-          </p>
-          <Link href="/lasciati-trasportare">
-            <Button
-              size="lg"
-              className="bg-white text-sage hover:bg-gray-100"
-              data-testid="button-libro"
-            >
-              <BookOpen className="mr-2 h-5 w-5" />
-              Scarica il Libro
-            </Button>
-          </Link>
+      {/* CTA Book - Lasciati Trasportare */}
+      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-br from-[#8B9A8B] via-[#9AA89A] to-[#7A8A7A] px-4 relative overflow-hidden">
+        {/* Background decorative elements */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.1) 10px, rgba(255, 255, 255, 0.1) 20px)`
+          }} />
+        </div>
+
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            {/* Book Cover Image */}
+            <div className="flex justify-center md:justify-end">
+              <div className="relative group">
+                <div className="absolute inset-0 bg-white/20 rounded-2xl transform rotate-3 group-hover:rotate-6 transition-transform duration-300" />
+                <img
+                  src={libroCopertina}
+                  alt="Lasciati Trasportare - Copertina del Libro"
+                  className="relative w-full max-w-sm rounded-2xl shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+            </div>
+
+            {/* Book Info */}
+            <div className="text-white space-y-6">
+              <div>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-4">
+                  Lasciati <span className="text-[#F5E6D3]">Trasportare</span>
+                </h2>
+                <p className="text-lg sm:text-xl text-white/90 mb-2">
+                  Un viaggio emozionante attraverso il mondo dei matrimoni e della fotografia
+                </p>
+                <p className="text-base sm:text-lg text-white/80">
+                  La guida completa per organizzare il tuo matrimonio perfetto, raccontata da un fotografo professionista
+                </p>
+              </div>
+
+              <div className="space-y-3 text-white/90">
+                <div className="flex items-start gap-2">
+                  <Heart className="h-5 w-5 mt-1 flex-shrink-0 text-[#F5E6D3]" />
+                  <span>Consigli pratici per ogni fase dell'organizzazione</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Camera className="h-5 w-5 mt-1 flex-shrink-0 text-[#F5E6D3]" />
+                  <span>Segreti per foto di matrimonio indimenticabili</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Sparkles className="h-5 w-5 mt-1 flex-shrink-0 text-[#F5E6D3]" />
+                  <span>Storie vere ed emozioni autentiche</span>
+                </div>
+              </div>
+
+              <a
+                href={libroPdf}
+                download="Lasciati-Trasportare.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button
+                  size="lg"
+                  className="bg-white text-sage hover:bg-cream hover:text-sage transition-colors shadow-lg"
+                  data-testid="button-libro"
+                >
+                  <BookOpen className="mr-2 h-5 w-5" />
+                  Scarica GRATIS il Libro
+                </Button>
+              </a>
+
+              <p className="text-sm text-white/70">
+                Download immediato - File PDF - Nessuna registrazione richiesta
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

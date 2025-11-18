@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, Star, Image, Grid3x3, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Star, Image, Grid3x3, Loader2, CheckSquare, Square } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface PortfolioSelection {
   id: string;
@@ -58,7 +59,7 @@ export default function PortfolioManager() {
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedGallery, setSelectedGallery] = useState<string>('');
-  const [selectedPhoto, setSelectedPhoto] = useState<string>('');
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [selectedJobType, setSelectedJobType] = useState<string>('matrimonio');
   const [filterJobType, setFilterJobType] = useState<string>('all');
   const [loadingPhotos, setLoadingPhotos] = useState(false);
@@ -131,7 +132,7 @@ export default function PortfolioManager() {
 
   const handleGalleryChange = (galleryId: string) => {
     setSelectedGallery(galleryId);
-    setSelectedPhoto('');
+    setSelectedPhotos(new Set());
     if (galleryId) {
       loadGalleryPhotos(galleryId);
     } else {
@@ -139,11 +140,31 @@ export default function PortfolioManager() {
     }
   };
 
+  const togglePhotoSelection = (photoId: string) => {
+    setSelectedPhotos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(photoId)) {
+        newSet.delete(photoId);
+      } else {
+        newSet.add(photoId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllPhotos = () => {
+    setSelectedPhotos(new Set(photos.map(p => p.id)));
+  };
+
+  const deselectAllPhotos = () => {
+    setSelectedPhotos(new Set());
+  };
+
   const handleAddToPortfolio = async () => {
-    if (!selectedGallery || !selectedPhoto) {
+    if (!selectedGallery || selectedPhotos.size === 0) {
       toast({
         title: "Attenzione",
-        description: "Seleziona una galleria e una foto",
+        description: "Seleziona una galleria e almeno una foto",
         variant: "destructive"
       });
       return;
@@ -152,40 +173,62 @@ export default function PortfolioManager() {
     setSaving(true);
     try {
       const gallery = galleries.find(g => g.id === selectedGallery);
-      const photo = photos.find(p => p.id === selectedPhoto);
-      
-      if (!gallery || !photo) return;
+      if (!gallery) return;
 
       const maxSortOrder = selections.length > 0 
         ? Math.max(...selections.map(s => s.sortOrder)) 
         : 0;
 
-      await addDoc(collection(db, 'portfolioSelections'), {
-        galleryId: selectedGallery,
-        galleryName: gallery.name,
-        photoId: selectedPhoto,
-        photoUrl: photo.url,
-        jobType: selectedJobType,
-        featured: false,
-        sortOrder: maxSortOrder + 1,
-        createdAt: new Date()
+      // Add all selected photos in batch with error handling
+      const promises = Array.from(selectedPhotos).map(async (photoId, index) => {
+        const photo = photos.find(p => p.id === photoId);
+        if (!photo) return { success: false, photoId, error: 'Photo not found' };
+
+        try {
+          await addDoc(collection(db, 'portfolioSelections'), {
+            galleryId: selectedGallery,
+            galleryName: gallery.name,
+            photoId: photoId,
+            photoUrl: photo.url,
+            jobType: selectedJobType,
+            featured: false,
+            sortOrder: maxSortOrder + index + 1,
+            createdAt: new Date()
+          });
+          return { success: true, photoId };
+        } catch (err) {
+          console.error(`Failed to add photo ${photoId}:`, err);
+          return { success: false, photoId, error: err };
+        }
       });
 
-      toast({
-        title: "Successo",
-        description: "Foto aggiunta al portfolio pubblico"
-      });
+      const results = await Promise.allSettled(promises);
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+      const failed = results.length - successful;
+
+      if (failed > 0) {
+        toast({
+          title: "Completato con errori",
+          description: `${successful} foto aggiunte, ${failed} non riuscite`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Successo",
+          description: `${successful} foto aggiunte al portfolio pubblico`
+        });
+      }
 
       setAddDialogOpen(false);
       setSelectedGallery('');
-      setSelectedPhoto('');
+      setSelectedPhotos(new Set());
       setPhotos([]);
       loadSelections();
     } catch (error) {
       console.error('Errore aggiunta foto:', error);
       toast({
         title: "Errore",
-        description: "Impossibile aggiungere la foto al portfolio",
+        description: "Impossibile aggiungere le foto al portfolio",
         variant: "destructive"
       });
     } finally {
@@ -312,7 +355,33 @@ export default function PortfolioManager() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Seleziona Foto</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Seleziona Foto ({selectedPhotos.size} selezionate)</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={selectAllPhotos}
+                          disabled={photos.length === 0}
+                          data-testid="button-select-all"
+                        >
+                          <CheckSquare className="h-4 w-4 mr-1" />
+                          Tutte
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={deselectAllPhotos}
+                          disabled={selectedPhotos.size === 0}
+                          data-testid="button-deselect-all"
+                        >
+                          <Square className="h-4 w-4 mr-1" />
+                          Nessuna
+                        </Button>
+                      </div>
+                    </div>
                     {loadingPhotos ? (
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin" />
@@ -326,9 +395,9 @@ export default function PortfolioManager() {
                         {photos.map(photo => (
                           <div
                             key={photo.id}
-                            onClick={() => setSelectedPhoto(photo.id)}
+                            onClick={() => togglePhotoSelection(photo.id)}
                             className={`relative cursor-pointer border-2 rounded-md overflow-hidden transition-all group ${
-                              selectedPhoto === photo.id 
+                              selectedPhotos.has(photo.id)
                                 ? 'border-primary ring-2 ring-primary' 
                                 : 'border-transparent hover:border-primary/50'
                             }`}
@@ -339,6 +408,12 @@ export default function PortfolioManager() {
                               alt={photo.name}
                               className="w-full h-40 object-cover"
                             />
+                            <div className="absolute top-2 left-2 bg-white rounded-md shadow-sm p-1 pointer-events-none">
+                              <Checkbox 
+                                checked={selectedPhotos.has(photo.id)}
+                                className="pointer-events-none"
+                              />
+                            </div>
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
                               <Button
                                 size="sm"
@@ -369,14 +444,16 @@ export default function PortfolioManager() {
               </Button>
               <Button 
                 onClick={handleAddToPortfolio} 
-                disabled={!selectedPhoto || saving}
+                disabled={selectedPhotos.size === 0 || saving}
                 data-testid="button-confirm-add-photo"
               >
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Aggiunta...
+                    Aggiunta in corso...
                   </>
+                ) : selectedPhotos.size > 0 ? (
+                  `Aggiungi ${selectedPhotos.size} Foto al Portfolio`
                 ) : (
                   'Aggiungi al Portfolio'
                 )}
@@ -495,13 +572,14 @@ export default function PortfolioManager() {
             <Button
               onClick={() => {
                 if (lightboxPhoto) {
-                  setSelectedPhoto(lightboxPhoto.id);
+                  togglePhotoSelection(lightboxPhoto.id);
                   setLightboxOpen(false);
                 }
               }}
-              disabled={!lightboxPhoto || selectedPhoto === lightboxPhoto?.id}
+              disabled={!lightboxPhoto}
+              variant={lightboxPhoto && selectedPhotos.has(lightboxPhoto.id) ? "destructive" : "default"}
             >
-              {selectedPhoto === lightboxPhoto?.id ? 'Già Selezionata' : 'Seleziona Questa Foto'}
+              {lightboxPhoto && selectedPhotos.has(lightboxPhoto.id) ? 'Deseleziona Foto' : 'Seleziona Foto'}
             </Button>
           </DialogFooter>
         </DialogContent>
