@@ -1146,7 +1146,7 @@ export default function AdminDashboard() {
                 <span>Cassa</span>
               </TabsTrigger>
 
-              {/* Consulenze con dropdown sottomenu */}
+              {/* Richieste Info con dropdown sottomenu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1154,7 +1154,7 @@ export default function AdminDashboard() {
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
                     <CalendarCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                    <span>Consulenze</span>
+                    <span>Richieste Info</span>
                     <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1164,14 +1164,14 @@ export default function AdminDashboard() {
                     setActiveConsultationSection('consulenze');
                   }}>
                     <CalendarCheck className="h-4 w-4 mr-2" />
-                    Consulenze
+                    Richieste Info
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => {
                     setActiveTab('consulenze');
                     setActiveConsultationSection('consulenze-templates');
                   }}>
                     <FileText className="h-4 w-4 mr-2" />
-                    Template Consulenze
+                    Template Richieste
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1883,7 +1883,7 @@ export default function AdminDashboard() {
                         <div>
                           <h2 className="text-2xl font-bold text-blue-gray">📅 Gestione Prenotazioni</h2>
                           <p className="text-sm text-muted-foreground">
-                            Gestisci prenotazioni booking, campagne e ordini
+                            Gestisci prenotazioni, campagne e ordini
                           </p>
                         </div>
                       </div>
@@ -2008,17 +2008,17 @@ export default function AdminDashboard() {
               <CashDashboard />
             </TabsContent>
 
-            {/* Contenuto Tab Consulenze con Sub-Tabs */}
+            {/* Contenuto Tab Richieste Info con Sub-Tabs */}
             <TabsContent value="consulenze">
               <Tabs value={activeConsultationSection} onValueChange={(v) => setActiveConsultationSection(v as any)} className="w-full">
                 <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
                   <TabsTrigger value="consulenze" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <CalendarCheck className="h-4 w-4 flex-shrink-0" />
-                    Consulenze
+                    Richieste Info
                   </TabsTrigger>
                   <TabsTrigger value="consulenze-templates" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <FileText className="h-4 w-4 flex-shrink-0" />
-                    Template Consulenze
+                    Template Richieste
                   </TabsTrigger>
                 </TabsList>
 
@@ -2351,17 +2351,17 @@ export default function AdminDashboard() {
               </Tabs>
             </TabsContent>
 
-            {/* Contenuto Tab Consulenze con Sub-Tabs */}
+            {/* Contenuto Tab Richieste Info con Sub-Tabs */}
             <TabsContent value="consulenze">
               <Tabs value={activeConsultationSection} onValueChange={(v) => setActiveConsultationSection(v as any)} className="w-full">
                 <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
                   <TabsTrigger value="consulenze" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <CalendarCheck className="h-4 w-4 flex-shrink-0" />
-                    Consulenze
+                    Richieste Info
                   </TabsTrigger>
                   <TabsTrigger value="consulenze-templates" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                     <FileText className="h-4 w-4 flex-shrink-0" />
-                    Template Consulenze
+                    Template Richieste
                   </TabsTrigger>
                 </TabsList>
 
