@@ -3797,86 +3797,6 @@ export function createAccontoCancelledEmailHTML(
 }
 
 /**
- * Template HTML per notifica admin quote firmato (Instagram-ready)
- */
-export function createAdminQuoteSignedNotificationHTML(
-  clienteName: string,
-  nomeEvento: string,
-  totalAmount: number,
-  signatureDate: string,
-  quoteType: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
-): string {
-  const studio = studioInfo || { 
-    name: "Image Studio", 
-    email: "info@imagestudiofotografico.com",
-    phone: "+39 334 7103142",
-    address: ""
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(amount);
-  };
-
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-      <div style="background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-        <h1 style="color: #667eea; text-align: center; margin: 0 0 20px 0; font-size: 28px;">
-          🎉 NUOVO CONTRATTO FIRMATO! 🎉
-        </h1>
-        
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; margin: 20px 0; text-align: center;">
-          <p style="color: white; font-size: 24px; font-weight: bold; margin: 0;">
-            ${clienteName}
-          </p>
-          <p style="color: rgba(255,255,255,0.9); font-size: 18px; margin: 10px 0 0 0;">
-            ${nomeEvento}
-          </p>
-        </div>
-
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 10px 0; font-size: 16px; color: #666;">💰 Totale Contratto:</td>
-              <td style="padding: 10px 0; font-size: 24px; font-weight: bold; color: #667eea; text-align: right;">
-                ${formatCurrency(totalAmount)}
-              </td>
-            </tr>
-            <tr>
-              <td style="padding: 10px 0; font-size: 14px; color: #666;">📝 Tipo Preventivo:</td>
-              <td style="padding: 10px 0; font-size: 16px; font-weight: bold; text-align: right;">
-                ${quoteType === 'fisso' ? 'Pacchetto Fisso' : 'A Consumo'}
-              </td>
-            </tr>
-            <tr>
-              <td style="padding: 10px 0; font-size: 14px; color: #666;">📅 Firmato il:</td>
-              <td style="padding: 10px 0; font-size: 16px; text-align: right;">
-                ${signatureDate}
-              </td>
-            </tr>
-          </table>
-        </div>
-
-        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 5px;">
-          <p style="margin: 0; font-size: 14px; color: #155724;">
-            ✅ <strong>Prossimi passi:</strong> Controlla la dashboard admin per gestire il nuovo job e i pagamenti.
-          </p>
-        </div>
-
-        <div style="text-align: center; margin-top: 30px;">
-          <p style="font-size: 12px; color: #999; margin: 0;">
-            Questa è una notifica automatica da ${studio.name}
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-/**
  * Template HTML per email contratto firmato (Modulo di Prenotazione)
  * ESPORTATA per uso in quote management
  */
@@ -4191,7 +4111,8 @@ router.post("/admin-quote-signed-notification", async (req, res) => {
       nomeEvento,
       totalAmount,
       signatureDate,
-      quoteType
+      quoteType,
+      quoteUrl
     } = req.body;
 
     // Validazioni
@@ -4204,12 +4125,16 @@ router.post("/admin-quote-signed-notification", async (req, res) => {
     // Recupera dati contatto studio
     const studioInfo = await getStudioContactInfo();
 
+    // Converti signatureDate in Date se è una stringa
+    const signedAt = typeof signatureDate === 'string' ? new Date(signatureDate) : signatureDate;
+
     const htmlContent = createAdminQuoteSignedNotificationHTML(
       clienteName,
+      quoteType as 'fisso' | 'variabile',
       nomeEvento,
       totalAmount,
-      signatureDate,
-      quoteType,
+      signedAt,
+      quoteUrl || '#',
       studioInfo
     );
 
