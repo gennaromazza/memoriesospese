@@ -1,10 +1,73 @@
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
+import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Camera, Heart, BookOpen, Calendar, Image as ImageIcon, Instagram, Phone, Mail, MapPin } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 
+interface PortfolioPhoto {
+  id: string;
+  photoUrl: string;
+  galleryName: string;
+  jobType: string;
+  featured: boolean;
+}
+
 export default function PublicHomepage() {
   const { studioSettings } = useStudio();
+  const [portfolioPhotos, setPortfolioPhotos] = useState<PortfolioPhoto[]>([]);
+  const [loadingPhotos, setLoadingPhotos] = useState(true);
+
+  useEffect(() => {
+    loadPortfolioPreview();
+  }, []);
+
+  const loadPortfolioPreview = async () => {
+    setLoadingPhotos(true);
+    try {
+      const photosRef = collection(db, 'portfolioSelections');
+      const q = query(
+        photosRef,
+        where('featured', '==', true),
+        orderBy('sortOrder', 'asc'),
+        limit(6)
+      );
+      const snapshot = await getDocs(q);
+      
+      let photos = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PortfolioPhoto[];
+
+      // If less than 6 featured photos, fetch additional non-featured ones
+      if (photos.length < 6) {
+        const remaining = 6 - photos.length;
+        const additionalQ = query(
+          photosRef,
+          where('featured', '==', false),
+          orderBy('sortOrder', 'asc'),
+          limit(remaining)
+        );
+        const additionalSnapshot = await getDocs(additionalQ);
+        const additionalPhotos = additionalSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as PortfolioPhoto[];
+        
+        // Append additional photos, deduplicating by id
+        const featuredIds = new Set(photos.map(p => p.id));
+        const uniqueAdditional = additionalPhotos.filter(p => !featuredIds.has(p.id));
+        photos = [...photos, ...uniqueAdditional].slice(0, 6);
+      }
+
+      setPortfolioPhotos(photos);
+    } catch (error) {
+      console.error('Errore caricamento portfolio preview:', error);
+    } finally {
+      setLoadingPhotos(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
@@ -122,11 +185,29 @@ export default function PublicHomepage() {
             <h2 className="text-4xl font-playfair text-blue-gray mb-4">Portfolio</h2>
             <p className="text-xl text-gray-600">Ogni foto racconta una storia unica</p>
           </div>
-          {/* Grid placeholder - sarà dinamico */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="aspect-square bg-gray-200 rounded-lg" />
-            ))}
+            {loadingPhotos ? (
+              [1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="aspect-square bg-gray-200 rounded-lg animate-pulse" />
+              ))
+            ) : portfolioPhotos.length > 0 ? (
+              portfolioPhotos.map((photo) => (
+                <Link key={photo.id} href="/portfolio">
+                  <div className="aspect-square rounded-lg overflow-hidden group cursor-pointer">
+                    <img 
+                      src={photo.photoUrl} 
+                      alt={`${photo.galleryName} - ${photo.jobType}`}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                  </div>
+                </Link>
+              ))
+            ) : (
+              [1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="aspect-square bg-gray-200 rounded-lg" />
+              ))
+            )}
           </div>
           <div className="text-center">
             <Link href="/portfolio">
