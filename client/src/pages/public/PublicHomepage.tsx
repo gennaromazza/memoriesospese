@@ -271,7 +271,7 @@ export default function PublicHomepage() {
                 </Link>
               </div>
             </div>
-            <div className="relative h-[500px] rounded-2xl overflow-hidden shadow-2xl">
+            <div className="relative h-[300px] sm:h-[400px] md:h-[500px] rounded-2xl overflow-hidden shadow-2xl">
               <HeroSlideshow />
               <div className="absolute inset-0 bg-gradient-to-br from-sage/20 to-transparent pointer-events-none" />
             </div>
@@ -280,37 +280,37 @@ export default function PublicHomepage() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      <section className="py-12 sm:py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 text-center">
             <div>
-              <div className="text-4xl font-playfair text-sage mb-2">10+</div>
-              <div className="text-gray-600">Anni di Esperienza</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">10+</div>
+              <div className="text-sm sm:text-base text-gray-600">Anni di Esperienza</div>
             </div>
             <div>
-              <div className="text-4xl font-playfair text-sage mb-2">500+</div>
-              <div className="text-gray-600">Matrimoni</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">500+</div>
+              <div className="text-sm sm:text-base text-gray-600">Matrimoni</div>
             </div>
             <div>
-              <div className="text-4xl font-playfair text-sage mb-2">1000+</div>
-              <div className="text-gray-600">Eventi</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">1000+</div>
+              <div className="text-sm sm:text-base text-gray-600">Eventi</div>
             </div>
             <div>
-              <div className="text-4xl font-playfair text-sage mb-2">100%</div>
-              <div className="text-gray-600">Passione</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">100%</div>
+              <div className="text-sm sm:text-base text-gray-600">Passione</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Portfolio Preview */}
-      <section className="py-20 px-4">
+      <section className="py-12 sm:py-16 md:py-20 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-playfair text-blue-gray mb-4">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-4">
               Portfolio
             </h2>
-            <p className="text-xl text-gray-600">
+            <p className="text-lg sm:text-xl text-gray-600">
               Ogni foto racconta una storia unica
             </p>
           </div>
@@ -568,12 +568,12 @@ export default function PublicHomepage() {
       )}
 
       {/* About Preview */}
-      <section className="py-20 bg-white px-4">
+      <section className="py-12 sm:py-16 md:py-20 bg-white px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="h-[400px] bg-gray-200 rounded-2xl" />
+          <div className="grid md:grid-cols-2 gap-8 sm:gap-12 items-center">
+            <div className="h-[250px] sm:h-[300px] md:h-[400px] bg-gray-200 rounded-2xl" />
             <div>
-              <h2 className="text-4xl font-playfair text-blue-gray mb-6">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-4 sm:mb-6">
                 La Mia Storia
               </h2>
               <p className="text-lg text-gray-600 mb-6">
@@ -611,35 +611,35 @@ export default function PublicHomepage() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl border border-sage/10 p-8 md:p-12">
-            <div className="grid grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4 mb-8">
               <div className="text-center">
-                <div className="bg-sage/5 rounded-xl p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
-                  <span className="text-4xl">🎄</span>
-                  <p className="text-sm text-gray-600 mt-2 font-medium">Natale</p>
+                <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
+                  <span className="text-3xl sm:text-4xl">🎄</span>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">Natale</p>
                 </div>
               </div>
               <div className="text-center">
-                <div className="bg-sage/5 rounded-xl p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
-                  <span className="text-4xl">🎭</span>
-                  <p className="text-sm text-gray-600 mt-2 font-medium">Carnevale</p>
+                <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
+                  <span className="text-3xl sm:text-4xl">🎭</span>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">Carnevale</p>
                 </div>
               </div>
               <div className="text-center">
-                <div className="bg-sage/5 rounded-xl p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
-                  <span className="text-4xl">💕</span>
-                  <p className="text-sm text-gray-600 mt-2 font-medium">San Valentino</p>
+                <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
+                  <span className="text-3xl sm:text-4xl">💕</span>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">San Valentino</p>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="bg-sage/5 rounded-xl p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
-                  <span className="text-4xl">🐰</span>
-                  <p className="text-sm text-gray-600 mt-2 font-medium">Pasqua</p>
+              <div className="text-center hidden sm:block">
+                <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
+                  <span className="text-3xl sm:text-4xl">🐰</span>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">Pasqua</p>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="bg-sage/5 rounded-xl p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
-                  <span className="text-4xl">🎃</span>
-                  <p className="text-sm text-gray-600 mt-2 font-medium">Halloween</p>
+              <div className="text-center hidden sm:block">
+                <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
+                  <span className="text-3xl sm:text-4xl">🎃</span>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">Halloween</p>
                 </div>
               </div>
             </div>
@@ -664,10 +664,10 @@ export default function PublicHomepage() {
       </section>
 
       {/* Accesso Gallerie CTA */}
-      <section className="py-20 bg-gradient-to-r from-terracotta to-[#C67B5C] px-4">
+      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-terracotta to-[#C67B5C] px-4">
         <div className="max-w-4xl mx-auto text-center text-white">
-          <h2 className="text-4xl font-playfair mb-4">Sei uno Sposo?</h2>
-          <p className="text-xl mb-8">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-4">Sei uno Sposo?</h2>
+          <p className="text-lg sm:text-xl mb-6 sm:mb-8">
             Accedi alla tua galleria privata e rivivi le emozioni del tuo giorno
             speciale
           </p>
@@ -685,12 +685,12 @@ export default function PublicHomepage() {
       </section>
 
       {/* CTA Book */}
-      <section className="py-20 bg-gradient-to-r from-sage to-dark-sage px-4">
+      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-sage to-dark-sage px-4">
         <div className="max-w-4xl mx-auto text-center text-white">
-          <h2 className="text-4xl font-playfair mb-4">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-4">
             Scarica GRATIS il Libro
           </h2>
-          <p className="text-xl mb-8">
+          <p className="text-lg sm:text-xl mb-6 sm:mb-8">
             "Lasciati Trasportare" - La guida completa per organizzare il tuo
             matrimonio perfetto
           </p>
@@ -774,7 +774,7 @@ export default function PublicHomepage() {
                     .replace(/\/$/, "")
                     .replace(/[?#].*$/, "")}/embed`}
                   className="w-full border-0 rounded-lg"
-                  style={{ minHeight: "500px" }}
+                  style={{ minHeight: "400px", height: "500px" }}
                   scrolling="yes"
                   title="Instagram Feed"
                   loading="lazy"

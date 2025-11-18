@@ -49,18 +49,18 @@ export default function GalleryAccessPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-12 px-4">
+      <section className="pt-24 sm:pt-28 md:pt-32 pb-8 sm:pb-12 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-sage rounded-full mb-6">
-            <ImageIcon className="w-10 h-10 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-sage rounded-full mb-4 sm:mb-6">
+            <ImageIcon className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
           </div>
-          <h1 className="text-5xl md:text-6xl font-playfair text-blue-gray mb-6">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6">
             Accedi alla Tua <span className="text-[#C67B5C]">Galleria</span>
           </h1>
-          <p className="text-xl text-gray-600 mb-4">
+          <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
             Rivivi le emozioni del tuo evento speciale
           </p>
-          <p className="text-lg text-gray-500">
+          <p className="text-base sm:text-lg text-gray-500">
             Cerca la tua galleria per nome evento o sposi
           </p>
         </div>
