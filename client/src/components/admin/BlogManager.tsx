@@ -485,9 +485,10 @@ export default function BlogManager() {
                 )}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
 
       <div className="flex gap-2 items-center">
         <Label>Filtra per stato:</Label>
