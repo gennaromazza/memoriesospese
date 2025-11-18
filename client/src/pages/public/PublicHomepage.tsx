@@ -119,7 +119,7 @@ export default function PublicHomepage() {
           id: photo.id,
           photoUrl: photo.photoUrl,
           galleryName: photo.galleryName,
-          featured: photo.featured
+          featured: photo.featured,
         });
       });
 
@@ -138,7 +138,9 @@ export default function PublicHomepage() {
           ...doc.data(),
         })) as PortfolioPhoto[];
 
-        console.log(`[PublicHomepage] Additional photos loaded: ${additionalPhotos.length}`);
+        console.log(
+          `[PublicHomepage] Additional photos loaded: ${additionalPhotos.length}`,
+        );
 
         // Append additional photos, deduplicating by id
         const featuredIds = new Set(photos.map((p) => p.id));
@@ -282,7 +284,7 @@ export default function PublicHomepage() {
                     data-testid="link-accesso-galleria-hero"
                   >
                     <ImageIcon className="mr-2 h-4 w-4" />
-                    Accedi alla tua galleria evento
+                    Hai partecipato a un evento? Accedi alla tua galleria
                   </Button>
                 </Link>
               </div>
@@ -299,19 +301,31 @@ export default function PublicHomepage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 text-center">
             <div>
-              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">10+</div>
-              <div className="text-sm sm:text-base text-gray-600">Anni di Esperienza</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">
+                10+
+              </div>
+              <div className="text-sm sm:text-base text-gray-600">
+                Anni di Esperienza
+              </div>
             </div>
             <div>
-              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">500+</div>
-              <div className="text-sm sm:text-base text-gray-600">Matrimoni</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">
+                500+
+              </div>
+              <div className="text-sm sm:text-base text-gray-600">
+                Matrimoni
+              </div>
             </div>
             <div>
-              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">1000+</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">
+                1000+
+              </div>
               <div className="text-sm sm:text-base text-gray-600">Eventi</div>
             </div>
             <div>
-              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">100%</div>
+              <div className="text-3xl sm:text-4xl md:text-5xl font-playfair text-sage mb-2">
+                100%
+              </div>
               <div className="text-sm sm:text-base text-gray-600">Passione</div>
             </div>
           </div>
@@ -330,45 +344,51 @@ export default function PublicHomepage() {
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
-            {loadingPhotos
-              ? [1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="bg-gray-200 rounded-lg animate-pulse"
-                    style={{ aspectRatio: '1' }}
-                  />
-                ))
-              : portfolioPhotos.length > 0
-                ? portfolioPhotos.map((photo, index) => (
-                    <Link key={photo.id} href="/portfolio">
-                      <div className="rounded-lg overflow-hidden group cursor-pointer">
-                        <img
-                          src={photo.photoUrl}
-                          alt={`${photo.galleryName} - ${photo.jobType}`}
-                          className="w-full h-auto object-cover group-hover:scale-110 transition-transform duration-300"
-                          loading="lazy"
-                          onError={(e) => {
-                            console.error(`[PublicHomepage] Failed to load image ${index + 1}:`, photo.photoUrl);
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-sm p-4 text-center">Errore caricamento foto</div>`;
-                          }}
-                          onLoad={() => {
-                            console.log(`[PublicHomepage] Successfully loaded image ${index + 1}`);
-                          }}
-                        />
-                      </div>
-                    </Link>
-                  ))
-                : (
-                    <div className="col-span-2 md:col-span-3 text-center py-12">
-                      <p className="text-lg text-gray-500">
-                        Nessuna foto nel portfolio. Le foto in evidenza verranno visualizzate qui.
-                      </p>
-                      <p className="text-sm text-gray-400 mt-2">
-                        Vai al Portfolio Manager per aggiungere foto in evidenza.
-                      </p>
-                    </div>
-                  )}
+            {loadingPhotos ? (
+              [1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={i}
+                  className="bg-gray-200 rounded-lg animate-pulse"
+                  style={{ aspectRatio: "1" }}
+                />
+              ))
+            ) : portfolioPhotos.length > 0 ? (
+              portfolioPhotos.map((photo, index) => (
+                <Link key={photo.id} href="/portfolio">
+                  <div className="rounded-lg overflow-hidden group cursor-pointer">
+                    <img
+                      src={photo.photoUrl}
+                      alt={`${photo.galleryName} - ${photo.jobType}`}
+                      className="w-full h-auto object-cover group-hover:scale-110 transition-transform duration-300"
+                      loading="lazy"
+                      onError={(e) => {
+                        console.error(
+                          `[PublicHomepage] Failed to load image ${index + 1}:`,
+                          photo.photoUrl,
+                        );
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-sm p-4 text-center">Errore caricamento foto</div>`;
+                      }}
+                      onLoad={() => {
+                        console.log(
+                          `[PublicHomepage] Successfully loaded image ${index + 1}`,
+                        );
+                      }}
+                    />
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-2 md:col-span-3 text-center py-12">
+                <p className="text-lg text-gray-500">
+                  Nessuna foto nel portfolio. Le foto in evidenza verranno
+                  visualizzate qui.
+                </p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Vai al Portfolio Manager per aggiungere foto in evidenza.
+                </p>
+              </div>
+            )}
           </div>
           <div className="text-center">
             <Link href="/portfolio">
@@ -444,7 +464,8 @@ export default function PublicHomepage() {
                           <div className="flex items-center gap-2 bg-sage/5 px-4 py-2 rounded-xl border border-sage/10">
                             <Calendar className="w-4 h-4 text-sage" />
                             <span className="text-sm font-medium text-gray-700">
-                              {formatDate(campaign.dataInizio)} — {formatDate(campaign.dataFine)}
+                              {formatDate(campaign.dataInizio)} —{" "}
+                              {formatDate(campaign.dataFine)}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded-xl border border-yellow-200">
@@ -542,7 +563,8 @@ export default function PublicHomepage() {
                                 <div className="flex items-center gap-2 bg-sage/5 px-4 py-2 rounded-xl border border-sage/10">
                                   <Calendar className="w-4 h-4 text-sage" />
                                   <span className="text-sm font-medium text-gray-700">
-                                    {formatDate(campaign.dataInizio)} — {formatDate(campaign.dataFine)}
+                                    {formatDate(campaign.dataInizio)} —{" "}
+                                    {formatDate(campaign.dataFine)}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded-xl border border-yellow-200">
@@ -560,7 +582,9 @@ export default function PublicHomepage() {
                               )}
 
                               <Button
-                                onClick={() => navigate(`/prenota/${campaign.code}`)}
+                                onClick={() =>
+                                  navigate(`/prenota/${campaign.code}`)
+                                }
                                 size="lg"
                                 className="bg-sage hover:bg-dark-sage text-white font-bold px-8 py-4 shadow-lg hover:shadow-xl transition-all"
                                 data-testid={`button-book-campaign-${campaign.id}`}
@@ -641,7 +665,8 @@ export default function PublicHomepage() {
               Gallerie Speciali
             </h2>
             <p className="text-xl text-gray-600">
-              Accedi alle nostre gallerie tematiche esclusive con il PIN che ti è stato fornito
+              Accedi alle nostre gallerie tematiche esclusive con il PIN che ti
+              è stato fornito
             </p>
           </div>
 
@@ -650,31 +675,41 @@ export default function PublicHomepage() {
               <div className="text-center">
                 <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
                   <span className="text-3xl sm:text-4xl">🎄</span>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">Natale</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">
+                    Natale
+                  </p>
                 </div>
               </div>
               <div className="text-center">
                 <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
                   <span className="text-3xl sm:text-4xl">🎭</span>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">Carnevale</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">
+                    Carnevale
+                  </p>
                 </div>
               </div>
               <div className="text-center">
                 <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
                   <span className="text-3xl sm:text-4xl">💕</span>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">San Valentino</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">
+                    San Valentino
+                  </p>
                 </div>
               </div>
               <div className="text-center hidden sm:block">
                 <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
                   <span className="text-3xl sm:text-4xl">🐰</span>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">Pasqua</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">
+                    Pasqua
+                  </p>
                 </div>
               </div>
               <div className="text-center hidden sm:block">
                 <div className="bg-sage/5 rounded-xl p-3 sm:p-4 border border-sage/10 hover:bg-sage/10 transition-colors">
                   <span className="text-3xl sm:text-4xl">🎃</span>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">Halloween</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">
+                    Halloween
+                  </p>
                 </div>
               </div>
             </div>
@@ -701,7 +736,9 @@ export default function PublicHomepage() {
       {/* Accesso Gallerie CTA */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-terracotta to-[#C67B5C] px-4">
         <div className="max-w-4xl mx-auto text-center text-white">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">Hai partecipato a un evento?</h2>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">
+            Hai partecipato a un evento?
+          </h2>
           <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8">
             Accedi alla galleria e rivivi le emozioni del giorno speciale
           </p>
@@ -722,9 +759,12 @@ export default function PublicHomepage() {
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-br from-[#8B9A8B] via-[#9AA89A] to-[#7A8A7A] px-4 relative overflow-hidden">
         {/* Background decorative elements */}
         <div className="absolute inset-0 opacity-5">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.1) 10px, rgba(255, 255, 255, 0.1) 20px)`
-          }} />
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.1) 10px, rgba(255, 255, 255, 0.1) 20px)`,
+            }}
+          />
         </div>
 
         <div className="max-w-6xl mx-auto relative z-10">
@@ -748,17 +788,21 @@ export default function PublicHomepage() {
                   Lasciati <span className="text-[#F5E6D3]">Trasportare</span>
                 </h2>
                 <p className="text-lg sm:text-xl text-white/90 mb-2">
-                  Un viaggio emozionante attraverso il mondo dei matrimoni e della fotografia
+                  Un viaggio emozionante attraverso il mondo dei matrimoni e
+                  della fotografia
                 </p>
                 <p className="text-base sm:text-lg text-white/80">
-                  La guida completa per organizzare il tuo matrimonio perfetto, raccontata da un fotografo professionista
+                  La guida completa per organizzare il tuo matrimonio perfetto,
+                  raccontata da un fotografo professionista
                 </p>
               </div>
 
               <div className="space-y-3 text-white/90">
                 <div className="flex items-start gap-2">
                   <Heart className="h-5 w-5 mt-1 flex-shrink-0 text-[#F5E6D3]" />
-                  <span>Consigli pratici per ogni fase dell'organizzazione</span>
+                  <span>
+                    Consigli pratici per ogni fase dell'organizzazione
+                  </span>
                 </div>
                 <div className="flex items-start gap-2">
                   <Camera className="h-5 w-5 mt-1 flex-shrink-0 text-[#F5E6D3]" />
@@ -853,7 +897,10 @@ export default function PublicHomepage() {
 
             {/* Instagram Feed Embed */}
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-sage/10 p-4 sm:p-6 md:p-8 overflow-hidden">
-              <div className="w-full" style={{ maxHeight: "600px", overflowY: "auto" }}>
+              <div
+                className="w-full"
+                style={{ maxHeight: "600px", overflowY: "auto" }}
+              >
                 <iframe
                   src={`https://www.instagram.com/${studioSettings.socialLinks.instagram
                     .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
