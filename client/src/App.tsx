@@ -82,7 +82,7 @@ function AppRoutes() {
       <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
       <Route path="/blog" component={BlogListPage} />
       <Route path="/blog/:slug" component={BlogPostPage} />
-      <Route path="/video-matrimoni" component={WeddingVideosPage} />
+      <Route path="/vision" component={WeddingVideosPage} />
 
       {/* Gallery Access (moved from /) */}
       <Route path="/accesso-galleria" component={GalleryAccessPage} />

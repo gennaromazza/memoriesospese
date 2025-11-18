@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Play, Loader2, Eye, Sparkles, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Play, Loader2, Eye, Sparkles, TrendingUp, Heart, Share2 } from 'lucide-react';
 import WeddingVideoService from '@/lib/weddingVideos';
 import { getActiveJobTypes } from '@/lib/job-types';
 import type { WeddingVideo } from '@shared/schema';
 import type { JobType } from '@shared/job-types';
+import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +24,16 @@ function getYouTubeVideoId(url: string): string {
 }
 
 // VideoCard component
-function VideoCard({ video, onClick }: { video: WeddingVideo; onClick: () => void }) {
+function VideoCard({ video, onClick, onLike, onShare, isLiked }: { 
+  video: WeddingVideo; 
+  onClick: () => void;
+  onLike: (e: React.MouseEvent) => void;
+  onShare: (e: React.MouseEvent) => void;
+  isLiked: boolean;
+}) {
+  // Visualizzazioni partono da 10k + conteggio reale
+  const displayViews = 10000 + (video.views || 0);
+  
   return (
     <div className="group cursor-pointer" onClick={onClick}>
       <div className="relative rounded-lg overflow-hidden aspect-video mb-3">
@@ -42,12 +52,26 @@ function VideoCard({ video, onClick }: { video: WeddingVideo; onClick: () => voi
         )}
       </div>
       <h3 className="font-semibold text-sm mb-1 line-clamp-2">{video.title}</h3>
-      {video.views && video.views > 0 && (
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-1 text-xs text-gray-400">
           <Eye className="h-3 w-3" />
-          {video.views} visualizzazioni
+          {displayViews.toLocaleString('it-IT')} visualizzazioni
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onLike}
+            className={`p-1 hover:scale-110 transition-transform ${isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
+          >
+            <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+          </button>
+          <button
+            onClick={onShare}
+            className="p-1 text-gray-400 hover:text-terracotta hover:scale-110 transition-transform"
+          >
+            <Share2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -59,6 +83,8 @@ export default function WeddingVideosPage() {
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<WeddingVideo | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [likedVideos, setLikedVideos] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
 
   useEffect(() => {
     loadVideos();
@@ -94,6 +120,44 @@ export default function WeddingVideosPage() {
   const handlePlayVideo = (video: WeddingVideo) => {
     WeddingVideoService.incrementViews(video.id);
     setSelectedVideo(video);
+  };
+
+  const handleLike = (videoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLikedVideos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(videoId)) {
+        newSet.delete(videoId);
+        toast({
+          description: "Rimosso dai preferiti"
+        });
+      } else {
+        newSet.add(videoId);
+        toast({
+          description: "❤️ Aggiunto ai preferiti"
+        });
+      }
+      return newSet;
+    });
+  };
+
+  const handleShare = (video: WeddingVideo, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shareUrl = window.location.origin + window.location.pathname;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: video.title,
+        text: video.description || 'Guarda questo video su iMaGe Vision',
+        url: shareUrl
+      }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: "Link copiato!",
+        description: "Il link è stato copiato negli appunti"
+      });
+    }
   };
 
   // Video Nuovi (ultimi 30 giorni)
@@ -145,10 +209,10 @@ export default function WeddingVideosPage() {
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair mb-4">
-            Video Matrimoni
+            iMaGe Vision
           </h1>
           <p className="text-xl text-gray-300">
-            Le emozioni dei nostri sposi raccontate attraverso l'arte del video
+            Ogni evento raccontato con emozione attraverso l'arte del video
           </p>
         </div>
 
@@ -209,7 +273,14 @@ export default function WeddingVideosPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {newVideos.map(video => (
-                    <VideoCard key={video.id} video={video} onClick={() => handlePlayVideo(video)} />
+                    <VideoCard 
+                      key={video.id} 
+                      video={video} 
+                      onClick={() => handlePlayVideo(video)}
+                      onLike={(e) => handleLike(video.id, e)}
+                      onShare={(e) => handleShare(video, e)}
+                      isLiked={likedVideos.has(video.id)}
+                    />
                   ))}
                 </div>
               </div>
@@ -224,7 +295,14 @@ export default function WeddingVideosPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {recommendedVideos.map(video => (
-                    <VideoCard key={video.id} video={video} onClick={() => handlePlayVideo(video)} />
+                    <VideoCard 
+                      key={video.id} 
+                      video={video} 
+                      onClick={() => handlePlayVideo(video)}
+                      onLike={(e) => handleLike(video.id, e)}
+                      onShare={(e) => handleShare(video, e)}
+                      isLiked={likedVideos.has(video.id)}
+                    />
                   ))}
                 </div>
               </div>
@@ -240,7 +318,14 @@ export default function WeddingVideosPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {typeVideos.map(video => (
-                    <VideoCard key={video.id} video={video} onClick={() => handlePlayVideo(video)} />
+                    <VideoCard 
+                      key={video.id} 
+                      video={video} 
+                      onClick={() => handlePlayVideo(video)}
+                      onLike={(e) => handleLike(video.id, e)}
+                      onShare={(e) => handleShare(video, e)}
+                      isLiked={likedVideos.has(video.id)}
+                    />
                   ))}
                 </div>
               </div>

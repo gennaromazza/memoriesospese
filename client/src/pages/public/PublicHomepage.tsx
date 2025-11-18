@@ -207,9 +207,9 @@ export default function PublicHomepage() {
                     </Button>
                   </Link>
 
-                  <Link href="/video-matrimoni">
+                  <Link href="/vision">
                     <Button variant="ghost" className="text-blue-gray hover:text-sage">
-                      Video
+                      iMaGe Vision
                     </Button>
                   </Link>
             </div>
