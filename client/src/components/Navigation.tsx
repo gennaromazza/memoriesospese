@@ -183,11 +183,11 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Link>
               <Link to={createUrl("/consulenze")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                <span className="relative z-10">Consulenze</span>
+                <span className="relative z-10">Contattami</span>
                 <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Link>
               <Link to={createUrl("/prenota")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                <span className="relative z-10">Prenotazioni</span>
+                <span className="relative z-10">Prenota Ora</span>
                 <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Link>
               <a
@@ -284,16 +284,19 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
             iMaGe Vision
           </Link>
           <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
-                Consulenze
-              </Link>
-              <a
-                href="https://share.google/SW1hp2vnc9Csiwfkc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
-              >
-                Recensioni
-              </a>
+            Contattami
+          </Link>
+          <Link to={createUrl("/prenota")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+            Prenota Ora
+          </Link>
+          <a
+            href="https://share.google/SW1hp2vnc9Csiwfkc"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+          >
+            Recensioni
+          </a>
 
           {/* Sezione utente mobile */}
           {userInfo.isAuthenticated && userInfo.email ? (
