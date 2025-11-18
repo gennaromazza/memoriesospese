@@ -192,6 +192,14 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               >
                 Recensioni
               </a>
+              <a
+                href="https://www.facebook.com/gennaromazzacanefotografo/?locale=it_IT"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-gray hover:text-sage transition"
+              >
+                Facebook
+              </a>
 
               <div className="w-px h-6 bg-sage/20 mx-3"></div>
 

@@ -870,6 +870,18 @@ export default function PublicHomepage() {
               </a>
 
               <a
+                href="https://www.facebook.com/gennaromazzacanefotografo/?locale=it_IT"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                <span>Facebook</span>
+              </a>
+
+              <a
                 href="https://www.matrimonio.com/fotografo-matrimonio/image-studio-fotografico--e149790/opinioni"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -884,7 +896,7 @@ export default function PublicHomepage() {
           </div>
 
           {/* Reviews Widgets Grid */}
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             {/* Google Reviews Widget */}
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-sage/10 p-4 sm:p-6 overflow-hidden">
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-sage/10">
@@ -910,6 +922,38 @@ export default function PublicHomepage() {
                   style={{ minHeight: "350px", height: "400px" }}
                   loading="lazy"
                   title="Google Reviews"
+                />
+              </div>
+            </div>
+
+            {/* Facebook Reviews Widget */}
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-sage/10 p-4 sm:p-6 overflow-hidden">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-sage/10">
+                <h3 className="text-xl font-semibold text-blue-gray flex items-center gap-2">
+                  <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  Facebook
+                </h3>
+                <a
+                  href="https://www.facebook.com/gennaromazzacanefotografo/?locale=it_IT"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-sage hover:text-dark-sage font-medium"
+                >
+                  Vedi tutte →
+                </a>
+              </div>
+              <div className="w-full" style={{ maxHeight: "500px", overflowY: "auto" }}>
+                <iframe
+                  src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2Fgennaromazzacanefotografo&tabs=reviews&width=340&height=400&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=false&appId"
+                  className="w-full border-0 rounded-lg"
+                  style={{ minHeight: "350px", height: "400px" }}
+                  scrolling="yes"
+                  frameBorder="0"
+                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                  loading="lazy"
+                  title="Facebook Reviews"
                 />
               </div>
             </div>
