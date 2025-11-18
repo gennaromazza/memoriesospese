@@ -148,14 +148,14 @@ export default function BlogManager() {
     const normalizedSlug = normalizeSlug(slug);
     const q = query(collection(db, 'blogPosts'), where('slug', '==', normalizedSlug));
     const snapshot = await getDocs(q);
-    
+
     if (snapshot.empty) return true;
-    
+
     // If editing, allow same slug for current post
     if (excludePostId) {
       return snapshot.docs.every(doc => doc.id === excludePostId);
     }
-    
+
     return false;
   };
 
@@ -184,7 +184,7 @@ export default function BlogManager() {
 
       // Validate with Zod schema
       const validationResult = insertBlogPostSchema.safeParse(dataToValidate);
-      
+
       if (!validationResult.success) {
         const firstError = validationResult.error.errors[0];
         toast({
@@ -305,10 +305,10 @@ export default function BlogManager() {
             Gestisci gli articoli del blog - {posts.length} post totali
           </p>
         </div>
-        
+
         <div className="flex gap-2">
           <WordPressImporter onImportComplete={loadPosts} />
-          
+
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => openDialog()} data-testid="button-create-post">
