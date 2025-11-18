@@ -1,24 +1,17 @@
 modules = ["nodejs-20", "web", "postgresql-16"]
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
-# Un solo comando DEV
-run = "npm run dev"
-
 [nix]
 channel = "stable-24_05"
 packages = ["killall"]
 
 [deployment]
 deploymentTarget = "autoscale"
-
-# Build pulita
 build = ["sh", "-c", "npm ci && npm run build"]
-
-# Start pulito (solo in deploy)
 run = ["sh", "-c", "node dist/index.js"]
 
 [workflows]
-runButton = "Prod Build & Start"
+runButton = "Dev Workflow"
 
 [[workflows.workflow]]
 name = "Dev Workflow"
@@ -28,6 +21,10 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm ci"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
 
 [[workflows.workflow]]
 name = "Prod Build & Start"
