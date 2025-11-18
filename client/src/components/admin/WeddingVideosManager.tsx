@@ -1,7 +1,9 @@
 
 import { useState, useEffect } from 'react';
 import WeddingVideoService from '@/lib/weddingVideos';
+import { GalleryService } from '@/lib/galleries';
 import type { WeddingVideo } from '@shared/schema';
+import type { Gallery } from '@/lib/galleries';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,15 +12,20 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Trash2, Edit, Star, Loader2, Eye, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, Edit, Star, Loader2, Eye, ArrowUpDown, Download, Youtube } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function WeddingVideosManager() {
   const [videos, setVideos] = useState<WeddingVideo[]>([]);
+  const [galleriesWithVideos, setGalleriesWithVideos] = useState<Gallery[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingGalleries, setLoadingGalleries] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<WeddingVideo | null>(null);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'videos' | 'galleries'>('videos');
   const { toast } = useToast();
 
   // Form state
@@ -55,6 +62,36 @@ export default function WeddingVideosManager() {
       setLoading(false);
     }
   };
+
+  const loadGalleriesWithVideos = async () => {
+    setLoadingGalleries(true);
+    try {
+      const allGalleries = await GalleryService.getAllGalleriesForAdmin();
+      
+      // Filtra solo gallerie con youtubeUrl o youtubeUrls
+      const galleriesWithYoutube = allGalleries.filter(gallery => {
+        return gallery.youtubeUrl || (gallery.youtubeUrls && gallery.youtubeUrls.length > 0);
+      });
+      
+      setGalleriesWithVideos(galleriesWithYoutube);
+    } catch (error) {
+      console.error('Errore caricamento gallerie:', error);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile caricare le gallerie',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoadingGalleries(false);
+    }
+  };
+
+  // Carica gallerie quando si passa alla tab
+  useEffect(() => {
+    if (activeTab === 'galleries' && galleriesWithVideos.length === 0) {
+      loadGalleriesWithVideos();
+    }
+  }, [activeTab]);
 
   const handleOpenDialog = (video?: WeddingVideo) => {
     if (video) {
@@ -163,6 +200,23 @@ export default function WeddingVideosManager() {
     }));
   };
 
+  // Importa video da galleria
+  const handleImportFromGallery = (gallery: Gallery, youtubeUrl: string) => {
+    setFormData({
+      title: gallery.name,
+      slug: gallery.code || gallery.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      description: gallery.description || `Video del matrimonio ${gallery.name}`,
+      thumbnailUrl: gallery.coverImageDesktop || gallery.coverImageUrl || '',
+      youtubeUrl: youtubeUrl,
+      duration: '',
+      category: 'Matrimoni',
+      tags: 'matrimonio, cerimonia, festa',
+      featured: false,
+      sortOrder: videos.length
+    });
+    setIsDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -173,22 +227,39 @@ export default function WeddingVideosManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-semibold">Video Matrimoni</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gestisci i video per la galleria pubblica - {videos.length} video totali
-          </p>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h2 className="text-2xl font-semibold">Video Matrimoni</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Gestisci i video per la galleria pubblica
+            </p>
+          </div>
         </div>
+
+        <TabsList className="mb-4">
+          <TabsTrigger value="videos" className="flex items-center gap-2">
+            <Youtube className="h-4 w-4" />
+            Video Pubblicati ({videos.length})
+          </TabsTrigger>
+          <TabsTrigger value="galleries" className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Importa da Gallerie ({galleriesWithVideos.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="videos">
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => handleOpenDialog()}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nuovo Video
+                  </Button>
+                </DialogTrigger>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo Video
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingVideo ? 'Modifica Video' : 'Nuovo Video'}</DialogTitle>
               <DialogDescription>
@@ -316,15 +387,15 @@ export default function WeddingVideosManager() {
       </div>
 
       {videos.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">
-              Nessun video presente. Clicca "Nuovo Video" per iniziare.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-muted-foreground">
+                    Nessun video presente. Clicca "Nuovo Video" per iniziare.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {videos.map(video => (
             <Card key={video.id}>
               <CardHeader className="p-0">
@@ -386,8 +457,101 @@ export default function WeddingVideosManager() {
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="galleries">
+          <div className="space-y-4">
+            <Alert>
+              <Youtube className="h-4 w-4" />
+              <AlertDescription>
+                Queste gallerie hanno video YouTube. Clicca su "Importa" per creare un nuovo video dalla galleria.
+              </AlertDescription>
+            </Alert>
+
+            {loadingGalleries ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : galleriesWithVideos.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-muted-foreground">
+                    Nessuna galleria con video YouTube trovata.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {galleriesWithVideos.map(gallery => {
+                  // Crea array di tutti gli URL YouTube
+                  const youtubeUrls = [];
+                  if (gallery.youtubeUrl) youtubeUrls.push(gallery.youtubeUrl);
+                  if (gallery.youtubeUrls) youtubeUrls.push(...gallery.youtubeUrls);
+
+                  return (
+                    <Card key={gallery.id}>
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{gallery.name}</CardTitle>
+                            <CardDescription>
+                              {gallery.date} - {gallery.location}
+                            </CardDescription>
+                            <div className="flex items-center gap-2 mt-2">
+                              <Badge variant="outline">{gallery.code}</Badge>
+                              <Badge variant="secondary">
+                                {youtubeUrls.length} video YouTube
+                              </Badge>
+                            </div>
+                          </div>
+                          {gallery.coverImageDesktop || gallery.coverImageUrl ? (
+                            <img
+                              src={gallery.coverImageDesktop || gallery.coverImageUrl}
+                              alt={gallery.name}
+                              className="w-32 h-20 object-cover rounded ml-4"
+                            />
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {youtubeUrls.map((url, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                              <div className="flex-1 mr-4">
+                                <p className="text-sm font-medium mb-1">
+                                  Video {index + 1}
+                                </p>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 hover:underline truncate block"
+                                >
+                                  {url}
+                                </a>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => handleImportFromGallery(gallery, url)}
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                Importa
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
