@@ -45,6 +45,19 @@ args = "npm run build"
 task = "shell.exec"
 args = "node dist/index.js"
 
+[[workflows.workflow]]
+name = "Genny"
+mode = "sequential"
+author = 41213760
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm start"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
