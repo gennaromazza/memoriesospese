@@ -485,6 +485,7 @@ export default function BlogManager() {
               </Button>
             </DialogFooter>
           </DialogContent>
+          </Dialog>
         </Dialog>
       </div>
 
