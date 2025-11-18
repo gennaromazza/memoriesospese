@@ -247,8 +247,94 @@ export default function WeddingVideosManager() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Dialog for new video and editing video */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <TabsContent value="videos">
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <DialogTrigger asChild>
+                  <Button onClick={() => handleOpenDialog()}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nuovo Video
+                  </Button>
+                </DialogTrigger>
+              </div>
+
+              {videos.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-muted-foreground">
+                      Nessun video presente. Clicca "Nuovo Video" per iniziare.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {videos.map(video => (
+                    <Card key={video.id}>
+                      <CardHeader className="p-0">
+                        <div className="relative aspect-video">
+                          <img
+                            src={video.thumbnailUrl}
+                            alt={video.title}
+                            className="w-full h-full object-cover rounded-t-lg"
+                          />
+                          {video.featured && (
+                            <Badge className="absolute top-2 left-2 bg-yellow-500">
+                              <Star className="h-3 w-3 mr-1" />
+                              In Evidenza
+                            </Badge>
+                          )}
+                          {video.duration && (
+                            <Badge className="absolute bottom-2 right-2 bg-black/80">
+                              {video.duration}
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold mb-2 line-clamp-2">{video.title}</h3>
+                        {video.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                            {video.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 mb-3">
+                          {video.category && (
+                            <Badge variant="outline">{video.category}</Badge>
+                          )}
+                          {video.views && video.views > 0 && (
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Eye className="h-3 w-3" />
+                              {video.views}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => handleOpenDialog(video)}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Modifica
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(video.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingVideo ? 'Modifica Video' : 'Nuovo Video'}</DialogTitle>
@@ -372,94 +458,8 @@ export default function WeddingVideosManager() {
                 {saving ? 'Salvataggio...' : 'Salva'}
               </Button>
             </DialogFooter>
-          </Dialog>
-
-        <TabsContent value="videos">
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <DialogTrigger asChild>
-                <Button onClick={() => handleOpenDialog()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nuovo Video
-                </Button>
-              </DialogTrigger>
-            </div>
-
-            {videos.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <p className="text-muted-foreground">
-                    Nessun video presente. Clicca "Nuovo Video" per iniziare.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {videos.map(video => (
-            <Card key={video.id}>
-              <CardHeader className="p-0">
-                <div className="relative aspect-video">
-                  <img
-                    src={video.thumbnailUrl}
-                    alt={video.title}
-                    className="w-full h-full object-cover rounded-t-lg"
-                  />
-                  {video.featured && (
-                    <Badge className="absolute top-2 left-2 bg-yellow-500">
-                      <Star className="h-3 w-3 mr-1" />
-                      In Evidenza
-                    </Badge>
-                  )}
-                  {video.duration && (
-                    <Badge className="absolute bottom-2 right-2 bg-black/80">
-                      {video.duration}
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-2 line-clamp-2">{video.title}</h3>
-                {video.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                    {video.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 mb-3">
-                  {video.category && (
-                    <Badge variant="outline">{video.category}</Badge>
-                  )}
-                  {video.views && video.views > 0 && (
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      <Eye className="h-3 w-3" />
-                      {video.views}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => handleOpenDialog(video)}
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Modifica
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handleDelete(video.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-              </div>
-            )}
-          </div>
-        </TabsContent>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="galleries">
           <div className="space-y-4">
