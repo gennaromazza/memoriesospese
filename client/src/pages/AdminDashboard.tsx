@@ -47,6 +47,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { BarChart3, Clock, Globe } from "lucide-react";
 import { CollaboratoriManager } from '@/components/collaboratori/CollaboratoriManager';
 import PortfolioManager from '@/components/admin/PortfolioManager';
+import BlogManager from '@/components/admin/BlogManager';
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -2382,7 +2383,7 @@ export default function AdminDashboard() {
                     <Grid3x3 className="h-4 w-4 flex-shrink-0" />
                     Portfolio Pubblico
                   </TabsTrigger>
-                  <TabsTrigger value="blog" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="subtab-blog" disabled>
+                  <TabsTrigger value="blog" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="subtab-blog">
                     <FileText className="h-4 w-4 flex-shrink-0" />
                     Blog
                   </TabsTrigger>
@@ -2396,7 +2397,7 @@ export default function AdminDashboard() {
 
                 <TabsContent value="blog">
                   <div className="bg-white shadow sm:rounded-lg p-5">
-                    <p className="text-muted-foreground">Blog manager - Coming soon</p>
+                    <BlogManager />
                   </div>
                 </TabsContent>
               </Tabs>
