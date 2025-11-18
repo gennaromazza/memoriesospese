@@ -19,18 +19,15 @@ name = "Dev Workflow"
 mode = "sequential"
 author = "agent"
 
-# STEP 1 – Install veloci con cache
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm ci || npm install"
 
-# STEP 2 – Avvio Vite (porta corretta!)
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5173
 
-# PROD WORKFLOW
 [[workflows.workflow]]
 name = "Prod Build & Start"
 mode = "sequential"
