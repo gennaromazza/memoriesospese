@@ -569,7 +569,7 @@ export default function ConsultationBooking() {
             </DialogTitle>
             <DialogDescription className="text-center space-y-4">
               <p className="text-lg">
-                La tua consulenza è stata prenotata con successo per il{' '}
+                La tua richiesta è stata inviata con successo per il{' '}
                 <span className="font-semibold text-sage">
                   {selectedDate && format(selectedDate, "d MMMM yyyy", { locale: it })}
                 </span>
@@ -579,7 +579,7 @@ export default function ConsultationBooking() {
                 </span>
               </p>
               <p className="text-gray-600">
-                Riceverai a breve una email di conferma con tutti i dettagli della tua prenotazione.
+                Riceverai a breve una email di conferma con tutti i dettagli.
               </p>
 
               {/* Instagram CTA */}
