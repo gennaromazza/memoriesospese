@@ -178,7 +178,7 @@ export default function PortfolioPage() {
           <>
             {/* Categories View */}
             {viewMode === 'categories' && (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="columns-1 sm:columns-2 lg:columns-3 gap-8">
                 {categories.map(category => (
                   <div 
                     key={category.jobType}
@@ -186,19 +186,19 @@ export default function PortfolioPage() {
                       setSelectedCategory(category.jobType);
                       setViewMode('grid');
                     }}
-                    className="group cursor-pointer"
+                    className="group cursor-pointer mb-8 break-inside-avoid"
                     data-testid={`category-card-${category.jobType}`}
                   >
-                    <div className="aspect-square bg-gray-200 rounded-lg mb-4 overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300">
+                    <div className="bg-gray-200 rounded-lg mb-4 overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300">
                       {category.coverPhoto ? (
                         <img
                           src={category.coverPhoto}
                           alt={category.label}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                          className="w-full h-auto object-cover group-hover:scale-110 transition-transform duration-700"
                           loading="lazy"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-beige">
+                        <div className="w-full aspect-square flex items-center justify-center bg-beige">
                           <span className="text-4xl font-playfair text-sage">{category.label}</span>
                         </div>
                       )}

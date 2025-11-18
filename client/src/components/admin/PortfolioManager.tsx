@@ -391,12 +391,12 @@ export default function PortfolioManager() {
                         Nessuna foto trovata in questa galleria
                       </p>
                     ) : (
-                      <div className="grid grid-cols-4 gap-2 max-h-96 overflow-y-auto border rounded-md p-2">
+                      <div className="columns-4 gap-2 max-h-96 overflow-y-auto border rounded-md p-2">
                         {photos.map(photo => (
                           <div
                             key={photo.id}
                             onClick={() => togglePhotoSelection(photo.id)}
-                            className={`relative cursor-pointer border-2 rounded-md overflow-hidden transition-all group ${
+                            className={`relative cursor-pointer border-2 rounded-md overflow-hidden transition-all group mb-2 break-inside-avoid ${
                               selectedPhotos.has(photo.id)
                                 ? 'border-primary ring-2 ring-primary' 
                                 : 'border-transparent hover:border-primary/50'
@@ -406,7 +406,7 @@ export default function PortfolioManager() {
                             <img 
                               src={photo.url} 
                               alt={photo.name}
-                              className="w-full h-40 object-cover"
+                              className="w-full h-auto object-cover"
                             />
                             <div className="absolute top-2 left-2 bg-white rounded-md shadow-sm p-1 pointer-events-none">
                               <Checkbox 
@@ -500,13 +500,13 @@ export default function PortfolioManager() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="columns-2 md:columns-4 lg:columns-6 gap-4">
                 {items.map(selection => (
-                  <div key={selection.id} className="relative group">
+                  <div key={selection.id} className="relative group mb-4 break-inside-avoid">
                     <img
                       src={selection.photoUrl}
                       alt={selection.galleryName}
-                      className="w-full h-32 object-cover rounded-md"
+                      className="w-full h-auto object-cover rounded-md"
                       data-testid={`portfolio-photo-${selection.id}`}
                     />
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-md flex items-center justify-center gap-2">
