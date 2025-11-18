@@ -1,5 +1,13 @@
 
-import { Star, ExternalLink } from 'lucide-react';
+import { Star, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from './ui/carousel';
+import Autoplay from 'embla-carousel-autoplay';
 
 interface ReviewsWidgetProps {
   className?: string;
@@ -118,50 +126,64 @@ export default function ReviewsWidget({ className = '' }: ReviewsWidgetProps) {
           </div>
         </div>
 
-        {/* Reviews Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {FAKE_REVIEWS.map((review, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-xl shadow-lg border border-sage/10 p-6 hover:shadow-xl transition-shadow"
-            >
-              {/* Header */}
-              <div className="flex items-start gap-4 mb-4">
-                <img
-                  src={review.avatar}
-                  alt={review.name}
-                  className="w-12 h-12 rounded-full"
-                />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-blue-gray">{review.name}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="flex gap-0.5">
-                      {[...Array(review.rating)].map((_, i) => (
-                        <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+        {/* Reviews Carousel */}
+        <Carousel
+          opts={{
+            align: "start",
+            loop: true,
+          }}
+          plugins={[
+            Autoplay({
+              delay: 5000,
+            }),
+          ]}
+          className="w-full max-w-6xl mx-auto"
+        >
+          <CarouselContent className="-ml-2 md:-ml-4">
+            {FAKE_REVIEWS.map((review, index) => (
+              <CarouselItem key={index} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3">
+                <div className="bg-white rounded-xl shadow-lg border border-sage/10 p-6 hover:shadow-xl transition-shadow h-full">
+                  {/* Header */}
+                  <div className="flex items-start gap-4 mb-4">
+                    <img
+                      src={review.avatar}
+                      alt={review.name}
+                      className="w-12 h-12 rounded-full"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-blue-gray">{review.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex gap-0.5">
+                          {[...Array(review.rating)].map((_, i) => (
+                            <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                          ))}
+                        </div>
+                        <span className="text-xs text-gray-500">{review.date}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Review Text */}
+                  <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                    {review.text}
+                  </p>
+
+                  {/* Platform Badge */}
+                  <div className="flex items-center justify-between pt-4 border-t border-sage/10">
+                    <span className="text-xs text-gray-500 italic">Recensione da {review.platform}</span>
+                    <div className="flex items-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                       ))}
                     </div>
-                    <span className="text-xs text-gray-500">{review.date}</span>
                   </div>
                 </div>
-              </div>
-
-              {/* Review Text */}
-              <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                {review.text}
-              </p>
-
-              {/* Platform Badge */}
-              <div className="flex items-center justify-between pt-4 border-t border-sage/10">
-                <span className="text-xs text-gray-500 italic">Recensione da {review.platform}</span>
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselPrevious className="hidden md:flex -left-12 lg:-left-16" />
+          <CarouselNext className="hidden md:flex -right-12 lg:-right-16" />
+        </Carousel>
 
         <div className="mt-12 text-center">
           <p className="text-sm text-gray-500 italic mb-6">
