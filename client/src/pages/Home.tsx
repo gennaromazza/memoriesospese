@@ -91,14 +91,14 @@ export default function Home() {
       const results: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        
+
         // Salta le special gallery - hanno una schermata dedicata con PIN
         // Escludi se ha un tema speciale assegnato (controlla ID tema)
         if (data.specialTheme && specialThemeIds.includes(data.specialTheme)) {
           console.log(`🚫 Esclusa special gallery "${data.name}" con tema ID "${data.specialTheme}"`);
           return;
         }
-        
+
         const galleryName = data.name.toLowerCase();
         const searchTermLower = searchTerm.toLowerCase();
 
@@ -147,7 +147,7 @@ export default function Home() {
         // Import helper function from booking-campaigns.ts
         const { getActiveCampaigns } = await import('@/lib/booking-campaigns');
         const active = await getActiveCampaigns();
-        
+
         // Ordina per data fine più vicina
         active.sort(
           (a, b) => a.dataFine.getTime() - b.dataFine.getTime()
@@ -450,7 +450,7 @@ export default function Home() {
                             />
                           </div>
                         )}
-                        
+
                         <div className="flex flex-col md:flex-row items-center gap-12 p-8 sm:p-12 lg:p-16">
                           {/* Left side - Info */}
                           <div className="flex-1 text-center md:text-left space-y-6">
@@ -577,7 +577,7 @@ export default function Home() {
                                 />
                               </div>
                             )}
-                            
+
                             <div className="flex flex-col md:flex-row items-center gap-10 p-8 sm:p-12 lg:p-14">
                               {/* Campaign Info */}
                               <div className="flex-1 text-center md:text-left space-y-5">
@@ -1286,11 +1286,11 @@ export default function Home() {
               <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-sage/20 to-sage/30 rounded-full mb-6">
                 <InstagramIcon className="w-10 h-10 text-sage" />
               </div>
-              
+
               <h2 className="text-3xl sm:text-4xl font-bold text-blue-gray font-playfair mb-4">
                 Seguici su Instagram
               </h2>
-              
+
               <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
                 Scopri i nostri ultimi lavori, dietro le quinte e lasciati ispirare dalle emozioni che catturiamo ogni giorno
               </p>
@@ -1302,10 +1302,10 @@ export default function Home() {
                     .replace(/^@/, '')
                     .replace(/\/$/, '')
                     .replace(/[?#].*$/, '');
-                  return normalized 
+                  return normalized
                     ? `https://www.instagram.com/${normalized}`
-                    : (studioSettings.socialLinks.instagram.startsWith('http') 
-                        ? studioSettings.socialLinks.instagram 
+                    : (studioSettings.socialLinks.instagram.startsWith('http')
+                        ? studioSettings.socialLinks.instagram
                         : `https://www.instagram.com/${studioSettings.socialLinks.instagram}`);
                 })()}
                 target="_blank"
@@ -1337,7 +1337,7 @@ export default function Home() {
                   loading="lazy"
                 />
               </div>
-              
+
               <div className="mt-6 pt-6 border-t border-beige/30 text-center">
                 <p className="text-sm text-gray-500 italic">
                   Resta aggiornato sui nostri servizi, promozioni e scopri le storie dei nostri clienti soddisfatti
@@ -1348,7 +1348,7 @@ export default function Home() {
         </section>
       )}
 
-      
+
 
       {/* Separatore decorativo */}
       <div className="w-full flex justify-center py-2 bg-white">
