@@ -76,16 +76,19 @@ export default function BlogListPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-beige">
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-playfair text-blue-gray">
-              iMaGe <span className="text-sage">Studio</span>
+          <div className="flex justify-between items-center h-20">
+            <Link href="/">
+              <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 hover:text-sage">
+                iMaGe <span className="text-sage">Studio</span>
+              </h1>
             </Link>
             <Link href="/">
-              <Button variant="ghost" className="text-sage hover:text-dark-sage" data-testid="button-back-home">
+              <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Home
+                <span className="relative z-10">Torna alla Home</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Button>
             </Link>
           </div>
@@ -93,12 +96,12 @@ export default function BlogListPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-24 sm:pt-28 md:pt-32 pb-8 sm:pb-12 px-4">
-        <div className="max-w-7xl mx-auto text-center animate-fade-in">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4">
+      <section className="pt-24 bg-gradient-to-r from-sage to-blue-gray text-white py-20 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair mb-4 text-white">
             Blog
           </h1>
-          <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto">
             Storie, riflessioni e consigli dal mondo della fotografia
           </p>
         </div>

@@ -4,7 +4,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Calendar, Clock, User } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, User } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 
 export default function BlogPostPage() {
@@ -30,7 +30,7 @@ export default function BlogPostPage() {
         where('status', '==', BlogPostStatus.PUBLISHED)
       );
       const snapshot = await getDocs(q);
-      
+
       if (snapshot.empty) {
         setNotFound(true);
         setPost(null);
@@ -75,9 +75,9 @@ export default function BlogPostPage() {
     if (post) {
       const pageTitle = post.metaTitle || `${post.title} | Image Studio`;
       const pageDescription = post.metaDescription || post.excerpt || '';
-      
+
       document.title = pageTitle;
-      
+
       // Meta description
       let metaDescription = document.querySelector('meta[name="description"]');
       if (!metaDescription) {
@@ -86,7 +86,7 @@ export default function BlogPostPage() {
         document.head.appendChild(metaDescription);
       }
       metaDescription.setAttribute('content', pageDescription);
-      
+
       // Open Graph tags
       const updateOgTag = (property: string, content: string) => {
         let tag = document.querySelector(`meta[property="${property}"]`);
@@ -97,7 +97,7 @@ export default function BlogPostPage() {
         }
         tag.setAttribute('content', content);
       };
-      
+
       updateOgTag('og:title', pageTitle);
       updateOgTag('og:description', pageDescription);
       updateOgTag('og:type', 'article');
@@ -105,16 +105,16 @@ export default function BlogPostPage() {
         updateOgTag('og:image', post.coverImage);
       }
     }
-    
+
     // Cleanup function to reset on unmount
     return () => {
       document.title = 'Image Studio';
-      
+
       const metaDescription = document.querySelector('meta[name="description"]');
       if (metaDescription) {
         metaDescription.setAttribute('content', 'Image Studio - Fotografia Professionale');
       }
-      
+
       // Remove OG tags to prevent stale metadata
       const ogTags = ['og:title', 'og:description', 'og:type', 'og:image'];
       ogTags.forEach(property => {
@@ -137,14 +137,31 @@ export default function BlogPostPage() {
   if (notFound || !post) {
     return (
       <div className="min-h-screen bg-cream">
-        <nav className="border-b border-terracotta/20 sticky top-0 bg-white/80 backdrop-blur-md z-40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <Link href="/blog">
-              <Button variant="ghost" className="text-terracotta hover:text-terracotta/80" data-testid="button-back-blog">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Blog
-              </Button>
-            </Link>
+        {/* Navigation */}
+        <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-20">
+              <Link href="/">
+                <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 hover:text-sage">
+                  iMaGe <span className="text-sage">Studio</span>
+                </h1>
+              </Link>
+              <div className="flex gap-2">
+                <Link href="/blog">
+                  <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    <span className="relative z-10">Tutti gli Articoli</span>
+                    <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                  </Button>
+                </Link>
+                <Link href="/">
+                  <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                    <span className="relative z-10">Home</span>
+                    <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                  </Button>
+                </Link>
+              </div>
+            </div>
           </div>
         </nav>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
@@ -164,18 +181,36 @@ export default function BlogPostPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <nav className="border-b border-terracotta/20 sticky top-0 bg-white/80 backdrop-blur-md z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/blog">
-            <Button variant="ghost" className="text-terracotta hover:text-terracotta/80" data-testid="button-back-blog">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Blog
-            </Button>
-          </Link>
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-20">
+            <Link href="/">
+              <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 hover:text-sage">
+                iMaGe <span className="text-sage">Studio</span>
+              </h1>
+            </Link>
+            <div className="flex gap-2">
+              <Link href="/blog">
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  <span className="relative z-10">Tutti gli Articoli</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
+              </Link>
+              <Link href="/">
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <span className="relative z-10">Home</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
       </nav>
 
-      <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Article Content */}
+      <article className="max-w-4xl mx-auto px-4 py-12 pt-24">
         {post.coverImage && (
           <div className="mb-12 rounded-lg overflow-hidden shadow-xl">
             <img 

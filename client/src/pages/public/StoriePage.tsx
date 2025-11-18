@@ -7,16 +7,20 @@ import gennaroArtistic from "@assets/DSCF7358_1_1763485862385.jpg";
 export default function StoriePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-beige">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-playfair text-blue-gray">
-              iMaGe <span className="text-sage">Studio</span>
+          <div className="flex justify-between items-center h-20">
+            <Link href="/">
+              <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 hover:text-sage">
+                iMaGe <span className="text-sage">Studio</span>
+              </h1>
             </Link>
             <Link href="/">
-              <Button variant="ghost" className="text-sage hover:text-dark-sage">
+              <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Home
+                <span className="relative z-10">Torna alla Home</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Button>
             </Link>
           </div>
@@ -55,7 +59,7 @@ export default function StoriePage() {
             Il mio nome è <strong>Gennaro Mazzacane</strong> e la mia passione per la fotografia 
             inizia a soli 10 anni.
           </p>
-          
+
           <p className="text-lg leading-relaxed text-gray-600 mb-6">
             Mia madre comprò una confezione di merendine della "Kinder Brioss" in cui c'era sempre 
             una sorpresa. La sorpresa che mi toccò fu una vera macchina fotografica, funzionante! 

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -47,7 +46,7 @@ function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount }: {
 }) {
   // Visualizzazioni: base casuale + conteggio reale
   const displayViews = getRandomBaseViews(video.id) + (video.views || 0);
-  
+
   return (
     <div className="group cursor-pointer" onClick={onClick}>
       <div className="relative rounded-lg overflow-hidden aspect-video mb-3">
@@ -114,10 +113,10 @@ export default function WeddingVideosPage() {
         WeddingVideoService.getAllVideos(),
         WeddingVideoService.getFeaturedVideos()
       ]);
-      
+
       setVideos(allVideos);
       setFeaturedVideos(featured);
-      
+
       // Inizializza i contatori like con valori casuali
       const initialCounts: Record<string, number> = {};
       allVideos.forEach(video => {
@@ -147,11 +146,11 @@ export default function WeddingVideosPage() {
 
   const handleLike = (videoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     setLikedVideos(prev => {
       const newSet = new Set(prev);
       const wasLiked = newSet.has(videoId);
-      
+
       if (wasLiked) {
         newSet.delete(videoId);
         setLikeCounts(counts => ({
@@ -178,7 +177,7 @@ export default function WeddingVideosPage() {
   const handleShare = (video: WeddingVideo, e: React.MouseEvent) => {
     e.stopPropagation();
     const shareUrl = window.location.origin + window.location.pathname;
-    
+
     if (navigator.share) {
       navigator.share({
         title: video.title,
@@ -222,17 +221,18 @@ export default function WeddingVideosPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
-      {/* Header */}
-      <nav className="sticky top-0 bg-black/80 backdrop-blur-md z-50 border-b border-gray-800">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-playfair text-white">
-              iMaGe <span className="text-terracotta">Studio</span>
+          <div className="flex justify-between items-center h-20">
+            <Link href="/" className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 hover:text-sage">
+              iMaGe <span className="text-sage">Studio</span>
             </Link>
             <Link href="/">
-              <Button variant="ghost" className="text-gray-300 hover:text-white">
+              <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Home
+                <span className="relative z-10">Torna alla Home</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Button>
             </Link>
           </div>
@@ -241,14 +241,16 @@ export default function WeddingVideosPage() {
 
       <div className="max-w-7xl mx-auto px-4 pt-8 pb-12">
         {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight mb-4" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
-            iMaGe Vision
-          </h1>
-          <p className="text-xl text-gray-300">
-            Ogni evento raccontato con emozione attraverso l'arte del video
-          </p>
-        </div>
+        <section className="pt-24 bg-gradient-to-r from-sage to-blue-gray text-white py-20 px-4">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight mb-4" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+              iMaGe Vision
+            </h1>
+            <p className="text-xl text-gray-300">
+              Ogni evento raccontato con emozione attraverso l'arte del video
+            </p>
+          </div>
+        </section>
 
         {loading ? (
           <div className="flex justify-center items-center py-24">
