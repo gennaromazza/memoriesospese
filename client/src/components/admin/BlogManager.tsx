@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar } from 'lucide-react';
 import { BlogPost, BlogPostStatus, insertBlogPostSchema, InsertBlogPost } from '@shared/schema';
+import WordPressImporter from './WordPressImporter';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-yellow-500',
@@ -304,13 +305,16 @@ export default function BlogManager() {
           </p>
         </div>
         
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => openDialog()} data-testid="button-create-post">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo Post
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <WordPressImporter onImportComplete={loadPosts} />
+          
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => openDialog()} data-testid="button-create-post">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuovo Post
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>

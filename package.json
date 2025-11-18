@@ -85,6 +85,7 @@
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.60.0",
+    "react-pdf": "^10.2.0",
     "react-resizable-panels": "^1.0.10",
     "react-router-dom": "^7.6.3",
     "react-signature-canvas": "^1.1.0-alpha.2",

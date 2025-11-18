@@ -1,6 +1,8 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookOpen } from "lucide-react";
+import gennaroWithCamera from "@assets/DSCF7392_1_1763485862385.jpg";
+import gennaroArtistic from "@assets/DSCF7358_1_1763485862385.jpg";
 
 export default function StoriePage() {
   return (
@@ -29,6 +31,23 @@ export default function StoriePage() {
           <p className="text-2xl text-[#C67B5C] mb-8">
             È tutta questione di <span className="font-semibold">Image</span>
           </p>
+        </div>
+
+        {/* Hero Image */}
+        <div className="mb-12 animate-fade-in">
+          <div className="relative h-[300px] sm:h-[400px] md:h-[500px] rounded-2xl overflow-hidden shadow-2xl bg-gray-900">
+            <img
+              src={gennaroWithCamera}
+              alt="Gennaro Mazzacane con la sua fotocamera Fujifilm"
+              className="w-full h-full object-contain"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+            <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white">
+              <p className="text-lg sm:text-xl italic font-light">
+                "Il momento viene prima di tutto"
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="prose prose-lg max-w-none">
@@ -63,15 +82,26 @@ export default function StoriePage() {
             Perché Matrimonio?
           </h2>
 
-          <p className="text-lg leading-relaxed text-gray-600 mb-6">
-            Ho scelto di specializzarmi nel settore dei matrimoni perché è quello che secondo me 
-            è il più completo, quello che abbraccia diversi stili di fotografia, quello che mi 
-            permette di conoscere tante persone e poi perché nel Sud c'è una vera e propria cultura.
-          </p>
+          <div className="grid md:grid-cols-2 gap-8 items-center mb-8">
+            <div>
+              <p className="text-lg leading-relaxed text-gray-600 mb-6">
+                Ho scelto di specializzarmi nel settore dei matrimoni perché è quello che secondo me 
+                è il più completo, quello che abbraccia diversi stili di fotografia, quello che mi 
+                permette di conoscere tante persone e poi perché nel Sud c'è una vera e propria cultura.
+              </p>
 
-          <p className="text-lg leading-relaxed text-gray-600 mb-6">
-            Ma soprattutto mi è sempre piaciuta l'idea di <strong>"raccontare"</strong>.
-          </p>
+              <p className="text-lg leading-relaxed text-gray-600 mb-6">
+                Ma soprattutto mi è sempre piaciuta l'idea di <strong>"raccontare"</strong>.
+              </p>
+            </div>
+            <div className="relative h-[300px] sm:h-[350px] rounded-xl overflow-hidden shadow-xl bg-gray-900">
+              <img
+                src={gennaroArtistic}
+                alt="Gennaro Mazzacane al lavoro"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </div>
 
           <div className="bg-[#F5EFE6] rounded-lg p-8 my-12 text-center">
             <p className="text-2xl font-playfair text-blue-gray mb-4">

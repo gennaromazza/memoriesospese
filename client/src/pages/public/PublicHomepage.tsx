@@ -33,6 +33,7 @@ import { FloralDivider, FloralCorner } from "@/components/WeddingIllustrations";
 import { useLocation } from "wouter";
 import libroCopertina from "@assets/libro-copertina.jpg";
 import libroPdf from "@assets/lasciati-trasportare.pdf";
+import gennaroProfile from "@assets/DSCF7220 copia (Grande)_1763486024338.jpg";
 
 interface PortfolioPhoto {
   id: string;
@@ -288,7 +289,6 @@ export default function PublicHomepage() {
             </div>
             <div className="relative h-[280px] sm:h-[400px] md:h-[500px] rounded-xl sm:rounded-2xl overflow-hidden shadow-lg sm:shadow-2xl animate-slide-up">
               <HeroSlideshow />
-              <div className="absolute inset-0 bg-gradient-to-br from-sage/20 to-transparent pointer-events-none" />
             </div>
           </div>
         </div>
@@ -598,7 +598,13 @@ export default function PublicHomepage() {
       <section className="py-12 sm:py-16 md:py-20 bg-white px-4">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
-            <div className="h-[250px] sm:h-[300px] md:h-[400px] bg-gray-200 rounded-xl sm:rounded-2xl animate-slide-up" />
+            <div className="relative h-[250px] sm:h-[300px] md:h-[400px] rounded-xl sm:rounded-2xl overflow-hidden shadow-lg animate-slide-up group bg-gray-900">
+              <img
+                src={gennaroProfile}
+                alt="Gennaro Mazzacane - Fotografo Professionista"
+                className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+              />
+            </div>
             <div className="animate-fade-in">
               <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4 md:mb-6">
                 La Mia Storia
