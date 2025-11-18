@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Play, Loader2, Eye, Sparkles, TrendingUp } from 'lucide-react';
 import WeddingVideoService from '@/lib/weddingVideos';
-import { JobTypeService } from '@/lib/job-types';
+import { getActiveJobTypes } from '@/lib/job-types';
 import type { WeddingVideo } from '@shared/schema';
 import type { JobType } from '@shared/job-types';
 import {
@@ -84,8 +84,8 @@ export default function WeddingVideosPage() {
 
   const loadJobTypes = async () => {
     try {
-      const types = await JobTypeService.getAllJobTypes();
-      setJobTypes(types.filter(jt => jt.active));
+      const types = await getActiveJobTypes();
+      setJobTypes(types);
     } catch (error) {
       console.error('Errore caricamento tipi lavoro:', error);
     }
