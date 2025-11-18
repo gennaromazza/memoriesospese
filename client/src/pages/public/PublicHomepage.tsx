@@ -97,42 +97,45 @@ export default function PublicHomepage() {
     setLoadingPhotos(true);
     try {
       const photosRef = collection(db, "portfolioSelections");
-      const q = query(
+      
+      // Prima prova a caricare le foto featured
+      const featuredQ = query(
         photosRef,
         where("featured", "==", true),
         orderBy("sortOrder", "asc"),
         limit(6),
       );
-      const snapshot = await getDocs(q);
+      const featuredSnapshot = await getDocs(featuredQ);
 
-      let photos = snapshot.docs.map((doc) => ({
+      let photos = featuredSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as PortfolioPhoto[];
 
-      // If less than 6 featured photos, fetch additional non-featured ones
+      // Se meno di 6 foto featured, carica altre foto
       if (photos.length < 6) {
         const remaining = 6 - photos.length;
-        const additionalQ = query(
+        const allPhotosQ = query(
           photosRef,
-          where("featured", "==", false),
           orderBy("sortOrder", "asc"),
-          limit(remaining),
+          limit(remaining + photos.length),
         );
-        const additionalSnapshot = await getDocs(additionalQ);
-        const additionalPhotos = additionalSnapshot.docs.map((doc) => ({
+        const allSnapshot = await getDocs(allPhotosQ);
+        const allPhotos = allSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as PortfolioPhoto[];
 
-        // Append additional photos, deduplicating by id
+        // Filtra le foto già incluse
         const featuredIds = new Set(photos.map((p) => p.id));
-        const uniqueAdditional = additionalPhotos.filter(
+        const additionalPhotos = allPhotos.filter(
           (p) => !featuredIds.has(p.id),
         );
-        photos = [...photos, ...uniqueAdditional].slice(0, 6);
+        
+        photos = [...photos, ...additionalPhotos].slice(0, 6);
       }
 
+      console.log('Portfolio photos loaded:', photos.length);
       setPortfolioPhotos(photos);
     } catch (error) {
       console.error("Errore caricamento portfolio preview:", error);
@@ -315,32 +318,45 @@ export default function PublicHomepage() {
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
-            {loadingPhotos
-              ? [1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="aspect-square bg-gray-200 rounded-lg animate-pulse"
-                  />
-                ))
-              : portfolioPhotos.length > 0
-                ? portfolioPhotos.map((photo) => (
-                    <Link key={photo.id} href="/portfolio">
-                      <div className="aspect-square rounded-lg overflow-hidden group cursor-pointer">
-                        <img
-                          src={photo.photoUrl}
-                          alt={`${photo.galleryName} - ${photo.jobType}`}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          loading="lazy"
-                        />
-                      </div>
-                    </Link>
-                  ))
-                : [1, 2, 3, 4, 5, 6].map((i) => (
-                    <div
-                      key={i}
-                      className="aspect-square bg-gray-200 rounded-lg"
+            {loadingPhotos ? (
+              // Loading state
+              [1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={`loading-${i}`}
+                  className="aspect-square bg-gray-200 rounded-lg animate-pulse"
+                />
+              ))
+            ) : portfolioPhotos.length > 0 ? (
+              // Foto caricate
+              portfolioPhotos.map((photo) => (
+                <Link key={photo.id} href="/portfolio">
+                  <div className="aspect-square rounded-lg overflow-hidden group cursor-pointer shadow-md hover:shadow-xl transition-shadow">
+                    <img
+                      src={photo.photoUrl}
+                      alt={`${photo.galleryName} - ${photo.jobType}`}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      loading="lazy"
+                      onError={(e) => {
+                        console.error('Errore caricamento immagine:', photo.photoUrl);
+                        e.currentTarget.src = '/assets/og-image.jpg';
+                      }}
                     />
-                  ))}
+                  </div>
+                </Link>
+              ))
+            ) : (
+              // Nessuna foto - mostra messaggio
+              <div className="col-span-2 md:col-span-3 text-center py-12">
+                <p className="text-gray-500 mb-4">
+                  Il portfolio è in fase di allestimento
+                </p>
+                <Link href="/portfolio">
+                  <Button variant="outline">
+                    Esplora il Portfolio
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
           <div className="text-center">
             <Link href="/portfolio">

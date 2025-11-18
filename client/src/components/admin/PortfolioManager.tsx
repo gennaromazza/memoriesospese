@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, Star, Image, Grid3x3, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Star, Image, Grid3x3, Loader2, Maximize2 } from 'lucide-react';
+import Lightbox from '@/components/public/Lightbox';
 
 interface PortfolioSelection {
   id: string;
@@ -63,6 +64,8 @@ export default function PortfolioManager() {
   const [filterJobType, setFilterJobType] = useState<string>('all');
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -320,23 +323,47 @@ export default function PortfolioManager() {
                         Nessuna foto trovata in questa galleria
                       </p>
                     ) : (
-                      <div className="grid grid-cols-4 gap-2 max-h-96 overflow-y-auto border rounded-md p-2">
-                        {photos.map(photo => (
+                      <div className="grid grid-cols-3 gap-3 max-h-[500px] overflow-y-auto border rounded-md p-3">
+                        {photos.map((photo, index) => (
                           <div
                             key={photo.id}
-                            onClick={() => setSelectedPhoto(photo.id)}
-                            className={`cursor-pointer border-2 rounded-md overflow-hidden transition-all ${
+                            className={`relative group cursor-pointer border-2 rounded-md overflow-hidden transition-all ${
                               selectedPhoto === photo.id 
                                 ? 'border-primary ring-2 ring-primary' 
                                 : 'border-transparent hover:border-primary/50'
                             }`}
                             data-testid={`photo-option-${photo.id}`}
                           >
-                            <img 
-                              src={photo.url} 
-                              alt={photo.name}
-                              className="w-full h-24 object-cover"
-                            />
+                            <div 
+                              onClick={() => setSelectedPhoto(photo.id)}
+                              className="aspect-square"
+                            >
+                              <img 
+                                src={photo.url} 
+                                alt={photo.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            
+                            {/* Preview button overlay */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxIndex(index);
+                                setLightboxOpen(true);
+                              }}
+                              className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Anteprima a schermo intero"
+                            >
+                              <Maximize2 className="h-4 w-4" />
+                            </button>
+
+                            {/* Selected indicator */}
+                            {selectedPhoto === photo.id && (
+                              <div className="absolute top-2 left-2 bg-primary text-white px-2 py-1 rounded-md text-xs font-medium">
+                                Selezionata
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -449,6 +476,16 @@ export default function PortfolioManager() {
           </Card>
         ))
       )}
+
+      {/* Lightbox per preview foto */}
+      <Lightbox
+        images={photos.map(p => p.url)}
+        currentIndex={lightboxIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        onNext={() => setLightboxIndex(prev => Math.min(prev + 1, photos.length - 1))}
+        onPrevious={() => setLightboxIndex(prev => Math.max(prev - 1, 0))}
+      />
     </div>
   );
 }
