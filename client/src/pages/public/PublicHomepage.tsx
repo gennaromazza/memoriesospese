@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 import { Camera, Heart, BookOpen, Calendar, Image as ImageIcon, Instagram, Phone, Mail, MapPin } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 
@@ -18,7 +19,7 @@ export default function PublicHomepage() {
               <Link href="/portfolio" className="text-blue-gray hover:text-sage transition">Portfolio</Link>
               <Link href="/storie" className="text-blue-gray hover:text-sage transition">La Mia Storia</Link>
               <Link href="/blog" className="text-blue-gray hover:text-sage transition">Blog</Link>
-              <Link href="/consultations" className="text-blue-gray hover:text-sage transition">Consulenze</Link>
+              <Link href="/consulenze" className="text-blue-gray hover:text-sage transition">Consulenze</Link>
             </div>
             <div className="flex items-center gap-3">
               {studioSettings.socialLinks.instagram && (
@@ -32,12 +33,10 @@ export default function PublicHomepage() {
                   <Instagram className="h-5 w-5" />
                 </a>
               )}
-              <Link 
-                href="/consultations"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-sage text-white hover:bg-dark-sage h-10 px-4 py-2"
-                data-testid="button-prenota-nav"
-              >
-                Contattami
+              <Link href="/consulenze">
+                <Button className="bg-sage hover:bg-dark-sage text-white" data-testid="button-prenota-nav">
+                  Contattami
+                </Button>
               </Link>
             </div>
           </div>
@@ -59,31 +58,25 @@ export default function PublicHomepage() {
                 È tutta questione di <span className="font-semibold text-sage">Image</span>
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link 
-                  href="/consultations"
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-sage text-white hover:bg-dark-sage h-11 px-8"
-                  data-testid="button-prenota-hero"
-                >
-                  <Calendar className="mr-2 h-5 w-5" />
-                  Prenota Consulenza Gratuita
+                <Link href="/consulenze">
+                  <Button size="lg" className="bg-sage hover:bg-dark-sage text-white" data-testid="button-prenota-hero">
+                    <Calendar className="mr-2 h-5 w-5" />
+                    Prenota Consulenza Gratuita
+                  </Button>
                 </Link>
-                <Link 
-                  href="/portfolio"
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-sage text-sage hover:bg-sage/10 h-11 px-8"
-                  data-testid="button-portfolio-hero"
-                >
-                  <Camera className="mr-2 h-5 w-5" />
-                  Guarda il Portfolio
+                <Link href="/portfolio">
+                  <Button size="lg" variant="outline" className="border-sage text-sage hover:bg-sage/10" data-testid="button-portfolio-hero">
+                    <Camera className="mr-2 h-5 w-5" />
+                    Guarda il Portfolio
+                  </Button>
                 </Link>
               </div>
               <div className="mt-6">
-                <Link 
-                  href="/accesso-galleria"
-                  className="inline-flex items-center underline-offset-4 hover:underline text-blue-gray hover:text-sage"
-                  data-testid="link-accesso-galleria-hero"
-                >
-                  <ImageIcon className="mr-2 h-4 w-4" />
-                  Sei uno sposo? Accedi alla tua galleria
+                <Link href="/accesso-galleria">
+                  <Button variant="link" className="text-blue-gray hover:text-sage" data-testid="link-accesso-galleria-hero">
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                    Sei uno sposo? Accedi alla tua galleria
+                  </Button>
                 </Link>
               </div>
             </div>
@@ -136,11 +129,10 @@ export default function PublicHomepage() {
             ))}
           </div>
           <div className="text-center">
-            <Link 
-              href="/portfolio"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-sage text-sage hover:bg-sage/10 h-11 px-8"
-            >
-              Vedi Tutto il Portfolio
+            <Link href="/portfolio">
+              <Button size="lg" variant="outline" className="border-sage text-sage hover:bg-sage/10">
+                Vedi Tutto il Portfolio
+              </Button>
             </Link>
           </div>
         </div>
@@ -157,12 +149,11 @@ export default function PublicHomepage() {
                 La mia passione per la fotografia inizia a soli 10 anni, con una macchina fotografica 
                 trovata in una confezione di merendine Kinder Brioss...
               </p>
-              <Link 
-                href="/storie"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-sage text-sage hover:bg-sage/10 h-10 px-4 py-2"
-              >
-                <BookOpen className="mr-2 h-4 w-4" />
-                Leggi la Storia Completa
+              <Link href="/storie">
+                <Button variant="outline" className="border-sage text-sage hover:bg-sage/10">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Leggi la Storia Completa
+                </Button>
               </Link>
             </div>
           </div>
@@ -176,13 +167,11 @@ export default function PublicHomepage() {
           <p className="text-xl mb-8">
             Accedi alla tua galleria privata e rivivi le emozioni del tuo giorno speciale
           </p>
-          <Link 
-            href="/accesso-galleria"
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-white text-terracotta hover:bg-gray-100 h-11 px-8"
-            data-testid="button-accesso-galleria-cta"
-          >
-            <ImageIcon className="mr-2 h-5 w-5" />
-            Accedi alla Galleria
+          <Link href="/accesso-galleria">
+            <Button size="lg" className="bg-white text-terracotta hover:bg-gray-100" data-testid="button-accesso-galleria-cta">
+              <ImageIcon className="mr-2 h-5 w-5" />
+              Accedi alla Galleria
+            </Button>
           </Link>
         </div>
       </section>
@@ -194,13 +183,11 @@ export default function PublicHomepage() {
           <p className="text-xl mb-8">
             "Lasciati Trasportare" - La guida completa per organizzare il tuo matrimonio perfetto
           </p>
-          <Link 
-            href="/lasciati-trasportare"
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-white text-sage hover:bg-gray-100 h-11 px-8"
-            data-testid="button-libro"
-          >
-            <BookOpen className="mr-2 h-5 w-5" />
-            Scarica il Libro
+          <Link href="/lasciati-trasportare">
+            <Button size="lg" className="bg-white text-sage hover:bg-gray-100" data-testid="button-libro">
+              <BookOpen className="mr-2 h-5 w-5" />
+              Scarica il Libro
+            </Button>
           </Link>
         </div>
       </section>
@@ -232,7 +219,7 @@ export default function PublicHomepage() {
               <Link href="/portfolio" className="block text-gray-300 hover:text-white">Portfolio</Link>
               <Link href="/storie" className="block text-gray-300 hover:text-white">La Mia Storia</Link>
               <Link href="/blog" className="block text-gray-300 hover:text-white">Blog</Link>
-              <Link href="/consultations" className="block text-gray-300 hover:text-white">Consulenze</Link>
+              <Link href="/consulenze" className="block text-gray-300 hover:text-white">Consulenze</Link>
               <Link href="/accesso-galleria" className="block text-gray-300 hover:text-white">Accesso Galleria</Link>
               <Link href="/privacy" className="block text-gray-300 hover:text-white">Privacy</Link>
             </div>

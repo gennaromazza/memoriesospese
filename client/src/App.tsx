@@ -15,7 +15,7 @@ import PublicHomepage from "./pages/public/PublicHomepage";
 import PortfolioPage from "./pages/public/PortfolioPage";
 import PortfolioCategoryPage from "./pages/public/PortfolioCategoryPage";
 import StoriePage from "./pages/public/StoriePage";
-import BookPage from "./pages/public/BookPage";
+import LasciatiTrasportarePage from "./pages/public/LasciatiTrasportarePage";
 import BlogPage from "./pages/public/BlogPage";
 import BlogPostPage from "./pages/public/BlogPostPage";
 import GalleryAccess from "./pages/GalleryAccess";
@@ -77,7 +77,7 @@ function AppRoutes() {
       <Route path="/portfolio" component={PortfolioPage} />
       <Route path="/portfolio/:categoria" component={PortfolioCategoryPage} />
       <Route path="/storie" component={StoriePage} />
-      <Route path="/lasciati-trasportare" component={BookPage} />
+      <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
       <Route path="/blog" component={BlogPage} />
       <Route path="/blog/:slug" component={BlogPostPage} />
       
