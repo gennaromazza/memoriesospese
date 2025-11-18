@@ -221,17 +221,17 @@ export default function PublicHomepage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4">
+      <section className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h1 className="text-5xl md:text-6xl font-playfair text-blue-gray mb-6 leading-tight">
+          <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-center">
+            <div className="animate-fade-in">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6 leading-tight">
                 Lasciati <span className="text-[#C67B5C]">Trasportare</span>
               </h1>
-              <p className="text-xl text-gray-600 mb-4">
+              <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
                 La fotografia è l'arte di immortalare momenti autentici
               </p>
-              <p className="text-lg text-gray-500 mb-8">
+              <p className="text-base sm:text-lg text-gray-500 mb-6 sm:mb-8">
                 È tutta questione di{" "}
                 <span className="font-semibold text-sage">Image</span>
               </p>
@@ -271,7 +271,7 @@ export default function PublicHomepage() {
                 </Link>
               </div>
             </div>
-            <div className="relative h-[300px] sm:h-[400px] md:h-[500px] rounded-2xl overflow-hidden shadow-2xl">
+            <div className="relative h-[280px] sm:h-[400px] md:h-[500px] rounded-xl sm:rounded-2xl overflow-hidden shadow-lg sm:shadow-2xl animate-slide-up">
               <HeroSlideshow />
               <div className="absolute inset-0 bg-gradient-to-br from-sage/20 to-transparent pointer-events-none" />
             </div>
@@ -306,15 +306,15 @@ export default function PublicHomepage() {
       {/* Portfolio Preview */}
       <section className="py-12 sm:py-16 md:py-20 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-4">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12 animate-fade-in">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4">
               Portfolio
             </h2>
-            <p className="text-lg sm:text-xl text-gray-600">
+            <p className="text-base sm:text-lg md:text-xl text-gray-600">
               Ogni foto racconta una storia unica
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
             {loadingPhotos
               ? [1, 2, 3, 4, 5, 6].map((i) => (
                   <div
@@ -570,13 +570,13 @@ export default function PublicHomepage() {
       {/* About Preview */}
       <section className="py-12 sm:py-16 md:py-20 bg-white px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-8 sm:gap-12 items-center">
-            <div className="h-[250px] sm:h-[300px] md:h-[400px] bg-gray-200 rounded-2xl" />
-            <div>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-4 sm:mb-6">
+          <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
+            <div className="h-[250px] sm:h-[300px] md:h-[400px] bg-gray-200 rounded-xl sm:rounded-2xl animate-slide-up" />
+            <div className="animate-fade-in">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4 md:mb-6">
                 La Mia Storia
               </h2>
-              <p className="text-lg text-gray-600 mb-6">
+              <p className="text-base sm:text-lg text-gray-600 mb-4 sm:mb-6">
                 La mia passione per la fotografia inizia a soli 10 anni, con una
                 macchina fotografica trovata in una confezione di merendine
                 Kinder Brioss...
@@ -666,8 +666,8 @@ export default function PublicHomepage() {
       {/* Accesso Gallerie CTA */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-terracotta to-[#C67B5C] px-4">
         <div className="max-w-4xl mx-auto text-center text-white">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-4">Sei uno Sposo?</h2>
-          <p className="text-lg sm:text-xl mb-6 sm:mb-8">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">Sei uno Sposo?</h2>
+          <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8">
             Accedi alla tua galleria privata e rivivi le emozioni del tuo giorno
             speciale
           </p>
@@ -687,10 +687,10 @@ export default function PublicHomepage() {
       {/* CTA Book */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-sage to-dark-sage px-4">
         <div className="max-w-4xl mx-auto text-center text-white">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-4">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">
             Scarica GRATIS il Libro
           </h2>
-          <p className="text-lg sm:text-xl mb-6 sm:mb-8">
+          <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8">
             "Lasciati Trasportare" - La guida completa per organizzare il tuo
             matrimonio perfetto
           </p>
@@ -765,7 +765,7 @@ export default function PublicHomepage() {
             </div>
 
             {/* Instagram Feed Embed */}
-            <div className="bg-white rounded-2xl shadow-xl border border-sage/10 p-4 md:p-8 overflow-hidden">
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-sage/10 p-4 sm:p-6 md:p-8 overflow-hidden">
               <div className="w-full" style={{ maxHeight: "600px", overflowY: "auto" }}>
                 <iframe
                   src={`https://www.instagram.com/${studioSettings.socialLinks.instagram
@@ -774,7 +774,7 @@ export default function PublicHomepage() {
                     .replace(/\/$/, "")
                     .replace(/[?#].*$/, "")}/embed`}
                   className="w-full border-0 rounded-lg"
-                  style={{ minHeight: "400px", height: "500px" }}
+                  style={{ minHeight: "350px", height: "450px" }}
                   scrolling="yes"
                   title="Instagram Feed"
                   loading="lazy"
