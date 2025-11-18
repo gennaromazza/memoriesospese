@@ -406,7 +406,7 @@ export default function PublicHomepage() {
 
       {/* Active Booking Campaigns */}
       {activeCampaigns.length > 0 && (
-        <section className="py-20 bg-gradient-to-b from-sage/5 to-white relative overflow-hidden">
+        <section className="py-20 bg-white relative overflow-hidden">
           <div className="absolute inset-0 opacity-5">
             <div
               className="absolute inset-0"
@@ -655,7 +655,7 @@ export default function PublicHomepage() {
       </section>
 
       {/* Gallerie Speciali */}
-      <section className="py-20 bg-gradient-to-b from-sage/5 to-white px-4">
+      <section className="py-20 bg-white px-4">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-sage rounded-full mb-4">
