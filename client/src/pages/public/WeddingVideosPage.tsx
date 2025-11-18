@@ -23,16 +23,30 @@ function getYouTubeVideoId(url: string): string {
   return match && match[2].length === 11 ? match[2] : '';
 }
 
+// Helper per generare likes casuali (400-1200)
+function getRandomLikes(videoId: string): number {
+  // Usa l'ID del video come seed per generare un numero consistente
+  const seed = videoId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return 400 + (seed % 800);
+}
+
+// Helper per generare visualizzazioni casuali (8k-25k + views reali)
+function getRandomBaseViews(videoId: string): number {
+  const seed = videoId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return 8000 + (seed % 17000);
+}
+
 // VideoCard component
-function VideoCard({ video, onClick, onLike, onShare, isLiked }: { 
+function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount }: { 
   video: WeddingVideo; 
   onClick: () => void;
   onLike: (e: React.MouseEvent) => void;
   onShare: (e: React.MouseEvent) => void;
   isLiked: boolean;
+  likeCount: number;
 }) {
-  // Visualizzazioni partono da 10k + conteggio reale
-  const displayViews = 10000 + (video.views || 0);
+  // Visualizzazioni: base casuale + conteggio reale
+  const displayViews = getRandomBaseViews(video.id) + (video.views || 0);
   
   return (
     <div className="group cursor-pointer" onClick={onClick}>
@@ -57,12 +71,13 @@ function VideoCard({ video, onClick, onLike, onShare, isLiked }: {
           <Eye className="h-3 w-3" />
           {displayViews.toLocaleString('it-IT')} visualizzazioni
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={onLike}
-            className={`p-1 hover:scale-110 transition-transform ${isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
+            className={`flex items-center gap-1 hover:scale-110 transition-transform ${isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
           >
             <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="text-xs font-medium">{likeCount.toLocaleString('it-IT')}</span>
           </button>
           <button
             onClick={onShare}
@@ -84,6 +99,7 @@ export default function WeddingVideosPage() {
   const [selectedVideo, setSelectedVideo] = useState<WeddingVideo | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [likedVideos, setLikedVideos] = useState<Set<string>>(new Set());
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -101,6 +117,13 @@ export default function WeddingVideosPage() {
       
       setVideos(allVideos);
       setFeaturedVideos(featured);
+      
+      // Inizializza i contatori like con valori casuali
+      const initialCounts: Record<string, number> = {};
+      allVideos.forEach(video => {
+        initialCounts[video.id] = getRandomLikes(video.id);
+      });
+      setLikeCounts(initialCounts);
     } catch (error) {
       console.error('Errore caricamento video:', error);
     } finally {
@@ -124,15 +147,26 @@ export default function WeddingVideosPage() {
 
   const handleLike = (videoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    
     setLikedVideos(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(videoId)) {
+      const wasLiked = newSet.has(videoId);
+      
+      if (wasLiked) {
         newSet.delete(videoId);
+        setLikeCounts(counts => ({
+          ...counts,
+          [videoId]: (counts[videoId] || 0) - 1
+        }));
         toast({
           description: "Rimosso dai preferiti"
         });
       } else {
         newSet.add(videoId);
+        setLikeCounts(counts => ({
+          ...counts,
+          [videoId]: (counts[videoId] || 0) + 1
+        }));
         toast({
           description: "❤️ Aggiunto ai preferiti"
         });
@@ -208,7 +242,7 @@ export default function WeddingVideosPage() {
       <div className="max-w-7xl mx-auto px-4 pt-8 pb-12">
         {/* Hero Section */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair mb-4">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight mb-4" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
             iMaGe Vision
           </h1>
           <p className="text-xl text-gray-300">
@@ -280,6 +314,7 @@ export default function WeddingVideosPage() {
                       onLike={(e) => handleLike(video.id, e)}
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
+                      likeCount={likeCounts[video.id] || 0}
                     />
                   ))}
                 </div>
@@ -302,6 +337,7 @@ export default function WeddingVideosPage() {
                       onLike={(e) => handleLike(video.id, e)}
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
+                      likeCount={likeCounts[video.id] || 0}
                     />
                   ))}
                 </div>
@@ -325,6 +361,7 @@ export default function WeddingVideosPage() {
                       onLike={(e) => handleLike(video.id, e)}
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
+                      likeCount={likeCounts[video.id] || 0}
                     />
                   ))}
                 </div>
