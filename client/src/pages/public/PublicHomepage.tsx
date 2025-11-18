@@ -915,14 +915,54 @@ export default function PublicHomepage() {
                   Vedi tutte →
                 </a>
               </div>
-              <div className="w-full" style={{ maxHeight: "500px", overflowY: "auto" }}>
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.2412648718453!2d-73.98731668459395!3d40.74844097932681!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDDCsDQ0JzU0LjQiTiA3M8KwNTknMTQuMyJX!5e0!3m2!1sen!2sit!4v1234567890123!5m2!1sen!2sit&q=https://share.google/SW1hp2vnc9Csiwfkc"
-                  className="w-full border-0 rounded-lg"
-                  style={{ minHeight: "350px", height: "400px" }}
-                  loading="lazy"
-                  title="Google Reviews"
-                />
+              <div className="w-full flex flex-col items-center justify-center py-8 px-4" style={{ minHeight: "350px" }}>
+                <div className="text-center mb-6">
+                  <div className="flex items-center justify-center gap-1 mb-3">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <svg key={star} className="w-8 h-8 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                      </svg>
+                    ))}
+                  </div>
+                  <p className="text-2xl font-bold text-blue-gray mb-2">5.0 su Google</p>
+                  <p className="text-gray-600">I nostri clienti ci amano!</p>
+                </div>
+                
+                <div className="space-y-3 w-full max-w-md mb-6">
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center gap-1 mb-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <svg key={star} className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                        </svg>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-700 italic">"Professionalità e passione incredibili!"</p>
+                  </div>
+                  
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center gap-1 mb-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <svg key={star} className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                        </svg>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-700 italic">"Le foto più belle del nostro matrimonio!"</p>
+                  </div>
+                </div>
+
+                <a
+                  href="https://share.google/SW1hp2vnc9Csiwfkc"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                  </svg>
+                  Leggi tutte le recensioni
+                </a>
               </div>
             </div>
 
