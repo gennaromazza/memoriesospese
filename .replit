@@ -10,7 +10,7 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "npm ci && npm run build"]
+build = ["sh", "-c", "npm install --legacy-peer-deps && npm run build"]
 run = ["sh", "-c", "node dist/index.js"]
 
 [workflows]
@@ -85,16 +85,12 @@ args = "npm run dev"
 waitForPort = 5173
 
 [[ports]]
-localPort = 3000
-externalPort = 3000
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
 localPort = 5173
 externalPort = 5173
+
+[[ports]]
+localPort = 3000
+externalPort = 80
 
 [[ports]]
 localPort = 24678
