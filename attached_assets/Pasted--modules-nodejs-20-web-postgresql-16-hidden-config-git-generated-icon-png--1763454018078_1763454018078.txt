@@ -1,0 +1,114 @@
+
+modules = ["nodejs-20", "web", "postgresql-16"]
+hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+
+# Comando principale per lo sviluppo
+run = "npm run dev"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["sh", "-c", "npm install --legacy-peer-deps && npm run build"]
+run = ["sh", "-c", "node dist/index.js"]
+
+[workflows]
+runButton = "Clean Install & Dev"
+
+[[workflows.workflow]]
+name = "Dev Workflow"
+mode = "sequential"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --legacy-peer-deps"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5173
+
+[[workflows.workflow]]
+name = "Prod Build & Start"
+mode = "sequential"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --legacy-peer-deps"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dist/index.js"
+
+[[workflows.workflow]]
+name = "Quick Build"
+mode = "sequential"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dist/index.js"
+
+[[workflows.workflow]]
+name = "Clean Install"
+mode = "sequential"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "rm -rf node_modules package-lock.json"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --legacy-peer-deps"
+waitForExit = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5173
+
+[[workflows.workflow]]
+name = "Clean Install & Dev"
+author = 41213760
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --legacy-peer-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 5173
+externalPort = 5173
+
+[[ports]]
+localPort = 24678
+externalPort = 3001
