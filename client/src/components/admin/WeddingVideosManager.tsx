@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import WeddingVideoService from '@/lib/weddingVideos';
 import { GalleryService } from '@/lib/galleries';
@@ -67,12 +66,12 @@ export default function WeddingVideosManager() {
     setLoadingGalleries(true);
     try {
       const allGalleries = await GalleryService.getAllGalleriesForAdmin();
-      
+
       // Filtra solo gallerie con youtubeUrl o youtubeUrls
       const galleriesWithYoutube = allGalleries.filter(gallery => {
         return gallery.youtubeUrl || (gallery.youtubeUrls && gallery.youtubeUrls.length > 0);
       });
-      
+
       setGalleriesWithVideos(galleriesWithYoutube);
     } catch (error) {
       console.error('Errore caricamento gallerie:', error);
@@ -248,18 +247,9 @@ export default function WeddingVideosManager() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="videos">
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => handleOpenDialog()}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nuovo Video
-                  </Button>
-                </DialogTrigger>
-        
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Dialog for new video and editing video */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingVideo ? 'Modifica Video' : 'Nuovo Video'}</DialogTitle>
               <DialogDescription>
@@ -382,11 +372,20 @@ export default function WeddingVideosManager() {
                 {saving ? 'Salvataggio...' : 'Salva'}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </Dialog>
 
-      {videos.length === 0 ? (
+        <TabsContent value="videos">
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <DialogTrigger asChild>
+                <Button onClick={() => handleOpenDialog()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nuovo Video
+                </Button>
+              </DialogTrigger>
+            </div>
+
+            {videos.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <p className="text-muted-foreground">
