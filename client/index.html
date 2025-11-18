@@ -81,6 +81,21 @@
     <!-- Fonts (esempio) -->
     <!-- <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap"> -->
+
+    <!-- Matrimonio.com Reviews Widget -->
+    <script src="https://cdn1.matrimonio.com/js/wp-widget.js?symfnw-IT73-1-20251118-008_www_m_"></script>
+    <script>
+      // Initialize widget when DOM is ready
+      if (typeof wpShowReviews !== 'undefined') {
+        document.addEventListener('DOMContentLoaded', function() {
+          setTimeout(function() {
+            if (document.getElementById('wp-widget-reviews')) {
+              wpShowReviews(149790, "white");
+            }
+          }, 1000);
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

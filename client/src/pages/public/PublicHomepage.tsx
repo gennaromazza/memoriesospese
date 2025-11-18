@@ -839,7 +839,7 @@ export default function PublicHomepage() {
       </section>
 
       {/* Google Reviews Section */}
-      <section className="py-20 bg-white relative overflow-hidden">
+      <section id="recensioni" className="py-20 bg-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-full mb-6">
@@ -856,36 +856,114 @@ export default function PublicHomepage() {
               Scopri cosa dicono di noi i nostri clienti soddisfatti
             </p>
 
-            <a
-              href="https://share.google/SW1hp2vnc9Csiwfkc"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-sage hover:bg-dark-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-              </svg>
-              <span>Vedi tutte le recensioni</span>
-            </a>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <a
+                href="https://share.google/SW1hp2vnc9Csiwfkc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-sage hover:bg-dark-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                </svg>
+                <span>Google Reviews</span>
+              </a>
+
+              <a
+                href="https://www.matrimonio.com/fotografo-matrimonio/image-studio-fotografico--e149790/opinioni"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-blue-gray border-2 border-sage font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                </svg>
+                <span>Matrimonio.com</span>
+              </a>
+            </div>
           </div>
 
-          {/* Google Reviews Widget */}
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-sage/10 p-4 sm:p-6 md:p-8 overflow-hidden">
-            <div className="w-full" style={{ maxHeight: "600px", overflowY: "auto" }}>
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.2412648718453!2d-73.98731668459395!3d40.74844097932681!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDDCsDQ0JzU0LjQiTiA3M8KwNTknMTQuMyJX!5e0!3m2!1sen!2sit!4v1234567890123!5m2!1sen!2sit&q=https://share.google/SW1hp2vnc9Csiwfkc"
-                className="w-full border-0 rounded-lg"
-                style={{ minHeight: "350px", height: "450px" }}
-                loading="lazy"
-                title="Google Reviews"
-              />
+          {/* Reviews Widgets Grid */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Google Reviews Widget */}
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-sage/10 p-4 sm:p-6 overflow-hidden">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-sage/10">
+                <h3 className="text-xl font-semibold text-blue-gray flex items-center gap-2">
+                  <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                  </svg>
+                  Google
+                </h3>
+                <a
+                  href="https://share.google/SW1hp2vnc9Csiwfkc"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-sage hover:text-dark-sage font-medium"
+                >
+                  Vedi tutte →
+                </a>
+              </div>
+              <div className="w-full" style={{ maxHeight: "500px", overflowY: "auto" }}>
+                <iframe
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.2412648718453!2d-73.98731668459395!3d40.74844097932681!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDDCsDQ0JzU0LjQiTiA3M8KwNTknMTQuMyJX!5e0!3m2!1sen!2sit!4v1234567890123!5m2!1sen!2sit&q=https://share.google/SW1hp2vnc9Csiwfkc"
+                  className="w-full border-0 rounded-lg"
+                  style={{ minHeight: "350px", height: "400px" }}
+                  loading="lazy"
+                  title="Google Reviews"
+                />
+              </div>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-sage/10 text-center">
-              <p className="text-sm text-gray-500 italic">
-                La soddisfazione dei nostri clienti è la nostra priorità. Leggi le loro storie!
-              </p>
+            {/* Matrimonio.com Widget */}
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-sage/10 p-4 sm:p-6 overflow-hidden">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-sage/10">
+                <h3 className="text-xl font-semibold text-blue-gray flex items-center gap-2">
+                  <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                  </svg>
+                  Matrimonio.com
+                </h3>
+                <a
+                  href="https://www.matrimonio.com/fotografo-matrimonio/image-studio-fotografico--e149790/opinioni"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-sage hover:text-dark-sage font-medium"
+                >
+                  Vedi tutte →
+                </a>
+              </div>
+              <div className="w-full" style={{ maxHeight: "500px", overflowY: "auto" }}>
+                <div id="wp-widget-reviews">
+                  <div id="wp-widget-preview" className="text-center py-8">
+                    <p className="text-gray-600 mb-4">
+                      Leggi{" "}
+                      <a 
+                        href="https://www.matrimonio.com/fotografo-matrimonio/image-studio-fotografico--e149790/opinioni" 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sage hover:text-dark-sage font-semibold"
+                      >
+                        le nostre recensioni
+                      </a>
+                      {" "}su
+                    </p>
+                    <a href="https://www.matrimonio.com" target="_blank" rel="noopener noreferrer">
+                      <img 
+                        src="https://cdn1.matrimonio.com/assets/img/logos/gen_logoHeader.svg" 
+                        alt="Matrimonio.com"
+                        className="h-8 mx-auto"
+                      />
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
+
+          <div className="mt-8 text-center">
+            <p className="text-sm text-gray-500 italic">
+              La soddisfazione dei nostri clienti è la nostra priorità. Leggi le loro storie!
+            </p>
           </div>
         </div>
       </section>

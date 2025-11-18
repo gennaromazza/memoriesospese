@@ -187,9 +187,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 Consulenze
               </Link>
               <a
-                href="https://share.google/SW1hp2vnc9Csiwfkc"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/#recensioni"
                 className="text-blue-gray hover:text-sage transition"
               >
                 Recensioni
