@@ -21,6 +21,36 @@ export default function PublicHomepage() {
 
   useEffect(() => {
     loadPortfolioPreview();
+    
+    // SEO meta tags
+    document.title = "Image Studio | Fotografia Professionale | Lasciati Trasportare";
+    
+    const updateMetaTag = (name: string, content: string) => {
+      let tag = document.querySelector(`meta[name="${name}"]`);
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute('name', name);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute('content', content);
+    };
+    
+    updateMetaTag('description', 'Fotografia professionale per matrimoni, battesimi, eventi. Lasciati trasportare dalle emozioni dei tuoi momenti più belli. Image Studio - È tutta questione di Image.');
+    
+    // Open Graph tags
+    const updateOgTag = (property: string, content: string) => {
+      let tag = document.querySelector(`meta[property="${property}"]`);
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute('property', property);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute('content', content);
+    };
+    
+    updateOgTag('og:title', 'Image Studio | Fotografia Professionale');
+    updateOgTag('og:description', 'Lasciati trasportare dalle emozioni dei tuoi momenti più belli');
+    updateOgTag('og:type', 'website');
   }, []);
 
   const loadPortfolioPreview = async () => {
@@ -332,6 +362,27 @@ export default function PublicHomepage() {
         <div className="max-w-7xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-gray-400">
           <p>© 2025 iMaGe Studio Fotografico - Gennaro Mazzacane. Tutti i diritti riservati.</p>
         </div>
+        
+        {/* Schema.org LocalBusiness JSON-LD */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ProfessionalService",
+            "name": "Image Studio Fotografico",
+            "description": "Fotografia professionale per matrimoni, battesimi e eventi a Napoli e Caserta",
+            "image": studioSettings.socialLinks.instagram || "",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "Napoli",
+              "addressRegion": "Campania",
+              "addressCountry": "IT"
+            },
+            "telephone": studioSettings.phone || "",
+            "email": studioSettings.email || "",
+            "priceRange": "€€€",
+            "openingHours": "Mo-Fr 09:00-18:00"
+          })
+        }} />
       </footer>
     </div>
   );
