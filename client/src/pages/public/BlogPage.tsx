@@ -29,7 +29,7 @@ export default function BlogPage() {
           {/* Placeholder posts */}
           {[1, 2, 3, 4, 5, 6].map(i => (
             <article key={i} className="group cursor-pointer">
-              <div className="aspect-video bg-gray-200 rounded-lg mb-4 overflow-hidden">
+              <div className="bg-gray-200 rounded-lg mb-4 overflow-hidden" style={{ aspectRatio: '16/9' }}>
                 <div className="w-full h-full group-hover:scale-105 transition-transform duration-300" />
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">

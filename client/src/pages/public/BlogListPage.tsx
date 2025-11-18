@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
@@ -30,7 +29,7 @@ export default function BlogListPage() {
         orderBy('publishedAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      
+
       const loadedPosts = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -118,11 +117,11 @@ export default function BlogListPage() {
               {posts.map((post) => (
                 <Card key={post.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 bg-white border-sage/10 animate-slide-up" data-testid={`card-post-${post.id}`}>
                   {post.coverImage && (
-                    <div className="aspect-video overflow-hidden bg-beige">
+                    <div className="overflow-hidden bg-beige">
                       <img 
                         src={post.coverImage} 
                         alt={post.title}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                        className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
                         loading="lazy"
                       />
                     </div>

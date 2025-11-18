@@ -35,11 +35,11 @@ export default function StoriePage() {
 
         {/* Hero Image */}
         <div className="mb-12 animate-fade-in">
-          <div className="relative h-[300px] sm:h-[400px] md:h-[500px] rounded-2xl overflow-hidden shadow-2xl bg-gray-900">
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-gray-900">
             <img
               src={gennaroWithCamera}
               alt="Gennaro Mazzacane con la sua fotocamera Fujifilm"
-              className="w-full h-full object-contain"
+              className="w-full h-auto object-contain"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
             <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white">
@@ -94,11 +94,11 @@ export default function StoriePage() {
                 Ma soprattutto mi è sempre piaciuta l'idea di <strong>"raccontare"</strong>.
               </p>
             </div>
-            <div className="relative h-[300px] sm:h-[350px] rounded-xl overflow-hidden shadow-xl bg-gray-900">
+            <div className="relative rounded-xl overflow-hidden shadow-xl bg-gray-900">
               <img
                 src={gennaroArtistic}
                 alt="Gennaro Mazzacane al lavoro"
-                className="w-full h-full object-contain"
+                className="w-full h-auto object-contain"
               />
             </div>
           </div>

@@ -334,17 +334,18 @@ export default function PublicHomepage() {
               ? [1, 2, 3, 4, 5, 6].map((i) => (
                   <div
                     key={i}
-                    className="aspect-square bg-gray-200 rounded-lg animate-pulse"
+                    className="bg-gray-200 rounded-lg animate-pulse"
+                    style={{ aspectRatio: '1' }}
                   />
                 ))
               : portfolioPhotos.length > 0
                 ? portfolioPhotos.map((photo, index) => (
                     <Link key={photo.id} href="/portfolio">
-                      <div className="aspect-square rounded-lg overflow-hidden group cursor-pointer">
+                      <div className="rounded-lg overflow-hidden group cursor-pointer">
                         <img
                           src={photo.photoUrl}
                           alt={`${photo.galleryName} - ${photo.jobType}`}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          className="w-full h-auto object-cover group-hover:scale-110 transition-transform duration-300"
                           loading="lazy"
                           onError={(e) => {
                             console.error(`[PublicHomepage] Failed to load image ${index + 1}:`, photo.photoUrl);
