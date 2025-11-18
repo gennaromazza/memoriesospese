@@ -838,6 +838,58 @@ export default function PublicHomepage() {
         </div>
       </section>
 
+      {/* Google Reviews Section */}
+      <section className="py-20 bg-white relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-full mb-6">
+              <svg className="w-10 h-10 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            </div>
+
+            <h2 className="text-4xl font-playfair text-blue-gray mb-4">
+              Le Nostre Recensioni
+            </h2>
+
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-6">
+              Scopri cosa dicono di noi i nostri clienti soddisfatti
+            </p>
+
+            <a
+              href="https://share.google/SW1hp2vnc9Csiwfkc"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-sage hover:bg-dark-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+              <span>Vedi tutte le recensioni</span>
+            </a>
+          </div>
+
+          {/* Google Reviews Widget */}
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-sage/10 p-4 sm:p-6 md:p-8 overflow-hidden">
+            <div className="w-full" style={{ maxHeight: "600px", overflowY: "auto" }}>
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.2412648718453!2d-73.98731668459395!3d40.74844097932681!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDDCsDQ0JzU0LjQiTiA3M8KwNTknMTQuMyJX!5e0!3m2!1sen!2sit!4v1234567890123!5m2!1sen!2sit&q=https://share.google/SW1hp2vnc9Csiwfkc"
+                className="w-full border-0 rounded-lg"
+                style={{ minHeight: "350px", height: "450px" }}
+                loading="lazy"
+                title="Google Reviews"
+              />
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-sage/10 text-center">
+              <p className="text-sm text-gray-500 italic">
+                La soddisfazione dei nostri clienti è la nostra priorità. Leggi le loro storie!
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Instagram Feed */}
       {studioSettings.socialLinks?.instagram && (
         <section className="py-20 bg-gradient-to-b from-cream/30 to-white relative overflow-hidden">
@@ -975,6 +1027,14 @@ export default function PublicHomepage() {
               >
                 Consulenze
               </Link>
+              <a
+                href="https://share.google/SW1hp2vnc9Csiwfkc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-gray-300 hover:text-white"
+              >
+                Recensioni
+              </a>
               <Link
                 href="/accesso-galleria"
                 className="block text-gray-300 hover:text-white"

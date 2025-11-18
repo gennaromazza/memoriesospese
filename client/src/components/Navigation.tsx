@@ -174,7 +174,27 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 <span className="relative z-10">Contatti</span>
                 <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </a>
-              
+              <Link
+                href="/blog"
+                className="text-blue-gray hover:text-sage transition"
+              >
+                Blog
+              </Link>
+              <Link
+                href="/consulenze"
+                className="text-blue-gray hover:text-sage transition"
+              >
+                Consulenze
+              </Link>
+              <a
+                href="https://share.google/SW1hp2vnc9Csiwfkc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-gray hover:text-sage transition"
+              >
+                Recensioni
+              </a>
+
               <div className="w-px h-6 bg-sage/20 mx-3"></div>
 
               {/* Sezione utente e admin */}
@@ -251,6 +271,26 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
             Prenotazioni
           </Link>
           <a href="#contact" className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">Contatti</a>
+          <Link
+                href="/blog"
+                className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+              >
+                Blog
+              </Link>
+              <Link
+                href="/consulenze"
+                className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+              >
+                Consulenze
+              </Link>
+              <a
+                href="https://share.google/SW1hp2vnc9Csiwfkc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
+              >
+                Recensioni
+              </a>
 
           {/* Sezione utente mobile */}
           {userInfo.isAuthenticated && userInfo.email ? (
