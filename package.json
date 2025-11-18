@@ -4,7 +4,7 @@
   "type": "module",
   "homepage": "/memoriesospese/",
   "scripts": {
-    "dev": "concurrently \"vite\" \"tsx server/index.ts\"",
+    "dev": "tsx server/index.ts",
     "build": "npm run build:server && npm run build:client",
     "build:server": "npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --minify",
     "build:client": "vite build",
