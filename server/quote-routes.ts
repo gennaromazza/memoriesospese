@@ -954,16 +954,19 @@ router.post('/send-quote', async (req: Request, res: Response) => {
     // Recupera dati studio
     const studioInfo = await getStudioContactInfo();
 
-    // Crea HTML email (TODO: creare template specifico per invio preventivo)
-    const htmlContent = createQuoteSignedEmailHTML(
+    // Calcola data scadenza preventivo (opzionale, es: 30 giorni da oggi)
+    const expiresAt = quote.expiresAt 
+      ? (quote.expiresAt as any).toDate ? (quote.expiresAt as any).toDate() : new Date(quote.expiresAt)
+      : undefined;
+
+    // Crea HTML email per PREVENTIVO INVIATO (non ancora firmato)
+    const htmlContent = createQuoteSentEmailHTML(
       clienteName,
       quote.type || 'fisso',
       quote.jobInfo?.nomeEvento || 'Evento',
       quote.totalAfterDiscount || 0,
-      new Date(),
       quoteUrl,
-      undefined,
-      undefined,
+      expiresAt,
       studioInfo
     );
 
