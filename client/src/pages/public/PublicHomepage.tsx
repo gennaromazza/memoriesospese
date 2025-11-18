@@ -371,14 +371,16 @@ export default function PublicHomepage() {
             "name": "Image Studio Fotografico",
             "description": "Fotografia professionale per matrimoni, battesimi e eventi a Napoli e Caserta",
             "image": studioSettings.socialLinks.instagram || "",
-            "address": {
+            "address": studioSettings.address ? {
               "@type": "PostalAddress",
+              "streetAddress": studioSettings.address,
               "addressLocality": "Napoli",
               "addressRegion": "Campania",
               "addressCountry": "IT"
-            },
+            } : undefined,
             "telephone": studioSettings.phone || "",
             "email": studioSettings.email || "",
+            "url": window.location.origin,
             "priceRange": "€€€",
             "openingHours": "Mo-Fr 09:00-18:00"
           })
