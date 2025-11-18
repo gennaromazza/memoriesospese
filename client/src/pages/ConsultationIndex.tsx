@@ -59,10 +59,10 @@ export default function ConsultationIndex() {
             <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-sage" />
           </div>
           <h1 className="text-2xl sm:text-4xl lg:text-5xl font-playfair font-bold text-blue-gray mb-2 sm:mb-4 px-2">
-            Prenota una Consulenza
+            Contattami
           </h1>
           <p className="text-sm sm:text-lg text-gray-600 max-w-2xl mx-auto px-4 leading-relaxed">
-            Scegli il tipo di servizio fotografico per cui desideri una consulenza preliminare.
+            Scegli il tipo di servizio fotografico per cui desideri maggiori informazioni.
             Ti aiuteremo a pianificare ogni dettaglio del tuo evento speciale.
           </p>
         </div>
@@ -73,7 +73,7 @@ export default function ConsultationIndex() {
             <CardContent>
               <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">
-                Nessun tipo di consulenza disponibile al momento.
+                Nessun servizio disponibile al momento.
               </p>
             </CardContent>
           </Card>
@@ -112,7 +112,7 @@ export default function ConsultationIndex() {
                         <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 text-sage flex-shrink-0 transition-transform group-hover:translate-x-1" />
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm text-gray-600 line-clamp-2 leading-relaxed mt-1 sm:mt-2">
-                        {jobType.descrizione || `Prenota una consulenza preliminare per ${jobType.nome.toLowerCase()}`}
+                        {jobType.descrizione || `Richiedi informazioni per ${jobType.nome.toLowerCase()}`}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="p-4 sm:p-6 pt-0">
