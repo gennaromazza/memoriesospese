@@ -142,7 +142,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
 
   // Default navigation bar (home page)
   return (
-    <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-lg border-b border-sage/10 shadow-sm">
+    <nav className="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-lg border-b border-sage/10 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           <div className="flex-shrink-0 flex items-center">
@@ -155,7 +155,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 />
               ) : (
                 <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 group-hover:text-sage">
-                  {studioSettings.name || "Memorie Sospese"}
+                  iMaGe <span className="text-sage">Studio</span>
                 </h1>
               )}
             </Link>
@@ -166,32 +166,30 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 <span className="relative z-10">Home</span>
                 <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Link>
+              <Link to={createUrl("/portfolio")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                <span className="relative z-10">Portfolio</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              </Link>
+              <Link to={createUrl("/storie")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                <span className="relative z-10">La Mia Storia</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              </Link>
+              <Link to={createUrl("/blog")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                <span className="relative z-10">Blog</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              </Link>
+              <Link to={createUrl("/vision")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                <span className="relative z-10">iMaGe Vision</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              </Link>
+              <Link to={createUrl("/consulenze")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                <span className="relative z-10">Consulenze</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              </Link>
               <Link to={createUrl("/prenota")} className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
                 <span className="relative z-10">Prenotazioni</span>
                 <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </Link>
-              <a href="#contact" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                <span className="relative z-10">Contatti</span>
-                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-              </a>
-              <Link
-                href="/blog"
-                className="text-blue-gray hover:text-sage transition"
-              >
-                Blog
-              </Link>
-              <Link
-                href="/consulenze"
-                className="text-blue-gray hover:text-sage transition"
-              >
-                Consulenze
-              </Link>
-              <a
-                href="/#recensioni"
-                className="text-blue-gray hover:text-sage transition"
-              >
-                Recensioni
-              </a>
               <a
                 href="https://www.facebook.com/gennaromazzacanefotografo/?locale=it_IT"
                 target="_blank"
@@ -273,20 +271,19 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
           <Link to={createUrl("/")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
             Home
           </Link>
-          <Link to={createUrl("/prenota")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
-            Prenotazioni
+          <Link to={createUrl("/portfolio")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+            Portfolio
           </Link>
-          <a href="#contact" className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">Contatti</a>
-          <Link
-                href="/blog"
-                className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
-              >
-                Blog
-              </Link>
-              <Link
-                href="/consulenze"
-                className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
-              >
+          <Link to={createUrl("/storie")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+            La Mia Storia
+          </Link>
+          <Link to={createUrl("/blog")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+            Blog
+          </Link>
+          <Link to={createUrl("/vision")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+            iMaGe Vision
+          </Link>
+          <Link to={createUrl("/consulenze")} className="block px-4 py-3 text-base font-medium text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300"
                 Consulenze
               </Link>
               <a

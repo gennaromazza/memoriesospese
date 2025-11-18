@@ -182,54 +182,141 @@ export default function PublicHomepage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-beige">
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-playfair text-blue-gray">
-              iMaGe <span className="text-sage">Studio</span>
+          <div className="flex justify-between items-center h-20">
+            <Link href="/" className="flex items-center group">
+              <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 group-hover:text-sage">
+                iMaGe <span className="text-sage">Studio</span>
+              </h1>
             </Link>
-            <div className="hidden md:flex space-x-8">
-              <Link
-                href="/portfolio"
-                className="text-blue-gray hover:text-sage transition"
-              >
-                Portfolio
+            
+            {/* Desktop Menu */}
+            <div className="hidden md:flex items-center space-x-1">
+              <Link href="/">
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <span className="relative z-10">Home</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
               </Link>
-              <Link
-                href="/storie"
-                className="text-blue-gray hover:text-sage transition"
-              >
-                La Mia Storia
+              <Link href="/portfolio">
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <span className="relative z-10">Portfolio</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
+              </Link>
+              <Link href="/storie">
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <span className="relative z-10">La Mia Storia</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
               </Link>
               <Link href="/blog">
-                    <Button variant="ghost" className="text-blue-gray hover:text-sage">
-                      Blog
-                    </Button>
-                  </Link>
-
-                  <Link href="/vision">
-                    <Button variant="ghost" className="text-blue-gray hover:text-sage">
-                      iMaGe Vision
-                    </Button>
-                  </Link>
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <span className="relative z-10">Blog</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
+              </Link>
+              <Link href="/vision">
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <span className="relative z-10">iMaGe Vision</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
+              </Link>
+              <Link href="/consulenze">
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <span className="relative z-10">Consulenze</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
+              </Link>
+              <Link href="/prenota">
+                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
+                  <span className="relative z-10">Prenotazioni</span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                </Button>
+              </Link>
             </div>
+
+            {/* Right Side Actions */}
             <div className="flex items-center gap-3">
               {studioSettings.socialLinks.instagram && (
                 <a
                   href={studioSettings.socialLinks.instagram}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-gray hover:text-sage transition"
+                  className="text-blue-gray hover:text-sage transition hidden sm:block"
                   data-testid="link-instagram"
                 >
                   <Instagram className="h-5 w-5" />
                 </a>
               )}
-              <Link href="/consulenze">
+              <Link href="/consulenze" className="hidden sm:block">
                 <Button
-                  className="bg-sage hover:bg-dark-sage text-white"
+                  className="bg-sage hover:bg-dark-sage text-white shadow-md hover:shadow-lg transition-all"
                   data-testid="button-prenota-nav"
                 >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Contattami
+                </Button>
+              </Link>
+              
+              {/* Mobile Menu Button */}
+              <Button
+                variant="ghost"
+                className="md:hidden text-blue-gray"
+                onClick={() => {
+                  const menu = document.getElementById('mobile-menu');
+                  if (menu) menu.classList.toggle('hidden');
+                }}
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </Button>
+            </div>
+          </div>
+
+          {/* Mobile Menu */}
+          <div id="mobile-menu" className="hidden md:hidden bg-white/95 backdrop-blur-lg border-t border-sage/10 shadow-lg">
+            <div className="px-3 pt-3 pb-4 space-y-2">
+              <Link href="/">
+                <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+                  Home
+                </Button>
+              </Link>
+              <Link href="/portfolio">
+                <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+                  Portfolio
+                </Button>
+              </Link>
+              <Link href="/storie">
+                <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+                  La Mia Storia
+                </Button>
+              </Link>
+              <Link href="/blog">
+                <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+                  Blog
+                </Button>
+              </Link>
+              <Link href="/vision">
+                <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+                  iMaGe Vision
+                </Button>
+              </Link>
+              <Link href="/consulenze">
+                <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+                  Consulenze
+                </Button>
+              </Link>
+              <Link href="/prenota">
+                <Button variant="ghost" className="w-full justify-start text-blue-gray hover:text-sage hover:bg-gradient-to-r hover:from-sage/5 hover:to-sage/10 rounded-xl transition-all duration-300">
+                  Prenotazioni
+                </Button>
+              </Link>
+              <Link href="/consulenze" className="block pt-2">
+                <Button className="w-full bg-sage hover:bg-dark-sage text-white shadow-md">
+                  <Calendar className="mr-2 h-4 w-4" />
                   Contattami
                 </Button>
               </Link>
