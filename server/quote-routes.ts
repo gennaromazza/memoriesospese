@@ -11,9 +11,12 @@ import {
   sendGmailEmail, 
   getStudioContactInfo,
   createQuoteSignedEmailHTML,
-  createPaymentReminderEmailHTML
+  createPaymentReminderEmailHTML,
+  createQuoteSentEmailHTML // Importato il nuovo template
 } from './email-routes.js';
 import { nanoid } from 'nanoid';
+// Importo admin per Timestamp.now()
+import * as admin from 'firebase-admin';
 
 const router = Router();
 
@@ -37,7 +40,7 @@ async function verifyAdminAuth(req: Request, res: Response, next: Function) {
     // 2. Verifica Firebase ID token
     const idToken = authHeader.split('Bearer ')[1];
     let decodedToken;
-    
+
     try {
       decodedToken = await getAuth().verifyIdToken(idToken);
     } catch (error) {
@@ -53,7 +56,7 @@ async function verifyAdminAuth(req: Request, res: Response, next: Function) {
     // NON fidarsi di req.headers['x-admin-email'] (può essere spoofato)
     const ADMIN_EMAIL = 'gennaro.mazzacane@gmail.com';
     const verifiedEmail = decodedToken.email;
-    
+
     if (verifiedEmail !== ADMIN_EMAIL) {
       console.warn(`⚠️ Tentativo accesso admin non autorizzato: ${verifiedEmail}`);
       return res.status(403).json({
@@ -70,7 +73,7 @@ async function verifyAdminAuth(req: Request, res: Response, next: Function) {
 
     // Token valido e utente admin: procedi
     next();
-    
+
   } catch (error) {
     console.error('❌ Errore verifica autenticazione:', error);
     return res.status(500).json({
@@ -130,9 +133,9 @@ async function validateQuoteStatusChange(
   quote: Quote,
   newStatus: string
 ): Promise<{ allowed: boolean; error?: string; warnings?: string[] }> {
-  
+
   const warnings: string[] = [];
-  
+
   try {
     // Fetch payment schedule collegato
     const scheduleSnapshot = await db.collection('paymentSchedules')
@@ -175,7 +178,7 @@ async function validateQuoteStatusChange(
     }
 
     return { allowed: true, warnings };
-    
+
   } catch (error) {
     console.error('❌ Errore validazione cambio stato:', error);
     return {
@@ -210,7 +213,7 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       // Token non trovato come publicToken attivo, verifica se è revocato
       const allQuotesSnapshot = await db.collection('quotes').get();
       let isRevoked = false;
-      
+
       for (const doc of allQuotesSnapshot.docs) {
         const data = doc.data();
         if (data.revokedTokens && Array.isArray(data.revokedTokens)) {
@@ -336,7 +339,7 @@ router.get('/public/:token', async (req: Request, res: Response) => {
           clientIds = jobDoc.data()?.clientiIds || [];
         }
       }
-      
+
       // Fallback a quote.clienteId se job non ha clientiIds
       if (clientIds.length === 0 && quote.clienteId) {
         clientIds = [quote.clienteId];
@@ -432,7 +435,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       // Token non trovato come publicToken attivo, verifica se è revocato
       const allQuotesSnapshot = await db.collection('quotes').get();
       let isRevoked = false;
-      
+
       for (const doc of allQuotesSnapshot.docs) {
         const data = doc.data();
         if (data.revokedTokens && Array.isArray(data.revokedTokens)) {
@@ -758,7 +761,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('❌ Errore delete quote:', error);
-    
+
     // Bubble specific protection errors to frontend
     if (error instanceof Error) {
       if (error.message === 'SIGNED_QUOTE_PROTECTION') {
@@ -767,7 +770,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
           message: 'Impossibile eliminare un preventivo firmato senza forceDelete'
         });
       }
-      
+
       if (error.message === 'SIGNED_QUOTE_WITH_PAYMENTS') {
         return res.status(403).json({
           error: 'SIGNED_QUOTE_WITH_PAYMENTS',
@@ -775,7 +778,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
         });
       }
     }
-    
+
     // Generic error fallback
     return res.status(500).json({
       error: 'Errore server',
@@ -877,7 +880,7 @@ router.post('/send-quote', async (req: Request, res: Response) => {
 
     // Fetch quote
     const quoteDoc = await db.collection('quotes').doc(quoteId).get();
-    
+
     if (!quoteDoc.exists) {
       return res.status(404).json({
         error: 'Preventivo non trovato',
@@ -889,7 +892,7 @@ router.post('/send-quote', async (req: Request, res: Response) => {
 
     // Raccoglie TUTTE le email dei clienti
     const recipientEmails: string[] = [];
-    
+
     // Aggiungi email da clientiInfo (tutti i clienti)
     if (quote.clientiInfo && quote.clientiInfo.length > 0) {
       quote.clientiInfo.forEach(cliente => {
@@ -1011,7 +1014,7 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
 
     // Fetch quote
     const quoteDoc = await db.collection('quotes').doc(quoteId).get();
-    
+
     if (!quoteDoc.exists) {
       return res.status(404).json({
         error: 'Preventivo non trovato',
@@ -1031,7 +1034,7 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
 
     // Raccoglie TUTTE le email dei clienti
     const recipientEmails: string[] = [];
-    
+
     // Aggiungi email da clientiInfo (tutti i clienti)
     if (quote.clientiInfo && quote.clientiInfo.length > 0) {
       quote.clientiInfo.forEach(cliente => {
@@ -1101,7 +1104,7 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
       dataScadenza: new Date(nextPaymentDate),
       descrizione: 'Prossimo pagamento'
     } : undefined;
-    
+
     const htmlContent = createQuoteSignedEmailHTML(
       clienteName,
       quote.type || 'fisso',
@@ -1155,7 +1158,7 @@ router.post('/admin-quote-signed-notification', async (req: Request, res: Respon
 
     // Fetch quote
     const quoteDoc = await db.collection('quotes').doc(quoteId).get();
-    
+
     if (!quoteDoc.exists) {
       return res.status(404).json({
         error: 'Preventivo non trovato',
@@ -1250,7 +1253,7 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
 
     // Fetch payment schedule
     const scheduleDoc = await db.collection('paymentSchedules').doc(paymentScheduleId).get();
-    
+
     if (!scheduleDoc.exists) {
       return res.status(404).json({
         error: 'Scadenzario non trovato',
@@ -1277,9 +1280,9 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
         message: 'Il payment schedule non ha un quoteId collegato'
       });
     }
-    
+
     const quoteDoc = await db.collection('quotes').doc(scheduleQuoteId).get();
-    
+
     if (!quoteDoc.exists) {
       return res.status(404).json({
         error: 'Preventivo non trovato',
@@ -1291,7 +1294,7 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
 
     // Raccoglie TUTTE le email dei clienti
     const recipientEmails: string[] = [];
-    
+
     // Aggiungi email da clientiInfo (tutti i clienti)
     if (quote.clientiInfo && quote.clientiInfo.length > 0) {
       quote.clientiInfo.forEach(cliente => {
@@ -1385,8 +1388,8 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/quotes/:id/status/validate
- * Valida cambio stato PRIMA di applicarlo (preflight check)
+ * GET /api/quotes/status/validate
+ * Valida cambio stato preventivo con controlli finanziari
  * Ritorna warnings e blocchi senza modificare il preventivo
  * Admin-only + Firebase Auth
  */
@@ -1474,7 +1477,7 @@ router.patch('/:id/status', verifyAdminAuth, async (req: Request, res: Response)
 
     // 4. Validazioni finanziarie
     const validation = await validateQuoteStatusChange(quote, newStatus);
-    
+
     if (!validation.allowed) {
       return res.status(400).json({
         error: 'Cambio stato bloccato',
@@ -1485,7 +1488,7 @@ router.patch('/:id/status', verifyAdminAuth, async (req: Request, res: Response)
 
     // 5. Determina se rigenerare token
     const shouldRegenerateToken = ['annullato', 'bozza', 'scaduto'].includes(newStatus);
-    
+
     const updateData: any = {
       status: newStatus,
       updatedAt: new Date()
@@ -1495,7 +1498,7 @@ router.patch('/:id/status', verifyAdminAuth, async (req: Request, res: Response)
     if (shouldRegenerateToken && quote.publicToken) {
       const oldToken = quote.publicToken;
       const newToken = nanoid(32);
-      
+
       // Crea entry per token revocato
       const revokedEntry: RevokedToken = {
         token: oldToken,

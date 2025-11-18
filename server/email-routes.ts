@@ -3326,6 +3326,403 @@ export function createConsultationCancelledEmailHTML(
 }
 
 /**
+ * Template HTML notifica ADMIN - Cliente ha firmato preventivo
+ * Design Instagram Stories-ready per condivisione social
+ */
+export function createAdminQuoteSignedNotificationHTML(
+  clienteName: string,
+  quoteType: 'fisso' | 'variabile',
+  eventoNome: string,
+  totale: number,
+  signedAt: Date,
+  quoteUrl: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+
+  const formatDateTime = (date: Date) => {
+    return date.toLocaleString('it-IT', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; max-width: 650px; margin: 0 auto; background: white;">
+      
+      <!-- Hero Success Banner Instagram-Style -->
+      <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 50px 30px; text-align: center; position: relative; overflow: hidden;">
+        <div style="position: relative; z-index: 2;">
+          <div style="display: inline-block; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); border-radius: 50%; width: 100px; height: 100px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+            <p style="margin: 0; font-size: 60px;">🎉</p>
+          </div>
+          <h1 style="color: white; margin: 0 0 15px 0; font-size: 36px; font-weight: 800; text-shadow: 0 4px 15px rgba(0,0,0,0.2); letter-spacing: -1px;">
+            CONTRATTO FIRMATO!
+          </h1>
+          <div style="background: rgba(255,255,255,0.95); border-radius: 20px; padding: 20px; display: inline-block; box-shadow: 0 10px 40px rgba(0,0,0,0.15);">
+            <p style="margin: 0 0 8px 0; font-size: 15px; color: #666; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+              Nuovo Cliente Confermato
+            </p>
+            <p style="margin: 0; font-size: 28px; font-weight: 700; color: #11998e;">
+              ${clienteName}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="padding: 40px 30px; background: white;">
+        
+        <!-- Event Info Card -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; padding: 30px; margin: 0 0 30px 0; box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);">
+          <h2 style="color: white; margin: 0 0 20px 0; font-size: 22px; font-weight: 700; text-align: center;">
+            📋 Dettagli Evento
+          </h2>
+          <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 15px; padding: 20px;">
+            <div style="margin: 15px 0;">
+              <p style="margin: 0 0 5px 0; font-size: 12px; color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 1px;">
+                Nome Evento
+              </p>
+              <p style="margin: 0; font-size: 20px; font-weight: 700; color: white;">
+                ${eventoNome}
+              </p>
+            </div>
+            <div style="margin: 15px 0;">
+              <p style="margin: 0 0 5px 0; font-size: 12px; color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 1px;">
+                Tipo Preventivo
+              </p>
+              <p style="margin: 0; font-size: 18px; font-weight: 600; color: white;">
+                ${quoteType === 'fisso' ? '🎯 Pacchetto Completo' : '🎨 Personalizzato'}
+              </p>
+            </div>
+            <div style="margin: 15px 0;">
+              <p style="margin: 0 0 5px 0; font-size: 12px; color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 1px;">
+                Data e Ora Firma
+              </p>
+              <p style="margin: 0; font-size: 16px; font-weight: 600; color: white;">
+                ✍️ ${formatDateTime(signedAt)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Total Amount Card Instagram-Style -->
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 20px; padding: 35px; margin: 30px 0; text-align: center; box-shadow: 0 15px 50px rgba(245, 87, 108, 0.4);">
+          <p style="margin: 0 0 12px 0; font-size: 14px; color: rgba(255,255,255,0.9); text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">
+            💰 Valore Contratto
+          </p>
+          <p style="margin: 0; font-size: 50px; font-weight: 900; color: white; text-shadow: 0 4px 20px rgba(0,0,0,0.2); letter-spacing: -2px;">
+            ${formatCurrency(totale)}
+          </p>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.85); font-weight: 500;">
+            Confermato e pronto per la lavorazione! 🚀
+          </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="${quoteUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    color: white; padding: 18px 45px; text-decoration: none; border-radius: 50px; 
+                    font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;
+                    box-shadow: 0 10px 35px rgba(102, 126, 234, 0.4); margin: 0 10px 10px;">
+            📄 Visualizza Contratto Firmato
+          </a>
+          <br>
+          <a href="https://wa.me/${studio.phone.replace(/\s+/g, '').replace(/^\+/, '')}?text=${encodeURIComponent(`Grande notizia! ${clienteName} ha appena firmato il contratto per ${eventoNome}! 🎉`)}" 
+             style="display: inline-block; background: #25D366; 
+                    color: white; padding: 15px 35px; text-decoration: none; border-radius: 50px; 
+                    font-weight: 600; font-size: 15px; margin: 10px;">
+            💬 Condividi su WhatsApp
+          </a>
+        </div>
+
+        <!-- Instagram Story CTA -->
+        <div style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); border-radius: 20px; padding: 30px; margin: 30px 0; text-align: center; border: 3px dashed #fab1a0;">
+          <p style="margin: 0 0 15px 0; font-size: 28px;">📸</p>
+          <h3 style="color: #d63031; margin: 0 0 12px 0; font-size: 20px; font-weight: 700;">
+            Pronto per Instagram Stories?
+          </h3>
+          <p style="margin: 0 0 20px 0; font-size: 14px; color: #2d3436; line-height: 1.6;">
+            Questa email è ottimizzata per lo screenshot! 📱<br>
+            Cattura il momento e condividilo con i tuoi follower! ✨
+          </p>
+          <div style="background: white; border-radius: 15px; padding: 20px; margin: 15px 0;">
+            <p style="margin: 0 0 10px 0; font-size: 13px; color: #636e72; font-weight: 600;">
+              💡 Suggerimento Social
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #2d3436; line-height: 1.5; font-style: italic;">
+              "🎉 Un altro sogno sta per diventare realtà! Grazie ${clienteName} per la fiducia! 
+              Preparatevi a vivere emozioni indimenticabili! 📸✨ #${eventoNome.replace(/\s+/g, '')} #Wedding #Photography"
+            </p>
+          </div>
+        </div>
+
+        <!-- Next Steps -->
+        <div style="background: #f8f9fa; border-radius: 15px; padding: 30px; margin: 30px 0;">
+          <h3 style="color: #333; margin: 0 0 20px 0; font-size: 20px; text-align: center; font-weight: 700;">
+            ✅ Prossimi Passi
+          </h3>
+          <div style="display: block;">
+            <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 10px; border-left: 5px solid #11998e;">
+              <p style="margin: 0 0 5px 0; font-weight: 700; color: #11998e; font-size: 15px;">
+                1. Conferma Ricevuta
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #666;">
+                Contatta ${clienteName} per confermare la ricezione e pianificare i dettagli
+              </p>
+            </div>
+            <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 10px; border-left: 5px solid #667eea;">
+              <p style="margin: 0 0 5px 0; font-weight: 700; color: #667eea; font-size: 15px;">
+                2. Pianifica il Servizio
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #666;">
+                Organizza date, location e tutti i dettagli operativi dell'evento
+              </p>
+            </div>
+            <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 10px; border-left: 5px solid #f5576c;">
+              <p style="margin: 0 0 5px 0; font-weight: 700; color: #f5576c; font-size: 15px;">
+                3. Gestisci Pagamenti
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #666;">
+                Verifica piano pagamenti e acconti nel pannello admin
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div style="background: linear-gradient(135deg, #2d3436 0%, #000000 100%); padding: 35px 30px; text-align: center; color: white;">
+        <p style="margin: 0 0 15px 0; font-size: 18px; font-weight: 700; color: #11998e;">
+          🎊 Congratulazioni per il nuovo cliente!
+        </p>
+        <p style="color: rgba(255,255,255,0.7); margin: 0 0 8px 0; font-size: 13px;">
+          ${studio.name}
+        </p>
+        <p style="color: rgba(255,255,255,0.6); margin: 0; font-size: 11px;">
+          Notifica automatica sistema preventivi digitali
+        </p>
+      </div>
+
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email PREVENTIVO INVIATO (non ancora firmato)
+ * Design Instagram Stories-ready con palette colori elegante
+ */
+export function createQuoteSentEmailHTML(
+  clienteName: string,
+  quoteType: 'fisso' | 'variabile',
+  eventoNome: string,
+  totale: number,
+  quoteUrl: string,
+  expiresAt?: Date,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio", 
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('it-IT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('it-IT', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric'
+    });
+  };
+
+  const expiryText = expiresAt 
+    ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #e65100;">
+        ⏰ Preventivo valido fino al ${formatDate(expiresAt)}
+      </p>`
+    : '';
+
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 0;">
+      
+      <!-- Header Hero Instagram-Style -->
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center; position: relative;">
+        <div style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 30px; display: inline-block;">
+          <h1 style="color: white; margin: 0 0 10px 0; font-size: 32px; font-weight: 700; text-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+            ✨ Il Tuo Preventivo è Pronto!
+          </h1>
+          <p style="color: rgba(255,255,255,0.95); margin: 0; font-size: 18px; font-weight: 500;">
+            ${eventoNome}
+          </p>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="background: white; padding: 30px 20px;">
+        
+        <!-- Saluto Personalizzato -->
+        <div style="text-align: center; margin-bottom: 30px;">
+          <p style="font-size: 18px; color: #333; margin: 0 0 10px 0;">
+            Ciao <strong style="color: #667eea;">${clienteName}</strong>,
+          </p>
+          <p style="font-size: 15px; color: #666; line-height: 1.6; margin: 0;">
+            Abbiamo preparato con cura un preventivo personalizzato per il tuo evento speciale. 
+            Tutto quello che hai sognato, a portata di click! 🎉
+          </p>
+        </div>
+
+        <!-- Info Box Tipo Preventivo -->
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 15px; padding: 20px; margin: 25px 0; text-align: center;">
+          <div style="background: rgba(255,255,255,0.95); border-radius: 12px; padding: 20px;">
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #999; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+              Tipo Preventivo
+            </p>
+            <p style="margin: 0; font-size: 24px; font-weight: 700; color: #f5576c;">
+              ${quoteType === 'fisso' ? '🎯 Pacchetto Completo' : '🎨 Personalizzabile'}
+            </p>
+            ${quoteType === 'variabile' 
+              ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #666;">Scegli i servizi che preferisci!</p>` 
+              : `<p style="margin: 8px 0 0 0; font-size: 13px; color: #666;">Tutto incluso, prezzo fisso</p>`
+            }
+          </div>
+        </div>
+
+        <!-- Importo Totale con Gradient -->
+        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border-radius: 15px; padding: 25px; margin: 25px 0; text-align: center; box-shadow: 0 10px 30px rgba(79, 172, 254, 0.3);">
+          <p style="margin: 0 0 10px 0; font-size: 14px; color: rgba(255,255,255,0.9); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">
+            ${quoteType === 'variabile' ? 'A partire da' : 'Importo Totale'}
+          </p>
+          <p style="margin: 0; font-size: 42px; font-weight: 800; color: white; text-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+            ${formatCurrency(totale)}
+          </p>
+          ${expiryText}
+        </div>
+
+        <!-- CTA Button Instagram-Style -->
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="${quoteUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; 
+                    font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;
+                    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+            👉 Visualizza e Firma il Preventivo
+          </a>
+          <p style="margin: 15px 0 0 0; font-size: 12px; color: #999;">
+            Un solo click per iniziare la tua avventura! ✨
+          </p>
+        </div>
+
+        <!-- Info Steps -->
+        <div style="background: #f8f9fa; border-radius: 15px; padding: 25px; margin: 30px 0;">
+          <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px; text-align: center; font-weight: 700;">
+            📋 Come Funziona
+          </h3>
+          <div style="display: block;">
+            <div style="margin: 15px 0; padding-left: 10px; border-left: 4px solid #667eea;">
+              <p style="margin: 0 0 5px 0; font-weight: 700; color: #667eea; font-size: 15px;">
+                1️⃣ Clicca sul Link
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #666; line-height: 1.5;">
+                Apri il preventivo nel tuo browser preferito
+              </p>
+            </div>
+            <div style="margin: 15px 0; padding-left: 10px; border-left: 4px solid #f093fb;">
+              <p style="margin: 0 0 5px 0; font-weight: 700; color: #f093fb; font-size: 15px;">
+                2️⃣ Rivedi i Dettagli
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #666; line-height: 1.5;">
+                ${quoteType === 'variabile' ? 'Scegli i servizi che desideri' : 'Controlla tutti i servizi inclusi'}
+              </p>
+            </div>
+            <div style="margin: 15px 0; padding-left: 10px; border-left: 4px solid #4facfe;">
+              <p style="margin: 0 0 5px 0; font-weight: 700; color: #4facfe; font-size: 15px;">
+                3️⃣ Firma Digitalmente
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #666; line-height: 1.5;">
+                Inserisci il tuo nome e accetta per confermare
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Important Note -->
+        <div style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); border-radius: 12px; padding: 20px; margin: 25px 0;">
+          <p style="margin: 0 0 8px 0; font-size: 14px; color: #d63031; font-weight: 700;">
+            ⚠️ Attenzione
+          </p>
+          <p style="margin: 0; font-size: 13px; color: #2d3436; line-height: 1.6;">
+            <strong>Il preventivo non è ancora confermato.</strong> Per bloccare la data e attivare il servizio, 
+            è necessario aprire il link, rivedere i dettagli e <strong>apporre la firma digitale</strong>.
+          </p>
+        </div>
+
+        <!-- Support Box -->
+        <div style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
+          <p style="margin: 0 0 15px 0; font-size: 15px; color: #333; font-weight: 600;">
+            💬 Hai domande o dubbi?
+          </p>
+          <p style="margin: 0 0 15px 0; font-size: 13px; color: #666; line-height: 1.6;">
+            Siamo qui per aiutarti! Contattaci direttamente su WhatsApp per qualsiasi chiarimento.
+          </p>
+          <a href="https://wa.me/${studio.phone.replace(/\s+/g, '').replace(/^\+/, '')}?text=${encodeURIComponent('Ciao, ho ricevuto il preventivo e vorrei alcune informazioni')}" 
+             style="display: inline-block; background: #25D366; color: white; padding: 12px 25px; 
+                    text-decoration: none; border-radius: 25px; font-weight: 600; font-size: 14px;">
+            📱 Contattaci su WhatsApp
+          </a>
+        </div>
+
+      </div>
+
+      <!-- Footer Instagram-Style -->
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; text-align: center;">
+        <p style="color: rgba(255,255,255,0.95); margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">
+          ${studio.name}
+        </p>
+        <p style="color: rgba(255,255,255,0.8); margin: 0 0 5px 0; font-size: 13px;">
+          📧 ${studio.email}
+        </p>
+        <p style="color: rgba(255,255,255,0.8); margin: 0 0 5px 0; font-size: 13px;">
+          📱 ${studio.phone}
+        </p>
+        ${studio.address ? `
+        <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">
+          📍 ${studio.address}
+        </p>
+        ` : ''}
+        <p style="color: rgba(255,255,255,0.6); margin: 15px 0 0 0; font-size: 11px;">
+          © ${new Date().getFullYear()} ${studio.name} - Tutti i diritti riservati
+        </p>
+      </div>
+
+    </div>
+  `;
+}
+
+/**
  * Template HTML per email Acconto Cancellato
  */
 export function createAccontoCancelledEmailHTML(
