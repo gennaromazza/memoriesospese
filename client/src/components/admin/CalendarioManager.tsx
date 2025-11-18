@@ -379,7 +379,7 @@ export default function CalendarioManager() {
           <CardHeader className="pb-2 px-4 sm:px-6">
             <div className="flex items-center justify-between">
               <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">
-                Consulenze
+                Richieste Info
               </CardTitle>
               <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
             </div>
@@ -417,7 +417,7 @@ export default function CalendarioManager() {
           <SelectContent>
             <SelectItem value="all">Tutti</SelectItem>
             <SelectItem value="google">Google Calendar</SelectItem>
-            <SelectItem value="consulenza">Consulenze</SelectItem>
+            <SelectItem value="consulenza">Richieste Info</SelectItem>
             <SelectItem value="job">Jobs</SelectItem>
           </SelectContent>
         </Select>
