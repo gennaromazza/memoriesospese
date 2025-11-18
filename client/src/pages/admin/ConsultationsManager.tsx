@@ -83,7 +83,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { it } from 'date-fns/locale/it/index.js';
+import { it } from 'date-fns/locale';
 
 const STATUS_CONFIG: Record<ConsultationStatus, { label: string; variant: string; icon: typeof Clock }> = {
   in_attesa: { label: 'In Attesa', variant: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: Clock },

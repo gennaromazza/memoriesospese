@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { Cliente } from '@shared/clienti-types';
 import { format } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 import {
   Table,
   TableBody,

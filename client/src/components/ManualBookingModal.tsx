@@ -31,7 +31,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Calendar, Clock, User, Plus, Trash2, Package, ShoppingCart } from 'lucide-react';
 import { format, addMinutes, parseISO, setHours, setMinutes, startOfDay } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 
 interface ManualBookingModalProps {
   isOpen: boolean;

@@ -47,7 +47,7 @@ import {
 } from 'lucide-react';
 import type { Quote, QuoteStatus } from '@shared/quotes-types';
 import { format } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 
 interface QuoteManagementPanelProps {
   quote: Quote;

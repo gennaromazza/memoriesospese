@@ -10,7 +10,7 @@ import { db } from './firebase-admin.js';
 import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, getStudioContactInfo, generateGoogleCalendarLink } from './email-routes.js';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 
 const router = express.Router();
 

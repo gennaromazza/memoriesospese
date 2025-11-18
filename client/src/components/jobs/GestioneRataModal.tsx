@@ -44,7 +44,7 @@ import {
 import { cn } from '@/lib/utils';
 import { CalendarIcon, Loader2, CalendarDays } from 'lucide-react';
 import { format, addDays } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';

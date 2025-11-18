@@ -46,7 +46,7 @@ import type {
   PaymentMethod,
 } from '@shared/collaboratori-types';
 import { format } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 
 const RUOLI_LABELS: Record<CollaboratoreRole, string> = {
   fotografo_secondario: '📷 Fotografo Secondario',

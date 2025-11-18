@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Check, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 import { apiRequest } from '@/lib/queryClient';
 
 export default function CollaboratorAssignmentResponse() {

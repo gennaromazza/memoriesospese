@@ -5,17 +5,17 @@
 
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import emailRoutes from './email-routes';
-import bookingRoutes from './booking-routes';
-import orderRoutes from './order-routes';
-import jobRoutes from './job-routes';
-import paymentScheduleRoutes from './payment-schedule-routes';
-import quoteRoutes from './quote-routes';
-import importRoutes from './import-routes';
-import consultationRoutes from './consultation-routes';
-import calendarRoutes from './calendar-routes';
-import receiptRoutes from './receipt-routes';
-import collaboratoriRoutes from './collaboratori-routes';
+import emailRoutes from './email-routes.js';
+import bookingRoutes from './booking-routes.js';
+import orderRoutes from './order-routes.js';
+import jobRoutes from './job-routes.js';
+import paymentScheduleRoutes from './payment-schedule-routes.js';
+import quoteRoutes from './quote-routes.js';
+import importRoutes from './import-routes.js';
+import consultationRoutes from './consultation-routes.js';
+import calendarRoutes from './calendar-routes.js';
+import receiptRoutes from './receipt-routes.js';
+import collaboratoriRoutes from './collaboratori-routes.js';
 
 
 async function startServer() {

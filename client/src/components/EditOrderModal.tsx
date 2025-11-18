@@ -38,7 +38,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Plus, Save, ShoppingCart, Package, Clock } from 'lucide-react';
 import { format } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 
 interface EditOrderModalProps {
   order: Order | null;

@@ -100,7 +100,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale/it/index.js";
+import { it } from "date-fns/locale";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {

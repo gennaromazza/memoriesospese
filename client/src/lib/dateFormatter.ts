@@ -1,5 +1,4 @@
 import { format } from "date-fns";
-import { it } from "date-fns/locale/it/index.js";
 
 /**
  * Formatta una stringa di data in un formato leggibile

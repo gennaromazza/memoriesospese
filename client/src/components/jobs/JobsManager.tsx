@@ -50,7 +50,7 @@ import {
   X
 } from 'lucide-react';
 import { format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
-import it from 'date-fns/locale/it';
+import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import CreateJobModal from './CreateJobModal';
 import JobDetailDrawer from './JobDetailDrawer';
