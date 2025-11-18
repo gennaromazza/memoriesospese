@@ -336,7 +336,7 @@ export default function PublicHomepage() {
                   />
                 ))
               : portfolioPhotos.length > 0
-                ? portfolioPhotos.map((photo) => (
+                ? portfolioPhotos.map((photo, index) => (
                     <Link key={photo.id} href="/portfolio">
                       <div className="aspect-square rounded-lg overflow-hidden group cursor-pointer">
                         <img
@@ -344,16 +344,28 @@ export default function PublicHomepage() {
                           alt={`${photo.galleryName} - ${photo.jobType}`}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                           loading="lazy"
+                          onError={(e) => {
+                            console.error(`[PublicHomepage] Failed to load image ${index + 1}:`, photo.photoUrl);
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-sm p-4 text-center">Errore caricamento foto</div>`;
+                          }}
+                          onLoad={() => {
+                            console.log(`[PublicHomepage] Successfully loaded image ${index + 1}`);
+                          }}
                         />
                       </div>
                     </Link>
                   ))
-                : [1, 2, 3, 4, 5, 6].map((i) => (
-                    <div
-                      key={i}
-                      className="aspect-square bg-gray-200 rounded-lg"
-                    />
-                  ))}
+                : (
+                    <div className="col-span-2 md:col-span-3 text-center py-12">
+                      <p className="text-lg text-gray-500">
+                        Nessuna foto nel portfolio. Le foto in evidenza verranno visualizzate qui.
+                      </p>
+                      <p className="text-sm text-gray-400 mt-2">
+                        Vai al Portfolio Manager per aggiungere foto in evidenza.
+                      </p>
+                    </div>
+                  )}
           </div>
           <div className="text-center">
             <Link href="/portfolio">

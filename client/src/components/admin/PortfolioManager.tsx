@@ -63,6 +63,8 @@ export default function PortfolioManager() {
   const [filterJobType, setFilterJobType] = useState<string>('all');
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -325,7 +327,7 @@ export default function PortfolioManager() {
                           <div
                             key={photo.id}
                             onClick={() => setSelectedPhoto(photo.id)}
-                            className={`cursor-pointer border-2 rounded-md overflow-hidden transition-all ${
+                            className={`relative cursor-pointer border-2 rounded-md overflow-hidden transition-all group ${
                               selectedPhoto === photo.id 
                                 ? 'border-primary ring-2 ring-primary' 
                                 : 'border-transparent hover:border-primary/50'
@@ -335,8 +337,23 @@ export default function PortfolioManager() {
                             <img 
                               src={photo.url} 
                               alt={photo.name}
-                              className="w-full h-24 object-cover"
+                              className="w-full h-40 object-cover"
                             />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 w-8 p-0 pointer-events-auto"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLightboxPhoto(photo);
+                                  setLightboxOpen(true);
+                                }}
+                                data-testid={`button-lightbox-${photo.id}`}
+                              >
+                                <Image className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -449,6 +466,46 @@ export default function PortfolioManager() {
           </Card>
         ))
       )}
+
+      {/* Lightbox Dialog */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-5xl max-h-[95vh] p-2">
+          <DialogHeader className="px-4 pt-4">
+            <DialogTitle>Anteprima Foto</DialogTitle>
+            <DialogDescription>
+              {lightboxPhoto?.name || 'Visualizza foto a dimensione completa'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="relative w-full h-[70vh] flex items-center justify-center bg-black/5 rounded-lg overflow-hidden">
+            {lightboxPhoto && (
+              <img
+                src={lightboxPhoto.url}
+                alt={lightboxPhoto.name}
+                className="max-w-full max-h-full object-contain"
+              />
+            )}
+          </div>
+          <DialogFooter className="px-4 pb-4">
+            <Button
+              variant="outline"
+              onClick={() => setLightboxOpen(false)}
+            >
+              Chiudi
+            </Button>
+            <Button
+              onClick={() => {
+                if (lightboxPhoto) {
+                  setSelectedPhoto(lightboxPhoto.id);
+                  setLightboxOpen(false);
+                }
+              }}
+              disabled={!lightboxPhoto || selectedPhoto === lightboxPhoto?.id}
+            >
+              {selectedPhoto === lightboxPhoto?.id ? 'Già Selezionata' : 'Seleziona Questa Foto'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
