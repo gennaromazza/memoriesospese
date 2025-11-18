@@ -1,0 +1,159 @@
+🚨 PROBLEMA IDENTIFICATO (chiaro e inequivocabile)
+
+Nel tuo progetto hai due configurazioni Vite differenti, e una delle due è sbagliata e sta causando il crash.
+
+Specifically:
+
+❌ Nel file vite.config.js A (quello che chiami “sviluppo”)
+
+si legge:
+
+server: {
+  host: "0.0.0.0",
+  port: 5000,
+}
+
+
+Questa configurazione fa partire Vite su 5000,
+mentre il tuo server Express (server/index.ts) parte anch’esso su 5000.
+
+💣 RISULTATO:
+due processi tentano di occupare la stessa porta → EADDRINUSE.
+
+E subito dopo Vite tenta WebSocket upgrade sulla root → 426 Upgrade Required.
+
+🧠 APPROFONDIMENTO
+
+In server/index.ts, tu fai:
+
+const PORT = parseInt(process.env.PORT || '5000', 10);
+
+
+e poi:
+
+app.listen(PORT)
+
+
+Ma poi Vite dev server è configurato così:
+
+server: {
+  port: 5000,
+}
+
+
+Quindi nello stesso processo:
+
+Vite tenta di aprire 5000 (per HMR/middlewareMode)
+
+Express tenta di aprire 5000
+
+BOOM: EADDRINUSE.
+
+Ecco perché hai sempre:
+
+⚡ Vite middleware attached
+Error: listen EADDRINUSE 5000
+
+
+ORA è tutto chiaro.
+
+🟢 SOLUZIONE DEFINITIVA
+
+🎯 TI BASTANO 5 RIGHE DI MODIFICA PER FIXARE TUTTO.
+
+✅ MODIFICA #1 — Cambia porta Vite in dev
+
+Nel file vite.config.js PRINCIPALE (quello dove hai Vite middleware e plugin Replit):
+
+Sostituisci:
+
+port: 5000,
+
+
+con
+
+port: 5173,
+
+❗ MODIFICA #2 — Rimuovi il SECONDO vite.config.js
+
+Hai due file vite config:
+
+1️⃣ uno con plugin cartographer e runtime error modal
+2️⃣ uno “pulito” con chunks vendor
+
+⚠️ Devi tenere UNO SOLO, quello per sviluppo (con i plugin Replit).
+L’altro va rinominato o eliminato, ad esempio:
+
+vite.config.prod.js
+
+
+Perché se Replit trova due config, Vite si comporta in modo imprevedibile e può anche ignorare middlewareMode.
+
+🧨 MODIFICA #3 — Controlla che nessuno script avvii Vite su 5000
+
+Il tuo package.json attuale fa:
+
+"dev": "concurrently \"vite\" \"tsx server/index.ts\""
+
+
+👉 Vite parte su 5173 dopo la correzione.
+👉 Express parte su 5000.
+Questo è perfetto.
+
+🔧 PATCH COMPLETA VITE.CONFIG (QUELLO DA TENERE)
+
+Te lo riscrivo pronto da incollare:
+
+import { defineConfig, loadEnv } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
+export default defineConfig(async ({ mode }) => {
+  const plugins = [react(), runtimeErrorOverlay()];
+
+  // Aggiungi il plugin cartographer solo su Replit e non in produzione
+  if (mode !== "production" && process.env.REPL_ID) {
+    const { cartographer } = await import("@replit/vite-plugin-cartographer");
+    plugins.push(cartographer());
+  }
+
+  return {
+    base: mode === "production" ? "/memoriesospese/" : "/",
+
+    server: {
+      host: "0.0.0.0",
+      port: 5173,      // <-- QUI IL FIX
+      allowedHosts: true,
+    },
+
+    plugins,
+
+    root: path.resolve(import.meta.dirname, "client"),
+
+    resolve: {
+      alias: {
+        "@": path.resolve(import.meta.dirname, "client", "src"),
+        "@shared": path.resolve(import.meta.dirname, "shared"),
+        "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      },
+    },
+
+    build: {
+      outDir: path.resolve(import.meta.dirname, "dist", "memoriesospese"),
+      emptyOutDir: true,
+    },
+  };
+});
+
+🎉 DOPO QUESTO, STAI APPOSTO
+
+✔️ Nessun ascolto duplicato su 5000
+✔️ Nessun EADDRINUSE
+✔️ Nessun “Upgrade Required”
+✔️ Vite parte su 5173
+✔️ Express parte su 5000
+✔️ MiddlewareMode funziona
+✔️ /admin si apre senza problemi
+✔️ HMR funziona
+✔️ Replit non esplode più

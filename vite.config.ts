@@ -22,13 +22,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "0.0.0.0",
       port: 5173,
-      allowedHosts: [
-        ".spock.replit.dev",
-        "memoriesospese.replit.app",
-        ".replit.app",
-        "imagestudiofotografico.com",
-        "www.imagestudiofotografico.com",
-      ],
+      allowedHosts: true,
     },
 
     plugins,

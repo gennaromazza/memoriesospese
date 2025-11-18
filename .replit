@@ -1,25 +1,25 @@
 modules = ["nodejs-20", "web", "postgresql-16"]
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
-# 🔥 Un solo comando DEV
+# Un solo comando DEV
 run = "npm run dev"
 
 [nix]
 channel = "stable-24_05"
+packages = ["killall"]
 
 [deployment]
 deploymentTarget = "autoscale"
 
-# 🔥 Build pulita, ZERO doppie installazioni
+# Build pulita
 build = ["sh", "-c", "npm ci && npm run build"]
 
-# 🔥 Start pulito
+# Start pulito (solo in deploy)
 run = ["sh", "-c", "node dist/index.js"]
 
 [workflows]
 runButton = "Prod Build & Start"
 
-# ========== DEV WORKFLOW ==========
 [[workflows.workflow]]
 name = "Dev Workflow"
 mode = "sequential"
@@ -29,13 +29,6 @@ author = "agent"
 task = "shell.exec"
 args = "npm ci"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5173
-
-
-# ========== PROD WORKFLOW ==========
 [[workflows.workflow]]
 name = "Prod Build & Start"
 mode = "sequential"
