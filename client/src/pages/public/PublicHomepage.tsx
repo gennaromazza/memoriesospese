@@ -110,6 +110,16 @@ export default function PublicHomepage() {
         ...doc.data(),
       })) as PortfolioPhoto[];
 
+      console.log(`[PublicHomepage] Featured photos loaded: ${photos.length}`);
+      photos.forEach((photo, idx) => {
+        console.log(`[PublicHomepage] Photo ${idx + 1}:`, {
+          id: photo.id,
+          photoUrl: photo.photoUrl,
+          galleryName: photo.galleryName,
+          featured: photo.featured
+        });
+      });
+
       // If less than 6 featured photos, fetch additional non-featured ones
       if (photos.length < 6) {
         const remaining = 6 - photos.length;
@@ -125,6 +135,8 @@ export default function PublicHomepage() {
           ...doc.data(),
         })) as PortfolioPhoto[];
 
+        console.log(`[PublicHomepage] Additional photos loaded: ${additionalPhotos.length}`);
+
         // Append additional photos, deduplicating by id
         const featuredIds = new Set(photos.map((p) => p.id));
         const uniqueAdditional = additionalPhotos.filter(
@@ -133,6 +145,7 @@ export default function PublicHomepage() {
         photos = [...photos, ...uniqueAdditional].slice(0, 6);
       }
 
+      console.log(`[PublicHomepage] Total photos to display: ${photos.length}`);
       setPortfolioPhotos(photos);
     } catch (error) {
       console.error("Errore caricamento portfolio preview:", error);
