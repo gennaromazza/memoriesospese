@@ -282,7 +282,7 @@ export default function PublicHomepage() {
                     data-testid="link-accesso-galleria-hero"
                   >
                     <ImageIcon className="mr-2 h-4 w-4" />
-                    Hai partecipato a un evento? Accedi alla galleria
+                    Accedi alla tua galleria evento
                   </Button>
                 </Link>
               </div>
@@ -701,10 +701,9 @@ export default function PublicHomepage() {
       {/* Accesso Gallerie CTA */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-terracotta to-[#C67B5C] px-4">
         <div className="max-w-4xl mx-auto text-center text-white">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">Sei uno Sposo?</h2>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">Hai partecipato a un evento?</h2>
           <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8">
-            Accedi alla tua galleria privata e rivivi le emozioni del tuo giorno
-            speciale
+            Accedi alla galleria e rivivi le emozioni del giorno speciale
           </p>
           <Link href="/accesso-galleria">
             <Button
