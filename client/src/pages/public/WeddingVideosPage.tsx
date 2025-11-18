@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Play, Loader2, Eye } from 'lucide-react';
+import { ArrowLeft, Play, Loader2, Eye, Sparkles, TrendingUp } from 'lucide-react';
 import WeddingVideoService from '@/lib/weddingVideos';
+import { JobTypeService } from '@/lib/job-types';
 import type { WeddingVideo } from '@shared/schema';
+import type { JobType } from '@shared/job-types';
 import {
   Dialog,
   DialogContent,
@@ -20,15 +22,47 @@ function getYouTubeVideoId(url: string): string {
   return match && match[2].length === 11 ? match[2] : '';
 }
 
+// VideoCard component
+function VideoCard({ video, onClick }: { video: WeddingVideo; onClick: () => void }) {
+  return (
+    <div className="group cursor-pointer" onClick={onClick}>
+      <div className="relative rounded-lg overflow-hidden aspect-video mb-3">
+        <img
+          src={video.thumbnailUrl}
+          alt={video.title}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+          <Play className="h-12 w-12" />
+        </div>
+        {video.duration && (
+          <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs">
+            {video.duration}
+          </div>
+        )}
+      </div>
+      <h3 className="font-semibold text-sm mb-1 line-clamp-2">{video.title}</h3>
+      {video.views && video.views > 0 && (
+        <div className="flex items-center gap-1 text-xs text-gray-400">
+          <Eye className="h-3 w-3" />
+          {video.views} visualizzazioni
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WeddingVideosPage() {
   const [videos, setVideos] = useState<WeddingVideo[]>([]);
   const [featuredVideos, setFeaturedVideos] = useState<WeddingVideo[]>([]);
+  const [jobTypes, setJobTypes] = useState<JobType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<WeddingVideo | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   useEffect(() => {
     loadVideos();
+    loadJobTypes();
   }, []);
 
   const loadVideos = async () => {
@@ -48,10 +82,40 @@ export default function WeddingVideosPage() {
     }
   };
 
+  const loadJobTypes = async () => {
+    try {
+      const types = await JobTypeService.getAllJobTypes();
+      setJobTypes(types.filter(jt => jt.active));
+    } catch (error) {
+      console.error('Errore caricamento tipi lavoro:', error);
+    }
+  };
+
   const handlePlayVideo = (video: WeddingVideo) => {
     WeddingVideoService.incrementViews(video.id);
     setSelectedVideo(video);
   };
+
+  // Video Nuovi (ultimi 30 giorni)
+  const newVideos = videos.filter(v => {
+    if (!v.createdAt) return false;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const videoDate = v.createdAt.toDate ? v.createdAt.toDate() : new Date(v.createdAt);
+    return videoDate >= thirtyDaysAgo;
+  }).slice(0, 8);
+
+  // Video Consigliati (più visualizzati)
+  const recommendedVideos = [...videos]
+    .filter(v => v.views && v.views > 0)
+    .sort((a, b) => (b.views || 0) - (a.views || 0))
+    .slice(0, 8);
+
+  // Video per JobType
+  const videosByJobType = jobTypes.map(jobType => ({
+    jobType,
+    videos: videos.filter(v => v.category === jobType.nome).slice(0, 8)
+  })).filter(item => item.videos.length > 0);
 
   const categories = Array.from(new Set(videos.map(v => v.category).filter(Boolean)));
   const filteredVideos = selectedCategory === 'all' 
@@ -136,71 +200,58 @@ export default function WeddingVideosPage() {
               </div>
             )}
 
-            {/* Category Filters */}
-            {categories.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-8">
-                <Badge
-                  variant={selectedCategory === 'all' ? 'default' : 'outline'}
-                  className="cursor-pointer px-4 py-2"
-                  onClick={() => setSelectedCategory('all')}
-                >
-                  Tutti ({videos.length})
-                </Badge>
-                {categories.map(cat => {
-                  const count = videos.filter(v => v.category === cat).length;
-                  return (
-                    <Badge
-                      key={cat}
-                      variant={selectedCategory === cat ? 'default' : 'outline'}
-                      className="cursor-pointer px-4 py-2"
-                      onClick={() => setSelectedCategory(cat!)}
-                    >
-                      {cat} ({count})
-                    </Badge>
-                  );
-                })}
+            {/* Video Nuovi */}
+            {newVideos.length > 0 && (
+              <div className="mb-12">
+                <div className="flex items-center gap-2 mb-6">
+                  <Sparkles className="h-6 w-6 text-terracotta" />
+                  <h2 className="text-2xl font-semibold">Nuovi</h2>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {newVideos.map(video => (
+                    <VideoCard key={video.id} video={video} onClick={() => handlePlayVideo(video)} />
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Video Grid */}
-            {filteredVideos.length === 0 ? (
+            {/* Video Consigliati */}
+            {recommendedVideos.length > 0 && (
+              <div className="mb-12">
+                <div className="flex items-center gap-2 mb-6">
+                  <TrendingUp className="h-6 w-6 text-terracotta" />
+                  <h2 className="text-2xl font-semibold">Consigliati</h2>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {recommendedVideos.map(video => (
+                    <VideoCard key={video.id} video={video} onClick={() => handlePlayVideo(video)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Video per Tipo Lavoro (JobTypes) */}
+            {videosByJobType.map(({ jobType, videos: typeVideos }) => (
+              <div key={jobType.id} className="mb-12">
+                <div className="flex items-center gap-3 mb-6">
+                  {jobType.icona && <span className="text-2xl">{jobType.icona}</span>}
+                  <h2 className="text-2xl font-semibold">{jobType.nome}</h2>
+                  <Badge variant="outline">{typeVideos.length}</Badge>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {typeVideos.map(video => (
+                    <VideoCard key={video.id} video={video} onClick={() => handlePlayVideo(video)} />
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Fallback se non ci sono video */}
+            {videos.length === 0 && (
               <div className="text-center py-24">
                 <p className="text-xl text-gray-400">
                   Nessun video disponibile al momento.
                 </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                {filteredVideos.map(video => (
-                  <div
-                    key={video.id}
-                    className="group cursor-pointer"
-                    onClick={() => handlePlayVideo(video)}
-                  >
-                    <div className="relative rounded-lg overflow-hidden aspect-video mb-3">
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <Play className="h-12 w-12" />
-                      </div>
-                      {video.duration && (
-                        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs">
-                          {video.duration}
-                        </div>
-                      )}
-                    </div>
-                    <h3 className="font-semibold text-sm mb-1 line-clamp-2">{video.title}</h3>
-                    {video.views && video.views > 0 && (
-                      <div className="flex items-center gap-1 text-xs text-gray-400">
-                        <Eye className="h-3 w-3" />
-                        {video.views} visualizzazioni
-                      </div>
-                    )}
-                  </div>
-                ))}
               </div>
             )}
           </>
