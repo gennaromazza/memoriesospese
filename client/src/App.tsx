@@ -12,6 +12,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 
 import Home from "./pages/Home";
 import PublicHomepage from "./pages/public/PublicHomepage";
+import GalleryAccessPage from "./pages/public/GalleryAccessPage";
 import PortfolioPage from "./pages/public/PortfolioPage";
 import PortfolioCategoryPage from "./pages/public/PortfolioCategoryPage";
 import StoriePage from "./pages/public/StoriePage";
@@ -82,7 +83,7 @@ function AppRoutes() {
       <Route path="/blog/:slug" component={BlogPostPage} />
       
       {/* Gallery Access (moved from /) */}
-      <Route path="/accesso-galleria" component={Home} />
+      <Route path="/accesso-galleria" component={GalleryAccessPage} />
       
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
