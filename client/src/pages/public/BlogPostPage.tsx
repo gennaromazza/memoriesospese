@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin, Clock } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 
 export default function BlogPostPage() {
