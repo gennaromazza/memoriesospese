@@ -705,124 +705,126 @@ export default function BlogManager() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
-          {paginatedPosts.map(post => (
-            <Card key={post.id} className={selectedPosts.has(post.id) ? 'border-sage border-2' : ''}>
-              <CardHeader>
-                <div className="flex justify-between items-start gap-3">
-                  <Checkbox
-                    checked={selectedPosts.has(post.id)}
-                    onCheckedChange={() => togglePostSelection(post.id)}
-                    className="mt-1"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CardTitle className="text-xl">{post.title}</CardTitle>
-                      <Badge className={STATUS_COLORS[post.status]}>
-                        {STATUS_LABELS[post.status]}
-                      </Badge>
-                      {isSpam(post) && (
-                        <Badge variant="destructive" className="bg-red-600">
-                          SPAM
+        <>
+          <div className="grid gap-4">
+            {paginatedPosts.map(post => (
+              <Card key={post.id} className={selectedPosts.has(post.id) ? 'border-sage border-2' : ''}>
+                <CardHeader>
+                  <div className="flex justify-between items-start gap-3">
+                    <Checkbox
+                      checked={selectedPosts.has(post.id)}
+                      onCheckedChange={() => togglePostSelection(post.id)}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CardTitle className="text-xl">{post.title}</CardTitle>
+                        <Badge className={STATUS_COLORS[post.status]}>
+                          {STATUS_LABELS[post.status]}
                         </Badge>
-                      )}
+                        {isSpam(post) && (
+                          <Badge variant="destructive" className="bg-red-600">
+                            SPAM
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription className="flex items-center gap-4 text-sm">
+                        <span>/{post.slug}</span>
+                        {post.category && <span>· {post.category}</span>}
+                        {post.publishedAt && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(post.publishedAt.seconds * 1000).toLocaleDateString('it-IT')}
+                          </span>
+                        )}
+                      </CardDescription>
                     </div>
-                    <CardDescription className="flex items-center gap-4 text-sm">
-                      <span>/{post.slug}</span>
-                      {post.category && <span>· {post.category}</span>}
-                      {post.publishedAt && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(post.publishedAt.seconds * 1000).toLocaleDateString('it-IT')}
-                        </span>
+                    <div className="flex gap-2">
+                      {post.status === 'published' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`/blog/${post.slug}`, '_blank')}
+                          data-testid={`button-view-${post.id}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       )}
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    {post.status === 'published' && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(`/blog/${post.slug}`, '_blank')}
-                        data-testid={`button-view-${post.id}`}
+                        onClick={() => openDialog(post)}
+                        data-testid={`button-edit-${post.id}`}
                       >
-                        <Eye className="h-4 w-4" />
+                        <Edit className="h-4 w-4" />
                       </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openDialog(post)}
-                      data-testid={`button-edit-${post.id}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => openDeleteDialog(post.id)}
-                      data-testid={`button-delete-${post.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => openDeleteDialog(post.id)}
+                        data-testid={`button-delete-${post.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-2">{post.excerpt}</p>
-                {post.tags && post.tags.length > 0 && (
-                  <div className="flex gap-2 mt-3">
-                    {post.tags.map(tag => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-2 mt-6">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              ← Prec
-            </Button>
-            
-            <div className="flex gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                <Button
-                  key={page}
-                  variant={currentPage === page ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCurrentPage(page)}
-                  className="w-10"
-                >
-                  {page}
-                </Button>
-              ))}
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Succ →
-            </Button>
-
-            <span className="text-sm text-muted-foreground ml-4">
-              Pagina {currentPage} di {totalPages} ({filteredPosts.length} post)
-            </span>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground line-clamp-2">{post.excerpt}</p>
+                  {post.tags && post.tags.length > 0 && (
+                    <div className="flex gap-2 mt-3">
+                      {post.tags.map(tag => (
+                        <Badge key={tag} variant="outline" className="text-xs">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        )}
+
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                ← Prec
+              </Button>
+              
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className="w-10"
+                  >
+                    {page}
+                  </Button>
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Succ →
+              </Button>
+
+              <span className="text-sm text-muted-foreground ml-4">
+                Pagina {currentPage} di {totalPages} ({filteredPosts.length} post)
+              </span>
+            </div>
+          )}
+        </>
       )}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

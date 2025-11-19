@@ -124,108 +124,110 @@ export default function BlogListPage() {
               <p className="text-gray-400 mt-2">Torna presto per nuovi contenuti!</p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-              {paginatedPosts.map((post) => (
-                <Card key={post.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 bg-white border-sage/10 animate-slide-up" data-testid={`card-post-${post.id}`}>
-                  {post.coverImage && (
-                    <div className="overflow-hidden bg-beige">
-                      <img 
-                        src={post.coverImage} 
-                        alt={post.title}
-                        className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                    </div>
-                  )}
-                  <CardHeader>
-                    <div className="flex items-center gap-2 mb-3">
-                      {post.category && (
-                        <Badge variant="outline" className="text-sage border-sage">
-                          {post.category}
-                        </Badge>
-                      )}
-                      {post.tags?.slice(0, 2).map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-xs bg-beige text-blue-gray">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                    <Link href={`/blog/${post.slug}`}>
-                      <CardTitle className="text-2xl font-playfair text-blue-gray hover:text-terracotta transition-colors cursor-pointer" data-testid={`title-${post.id}`}>
-                        {post.title}
-                      </CardTitle>
-                    </Link>
-                    <CardDescription className="flex items-center gap-4 text-sm mt-3">
-                      <span className="flex items-center gap-1 text-sage">
-                        <Calendar className="h-4 w-4" />
-                        {formatDate(post.publishedAt)}
-                      </span>
-                      <span className="flex items-center gap-1 text-sage">
-                        <Clock className="h-4 w-4" />
-                        {estimateReadTime(post.content)}
-                      </span>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600 mb-4 line-clamp-3">
-                      {post.excerpt}
-                    </p>
-                    <Link href={`/blog/${post.slug}`}>
-                      <Button variant="link" className="text-sage hover:text-dark-sage p-0 font-semibold" data-testid={`button-read-${post.id}`}>
-                        Leggi articolo →
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-3 mt-12">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="border-sage text-sage hover:bg-sage hover:text-white"
-                >
-                  ← Precedente
-                </Button>
-
-                <div className="flex gap-2">
-                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={currentPage === pageNum ? "bg-sage hover:bg-dark-sage" : "border-sage/30 hover:border-sage"}
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="border-sage text-sage hover:bg-sage hover:text-white"
-                >
-                  Successivo →
-                </Button>
+            <>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                {paginatedPosts.map((post) => (
+                  <Card key={post.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 bg-white border-sage/10 animate-slide-up" data-testid={`card-post-${post.id}`}>
+                    {post.coverImage && (
+                      <div className="overflow-hidden bg-beige">
+                        <img 
+                          src={post.coverImage} 
+                          alt={post.title}
+                          className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+                    <CardHeader>
+                      <div className="flex items-center gap-2 mb-3">
+                        {post.category && (
+                          <Badge variant="outline" className="text-sage border-sage">
+                            {post.category}
+                          </Badge>
+                        )}
+                        {post.tags?.slice(0, 2).map(tag => (
+                          <Badge key={tag} variant="secondary" className="text-xs bg-beige text-blue-gray">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                      <Link href={`/blog/${post.slug}`}>
+                        <CardTitle className="text-2xl font-playfair text-blue-gray hover:text-terracotta transition-colors cursor-pointer" data-testid={`title-${post.id}`}>
+                          {post.title}
+                        </CardTitle>
+                      </Link>
+                      <CardDescription className="flex items-center gap-4 text-sm mt-3">
+                        <span className="flex items-center gap-1 text-sage">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(post.publishedAt)}
+                        </span>
+                        <span className="flex items-center gap-1 text-sage">
+                          <Clock className="h-4 w-4" />
+                          {estimateReadTime(post.content)}
+                        </span>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-600 mb-4 line-clamp-3">
+                        {post.excerpt}
+                      </p>
+                      <Link href={`/blog/${post.slug}`}>
+                        <Button variant="link" className="text-sage hover:text-dark-sage p-0 font-semibold" data-testid={`button-read-${post.id}`}>
+                          Leggi articolo →
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            )}
+
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-3 mt-12">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="border-sage text-sage hover:bg-sage hover:text-white"
+                  >
+                    ← Precedente
+                  </Button>
+
+                  <div className="flex gap-2">
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={currentPage === pageNum ? "bg-sage hover:bg-dark-sage" : "border-sage/30 hover:border-sage"}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="border-sage text-sage hover:bg-sage hover:text-white"
+                  >
+                    Successivo →
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>
