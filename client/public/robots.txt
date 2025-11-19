@@ -58,4 +58,4 @@ Allow: /terms
 Crawl-delay: 1
 
 # Sitemap location
-Sitemap: https://www.memoriesospese.it/sitemap.xml
+Sitemap: https://imagestudiofotografico.com/sitemap.xml

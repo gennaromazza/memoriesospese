@@ -3,7 +3,7 @@ import { db } from './firebase-admin';
 import { BlogPost, BlogPostStatus } from '../shared/schema';
 
 export async function generateDynamicSitemap(): Promise<string> {
-  const baseUrl = 'https://www.memoriesospese.it';
+  const baseUrl = 'https://imagestudiofotografico.com';
 
   // Carica tutti i post pubblicati
   const postsRef = collection(db, 'blogPosts');
