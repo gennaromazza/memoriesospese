@@ -162,24 +162,7 @@ export default function ConsultationBooking() {
     return true;
   };
 
-  // Auto-clear dello slot selezionato se non è più disponibile nei nuovi dati
-  useEffect(() => {
-    if (!selectedSlot || !availableSlotsMutation.data?.slots) return;
-
-    const slotStillAvailable = availableSlotsMutation.data.slots.some((slot: any) => {
-      const slotStart = new Date(slot.start);
-      return slotStart.getTime() === selectedSlot.start.getTime() && slot.available !== false;
-    });
-
-    if (!slotStillAvailable) {
-      setSelectedSlot(null);
-      toast({
-        variant: 'destructive',
-        title: 'Slot non più disponibile',
-        description: 'Lo slot selezionato non è più disponibile. Seleziona un nuovo orario.',
-      });
-    }
-  }, [availableSlotsMutation.data, selectedSlot, toast]);
+  // Nota: L'auto-clear dello slot è gestito dalla validazione submit-time per evitare toast ripetitivi
 
   if (isLoadingTemplate) {
     return (
