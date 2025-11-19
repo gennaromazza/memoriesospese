@@ -96,7 +96,7 @@ export default function ConsultationBooking() {
     try {
       // 🔄 STEP 1: Refetch degli slot disponibili per verificare che lo slot sia ancora libero
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      
+
       const refreshedSlots = await availableSlotsMutation.mutateAsync({
         templateId: template.id,
         date: dateStr
@@ -333,7 +333,7 @@ export default function ConsultationBooking() {
                       disabled={(date) => {
                         // Blocca date passate
                         if (date < new Date()) return true;
-                        
+
                         // Blocca giorni esclusi dal template (es. sabato/domenica)
                         const dayOfWeek = date.getDay(); // 0=domenica, 1=lunedì, ..., 6=sabato
                         return template?.excludedDays?.includes(dayOfWeek) || false;
@@ -364,7 +364,7 @@ export default function ConsultationBooking() {
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                         {(() => {
                           const availableSlots = availableSlotsMutation.data.slots?.filter((slot: any) => slot.available !== false) || [];
-                          
+
                           if (availableSlots.length === 0) {
                             return (
                               <div className="col-span-full text-center py-8 text-gray-500">
@@ -372,7 +372,7 @@ export default function ConsultationBooking() {
                               </div>
                             );
                           }
-                          
+
                           return availableSlots.map((slot: any, idx: number) => {
                             const slotStart = new Date(slot.start);
                             const slotEnd = new Date(slot.end);
@@ -605,10 +605,10 @@ export default function ConsultationBooking() {
                           .replace(/\/$/, '')
                           .replace(/[?#].*$/, '');
                         // Fallback to original URL if normalized handle is empty
-                        return normalized 
+                        return normalized
                           ? `https://www.instagram.com/${normalized}`
-                          : (studioSettings.socialLinks.instagram.startsWith('http') 
-                              ? studioSettings.socialLinks.instagram 
+                          : (studioSettings.socialLinks.instagram.startsWith('http')
+                              ? studioSettings.socialLinks.instagram
                               : `https://www.instagram.com/${studioSettings.socialLinks.instagram}`);
                       })()}
                       target="_blank"
