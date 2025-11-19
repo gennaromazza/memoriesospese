@@ -1050,6 +1050,29 @@ export async function getAvailableSlotsForDate(
     console.error('[Consultations] ⚠️ Errore pre-caricamento bookings:', error.message);
   }
 
+  // Fetch jobs per questa giornata (lavori confermati che occupano tempo)
+  let preloadedJobs: QueryDocumentSnapshot[] = [];
+  try {
+    const jobsSnapshot = await db.collection('jobs')
+      .where('eventDate', '>=', Timestamp.fromDate(dayStart))
+      .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+
+    // Filtra solo job con stati rilevanti (che occupano realmente tempo)
+    preloadedJobs = jobsSnapshot.docs.filter((doc: any) => {
+      const data = doc.data();
+      const stato = data.stato || '';
+      // Stati che bloccano slot: confermato, shooting_fatto, selezione_pending, produzione
+      return ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'].includes(stato);
+    });
+
+    if (isDebug) {
+      console.log(`[Consultations] ⚡ Pre-caricati ${preloadedJobs.length} jobs attivi per ${dateStr}`);
+    }
+  } catch (error: any) {
+    console.error('[Consultations] ⚠️ Errore pre-caricamento jobs:', error.message);
+  }
+
   // CONTROLLO BUSY PERIODS GOOGLE CALENDAR - TUTTI I CALENDARI (una sola chiamata per l'intera giornata)
   let googleBusyPeriods: any[] = [];
   try {
@@ -1123,7 +1146,8 @@ export async function getAvailableSlotsForDate(
       undefined, // excludeConsultationId
       googleBusyPeriods,
       preloadedConsultations, // ⚡ OPTIMIZATION: passa array pre-caricato
-      preloadedBookings       // ⚡ OPTIMIZATION: passa array pre-caricato
+      preloadedBookings,      // ⚡ OPTIMIZATION: passa array pre-caricato
+      preloadedJobs           // ⚡ OPTIMIZATION: passa array pre-caricato jobs
     );
 
     slots.push({
