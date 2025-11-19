@@ -16,9 +16,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, CheckSquare, Trash, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, CheckSquare, Trash, Upload, ImagePlus } from 'lucide-react';
 import { BlogPost, BlogPostStatus, insertBlogPostSchema, InsertBlogPost } from '@shared/schema';
 import WordPressImporter from './WordPressImporter';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { compressImage } from '@/lib/imageCompression';
 
 // Helper function to estimate reading time
 const estimateReadTime = (content: string): number => {
@@ -60,6 +63,7 @@ export default function BlogManager() {
   ]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const { toast } = useToast();
 
   // Form state
@@ -161,6 +165,53 @@ export default function BlogManager() {
 
   const generateSlug = (title: string) => {
     return normalizeSlug(title);
+  };
+
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Tipo di file non supportato",
+        description: "Carica solo immagini (JPEG, PNG, ecc.)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setUploadingCover(true);
+      
+      // Comprimi l'immagine
+      const compressedFile = await compressImage(file);
+      
+      // Upload su Firebase Storage
+      const timestamp = Date.now();
+      const sanitizedSlug = formData.slug || 'draft';
+      const storagePath = `blog-covers/${sanitizedSlug}-${timestamp}.jpg`;
+      const storageRef = ref(storage, storagePath);
+      
+      await uploadBytesResumable(storageRef, compressedFile);
+      const downloadUrl = await getDownloadURL(storageRef);
+      
+      // Aggiorna form data
+      setFormData(prev => ({ ...prev, coverImage: downloadUrl }));
+      
+      toast({
+        title: "Immagine caricata",
+        description: "Immagine di copertina caricata con successo"
+      });
+    } catch (error) {
+      console.error('Errore caricamento immagine:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile caricare l'immagine",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingCover(false);
+    }
   };
 
   const handleTitleChange = (title: string) => {
@@ -589,13 +640,50 @@ export default function BlogManager() {
                   </div>
 
                   <div className="col-span-2">
-                    <Label>Immagine Copertina URL</Label>
-                    <Input
-                      value={formData.coverImage}
-                      onChange={(e) => setFormData(prev => ({ ...prev, coverImage: e.target.value }))}
-                      placeholder="https://..."
-                      data-testid="input-cover-image"
-                    />
+                    <Label>Immagine Copertina</Label>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById('cover-upload')?.click()}
+                          disabled={uploadingCover}
+                        >
+                          {uploadingCover ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Caricamento...
+                            </>
+                          ) : (
+                            <>
+                              <ImagePlus className="h-4 w-4 mr-2" />
+                              Sfoglia
+                            </>
+                          )}
+                        </Button>
+                        <Input
+                          id="cover-upload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleCoverImageUpload}
+                          className="hidden"
+                        />
+                        <Input
+                          value={formData.coverImage}
+                          onChange={(e) => setFormData(prev => ({ ...prev, coverImage: e.target.value }))}
+                          placeholder="oppure incolla URL"
+                          data-testid="input-cover-image"
+                          className="flex-1"
+                        />
+                      </div>
+                      {formData.coverImage && (
+                        <img 
+                          src={formData.coverImage} 
+                          alt="Anteprima" 
+                          className="w-full h-40 object-cover rounded border"
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               </TabsContent>

@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, FileText, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import { BlogPostStatus } from '@shared/schema';
 import { Progress } from '@/components/ui/progress';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { compressImage } from '@/lib/imageCompression';
 
 interface WordPressPost {
   title: string;
@@ -26,6 +29,49 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
   const [progress, setProgress] = useState(0);
   const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(null);
   const { toast } = useToast();
+
+  // Scarica immagine da URL esterno e la ricarica su Firebase
+  const downloadAndReuploadImage = async (imageUrl: string, postSlug: string): Promise<string> => {
+    try {
+      // Download immagine
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error('Download fallito');
+      
+      const blob = await response.blob();
+      const file = new File([blob], 'image.jpg', { type: blob.type });
+      
+      // Comprimi se è un'immagine
+      const compressedFile = file.type.startsWith('image/') 
+        ? await compressImage(file) 
+        : file;
+      
+      // Upload su Firebase Storage
+      const timestamp = Date.now();
+      const storagePath = `blog-images/${postSlug}/${timestamp}.jpg`;
+      const storageRef = ref(storage, storagePath);
+      
+      await uploadBytes(storageRef, compressedFile);
+      const downloadUrl = await getDownloadURL(storageRef);
+      
+      return downloadUrl;
+    } catch (error) {
+      console.error('Errore download/upload immagine:', imageUrl, error);
+      return imageUrl; // Ritorna URL originale in caso di errore
+    }
+  };
+
+  // Estrae URL immagini dal contenuto HTML
+  const extractImagesFromContent = (content: string): string[] => {
+    const imgRegex = /<img[^>]+src="([^">]+)"/g;
+    const images: string[] = [];
+    let match;
+    
+    while ((match = imgRegex.exec(content)) !== null) {
+      images.push(match[1]);
+    }
+    
+    return images;
+  };
 
   const parseWordPressXML = (xmlContent: string): WordPressPost[] => {
     const parser = new DOMParser();
@@ -125,7 +171,7 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
 
           toast({
             title: "Import in corso",
-            description: `Trovati ${posts.length} post. Importazione in corso...`
+            description: `Trovati ${posts.length} post. Scaricamento immagini e importazione in corso...`
           });
 
           let successCount = 0;
@@ -136,11 +182,33 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
             setProgress(Math.round(((i + 1) / posts.length) * 100));
 
             try {
+              // Estrai immagini dal contenuto
+              const images = extractImagesFromContent(post.content);
+              let updatedContent = post.content;
+              let coverImage = '';
+
+              // Scarica e ricarica immagini
+              for (const imageUrl of images) {
+                // Salta immagini già su Firebase o relative
+                if (imageUrl.includes('firebasestorage.googleapis.com') || imageUrl.startsWith('/')) {
+                  continue;
+                }
+
+                const newUrl = await downloadAndReuploadImage(imageUrl, post.slug);
+                updatedContent = updatedContent.replace(imageUrl, newUrl);
+                
+                // Usa la prima immagine come copertina se non specificata
+                if (!coverImage && newUrl !== imageUrl) {
+                  coverImage = newUrl;
+                }
+              }
+
               await addDoc(collection(db, 'blogPosts'), {
                 title: post.title,
                 slug: post.slug,
                 excerpt: post.excerpt,
-                content: post.content,
+                content: updatedContent,
+                coverImage: coverImage || undefined,
                 status: BlogPostStatus.DRAFT, // Import as draft for review
                 category: post.category,
                 tags: post.tags,
@@ -210,7 +278,7 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
         <DialogHeader>
           <DialogTitle>Importa Post da WordPress</DialogTitle>
           <DialogDescription>
-            Carica il file XML esportato dal tuo WordPress (Tools → Export → Posts)
+            Carica il file XML esportato dal tuo WordPress. Le immagini verranno scaricate automaticamente dal tuo vecchio sito e caricate su Firebase.
           </DialogDescription>
         </DialogHeader>
 
