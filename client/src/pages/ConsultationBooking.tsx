@@ -6,7 +6,7 @@
  * Step 3: Dati job dinamici (opzionali)
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,17 +102,17 @@ export default function ConsultationBooking() {
         date: dateStr
       });
 
-      // 🔍 STEP 2: Verifica che lo slot selezionato sia ancora disponibile
+      // 🔍 STEP 2: Verifica che lo slot selezionato sia ancora disponibile E libero
       const slotStillAvailable = refreshedSlots.slots?.some((slot: any) => {
         const slotStart = new Date(slot.start);
-        return slotStart.getTime() === selectedSlot.start.getTime();
+        return slotStart.getTime() === selectedSlot.start.getTime() && slot.available !== false;
       });
 
       if (!slotStillAvailable) {
         toast({
           variant: 'destructive',
           title: 'Slot non più disponibile',
-          description: 'Lo slot selezionato è stato prenotato da poco. Scegli un altro orario.',
+          description: 'Lo slot selezionato è stato prenotato da poco o è occupato su Google Calendar. Scegli un altro orario.',
         });
         // Reset slot selezionato e riporta l'utente allo step 1 per sceglierne un altro
         setSelectedSlot(null);
@@ -161,6 +161,25 @@ export default function ConsultationBooking() {
     }
     return true;
   };
+
+  // Auto-clear dello slot selezionato se non è più disponibile nei nuovi dati
+  useEffect(() => {
+    if (!selectedSlot || !availableSlotsMutation.data?.slots) return;
+
+    const slotStillAvailable = availableSlotsMutation.data.slots.some((slot: any) => {
+      const slotStart = new Date(slot.start);
+      return slotStart.getTime() === selectedSlot.start.getTime() && slot.available !== false;
+    });
+
+    if (!slotStillAvailable) {
+      setSelectedSlot(null);
+      toast({
+        variant: 'destructive',
+        title: 'Slot non più disponibile',
+        description: 'Lo slot selezionato non è più disponibile. Seleziona un nuovo orario.',
+      });
+    }
+  }, [availableSlotsMutation.data, selectedSlot, toast]);
 
   if (isLoadingTemplate) {
     return (
