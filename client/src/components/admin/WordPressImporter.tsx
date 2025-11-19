@@ -33,20 +33,39 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
   // Scarica immagine da URL esterno e la ricarica su Firebase usando Cloud Function
   const downloadAndReuploadImage = async (imageUrl: string, postSlug: string): Promise<string> => {
     try {
-      // ✅ Usa Firebase Cloud Function per bypassare CORS
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions } = await import('@/lib/firebase');
-      
-      const downloadFunction = httpsCallable(functions, 'downloadWordPressImage');
+      // ✅ Usa Firebase Cloud Function HTTP per bypassare CORS
+      const { auth } = await import('@/lib/firebase');
       
       console.log(`🔄 Download server-side: ${imageUrl}`);
       
-      const result = await downloadFunction({ imageUrl, postSlug });
-      const data = result.data as { success: boolean; url: string };
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('Utente non autenticato');
+      }
       
-      if (data.success && data.url) {
+      const idToken = await user.getIdToken();
+      
+      const response = await fetch(
+        'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/downloadWordPressImage',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ imageUrl, postSlug })
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.result?.success && data.result?.url) {
         console.log(`✅ Immagine migrata: ${imageUrl} → Firebase`);
-        return data.url;
+        return data.result.url;
       }
       
       throw new Error('Download fallito');

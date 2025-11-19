@@ -616,24 +616,83 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
 // Export functions
 // export { exportGalleryAccessCSV };
 
-// Proxy per scaricare immagini WordPress (bypassa CORS)
-export const downloadWordPressImage = functions.https.onCall(async (data, context) => {
-  // Verifica autenticazione admin
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Devi essere autenticato');
+/**
+ * Proxy per scaricare immagini WordPress (bypassa CORS)
+ * HTTP endpoint con CORS abilitati per supporto Replit
+ */
+export const downloadWordPressImage = functions.https.onRequest(async (req, res) => {
+  // CORS - Identico alle altre funzioni
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://gennaromazzacane.it',
+    'https://www.gennaromazzacane.it'
+  ];
+
+  const origin = req.headers.origin || '';
+  const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+                         origin.includes('.replit.dev') ||
+                         origin.includes('replit.app');
+
+  if (isAllowedOrigin) {
+    res.set('Access-Control-Allow-Origin', origin);
+  }
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Max-Age', '3600');
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
   }
 
-  const { imageUrl, postSlug } = data;
-
-  if (!imageUrl || !postSlug) {
-    throw new functions.https.HttpsError('invalid-argument', 'imageUrl e postSlug richiesti');
+  if (req.method !== 'POST') {
+    res.status(405).json({
+      error: { code: 'method-not-allowed', message: 'Only POST allowed' }
+    });
+    return;
   }
 
   try {
+    // AUTENTICAZIONE Firebase
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({
+        error: { code: 'unauthenticated', message: 'Missing Authorization Bearer token' }
+      });
+      return;
+    }
+
+    const idToken = authHeader.replace('Bearer ', '').trim();
+    try {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      functions.logger.info(`🔐 downloadWordPressImage called by uid=${decoded.uid}`);
+    } catch (authError) {
+      functions.logger.error('Auth verification failed:', authError);
+      res.status(401).json({
+        error: { code: 'unauthenticated', message: 'Invalid token' }
+      });
+      return;
+    }
+
+    // LETTURA DATI DAL BODY
+    const data = req.body.data || req.body;
+    const { imageUrl, postSlug } = data || {};
+
+    // VALIDAZIONI
+    if (!imageUrl || !postSlug) {
+      res.status(400).json({
+        error: { code: 'invalid-argument', message: 'imageUrl e postSlug richiesti' }
+      });
+      return;
+    }
+
     // Converti HTTP → HTTPS se necessario
     let urlToFetch = imageUrl;
     if (imageUrl.startsWith('http://')) {
       urlToFetch = imageUrl.replace('http://', 'https://');
+      functions.logger.info(`🔄 Convertito HTTP → HTTPS: ${urlToFetch}`);
     }
 
     // Download immagine (server-side, bypassa CORS)
@@ -641,11 +700,12 @@ export const downloadWordPressImage = functions.https.onCall(async (data, contex
     const response = await fetch(urlToFetch);
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(`HTTP ${response.status} - ${response.statusText}`);
     }
 
     const buffer = await response.buffer();
     const contentType = response.headers.get('content-type') || 'image/jpeg';
+    functions.logger.info(`📥 Scaricato ${buffer.length} bytes da ${urlToFetch}`);
 
     // Upload su Firebase Storage
     const bucket = admin.storage().bucket();
@@ -667,11 +727,16 @@ export const downloadWordPressImage = functions.https.onCall(async (data, contex
 
     // Ottieni URL pubblico
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+    functions.logger.info(`✅ Immagine caricata su Firebase: ${publicUrl}`);
 
-    return { success: true, url: publicUrl };
+    res.status(200).json({
+      result: { success: true, url: publicUrl }
+    });
 
   } catch (error: any) {
-    console.error('Errore download immagine:', error);
-    throw new functions.https.HttpsError('internal', error.message);
+    functions.logger.error('❌ Errore download immagine WordPress:', error);
+    res.status(500).json({
+      error: { code: 'internal', message: error.message || 'Failed to download image' }
+    });
   }
 });
