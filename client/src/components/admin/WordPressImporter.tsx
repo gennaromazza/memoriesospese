@@ -30,54 +30,34 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
   const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(null);
   const { toast } = useToast();
 
-  // Scarica immagine da URL esterno e la ricarica su Firebase
+  // Scarica immagine da URL esterno e la ricarica su Firebase usando Cloud Function
   const downloadAndReuploadImage = async (imageUrl: string, postSlug: string): Promise<string> => {
     try {
-      // ✅ FIX Mixed Content: converti HTTP → HTTPS
-      let urlToFetch = imageUrl;
-      if (imageUrl.startsWith('http://')) {
-        urlToFetch = imageUrl.replace('http://', 'https://');
-        console.log(`🔒 Convertito HTTP → HTTPS: ${urlToFetch}`);
+      // ✅ Usa Firebase Cloud Function per bypassare CORS
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('@/lib/firebase');
+      
+      const downloadFunction = httpsCallable(functions, 'downloadWordPressImage');
+      
+      console.log(`🔄 Download server-side: ${imageUrl}`);
+      
+      const result = await downloadFunction({ imageUrl, postSlug });
+      const data = result.data as { success: boolean; url: string };
+      
+      if (data.success && data.url) {
+        console.log(`✅ Immagine migrata: ${imageUrl} → Firebase`);
+        return data.url;
       }
       
-      // Download immagine (prova HTTPS, fallback a HTTP se necessario)
-      let response;
-      try {
-        response = await fetch(urlToFetch, { mode: 'cors' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      } catch (httpsError) {
-        // Fallback a HTTP se HTTPS fallisce
-        if (urlToFetch.startsWith('https://')) {
-          console.warn(`⚠️ HTTPS fallito, tentativo HTTP per: ${imageUrl}`);
-          response = await fetch(imageUrl, { mode: 'cors' });
-          if (!response.ok) throw new Error('Download fallito');
-        } else {
-          throw httpsError;
-        }
-      }
+      throw new Error('Download fallito');
       
-      const blob = await response.blob();
-      const file = new File([blob], 'image.jpg', { type: blob.type });
-      
-      // Comprimi se è un'immagine
-      const compressedFile = file.type.startsWith('image/') 
-        ? await compressImage(file) 
-        : file;
-      
-      // Upload su Firebase Storage
-      const timestamp = Date.now();
-      const storagePath = `blog-images/${postSlug}/${timestamp}.jpg`;
-      const storageRef = ref(storage, storagePath);
-      
-      await uploadBytes(storageRef, compressedFile);
-      const downloadUrl = await getDownloadURL(storageRef);
-      
-      console.log(`✅ Immagine migrata: ${imageUrl} → Firebase`);
-      return downloadUrl;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Errore download/upload immagine:', imageUrl, error);
-      // ✅ FIX: Converti almeno a HTTPS invece di ritornare HTTP
-      return imageUrl.replace('http://', 'https://');
+      
+      // Fallback: converti almeno a HTTPS
+      const httpsUrl = imageUrl.replace('http://', 'https://');
+      console.warn(`⚠️ Fallback a URL HTTPS: ${httpsUrl}`);
+      return httpsUrl;
     }
   };
 

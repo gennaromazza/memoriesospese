@@ -615,3 +615,63 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
 
 // Export functions
 // export { exportGalleryAccessCSV };
+
+// Proxy per scaricare immagini WordPress (bypassa CORS)
+export const downloadWordPressImage = functions.https.onCall(async (data, context) => {
+  // Verifica autenticazione admin
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Devi essere autenticato');
+  }
+
+  const { imageUrl, postSlug } = data;
+
+  if (!imageUrl || !postSlug) {
+    throw new functions.https.HttpsError('invalid-argument', 'imageUrl e postSlug richiesti');
+  }
+
+  try {
+    // Converti HTTP → HTTPS se necessario
+    let urlToFetch = imageUrl;
+    if (imageUrl.startsWith('http://')) {
+      urlToFetch = imageUrl.replace('http://', 'https://');
+    }
+
+    // Download immagine (server-side, bypassa CORS)
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(urlToFetch);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const buffer = await response.buffer();
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    // Upload su Firebase Storage
+    const bucket = admin.storage().bucket();
+    const timestamp = Date.now();
+    const filename = `blog-images/${postSlug}/${timestamp}.jpg`;
+    const file = bucket.file(filename);
+
+    await file.save(buffer, {
+      contentType,
+      metadata: {
+        metadata: {
+          originalUrl: imageUrl
+        }
+      }
+    });
+
+    // Rendi pubblico il file
+    await file.makePublic();
+
+    // Ottieni URL pubblico
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+
+    return { success: true, url: publicUrl };
+
+  } catch (error: any) {
+    console.error('Errore download immagine:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
