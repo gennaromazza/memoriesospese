@@ -565,34 +565,32 @@ export default function BlogManager() {
                   <div className="col-span-2">
                     <Label>Contenuto *</Label>
                     <div className="border rounded-md">
-                      {editingPost && (
-                        <CKEditor
-                          editor={ClassicEditor}
-                          data={formData.content}
-                          onChange={(event, editor) => {
-                            const data = editor.getData();
-                            setFormData(prev => ({ ...prev, content: data }));
-                          }}
-                          config={{
-                            toolbar: [
-                              'heading', '|',
-                              'bold', 'italic', 'link', '|',
-                              'bulletedList', 'numberedList', '|',
-                              'blockQuote', 'insertTable', '|',
-                              'imageUpload', 'mediaEmbed', '|',
-                              'undo', 'redo'
-                            ],
-                            heading: {
-                              options: [
-                                { model: 'paragraph', title: 'Paragrafo', class: 'ck-heading_paragraph' },
-                                { model: 'heading1', view: 'h1', title: 'Titolo 1', class: 'ck-heading_heading1' },
-                                { model: 'heading2', view: 'h2', title: 'Titolo 2', class: 'ck-heading_heading2' },
-                                { model: 'heading3', view: 'h3', title: 'Titolo 3', class: 'ck-heading_heading3' }
-                              ]
-                            }
-                          }}
-                        />
-                      )}
+                      <CKEditor
+                        editor={ClassicEditor}
+                        data={formData.content}
+                        onChange={(event, editor) => {
+                          const data = editor.getData();
+                          setFormData(prev => ({ ...prev, content: data }));
+                        }}
+                        config={{
+                          toolbar: [
+                            'heading', '|',
+                            'bold', 'italic', 'link', '|',
+                            'bulletedList', 'numberedList', '|',
+                            'blockQuote', 'insertTable', '|',
+                            'imageUpload', 'mediaEmbed', '|',
+                            'undo', 'redo'
+                          ],
+                          heading: {
+                            options: [
+                              { model: 'paragraph', title: 'Paragrafo', class: 'ck-heading_paragraph' },
+                              { model: 'heading1', view: 'h1', title: 'Titolo 1', class: 'ck-heading_heading1' },
+                              { model: 'heading2', view: 'h2', title: 'Titolo 2', class: 'ck-heading_heading2' },
+                              { model: 'heading3', view: 'h3', title: 'Titolo 3', class: 'ck-heading_heading3' }
+                            ]
+                          }
+                        }}
+                      />
                     </div>
                   </div>
 
