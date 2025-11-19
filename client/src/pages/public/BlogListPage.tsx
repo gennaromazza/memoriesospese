@@ -13,6 +13,8 @@ export default function BlogListPage() {
   const { studioSettings } = useStudio();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(9);
 
   useEffect(() => {
     loadPosts();
@@ -42,6 +44,12 @@ export default function BlogListPage() {
       setLoading(false);
     }
   };
+
+  // Paginazione
+  const totalPages = Math.ceil(posts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPosts = posts.slice(startIndex, endIndex);
 
   const formatDate = (timestamp: any) => {
     if (!timestamp || !timestamp.seconds) return '';
@@ -117,7 +125,7 @@ export default function BlogListPage() {
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-              {posts.map((post) => (
+              {paginatedPosts.map((post) => (
                 <Card key={post.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 bg-white border-sage/10 animate-slide-up" data-testid={`card-post-${post.id}`}>
                   {post.coverImage && (
                     <div className="overflow-hidden bg-beige">
@@ -171,6 +179,54 @@ export default function BlogListPage() {
                 </Card>
               ))}
             </div>
+
+            {/* Paginazione */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-3 mt-12">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="border-sage text-sage hover:bg-sage hover:text-white"
+                >
+                  ← Precedente
+                </Button>
+
+                <div className="flex gap-2">
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={currentPage === pageNum ? "bg-sage hover:bg-dark-sage" : "border-sage/30 hover:border-sage"}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="border-sage text-sage hover:bg-sage hover:text-white"
+                >
+                  Successivo →
+                </Button>
+              </div>
+            )}
           )}
         </div>
       </section>

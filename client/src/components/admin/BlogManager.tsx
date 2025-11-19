@@ -44,6 +44,15 @@ export default function BlogManager() {
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [bulkActionDialogOpen, setBulkActionDialogOpen] = useState(false);
   const [bulkAction, setBulkAction] = useState<'publish' | 'delete' | null>(null);
+  const [spamKeywords] = useState([
+    'scommesse', 'bonus', 'casino', 'casinò', 'bet', 'poker', 'slot', 
+    'bookmaker', 'quote', 'jackpot', 'giocodigitale', 'planetwin', 
+    'eurobet', 'snai', 'betway', 'betn1', 'stake', 'merkur', 'novibet',
+    'fantasyteam', 'betika', 'dobet', 'tipsport', 'betclic', 'fastbet',
+    'zonagioco', 'gazzabet', '888', 'gioco d\'azzardo', 'roulette'
+  ]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const { toast } = useToast();
 
   // Form state
@@ -65,10 +74,14 @@ export default function BlogManager() {
     loadPosts();
   }, []);
 
+  const isSpam = (post: BlogPost): boolean => {
+    const textToCheck = `${post.title} ${post.slug} ${post.excerpt} ${post.content}`.toLowerCase();
+    return spamKeywords.some(keyword => textToCheck.includes(keyword.toLowerCase()));
+  };
+
   const loadPosts = async () => {
     try {
-      // Fetch only published and archived posts initially to improve performance
-      const q = query(collection(db, 'blogPosts'), where('status', '!=', BlogPostStatus.DRAFT), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'blogPosts'), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -321,6 +334,15 @@ export default function BlogManager() {
     setBulkActionDialogOpen(true);
   };
 
+  const detectAndSelectSpam = () => {
+    const spamPosts = filteredPosts.filter(post => isSpam(post));
+    setSelectedPosts(new Set(spamPosts.map(p => p.id)));
+    toast({
+      title: "SPAM Rilevato",
+      description: `${spamPosts.length} post sospetti selezionati automaticamente`,
+    });
+  };
+
   const executeBulkAction = async () => {
     if (!bulkAction || selectedPosts.size === 0) return;
 
@@ -372,6 +394,17 @@ export default function BlogManager() {
   const filteredPosts = filterStatus === 'all' 
     ? posts 
     : posts.filter(p => p.status === filterStatus);
+
+  // Paginazione
+  const totalPages = Math.ceil(filteredPosts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPosts = filteredPosts.slice(startIndex, endIndex);
+
+  // Reset pagina quando cambia il filtro
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus]);
 
   if (loading) {
     return (
@@ -626,6 +659,15 @@ export default function BlogManager() {
               </Label>
             </div>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={detectAndSelectSpam}
+              className="border-red-500 text-red-600 hover:bg-red-50"
+            >
+              🚫 Rileva SPAM
+            </Button>
+
             {selectedPosts.size > 0 && (
               <div className="flex gap-2">
                 <Button
@@ -664,7 +706,7 @@ export default function BlogManager() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {filteredPosts.map(post => (
+          {paginatedPosts.map(post => (
             <Card key={post.id} className={selectedPosts.has(post.id) ? 'border-sage border-2' : ''}>
               <CardHeader>
                 <div className="flex justify-between items-start gap-3">
@@ -679,6 +721,11 @@ export default function BlogManager() {
                       <Badge className={STATUS_COLORS[post.status]}>
                         {STATUS_LABELS[post.status]}
                       </Badge>
+                      {isSpam(post) && (
+                        <Badge variant="destructive" className="bg-red-600">
+                          SPAM
+                        </Badge>
+                      )}
                     </div>
                     <CardDescription className="flex items-center gap-4 text-sm">
                       <span>/{post.slug}</span>
@@ -736,6 +783,47 @@ export default function BlogManager() {
             </Card>
           ))}
         </div>
+
+        {/* Controlli Paginazione */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-6">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              ← Prec
+            </Button>
+            
+            <div className="flex gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <Button
+                  key={page}
+                  variant={currentPage === page ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCurrentPage(page)}
+                  className="w-10"
+                >
+                  {page}
+                </Button>
+              ))}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Succ →
+            </Button>
+
+            <span className="text-sm text-muted-foreground ml-4">
+              Pagina {currentPage} di {totalPages} ({filteredPosts.length} post)
+            </span>
+          </div>
+        )}
       )}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
