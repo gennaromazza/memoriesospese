@@ -37,7 +37,51 @@ interface EmailQueueItem {
 }
 
 export class EmailQueue {
-  private static processingBatch = false;
+  /**
+   * Acquisisci distributed lock per processare la queue
+   * Previene processing concorrente su più istanze Cloud Functions
+   */
+  private static async acquireLock(): Promise<boolean> {
+    const lockRef = db.doc('locks/emailQueue');
+    const lockDuration = 120000; // 2 minuti
+    const now = Date.now();
+
+    try {
+      const lockDoc = await lockRef.get();
+      
+      if (lockDoc.exists) {
+        const lockedUntil = lockDoc.data()?.lockedUntil || 0;
+        if (lockedUntil > now) {
+          functions.logger.info('⏸️ Queue già in elaborazione da altra istanza');
+          return false;
+        }
+      }
+
+      // Imposta lock atomico
+      await lockRef.set({ 
+        lockedUntil: now + lockDuration,
+        lockedAt: new Date(),
+        instanceId: process.env.K_SERVICE || 'unknown'
+      });
+
+      return true;
+    } catch (error) {
+      functions.logger.error('❌ Errore acquisizione lock:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Rilascia distributed lock
+   */
+  private static async releaseLock(): Promise<void> {
+    try {
+      await db.doc('locks/emailQueue').delete();
+      functions.logger.info('🔓 Lock rilasciato');
+    } catch (error) {
+      functions.logger.warn('⚠️ Errore rilascio lock:', error);
+    }
+  }
 
   /**
    * Aggiungi email alla queue
@@ -53,11 +97,20 @@ export class EmailQueue {
   }): Promise<string> {
     const toArray = Array.isArray(params.to) ? params.to : [params.to];
     
+    // Validazione mittente (solo domini autorizzati)
+    const allowedFromDomains = ['gennaromazzacane.it', 'memoriesospese.it'];
+    const fromEmail = params.from || 'Memorie Sospese <memoriesospese@gennaromazzacane.it>';
+    const fromDomain = fromEmail.match(/@([^>]+)/)?.[1];
+    
+    if (fromDomain && !allowedFromDomains.some(d => fromDomain.includes(d))) {
+      functions.logger.warn(`⚠️ Mittente non autorizzato: ${fromEmail}, uso default`);
+    }
+
     const queueItem: EmailQueueItem = {
       to: toArray,
       subject: params.subject,
       htmlContent: params.htmlContent,
-      from: params.from || 'Memorie Sospese <memoriesospese@gennaromazzacane.it>',
+      from: fromEmail,
       priority: params.priority || 'normal',
       attempts: 0,
       maxAttempts: 3,
@@ -69,7 +122,13 @@ export class EmailQueue {
 
     const docRef = await db.collection('emailQueue').add(queueItem);
     
-    functions.logger.info(`📬 Email enqueued: ${docRef.id} (${toArray.length} recipients)`);
+    // Log dettagliato con metadata
+    const metaInfo = params.metadata ? 
+      ` | type=${params.metadata.type} | galleryId=${params.metadata.galleryId || 'N/A'}` : '';
+    
+    functions.logger.info(
+      `📬 Email enqueued: ${docRef.id} | recipients=${toArray.length} | priority=${params.priority}${metaInfo}`
+    );
     
     return docRef.id;
   }
@@ -111,14 +170,13 @@ export class EmailQueue {
    * Processa queue (chiamato da Cloud Function schedulata)
    */
   static async processQueue(): Promise<void> {
-    if (this.processingBatch) {
-      functions.logger.info('⏭️ Batch già in elaborazione, skip');
+    // Acquisisci distributed lock
+    const hasLock = await this.acquireLock();
+    if (!hasLock) {
       return;
     }
 
     try {
-      this.processingBatch = true;
-
       // Verifica rate limit
       const rateCheck = await this.canSendEmail();
       
@@ -165,10 +223,25 @@ export class EmailQueue {
             processedAt: new Date()
           });
 
-          functions.logger.info(`✅ Email inviata: ${doc.id} (${email.to.length} recipients)`);
+          // Log dettagliato successo con metadata
+          const metaInfo = email.metadata ? 
+            ` | type=${email.metadata.type} | galleryId=${email.metadata.galleryId || 'N/A'}` : '';
+          
+          functions.logger.info(
+            `✅ Email inviata: ${doc.id} | recipients=${email.to.length}${metaInfo}`
+          );
 
         } catch (error: any) {
           const newAttempts = email.attempts + 1;
+          
+          // Log errore dettagliato
+          const metaInfo = email.metadata ? 
+            ` | type=${email.metadata.type} | galleryId=${email.metadata.galleryId || 'N/A'}` : '';
+          
+          functions.logger.error(
+            `❌ Errore invio email ${doc.id} (attempt ${newAttempts}/${email.maxAttempts})${metaInfo}:`,
+            error.message
+          );
           
           if (newAttempts >= email.maxAttempts) {
             // Troppi tentativi, marca come failed
@@ -199,7 +272,8 @@ export class EmailQueue {
       }
 
     } finally {
-      this.processingBatch = false;
+      // Rilascia sempre il lock, anche in caso di errore
+      await this.releaseLock();
     }
   }
 

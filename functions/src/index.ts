@@ -756,46 +756,82 @@ export const downloadWordPressImage = functions.https.onRequest(async (req, res)
  * Legge le email in attesa da Firestore e le invia tramite Gmail API, rispettando i limiti.
  */
 export const processEmailQueue = functions
-  .runWith({ secrets: ['REPL_IDENTITY'] })
+  .runWith({ 
+    secrets: ['REPL_IDENTITY'],
+    timeoutSeconds: 540, // 9 minuti max
+    memory: '512MB' // Memoria sufficiente per processing
+  })
   .pubsub.schedule('*/1 * * * *') // Esegui ogni minuto
   .timeZone('UTC')
   .onRun(async (context) => {
     functions.logger.info('⏳ Starting email queue processing...');
 
     try {
-      const emailsToSend = await EmailQueue.getEmailsToProcess(10); // Prendi un batch di 10 email
-
-      if (emailsToSend.length === 0) {
-        functions.logger.info('✅ Email queue is empty. No emails to process.');
-        return null;
-      }
-
-      functions.logger.info(`Processing ${emailsToSend.length} emails from the queue.`);
-
-      const { sendGmailEmail } = await import('./gmail');
-
-      for (const email of emailsToSend) {
-        try {
-          await sendGmailEmail(email.recipients, email.subject, email.htmlContent);
-          await EmailQueue.markEmailAsSent(email.id);
-          functions.logger.info(`📧 Email sent successfully (ID: ${email.id}) to ${email.recipients.join(', ')}`);
-        } catch (error: any) {
-          functions.logger.error(`❌ Failed to send email (ID: ${email.id}):`, {
-            error: error?.message || error,
-            code: error?.code,
-            recipients: email.recipients
-          });
-          // Aggiorna lo stato o gestisci il fallimento (es. retry, dead-letter queue)
-          await EmailQueue.markEmailAsFailed(email.id, error?.message || 'Unknown error');
-        }
-      }
-
+      // Usa il metodo processQueue che ha già distributed lock
+      await EmailQueue.processQueue();
+      
       functions.logger.info('✅ Email queue processing finished.');
       return null;
 
-    } catch (error) {
-      functions.logger.error('❌ Unhandled error during email queue processing:', error);
-      // Potrebbe essere necessario un meccanismo di retry globale o un allarme
+    } catch (error: any) {
+      functions.logger.error('❌ Unhandled error during email queue processing:', {
+        error: error?.message || error,
+        stack: error?.stack
+      });
+      
+      // In caso di errore critico, la funzione riproverà al prossimo trigger (1 minuto)
       return null;
     }
   });
+
+
+/**
+ * HTTP Endpoint per statistiche Email Queue (dashboard admin)
+ * GET /getEmailQueueStats
+ */
+export const getEmailQueueStats = functions.https.onRequest(async (req, res) => {
+  // CORS
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://gennaromazzacane.it',
+    'https://www.gennaromazzacane.it'
+  ];
+
+  const origin = req.headers.origin || '';
+  const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+                         origin.includes('.replit.dev') ||
+                         origin.includes('replit.app');
+
+  if (isAllowedOrigin) {
+    res.set('Access-Control-Allow-Origin', origin);
+  }
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const stats = await EmailQueue.getStats();
+    
+    res.status(200).json({
+      success: true,
+      stats,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    functions.logger.error('❌ Error getEmailQueueStats:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to get queue stats'
+    });
+  }
+});
