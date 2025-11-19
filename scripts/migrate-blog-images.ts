@@ -20,7 +20,7 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 // URL del tuo vecchio sito WordPress
-const OLD_SITE_URL = 'https://tuovecchiosito.it'; // MODIFICA CON L'URL DEL TUO VECCHIO SITO
+const OLD_SITE_URL = 'https://gennaromazzacane.it';
 
 interface ImageMatch {
   oldUrl: string;

@@ -635,29 +635,46 @@ export default function BlogManager() {
 
                   <div className="col-span-2">
                     <Label>Immagine Copertina</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={formData.coverImage}
-                        onChange={(e) => setFormData(prev => ({ ...prev, coverImage: e.target.value }))}
-                        placeholder="https://... o carica un file"
-                        data-testid="input-cover-image"
-                      />
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleCoverImageUpload}
-                        className="max-w-[200px]"
-                      />
-                    </div>
-                    {formData.coverImage && (
-                      <div className="mt-2">
-                        <img 
-                          src={formData.coverImage} 
-                          alt="Anteprima copertina"
-                          className="w-full max-w-md h-48 object-cover rounded-lg"
+                    <div className="space-y-2">
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          value={formData.coverImage}
+                          onChange={(e) => setFormData(prev => ({ ...prev, coverImage: e.target.value }))}
+                          placeholder="https://... o usa il pulsante Sfoglia"
+                          data-testid="input-cover-image"
+                          className="flex-1"
                         />
+                        <div className="relative">
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCoverImageUpload}
+                            className="hidden"
+                            id="cover-image-upload"
+                            disabled={saving}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => document.getElementById('cover-image-upload')?.click()}
+                            disabled={saving}
+                            className="whitespace-nowrap"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            {saving ? 'Caricamento...' : 'Sfoglia'}
+                          </Button>
+                        </div>
                       </div>
-                    )}
+                      {formData.coverImage && (
+                        <div className="mt-2">
+                          <img 
+                            src={formData.coverImage} 
+                            alt="Anteprima copertina"
+                            className="w-full max-w-md h-48 object-cover rounded-lg"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </TabsContent>
