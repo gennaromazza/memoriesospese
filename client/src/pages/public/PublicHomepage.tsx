@@ -206,9 +206,24 @@ export default function PublicHomepage() {
         id: doc.id,
         ...doc.data()
       })) as WeddingVideo[];
+      
+      console.log('[PublicHomepage] Video caricati:', videos.length);
       setWeddingVideos(videos);
     } catch (error) {
-      console.error('Errore caricamento video:', error);
+      console.error('[PublicHomepage] Errore caricamento video:', error);
+      // Se fallisce la query con orderBy, prova senza
+      try {
+        const simpleQuery = query(videosRef, where('active', '==', true), limit(3));
+        const snapshot = await getDocs(simpleQuery);
+        const videos = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as WeddingVideo[];
+        console.log('[PublicHomepage] Video caricati (fallback):', videos.length);
+        setWeddingVideos(videos);
+      } catch (fallbackError) {
+        console.error('[PublicHomepage] Errore fallback video:', fallbackError);
+      }
     } finally {
       setLoadingVideos(false);
     }
@@ -1164,7 +1179,11 @@ export default function PublicHomepage() {
             </>
           ) : (
             <div className="text-center py-12">
-              <p className="text-gray-400 text-lg">Nuovi video in arrivo...</p>
+              <Camera className="w-16 h-16 mx-auto mb-4 text-gray-600 opacity-50" />
+              <p className="text-gray-400 text-lg mb-2">Nuovi video in arrivo...</p>
+              <p className="text-gray-500 text-sm">
+                Vai alla Dashboard Admin → Wedding Videos per aggiungere i tuoi video
+              </p>
             </div>
           )}
         </div>
@@ -1251,21 +1270,30 @@ export default function PublicHomepage() {
             </div>
 
             {/* Map Column */}
-            <div className="rounded-2xl overflow-hidden shadow-2xl border border-sage/10 h-[400px] md:h-[500px]">
+            <div className="rounded-2xl overflow-hidden shadow-2xl border border-sage/10 h-[400px] md:h-[500px] bg-gradient-to-br from-sage/5 to-sage/10 flex flex-col items-center justify-center p-8 text-center">
               {studioSettings.address ? (
-                <iframe
-                  src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME&q=${encodeURIComponent(studioSettings.address)}&zoom=15`}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Posizione Studio"
-                />
+                <>
+                  <MapPin className="w-16 h-16 text-sage mb-4" />
+                  <h3 className="text-2xl font-playfair text-blue-gray mb-4">
+                    Ci trovi qui
+                  </h3>
+                  <p className="text-gray-600 mb-6 max-w-md">
+                    {studioSettings.address}
+                  </p>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(studioSettings.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-sage hover:bg-dark-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg"
+                  >
+                    <MapPin className="w-5 h-5" />
+                    Apri in Google Maps
+                  </a>
+                </>
               ) : (
-                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                  <p className="text-gray-500">Indirizzo non disponibile</p>
+                <div className="text-gray-500">
+                  <MapPin className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p>Indirizzo non disponibile</p>
                 </div>
               )}
             </div>
