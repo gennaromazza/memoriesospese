@@ -1,8 +1,33 @@
 
+
 # www.robotstxt.org/
 
-# Allow all crawlers
+# Allow all crawlers (including AI)
 User-agent: *
+Allow: /
+
+# Specific rules for AI crawlers
+User-agent: GPTBot
+Allow: /
+Allow: /blog
+Allow: /blog/*
+Allow: /portfolio
+Allow: /portfolio/*
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+# Google AI
+User-agent: Google-Extended
 Allow: /
 
 # Disallow admin pages
@@ -15,7 +40,7 @@ Disallow: /gallery/*
 Disallow: /accesso-galleria
 Disallow: /special-gallery
 
-# Allow public pages explicitly
+# Allow public pages explicitly for better indexing
 Allow: /
 Allow: /portfolio
 Allow: /portfolio/*
@@ -26,6 +51,8 @@ Allow: /storie
 Allow: /prenota
 Allow: /consulenze
 Allow: /lasciati-trasportare
+Allow: /privacy
+Allow: /terms
 
 # Crawl-delay for polite bots
 Crawl-delay: 1

@@ -68,21 +68,26 @@ export default function PublicHomepage() {
 
     // SEO meta tags
     document.title =
-      "Image Studio | Fotografia Professionale | Lasciati Trasportare";
+      "Image Studio | Fotografia Professionale Matrimoni Napoli Caserta | Lasciati Trasportare";
 
     const updateMetaTag = (name: string, content: string) => {
       let tag = document.querySelector(`meta[name="${name}"]`);
       if (!tag) {
-        tag = document.createElement("meta");
-        tag.setAttribute("name", name);
+        tag = document.createElement('meta');
+        tag.setAttribute('name', name);
         document.head.appendChild(tag);
       }
-      tag.setAttribute("content", content);
+      tag.setAttribute('content', content);
     };
 
     updateMetaTag(
       "description",
-      "Fotografia professionale per matrimoni, battesimi, eventi. Lasciati trasportare dalle emozioni dei tuoi momenti più belli. Image Studio - È tutta questione di Image.",
+      "Fotografo professionista per matrimoni, battesimi, eventi in Campania. 10+ anni esperienza, 500+ matrimoni. Gallerie digitali Memorie Sospese. Servizi foto e video a Napoli, Caserta, Costiera Amalfitana.",
+    );
+
+    updateMetaTag(
+      "keywords",
+      "fotografo matrimoni napoli, fotografo matrimoni caserta, fotografo professionista aversa, video matrimoni campania, fotografo battesimi napoli, gallerie foto interattive, memorie sospese, destination wedding italy, fotografo costiera amalfitana, fotografia eventi napoli",
     );
 
     // Open Graph tags

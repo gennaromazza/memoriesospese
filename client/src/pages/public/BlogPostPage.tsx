@@ -140,6 +140,44 @@ export default function BlogPostPage() {
       if (post.coverImage) {
         updateOgTag('og:image', post.coverImage);
       }
+
+      // Article Schema per AI e SEO
+      const articleSchema = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": post.title,
+        "description": pageDescription,
+        "image": post.coverImage || '',
+        "datePublished": post.publishedAt?.seconds ? new Date(post.publishedAt.seconds * 1000).toISOString() : new Date().toISOString(),
+        "dateModified": post.publishedAt?.seconds ? new Date(post.publishedAt.seconds * 1000).toISOString() : new Date().toISOString(),
+        "author": {
+          "@type": "Person",
+          "name": post.author || "Gennaro Mazzacane"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "Image Studio",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.memoriesospese.it/favicon.png"
+          }
+        },
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": window.location.href
+        },
+        "keywords": post.tags?.join(', ') || '',
+        "articleSection": post.category || 'Fotografia'
+      };
+
+      let articleSchemaTag = document.querySelector('script[data-article-schema]');
+      if (!articleSchemaTag) {
+        articleSchemaTag = document.createElement('script');
+        articleSchemaTag.setAttribute('type', 'application/ld+json');
+        articleSchemaTag.setAttribute('data-article-schema', 'true');
+        document.head.appendChild(articleSchemaTag);
+      }
+      articleSchemaTag.textContent = JSON.stringify(articleSchema);
     }
 
     // Cleanup function to reset on unmount
