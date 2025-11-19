@@ -180,7 +180,6 @@ export default function BlogListPage() {
               ))}
             </div>
 
-            {/* Paginazione */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-3 mt-12">
                 <Button
