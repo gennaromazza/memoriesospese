@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, Timestamp, deleteField } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, Timestamp, deleteField, writeBatch } from 'firebase/firestore';
+import { CKEditor } from '@ckeditor/ckeditor5-react';
+import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
 
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, CheckSquare, Trash, Upload } from 'lucide-react';
 import { BlogPost, BlogPostStatus, insertBlogPostSchema, InsertBlogPost } from '@shared/schema';
 import WordPressImporter from './WordPressImporter';
 
@@ -38,6 +41,9 @@ export default function BlogManager() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
+  const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
+  const [bulkActionDialogOpen, setBulkActionDialogOpen] = useState(false);
+  const [bulkAction, setBulkAction] = useState<'publish' | 'delete' | null>(null);
   const { toast } = useToast();
 
   // Form state
@@ -284,6 +290,84 @@ export default function BlogManager() {
     }
   };
 
+  const togglePostSelection = (postId: string) => {
+    setSelectedPosts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(postId)) {
+        newSet.delete(postId);
+      } else {
+        newSet.add(postId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPosts.size === filteredPosts.length) {
+      setSelectedPosts(new Set());
+    } else {
+      setSelectedPosts(new Set(filteredPosts.map(p => p.id)));
+    }
+  };
+
+  const handleBulkPublish = () => {
+    setBulkAction('publish');
+    setBulkActionDialogOpen(true);
+  };
+
+  const handleBulkDelete = () => {
+    setBulkAction('delete');
+    setBulkActionDialogOpen(true);
+  };
+
+  const executeBulkAction = async () => {
+    if (!bulkAction || selectedPosts.size === 0) return;
+
+    try {
+      const batch = writeBatch(db);
+
+      if (bulkAction === 'publish') {
+        selectedPosts.forEach(postId => {
+          const postRef = doc(db, 'blogPosts', postId);
+          batch.update(postRef, {
+            status: BlogPostStatus.PUBLISHED,
+            publishedAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+          });
+        });
+        
+        await batch.commit();
+        toast({
+          title: "Successo",
+          description: `${selectedPosts.size} post pubblicati con successo`
+        });
+      } else if (bulkAction === 'delete') {
+        selectedPosts.forEach(postId => {
+          const postRef = doc(db, 'blogPosts', postId);
+          batch.delete(postRef);
+        });
+        
+        await batch.commit();
+        toast({
+          title: "Successo",
+          description: `${selectedPosts.size} post eliminati con successo`
+        });
+      }
+
+      setSelectedPosts(new Set());
+      setBulkActionDialogOpen(false);
+      setBulkAction(null);
+      loadPosts();
+    } catch (error) {
+      console.error('Errore bulk action:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile completare l'operazione",
+        variant: "destructive"
+      });
+    }
+  };
+
   const filteredPosts = filterStatus === 'all' 
     ? posts 
     : posts.filter(p => p.status === filterStatus);
@@ -370,15 +454,35 @@ export default function BlogManager() {
                   </div>
 
                   <div className="col-span-2">
-                    <Label>Contenuto HTML *</Label>
-                    <Textarea
-                      value={formData.content}
-                      onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                      placeholder="Contenuto completo del post in HTML"
-                      rows={12}
-                      className="font-mono text-sm"
-                      data-testid="input-content"
-                    />
+                    <Label>Contenuto *</Label>
+                    <div className="border rounded-md">
+                      <CKEditor
+                        editor={ClassicEditor}
+                        data={formData.content}
+                        onChange={(event, editor) => {
+                          const data = editor.getData();
+                          setFormData(prev => ({ ...prev, content: data }));
+                        }}
+                        config={{
+                          toolbar: [
+                            'heading', '|',
+                            'bold', 'italic', 'link', '|',
+                            'bulletedList', 'numberedList', '|',
+                            'blockQuote', 'insertTable', '|',
+                            'imageUpload', 'mediaEmbed', '|',
+                            'undo', 'redo'
+                          ],
+                          heading: {
+                            options: [
+                              { model: 'paragraph', title: 'Paragrafo', class: 'ck-heading_paragraph' },
+                              { model: 'heading1', view: 'h1', title: 'Titolo 1', class: 'ck-heading_heading1' },
+                              { model: 'heading2', view: 'h2', title: 'Titolo 2', class: 'ck-heading_heading2' },
+                              { model: 'heading3', view: 'h3', title: 'Titolo 3', class: 'ck-heading_heading3' }
+                            ]
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -490,19 +594,58 @@ export default function BlogManager() {
           </div>
         </div>
 
-      <div className="flex gap-2 items-center">
-        <Label>Filtra per stato:</Label>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-48" data-testid="filter-status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti ({posts.length})</SelectItem>
-            <SelectItem value="draft">Bozze ({posts.filter(p => p.status === 'draft').length})</SelectItem>
-            <SelectItem value="published">Pubblicati ({posts.filter(p => p.status === 'published').length})</SelectItem>
-            <SelectItem value="archived">Archiviati ({posts.filter(p => p.status === 'archived').length})</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex gap-4 items-center flex-wrap">
+        <div className="flex gap-2 items-center">
+          <Label>Filtra per stato:</Label>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-48" data-testid="filter-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti ({posts.length})</SelectItem>
+              <SelectItem value="draft">Bozze ({posts.filter(p => p.status === 'draft').length})</SelectItem>
+              <SelectItem value="published">Pubblicati ({posts.filter(p => p.status === 'published').length})</SelectItem>
+              <SelectItem value="archived">Archiviati ({posts.filter(p => p.status === 'archived').length})</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {filteredPosts.length > 0 && (
+          <>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="select-all"
+                checked={selectedPosts.size === filteredPosts.length && filteredPosts.length > 0}
+                onCheckedChange={toggleSelectAll}
+              />
+              <Label htmlFor="select-all" className="cursor-pointer">
+                Seleziona tutti ({selectedPosts.size} selezionati)
+              </Label>
+            </div>
+
+            {selectedPosts.size > 0 && (
+              <div className="flex gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkPublish}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Pubblica Selezionati
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                >
+                  <Trash className="h-4 w-4 mr-2" />
+                  Elimina Selezionati
+                </Button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {filteredPosts.length === 0 ? (
@@ -519,9 +662,14 @@ export default function BlogManager() {
       ) : (
         <div className="grid gap-4">
           {filteredPosts.map(post => (
-            <Card key={post.id}>
+            <Card key={post.id} className={selectedPosts.has(post.id) ? 'border-sage border-2' : ''}>
               <CardHeader>
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start gap-3">
+                  <Checkbox
+                    checked={selectedPosts.has(post.id)}
+                    onCheckedChange={() => togglePostSelection(post.id)}
+                    className="mt-1"
+                  />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <CardTitle className="text-xl">{post.title}</CardTitle>
@@ -599,6 +747,31 @@ export default function BlogManager() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkActionDialogOpen} onOpenChange={setBulkActionDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkAction === 'publish' ? 'Conferma Pubblicazione Multipla' : 'Conferma Eliminazione Multipla'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkAction === 'publish' 
+                ? `Sei sicuro di voler pubblicare ${selectedPosts.size} post selezionati?`
+                : `Sei sicuro di voler eliminare ${selectedPosts.size} post selezionati? Questa azione non può essere annullata.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={executeBulkAction}
+              className={bulkAction === 'delete' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+            >
+              {bulkAction === 'publish' ? 'Pubblica' : 'Elimina'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
