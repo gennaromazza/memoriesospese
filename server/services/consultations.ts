@@ -17,7 +17,7 @@ import type {
   ConsultationWorkingHours
 } from '../../shared/consultation-types.js';
 import { DEFAULT_CONSULTATION_HOURS } from '../../shared/consultation-types.js';
-import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusy, type WorkingHours } from '../google-calendar.js';
+import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAllCalendars, type WorkingHours } from '../google-calendar.js';
 import type { Booking } from '../../shared/booking-types.js';
 import { format } from 'date-fns'; // Importa la funzione format
 import { it } from 'date-fns/locale'; // Importa la localizzazione italiana
@@ -873,7 +873,7 @@ export async function isSlotAvailable(
     }
   }
 
-  // Check 3: Google Calendar events - busy periods
+  // Check 3: Google Calendar events - busy periods (TUTTI I CALENDARI)
   // IMPORTANTE: Se non abbiamo busy periods (array vuoto o undefined), 
   // assumiamo che Google Calendar sia disponibile (nessun conflitto)
   if (Array.isArray(googleCalendarBusyPeriods) && googleCalendarBusyPeriods.length > 0) {
@@ -890,13 +890,16 @@ export async function isSlotAvailable(
         if (isDebug) {
           const busyStartStr = format(busyStart, 'HH:mm', { locale: it });
           const busyEndStr = format(busyEnd, 'HH:mm', { locale: it });
-          console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da Google Calendar event ${busyStartStr}-${busyEndStr}`);
+          const calendarInfo = busy.calendarName 
+            ? ` dal calendario "${busy.calendarName}"` 
+            : ' da Google Calendar';
+          console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da evento${calendarInfo} (${busyStartStr}-${busyEndStr})`);
         }
         return false; // Conflict con evento Google Calendar
       }
     }
   } else if (isDebug) {
-    console.log(`[Consultations] ℹ️ Nessun busy period Google Calendar per questa data`);
+    console.log(`[Consultations] ℹ️ Nessun busy period trovato su tutti i calendari Google per questa data`);
   }
 
   return true;
@@ -1047,21 +1050,29 @@ export async function getAvailableSlotsForDate(
     console.error('[Consultations] ⚠️ Errore pre-caricamento bookings:', error.message);
   }
 
-  // CONTROLLO BUSY PERIODS GOOGLE CALENDAR (una sola chiamata per l'intera giornata)
+  // CONTROLLO BUSY PERIODS GOOGLE CALENDAR - TUTTI I CALENDARI (una sola chiamata per l'intera giornata)
   let googleBusyPeriods: any[] = [];
   try {
     if (isDebug) {
-      console.log(`[Consultations] Fetching Google Calendar busy periods per ${dateStr}`);
+      console.log(`[Consultations] 🔍 Controllo disponibilità su TUTTI i calendari Google per ${dateStr}`);
     }
-    const busyPeriodsResult = await checkFreeBusy('primary', dayStart, dayEnd);
+    const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
     googleBusyPeriods = Array.isArray(busyPeriodsResult) ? busyPeriodsResult : [];
 
     if (isDebug && googleBusyPeriods.length > 0) {
-      console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods in Google Calendar`);
+      console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods aggregati da tutti i calendari`);
+      // Log calendari che hanno eventi
+      const calendarsWithEvents = new Set(googleBusyPeriods.map((p: any) => p.calendarName).filter(Boolean));
+      if (calendarsWithEvents.size > 0) {
+        console.log(`[Consultations] 📅 Calendari con eventi: ${Array.from(calendarsWithEvents).join(', ')}`);
+      }
     }
   } catch (error: any) {
-    console.error('[Consultations] ⚠️ Errore fetching busy periods Google Calendar:', error.message);
-    // Se il controllo Google Calendar fallisce, continua con la logica normale
+    console.error('[Consultations] ❌ ERRORE CRITICO fetching busy periods Google Calendar:', error.message);
+    // ⚠️ CAMBIO IMPORTANTE: Se Google Calendar fallisce, BLOCCA gli slot invece di fail silenzioso
+    // Questo previene double-booking se l'API ha problemi
+    console.error('[Consultations] 🚨 Per sicurezza, tutti gli slot saranno marcati come NON disponibili');
+    throw error; // Propaga errore per notificare utente
   }
 
   // Genera tutti gli slot possibili per la giornata
