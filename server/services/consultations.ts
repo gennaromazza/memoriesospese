@@ -766,7 +766,7 @@ export async function deleteConsultation(id: string): Promise<void> {
 
 /**
  * Verifica se uno slot è disponibile
- * Controlla: consultations + bookings + Google Calendar
+ * Controlla: consultations + bookings + jobs + Google Calendar
  * OTTIMIZZATO: Accetta array pre-caricati per evitare query ridondanti
  */
 export async function isSlotAvailable(
@@ -776,7 +776,8 @@ export async function isSlotAvailable(
   excludeConsultationId?: string,
   googleCalendarBusyPeriods?: any[],
   preloadedConsultations?: QueryDocumentSnapshot[],
-  preloadedBookings?: QueryDocumentSnapshot[]
+  preloadedBookings?: QueryDocumentSnapshot[],
+  preloadedJobs?: QueryDocumentSnapshot[]
 ): Promise<boolean> {
   const [startHour, startMin] = startTime.split(':').map(Number);
   const [endHour, endMin] = endTime.split(':').map(Number);
@@ -873,7 +874,44 @@ export async function isSlotAvailable(
     }
   }
 
-  // Check 3: Google Calendar events - busy periods (TUTTI I CALENDARI)
+  // Check 3: Jobs esistenti (lavori confermati che occupano tempo)
+  if (preloadedJobs && preloadedJobs.length > 0) {
+    for (const doc of preloadedJobs) {
+      const data = doc.data();
+      
+      // Se job è all-day, blocca l'intera giornata
+      if (data.allDay === true) {
+        if (isDebug) {
+          console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da job all-day "${data.nomeEvento}"`);
+        }
+        return false; // Job all-day blocca tutti gli slot della giornata
+      }
+      
+      // Se job ha orari specifici, controlla overlap
+      if (data.startTime && data.endTime) {
+        const [jobStartHour, jobStartMin] = data.startTime.split(':').map(Number);
+        const [jobEndHour, jobEndMin] = data.endTime.split(':').map(Number);
+        
+        const jobStart = new Date(date);
+        jobStart.setHours(jobStartHour, jobStartMin, 0, 0);
+        
+        const jobEnd = new Date(date);
+        jobEnd.setHours(jobEndHour, jobEndMin, 0, 0);
+        
+        // Check overlap
+        const overlaps = slotStart < jobEnd && slotEnd > jobStart;
+        
+        if (overlaps) {
+          if (isDebug) {
+            console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da job "${data.nomeEvento}" (${data.startTime}-${data.endTime})`);
+          }
+          return false; // Conflict con job esistente
+        }
+      }
+    }
+  }
+
+  // Check 4: Google Calendar events - busy periods (TUTTI I CALENDARI)
   // IMPORTANTE: Se non abbiamo busy periods (array vuoto o undefined), 
   // assumiamo che Google Calendar sia disponibile (nessun conflitto)
   if (Array.isArray(googleCalendarBusyPeriods) && googleCalendarBusyPeriods.length > 0) {
