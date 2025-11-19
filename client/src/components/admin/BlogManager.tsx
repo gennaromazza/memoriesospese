@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, Timestamp, deleteField, writeBatch } from 'firebase/firestore';
 import { CKEditor } from '@ckeditor/ckeditor5-react';
 import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { compressImage } from '@/lib/imageCompression';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -154,6 +156,56 @@ export default function BlogManager() {
 
   const generateSlug = (title: string) => {
     return normalizeSlug(title);
+  };
+
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Tipo file non valido",
+        description: "Carica solo file immagine",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setSaving(true);
+      toast({
+        title: "Caricamento...",
+        description: "Compressione e upload dell'immagine in corso"
+      });
+
+      // Comprimi l'immagine
+      const compressedFile = await compressImage(file);
+      
+      // Upload su Firebase Storage
+      const timestamp = Date.now();
+      const fileName = `cover_${timestamp}_${file.name}`;
+      const storageRef = ref(storage, `blog-covers/${fileName}`);
+      
+      await uploadBytes(storageRef, compressedFile);
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      // Aggiorna form data
+      setFormData(prev => ({ ...prev, coverImage: downloadURL }));
+      
+      toast({
+        title: "Immagine caricata",
+        description: "Immagine di copertina caricata con successo"
+      });
+    } catch (error) {
+      console.error('Errore upload immagine:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile caricare l'immagine",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleTitleChange = (title: string) => {
@@ -582,13 +634,30 @@ export default function BlogManager() {
                   </div>
 
                   <div className="col-span-2">
-                    <Label>Immagine Copertina URL</Label>
-                    <Input
-                      value={formData.coverImage}
-                      onChange={(e) => setFormData(prev => ({ ...prev, coverImage: e.target.value }))}
-                      placeholder="https://..."
-                      data-testid="input-cover-image"
-                    />
+                    <Label>Immagine Copertina</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={formData.coverImage}
+                        onChange={(e) => setFormData(prev => ({ ...prev, coverImage: e.target.value }))}
+                        placeholder="https://... o carica un file"
+                        data-testid="input-cover-image"
+                      />
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCoverImageUpload}
+                        className="max-w-[200px]"
+                      />
+                    </div>
+                    {formData.coverImage && (
+                      <div className="mt-2">
+                        <img 
+                          src={formData.coverImage} 
+                          alt="Anteprima copertina"
+                          className="w-full max-w-md h-48 object-cover rounded-lg"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>
