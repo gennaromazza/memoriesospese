@@ -246,19 +246,31 @@ export default function BlogManager() {
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
-      const dataToValidate = {
+      const dataToValidate: any = {
         title: formData.title,
         slug: normalizeSlug(formData.slug),
         excerpt: formData.excerpt,
         content: formData.content,
-        coverImage: formData.coverImage || undefined,
         status: formData.status,
-        category: formData.category || undefined,
-        tags: tagsArray.length > 0 ? tagsArray : undefined,
-        author: formData.author,
-        metaTitle: formData.metaTitle || undefined,
-        metaDescription: formData.metaDescription || undefined
+        author: formData.author
       };
+
+      // Aggiungi solo campi opzionali se hanno valori
+      if (formData.coverImage?.trim()) {
+        dataToValidate.coverImage = formData.coverImage;
+      }
+      if (formData.category?.trim()) {
+        dataToValidate.category = formData.category;
+      }
+      if (tagsArray.length > 0) {
+        dataToValidate.tags = tagsArray;
+      }
+      if (formData.metaTitle?.trim()) {
+        dataToValidate.metaTitle = formData.metaTitle;
+      }
+      if (formData.metaDescription?.trim()) {
+        dataToValidate.metaDescription = formData.metaDescription;
+      }
 
       // Validate with Zod schema
       const validationResult = insertBlogPostSchema.safeParse(dataToValidate);
