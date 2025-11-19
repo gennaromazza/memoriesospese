@@ -27,63 +27,126 @@ export async function generateDynamicSitemap(): Promise<string> {
   <!-- Homepage -->
   <url>
     <loc>${baseUrl}/</loc>
-    <changefreq>weekly</changefreq>
+    <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>
   
-  <!-- Portfolio -->
+  <!-- Portfolio Principale -->
   <url>
     <loc>${baseUrl}/portfolio</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
+    <priority>0.95</priority>
   </url>
   
-  <!-- Blog List -->
+  <!-- Portfolio per Categoria (Matrimoni, Battesimi, etc) -->
+  <url>
+    <loc>${baseUrl}/portfolio/matrimonio</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/portfolio/battesimo</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/portfolio/comunione</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/portfolio/cresima</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/portfolio/evento</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/portfolio/ritratto</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/portfolio/famiglia</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/portfolio/altro</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- Video Matrimoni (iMaGe Vision) -->
+  <url>
+    <loc>${baseUrl}/vision</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+  
+  <!-- Blog -->
   <url>
     <loc>${baseUrl}/blog</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   
-  <!-- Storia -->
+  <!-- Storia del Fotografo -->
   <url>
     <loc>${baseUrl}/storie</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.85</priority>
   </url>
   
-  <!-- Vision -->
+  <!-- Prenota - Campagne Booking -->
   <url>
-    <loc>${baseUrl}/vision</loc>
+    <loc>${baseUrl}/prenota</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.9</priority>
   </url>
   
   <!-- Consulenze -->
   <url>
     <loc>${baseUrl}/consulenze</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.85</priority>
   </url>
   
-  <!-- Accesso Galleria -->
+  <!-- Accesso Galleria Clienti -->
   <url>
     <loc>${baseUrl}/accesso-galleria</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   
-  <!-- Special Gallery -->
+  <!-- Galleria Speciale (Temi Stagionali) -->
   <url>
     <loc>${baseUrl}/special-gallery</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   
-  <!-- Privacy -->
+  <!-- Lasciati Trasportare (Landing Page Emozionale) -->
+  <url>
+    <loc>${baseUrl}/lasciati-trasportare</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- Privacy Policy -->
   <url>
     <loc>${baseUrl}/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  
+  <!-- Termini e Condizioni -->
+  <url>
+    <loc>${baseUrl}/terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

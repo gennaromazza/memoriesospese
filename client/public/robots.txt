@@ -7,7 +7,28 @@ Allow: /
 
 # Disallow admin pages
 Disallow: /admin
+Disallow: /admin/*
 Disallow: /login
+
+# Disallow private galleries (require authentication)
+Disallow: /gallery/*
+Disallow: /accesso-galleria
+Disallow: /special-gallery
+
+# Allow public pages explicitly
+Allow: /
+Allow: /portfolio
+Allow: /portfolio/*
+Allow: /blog
+Allow: /blog/*
+Allow: /vision
+Allow: /storie
+Allow: /prenota
+Allow: /consulenze
+Allow: /lasciati-trasportare
+
+# Crawl-delay for polite bots
+Crawl-delay: 1
 
 # Sitemap location
 Sitemap: https://www.memoriesospese.it/sitemap.xml

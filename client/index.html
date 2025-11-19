@@ -18,7 +18,7 @@
     <meta name="robots" content="index, follow" />
     <meta
       name="keywords"
-      content="fotografo Aversa, fotografo Napoli, fotografo Caserta, Image Studio Aversa, fotografo matrimonio Aversa, fotografo matrimonio Napoli, Memorie Sospese, galleria digitale matrimonio, servizi fotografici Campania, studio fotografico Aversa, video matrimonio, ritratti professionali"
+      content="fotografo matrimoni, fotografo professionista, fotografia eventi, video matrimoni, gallerie foto, foto ricordo, fotografo Napoli, fotografo Campania, fotografo Salerno, fotografo Costiera Amalfitana, memorie sospese, image studio, battesimi, comunioni, cresime, eventi aziendali, ritratti famiglia, book fotografici, foto artistiche, wedding photographer Italy, destination wedding photographer, fotografia emozionale, storytelling fotografico"
     />
     <meta name="author" content="Image Studio – Gennaro Mazzacane" />
     <meta name="theme-color" content="#8B9A8B" />
@@ -59,7 +59,33 @@
       content="https://imagestudiofotografico.com/1200x630px.jpg"
     />
 
-    <!-- PWA -->
+    <!-- Structured Data (JSON-LD) for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ProfessionalService",
+      "name": "Image Studio - Memorie Sospese",
+      "image": "https://www.memoriesospese.it/1200x630px.jpg",
+      "description": "Fotografo professionista specializzato in matrimoni, eventi e storytelling digitale. Servizi fotografici emozionali in tutta la Campania.",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Napoli",
+        "addressRegion": "Campania",
+        "addressCountry": "IT"
+      },
+      "url": "https://www.memoriesospese.it",
+      "telephone": "+39-XXX-XXXXXXX",
+      "priceRange": "€€€",
+      "serviceType": ["Fotografia Matrimoni", "Video Matrimoni", "Fotografia Eventi", "Ritratti", "Book Fotografici"],
+      "areaServed": ["Napoli", "Salerno", "Costiera Amalfitana", "Campania", "Italia"],
+      "sameAs": [
+        "https://www.facebook.com/imagestudio",
+        "https://www.instagram.com/imagestudio"
+      ]
+    }
+    </script>
+
+    <!-- Favicon -->
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/favicon.png" />
@@ -85,14 +111,14 @@
 
     <!-- Matrimonio.com Reviews Widget -->
     <script src="https://cdn1.matrimonio.com/js/wp-widget.js?symfnw-IT73-1-20251118-008_www_m_"></script>
-    
+
     <!-- Facebook SDK for Page Plugin -->
     <div id="fb-root"></div>
     <script async defer crossorigin="anonymous" src="https://connect.facebook.net/it_IT/sdk.js#xfbml=1&version=v18.0"></script>
-    
+
     <!-- Elfsight Platform -->
     <script src="https://static.elfsight.com/platform/platform.js" data-use-service-core defer></script>
-    
+
     <script>
       // Initialize Matrimonio.com widget when DOM is ready
       if (typeof wpShowReviews !== 'undefined') {
