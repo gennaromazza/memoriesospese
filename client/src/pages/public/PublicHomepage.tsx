@@ -27,6 +27,7 @@ import {
 import { useStudio } from "@/context/StudioContext";
 import HeroSlideshow from "@/components/HeroSlideshow";
 import type { BookingCampaign } from "@shared/booking-types";
+import { BlogPost, BlogPostStatus, WeddingVideo } from "@shared/schema";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { FloralDivider, FloralCorner } from "@/components/WeddingIllustrations";
@@ -50,6 +51,10 @@ export default function PublicHomepage() {
   const [portfolioPhotos, setPortfolioPhotos] = useState<PortfolioPhoto[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
   const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaign[]>([]);
+  const [blogPosts, setBlogPosts] = useState<any[]>([]);
+  const [weddingVideos, setWeddingVideos] = useState<any[]>([]);
+  const [loadingBlog, setLoadingBlog] = useState(true);
+  const [loadingVideos, setLoadingVideos] = useState(true);
 
   // Carousel for campaigns
   const [emblaRef] = useEmblaCarousel({ loop: true, align: "center" }, [
@@ -58,6 +63,8 @@ export default function PublicHomepage() {
 
   useEffect(() => {
     loadPortfolioPreview();
+    loadLatestBlogPosts();
+    loadLatestVideos();
 
     // SEO meta tags
     document.title =
@@ -157,6 +164,67 @@ export default function PublicHomepage() {
       console.error("Errore caricamento portfolio preview:", error);
     } finally {
       setLoadingPhotos(false);
+    }
+  };
+
+  const loadLatestBlogPosts = async () => {
+    setLoadingBlog(true);
+    try {
+      const postsRef = collection(db, 'blogPosts');
+      const q = query(
+        postsRef,
+        where('status', '==', BlogPostStatus.PUBLISHED),
+        where('publishedAt', '!=', null),
+        orderBy('publishedAt', 'desc'),
+        limit(3)
+      );
+      const snapshot = await getDocs(q);
+      const posts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as BlogPost[];
+      setBlogPosts(posts);
+    } catch (error) {
+      console.error('Errore caricamento blog posts:', error);
+    } finally {
+      setLoadingBlog(false);
+    }
+  };
+
+  const loadLatestVideos = async () => {
+    setLoadingVideos(true);
+    try {
+      const videosRef = collection(db, 'weddingVideos');
+      const q = query(
+        videosRef,
+        where('active', '==', true),
+        orderBy('createdAt', 'desc'),
+        limit(3)
+      );
+      const snapshot = await getDocs(q);
+      const videos = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as WeddingVideo[];
+      setWeddingVideos(videos);
+    } catch (error) {
+      console.error('Errore caricamento video:', error);
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  const formatDate = (timestamp: any) => {
+    if (!timestamp || !timestamp.seconds) return '';
+    try {
+      const date = new Date(timestamp.seconds * 1000);
+      return date.toLocaleDateString('it-IT', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    } catch (e) {
+      return '';
     }
   };
 
@@ -939,6 +1007,271 @@ export default function PublicHomepage() {
       {/* Google Reviews Section */}
       <ReviewsWidget />
 
+      {/* Latest Blog Posts Section */}
+      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-white to-cream/30 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-sage/10 rounded-full mb-4">
+              <BookOpen className="w-8 h-8 text-sage" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4">
+              Dal Nostro Blog
+            </h2>
+            <p className="text-base sm:text-lg md:text-xl text-gray-600">
+              Storie, consigli e ispirazioni dal mondo della fotografia
+            </p>
+          </div>
+
+          {loadingBlog ? (
+            <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl shadow-lg overflow-hidden animate-pulse">
+                  <div className="bg-gray-200 h-48" />
+                  <div className="p-6">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-3" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2 mb-4" />
+                    <div className="h-3 bg-gray-200 rounded w-full mb-2" />
+                    <div className="h-3 bg-gray-200 rounded w-5/6" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : blogPosts.length > 0 ? (
+            <>
+              <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mb-8">
+                {blogPosts.map((post) => (
+                  <Link key={post.id} href={`/blog/${post.slug}`}>
+                    <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full flex flex-col">
+                      {post.coverImage && (
+                        <div className="overflow-hidden bg-beige h-48">
+                          <img 
+                            src={post.coverImage} 
+                            alt={post.title}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            loading="lazy"
+                          />
+                        </div>
+                      )}
+                      <div className="p-6 flex-1 flex flex-col">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                          <Calendar className="h-3 w-3" />
+                          <span>{formatDate(post.publishedAt)}</span>
+                        </div>
+                        <h3 className="text-xl font-playfair text-blue-gray group-hover:text-sage transition-colors mb-3 line-clamp-2">
+                          {post.title}
+                        </h3>
+                        <p className="text-gray-600 text-sm line-clamp-3 flex-1">
+                          {post.excerpt}
+                        </p>
+                        <div className="mt-4 text-sage font-semibold text-sm group-hover:text-dark-sage transition-colors">
+                          Leggi articolo →
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <div className="text-center">
+                <Link href="/blog">
+                  <Button size="lg" variant="outline" className="border-sage text-sage hover:bg-sage/10">
+                    <BookOpen className="mr-2 h-5 w-5" />
+                    Vai al Blog
+                  </Button>
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">Nuovi articoli in arrivo...</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* iMaGe Vision Section */}
+      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-terracotta/20 rounded-full mb-4">
+              <Camera className="w-8 h-8 text-terracotta" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight mb-3 sm:mb-4" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+              iMaGe Vision
+            </h2>
+            <p className="text-base sm:text-lg md:text-xl text-gray-300">
+              I nostri ultimi video: emozioni in movimento
+            </p>
+          </div>
+
+          {loadingVideos ? (
+            <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-gray-800 rounded-xl overflow-hidden animate-pulse">
+                  <div className="bg-gray-700 aspect-video" />
+                  <div className="p-4">
+                    <div className="h-4 bg-gray-700 rounded w-3/4 mb-3" />
+                    <div className="h-3 bg-gray-700 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : weddingVideos.length > 0 ? (
+            <>
+              <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mb-8">
+                {weddingVideos.map((video) => (
+                  <Link key={video.id} href="/vision">
+                    <div className="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-700 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer group">
+                      <div className="relative aspect-video overflow-hidden">
+                        <img 
+                          src={video.thumbnailUrl} 
+                          alt={video.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center">
+                            <div className="w-0 h-0 border-l-[20px] border-l-terracotta border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent ml-1" />
+                          </div>
+                        </div>
+                        {video.duration && (
+                          <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-semibold">
+                            {video.duration}
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-semibold text-white group-hover:text-terracotta transition-colors mb-2 line-clamp-2">
+                          {video.title}
+                        </h3>
+                        {video.category && (
+                          <span className="text-xs text-gray-400">
+                            {video.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <div className="text-center">
+                <Link href="/vision">
+                  <Button size="lg" className="bg-terracotta hover:bg-terracotta/90 text-white shadow-lg hover:shadow-xl transition-all">
+                    <Camera className="mr-2 h-5 w-5" />
+                    Scopri tutti i Video
+                  </Button>
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-400 text-lg">Nuovi video in arrivo...</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Dove Ci Troviamo Section */}
+      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-cream/30 to-white px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-sage/10 rounded-full mb-4">
+              <MapPin className="w-8 h-8 text-sage" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4">
+              Dove Ci Troviamo
+            </h2>
+            <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
+              Vieni a trovarci nel nostro studio
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            {/* Info Column */}
+            <div className="space-y-6">
+              <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-sage/10">
+                <h3 className="text-2xl font-playfair text-blue-gray mb-6">
+                  Informazioni di Contatto
+                </h3>
+                <div className="space-y-4">
+                  {studioSettings.address && (
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-sage/10 flex items-center justify-center flex-shrink-0">
+                        <MapPin className="h-5 w-5 text-sage" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-blue-gray mb-1">Indirizzo</p>
+                        <p className="text-gray-600">{studioSettings.address}</p>
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(studioSettings.address)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sage hover:text-dark-sage text-sm font-medium mt-2 inline-flex items-center gap-1"
+                        >
+                          Apri in Google Maps
+                          <span className="text-xs">→</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {studioSettings.phone && (
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-sage/10 flex items-center justify-center flex-shrink-0">
+                        <Phone className="h-5 w-5 text-sage" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-blue-gray mb-1">Telefono</p>
+                        <a href={`tel:${studioSettings.phone}`} className="text-gray-600 hover:text-sage transition">
+                          {studioSettings.phone}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {studioSettings.email && (
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-sage/10 flex items-center justify-center flex-shrink-0">
+                        <Mail className="h-5 w-5 text-sage" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-blue-gray mb-1">Email</p>
+                        <a href={`mailto:${studioSettings.email}`} className="text-gray-600 hover:text-sage transition break-all">
+                          {studioSettings.email}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Link href="/consulenze">
+                <Button size="lg" className="w-full bg-sage hover:bg-dark-sage text-white shadow-lg hover:shadow-xl transition-all">
+                  <Calendar className="mr-2 h-5 w-5" />
+                  Prenota un Appuntamento
+                </Button>
+              </Link>
+            </div>
+
+            {/* Map Column */}
+            <div className="rounded-2xl overflow-hidden shadow-2xl border border-sage/10 h-[400px] md:h-[500px]">
+              {studioSettings.address ? (
+                <iframe
+                  src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME&q=${encodeURIComponent(studioSettings.address)}&zoom=15`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title="Posizione Studio"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <p className="text-gray-500">Indirizzo non disponibile</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Instagram Feed */}
       {studioSettings.socialLinks?.instagram && (
