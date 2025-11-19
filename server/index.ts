@@ -3,7 +3,7 @@
  * Combina Express.js API routes con Vite dev server per sviluppo
  */
 
-import express from 'express';
+import express, { type Request, Response, NextFunction } from "express";
 import { createServer as createViteServer } from 'vite';
 import emailRoutes from './email-routes.js';
 import bookingRoutes from './booking-routes.js';
@@ -16,6 +16,7 @@ import consultationRoutes from './consultation-routes.js';
 import calendarRoutes from './calendar-routes.js';
 import receiptRoutes from './receipt-routes.js';
 import collaboratoriRoutes from './collaboratori-routes.js';
+import { generateDynamicSitemap } from "./sitemap-generator";
 
 
 async function startServer() {
@@ -99,6 +100,18 @@ async function startServer() {
     // Registra routes collaboratori
     app.use('/api', collaboratoriRoutes);
     console.log('👥 Collaboratori API routes mounted at /api');
+
+    // Sitemap dinamica
+    app.get('/sitemap.xml', async (req, res) => {
+      try {
+        const sitemap = await generateDynamicSitemap();
+        res.header('Content-Type', 'application/xml');
+        res.send(sitemap);
+      } catch (error) {
+        console.error('Errore generazione sitemap:', error);
+        res.status(500).send('Errore generazione sitemap');
+      }
+    });
 
     // Health check
     app.get('/api/health', (req, res) => {
