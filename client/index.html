@@ -15,13 +15,23 @@
     />
 
     <!-- SEO -->
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="bingbot" content="index, follow" />
     <meta
       name="keywords"
-      content="fotografo matrimoni, fotografo professionista, fotografia eventi, video matrimoni, gallerie foto, foto ricordo, fotografo Napoli, fotografo Campania, fotografo Salerno, fotografo Costiera Amalfitana, memorie sospese, image studio, battesimi, comunioni, cresime, eventi aziendali, ritratti famiglia, book fotografici, foto artistiche, wedding photographer Italy, destination wedding photographer, fotografia emozionale, storytelling fotografico"
+      content="fotografo matrimoni Napoli, fotografo professionista Caserta, fotografia eventi Aversa, video matrimoni Campania, gallerie foto interattive, fotografo matrimoni Costiera Amalfitana, memorie sospese, image studio, battesimi Napoli, comunioni Caserta, cresime, eventi aziendali, ritratti famiglia, book fotografici, foto artistiche, wedding photographer Italy, destination wedding photographer Naples, fotografia emozionale, storytelling fotografico, fotografo matrimonio Salerno, fotografo cerimonie Campania, video matrimonio emozionale, gallerie digitali matrimonio, foto matrimonio luxury, wedding photography Italy, fotografo eventi Napoli, fotografo ritratti Caserta"
     />
     <meta name="author" content="Image Studio – Gennaro Mazzacane" />
     <meta name="theme-color" content="#8B9A8B" />
+    <meta name="language" content="Italian" />
+    <meta name="geo.region" content="IT-72" />
+    <meta name="geo.placename" content="Aversa, Napoli, Campania" />
+    <meta name="geo.position" content="40.973;14.207" />
+    <meta name="ICBM" content="40.973, 14.207" />
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://www.memoriesospese.it/" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -65,23 +75,159 @@
       "@context": "https://schema.org",
       "@type": "ProfessionalService",
       "name": "Image Studio - Memorie Sospese",
+      "alternateName": "Image Studio Fotografia",
       "image": "https://www.memoriesospese.it/1200x630px.jpg",
-      "description": "Fotografo professionista specializzato in matrimoni, eventi e storytelling digitale. Servizi fotografici emozionali in tutta la Campania.",
+      "logo": "https://www.memoriesospese.it/favicon.png",
+      "description": "Fotografo professionista specializzato in matrimoni, eventi e storytelling digitale. Servizi fotografici emozionali in tutta la Campania. Gallerie digitali interattive Memorie Sospese per rivivere le tue emozioni.",
       "address": {
         "@type": "PostalAddress",
+        "streetAddress": "Aversa",
         "addressLocality": "Napoli",
         "addressRegion": "Campania",
+        "postalCode": "81031",
         "addressCountry": "IT"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "40.973",
+        "longitude": "14.207"
       },
       "url": "https://www.memoriesospese.it",
       "telephone": "+39-XXX-XXXXXXX",
+      "email": "info@memoriesospese.it",
       "priceRange": "€€€",
-      "serviceType": ["Fotografia Matrimoni", "Video Matrimoni", "Fotografia Eventi", "Ritratti", "Book Fotografici"],
-      "areaServed": ["Napoli", "Salerno", "Costiera Amalfitana", "Campania", "Italia"],
+      "openingHours": "Mo-Su 09:00-20:00",
+      "serviceType": ["Fotografia Matrimoni", "Video Matrimoni", "Fotografia Eventi", "Ritratti", "Book Fotografici", "Fotografia Battesimi", "Fotografia Comunioni", "Fotografia Cresime", "Gallerie Digitali Interattive"],
+      "areaServed": [
+        {
+          "@type": "City",
+          "name": "Napoli"
+        },
+        {
+          "@type": "City",
+          "name": "Caserta"
+        },
+        {
+          "@type": "City",
+          "name": "Aversa"
+        },
+        {
+          "@type": "City",
+          "name": "Salerno"
+        },
+        {
+          "@type": "Place",
+          "name": "Costiera Amalfitana"
+        },
+        {
+          "@type": "AdministrativeArea",
+          "name": "Campania"
+        },
+        {
+          "@type": "Country",
+          "name": "Italia"
+        }
+      ],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Servizi Fotografici",
+        "itemListElement": [
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Fotografia Matrimoni",
+              "description": "Servizio fotografico completo per matrimoni con reportage emozionale e gallerie digitali interattive"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Video Matrimoni",
+              "description": "Video matrimoniali cinematografici con storytelling emozionale"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Gallerie Memorie Sospese",
+              "description": "Gallerie fotografiche digitali interattive per rivivere i tuoi ricordi più belli"
+            }
+          }
+        ]
+      },
       "sameAs": [
         "https://www.facebook.com/imagestudio",
         "https://www.instagram.com/imagestudio"
+      ],
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "5",
+        "reviewCount": "150"
+      }
+    }
+    </script>
+    
+    <!-- BreadcrumbList Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://www.memoriesospese.it/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Portfolio",
+          "item": "https://www.memoriesospese.it/portfolio"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Blog",
+          "item": "https://www.memoriesospese.it/blog"
+        }
       ]
+    }
+    </script>
+    
+    <!-- LocalBusiness Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "LocalBusiness",
+      "@id": "https://www.memoriesospese.it/#business",
+      "name": "Image Studio - Memorie Sospese",
+      "image": "https://www.memoriesospese.it/1200x630px.jpg",
+      "telephone": "+39-XXX-XXXXXXX",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Aversa",
+        "addressLocality": "Napoli",
+        "addressRegion": "Campania",
+        "postalCode": "81031",
+        "addressCountry": "IT"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "40.973",
+        "longitude": "14.207"
+      },
+      "url": "https://www.memoriesospese.it",
+      "priceRange": "€€€",
+      "openingHoursSpecification": {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "opens": "09:00",
+        "closes": "20:00"
+      }
     }
     </script>
 
