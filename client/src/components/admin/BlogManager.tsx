@@ -347,35 +347,41 @@ export default function BlogManager() {
     if (!bulkAction || selectedPosts.size === 0) return;
 
     try {
-      const batch = writeBatch(db);
+      const postIds = Array.from(selectedPosts);
+      const CHUNK_SIZE = 400; // Limite sicuro per evitare "Transaction too big"
+      let successCount = 0;
 
-      if (bulkAction === 'publish') {
-        selectedPosts.forEach(postId => {
-          const postRef = doc(db, 'blogPosts', postId);
-          batch.update(postRef, {
-            status: BlogPostStatus.PUBLISHED,
-            publishedAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
+      // Dividi in chunks per evitare limite Firebase
+      for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
+        const chunk = postIds.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+
+        if (bulkAction === 'publish') {
+          chunk.forEach(postId => {
+            const postRef = doc(db, 'blogPosts', postId);
+            batch.update(postRef, {
+              status: BlogPostStatus.PUBLISHED,
+              publishedAt: Timestamp.now(),
+              updatedAt: Timestamp.now()
+            });
           });
-        });
+        } else if (bulkAction === 'delete') {
+          chunk.forEach(postId => {
+            const postRef = doc(db, 'blogPosts', postId);
+            batch.delete(postRef);
+          });
+        }
 
         await batch.commit();
-        toast({
-          title: "Successo",
-          description: `${selectedPosts.size} post pubblicati con successo`
-        });
-      } else if (bulkAction === 'delete') {
-        selectedPosts.forEach(postId => {
-          const postRef = doc(db, 'blogPosts', postId);
-          batch.delete(postRef);
-        });
-
-        await batch.commit();
-        toast({
-          title: "Successo",
-          description: `${selectedPosts.size} post eliminati con successo`
-        });
+        successCount += chunk.length;
       }
+
+      toast({
+        title: "Successo",
+        description: bulkAction === 'publish' 
+          ? `${successCount} post pubblicati con successo`
+          : `${successCount} post eliminati con successo`
+      });
 
       setSelectedPosts(new Set());
       setBulkActionDialogOpen(false);
@@ -416,7 +422,7 @@ export default function BlogManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-semibold">Blog</h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -424,7 +430,7 @@ export default function BlogManager() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <WordPressImporter onImportComplete={loadPosts} />
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -630,11 +636,11 @@ export default function BlogManager() {
           </div>
         </div>
 
-      <div className="flex gap-4 items-center flex-wrap">
-        <div className="flex gap-2 items-center">
-          <Label>Filtra per stato:</Label>
+      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
+        <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full lg:w-auto">
+          <Label className="whitespace-nowrap">Filtra per stato:</Label>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-48" data-testid="filter-status">
+            <SelectTrigger className="w-full sm:w-48" data-testid="filter-status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -647,14 +653,14 @@ export default function BlogManager() {
         </div>
 
         {filteredPosts.length > 0 && (
-          <>
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-wrap">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="select-all"
                 checked={selectedPosts.size === filteredPosts.length && filteredPosts.length > 0}
                 onCheckedChange={toggleSelectAll}
               />
-              <Label htmlFor="select-all" className="cursor-pointer">
+              <Label htmlFor="select-all" className="cursor-pointer text-sm">
                 Seleziona tutti ({selectedPosts.size} selezionati)
               </Label>
             </div>
@@ -663,18 +669,18 @@ export default function BlogManager() {
               variant="outline"
               size="sm"
               onClick={detectAndSelectSpam}
-              className="border-red-500 text-red-600 hover:bg-red-50"
+              className="border-red-500 text-red-600 hover:bg-red-50 w-full sm:w-auto"
             >
               🚫 Rileva SPAM
             </Button>
 
             {selectedPosts.size > 0 && (
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button
                   variant="default"
                   size="sm"
                   onClick={handleBulkPublish}
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Pubblica Selezionati
@@ -683,13 +689,14 @@ export default function BlogManager() {
                   variant="destructive"
                   size="sm"
                   onClick={handleBulkDelete}
+                  className="w-full sm:w-auto"
                 >
                   <Trash className="h-4 w-4 mr-2" />
                   Elimina Selezionati
                 </Button>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
@@ -710,44 +717,54 @@ export default function BlogManager() {
             {paginatedPosts.map(post => (
               <Card key={post.id} className={selectedPosts.has(post.id) ? 'border-sage border-2' : ''}>
                 <CardHeader>
-                  <div className="flex justify-between items-start gap-3">
-                    <Checkbox
-                      checked={selectedPosts.has(post.id)}
-                      onCheckedChange={() => togglePostSelection(post.id)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CardTitle className="text-xl">{post.title}</CardTitle>
-                        <Badge className={STATUS_COLORS[post.status]}>
-                          {STATUS_LABELS[post.status]}
-                        </Badge>
-                        {isSpam(post) && (
-                          <Badge variant="destructive" className="bg-red-600">
-                            SPAM
-                          </Badge>
-                        )}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex gap-3 flex-1 min-w-0">
+                        <Checkbox
+                          checked={selectedPosts.has(post.id)}
+                          onCheckedChange={() => togglePostSelection(post.id)}
+                          className="mt-1 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <CardTitle className="text-lg md:text-xl break-words">{post.title}</CardTitle>
+                            <Badge className={STATUS_COLORS[post.status]}>
+                              {STATUS_LABELS[post.status]}
+                            </Badge>
+                            {isSpam(post) && (
+                              <Badge variant="destructive" className="bg-red-600">
+                                SPAM
+                              </Badge>
+                            )}
+                          </div>
+                          <CardDescription className="flex flex-wrap items-center gap-2 md:gap-4 text-sm">
+                            <span className="break-all">/{post.slug}</span>
+                            {post.category && <span className="hidden sm:inline">·</span>}
+                            {post.category && <span>{post.category}</span>}
+                            {post.publishedAt && (
+                              <>
+                                <span className="hidden sm:inline">·</span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {new Date(post.publishedAt.seconds * 1000).toLocaleDateString('it-IT')}
+                                </span>
+                              </>
+                            )}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <CardDescription className="flex items-center gap-4 text-sm">
-                        <span>/{post.slug}</span>
-                        {post.category && <span>· {post.category}</span>}
-                        {post.publishedAt && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(post.publishedAt.seconds * 1000).toLocaleDateString('it-IT')}
-                          </span>
-                        )}
-                      </CardDescription>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       {post.status === 'published' && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => window.open(`/blog/${post.slug}`, '_blank')}
                           data-testid={`button-view-${post.id}`}
+                          className="flex-1 sm:flex-none"
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-4 w-4 sm:mr-0" />
+                          <span className="sm:hidden ml-2">Visualizza</span>
                         </Button>
                       )}
                       <Button
@@ -755,16 +772,20 @@ export default function BlogManager() {
                         size="sm"
                         onClick={() => openDialog(post)}
                         data-testid={`button-edit-${post.id}`}
+                        className="flex-1 sm:flex-none"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4 sm:mr-0" />
+                        <span className="sm:hidden ml-2">Modifica</span>
                       </Button>
                       <Button
                         variant="destructive"
                         size="sm"
                         onClick={() => openDeleteDialog(post.id)}
                         data-testid={`button-delete-${post.id}`}
+                        className="flex-1 sm:flex-none"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 sm:mr-0" />
+                        <span className="sm:hidden ml-2">Elimina</span>
                       </Button>
                     </div>
                   </div>
@@ -786,40 +807,42 @@ export default function BlogManager() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-6">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                ← Prec
-              </Button>
-              
-              <div className="flex gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(page)}
-                    className="w-10"
-                  >
-                    {page}
-                  </Button>
-                ))}
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-3 mt-6">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Prec
+                </Button>
+                
+                <div className="flex gap-1 overflow-x-auto max-w-[200px] sm:max-w-none">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="w-10 flex-shrink-0"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Succ →
+                </Button>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Succ →
-              </Button>
-
-              <span className="text-sm text-muted-foreground ml-4">
+              <span className="text-sm text-muted-foreground text-center">
                 Pagina {currentPage} di {totalPages} ({filteredPosts.length} post)
               </span>
             </div>
