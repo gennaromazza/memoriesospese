@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { ArrowLeft, Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 import { useStudio } from "@/context/StudioContext";
