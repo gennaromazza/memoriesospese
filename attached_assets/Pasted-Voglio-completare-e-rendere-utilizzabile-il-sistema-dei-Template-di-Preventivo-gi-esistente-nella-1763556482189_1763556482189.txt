@@ -1,0 +1,69 @@
+Voglio completare e rendere utilizzabile il sistema dei "Template di Preventivo" già esistente nella mia admin dashboard.
+Il componente e la logica base esistono già nel progetto, ma non sono mai stati terminati.
+
+OBIETTIVO:
+Permettere all’admin di creare dei template di preventivo che contengono:
+
+una selezione di prodotti già esistenti nel database
+
+una logica di sconto applicabile a tutti i prodotti del template (percentuale o valore)
+
+eventuali regole aggiuntive (come min/max quantità)
+
+possibilità di attivare/disattivare il template
+
+COME DEVE FUNZIONARE:
+
+Nell’admin, nella sezione Template Preventivi, posso creare un nuovo template.
+
+All’interno del template seleziono più prodotti esistenti (prodotti già salvati in Firestore → collezione products).
+
+Per ciascun template posso impostare una regola di sconto standard (es.: -10% su tutti i prodotti contenuti).
+
+Posso salvare, modificare, duplicare, eliminare e attivare/disattivare un template.
+
+Quando compilo un preventivo, posso scegliere un template:
+
+il sistema deve automaticamente importare tutti i prodotti del template dentro il preventivo
+
+applicare le logiche di sconto configurate
+
+permettere poi all’admin di fare modifiche manuali al preventivo se necessario
+
+COSA DEVI FARE NEL CODICE:
+
+Creare o completare i componenti React dedicati alla creazione/modifica dei template.
+
+Creare o completare gli hook (React Query) CRUD per salvare/leggere template da Firestore.
+
+Strutturare la collezione Firestore quoteTemplates con campi:
+
+id
+
+name (string)
+
+description (string)
+
+products: array di productId
+
+discount: { type: 'percentage' | 'fixed', value: number }
+
+isActive: boolean
+
+createdAt / updatedAt (timestamp)
+
+Integrare nel sistema di creazione preventivo un’opzione per importare un template.
+
+Applicare automaticamente logiche di sconto quando un template viene importato.
+
+IMPORTANTISSIMO:
+
+Non creare nuove logiche sconnesse dal resto della mia app tipo “sistemi aggiuntivi”.
+
+Devi modificare e integrare ai file e componenti esistenti.
+
+Devi mantenere la stessa struttura del mio progetto: React + TypeScript + Firebase + React Query + UI ShadCN.
+
+Assicurati che tutto sia responsive.
+
+Usa i miei tipi TypeScript esistenti (product, quoteProduct ecc.) senza inventarne di nuovi senza motivo.
