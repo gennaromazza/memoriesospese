@@ -875,38 +875,60 @@ export async function isSlotAvailable(
   }
 
   // Check 3: Jobs esistenti (lavori confermati che occupano tempo)
-  if (preloadedJobs && preloadedJobs.length > 0) {
-    for (const doc of preloadedJobs) {
+  let jobDocs = preloadedJobs;
+
+  if (!jobDocs) {
+    // Fallback: fetch se non pre-caricato (backward compatibility)
+    const jobStartOfDay = new Date(date);
+    jobStartOfDay.setHours(0, 0, 0, 0);
+
+    const jobEndOfDay = new Date(date);
+    jobEndOfDay.setHours(23, 59, 59, 999);
+
+    const jobsQuery = db.collection('jobs')
+      .where('eventDate', '>=', Timestamp.fromDate(jobStartOfDay))
+      .where('eventDate', '<=', Timestamp.fromDate(jobEndOfDay));
+
+    const jobs = await jobsQuery.get();
+    
+    // Filtra solo job con stati rilevanti (che occupano realmente tempo)
+    jobDocs = jobs.docs.filter((doc: any) => {
       const data = doc.data();
-      
-      // Se job è all-day, blocca l'intera giornata
-      if (data.allDay === true) {
-        if (isDebug) {
-          console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da job all-day "${data.nomeEvento}"`);
-        }
-        return false; // Job all-day blocca tutti gli slot della giornata
+      const stato = data.stato || '';
+      return ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'].includes(stato);
+    });
+  }
+
+  for (const doc of jobDocs) {
+    const data = doc.data();
+    
+    // Se job è all-day, blocca l'intera giornata
+    if (data.allDay === true) {
+      if (isDebug) {
+        console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da job all-day "${data.nomeEvento}"`);
       }
+      return false; // Job all-day blocca tutti gli slot della giornata
+    }
+    
+    // Se job ha orari specifici, controlla overlap
+    if (data.startTime && data.endTime) {
+      const [jobStartHour, jobStartMin] = data.startTime.split(':').map(Number);
+      const [jobEndHour, jobEndMin] = data.endTime.split(':').map(Number);
       
-      // Se job ha orari specifici, controlla overlap
-      if (data.startTime && data.endTime) {
-        const [jobStartHour, jobStartMin] = data.startTime.split(':').map(Number);
-        const [jobEndHour, jobEndMin] = data.endTime.split(':').map(Number);
-        
-        const jobStart = new Date(date);
-        jobStart.setHours(jobStartHour, jobStartMin, 0, 0);
-        
-        const jobEnd = new Date(date);
-        jobEnd.setHours(jobEndHour, jobEndMin, 0, 0);
-        
-        // Check overlap
-        const overlaps = slotStart < jobEnd && slotEnd > jobStart;
-        
-        if (overlaps) {
-          if (isDebug) {
-            console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da job "${data.nomeEvento}" (${data.startTime}-${data.endTime})`);
-          }
-          return false; // Conflict con job esistente
+      const jobStart = new Date(date);
+      jobStart.setHours(jobStartHour, jobStartMin, 0, 0);
+      
+      const jobEnd = new Date(date);
+      jobEnd.setHours(jobEndHour, jobEndMin, 0, 0);
+      
+      // Check overlap
+      const overlaps = slotStart < jobEnd && slotEnd > jobStart;
+      
+      if (overlaps) {
+        if (isDebug) {
+          console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da job "${data.nomeEvento}" (${data.startTime}-${data.endTime})`);
         }
+        return false; // Conflict con job esistente
       }
     }
   }
