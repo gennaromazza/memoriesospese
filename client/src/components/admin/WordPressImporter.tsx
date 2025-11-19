@@ -33,9 +33,28 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
   // Scarica immagine da URL esterno e la ricarica su Firebase
   const downloadAndReuploadImage = async (imageUrl: string, postSlug: string): Promise<string> => {
     try {
-      // Download immagine
-      const response = await fetch(imageUrl);
-      if (!response.ok) throw new Error('Download fallito');
+      // ✅ FIX Mixed Content: converti HTTP → HTTPS
+      let urlToFetch = imageUrl;
+      if (imageUrl.startsWith('http://')) {
+        urlToFetch = imageUrl.replace('http://', 'https://');
+        console.log(`🔒 Convertito HTTP → HTTPS: ${urlToFetch}`);
+      }
+      
+      // Download immagine (prova HTTPS, fallback a HTTP se necessario)
+      let response;
+      try {
+        response = await fetch(urlToFetch, { mode: 'cors' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      } catch (httpsError) {
+        // Fallback a HTTP se HTTPS fallisce
+        if (urlToFetch.startsWith('https://')) {
+          console.warn(`⚠️ HTTPS fallito, tentativo HTTP per: ${imageUrl}`);
+          response = await fetch(imageUrl, { mode: 'cors' });
+          if (!response.ok) throw new Error('Download fallito');
+        } else {
+          throw httpsError;
+        }
+      }
       
       const blob = await response.blob();
       const file = new File([blob], 'image.jpg', { type: blob.type });
@@ -53,10 +72,12 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
       await uploadBytes(storageRef, compressedFile);
       const downloadUrl = await getDownloadURL(storageRef);
       
+      console.log(`✅ Immagine migrata: ${imageUrl} → Firebase`);
       return downloadUrl;
     } catch (error) {
-      console.error('Errore download/upload immagine:', imageUrl, error);
-      return imageUrl; // Ritorna URL originale in caso di errore
+      console.error('❌ Errore download/upload immagine:', imageUrl, error);
+      // ✅ FIX: Converti almeno a HTTPS invece di ritornare HTTP
+      return imageUrl.replace('http://', 'https://');
     }
   };
 
