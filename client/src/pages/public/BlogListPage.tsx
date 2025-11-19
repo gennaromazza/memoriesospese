@@ -15,6 +15,9 @@ export default function BlogListPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(9);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedTag, setSelectedTag] = useState<string>('all');
 
   useEffect(() => {
     loadPosts();
@@ -45,11 +48,32 @@ export default function BlogListPage() {
     }
   };
 
+  // Estrai categorie e tag unici
+  const allCategories = ['all', ...new Set(posts.map(p => p.category).filter(Boolean))];
+  const allTags = ['all', ...new Set(posts.flatMap(p => p.tags || []))];
+
+  // Filtra posts
+  const filteredPosts = posts.filter(post => {
+    const matchesSearch = searchQuery === '' || 
+      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesCategory = selectedCategory === 'all' || post.category === selectedCategory;
+    const matchesTag = selectedTag === 'all' || post.tags?.includes(selectedTag);
+    
+    return matchesSearch && matchesCategory && matchesTag;
+  });
+
   // Paginazione
-  const totalPages = Math.ceil(posts.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredPosts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedPosts = posts.slice(startIndex, endIndex);
+  const paginatedPosts = filteredPosts.slice(startIndex, endIndex);
+
+  // Reset pagina quando cambiano i filtri
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedTag]);
 
   const formatDate = (timestamp: any) => {
     if (!timestamp || !timestamp.seconds) return '';
@@ -115,13 +139,85 @@ export default function BlogListPage() {
         </div>
       </section>
 
+      {/* Filtri e Ricerca */}
+      <section className="py-8 px-4 bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Barra di ricerca */}
+            <div className="flex-1">
+              <Input
+                type="text"
+                placeholder="🔍 Cerca articoli..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
+
+            {/* Filtro Categoria */}
+            {allCategories.length > 1 && (
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-sage"
+              >
+                <option value="all">Tutte le Categorie</option>
+                {allCategories.slice(1).map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Filtro Tag */}
+            {allTags.length > 1 && (
+              <select
+                value={selectedTag}
+                onChange={(e) => setSelectedTag(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-sage"
+              >
+                <option value="all">Tutti i Tag</option>
+                {allTags.slice(1).map(tag => (
+                  <option key={tag} value={tag}>{tag}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Risultati */}
+          {(searchQuery || selectedCategory !== 'all' || selectedTag !== 'all') && (
+            <p className="text-sm text-gray-600 mt-4">
+              {filteredPosts.length} {filteredPosts.length === 1 ? 'articolo trovato' : 'articoli trovati'}
+            </p>
+          )}
+        </div>
+      </section>
+
       {/* Posts Grid */}
       <section className="py-12 px-4">
         <div className="max-w-7xl mx-auto">
-          {posts.length === 0 ? (
+          {filteredPosts.length === 0 ? (
             <div className="text-center py-24 bg-white rounded-2xl shadow-lg">
-              <p className="text-xl text-gray-500">Nessun articolo pubblicato al momento</p>
-              <p className="text-gray-400 mt-2">Torna presto per nuovi contenuti!</p>
+              {posts.length === 0 ? (
+                <>
+                  <p className="text-xl text-gray-500">Nessun articolo pubblicato al momento</p>
+                  <p className="text-gray-400 mt-2">Torna presto per nuovi contenuti!</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xl text-gray-500">Nessun articolo trovato</p>
+                  <p className="text-gray-400 mt-2">Prova a modificare i filtri di ricerca</p>
+                  <Button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedCategory('all');
+                      setSelectedTag('all');
+                    }}
+                    className="mt-4 bg-sage hover:bg-dark-sage"
+                  >
+                    Resetta Filtri
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
             <>

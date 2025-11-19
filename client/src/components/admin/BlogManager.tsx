@@ -461,9 +461,10 @@ export default function BlogManager() {
             </DialogHeader>
 
             <Tabs defaultValue="content" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="content">Contenuto</TabsTrigger>
                 <TabsTrigger value="seo">SEO</TabsTrigger>
+                <TabsTrigger value="preview">Anteprima</TabsTrigger>
               </TabsList>
 
               <TabsContent value="content" className="space-y-4 py-4">
@@ -621,6 +622,47 @@ export default function BlogManager() {
                     <p className="text-xs text-muted-foreground mt-1">
                       {formData.metaDescription.length}/160 caratteri
                     </p>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="preview" className="space-y-4 py-4">
+                <div className="border rounded-lg p-6 bg-white max-h-[500px] overflow-y-auto">
+                  <div className="prose prose-lg max-w-none">
+                    {formData.coverImage && (
+                      <img 
+                        src={formData.coverImage} 
+                        alt="Copertina"
+                        className="w-full h-64 object-cover rounded-lg mb-6"
+                      />
+                    )}
+                    
+                    <h1 className="text-4xl font-playfair mb-4">{formData.title || 'Titolo del post'}</h1>
+                    
+                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-6">
+                      <span>👤 {formData.author}</span>
+                      {formData.category && <span>📁 {formData.category}</span>}
+                      <span>⏱️ {estimateReadTime(formData.content)}</span>
+                    </div>
+
+                    {formData.excerpt && (
+                      <p className="text-xl italic text-gray-600 border-l-4 border-sage pl-4 mb-6">
+                        {formData.excerpt}
+                      </p>
+                    )}
+
+                    <div 
+                      dangerouslySetInnerHTML={{ __html: formData.content || '<p class="text-gray-400">Il contenuto apparirà qui...</p>' }}
+                      className="blog-content"
+                    />
+
+                    {formData.tags && (
+                      <div className="flex gap-2 mt-8 pt-6 border-t">
+                        {formData.tags.split(',').map(tag => tag.trim()).filter(Boolean).map(tag => (
+                          <Badge key={tag} variant="secondary">{tag}</Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>

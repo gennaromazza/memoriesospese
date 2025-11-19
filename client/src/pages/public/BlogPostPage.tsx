@@ -4,7 +4,8 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Calendar, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 
 export default function BlogPostPage() {
@@ -12,6 +13,7 @@ export default function BlogPostPage() {
   const [post, setPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
 
   useEffect(() => {
     if (params?.slug) {
@@ -36,10 +38,30 @@ export default function BlogPostPage() {
         setPost(null);
       } else {
         const doc = snapshot.docs[0];
-        setPost({
+        const currentPost = {
           id: doc.id,
           ...doc.data()
-        } as BlogPost);
+        } as BlogPost;
+        setPost(currentPost);
+
+        // Carica articoli correlati (stessa categoria o tag)
+        const relatedQuery = query(
+          postsRef,
+          where('status', '==', BlogPostStatus.PUBLISHED),
+          where('id', '!=', currentPost.id)
+        );
+        const relatedSnapshot = await getDocs(relatedQuery);
+        const allPosts = relatedSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as BlogPost));
+        
+        // Filtra per categoria o tag simili
+        const related = allPosts
+          .filter(p => 
+            p.category === currentPost.category || 
+            p.tags?.some(tag => currentPost.tags?.includes(tag))
+          )
+          .slice(0, 3);
+        
+        setRelatedPosts(related);
       }
     } catch (error) {
       console.error('Errore caricamento articolo:', error);
@@ -69,6 +91,20 @@ export default function BlogPostPage() {
     const words = content.split(/\s+/).length;
     const minutes = Math.ceil(words / wordsPerMinute);
     return `${minutes} min`;
+  };
+
+  const shareOnSocial = (platform: string) => {
+    if (!post) return;
+    const url = window.location.href;
+    const text = post.title;
+    
+    const urls = {
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+      twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`
+    };
+    
+    window.open(urls[platform as keyof typeof urls], '_blank', 'width=600,height=400');
   };
 
   useEffect(() => {
@@ -288,6 +324,68 @@ export default function BlogPostPage() {
           dangerouslySetInnerHTML={{ __html: post.content }}
           data-testid="content-html"
         />
+
+        {/* Condivisione Social */}
+        <div className="mt-12 pt-8 border-t border-gray-200">
+          <h3 className="text-xl font-semibold mb-4">Condividi questo articolo</h3>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => shareOnSocial('facebook')}
+              className="flex items-center gap-2"
+            >
+              <Facebook className="h-4 w-4" />
+              Facebook
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => shareOnSocial('twitter')}
+              className="flex items-center gap-2"
+            >
+              <Twitter className="h-4 w-4" />
+              Twitter
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => shareOnSocial('linkedin')}
+              className="flex items-center gap-2"
+            >
+              <Linkedin className="h-4 w-4" />
+              LinkedIn
+            </Button>
+          </div>
+        </div>
+
+        {/* Articoli Correlati */}
+        {relatedPosts.length > 0 && (
+          <div className="mt-12 pt-8 border-t border-gray-200">
+            <h3 className="text-2xl font-semibold mb-6">Articoli Correlati</h3>
+            <div className="grid md:grid-cols-3 gap-6">
+              {relatedPosts.map(relatedPost => (
+                <Link key={relatedPost.id} href={`/blog/${relatedPost.slug}`}>
+                  <div className="group cursor-pointer">
+                    {relatedPost.coverImage && (
+                      <img
+                        src={relatedPost.coverImage}
+                        alt={relatedPost.title}
+                        className="w-full h-48 object-cover rounded-lg mb-3 group-hover:opacity-90 transition"
+                      />
+                    )}
+                    <h4 className="font-semibold text-lg group-hover:text-sage transition">
+                      {relatedPost.title}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                      {relatedPost.excerpt}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-16 pt-8 border-t border-gray-200">
           <Link href="/blog">
