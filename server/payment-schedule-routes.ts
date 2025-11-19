@@ -289,7 +289,7 @@ router.post('/generate-auto', async (req: Request, res: Response) => {
  */
 router.post('/generate', async (req: Request, res: Response) => {
   try {
-    const { quoteId, jobId, clienteId, payments, totale, presetType } = req.body;
+    const { quoteId, jobId, clienteId, payments, totale, presetType, dataRiferimento } = req.body;
 
     // Validazione base
     if (!quoteId || !jobId || !clienteId) {
@@ -298,6 +298,9 @@ router.post('/generate', async (req: Request, res: Response) => {
         message: 'quoteId, jobId, clienteId richiesti'
       });
     }
+
+    // Data riferimento: usa dataRiferimento se fornito, altrimenti oggi
+    const baseDate = dataRiferimento ? new Date(dataRiferimento) : new Date();
 
     // ==== MODE 1: AUTOMATIC (presetType provided) ====
     if (presetType) {
@@ -323,7 +326,7 @@ router.post('/generate', async (req: Request, res: Response) => {
         });
       }
 
-      const today = new Date();
+      const today = baseDate;
       const addDaysHelper = (date: Date, days: number) => {
         const result = new Date(date);
         result.setDate(result.getDate() + days);

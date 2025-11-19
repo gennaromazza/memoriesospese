@@ -603,9 +603,10 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         const targetQuote = quotes.find(q => q.id === generaPagamentiQuoteId);
         if (!targetQuote || !clienteId) return null;
 
+        // ✅ FIX: Usa totalAfterDiscount (prezzo scontato) per calcolo acconti
         const totale = targetQuote.type === 'fisso'
-          ? (targetQuote.totaleBase ?? targetQuote.totalAfterDiscount ?? 0)
-          : (targetQuote.totaleSelezionato ?? targetQuote.totaleBase ?? targetQuote.totalAfterDiscount ?? 0);
+          ? (targetQuote.totalAfterDiscount ?? 0)  // Prezzo NETTO con sconto applicato
+          : (targetQuote.totaleSelezionato ?? targetQuote.totalAfterDiscount ?? 0);
 
         return (
           <GeneraPagamentiModal

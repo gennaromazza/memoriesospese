@@ -3860,19 +3860,17 @@ router.post("/send-consultation-cancelled", async (req, res) => {
 });
 
 /**
- * Template HTML per email notifica evento calendario creato
- * ESPORTATA per uso in calendar-routes.ts
+ * Template HTML per email preventivo inviato
+ * ESPORTATA per uso in quote-routes.ts
  */
-export function createCalendarEventEmailHTML(
+export function createQuoteSentEmailHTML(
   clienteName: string,
-  eventTitle: string,
-  eventDate: string,
-  eventTime: string,
-  eventEndTime: string,
-  eventLocation?: string,
-  eventDescription?: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string },
-  calendarLink?: string
+  quoteType: 'fisso' | 'variabile',
+  nomeEvento: string,
+  totalAfterDiscount: number,
+  quoteUrl: string,
+  expiresAt?: Date,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
     name: "Memorie Sospese", 
@@ -3881,56 +3879,49 @@ export function createCalendarEventEmailHTML(
     address: ""
   };
 
+  const expiryText = expiresAt 
+    ? `Questo preventivo è valido fino al <strong>${expiresAt.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>.`
+    : '';
+
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">📅 Nuovo Evento in Calendario</h2>
+      <h2 style="color: #8b5a3c; text-align: center;">📋 Preventivo Personalizzato</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
-          Hai un nuovo appuntamento confermato con <strong>${studio.name}</strong>.
+          Abbiamo preparato un preventivo personalizzato per il tuo evento <strong>${nomeEvento}</strong>.
         </p>
 
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Appuntamento</h3>
-          <p style="margin: 8px 0;"><strong>📝 Titolo:</strong> ${eventTitle}</p>
-          <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${eventDate}</p>
-          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${eventTime}${eventEndTime ? ` - ${eventEndTime}` : ''}</p>
-          ${eventLocation ? `<p style="margin: 8px 0;"><strong>📍 Luogo:</strong> ${eventLocation}</p>` : ''}
-          ${eventDescription ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${eventDescription}</p>` : ''}
+          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">💰 Dettagli Preventivo</h3>
+          <p style="margin: 8px 0;"><strong>Tipo:</strong> ${quoteType === 'fisso' ? 'Preventivo Fisso' : 'Preventivo Variabile'}</p>
+          <p style="margin: 8px 0;"><strong>Totale:</strong> €${totalAfterDiscount.toFixed(2)}</p>
+          ${expiryText ? `<p style="margin: 8px 0; color: #666;">${expiryText}</p>` : ''}
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${quoteUrl}" 
+             style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+            📄 Visualizza Preventivo
+          </a>
         </div>
 
         <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0c5460;">
-            <strong>✅ Appuntamento Confermato</strong><br>
-            Segna questo appuntamento sul tuo calendario personale. Ti aspettiamo!
+            <strong>✅ Prossimi Passi</strong><br>
+            ${quoteType === 'fisso' 
+              ? 'Rivedi il preventivo e firmalo online per confermare il servizio.'
+              : 'Seleziona i prodotti che desideri e firma il preventivo per procedere.'}
           </p>
         </div>
 
         <p style="font-size: 14px; color: #666; margin-top: 20px;">
-          Se hai bisogno di modificare o annullare l'appuntamento, contattaci via WhatsApp o email.
+          Per qualsiasi domanda o modifica, non esitare a contattarci.
         </p>
       </div>
-
-      ${calendarLink ? `
-      <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f9f7f4; border-radius: 12px;">
-        <p style="font-size: 16px; color: #333; margin-bottom: 8px; font-weight: 600;">
-          📅 Non dimenticare l'appuntamento!
-        </p>
-        <p style="font-size: 14px; color: #666; margin-bottom: 18px; line-height: 1.5;">
-          Salvalo nel tuo calendario con un click.
-        </p>
-        <a href="${calendarLink}" 
-           style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
-                  text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-          📅 Aggiungi al Calendario
-        </a>
-        <p style="font-size: 12px; color: #888; margin-top: 12px;">
-          Compatibile con Google Calendar, Outlook, Apple Calendar
-        </p>
-      </div>
-      ` : ''}
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>

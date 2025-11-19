@@ -37,17 +37,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { Plus, Trash2, CalendarIcon, Loader2, AlertCircle, CalendarDays } from 'lucide-react';
-import { format, addDays } from 'date-fns';
-import { it } from 'date-fns/locale';
+import { Plus, Trash2, Loader2, AlertCircle, CalendarDays } from 'lucide-react';
+import { addDays } from 'date-fns';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
@@ -59,6 +53,7 @@ const paymentSchema = z.object({
 
 const formSchema = z.object({
   payments: z.array(paymentSchema).min(1, 'Almeno una rata richiesta'),
+  dataRiferimento: z.date().optional(), // Data firma/riferimento per lavori storici
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -98,6 +93,7 @@ export default function GeneraPagamentiModal({
           descrizione: 'Pagamento totale',
         },
       ],
+      dataRiferimento: undefined, // Opzionale per lavori storici
     },
   });
 
@@ -210,17 +206,21 @@ export default function GeneraPagamentiModal({
   // Mutation: crea payment schedule (automatic vs manual)
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Prepara body base (include dataRiferimento opzionale)
+      const baseBody = {
+        quoteId,
+        jobId,
+        clienteId,
+        ...(data.dataRiferimento && { dataRiferimento: data.dataRiferimento.toISOString() }),
+      };
+
       const body = activeTab === 'automatico'
         ? {
-            quoteId,
-            jobId,
-            clienteId,
+            ...baseBody,
             presetType: selectedPreset, // Server calcola automaticamente
           }
         : {
-            quoteId,
-            jobId,
-            clienteId,
+            ...baseBody,
             payments: data.payments,
             totale: quoteTotale,
           };
@@ -279,6 +279,36 @@ export default function GeneraPagamentiModal({
             Totale preventivato: <strong className="text-foreground">€{quoteTotale.toFixed(2)}</strong>
           </DialogDescription>
         </DialogHeader>
+
+        <Form {...form}>
+          {/* Data Firma/Riferimento globale (per lavori storici) */}
+          <Card className="bg-muted/30">
+            <CardContent className="p-4">
+              <FormField
+                control={form.control}
+                name="dataRiferimento"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data Firma/Riferimento (Opzionale)</FormLabel>
+                    <FormControl>
+                      <DateInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="gg/mm/aaaa (per lavori storici)"
+                        data-testid="input-data-riferimento"
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma.
+                      Lascia vuoto per usare la data odierna.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+        </Form>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'automatico' | 'manuale')}>
           <TabsList className="grid w-full grid-cols-2">
@@ -405,6 +435,34 @@ export default function GeneraPagamentiModal({
           <TabsContent value="manuale" className="space-y-4 mt-4">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                {/* Data Firma/Riferimento opzionale per lavori storici */}
+                <Card className="bg-muted/30">
+                  <CardContent className="p-4">
+                    <FormField
+                      control={form.control}
+                      name="dataRiferimento"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Data Firma/Riferimento (Opzionale)</FormLabel>
+                          <FormControl>
+                            <DateInput
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="gg/mm/aaaa (per lavori storici)"
+                              data-testid="input-data-riferimento"
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma.
+                            Lascia vuoto per usare la data odierna.
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
                 {/* Lista Rate */}
                 <div className="space-y-3">
                   {fields.map((field, index) => (
@@ -479,35 +537,13 @@ export default function GeneraPagamentiModal({
                               render={({ field: formField }) => (
                                 <FormItem>
                                   <FormLabel>Data Scadenza</FormLabel>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <FormControl>
-                                        <Button
-                                          variant="outline"
-                                          className={cn(
-                                            'w-full pl-3 text-left font-normal',
-                                            !formField.value && 'text-muted-foreground'
-                                          )}
-                                        >
-                                          {formField.value ? (
-                                            format(formField.value, 'dd/MM/yyyy', { locale: it })
-                                          ) : (
-                                            <span>Seleziona data</span>
-                                          )}
-                                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                      </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <Calendar
-                                        mode="single"
-                                        selected={formField.value}
-                                        onSelect={formField.onChange}
-                                        disabled={(date) => date < new Date()}
-                                        initialFocus
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
+                                  <FormControl>
+                                    <DateInput
+                                      value={formField.value}
+                                      onChange={formField.onChange}
+                                      data-testid={`input-data-scadenza-${index}`}
+                                    />
+                                  </FormControl>
                                   <FormMessage />
                                 </FormItem>
                               )}

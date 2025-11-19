@@ -56,11 +56,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle } from 'lucide-react';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import { DateInput } from '@/components/ui/date-input';
+import { Loader2, X, User, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
@@ -99,8 +96,6 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [dateInputValue, setDateInputValue] = useState('');
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
   const [conflictsAlert, setConflictsAlert] = useState<{
     open: boolean;
@@ -148,18 +143,6 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   const eventDate = form.watch('eventDate');
   const startTime = form.watch('startTime');
   const endTime = form.watch('endTime');
-
-  // Sync dateInputValue when eventDate changes externally (from calendar or reset)
-  useEffect(() => {
-    if (eventDate) {
-      const day = String(eventDate.getDate()).padStart(2, '0');
-      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-      const year = eventDate.getFullYear();
-      setDateInputValue(`${day}/${month}/${year}`);
-    } else {
-      setDateInputValue('');
-    }
-  }, [eventDate]);
 
   // Auto-check calendar conflicts quando data/orari cambiano
   useEffect(() => {
@@ -416,87 +399,23 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
               />
             </div>
             
-            {/* Data evento - dual mode input */}
+            {/* Data evento - keyboard + calendar input */}
             <FormField
               control={form.control}
               name="eventDate"
-              render={({ field }) => {
-                // Parse dd/mm/yyyy format
-                const parseDate = (str: string): Date | null => {
-                  const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-                  if (!match) return null;
-                  const [_, day, month, year] = match;
-                  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                  // Validate components match (handles invalid dates like 31/02)
-                  if (date.getDate() !== parseInt(day) || 
-                      date.getMonth() !== parseInt(month) - 1 || 
-                      date.getFullYear() !== parseInt(year)) {
-                    return null;
-                  }
-                  return date;
-                };
-
-                const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-                  const value = e.target.value;
-                  setDateInputValue(value);
-                  
-                  // Try to parse if format looks complete
-                  if (value.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    const parsed = parseDate(value);
-                    if (parsed) {
-                      field.onChange(parsed);
-                    }
-                  } else if (value === '') {
-                    field.onChange(undefined);
-                  }
-                };
-
-                const handleCalendarSelect = (date: Date | undefined) => {
-                  field.onChange(date);
-                  setDatePickerOpen(false);
-                };
-
-                return (
-                  <FormItem>
-                    <FormLabel>Data Evento *</FormLabel>
-                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                      <div className="relative">
-                        <FormControl>
-                          <Input
-                            type="text"
-                            placeholder="gg/mm/aaaa"
-                            value={dateInputValue}
-                            onChange={handleManualInput}
-                            className="pr-10"
-                            data-testid="input-event-date"
-                          />
-                        </FormControl>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                            data-testid="button-toggle-calendar"
-                          >
-                            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                        </PopoverTrigger>
-                      </div>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={handleCalendarSelect}
-                          initialFocus
-                          locale={it}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Data Evento *</FormLabel>
+                  <FormControl>
+                    <DateInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      data-testid="input-event-date"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
 
             {/* All day + orari */}
