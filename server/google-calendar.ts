@@ -140,6 +140,7 @@ export async function getEvents(
 
 /**
  * Verifica disponibilità (freebusy) per calcolare slot liberi
+ * DEPRECATO: Usa checkFreeBusyMultiple per controllo multi-calendario
  */
 export async function checkFreeBusy(
   calendarId: string = 'primary',
@@ -158,6 +159,80 @@ export async function checkFreeBusy(
 
   const calendarBusy = response.data.calendars?.[calendarId];
   return calendarBusy?.busy || [];
+}
+
+/**
+ * Verifica disponibilità su TUTTI i calendari Google contemporaneamente
+ * Più efficiente di chiamare checkFreeBusy per ogni calendario
+ * @returns Array di busy periods aggregati da tutti i calendari
+ */
+export async function checkFreeBusyAllCalendars(
+  timeMin: Date,
+  timeMax: Date
+): Promise<Array<{ start: string; end: string; calendarId?: string; calendarName?: string }>> {
+  try {
+    const calendar = await getGoogleCalendarClient();
+    
+    // 1. Recupera lista di tutti i calendari
+    console.log('[Google Calendar] 📋 Recupero lista calendari...');
+    const calendars = await listCalendars();
+    
+    if (!calendars || calendars.length === 0) {
+      console.warn('[Google Calendar] ⚠️ Nessun calendario trovato');
+      return [];
+    }
+    
+    console.log(`[Google Calendar] ✅ Trovati ${calendars.length} calendari:`);
+    calendars.forEach(cal => {
+      console.log(`  - "${cal.summary}" (${cal.id}) ${cal.primary ? '[PRIMARY]' : ''}`);
+    });
+    
+    // 2. Prepara items per freebusy query (tutti i calendari in una chiamata)
+    const calendarItems = calendars.map(cal => ({ id: cal.id }));
+    
+    // 3. Chiama freebusy API con TUTTI i calendari
+    const response = await calendar.freebusy.query({
+      requestBody: {
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        items: calendarItems,
+      },
+    });
+    
+    // 4. Aggrega busy periods da tutti i calendari
+    const allBusyPeriods: Array<{ start: string; end: string; calendarId?: string; calendarName?: string }> = [];
+    
+    if (response.data.calendars) {
+      for (const [calId, calData] of Object.entries(response.data.calendars)) {
+        const busyPeriods = (calData as any).busy || [];
+        
+        if (busyPeriods.length > 0) {
+          const calInfo = calendars.find(c => c.id === calId);
+          const calName = calInfo?.summary || calId;
+          
+          console.log(`[Google Calendar] 🔴 Calendario "${calName}": ${busyPeriods.length} busy periods`);
+          
+          // Aggiungi metadata per logging migliore
+          busyPeriods.forEach((period: any) => {
+            allBusyPeriods.push({
+              start: period.start,
+              end: period.end,
+              calendarId: calId,
+              calendarName: calName
+            });
+          });
+        }
+      }
+    }
+    
+    console.log(`[Google Calendar] 📊 Totale busy periods aggregati: ${allBusyPeriods.length}`);
+    
+    return allBusyPeriods;
+    
+  } catch (error: any) {
+    console.error('[Google Calendar] ❌ Errore checkFreeBusyAllCalendars:', error.message);
+    throw error; // Propaga errore invece di fail silenzioso
+  }
 }
 
 /**
