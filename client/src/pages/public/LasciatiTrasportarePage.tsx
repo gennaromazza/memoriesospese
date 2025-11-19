@@ -6,10 +6,10 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import libroPdf from "@assets/lasciati-trasportare.pdf";
+import libroCopertinaImg from "@assets/libro-copertina.jpg";
 
-// Configure PDF.js worker - Vite-compatible local worker
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// Configure PDF.js worker - Use Mozilla CDN for reliability
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export default function LasciatiTrasportarePage() {
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -54,12 +54,12 @@ export default function LasciatiTrasportarePage() {
         <div className="grid md:grid-cols-2 gap-12 mb-16">
           {/* Book Preview */}
           <div>
-            <div className="aspect-[3/4] bg-gradient-to-br from-sage to-dark-sage rounded-2xl shadow-2xl flex items-center justify-center text-white p-12">
-              <div className="text-center">
-                <h2 className="text-4xl font-playfair mb-4">LASCIATI</h2>
-                <h2 className="text-4xl font-playfair mb-8">TRASPORTARE</h2>
-                <p className="text-xl">di Gennaro Mazzacane</p>
-              </div>
+            <div className="aspect-[3/4] bg-white rounded-2xl shadow-2xl overflow-hidden">
+              <img 
+                src={libroCopertinaImg} 
+                alt="Copertina Lasciati Trasportare" 
+                className="w-full h-full object-cover"
+              />
             </div>
           </div>
 
