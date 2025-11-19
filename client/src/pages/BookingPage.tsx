@@ -762,14 +762,24 @@ export default function BookingPage() {
                         Settimana prec.
                       </Button>
                       
-                      <span className="text-sm text-muted-foreground font-medium">
-                        {(() => {
-                          const weekStart = availableDates[currentWeekIndex * 7];
-                          const weekEnd = availableDates[Math.min((currentWeekIndex + 1) * 7 - 1, availableDates.length - 1)];
-                          if (!weekStart || !weekEnd) return "";
-                          return `${format(weekStart, "d MMM", { locale: it })} - ${format(weekEnd, "d MMM yyyy", { locale: it })}`;
-                        })()}
-                      </span>
+                      <div className="text-center">
+                        <span className="text-xs sm:text-sm text-muted-foreground font-medium block">
+                          {(() => {
+                            const weekStart = availableDates[currentWeekIndex * 7];
+                            const weekEnd = availableDates[Math.min((currentWeekIndex + 1) * 7 - 1, availableDates.length - 1)];
+                            if (!weekStart || !weekEnd) return "";
+                            return (
+                              <>
+                                <span className="block sm:inline">{format(weekStart, "d MMM", { locale: it })}</span>
+                                <span className="hidden sm:inline"> - </span>
+                                <span className="block sm:inline sm:before:content-none before:content-['↓'] before:block before:text-primary before:my-1">
+                                  {format(weekEnd, "d MMM yyyy", { locale: it })}
+                                </span>
+                              </>
+                            );
+                          })()}
+                        </span>
+                      </div>
 
                       <Button
                         type="button"
