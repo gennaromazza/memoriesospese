@@ -20,6 +20,13 @@ import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, CheckSquare, Tras
 import { BlogPost, BlogPostStatus, insertBlogPostSchema, InsertBlogPost } from '@shared/schema';
 import WordPressImporter from './WordPressImporter';
 
+// Helper function to estimate reading time
+const estimateReadTime = (content: string): number => {
+  const wordsPerMinute = 200;
+  const words = content.trim().split(/\s+/).length;
+  return Math.ceil(words / wordsPerMinute);
+};
+
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-yellow-500',
   published: 'bg-green-500',
@@ -287,14 +294,14 @@ export default function BlogManager() {
 
     try {
       await deleteDoc(doc(db, 'blogPosts', postToDelete));
-      
+
       // Reset dello stato
       setDeleteDialogOpen(false);
       setPostToDelete(null);
-      
+
       // Ricarica immediatamente i post
       await loadPosts();
-      
+
       // Mostra il toast dopo il refresh
       toast({
         title: "Eliminato",
@@ -636,13 +643,13 @@ export default function BlogManager() {
                         className="w-full h-64 object-cover rounded-lg mb-6"
                       />
                     )}
-                    
+
                     <h1 className="text-4xl font-playfair mb-4">{formData.title || 'Titolo del post'}</h1>
-                    
+
                     <div className="flex items-center gap-4 text-sm text-gray-600 mb-6">
                       <span>👤 {formData.author}</span>
                       {formData.category && <span>📁 {formData.category}</span>}
-                      <span>⏱️ {estimateReadTime(formData.content)}</span>
+                      <span>⏱️ {estimateReadTime(formData.content)} min</span>
                     </div>
 
                     {formData.excerpt && (
@@ -869,7 +876,7 @@ export default function BlogManager() {
                 >
                   ← Prec
                 </Button>
-                
+
                 <div className="flex gap-1 overflow-x-auto max-w-[200px] sm:max-w-none">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                     <Button
