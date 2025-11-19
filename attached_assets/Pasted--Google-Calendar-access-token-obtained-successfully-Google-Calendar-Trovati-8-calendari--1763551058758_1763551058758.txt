@@ -1,0 +1,35 @@
+✅ Google Calendar access token obtained successfully
+[Google Calendar] ✅ Trovati 8 calendari:
+  - "Festività in Italia" (it.italian#holiday@group.v.calendar.google.com) 
+  - "Famiglia" (family04232183903392990210@group.calendar.google.com) 
+  - "Appuntamenti su Facebook per IMaGe Studio fotografico" (5gcdf3d9nd8qaa6tt9nn0ttea4@group.calendar.google.com) 
+  - "Goldie" (imf1f944f68lilremmhn2506no@group.calendar.google.com) 
+  - "studiowedcrm" (1d0717288a7c043661056180ef92fd54bd963901f0592ffc2f8aec740537eaa2@group.calendar.google.com) 
+  - "Appuntamento su Facebook per Mondo gadget  be cool-be original" (j6d6vgveustuslknp1kavlbpvo@group.calendar.google.com) 
+  - "Appuntamento su Facebook per Gennaro Mazzacane Photography" (kcgnggol1fgjvaogr1t7r0r9sc@group.calendar.google.com) 
+  - "gennaro.mazzacane@gmail.com" (gennaro.mazzacane@gmail.com) [PRIMARY]
+[Google Calendar] 🔴 Calendario "gennaro.mazzacane@gmail.com": 2 busy periods
+[Google Calendar] 📊 Totale busy periods aggregati: 2
+[Consultations] ✅ Trovati 2 busy periods aggregati da tutti i calendari
+[Consultations] 📅 Calendari con eventi: gennaro.mazzacane@gmail.com
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 09:00-10:30
+[Consultations] ❌ Slot 09:00-10:30 BLOCCATO da booking
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 09:30-11:00
+[Consultations] ❌ Slot 09:30-11:00 BLOCCATO da booking
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 10:00-11:30
+[Consultations] ❌ Slot 10:00-11:30 BLOCCATO da booking
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 10:30-12:00
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 11:00-12:30
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 11:30-13:00
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 14:30-16:00
+[Consultations] ❌ Slot 14:30-16:00 BLOCCATO da booking
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 15:00-16:30
+[Consultations] ❌ Slot 15:00-16:30 BLOCCATO da booking
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 15:30-17:00
+[Consultations] ❌ Slot 15:30-17:00 BLOCCATO da booking
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 16:00-17:30
+[Consultations] ❌ Slot 16:00-17:30 BLOCCATO da evento dal calendario "gennaro.mazzacane@gmail.com" (15:30-19:00)
+[Consultations] 📅 Controllo 2 bookings per 2025-11-29, slot 16:30-18:00
+[Consultations] ❌ Slot 16:30-18:00 BLOCCATO da evento dal calendario "gennaro.mazzacane@gmail.com" (15:30-19:00)
+[Consultations] ⚡ Generati 11 slot totali (3 disponibili)
+[POST /available-slots] Slot calcolati: 11

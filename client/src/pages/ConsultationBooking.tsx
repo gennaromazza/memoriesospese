@@ -360,12 +360,18 @@ export default function ConsultationBooking() {
                     )}
                     {availableSlotsMutation.data && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                        {!availableSlotsMutation.data.slots || availableSlotsMutation.data.slots.length === 0 ? (
-                          <div className="col-span-full text-center py-8 text-gray-500">
-                            Nessuno slot disponibile per questa data
-                          </div>
-                        ) : (
-                          availableSlotsMutation.data.slots.map((slot: any, idx: number) => {
+                        {(() => {
+                          const availableSlots = availableSlotsMutation.data.slots?.filter((slot: any) => slot.available !== false) || [];
+                          
+                          if (availableSlots.length === 0) {
+                            return (
+                              <div className="col-span-full text-center py-8 text-gray-500">
+                                Nessuno slot disponibile per questa data
+                              </div>
+                            );
+                          }
+                          
+                          return availableSlots.map((slot: any, idx: number) => {
                             const slotStart = new Date(slot.start);
                             const slotEnd = new Date(slot.end);
                             const isSelected = selectedSlot?.start.getTime() === slotStart.getTime();
@@ -382,8 +388,8 @@ export default function ConsultationBooking() {
                                 {format(slotStart, "HH:mm")}
                               </Button>
                             );
-                          })
-                        )}
+                          });
+                        })()}
                       </div>
                     )}
                   </div>
