@@ -280,35 +280,33 @@ export default function GeneraPagamentiModal({
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          {/* Data Firma/Riferimento globale (per lavori storici) */}
-          <Card className="bg-muted/30">
-            <CardContent className="p-4">
-              <FormField
-                control={form.control}
-                name="dataRiferimento"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data Firma/Riferimento (Opzionale)</FormLabel>
-                    <FormControl>
-                      <DateInput
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="gg/mm/aaaa (per lavori storici)"
-                        data-testid="input-data-riferimento"
-                      />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma.
-                      Lascia vuoto per usare la data odierna.
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-        </Form>
+        {/* Data Firma/Riferimento globale (per lavori storici) - disponibile per ENTRAMBI i tab */}
+        <Card className="bg-muted/30">
+          <CardContent className="p-4">
+            <FormField
+              control={form.control}
+              name="dataRiferimento"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Data Firma/Riferimento (Opzionale)</FormLabel>
+                  <FormControl>
+                    <DateInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="gg/mm/aaaa (per lavori storici)"
+                      data-testid="input-data-riferimento-global"
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma.
+                    Lascia vuoto per usare la data odierna.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'automatico' | 'manuale')}>
           <TabsList className="grid w-full grid-cols-2">
@@ -435,34 +433,6 @@ export default function GeneraPagamentiModal({
           <TabsContent value="manuale" className="space-y-4 mt-4">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                {/* Data Firma/Riferimento opzionale per lavori storici */}
-                <Card className="bg-muted/30">
-                  <CardContent className="p-4">
-                    <FormField
-                      control={form.control}
-                      name="dataRiferimento"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Data Firma/Riferimento (Opzionale)</FormLabel>
-                          <FormControl>
-                            <DateInput
-                              value={field.value}
-                              onChange={field.onChange}
-                              placeholder="gg/mm/aaaa (per lavori storici)"
-                              data-testid="input-data-riferimento"
-                            />
-                          </FormControl>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma.
-                            Lascia vuoto per usare la data odierna.
-                          </p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </CardContent>
-                </Card>
-
                 {/* Lista Rate */}
                 <div className="space-y-3">
                   {fields.map((field, index) => (
