@@ -687,12 +687,30 @@ export default function BlogManager() {
                         />
                       </div>
                       {formData.coverImage && (
-                        <img 
-                          src={formData.coverImage} 
-                          alt="Anteprima" 
-                          className="w-full h-40 object-cover rounded border"
-                        />
+                        <div className="relative">
+                          <img 
+                            src={formData.coverImage} 
+                            alt="Anteprima" 
+                            className="w-full h-40 object-cover rounded border"
+                            onLoad={(e) => {
+                              const img = e.target as HTMLImageElement;
+                              const width = img.naturalWidth;
+                              const height = img.naturalHeight;
+                              const ratio = (width / height).toFixed(2);
+                              const tooltip = document.getElementById('cover-image-tooltip');
+                              if (tooltip) {
+                                tooltip.textContent = `${width}×${height}px (${ratio}:1)`;
+                              }
+                            }}
+                          />
+                          <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                            <span id="cover-image-tooltip">Caricamento...</span>
+                          </div>
+                        </div>
                       )}
+                      <p className="text-xs text-muted-foreground">
+                        💡 Dimensioni consigliate: 1200×630px (rapporto 1.91:1) per social media
+                      </p>
                     </div>
                   </div>
                 </div>
