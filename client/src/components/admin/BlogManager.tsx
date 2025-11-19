@@ -287,13 +287,19 @@ export default function BlogManager() {
 
     try {
       await deleteDoc(doc(db, 'blogPosts', postToDelete));
+      
+      // Reset dello stato
+      setDeleteDialogOpen(false);
+      setPostToDelete(null);
+      
+      // Ricarica immediatamente i post
+      await loadPosts();
+      
+      // Mostra il toast dopo il refresh
       toast({
         title: "Eliminato",
         description: "Post eliminato con successo"
       });
-      setDeleteDialogOpen(false);
-      setPostToDelete(null);
-      loadPosts();
     } catch (error) {
       console.error('Errore eliminazione post:', error);
       toast({
@@ -376,17 +382,21 @@ export default function BlogManager() {
         successCount += chunk.length;
       }
 
+      // Reset dello stato prima di mostrare il toast
+      setSelectedPosts(new Set());
+      setBulkActionDialogOpen(false);
+      setBulkAction(null);
+
+      // Ricarica immediatamente i post
+      await loadPosts();
+
+      // Mostra il toast dopo il refresh
       toast({
         title: "Successo",
         description: bulkAction === 'publish' 
           ? `${successCount} post pubblicati con successo`
           : `${successCount} post eliminati con successo`
       });
-
-      setSelectedPosts(new Set());
-      setBulkActionDialogOpen(false);
-      setBulkAction(null);
-      loadPosts();
     } catch (error) {
       console.error('Errore bulk action:', error);
       toast({
