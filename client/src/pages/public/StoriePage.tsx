@@ -39,11 +39,11 @@ export default function StoriePage() {
 
         {/* Hero Image */}
         <div className="mb-12 animate-fade-in">
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-gray-900">
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-gray-900 max-w-3xl mx-auto">
             <img
               src={gennaroWithCamera}
               alt="Gennaro Mazzacane con la sua fotocamera Fujifilm"
-              className="w-full h-auto object-contain"
+              className="w-full h-auto object-cover max-h-[500px]"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
             <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white">
@@ -102,7 +102,7 @@ export default function StoriePage() {
               <img
                 src={gennaroArtistic}
                 alt="Gennaro Mazzacane al lavoro"
-                className="w-full h-auto object-contain"
+                className="w-full h-auto object-cover max-h-[400px]"
               />
             </div>
           </div>
