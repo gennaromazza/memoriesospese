@@ -338,14 +338,18 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                 name="jobType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tipo Lavoro *</FormLabel>
+                    <FormLabel htmlFor="job-type-select">Tipo Lavoro *</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
                       disabled={loadingJobTypes}
                     >
                       <FormControl>
-                        <SelectTrigger data-testid="select-job-type">
+                        <SelectTrigger 
+                          id="job-type-select"
+                          data-testid="select-job-type"
+                          aria-label="Tipo Lavoro"
+                        >
                           <SelectValue placeholder={loadingJobTypes ? 'Caricamento...' : 'Seleziona tipo...'} />
                         </SelectTrigger>
                       </FormControl>
@@ -354,12 +358,18 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                           .filter(jt => jt.attivo)
                           .sort((a, b) => a.ordine - b.ordine)
                           .map(jobType => (
-                            <SelectItem key={jobType.id} value={jobType.slug}>
+                            <SelectItem 
+                              key={jobType.id} 
+                              value={jobType.slug}
+                            >
                               {jobType.icona} {jobType.nome}
                             </SelectItem>
                           ))}
                       </SelectContent>
                     </Select>
+                    <FormDescription className="text-xs">
+                      Usa ↑↓ per navigare, Enter per selezionare
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -371,14 +381,18 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                 name="provenance"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Provenienza *</FormLabel>
+                    <FormLabel htmlFor="provenance-select">Provenienza *</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
                       disabled={loadingProvenances}
                     >
                       <FormControl>
-                        <SelectTrigger data-testid="select-provenance">
+                        <SelectTrigger 
+                          id="provenance-select"
+                          data-testid="select-provenance"
+                          aria-label="Provenienza"
+                        >
                           <SelectValue placeholder={loadingProvenances ? 'Caricamento...' : 'Seleziona...'} />
                         </SelectTrigger>
                       </FormControl>
@@ -387,12 +401,18 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                           .filter(p => p.attivo)
                           .sort((a, b) => a.ordine - b.ordine)
                           .map(prov => (
-                            <SelectItem key={prov.id} value={prov.slug}>
+                            <SelectItem 
+                              key={prov.id} 
+                              value={prov.slug}
+                            >
                               {prov.icona} {prov.nome}
                             </SelectItem>
                           ))}
                       </SelectContent>
                     </Select>
+                    <FormDescription className="text-xs">
+                      Usa ↑↓ per navigare, Enter per selezionare
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -413,6 +433,9 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                       data-testid="input-event-date"
                     />
                   </FormControl>
+                  <FormDescription className="text-xs">
+                    Digita direttamente gg/mm/aaaa oppure usa il calendario
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
