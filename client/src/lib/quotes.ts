@@ -44,6 +44,37 @@ function generatePublicToken(): string {
 }
 
 /**
+ * Calcola il totale corretto per generazione piano pagamenti
+ * 
+ * Logica:
+ * - Preventivo FISSO → usa totalAfterDiscount
+ * - Preventivo VARIABILE non firmato → somma SOLO prodotti fissi (selectable: false)
+ * - Preventivo VARIABILE firmato → usa totaleSelezionato (include scelte cliente)
+ * 
+ * Questo evita di generare piani pagamenti su prodotti variabili non ancora selezionati
+ */
+export function calculateQuoteTotalForPayments(quote: Quote): number {
+  // Preventivo fisso → prezzo netto con sconto
+  if (quote.type === 'fisso') {
+    return quote.totalAfterDiscount ?? 0;
+  }
+  
+  // Preventivo variabile
+  if (quote.status === 'firmato' && quote.totaleSelezionato !== undefined) {
+    // Firmato → usa totale con selezioni cliente
+    return quote.totaleSelezionato;
+  }
+  
+  // Non firmato → calcola solo prodotti fissi (obbligatori)
+  // I prodotti variabili (selectable: true) verranno inclusi dopo la firma
+  const totaleFissi = quote.products
+    .filter(p => !p.selectable)  // Solo prodotti fissi
+    .reduce((sum, p) => sum + p.prezzo, 0);
+  
+  return totaleFissi;
+}
+
+/**
  * Crea nuovo preventivo
  */
 export async function createQuote(

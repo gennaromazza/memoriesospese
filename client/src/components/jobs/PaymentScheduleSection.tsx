@@ -47,6 +47,7 @@ interface PaymentScheduleSectionProps {
   jobId: string;
   eventDate?: Date | null;
   isAdmin?: boolean;
+  onGeneratePayments?: () => void; // Callback per aprire modal generazione pagamenti
 }
 
 const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
@@ -76,7 +77,7 @@ const PAYMENT_STATUS_ICONS: Record<PaymentStatus, typeof CheckCircle2> = {
   scaduto: XCircle,
 };
 
-export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false }: PaymentScheduleSectionProps) {
+export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false, onGeneratePayments }: PaymentScheduleSectionProps) {
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; tipo: string; importo: number; scheduleId: string } | null>(null);
   const [gestioneRataState, setGestioneRataState] = useState<{
     open: boolean;
@@ -171,6 +172,43 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
   }
 
   if (schedules.length === 0) {
+    // Se admin → mostra bottone per generare piano (disabled se callback non fornito)
+    if (isAdmin) {
+      const isDisabled = !onGeneratePayments;
+      
+      return (
+        <div className="text-center py-12">
+          <CreditCard className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+          <h3 className="font-semibold text-lg mb-2">Nessun piano pagamenti</h3>
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            {isDisabled 
+              ? 'Caricamento preventivi in corso...' 
+              : 'Crea uno scadenzario pagamenti basato sul preventivo firmato'}
+          </p>
+          <Button
+            onClick={onGeneratePayments}
+            size="lg"
+            className="min-w-[200px]"
+            disabled={isDisabled}
+            data-testid="button-genera-piano-pagamenti"
+          >
+            {isDisabled ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                Caricamento...
+              </>
+            ) : (
+              <>
+                <CreditCard className="h-5 w-5 mr-2" />
+                Genera Piano Pagamenti
+              </>
+            )}
+          </Button>
+        </div>
+      );
+    }
+    
+    // Altrimenti → messaggio generico
     return (
       <div className="text-center py-8">
         <CreditCard className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />

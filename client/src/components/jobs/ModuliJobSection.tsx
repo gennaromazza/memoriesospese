@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { getQuotesForJob, deleteQuote, resetQuoteSignature } from '@/lib/quotes';
+import { getQuotesForJob, deleteQuote, resetQuoteSignature, calculateQuoteTotalForPayments } from '@/lib/quotes';
 import { Quote, QuoteStatus } from '@shared/quotes-types';
 import { getJob } from '@/lib/jobs';
 import { getClienteById } from '@/lib/clienti';
@@ -322,13 +322,12 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                 </CardContent>
               </CollapsibleTrigger>
 
-              {/* Collapsible Content - Horizontal Layout */}
+              {/* Collapsible Content */}
               <CollapsibleContent>
                 <div className="border-t bg-muted/30 p-6">
-                  {/* Admin Actions Header */}
+                  {/* Admin Actions Menu - Top Right */}
                   {isAdmin && (
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="font-semibold text-lg">Dettagli Preventivo</h3>
+                    <div className="flex justify-end mb-4">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm" data-testid="button-quote-actions">
@@ -365,57 +364,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     </div>
                   )}
 
-                  {/* 2-Column Layout: Products Left | Actions Right */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* LEFT COLUMN: Products + Total */}
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="font-semibold mb-3 text-base">Prodotti Inclusi</h3>
-                        <div className="space-y-2">
-                          {quote.products.map((product, idx) => (
-                            <div key={idx} className="flex items-start justify-between p-3 bg-background rounded-lg border">
-                              <div className="flex-1">
-                                <p className="font-medium">{product.nome}</p>
-                                {product.descrizione && (
-                                  <p className="text-sm text-muted-foreground mt-1">{product.descrizione}</p>
-                                )}
-                                {product.numeroFoto && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {product.numeroFoto} foto
-                                  </p>
-                                )}
-                              </div>
-                              <div className="text-right ml-4">
-                                <p className="font-semibold">€{product.prezzo.toFixed(2)}</p>
-                                {quote.type === 'variabile' && (
-                                  <div className="flex items-center gap-1 mt-1">
-                                    {product.selected ? (
-                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                    ) : (
-                                      <XCircle className="h-4 w-4 text-muted-foreground" />
-                                    )}
-                                    <span className="text-xs text-muted-foreground">
-                                      {product.selected ? 'Selezionato' : 'Non selezionato'}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                          <span className="font-semibold text-lg">Totale Preventivo</span>
-                          <span className="font-bold text-2xl text-primary">
-                            €{quote.type === 'fisso' 
-                              ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2) 
-                              : (quote.totaleSelezionato ?? quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* RIGHT COLUMN: Signature, Actions, Links */}
-                    <div className="space-y-4">
+                  {/* Single Column Layout: Signature, Actions, Links */}
+                  <div className="max-w-2xl mx-auto space-y-4">
                       {/* Signature */}
                       {quote.signature && (
                         <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
@@ -438,131 +388,121 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                         </div>
                       )}
 
-                      {/* Genera Pagamenti (only for signed quotes) */}
-                      {quote.status === 'firmato' && isAdmin && (
-                        <div>
-                          <Button
-                            onClick={() => setGeneraPagamentiQuoteId(quote.id)}
-                            className="w-full"
-                            size="lg"
-                            data-testid="button-genera-pagamenti"
-                          >
-                            <CreditCard className="h-5 w-5 mr-2" />
-                            Genera Piano Pagamenti
-                          </Button>
-                          <p className="text-xs text-muted-foreground mt-2 text-center">
-                            Crea uno scadenzario pagamenti basato sul totale preventivato
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Public Link */}
-                      <div>
-                        <h3 className="font-semibold mb-3 text-sm">
-                          {quote.status === 'firmato' ? 'Portale Cliente Firmato' : 'Link Firma Preventivo'}
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            readOnly
-                            value={getQuoteUrl(quote)}
-                            className="flex-1 px-3 py-2 bg-muted rounded text-sm border"
-                            onClick={(e) => e.currentTarget.select()}
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={async () => {
-                              const url = getQuoteUrl(quote);
-                              try {
-                                await navigator.clipboard.writeText(url);
-                                setCopiedLink(true);
-                                toast({
-                                  title: "Link copiato!",
-                                  description: "Il link del portale è stato copiato negli appunti"
-                                });
-                                setTimeout(() => setCopiedLink(false), 2000);
-                              } catch (error) {
-                                toast({
-                                  title: "Errore",
-                                  description: "Impossibile copiare il link",
-                                  variant: "destructive"
-                                });
-                              }
-                            }}
-                            data-testid="button-copy-link"
-                          >
-                            {copiedLink ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => window.open(getQuoteUrl(quote), '_blank')}
-                            data-testid="button-open-portal"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        {/* Export PDF Button - only for signed quotes */}
-                        {quote.status === 'firmato' && (
-                          <div className="mt-3">
-                            <Button
-                              onClick={() => window.open(getQuoteUrl(quote), '_blank')}
-                              className="w-full"
-                              variant="secondary"
-                              data-testid="button-export-pdf"
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Esporta PDF
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* WhatsApp Buttons */}
-                        {(() => {
-                          const clientiConWhatsApp = clienti.filter(c => {
-                            const phoneNumber = c.whatsapp || c.cellulare1;
-                            return phoneNumber && phoneNumber.trim() !== '';
-                          });
-                          
-                          if (clientiConWhatsApp.length === 0) return null;
-                          
-                          return (
-                            <div className="mt-3">
-                              <p className="text-xs text-muted-foreground mb-2">
-                                {quote.status === 'firmato' 
-                                  ? 'Invia preventivo firmato su WhatsApp:' 
-                                  : 'Invia preventivo su WhatsApp:'}
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {clientiConWhatsApp.map((cliente, index) => {
-                                  const nomeEvento = job?.nomeEvento || 'il tuo evento';
-                                  const message = quote.status === 'firmato'
-                                    ? `Ecco il preventivo firmato per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli del contratto e i pagamenti\n\n${getQuoteUrl(quote)}`
-                                    : `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli e firmare se sei d'accordo\n\n${getQuoteUrl(quote)}`;
-                                  const phoneNumber = (cliente.whatsapp || cliente.cellulare1 || '').replace(/\s+/g, '').replace(/^\+/, '');
-                                  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-                                  
-                                  return (
-                                    <Button
-                                      key={cliente.id}
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => window.open(whatsappUrl, '_blank')}
-                                      className="bg-[#25D366] hover:bg-[#20BD5A] text-white border-[#25D366] hover:border-[#20BD5A]"
-                                      data-testid={`button-whatsapp-${index}`}
-                                    >
-                                      <Phone className="h-4 w-4 mr-2" />
-                                      {cliente.nome || `Cliente ${index + 1}`}
-                                    </Button>
-                                  );
-                                })}
-                              </div>
+                      {/* Azioni Documento / Condivisione Preventivo */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Azioni Documento</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {/* Portale Cliente */}
+                          <div>
+                            <h3 className="font-semibold mb-2 text-sm">
+                              {quote.status === 'firmato' ? 'Portale Cliente Firmato' : 'Link Firma Preventivo'}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                readOnly
+                                value={getQuoteUrl(quote)}
+                                className="flex-1 px-3 py-2 bg-muted rounded text-sm border"
+                                onClick={(e) => e.currentTarget.select()}
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  const url = getQuoteUrl(quote);
+                                  try {
+                                    await navigator.clipboard.writeText(url);
+                                    setCopiedLink(true);
+                                    toast({
+                                      title: "Link copiato!",
+                                      description: "Il link del portale è stato copiato negli appunti"
+                                    });
+                                    setTimeout(() => setCopiedLink(false), 2000);
+                                  } catch (error) {
+                                    toast({
+                                      title: "Errore",
+                                      description: "Impossibile copiare il link",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                                data-testid="button-copy-link"
+                              >
+                                {copiedLink ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => window.open(getQuoteUrl(quote), '_blank')}
+                                data-testid="button-open-portal"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
                             </div>
-                          );
-                        })()}
-                      </div>
+                          </div>
+
+                          {/* Export PDF - solo preventivi firmati */}
+                          {quote.status === 'firmato' && (
+                            <div>
+                              <Button
+                                onClick={() => window.open(getQuoteUrl(quote), '_blank')}
+                                className="w-full"
+                                variant="secondary"
+                                data-testid="button-export-pdf"
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Esporta PDF
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* WhatsApp Buttons */}
+                          {(() => {
+                            const clientiConWhatsApp = clienti.filter(c => {
+                              const phoneNumber = c.whatsapp || c.cellulare1;
+                              return phoneNumber && phoneNumber.trim() !== '';
+                            });
+                            
+                            if (clientiConWhatsApp.length === 0) return null;
+                            
+                            return (
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  {quote.status === 'firmato' 
+                                    ? 'Invia preventivo firmato su WhatsApp:' 
+                                    : 'Invia preventivo su WhatsApp:'}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {clientiConWhatsApp.map((cliente, index) => {
+                                    const nomeEvento = job?.nomeEvento || 'il tuo evento';
+                                    const message = quote.status === 'firmato'
+                                      ? `Ecco il preventivo firmato per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli del contratto e i pagamenti\n\n${getQuoteUrl(quote)}`
+                                      : `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli e firmare se sei d'accordo\n\n${getQuoteUrl(quote)}`;
+                                    const phoneNumber = (cliente.whatsapp || cliente.cellulare1 || '').replace(/\s+/g, '').replace(/^\+/, '');
+                                    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+                                    
+                                    return (
+                                      <Button
+                                        key={cliente.id}
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => window.open(whatsappUrl, '_blank')}
+                                        className="bg-[#25D366] hover:bg-[#20BD5A] text-white border-[#25D366] hover:border-[#20BD5A]"
+                                        data-testid={`button-whatsapp-${index}`}
+                                      >
+                                        <Phone className="h-4 w-4 mr-2" />
+                                        {cliente.nome || `Cliente ${index + 1}`}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
 
                       {/* Notes */}
                       {quote.noteInterne && (
@@ -587,10 +527,11 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         const targetQuote = quotes.find(q => q.id === generaPagamentiQuoteId);
         if (!targetQuote || !clienteId) return null;
 
-        // ✅ FIX: Usa totalAfterDiscount (prezzo scontato) per calcolo acconti
-        const totale = targetQuote.type === 'fisso'
-          ? (targetQuote.totalAfterDiscount ?? 0)  // Prezzo NETTO con sconto applicato
-          : (targetQuote.totaleSelezionato ?? targetQuote.totalAfterDiscount ?? 0);
+        // ✅ FIX: Calcola totale corretto per piano pagamenti
+        // - Fisso: usa totalAfterDiscount
+        // - Variabile non firmato: solo prodotti fissi (€600)
+        // - Variabile firmato: totaleSelezionato (con scelte cliente)
+        const totale = calculateQuoteTotalForPayments(targetQuote);
 
         return (
           <GeneraPagamentiModal

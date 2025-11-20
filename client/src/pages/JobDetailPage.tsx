@@ -50,6 +50,8 @@ import ModuliJobSection from '@/components/jobs/ModuliJobSection';
 import CostiLavoroTable from '@/components/jobs/CostiLavoroTable';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import PaymentScheduleSection from '@/components/jobs/PaymentScheduleSection';
+import GeneraPagamentiModal from '@/components/jobs/GeneraPagamentiModal';
+import { calculateQuoteTotalForPayments } from '@/lib/quotes';
 import EditJobModal from '@/components/jobs/EditJobModal';
 import EditClienteModal from '@/components/jobs/EditClienteModal';
 import { updateCliente } from '@/lib/clienti';
@@ -77,6 +79,7 @@ export default function JobDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
+  const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
 
   // Calendar event modal state
   const [showCalendarDialog, setShowCalendarDialog] = useState(false);
@@ -751,6 +754,32 @@ export default function JobDetailPage() {
               />
             )}
 
+            {/* Genera Pagamenti Modal */}
+            {generaPagamentiQuoteId && (() => {
+              const targetQuote = quotes?.find(q => q.id === generaPagamentiQuoteId);
+              
+              // Doppia validazione: preventivo deve esistere ED essere firmato
+              if (!targetQuote || !job.clientiIds[0]) return null;
+              if (targetQuote.status !== 'firmato') {
+                console.warn('Tentativo di generare piano pagamenti per preventivo non firmato');
+                return null;
+              }
+
+              const totale = calculateQuoteTotalForPayments(targetQuote);
+
+              return (
+                <GeneraPagamentiModal
+                  open={true}
+                  onClose={() => setGeneraPagamentiQuoteId(null)}
+                  quoteId={targetQuote.id}
+                  quoteTotale={totale}
+                  jobId={job.id}
+                  clienteId={job.clientiIds[0]}
+                  eventDate={job.eventDate ? job.eventDate.toDate() : null}
+                />
+              );
+            })()}
+
             {/* Pagamenti */}
             <Card>
               <CardHeader>
@@ -761,6 +790,19 @@ export default function JobDetailPage() {
                   jobId={job.id}
                   eventDate={job.eventDate ? job.eventDate.toDate() : null}
                   isAdmin={true}
+                  onGeneratePayments={!quotesLoading ? () => {
+                    // Trova primo preventivo firmato
+                    const signedQuote = quotes?.find(q => q.status === 'firmato');
+                    if (signedQuote) {
+                      setGeneraPagamentiQuoteId(signedQuote.id);
+                    } else {
+                      toast({
+                        title: 'Nessun preventivo firmato',
+                        description: 'Per generare un piano pagamenti è necessario avere almeno un preventivo firmato. Crea e firma un preventivo prima di generare lo scadenzario.',
+                        variant: 'destructive',
+                      });
+                    }
+                  } : undefined}
                 />
               </CardContent>
             </Card>
