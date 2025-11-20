@@ -20,7 +20,11 @@ interface FormData {
   cognome: string;
   email: string;
   cellulare1: string;
+  cellulare2: string;
   whatsapp: string;
+  via: string;
+  citta: string;
+  cap: string;
 }
 
 export default function EditClienteModal({ 
@@ -36,7 +40,11 @@ export default function EditClienteModal({
       cognome: cliente.cognome || '',
       email: cliente.email || '',
       cellulare1: cliente.cellulare1 || '',
-      whatsapp: cliente.whatsapp || ''
+      cellulare2: cliente.cellulare2 || '',
+      whatsapp: cliente.whatsapp || '',
+      via: cliente.via || '',
+      citta: cliente.citta || '',
+      cap: cliente.cap || ''
     }
   });
 
@@ -47,9 +55,13 @@ export default function EditClienteModal({
       cognome: cliente.cognome || '',
       email: cliente.email || '',
       cellulare1: cliente.cellulare1 || '',
-      whatsapp: cliente.whatsapp || ''
+      cellulare2: cliente.cellulare2 || '',
+      whatsapp: cliente.whatsapp || '',
+      via: cliente.via || '',
+      citta: cliente.citta || '',
+      cap: cliente.cap || ''
     });
-  }, [cliente.id, reset, cliente.nome, cliente.cognome, cliente.email, cliente.cellulare1, cliente.whatsapp]);
+  }, [cliente.id, reset, cliente.nome, cliente.cognome, cliente.email, cliente.cellulare1, cliente.cellulare2, cliente.whatsapp, cliente.via, cliente.citta, cliente.cap]);
 
   const onSubmit = async (data: FormData) => {
     await onSave({
@@ -57,14 +69,18 @@ export default function EditClienteModal({
       cognome: data.cognome,
       email: data.email,
       cellulare1: data.cellulare1,
-      whatsapp: data.whatsapp
+      cellulare2: data.cellulare2,
+      whatsapp: data.whatsapp,
+      via: data.via,
+      citta: data.citta,
+      cap: data.cap
     });
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" data-testid="dialog-edit-cliente">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-cliente">
         <DialogHeader>
           <DialogTitle>Modifica Cliente</DialogTitle>
         </DialogHeader>
@@ -115,24 +131,74 @@ export default function EditClienteModal({
             )}
           </div>
 
-          <div>
-            <Label htmlFor="cellulare1">Telefono</Label>
-            <Input
-              id="cellulare1"
-              {...register('cellulare1')}
-              placeholder="+39 123 456 7890"
-              data-testid="input-cellulare"
-            />
+          {/* Contatti */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="cellulare1">Cellulare Principale</Label>
+              <Input
+                id="cellulare1"
+                {...register('cellulare1')}
+                placeholder="+39 123 456 7890"
+                data-testid="input-cellulare1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="cellulare2">Cellulare Secondario</Label>
+              <Input
+                id="cellulare2"
+                {...register('cellulare2')}
+                placeholder="+39 098 765 4321"
+                data-testid="input-cellulare2"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="whatsapp">WhatsApp</Label>
+              <Input
+                id="whatsapp"
+                {...register('whatsapp')}
+                placeholder="+39 123 456 7890"
+                data-testid="input-whatsapp"
+              />
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="whatsapp">WhatsApp</Label>
-            <Input
-              id="whatsapp"
-              {...register('whatsapp')}
-              placeholder="+39 123 456 7890"
-              data-testid="input-whatsapp"
-            />
+          {/* Indirizzo */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground">Indirizzo</h3>
+            
+            <div>
+              <Label htmlFor="via">Via</Label>
+              <Input
+                id="via"
+                {...register('via')}
+                placeholder="Via Roma, 123"
+                data-testid="input-via"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="citta">Città</Label>
+                <Input
+                  id="citta"
+                  {...register('citta')}
+                  placeholder="Napoli"
+                  data-testid="input-citta"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="cap">CAP</Label>
+                <Input
+                  id="cap"
+                  {...register('cap')}
+                  placeholder="80100"
+                  data-testid="input-cap"
+                />
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
