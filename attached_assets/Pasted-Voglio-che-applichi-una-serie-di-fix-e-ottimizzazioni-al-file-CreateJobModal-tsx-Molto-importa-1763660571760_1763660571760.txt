@@ -1,0 +1,122 @@
+Voglio che applichi una serie di fix e ottimizzazioni al file:
+
+CreateJobModal.tsx
+
+⚠️ Molto importante:
+
+NON cambiare la logica di business.
+
+NON modificare la UI se non dove serve.
+
+NON introdurre breakings.
+
+Applica solo i fix descritti qui sotto.
+
+✅ 1. Rimuovi bug critici
+(A) Rimuovere la riga che causa crash
+
+Nel metodo handleClose è presente:
+
+setDateInputValue('');
+
+
+Questa variabile NON esiste e causa crash.
+➡️ Rimuovila completamente.
+
+✅ 2. Ottimizza il controllo conflitti calendario
+(A) Aggiungi AbortController al fetch
+
+Nel useEffect che ascolta:
+
+[eventDate, allDay, startTime, endTime]
+
+
+Devi:
+
+Creare un AbortController
+
+Passare signal al fetch
+
+Abortarci nel cleanup
+
+Aggiungere debounce tramite setTimeout già esistente
+
+✅ 3. Migliora validazione orari tramite refine
+
+Sostituisci l’attuale refine con una versione che:
+
+richiede startTime e endTime SOLO se allDay = false
+
+valida che startTime < endTime
+
+Esempio:
+
+.refine((data) => {
+  if (data.allDay) return true;
+  if (!data.startTime || !data.endTime) return false;
+  return data.startTime < data.endTime;
+}, {
+  message: 'L\'orario fine deve essere dopo l\'orario inizio',
+  path: ['endTime']
+});
+
+✅ 4. Reset automatico orari quando allDay = true
+
+Aggiungi un useEffect:
+
+useEffect(() => {
+  if (allDay) {
+    form.setValue("startTime", "");
+    form.setValue("endTime", "");
+  }
+}, [allDay]);
+
+✅ 5. Fix pulsante remove nei chip clienti
+
+Modifica il bottone remove:
+
+onClick={(e) => {
+  e.stopPropagation();
+  handleRemoveCliente(cliente.id);
+}}
+
+✅ 6. Ottimizza performance list jobTypes & provenances
+
+Usa useMemo per evitare esecuzioni inutili durante i render:
+
+const orderedJobTypes = useMemo(() => {
+  return jobTypes
+    .filter(jt => jt.attivo)
+    .sort((a, b) => a.ordine - b.ordine);
+}, [jobTypes]);
+
+
+Usa orderedJobTypes nel render.
+
+Stessa cosa per provenances.
+
+✅ 7. Usa mutateAsync
+
+Sostituisci:
+
+createMutation.mutate(data);
+
+
+Con:
+
+await createMutation.mutateAsync(data);
+
+
+E aggiorna onSubmit di conseguenza.
+
+❗ NESSUNA ALTRA MODIFICA NON RICHIESTA
+
+Non voglio modifiche allo stile, alla struttura, al flow, alla UI o al comportamento generale.
+
+Quando hai finito, mostrami:
+
+diff chiaro
+
+eventuali note
+
+file aggiornato
