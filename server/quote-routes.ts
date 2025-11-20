@@ -543,7 +543,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       }
     }
 
-    // 6. Fetch clienti info - priorità dati salvati in quote, fallback a Firestore
+    // 6. Fetch clienti info - SEMPRE fetch real-time da Firestore per avere dati aggiornati
     let clientiInfo: Array<{ 
       id: string;
       nome?: string; 
@@ -553,10 +553,53 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       indirizzo?: string;
       citta?: string;
       cap?: string;
+      provincia?: string;
     }> = [];
 
-    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
-      // Usa dati salvati in quote (nomi campi allineati con frontend)
+    // Prova prima a fetchare da Firestore (real-time data)
+    const clientIds = quote.jobId ? (await db.collection('jobs').doc(quote.jobId).get()).data()?.clientiIds : [];
+
+    if (clientIds && clientIds.length > 0) {
+      // Fetch clienti REAL-TIME da Firestore
+      const clientiDocs = await Promise.all(
+        clientIds.map((id: string) => db.collection('clienti').doc(id).get())
+      );
+
+      clientiInfo = clientiDocs
+        .filter(doc => doc.exists)
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            nome: data?.nome,
+            cognome: data?.cognome,
+            email: data?.email,
+            telefono: data?.cellulare1 || data?.cellulare2 || '',
+            indirizzo: data?.via || '',
+            citta: data?.citta || '',
+            cap: data?.cap || '',
+            provincia: data?.provincia || ''
+          };
+        });
+    } else if (quote.clienteId) {
+      // Fallback se job non ha clientiIds
+      const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
+      if (clienteDoc.exists) {
+        const clienteData = clienteDoc.data();
+        clientiInfo.push({
+          id: clienteDoc.id,
+          nome: clienteData?.nome,
+          cognome: clienteData?.cognome,
+          email: clienteData?.email,
+          telefono: clienteData?.cellulare1 || clienteData?.cellulare2 || '',
+          indirizzo: clienteData?.via || '',
+          citta: clienteData?.citta || '',
+          cap: clienteData?.cap || '',
+          provincia: clienteData?.provincia || ''
+        });
+      }
+    } else if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+      // Ultima risorsa: usa snapshot salvato in quote (backward compatibility per dati orfani)
       clientiInfo = quote.clientiInfo.map(c => ({
         id: c.id,
         nome: c.nome,
@@ -565,49 +608,9 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
         telefono: c.telefono,
         indirizzo: c.indirizzo,
         citta: c.citta,
-        cap: c.cap
+        cap: c.cap,
+        provincia: c.provincia || ''
       }));
-    } else {
-      // Fallback: fetch da Firestore se quote non ha clientiInfo (backward compatibility)
-      const clientIds = quote.jobId ? (await db.collection('jobs').doc(quote.jobId).get()).data()?.clientiIds : [];
-
-      if (clientIds && clientIds.length > 0) {
-        const clientiDocs = await Promise.all(
-          clientIds.map((id: string) => db.collection('clienti').doc(id).get())
-        );
-
-        clientiInfo = clientiDocs
-          .filter(doc => doc.exists)
-          .map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              nome: data?.nome,
-              cognome: data?.cognome,
-              email: data?.email,
-              telefono: data?.cellulare1 || data?.cellulare2 || '',
-              indirizzo: data?.via || '',
-              citta: data?.citta || '',
-              cap: data?.cap || ''
-            };
-          });
-      } else if (quote.clienteId) {
-        // Fallback se job non ha clientiIds
-        const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
-        if (clienteDoc.exists) {
-          const clienteData = clienteDoc.data();
-          clientiInfo.push({
-            id: clienteDoc.id,
-            nome: clienteData?.nome,
-            cognome: clienteData?.cognome,
-            email: clienteData?.email,
-            telefono: clienteData?.cellulare1 || clienteData?.cellulare2 || '',
-            indirizzo: clienteData?.via || '',
-            citta: clienteData?.citta || '',
-            cap: clienteData?.cap || ''
-          });
-        }
-      }
     }
 
     // 7. Prepara dati sicuri (redact internal fields + serialize timestamps)

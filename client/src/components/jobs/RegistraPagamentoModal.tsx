@@ -113,8 +113,10 @@ export default function RegistraPagamentoModal({
         title: 'Pagamento registrato',
         description: `Pagamento di €${data.data.totalePagato.toFixed(2)} registrato. Saldo residuo: €${data.data.saldoResiduo.toFixed(2)}`,
       });
-      // Invalida cache payment schedules
+      // Invalida cache payment schedules (both queryKeys for real-time Financial Summary update)
       queryClient.invalidateQueries({ queryKey: ['payment-schedules', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['paymentSchedule', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       onOpenChange(false);
       form.reset();
     },

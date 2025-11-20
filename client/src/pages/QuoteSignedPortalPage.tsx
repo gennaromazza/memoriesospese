@@ -36,6 +36,7 @@ interface QuoteSignedPortalData {
     indirizzo?: string;
     citta?: string;
     cap?: string;
+    provincia?: string;
   }>;
 }
 
@@ -366,17 +367,18 @@ export default function QuoteSignedPortalPage() {
                     </div>
                   )}
 
-                  {(cliente.indirizzo || cliente.citta || cliente.cap) && (
+                  {(cliente.indirizzo || cliente.citta || cliente.cap || cliente.provincia) && (
                     <div className="flex items-center gap-3 p-2 bg-off-white rounded">
                       <MapPin className="w-4 h-4 text-sage flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-600">Indirizzo</p>
                         <p className="font-medium text-gray-900 text-sm">
                           {cliente.indirizzo && <>{cliente.indirizzo}<br /></>}
-                          {(cliente.citta || cliente.cap) && (
+                          {(cliente.citta || cliente.cap || cliente.provincia) && (
                             <>
                               {cliente.cap ? `${cliente.cap} ` : ''}
                               {cliente.citta}
+                              {cliente.provincia && ` (${cliente.provincia})`}
                             </>
                           )}
                         </p>
