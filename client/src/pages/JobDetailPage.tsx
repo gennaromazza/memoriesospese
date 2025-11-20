@@ -62,6 +62,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
 import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
 import FinancialSummaryCard from '@/components/jobs/FinancialSummaryCard';
+import { useJobFinancials } from '@/hooks/useJobFinancials';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -110,6 +111,9 @@ export default function JobDetailPage() {
     queryFn: () => getJobTypeBySlug(job!.jobType),
     enabled: !!job
   });
+
+  // Calculate job financials in real-time from payment schedules
+  const jobFinancials = useJobFinancials(job);
 
   // Fetch preventivi associati al job
   const { data: quotes, isLoading: quotesLoading } = useQuery({
@@ -556,10 +560,10 @@ export default function JobDetailPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 lg:pb-8">
         {/* Financial Summary */}
         <FinancialSummaryCard
-          totalePreventivato={job.financials.totalePreventivato}
-          totalePagato={job.financials.totalePagato}
-          saldoResiduo={job.financials.saldoResiduo}
-          totaleCosti={job.costi.reduce((sum, c) => sum + c.importo, 0)}
+          totalePreventivato={jobFinancials.totalePreventivato}
+          totalePagato={jobFinancials.totalePagato}
+          saldoResiduo={jobFinancials.saldoResiduo}
+          totaleCosti={jobFinancials.totaleCosti}
           className="mb-6"
         />
 
@@ -723,7 +727,7 @@ export default function JobDetailPage() {
               <CardContent>
                 <CostiLavoroTable
                   costi={job.costi || []}
-                  totalePreventivato={job.financials.totalePreventivato}
+                  totalePreventivato={jobFinancials.totalePreventivato}
                   onAddCosto={handleAddCosto}
                   onUpdateCosto={handleUpdateCosto}
                   onDeleteCosto={handleDeleteCosto}

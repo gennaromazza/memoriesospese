@@ -1,0 +1,67 @@
+Sto lavorando su JobDetailPage.tsx e ho trovato due problemi distinti ma critici:
+
+❌ BUG #1 — Dati Financial Summary non aggiornati
+
+La scheda “Preventivato / Incassato / Da Incassare / Margine” mostra valori errati.
+Esempio: il cliente ha pagato €500 (registrato nella sezione "Piano Pagamenti"), ma il box in alto mostra:
+
+Incassato → €0
+
+Da Incassare → €0
+
+Margine → = al preventivato (senza considerare i costi)
+
+✅ Obiettivo Fix #1 — Correggere la logica dei calcoli
+
+Crea o correggi un hook centralizzato useJobFinancials(jobId) che calcoli:
+
+incassato = somma dei pagamenti con status === 'pagato'
+daIncassare = totalePreventivato - incassato
+margine = totalePreventivato - totaleCosti
+
+
+I pagamenti vanno presi da job.paymentSchedule o simile.
+
+Aggiorna la Financial Summary Card in modo che usi i dati dell’hook correttamente.
+La card deve riflettere i pagamenti realmente registrati, e reagire se vengono aggiunti, modificati o marcati come pagati.
+
+❌ BUG #2 — Dati cliente non aggiornati nella pagina pubblica (preventivo)
+
+Quando aggiorno il cliente (es. cambiando indirizzo) da JobDetailPage, la modifica è visibile nel pannello admin, ma non viene riflessa nella pagina pubblica del preventivo, accessibile tramite link condiviso.
+
+🧩 Obiettivo Fix #2 — Sincronizzare i dati cliente nel frontend pubblico
+
+Verifica se la pagina pubblica del preventivo (es. /quote/:publicToken) mostra i dati cliente duplicati o memorizzati "in snapshot" (es. job.cliente.nome, job.cliente.indirizzo, ecc.).
+
+Se sì: elimina i duplicati nel documento job (tenere solo clienteId)
+
+In QuotePublicPage (o equivalente), recupera i dati cliente in tempo reale tramite clienteId
+
+Dopo ogni modifica cliente (via EditClienteModal), assicurati che venga eseguita:
+
+queryClient.invalidateQueries(['clienti'])
+
+
+oppure aggiornamento dei dati condivisi.
+
+⚠️ Se il preventivo mostra un modulo generato (es. quote con snapshot anagrafico), va chiarito se è intenzionale o se deve essere aggiornato in tempo reale.
+
+🔁 Cosa aspettarsi:
+
+La Financial Card riflette dati reali e aggiornati (es. €500 pagato → visibile)
+
+Quando modifico il cliente (es. “Via Roma, 123” → “Via Milano, 88”), il nuovo indirizzo appare:
+
+subito nella dashboard
+
+anche nella pagina pubblica del preventivo
+
+🛠 Note Tecniche
+
+Stack: React + TypeScript + Firebase + React Query + ShadCN UI
+
+Dati in Firestore: jobs, clients, quotes
+
+I job contengono solo clientiIds: string[] (no duplicati di dati anagrafici)
+
+Quote e Moduli potrebbero avere snapshot → verificare e documentare logica
