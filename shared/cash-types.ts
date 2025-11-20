@@ -77,4 +77,10 @@ export interface ForecastedIncome {
     nomeSposi: string;
     importoResiduo: number;
   }[];
+  jobs?: { // Payment schedules jobs con saldo residuo
+    id: string;
+    jobType: string;
+    clienteNome: string;
+    importoResiduo: number;
+  }[];
 }

@@ -22,6 +22,9 @@ import * as XLSX from "xlsx";
 import type { CashMovement, InsertCashMovement, FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
 import { getAllOrders } from "./orders";
 import type { Order, Transaction } from "@shared/booking-types";
+import { getAllJobs } from "./jobs";
+import { getPaymentSchedulesForJob } from "./payment-schedules";
+import type { Job } from "@shared/jobs-types";
 
 const COLLECTION = "cashMovements";
 
@@ -239,13 +242,16 @@ export async function getMonthlyData(): Promise<MonthlyData[]> {
 }
 
 /**
- * Calcola previsioni incasso da ordini in sospeso
- * Raggruppa per data servizio gli ordini con saldo residuo > 0
+ * Calcola previsioni incasso da ordini E jobs in sospeso
+ * Raggruppa per data servizio/evento ordini + jobs con saldo residuo > 0
  */
 export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
-  const orders = await getAllOrders();
+  const [orders, jobs] = await Promise.all([
+    getAllOrders(),
+    getAllJobs(),
+  ]);
 
-  // Filtra ordini con importo residuo > 0 e data servizio valida
+  // 1. Filtra ordini con importo residuo > 0 e data servizio valida
   const ordersWithBalance = orders
     .map((order) => {
       const totalePagato = (order.transactions || []).reduce(
@@ -261,12 +267,48 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
     })
     .filter((order) => order.importoResiduo > 0 && order.dataServizio);
 
-  // Raggruppa per data servizio
+  // 2. Filtra jobs con eventDate e payment schedules con saldo > 0
+  const jobsWithBalance: Array<Job & { importoResiduo: number; clienteNome: string }> = [];
+  
+  for (const job of jobs) {
+    if (!job.eventDate) continue; // Skip jobs senza eventDate
+    
+    // Fetcha payment schedules per questo job
+    const schedules = await getPaymentSchedulesForJob(job.id);
+    if (schedules.length === 0) continue; // Skip se non ha payment schedules
+    
+    // Aggrega saldoResiduo da tutti gli schedules (gestisce duplicati)
+    const saldoResiduoTotale = schedules.reduce((sum, s) => sum + s.saldoResiduo, 0);
+    
+    if (saldoResiduoTotale <= 0) continue; // Skip se già pagato
+    
+    // Fetcha cliente per nome (usa primo cliente del job)
+    let clienteNome = "Cliente sconosciuto";
+    if (job.clientiIds.length > 0) {
+      try {
+        const clienteDoc = await getDoc(doc(db, 'clienti', job.clientiIds[0]));
+        if (clienteDoc.exists()) {
+          const clienteData = clienteDoc.data();
+          clienteNome = clienteData.nome || "Cliente sconosciuto";
+        }
+      } catch (error) {
+        console.warn(`⚠️ Errore fetch cliente ${job.clientiIds[0]}:`, error);
+      }
+    }
+    
+    jobsWithBalance.push({
+      ...job,
+      importoResiduo: saldoResiduoTotale,
+      clienteNome,
+    });
+  }
+
+  // 3. Raggruppa per data servizio/evento
   const grouped = new Map<string, ForecastedIncome>();
 
+  // Aggiungi Orders
   ordersWithBalance.forEach((order) => {
-    // Converti dataServizio in Date (garantito non-null dal filtro precedente)
-    if (!order.dataServizio) return; // Sicurezza extra
+    if (!order.dataServizio) return;
     
     let dataServizio: Date;
     if (order.dataServizio instanceof Timestamp) {
@@ -284,6 +326,7 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
         data: dataServizio,
         importo: 0,
         ordini: [],
+        jobs: [],
       });
     }
 
@@ -296,7 +339,41 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
     });
   });
 
-  // Converti in array e ordina per data
+  // Aggiungi Jobs
+  jobsWithBalance.forEach((job) => {
+    if (!job.eventDate) return;
+    
+    let eventDate: Date;
+    if (job.eventDate instanceof Timestamp) {
+      eventDate = job.eventDate.toDate();
+    } else if (typeof job.eventDate === 'string') {
+      eventDate = new Date(job.eventDate);
+    } else {
+      eventDate = job.eventDate as Date;
+    }
+
+    const dateKey = eventDate.toISOString().split("T")[0];
+
+    if (!grouped.has(dateKey)) {
+      grouped.set(dateKey, {
+        data: eventDate,
+        importo: 0,
+        ordini: [],
+        jobs: [],
+      });
+    }
+
+    const forecast = grouped.get(dateKey)!;
+    forecast.importo += job.importoResiduo;
+    forecast.jobs!.push({
+      id: job.id,
+      jobType: job.jobType,
+      clienteNome: job.clienteNome,
+      importoResiduo: job.importoResiduo,
+    });
+  });
+
+  // 4. Converti in array e ordina per data
   return Array.from(grouped.values()).sort(
     (a, b) => a.data.getTime() - b.data.getTime()
   );
