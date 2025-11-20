@@ -10,13 +10,10 @@ import {
   doc,
   getDoc,
   getDocs,
-  addDoc,
   updateDoc,
   query,
   where,
-  orderBy,
-  Timestamp,
-  serverTimestamp
+  Timestamp
 } from 'firebase/firestore';
 import { apiRequest } from './queryClient';
 import type {
@@ -79,38 +76,19 @@ function safeOrigin(): string {
 }
 
 /**
- * Crea nuovo collaboratore
+ * Crea nuovo collaboratore (via API server)
  */
 export async function createCollaboratore(data: InsertCollaboratore): Promise<string> {
   try {
-    // Costruisci oggetto base senza campi opzionali
-    const collaboratoreData: any = {
-      nome: data.nome,
-      cognome: data.cognome,
-      email: data.email.toLowerCase(),
-      cellulare: data.cellulare,
-      ruolo: data.ruolo,
-      attivo: true,
-      hasAccess: data.hasAccess || false,
-      dashboardToken: crypto.randomUUID(), // Genera automaticamente
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    };
-
-    // Aggiungi campi opzionali solo se definiti (Firestore non accetta undefined)
-    if (data.tariffaOraria !== undefined) {
-      collaboratoreData.tariffaOraria = data.tariffaOraria;
+    const response = await apiRequest('POST', '/api/collaboratori', data);
+    
+    if (!response.ok) {
+      throw new Error('Errore creazione collaboratore');
     }
-    if (data.tariffaGiornaliera !== undefined) {
-      collaboratoreData.tariffaGiornaliera = data.tariffaGiornaliera;
-    }
-    if (data.note !== undefined) {
-      collaboratoreData.note = data.note;
-    }
-
-    const docRef = await addDoc(collection(db, COLLABORATORI_COLLECTION), collaboratoreData);
-    console.log('✅ Collaboratore creato:', docRef.id);
-    return docRef.id;
+    
+    const created = await response.json();
+    console.log('✅ Collaboratore creato:', created.id);
+    return created.id;
   } catch (error) {
     console.error('❌ Errore creazione collaboratore:', error);
     throw error;
