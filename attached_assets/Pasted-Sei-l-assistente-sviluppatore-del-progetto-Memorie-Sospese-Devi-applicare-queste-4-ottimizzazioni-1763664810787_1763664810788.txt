@@ -1,0 +1,138 @@
+Sei l’assistente sviluppatore del progetto “Memorie Sospese”.
+Devi applicare queste 4 ottimizzazioni di performance, SENZA modificare la logica delle gallerie, delle foto o delle selezioni.
+NON devi fare refactoring profondo.
+
+📁 File da modificare:
+
+/src/pages/Gallery.tsx
+(Pagina pubblica vista cliente)
+
+/src/components/gallery/EditGalleryModal.tsx
+(Modal admin per gestione foto galleria)
+
+/src/components/gallery/GalleryManagementWorkspace.tsx
+(Workspace admin che mi hai mandato nel primo messaggio)
+
+/src/styles/tailwind.css
+(o qualunque file dove aggiungere la utility content-visibility-auto)
+
+❗ Non modificare altri file o logiche.
+
+Zero cambi UI, zero logiche Firestore, zero refactor.
+
+✔️ 1. Ottimizzazione immagini: rimuovi animazione opacity
+
+In Gallery.tsx, EditGalleryModal.tsx, GalleryManagementWorkspace.tsx:
+
+Sostituisci TUTTE le immagini che hanno:
+
+className="opacity-0 hover:opacity-95"
+onLoad={(e) => (e.target as HTMLImageElement).classList.replace("opacity-0", "opacity-100")}
+
+
+con:
+
+className="w-full h-full object-cover content-visibility-auto"
+loading="lazy"
+
+✔️ 2. Aggiungi utility CSS: content-visibility-auto
+
+Nel file:
+
+src/styles/tailwind.css
+
+(o il file globale tailwind, quello caricato nel progetto)
+
+aggiungi:
+
+.content-visibility-auto {
+  content-visibility: auto;
+}
+
+✔️ 3. Ottimizza scroll: throttling a 200ms su loadMorePhotos()
+
+In src/pages/Gallery.tsx, trova l’useEffect(() => { window.addEventListener("scroll"... }.
+
+Sostituiscilo con:
+
+const throttledScroll = useMemo(() => {
+  let timeout: any;
+  return () => {
+    if (!timeout) {
+      timeout = setTimeout(() => {
+        handleScroll();
+        timeout = null;
+      }, 200);
+    }
+  };
+}, [handleScroll]);
+
+useEffect(() => {
+  window.addEventListener("scroll", throttledScroll);
+  return () => window.removeEventListener("scroll", throttledScroll);
+}, [throttledScroll]);
+
+✔️ 4. Usa React.memo per la card delle foto
+
+Crea il componente PhotoCard dentro Gallery.tsx:
+
+const PhotoCard = React.memo(({ photo, index, onClick }) => (
+  <div
+    className="gallery-image h-40 sm:h-52 lg:h-64"
+    onClick={() => onClick(index)}
+  >
+    <img
+      src={photo.url}
+      alt={photo.name}
+      className="w-full h-full object-cover content-visibility-auto"
+      loading="lazy"
+    />
+  </div>
+));
+
+
+Poi sostituisci dove ora fai:
+
+<img ... />
+
+
+con:
+
+<PhotoCard photo={photo} index={index} onClick={openLightbox} />
+
+
+Lo stesso vale per le griglie photo in EditGalleryModal.tsx e GalleryManagementWorkspace.tsx.
+
+❌ Cose che NON devi fare (IMPORTANTISSIMO)
+
+Non modificare alcuna query Firestore
+
+Non modificare paginazione o startAfter
+
+Non toccare storage fallback
+
+Non toccare photoAssignments
+
+Non toccare chapters
+
+Non cambiare UI
+
+Non modificare PhotoService
+
+Non accorpare file o hooks
+
+Niente refactor logico o strutturale
+
+🎉 RISULTATO
+
+Queste modifiche garantiscono:
+
+🟢 velocità percepita subito più alta
+
+🟢 scroll molto più fluido
+
+🟢 meno CPU
+
+🟢 meno lag quando ci sono molte foto
+
+🟢 nessuna regressione
