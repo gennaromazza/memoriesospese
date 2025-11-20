@@ -162,7 +162,8 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
       form.setValue("startTime", "");
       form.setValue("endTime", "");
     }
-  }, [allDay, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDay]);
 
   // Auto-check calendar conflicts quando data/orari cambiano
   useEffect(() => {
@@ -193,7 +194,12 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
         const response = await fetch(`/api/jobs/check-calendar?${params.toString()}`, {
           signal: abortController.signal
         });
+        
+        if (!response.ok) return;
+        
         const data = await response.json();
+        
+        if (!data || typeof data !== "object") return;
         
         if (data.hasConflicts && data.conflicts.length > 0) {
           setConflictsAlert({
@@ -207,8 +213,8 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
             conflicts: []
           });
         }
-      } catch (error) {
-        if (error.name === 'AbortError') return;
+      } catch (error: any) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error('[Conflict Check] Error:', error);
         // Silent fail - non bloccare il form
       } finally {
@@ -341,6 +347,7 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                         variant="ghost"
                         size="sm"
                         className="h-auto p-1 ml-1.5 hover:bg-transparent"
+                        aria-label="Rimuovi cliente"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemoveCliente(cliente.id);
@@ -467,6 +474,9 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
 
             {/* All day + orari */}
             <div className="space-y-4">
+              {checkingConflicts && (
+                <div className="text-xs text-muted-foreground">Controllo conflitti…</div>
+              )}
               <FormField
                 control={form.control}
                 name="allDay"
