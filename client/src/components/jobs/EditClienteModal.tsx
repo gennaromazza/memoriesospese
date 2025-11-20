@@ -25,6 +25,7 @@ interface FormData {
   via: string;
   citta: string;
   cap: string;
+  provincia: string;
 }
 
 export default function EditClienteModal({ 
@@ -44,7 +45,8 @@ export default function EditClienteModal({
       whatsapp: cliente.whatsapp || '',
       via: cliente.via || '',
       citta: cliente.citta || '',
-      cap: cliente.cap || ''
+      cap: cliente.cap || '',
+      provincia: cliente.provincia || ''
     }
   });
 
@@ -59,9 +61,10 @@ export default function EditClienteModal({
       whatsapp: cliente.whatsapp || '',
       via: cliente.via || '',
       citta: cliente.citta || '',
-      cap: cliente.cap || ''
+      cap: cliente.cap || '',
+      provincia: cliente.provincia || ''
     });
-  }, [cliente.id, reset, cliente.nome, cliente.cognome, cliente.email, cliente.cellulare1, cliente.cellulare2, cliente.whatsapp, cliente.via, cliente.citta, cliente.cap]);
+  }, [cliente.id, reset, cliente.nome, cliente.cognome, cliente.email, cliente.cellulare1, cliente.cellulare2, cliente.whatsapp, cliente.via, cliente.citta, cliente.cap, cliente.provincia]);
 
   const onSubmit = async (data: FormData) => {
     await onSave({
@@ -73,7 +76,8 @@ export default function EditClienteModal({
       whatsapp: data.whatsapp,
       via: data.via,
       citta: data.citta,
-      cap: data.cap
+      cap: data.cap,
+      provincia: data.provincia
     });
     onOpenChange(false);
   };
@@ -178,7 +182,7 @@ export default function EditClienteModal({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="citta">Città</Label>
                 <Input
@@ -186,6 +190,17 @@ export default function EditClienteModal({
                   {...register('citta')}
                   placeholder="Napoli"
                   data-testid="input-citta"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="provincia">Provincia</Label>
+                <Input
+                  id="provincia"
+                  {...register('provincia')}
+                  placeholder="NA"
+                  maxLength={2}
+                  data-testid="input-provincia"
                 />
               </div>
 
