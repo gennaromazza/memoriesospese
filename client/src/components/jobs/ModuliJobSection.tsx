@@ -515,7 +515,6 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                       )}
                     </div>
                   </div>
-                </div>
               </CollapsibleContent>
             </Card>
           </Collapsible>
