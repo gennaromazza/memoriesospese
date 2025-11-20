@@ -3,7 +3,7 @@
  * Features: Photo upload, Client selection view, Settings
  */
 
-import { useState, useCallback, useMemo, memo } from 'react';
+import { useState, useCallback, useMemo, memo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRoute, useLocation } from 'wouter';
 import { useDropzone } from 'react-dropzone';
