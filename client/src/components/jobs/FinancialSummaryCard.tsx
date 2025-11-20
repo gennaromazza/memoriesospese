@@ -32,7 +32,7 @@ export default function FinancialSummaryCard({
   };
 
   return (
-    <Card className={cn("bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950", className)}>
+    <Card className={cn("bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950", className)} data-testid="card-financial-summary">
       <CardContent className="p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {/* Preventivato */}
@@ -40,7 +40,7 @@ export default function FinancialSummaryCard({
             <p className="text-sm text-muted-foreground font-medium">Preventivato</p>
             <div className="flex items-center gap-2">
               <Euro className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              <p className="text-2xl font-bold text-gray-900 dark:text-white" data-testid="text-preventivato">
                 {formatEuro(totalePreventivato)}
               </p>
             </div>
@@ -51,7 +51,7 @@ export default function FinancialSummaryCard({
             <p className="text-sm text-muted-foreground font-medium">Incassato</p>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400" data-testid="text-incassato">
                 {formatEuro(totalePagato)}
               </p>
             </div>
@@ -74,7 +74,7 @@ export default function FinancialSummaryCard({
               <p className={cn(
                 "text-2xl font-bold",
                 saldoResiduo > 0 ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"
-              )}>
+              )} data-testid="text-da-incassare">
                 {formatEuro(saldoResiduo)}
               </p>
             </div>
@@ -97,11 +97,11 @@ export default function FinancialSummaryCard({
               <p className={cn(
                 "text-2xl font-bold",
                 margine >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-              )}>
+              )} data-testid="text-margine">
                 {formatEuro(margine)}
               </p>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground" data-testid="text-margine-percentage">
               {marginePercentuale.toFixed(1)}% del preventivo
             </p>
           </div>

@@ -1,0 +1,70 @@
+Contesto:
+Nel file JobDetailPage.tsx, la card del cliente (ClienteJobCard.tsx) mostra un bottone “Modifica Cliente” che apre un EditClienteModal.
+
+⚠️ Tuttavia, il form/modal attuale non include tutti i campi disponibili nella schermata dedicata del tab “Clienti”.
+
+Questo causa un bug importante: i dati anagrafici del cliente (via, CAP, città) non sono modificabili da questa view e quindi non vengono riportati nel preventivo che riceve il cliente.
+
+🎯 Obiettivo
+
+Il form di modifica cliente nel EditClienteModal usato in JobDetailPage deve includere TUTTI i campi già presenti nella schermata del tab Clienti, ovvero:
+
+Nome
+
+Cognome
+
+Email
+
+Cellulare principale
+
+Cellulare secondario
+
+WhatsApp
+
+Via 🏠
+
+Città 🏙️
+
+CAP 📮
+
+I dati aggiornati devono:
+
+aggiornarsi istantaneamente nel JobDetailPage (↔ invalidazione query ['clienti'])
+
+essere subito visibili nella pagina preventivo cliente (es. /quote/:publicToken)
+
+essere sincronizzati anche se il lavoro ha 2 clienti (usa clienteIds[])
+
+🛠️ Task operativi
+
+✅ 1. Verifica se EditClienteModal importa lo stesso schema/form del tab Clienti.
+Se no, riutilizza lo stesso componente (ad es. ClienteForm o simile).
+
+✅ 2. Aggiungi i campi mancanti al form (via, città, CAP)
+Rispetta lo stile del form già usato (label, layout, validazioni).
+
+✅ 3. Verifica che onSave() aggiorni il cliente in Firestore (o nel backend corretto)
+e che venga chiamata invalidateQueries(['clienti']) dopo il salvataggio.
+
+✅ 4. Verifica che nella sezione “Preventivo” (JobDetailPage → quote) i dati del cliente vengano renderizzati correttamente (no cache vecchia, no campi mancanti).
+
+✅ 5. Testa che funzioni anche con due clienti (es. matrimonio):
+
+clienteIds = ['clienteId1', 'clienteId2']
+
+
+In quel caso, assicurati che il sistema permetta di modificare entrambi i clienti tramite tab, switch o card separate, e che i dati vengano mostrati e aggiornati correttamente per ciascuno.
+
+📍 Output atteso
+
+Il Modifica Cliente in JobDetailPage mostra lo stesso form completo del tab “Clienti”
+
+Dopo il salvataggio, i dati aggiornati sono immediatamente visibili in:
+
+la card del cliente nella JobDetailPage
+
+la sezione del preventivo
+
+la view pubblica del preventivo ricevuto dal cliente
+
+Funziona per 1 o 2 clienti
