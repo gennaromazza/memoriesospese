@@ -3,7 +3,7 @@
  * Form creazione nuovo lavoro manuale
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -76,13 +76,12 @@ const formSchema = z.object({
   provenance: z.string().min(1, 'Seleziona una provenienza'),
   noteInterne: z.string().optional()
 }).refine((data) => {
-  if (!data.allDay && (!data.startTime || !data.endTime)) {
-    return false;
-  }
-  return true;
+  if (data.allDay) return true;
+  if (!data.startTime || !data.endTime) return false;
+  return data.startTime < data.endTime;
 }, {
-  message: 'Orari richiesti se non è tutto il giorno',
-  path: ['startTime']
+  message: 'L\'orario fine deve essere dopo l\'orario inizio',
+  path: ['endTime']
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -121,6 +120,19 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
 
   // Query provenances dinamiche
   const { items: provenances = [], isLoading: loadingProvenances } = useJobEntity('provenance');
+
+  // Performance optimization: memoize sorted lists
+  const orderedJobTypes = useMemo(() => {
+    return jobTypes
+      .filter(jt => jt.attivo)
+      .sort((a, b) => a.ordine - b.ordine);
+  }, [jobTypes]);
+
+  const orderedProvenances = useMemo(() => {
+    return provenances
+      .filter(p => p.attivo)
+      .sort((a, b) => a.ordine - b.ordine);
+  }, [provenances]);
   
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -144,9 +156,19 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   const startTime = form.watch('startTime');
   const endTime = form.watch('endTime');
 
+  // Reset automatico orari quando allDay = true
+  useEffect(() => {
+    if (allDay) {
+      form.setValue("startTime", "");
+      form.setValue("endTime", "");
+    }
+  }, [allDay, form]);
+
   // Auto-check calendar conflicts quando data/orari cambiano
   useEffect(() => {
     if (!eventDate) return;
+
+    const abortController = new AbortController();
 
     const checkConflicts = async () => {
       try {
@@ -168,7 +190,9 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
           params.append('endTime', endTime);
         }
         
-        const response = await fetch(`/api/jobs/check-calendar?${params.toString()}`);
+        const response = await fetch(`/api/jobs/check-calendar?${params.toString()}`, {
+          signal: abortController.signal
+        });
         const data = await response.json();
         
         if (data.hasConflicts && data.conflicts.length > 0) {
@@ -184,6 +208,7 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
           });
         }
       } catch (error) {
+        if (error.name === 'AbortError') return;
         console.error('[Conflict Check] Error:', error);
         // Silent fail - non bloccare il form
       } finally {
@@ -193,7 +218,10 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
 
     // Debounce check per evitare troppi requests
     const timer = setTimeout(checkConflicts, 500);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
   }, [eventDate, allDay, startTime, endTime]);
 
   // Multi-client handlers
@@ -245,14 +273,13 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
     }
   });
   
-  const onSubmit = (data: FormData) => {
-    createMutation.mutate(data);
+  const onSubmit = async (data: FormData) => {
+    await createMutation.mutateAsync(data);
   };
 
   const handleClose = () => {
     form.reset();
     setSelectedClienti([]);
-    setDateInputValue('');
     onClose();
   };
   
@@ -314,7 +341,10 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                         variant="ghost"
                         size="sm"
                         className="h-auto p-1 ml-1.5 hover:bg-transparent"
-                        onClick={() => handleRemoveCliente(cliente.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveCliente(cliente.id);
+                        }}
                         data-testid={`button-remove-${cliente.id}`}
                       >
                         <X className="w-3 h-3" />
@@ -354,17 +384,14 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {jobTypes
-                          .filter(jt => jt.attivo)
-                          .sort((a, b) => a.ordine - b.ordine)
-                          .map(jobType => (
-                            <SelectItem 
-                              key={jobType.id} 
-                              value={jobType.slug}
-                            >
-                              {jobType.icona} {jobType.nome}
-                            </SelectItem>
-                          ))}
+                        {orderedJobTypes.map(jobType => (
+                          <SelectItem 
+                            key={jobType.id} 
+                            value={jobType.slug}
+                          >
+                            {jobType.icona} {jobType.nome}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormDescription className="text-xs">
@@ -397,17 +424,14 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {provenances
-                          .filter(p => p.attivo)
-                          .sort((a, b) => a.ordine - b.ordine)
-                          .map(prov => (
-                            <SelectItem 
-                              key={prov.id} 
-                              value={prov.slug}
-                            >
-                              {prov.icona} {prov.nome}
-                            </SelectItem>
-                          ))}
+                        {orderedProvenances.map(prov => (
+                          <SelectItem 
+                            key={prov.id} 
+                            value={prov.slug}
+                          >
+                            {prov.icona} {prov.nome}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormDescription className="text-xs">
