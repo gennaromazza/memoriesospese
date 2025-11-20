@@ -83,7 +83,7 @@ import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotli
 // Memoized PhotoCard component for optimization with lazy loading
 const PhotoCard = memo(({ photo, index, onClick }: { photo: PhotoData, index: number, onClick: (index: number) => void }) => {
   const handleClick = useCallback(() => onClick(index), [onClick, index]);
-  
+
   return (
     <div className="masonry-item">
       <div
@@ -112,7 +112,7 @@ const PhotoCard = memo(({ photo, index, onClick }: { photo: PhotoData, index: nu
   );
 }, (prevProps, nextProps) => {
   // Custom comparator: re-render solo se cambiano ID o index
-  return prevProps.photo.id === nextProps.photo.id && 
+  return prevProps.photo.id === nextProps.photo.id &&
          prevProps.index === nextProps.index;
 });
 
@@ -1043,7 +1043,7 @@ export default function Gallery() {
     return () => {
       const now = Date.now();
       const timeSinceLastRun = now - lastRun;
-      
+
       if (timeSinceLastRun >= 200) {
         lastRun = now;
         if (
@@ -1076,11 +1076,11 @@ export default function Gallery() {
     window.addEventListener("scroll", throttledScroll, { passive: true });
     return () => window.removeEventListener("scroll", throttledScroll);
   }, [throttledScroll]);
-  
+
   // Intersection Observer per auto-load foto
   useEffect(() => {
     if (!sentinelRef.current || !hasMorePhotosToShow) return;
-    
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
@@ -1089,7 +1089,7 @@ export default function Gallery() {
       },
       { rootMargin: '400px' } // Preload 400px prima
     );
-    
+
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
   }, [hasMorePhotosToShow, loadMoreDisplayPhotos]);
@@ -2671,8 +2671,8 @@ export default function Gallery() {
 
                       {/* 📄 Sentinella per auto-load infinito */}
                       {hasMorePhotosToShow && (
-                        <div 
-                          ref={sentinelRef} 
+                        <div
+                          ref={sentinelRef}
                           className="flex justify-center mt-8 py-4"
                         >
                           <div className="flex items-center gap-2 text-gray-500">
@@ -2683,7 +2683,7 @@ export default function Gallery() {
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Pulsante manuale fallback (nascosto, disponibile per accessibilità) */}
                       {hasMorePhotosToShow && (
                         <div className="sr-only">
