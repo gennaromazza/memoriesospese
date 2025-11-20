@@ -477,24 +477,5 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update site content
       allow delete: if isAdmin(); // Only admin can delete site content
     }
-    
-    // ====== COLLABORATORI SYSTEM RULES (January 2025) ======
-    
-    // Collaboratori - Admin-only management
-    match /collaboratori/{collaboratoreId} {
-      allow read: if isAdmin(); // Only admin can view collaboratori
-      allow create: if isAdmin(); // Only admin can create collaboratori
-      allow update: if isAdmin(); // Only admin can update collaboratori
-      allow delete: if isAdmin(); // Only admin can delete collaboratori
-    }
-    
-    // Job Collaboratore Assignments - Admin manages, collaboratori can view their own
-    match /jobCollaboratoreAssignments/{assignmentId} {
-      allow read: if isAdmin() || 
-        (isSignedIn() && resource.data.collaboratoreId == request.auth.uid); // Admin or assigned collaboratore can read
-      allow create: if isAdmin(); // Only admin can create assignments
-      allow update: if isAdmin(); // Only admin can update assignments
-      allow delete: if isAdmin(); // Only admin can delete assignments
-    }
   }
 }

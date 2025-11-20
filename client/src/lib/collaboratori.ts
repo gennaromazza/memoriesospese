@@ -10,10 +10,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  addDoc,
   updateDoc,
   query,
   where,
-  Timestamp
+  orderBy,
+  Timestamp,
+  serverTimestamp
 } from 'firebase/firestore';
 import { apiRequest } from './queryClient';
 import type {
@@ -32,63 +35,37 @@ const COLLABORATORI_COLLECTION = 'collaboratori';
 const ASSIGNMENTS_COLLECTION = 'jobCollaboratoreAssignments';
 
 /**
- * Hydrate ricorsivamente tutti i campi Timestamp da oggetti serializzati HTTP
- * Converte { _seconds, _nanoseconds } in Timestamp Firestore
- */
-function hydrateFirestoreTimestamps(obj: any): any {
-  if (!obj) return obj;
-
-  // Preserva Timestamp già istanziati
-  if (obj instanceof Timestamp) {
-    return obj;
-  }
-
-  // Converti oggetti serializzati {_seconds, _nanoseconds}
-  if (obj._seconds !== undefined && obj._nanoseconds !== undefined) {
-    return new Timestamp(obj._seconds, obj._nanoseconds);
-  }
-
-  // Gestisci array ricorsivamente
-  if (Array.isArray(obj)) {
-    return obj.map(item => hydrateFirestoreTimestamps(item));
-  }
-
-  // Gestisci oggetti nested ricorsivamente
-  if (typeof obj === 'object') {
-    const hydrated: any = {};
-    for (const [key, value] of Object.entries(obj)) {
-      hydrated[key] = hydrateFirestoreTimestamps(value);
-    }
-    return hydrated;
-  }
-
-  return obj;
-}
-
-/**
- * Helper: ottieni origin sicuro per ambiente browser
- */
-function safeOrigin(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin;
-  }
-  return '';
-}
-
-/**
- * Crea nuovo collaboratore (via API server)
+ * Crea nuovo collaboratore
  */
 export async function createCollaboratore(data: InsertCollaboratore): Promise<string> {
   try {
-    const response = await apiRequest('POST', '/api/collaboratori', data);
-    
-    if (!response.ok) {
-      throw new Error('Errore creazione collaboratore');
+    // Costruisci oggetto base senza campi opzionali
+    const collaboratoreData: any = {
+      nome: data.nome,
+      cognome: data.cognome,
+      email: data.email.toLowerCase(),
+      cellulare: data.cellulare,
+      ruolo: data.ruolo,
+      attivo: true,
+      hasAccess: data.hasAccess || false,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    };
+
+    // Aggiungi campi opzionali solo se definiti (Firestore non accetta undefined)
+    if (data.tariffaOraria !== undefined) {
+      collaboratoreData.tariffaOraria = data.tariffaOraria;
     }
-    
-    const created = await response.json();
-    console.log('✅ Collaboratore creato:', created.id);
-    return created.id;
+    if (data.tariffaGiornaliera !== undefined) {
+      collaboratoreData.tariffaGiornaliera = data.tariffaGiornaliera;
+    }
+    if (data.note !== undefined) {
+      collaboratoreData.note = data.note;
+    }
+
+    const docRef = await addDoc(collection(db, COLLABORATORI_COLLECTION), collaboratoreData);
+    console.log('✅ Collaboratore creato:', docRef.id);
+    return docRef.id;
   } catch (error) {
     console.error('❌ Errore creazione collaboratore:', error);
     throw error;
@@ -107,8 +84,7 @@ export async function getCollaboratore(id: string): Promise<Collaboratore | null
       throw new Error('Errore caricamento collaboratore');
     }
     
-    const data = await response.json();
-    return hydrateFirestoreTimestamps(data);
+    return await response.json();
   } catch (error) {
     console.error('❌ Errore get collaboratore:', error);
     throw error;
@@ -127,8 +103,7 @@ export async function getAllCollaboratori(attiviOnly = false): Promise<Collabora
       throw new Error('Errore caricamento collaboratori');
     }
     
-    const data = await response.json();
-    return hydrateFirestoreTimestamps(data);
+    return await response.json();
   } catch (error) {
     console.error('❌ Errore get collaboratori:', error);
     throw error;
@@ -175,16 +150,8 @@ export async function assignCollaboratoreToJob(
   data: InsertJobCollaboratoreAssignment
 ): Promise<string> {
   try {
-    // Whitelist esplicita campi ammessi (NO spread operator)
     const assignmentData: Omit<JobCollaboratoreAssignment, 'id'> = {
-      jobId: data.jobId,
-      collaboratoreId: data.collaboratoreId,
-      ruoloInJob: data.ruoloInJob,
-      compenso: data.compenso,
-      tipoPagamento: data.tipoPagamento,
-      oreStimate: data.oreStimate,
-      giorniStimati: data.giorniStimati,
-      noteAdmin: data.noteAdmin,
+      ...data,
       status: 'pending',
       dataRichiesta: Timestamp.now(),
       isPagato: false,
@@ -216,11 +183,33 @@ export async function getJobAssignments(jobId: string): Promise<JobCollaboratore
     
     const data = await response.json();
     
-    // Reidrata Timestamp Firestore
-    const assignments = hydrateFirestoreTimestamps(data);
+    // Reidrata Timestamp Firestore per compatibilità UI
+    const assignments = data.map((assignment: any) => ({
+      ...assignment,
+      dataRichiesta: assignment.dataRichiesta ? new Timestamp(
+        assignment.dataRichiesta._seconds,
+        assignment.dataRichiesta._nanoseconds
+      ) : null,
+      dataRisposta: assignment.dataRisposta ? new Timestamp(
+        assignment.dataRisposta._seconds,
+        assignment.dataRisposta._nanoseconds
+      ) : null,
+      createdAt: assignment.createdAt ? new Timestamp(
+        assignment.createdAt._seconds,
+        assignment.createdAt._nanoseconds
+      ) : null,
+      updatedAt: assignment.updatedAt ? new Timestamp(
+        assignment.updatedAt._seconds,
+        assignment.updatedAt._nanoseconds
+      ) : null,
+      pagamenti: assignment.pagamenti?.map((p: any) => ({
+        ...p,
+        data: p.data ? new Timestamp(p.data._seconds, p.data._nanoseconds) : null
+      })) || []
+    }));
     
     // Sort lato client per evitare indice composto Firestore
-    return assignments.sort((a: JobCollaboratoreAssignment, b: JobCollaboratoreAssignment) => {
+    return assignments.sort((a, b) => {
       const timeA = a.dataRichiesta?.toMillis() || 0;
       const timeB = b.dataRichiesta?.toMillis() || 0;
       return timeB - timeA; // desc
@@ -248,13 +237,10 @@ export async function getCollaboratoreAssignments(
     const assignments = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
-    }));
-    
-    // Reidrata Timestamp Firestore
-    const hydratedAssignments = hydrateFirestoreTimestamps(assignments);
+    })) as JobCollaboratoreAssignment[];
     
     // Sort lato client per evitare indice composto Firestore
-    return hydratedAssignments.sort((a: JobCollaboratoreAssignment, b: JobCollaboratoreAssignment) => {
+    return assignments.sort((a, b) => {
       const timeA = a.dataRichiesta?.toMillis() || 0;
       const timeB = b.dataRichiesta?.toMillis() || 0;
       return timeB - timeA; // desc
@@ -299,7 +285,6 @@ export async function markAssignmentAsPaid(assignmentId: string): Promise<void> 
   try {
     await updateDoc(doc(db, ASSIGNMENTS_COLLECTION, assignmentId), {
       isPagato: true,
-      saldoResiduo: 0,
       dataPagamento: Timestamp.now(),
       updatedAt: Timestamp.now()
     });
@@ -354,27 +339,10 @@ export async function addPaymentToAssignment(
   }
 ): Promise<void> {
   try {
-    // Converti data stringa in Timestamp se presente
-    const payload: any = {
-      importo: data.importo,
-      tipo: data.tipo,
-      metodo: data.metodo
-    };
-
-    if (data.note) {
-      payload.note = data.note;
-    }
-
-    if (data.data) {
-      // Converti stringa ISO a Timestamp Firestore
-      const parsedDate = new Date(data.data);
-      payload.data = Timestamp.fromDate(parsedDate);
-    }
-
     const response = await apiRequest(
       'POST',
       `/api/collaboratori/assignments/${assignmentId}/add-payment`,
-      payload
+      data
     );
     
     if (!response.ok) {
@@ -400,8 +368,7 @@ export async function getCollaboratorByToken(token: string): Promise<{
     if (!response.ok) {
       return null;
     }
-    const data = await response.json();
-    return hydrateFirestoreTimestamps(data);
+    return await response.json();
   } catch (error) {
     console.error('❌ Errore get collaborator by token:', error);
     return null;
@@ -415,6 +382,6 @@ export function generateDashboardLink(collaboratore: Collaboratore): string {
   if (!collaboratore.dashboardToken) {
     return '';
   }
-  const baseUrl = safeOrigin();
+  const baseUrl = window.location.origin;
   return `${baseUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`;
 }
