@@ -1940,7 +1940,7 @@ export default function Gallery() {
                                   Ho capito!
                                 </AlertDialogAction>
                               </AlertDialogFooter>
-                            </AlertDialog>
+                            </AlertDialogContent>
                           </AlertDialog>
 
                           <h3 className="text-2xl font-playfair text-blue-gray mb-3">
