@@ -135,7 +135,7 @@ export default function Gallery() {
   const hasDetectedAccessRef = useRef(false);
 
   // 📄 Paginazione client-side per lazy loading
-  const PHOTOS_PER_PAGE = 20;
+  const PHOTOS_PER_PAGE = 30; // ⚡ Aumentato da 20 a 30 per schermi moderni
   const [displayedPhotosCount, setDisplayedPhotosCount] = useState(PHOTOS_PER_PAGE);
 
   // Stato per i filtri
@@ -231,15 +231,6 @@ export default function Gallery() {
   useEffect(() => {
     setDisplayedPhotosCount(PHOTOS_PER_PAGE);
   }, [activeTab, id]);
-
-  // ✅ Nessun preload - le immagini usano lazy loading nativo
-
-  // Stati derivati
-  const hasMorePhotos = false; // Semplificato: carica tutto in una volta
-  const loadingMorePhotos = false;
-  const loadMorePhotos = useCallback(async () => {
-    // Placeholder: paginazione rimossa per semplicità
-  }, []);
 
   // 🔧 React Query: Carica storia coppia (enabled solo quando id esiste)
   const {
@@ -1032,51 +1023,6 @@ export default function Gallery() {
       clearInterval(interval);
     };
   }, [id, hasValidAccess]);
-
-  // ✅ Accesso validato - nessun reset necessario per lazy loading
-
-  // --- SCROLL OPTIMIZATION ---
-  // Carica più foto quando si scrolla vicino al fondo con throttling
-  const throttledScroll = useMemo(() => {
-    let timeout: NodeJS.Timeout | null = null;
-    let lastRun = 0;
-    return () => {
-      const now = Date.now();
-      const timeSinceLastRun = now - lastRun;
-
-      if (timeSinceLastRun >= 200) {
-        lastRun = now;
-        if (
-          window.innerHeight + window.scrollY >=
-            document.documentElement.scrollHeight - 800 && // Maggior threshold per preload anticipato
-          !loadingMorePhotos &&
-          hasMorePhotos
-        ) {
-          loadMorePhotos();
-        }
-      } else {
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(() => {
-          lastRun = Date.now();
-          if (
-            window.innerHeight + window.scrollY >=
-              document.documentElement.scrollHeight - 800 &&
-            !loadingMorePhotos &&
-            hasMorePhotos
-          ) {
-            loadMorePhotos();
-          }
-          timeout = null;
-        }, 200 - timeSinceLastRun);
-      }
-    };
-  }, [loadingMorePhotos, hasMorePhotos, loadMorePhotos]);
-
-  useEffect(() => {
-    window.addEventListener("scroll", throttledScroll, { passive: true });
-    return () => window.removeEventListener("scroll", throttledScroll);
-  }, [throttledScroll]);
-  // --- END SCROLL OPTIMIZATION ---
 
   // Combina tutte le foto per il lightbox
   const allPhotos = useMemo(() => {
