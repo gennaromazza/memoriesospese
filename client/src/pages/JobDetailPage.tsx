@@ -352,7 +352,8 @@ export default function JobDetailPage() {
     },
   });
 
-  const handleRequestCreateAppointment = (job: Job) => {
+  const handleRequestCreateAppointment = () => {
+    if (!job) return;
     // Pre-popola cliente dal job
     if (clienti.length > 0) {
       setSelectedClienteForEvent(clienti[0]);
@@ -505,11 +506,10 @@ export default function JobDetailPage() {
 
     setSendingConsultation(true);
     try {
-      const response = await apiRequest(`/api/consultations/send`, {
+      const response = await apiRequest(`/api/jobs/${job!.id}/send-consultation-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jobId: job!.id,
           templateId: selectedTemplateId,
           channel,
         }),

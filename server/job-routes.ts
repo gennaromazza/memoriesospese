@@ -359,10 +359,14 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       metadata: eventMetadata
     };
     
+    // Salva in job.workflowEvents
     await db.collection('jobs').doc(id).update({
       workflowEvents: FieldValue.arrayUnion(timelineEvent),
       updatedAt: Timestamp.now()
     });
+    
+    // Salva anche in jobTimeline collection (per "Attività Recenti")
+    await db.collection('jobTimeline').add(timelineEvent);
     
     console.log(`✅ [Job ${id}] Richiesta consulenza inviata via ${channel}`);
     
