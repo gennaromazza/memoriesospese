@@ -39,20 +39,29 @@ const ASSIGNMENTS_COLLECTION = 'jobCollaboratoreAssignments';
  */
 export async function createCollaboratore(data: InsertCollaboratore): Promise<string> {
   try {
-    const collaboratoreData: Omit<Collaboratore, 'id'> = {
+    // Costruisci oggetto base senza campi opzionali
+    const collaboratoreData: any = {
       nome: data.nome,
       cognome: data.cognome,
       email: data.email.toLowerCase(),
       cellulare: data.cellulare,
       ruolo: data.ruolo,
-      tariffaOraria: data.tariffaOraria,
-      tariffaGiornaliera: data.tariffaGiornaliera,
-      note: data.note,
       attivo: true,
       hasAccess: data.hasAccess || false,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     };
+
+    // Aggiungi campi opzionali solo se definiti (Firestore non accetta undefined)
+    if (data.tariffaOraria !== undefined) {
+      collaboratoreData.tariffaOraria = data.tariffaOraria;
+    }
+    if (data.tariffaGiornaliera !== undefined) {
+      collaboratoreData.tariffaGiornaliera = data.tariffaGiornaliera;
+    }
+    if (data.note !== undefined) {
+      collaboratoreData.note = data.note;
+    }
 
     const docRef = await addDoc(collection(db, COLLABORATORI_COLLECTION), collaboratoreData);
     console.log('✅ Collaboratore creato:', docRef.id);
@@ -110,13 +119,21 @@ export async function updateCollaboratore(
 ): Promise<void> {
   try {
     const updateData: any = {
-      ...data,
       updatedAt: Timestamp.now()
     };
     
-    if (data.email) {
-      updateData.email = data.email.toLowerCase();
-    }
+    // Aggiungi solo campi definiti (Firestore non accetta undefined)
+    if (data.nome !== undefined) updateData.nome = data.nome;
+    if (data.cognome !== undefined) updateData.cognome = data.cognome;
+    if (data.email !== undefined) updateData.email = data.email.toLowerCase();
+    if (data.cellulare !== undefined) updateData.cellulare = data.cellulare;
+    if (data.ruolo !== undefined) updateData.ruolo = data.ruolo;
+    if (data.tariffaOraria !== undefined) updateData.tariffaOraria = data.tariffaOraria;
+    if (data.tariffaGiornaliera !== undefined) updateData.tariffaGiornaliera = data.tariffaGiornaliera;
+    if (data.note !== undefined) updateData.note = data.note;
+    if (data.attivo !== undefined) updateData.attivo = data.attivo;
+    if (data.hasAccess !== undefined) updateData.hasAccess = data.hasAccess;
+    if (data.dashboardToken !== undefined) updateData.dashboardToken = data.dashboardToken;
     
     await updateDoc(doc(db, COLLABORATORI_COLLECTION, id), updateData);
     console.log('✅ Collaboratore aggiornato:', id);
