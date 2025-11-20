@@ -282,42 +282,43 @@ export default function GeneraPagamentiModal({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Data Firma/Riferimento globale (per lavori storici) - disponibile per ENTRAMBI i tab */}
-        <Card className="bg-muted/30">
-          <CardContent className="p-4">
-            <FormField
-              control={form.control}
-              name="dataRiferimento"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Data Firma/Riferimento (Opzionale)</FormLabel>
-                  <FormControl>
-                    <DateInput
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="gg/mm/aaaa (per lavori storici)"
-                      data-testid="input-data-riferimento-global"
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma.
-                    Lascia vuoto per usare la data odierna.
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+        <Form {...form}>
+          {/* Data Firma/Riferimento globale (per lavori storici) - disponibile per ENTRAMBI i tab */}
+          <Card className="bg-muted/30">
+            <CardContent className="p-4">
+              <FormField
+                control={form.control}
+                name="dataRiferimento"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data Firma/Riferimento (Opzionale)</FormLabel>
+                    <FormControl>
+                      <DateInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="gg/mm/aaaa (per lavori storici)"
+                        data-testid="input-data-riferimento-global"
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma.
+                      Lascia vuoto per usare la data odierna.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'automatico' | 'manuale')}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="automatico">Automatico</TabsTrigger>
-            <TabsTrigger value="manuale">Manuale</TabsTrigger>
-          </TabsList>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'automatico' | 'manuale')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="automatico">Automatico</TabsTrigger>
+              <TabsTrigger value="manuale">Manuale</TabsTrigger>
+            </TabsList>
 
-          {/* Tab Automatico - Presets */}
-          <TabsContent value="automatico" className="space-y-4 mt-4">
+            {/* Tab Automatico - Presets */}
+            <TabsContent value="automatico" className="space-y-4 mt-4">
             <p className="text-sm text-muted-foreground">
               Seleziona un preset per generare automaticamente lo scadenzario
             </p>
@@ -433,8 +434,7 @@ export default function GeneraPagamentiModal({
 
           {/* Tab Manuale - Custom Rate */}
           <TabsContent value="manuale" className="space-y-4 mt-4">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 {/* Lista Rate */}
                 <div className="space-y-3">
                   {fields.map((field, index) => (
@@ -660,9 +660,9 @@ export default function GeneraPagamentiModal({
                   </Button>
                 </DialogFooter>
               </form>
-            </Form>
           </TabsContent>
         </Tabs>
+        </Form>
       </DialogContent>
     </Dialog>
   );
