@@ -34,7 +34,7 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { getAllThemes } from "@shared/special-themes";
 import { getProductById } from "@/lib/products";
 import type { Product } from "@shared/booking-types";
-import { Info } from "lucide-react";
+import { Info, Eye, EyeOff } from "lucide-react";
 import { createAbsoluteUrl } from "@/lib/basePath";
 
 interface NewGalleryModalProps {
@@ -88,6 +88,7 @@ export default function NewGalleryModal({
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCustomProduct, setIsCustomProduct] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Multi-product selection support (NEW: array for multiple products)
   const [selectedProductIndices, setSelectedProductIndices] = useState<
@@ -655,13 +656,30 @@ export default function NewGalleryModal({
             {specialTheme === "none" && (
               <div className="space-y-2">
                 <Label htmlFor="password">Password Accesso</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={handlePasswordChange}
-                  placeholder="Password per accedere alla galleria"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={handlePasswordChange}
+                    placeholder="Password per accedere alla galleria"
+                    className="pr-10"
+                  />
+                  {password && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700 transition-colors"
+                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Lascia vuoto per accesso libero
                 </p>
