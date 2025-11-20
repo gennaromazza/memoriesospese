@@ -1,0 +1,231 @@
+GalleryManagementWorkspace.
+
+✅ BUG REALI RILEVATI
+1. ❗ uploadMutation.mutate() non annulla upload esistenti
+
+Se l’utente trascina nuovi file mentre un upload è in corso → parte un secondo upload in parallelo, sovrascrivendo uploadProgress.
+
+Effetto: barra imprevedibile, mutazioni concorrenti che aggiornano la stessa gallery.
+
+Fix: bloccare quando uploadMutation.isPending === true.
+
+if (uploadMutation.isPending) return;
+
+2. ❗ Controllo scadenza selezione non sempre corretto
+
+La logica:
+
+const isDeadlinePassed = gallery?.selectionDeadline && gallery.selectionDeadlineEnforced && deadlineDate
+  ? new Date() > deadlineDate
+  : false;
+
+
+Se selectionDeadline === null → isDeadlinePassed = false, ok.
+
+MA se selectionDeadline esiste ma deadlineDate non è convertibile → sempre false, ma avrebbe dovuto segnalare l’errore.
+
+Fix: fallback contro timestamp Firestore corrotti.
+
+3. ❗ allPhotos viene caricata solo se gallery.selectionEnabled
+enabled: !!galleryId && !!gallery?.selectionEnabled
+
+
+❌ Se vuoi vedere le foto anche in tab Settings o Upload → non vengono mai caricate.
+
+Effetto: tab Upload e Settings non hanno accesso a allPhotos.
+
+Fix: separare le query.
+
+4. ❗ selectedPhotos può causare crash se gallery.selectedPhotoIds è undefined
+gallery?.selectedPhotoIds?.includes(photo.id)
+
+
+Qui è ok perché hai ?., ma poi usi:
+
+(selectedPhotos.length > 0)
+
+
+Se una delle due query è lenta → salto temporaneo tra array vuoti che fa lampeggiare la UI.
+
+Fix: porta a useMemo e placeholder UI.
+
+5. ❗ Rischio race condition su photoCount
+
+Sul server:
+
+newPhotoCount = (gallery?.photoCount || 0) + photos.length
+
+
+⚠️ Se due utenti caricano file contemporaneamente → photoCount perde incrementi.
+
+Fix tecnico:
+
+usare Cloud Function lato server
+
+utilizzare increment(photos.length) in Firestore
+
+import { increment } from "firebase/firestore";
+updateGallery(galleryId, { photoCount: increment(photos.length) });
+
+6. ❗ Pulizia filename (regex) non sempre corretta
+filename.match(/^\d+-(.+)$/)
+
+
+Se un file contiene numeri prima del nome → regex sbaglia.
+
+Miglioramento:
+
+replace(/^\d{10,15}-/, '')
+
+
+Oppure salvare filename originale in Firestore.
+
+7. ❗ Badge prodotto può generare warning “key duplicate”
+
+prodIdx è una stringa, e può ripetersi in edge cases.
+
+Usa:
+
+key={`${photo.id}-${prodIdx}`}
+
+⚙️ MIGLIORAMENTI STRUTTURALI
+8. Aggiungi Suspense + Skeleton
+
+Invece di mostrare spinner generici.
+
+Esempio tab Upload:
+
+<Skeleton className="w-full h-48 rounded-lg" />
+
+9. Converti tutto in componenti separati
+
+Il file è enorme: ~1500+ righe.
+
+Consiglio di creare cartella:
+
+/GalleryManagementWorkspace
+  Header.tsx
+  TabsUpload.tsx
+  TabsSelections.tsx
+  TabsSettings.tsx
+  useGalleryData.ts
+  useGallerySelections.ts
+
+10. La logica “selectedPhotos” è troppo annidata
+
+Rendi tutto leggibile con useMemo:
+
+const selectedPhotos = useMemo(() => {
+  if (!gallery) return [];
+  if (gallery.productRequirements)
+    return allPhotos.filter(photo => gallery.photoAssignments?.[photo.id]);
+  return allPhotos.filter(photo => gallery.selectedPhotoIds?.includes(photo.id));
+}, [gallery, allPhotos]);
+
+11. Aggiungi una funzione download zip
+
+Già che hai il bulk upload, spesso serve.
+
+12. Migliora performance caricando thumbnails ottimizzate
+
+Attualmente:
+
+<img src={photo.url}>
+
+
+→ immagini piene, lente in tab Selections.
+
+Dovresti avere photo.thumbnailUrl generata da Cloud Function.
+
+13. Usa React Query select per semplificare
+
+Evitando map pesanti nel render.
+
+🎨 MIGLIORAMENTI UX
+14. Aggiungi un pulsante “Copia tutti” per Lightroom
+
+Oltre al click nel textarea.
+
+15. Mostra anteprima al passaggio del mouse sui thumbnail (hover preview)
+16. Nella tab Upload aggiungi:
+
+anteprima dei file trascinati
+
+“Annulla upload”
+
+“Stop pending upload”
+
+17. Rendi persistente lo stato “tab selezionata”
+
+Usando route query (es. /manage?tab=selections).
+
+18. Quando il cliente ha completato le selezioni → banner verde fisso
+
+Con link diretto alla sua vista.
+
+🔥 MIGLIORAMENTO ARCHITETTURA FIRESTORE
+19. photoAssignments struttura attuale:
+photoAssignments: {
+  "photoId": ["0", "1"]
+}
+
+
+❌ Problema:
+
+non è indicizzato
+
+Firestore costa di più
+
+query non eseguibili lato server
+
+Consiglio top:
+
+Spostare i vincoli nel documento photo:
+
+assignedProducts: number[]
+
+
+E aggiornare:
+
+gallery.photoAssignments? → deprecato
+
+20. Definizione productRequirements troppo libera
+
+Dovresti definire un type zod (o TS) centralizzato.
+
+⚠️ POSSIBILI BUG NON CERTI MA DA VERIFICARE
+21. useRoute('/admin/gallery/:galleryId/manage') perde parametri con sub-tabs
+
+Se un utente modifica la route (es. con query param), params.galleryId può diventare undefined.
+
+22. Potenziale infinite re-render quando carichi 500+ foto
+
+Rendering di 500 thumbnail per prodotto = rischio freeze.
+
+Usa virtualization (react-virtual, react-window).
+
+23. Unlock Selection → nessun controllo su giorni passati
+
+Un admin potrebbe cliccarlo anche se mancano ancora 2 ore alla scadenza.
+
+Aggiungi dialog confirm:
+
+📌 CONCLUSIONE
+
+Questo file funziona bene ma presenta:
+
+alcuni bug reali
+
+rischio di race condition su photoCount
+
+performance migliorabili
+
+scarsa modularità
+
+query logic non ottimizzata
+
+UX molto migliorabile
+
+rendering pesante in tab Selections
+
+mancano safety checks importanti
