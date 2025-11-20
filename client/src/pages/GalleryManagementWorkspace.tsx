@@ -15,9 +15,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon } from 'lucide-react';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
+import imageCompression from 'browser-image-compression';
 
 interface UploadProgress {
   fileName: string;
@@ -68,6 +71,10 @@ export default function GalleryManagementWorkspace() {
   const [existingPhotoNames, setExistingPhotoNames] = useState<Set<string>>(new Set());
   const [uploadConcurrency, setUploadConcurrency] = useState(3); // Concorrenza configurabile
   const [showPreview, setShowPreview] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [enableCompression, setEnableCompression] = useState(true);
+  const [compressionQuality, setCompressionQuality] = useState(0.8);
 
   // Query gallery data
   const { data: gallery, isLoading } = useQuery<Gallery | null>({
@@ -124,7 +131,7 @@ export default function GalleryManagementWorkspace() {
 
       // Filtra duplicati se richiesto
       const duplicates = files.filter(f => existingPhotoNames.has(f.name));
-      const uniqueFiles = files.filter(f => !existingPhotoNames.has(f.name));
+      let uniqueFiles = files.filter(f => !existingPhotoNames.has(f.name));
 
       if (duplicates.length > 0) {
         toast({
@@ -135,6 +142,52 @@ export default function GalleryManagementWorkspace() {
 
       if (uniqueFiles.length === 0) {
         throw new Error('Nessun file da caricare (tutti duplicati)');
+      }
+
+      // Comprimi immagini se abilitato
+      if (enableCompression) {
+        toast({
+          title: '🔄 Compressione immagini',
+          description: `Compressione di ${uniqueFiles.length} foto...`,
+        });
+
+        const compressionOptions = {
+          maxSizeMB: 2,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+          quality: compressionQuality,
+          fileType: 'image/jpeg'
+        };
+
+        const compressedFiles = await Promise.all(
+          uniqueFiles.map(async (file) => {
+            if (file.type.startsWith('image/')) {
+              try {
+                const compressed = await imageCompression(file, compressionOptions);
+                // Mantieni il nome originale
+                return new File([compressed], file.name, {
+                  type: compressed.type,
+                  lastModified: Date.now(),
+                });
+              } catch (error) {
+                console.warn(`Errore compressione ${file.name}, uso originale:`, error);
+                return file;
+              }
+            }
+            return file;
+          })
+        );
+
+        uniqueFiles = compressedFiles;
+
+        const originalSize = files.reduce((sum, f) => sum + f.size, 0);
+        const compressedSize = uniqueFiles.reduce((sum, f) => sum + f.size, 0);
+        const savedMB = ((originalSize - compressedSize) / 1024 / 1024).toFixed(2);
+
+        toast({
+          title: '✅ Compressione completata',
+          description: `Risparmio: ${savedMB} MB`,
+        });
       }
 
       // Initialize progress (mantiene preview esistenti)
@@ -458,43 +511,66 @@ export default function GalleryManagementWorkspace() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Controlli Upload */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={showPreview}
-                        onChange={(e) => setShowPreview(e.target.checked)}
-                        className="rounded border-gray-300"
-                      />
-                      Mostra preview
-                    </label>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-600">Concorrenza:</span>
-                      <select
-                        value={uploadConcurrency}
-                        onChange={(e) => setUploadConcurrency(Number(e.target.value))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm"
-                      >
-                        <option value={1}>1 (Lento, sicuro)</option>
-                        <option value={2}>2 (Bilanciato)</option>
-                        <option value={3}>3 (Veloce)</option>
-                        <option value={5}>5 (Molto veloce)</option>
-                      </select>
+                <div className="space-y-4 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={showPreview}
+                          onCheckedChange={(checked) => setShowPreview(!!checked)}
+                        />
+                        Mostra preview
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={enableCompression}
+                          onCheckedChange={(checked) => setEnableCompression(!!checked)}
+                        />
+                        Comprimi immagini
+                      </label>
+                      {enableCompression && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-600">Qualità:</span>
+                          <select
+                            value={compressionQuality}
+                            onChange={(e) => setCompressionQuality(Number(e.target.value))}
+                            className="border border-gray-300 rounded px-2 py-1 text-sm"
+                          >
+                            <option value={0.6}>60% (Max compressione)</option>
+                            <option value={0.7}>70%</option>
+                            <option value={0.8}>80% (Consigliato)</option>
+                            <option value={0.9}>90%</option>
+                            <option value={1.0}>100% (Originale)</option>
+                          </select>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-gray-600">Concorrenza:</span>
+                        <select
+                          value={uploadConcurrency}
+                          onChange={(e) => setUploadConcurrency(Number(e.target.value))}
+                          className="border border-gray-300 rounded px-2 py-1 text-sm"
+                        >
+                          <option value={1}>1 (Lento, sicuro)</option>
+                          <option value={2}>2 (Bilanciato)</option>
+                          <option value={3}>3 (Veloce)</option>
+                          <option value={5}>5 (Molto veloce)</option>
+                        </select>
+                      </div>
                     </div>
+                    {selectedFiles.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedFiles([]);
+                          setUploadProgress([]);
+                        }}
+                      >
+                        Cancella selezione
+                      </Button>
+                    )}
                   </div>
-                  {selectedFiles.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedFiles([]);
-                        setUploadProgress([]);
-                      }}
-                    >
-                      Cancella selezione
-                    </Button>
-                  )}
                 </div>
 
                 {/* Dropzone Area */}
@@ -671,12 +747,64 @@ export default function GalleryManagementWorkspace() {
                 {/* Foto Esistenti con possibilità di eliminazione */}
                 {allPhotos.length > 0 && (
                   <div className="mt-8 pt-8 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
                       <div>
                         <h4 className="font-semibold text-blue-gray text-lg">📸 Foto Caricate</h4>
                         <p className="text-sm text-gray-600 mt-1">
                           {allPhotos.length} foto totali ({(allPhotos.reduce((sum, p) => sum + (p.size || 0), 0) / 1024 / 1024).toFixed(2)} MB)
                         </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            type="text"
+                            placeholder="Cerca foto..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 w-64"
+                          />
+                        </div>
+                        {selectedPhotos.size > 0 && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              if (!confirm(`Eliminare ${selectedPhotos.size} foto? Questa azione è irreversibile.`)) return;
+                              
+                              try {
+                                const deletePromises = Array.from(selectedPhotos).map(photoId => 
+                                  PhotoService.deletePhoto(photoId)
+                                );
+                                await Promise.all(deletePromises);
+                                
+                                // Update gallery photoCount
+                                const newPhotoCount = Math.max(0, (gallery?.photoCount || 0) - selectedPhotos.size);
+                                await GalleryService.updateGallery(galleryId!, { photoCount: newPhotoCount });
+                                
+                                toast({
+                                  title: '✅ Foto eliminate',
+                                  description: `${selectedPhotos.size} foto eliminate con successo.`,
+                                });
+                                
+                                setSelectedPhotos(new Set());
+                                
+                                // Invalidate queries
+                                queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+                                queryClient.invalidateQueries({ queryKey: ['photos', galleryId] });
+                              } catch (error) {
+                                toast({
+                                  title: '❌ Errore',
+                                  description: error instanceof Error ? error.message : 'Errore durante l\'eliminazione',
+                                  variant: 'destructive',
+                                });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Elimina {selectedPhotos.size} foto
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -687,60 +815,104 @@ export default function GalleryManagementWorkspace() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {allPhotos.map((photo) => (
-                          <div
-                            key={photo.id}
-                            className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-sage transition-all"
-                          >
-                            <img
-                              src={photo.url}
-                              alt={photo.name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2">
-                              <p className="text-white text-xs text-center truncate w-full mb-2">
-                                {photo.name}
-                              </p>
-                              <p className="text-white/80 text-xs mb-3">
-                                {(photo.size / 1024).toFixed(0)} KB
-                              </p>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={async () => {
-                                  if (!confirm(`Eliminare "${photo.name}"? Questa azione è irreversibile.`)) return;
-                                  
-                                  try {
-                                    await PhotoService.deletePhoto(photo.id);
-                                    
-                                    // Update gallery photoCount
-                                    const newPhotoCount = Math.max(0, (gallery?.photoCount || 0) - 1);
-                                    await GalleryService.updateGallery(galleryId!, { photoCount: newPhotoCount });
-                                    
-                                    toast({
-                                      title: '✅ Foto eliminata',
-                                      description: `${photo.name} è stata eliminata con successo.`,
-                                    });
-                                    
-                                    // Invalidate queries
-                                    queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-                                    queryClient.invalidateQueries({ queryKey: ['photos', galleryId] });
-                                  } catch (error) {
-                                    toast({
-                                      title: '❌ Errore',
-                                      description: error instanceof Error ? error.message : 'Errore durante l\'eliminazione',
-                                      variant: 'destructive',
-                                    });
-                                  }
-                                }}
+                        {allPhotos
+                          .filter(photo => 
+                            searchTerm === '' || 
+                            photo.name.toLowerCase().includes(searchTerm.toLowerCase())
+                          )
+                          .map((photo) => {
+                            const isSelected = selectedPhotos.has(photo.id);
+                            return (
+                              <div
+                                key={photo.id}
+                                className={`relative group aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                                  isSelected 
+                                    ? 'border-blue-500 ring-2 ring-blue-200' 
+                                    : 'border-gray-200 hover:border-sage'
+                                }`}
                               >
-                                <XCircle className="w-4 h-4 mr-1" />
-                                Elimina
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
+                                {/* Checkbox selezione */}
+                                <div className="absolute top-2 left-2 z-10">
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      const newSelected = new Set(selectedPhotos);
+                                      if (checked) {
+                                        newSelected.add(photo.id);
+                                      } else {
+                                        newSelected.delete(photo.id);
+                                      }
+                                      setSelectedPhotos(newSelected);
+                                    }}
+                                    className="bg-white border-2"
+                                  />
+                                </div>
+
+                                {/* Indicatore dimensione sempre visibile */}
+                                <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                                  {(photo.size / 1024).toFixed(0)} KB
+                                </div>
+
+                                <img
+                                  src={photo.url}
+                                  alt={photo.name}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                                
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2">
+                                  <p className="text-white text-xs text-center truncate w-full mb-3">
+                                    {photo.name}
+                                  </p>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (!confirm(`Eliminare "${photo.name}"? Questa azione è irreversibile.`)) return;
+                                      
+                                      try {
+                                        await PhotoService.deletePhoto(photo.id);
+                                        
+                                        // Update gallery photoCount
+                                        const newPhotoCount = Math.max(0, (gallery?.photoCount || 0) - 1);
+                                        await GalleryService.updateGallery(galleryId!, { photoCount: newPhotoCount });
+                                        
+                                        toast({
+                                          title: '✅ Foto eliminata',
+                                          description: `${photo.name} è stata eliminata con successo.`,
+                                        });
+                                        
+                                        // Rimuovi da selectedPhotos se presente
+                                        const newSelected = new Set(selectedPhotos);
+                                        newSelected.delete(photo.id);
+                                        setSelectedPhotos(newSelected);
+                                        
+                                        // Invalidate queries
+                                        queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+                                        queryClient.invalidateQueries({ queryKey: ['photos', galleryId] });
+                                      } catch (error) {
+                                        toast({
+                                          title: '❌ Errore',
+                                          description: error instanceof Error ? error.message : 'Errore durante l\'eliminazione',
+                                          variant: 'destructive',
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-1" />
+                                    Elimina
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+
+                    {searchTerm && allPhotos.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                      <div className="text-center py-12">
+                        <ImageIcon className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                        <p className="text-gray-600">Nessuna foto trovata con "{searchTerm}"</p>
                       </div>
                     )}
                   </div>
