@@ -376,7 +376,7 @@ export default function NewGalleryModal({
             galleryData.selectedPhotoIds = [];
             // NON salvare productRequirements per single-product
             console.log(
-              "💾 Salvando galleria single-product con requiredPhotoCount:",
+              "💾 Salvando galleria single-prodotto con requiredPhotoCount:",
               galleryData.requiredPhotoCount,
               "(da prodotto:",
               productReqs[0].prodottoNome,
@@ -400,7 +400,7 @@ export default function NewGalleryModal({
           galleryData.selectionStatus = "pending";
           galleryData.selectedPhotoIds = [];
           console.log(
-            "💾 Salvando galleria legacy single-product con requiredPhotoCount:",
+            "💾 Salvando galleria legacy single-prodotto con requiredPhotoCount:",
             requiredPhotoCount,
           );
         }

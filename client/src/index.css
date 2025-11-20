@@ -4,6 +4,10 @@
 @tailwind components;
 @tailwind utilities;
 
+.content-visibility-auto {
+  content-visibility: auto;
+}
+
 /* Navbar semitrasparente quando galleria mobile è in fullscreen */
 body.mobile-gallery-fullscreen .mobile-gallery-nav {
   position: fixed;
