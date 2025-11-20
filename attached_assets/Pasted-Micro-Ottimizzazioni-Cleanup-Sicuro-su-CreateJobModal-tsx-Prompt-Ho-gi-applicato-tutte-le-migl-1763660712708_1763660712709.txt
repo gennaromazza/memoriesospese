@@ -1,0 +1,129 @@
+Micro-Ottimizzazioni & Cleanup Sicuro su CreateJobModal.tsx
+
+Prompt:
+
+Ho già applicato tutte le migliorie principali a CreateJobModal.tsx.
+Il file ora è funzionante e stabile.
+Ti chiedo solo alcune micro-ottimizzazioni finali, NON distruttive e NON invasive.
+
+IMPORTANTISSIMO:
+
+NON cambiare la struttura del file.
+
+NON modificare la UI.
+
+NON alterare la logica di business o il flusso.
+
+NON introdurre regressioni.
+
+Applica SOLO i fix elencati qui in basso.
+
+🔧 1. Effetto conflitti — aggiungi sicurezza nei controlli
+
+Nel blocco inside useEffect:
+
+const response = await fetch(`/api/jobs/check-calendar?${params.toString()}`, {
+  signal: abortController.signal
+});
+const data = await response.json();
+
+
+Aggiungi questi due controlli:
+
+Se response.ok === false, esci subito:
+
+if (!response.ok) return;
+
+
+Se data non è un oggetto o è vuoto, proteggiti:
+
+if (!data || typeof data !== "object") return;
+
+
+Questo evita errori in caso di risposte parziali, timeout o JSON non valido.
+
+🔧 2. Aggiungi dependency corretta nel useEffect del reset orari
+
+Hai:
+
+useEffect(() => {
+  if (allDay) {
+    form.setValue("startTime", "");
+    form.setValue("endTime", "");
+  }
+}, [allDay, form]);
+
+
+Aggiungi anche form.setValue come dependency interna, o disabilita l’avviso ESLint con commento:
+
+// eslint-disable-next-line react-hooks/exhaustive-deps
+
+
+Preferisco che tu aggiunga solo il commento, non cambiare il comportamento.
+
+🔧 3. Aggiungi tipo di errore a AbortError check
+
+Sostituisci:
+
+if (error.name === 'AbortError') return;
+
+
+Con:
+
+if (error instanceof DOMException && error.name === 'AbortError') return;
+
+
+Più affidabile nei runtime moderni.
+
+🔧 4. Migliora leggibilità pulsante Remove Client
+
+Nel bottone remove cliente, aggiungi aria-label:
+
+<Button
+  aria-label="Rimuovi cliente"
+  ...
+>
+
+
+Nessun impatto funzionale, migliora accessibilità.
+
+🔧 5. (Opzionale ma consigliato) Spinner conflitti
+
+Quando checkingConflicts === true, aggiungi un piccolo indicatore sotto la sezione orari:
+
+{checkingConflicts && (
+  <div className="text-xs text-muted-foreground">Controllo conflitti…</div>
+)}
+
+
+Se trovi la posizione più adatta visivamente puoi inserirlo, ma non modificare layout o margini esistenti.
+
+🔒 STOP – NON MODIFICARE ALTRO
+
+Non toccare:
+
+la mutation createJob
+
+la gestione dei chip
+
+i memo degli ordered lists
+
+la refine dello schema
+
+la logica del dialog
+
+il navigate dopo il successo
+
+le query jobTypes / provenances
+
+la struttura generale del form
+
+🎯 Output richiesto
+
+Quando hai terminato:
+
+Mostrami il diff esatto delle modifiche
+
+Mostrami il file aggiornato
+
+Conferma che non sono state modificate parti non richieste
