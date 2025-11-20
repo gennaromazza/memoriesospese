@@ -12,6 +12,7 @@ import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
 import { User } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import { FixedSizeGrid as Grid } from 'react-window';
 import "@/styles/themes/natale.css";
 import "@/styles/themes/carnevale.css";
 import "@/styles/themes/san-valentino.css";
@@ -81,14 +82,13 @@ import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotli
 
 // Memoized PhotoCard component for optimization with lazy loading
 const PhotoCard = memo(({ photo, index, onClick }: { photo: PhotoData, index: number, onClick: (index: number) => void }) => {
+  const handleClick = useCallback(() => onClick(index), [onClick, index]);
+  
   return (
     <div className="masonry-item">
       <div
-        className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
-          // Placeholder for selection mode styling - actual logic is in the parent component's map
-          ""
-        }`}
-        onClick={() => onClick(index)}
+        className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+        onClick={handleClick}
       >
         <img
           src={photo.url}
@@ -96,19 +96,24 @@ const PhotoCard = memo(({ photo, index, onClick }: { photo: PhotoData, index: nu
           className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
           loading="lazy"
           decoding="async"
+          fetchpriority={index < 6 ? "high" : "low"}
           title={
             photo.createdAt
               ? new Date(photo.createdAt).toLocaleString("it-IT")
               : ""
           }
           style={{
-            backgroundColor: "transparent", // Ensure no background color interferes
+            backgroundColor: "transparent",
+            willChange: index < 20 ? 'transform' : 'auto', // Ottimizza solo prime 20
           }}
         />
-        {/* Additional elements like badges, interaction panels, etc. would go here if needed */}
       </div>
     </div>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparator: re-render solo se cambiano ID o index
+  return prevProps.photo.id === nextProps.photo.id && 
+         prevProps.index === nextProps.index;
 });
 
 PhotoCard.displayName = 'PhotoCard';
@@ -1034,28 +1039,60 @@ export default function Gallery() {
   // Carica più foto quando si scrolla vicino al fondo con throttling
   const throttledScroll = useMemo(() => {
     let timeout: NodeJS.Timeout | null = null;
+    let lastRun = 0;
     return () => {
-      if (!timeout) {
+      const now = Date.now();
+      const timeSinceLastRun = now - lastRun;
+      
+      if (timeSinceLastRun >= 200) {
+        lastRun = now;
+        if (
+          window.innerHeight + window.scrollY >=
+            document.documentElement.scrollHeight - 800 && // Maggior threshold per preload anticipato
+          !loadingMorePhotos &&
+          hasMorePhotos
+        ) {
+          loadMorePhotos();
+        }
+      } else {
+        if (timeout) clearTimeout(timeout);
         timeout = setTimeout(() => {
-          // Use documentElement.scrollHeight for full document height
+          lastRun = Date.now();
           if (
             window.innerHeight + window.scrollY >=
-              document.documentElement.scrollHeight - 500 && // Adjusted threshold
+              document.documentElement.scrollHeight - 800 &&
             !loadingMorePhotos &&
             hasMorePhotos
           ) {
             loadMorePhotos();
           }
           timeout = null;
-        }, 200); // 200ms throttle
+        }, 200 - timeSinceLastRun);
       }
     };
   }, [loadingMorePhotos, hasMorePhotos, loadMorePhotos]);
 
   useEffect(() => {
-    window.addEventListener("scroll", throttledScroll);
+    window.addEventListener("scroll", throttledScroll, { passive: true });
     return () => window.removeEventListener("scroll", throttledScroll);
   }, [throttledScroll]);
+  
+  // Intersection Observer per auto-load foto
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMorePhotosToShow) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreDisplayPhotos();
+        }
+      },
+      { rootMargin: '400px' } // Preload 400px prima
+    );
+    
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMorePhotosToShow, loadMoreDisplayPhotos]);
   // --- END SCROLL OPTIMIZATION ---
 
   // Combina tutte le foto per il lightbox
@@ -2632,18 +2669,29 @@ export default function Gallery() {
                         ))}
                         </div>
 
-                      {/* 📄 Pulsante "Carica altre foto" (paginazione client-side) */}
+                      {/* 📄 Sentinella per auto-load infinito */}
                       {hasMorePhotosToShow && (
-                        <div className="flex justify-center mt-8">
+                        <div 
+                          ref={sentinelRef} 
+                          className="flex justify-center mt-8 py-4"
+                        >
+                          <div className="flex items-center gap-2 text-gray-500">
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-sage border-t-transparent"></div>
+                            <span className="text-sm">
+                              Caricamento foto... ({displayedPhotosCount}/{allDisplayPhotos.length})
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Pulsante manuale fallback (nascosto, disponibile per accessibilità) */}
+                      {hasMorePhotosToShow && (
+                        <div className="sr-only">
                           <Button
                             onClick={loadMoreDisplayPhotos}
                             variant="outline"
-                            className="px-8 py-6 text-lg"
                           >
-                            📸 Carica altre {Math.min(PHOTOS_PER_PAGE, allDisplayPhotos.length - displayedPhotosCount)} foto
-                            <span className="ml-2 text-sm text-gray-500">
-                              ({displayedPhotosCount}/{allDisplayPhotos.length})
-                            </span>
+                            Carica altre foto
                           </Button>
                         </div>
                       )}
