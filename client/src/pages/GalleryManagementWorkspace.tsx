@@ -243,12 +243,13 @@ export default function GalleryManagementWorkspace() {
         description: `${photos.length} foto caricate con successo!`,
       });
 
-      // FORCE immediate cache clearing and refetch
-      await queryClient.resetQueries({ queryKey: ['photos', galleryId] });
+      // 🔧 Invalidazione GLOBALE cache foto per sincronizzazione cross-page
+      // Invalida tutte le query ['photos', *] indipendentemente dall'ID
+      // Questo assicura che Gallery.tsx (aperta con code) e GalleryManagementWorkspace (con ID)
+      // vedano le stesse foto aggiornate immediatamente
+      await queryClient.invalidateQueries({ queryKey: ['photos'] });
+      await queryClient.invalidateQueries({ queryKey: ['guestPhotos'] });
       await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-      
-      // Force immediate refetch
-      await queryClient.refetchQueries({ queryKey: ['photos', galleryId] });
 
       // Reset progress after 3s
       setTimeout(() => setUploadProgress([]), 3000);
@@ -762,8 +763,9 @@ export default function GalleryManagementWorkspace() {
                           variant="outline"
                           size="sm"
                           onClick={async () => {
-                            await queryClient.resetQueries({ queryKey: ['photos', galleryId] });
-                            await queryClient.refetchQueries({ queryKey: ['photos', galleryId] });
+                            // 🔧 Invalidazione globale per sincronizzazione cross-page
+                            await queryClient.invalidateQueries({ queryKey: ['photos'] });
+                            await queryClient.invalidateQueries({ queryKey: ['guestPhotos'] });
                             toast({
                               title: '🔄 Foto ricaricate',
                               description: 'Le foto sono state aggiornate.',
@@ -816,9 +818,10 @@ export default function GalleryManagementWorkspace() {
                                 
                                 setSelectedPhotos(new Set());
                                 
-                                // Invalidate queries
+                                // 🔧 Invalidazione globale per sincronizzazione cross-page
                                 queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-                                queryClient.invalidateQueries({ queryKey: ['photos', galleryId] });
+                                queryClient.invalidateQueries({ queryKey: ['photos'] });
+                                queryClient.invalidateQueries({ queryKey: ['guestPhotos'] });
                               } catch (error) {
                                 toast({
                                   title: '❌ Errore',
@@ -914,9 +917,10 @@ export default function GalleryManagementWorkspace() {
                                         newSelected.delete(photo.id);
                                         setSelectedPhotos(newSelected);
                                         
-                                        // Invalidate queries
+                                        // 🔧 Invalidazione globale per sincronizzazione cross-page
                                         queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-                                        queryClient.invalidateQueries({ queryKey: ['photos', galleryId] });
+                                        queryClient.invalidateQueries({ queryKey: ['photos'] });
+                                        queryClient.invalidateQueries({ queryKey: ['guestPhotos'] });
                                       } catch (error) {
                                         toast({
                                           title: '❌ Errore',
