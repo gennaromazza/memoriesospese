@@ -142,15 +142,21 @@ export default function GalleryManagementWorkspace() {
     multiple: true,
   });
 
-  // Query selected photos for display
-  const { data: allPhotos = [] } = useQuery({
-    queryKey: ['photos', galleryId],
+  // 🔧 React Query: Carica foto fotografo - 🔥 FIX: Sempre abilitata se gallery esiste
+  const {
+    data: allPhotos = [],
+    isLoading: isLoadingPhotos,
+    error: photosError
+  } = useQuery({
+    queryKey: ['photos', gallery?.id],
     queryFn: async () => {
-      if (!galleryId) return [];
-      const photos = await PhotoService.getGalleryPhotos(galleryId);
+      if (!gallery?.id) return [];
+      const photos = await PhotoService.getGalleryPhotos(gallery.id);
       return photos;
     },
-    enabled: !!galleryId && !!gallery?.selectionEnabled,
+    enabled: !!gallery?.id,
+    retry: 2,
+    staleTime: 30000
   });
 
   // Filter selected photos
@@ -504,13 +510,13 @@ export default function GalleryManagementWorkspace() {
 
                         return (
                           <div
-                            key={idx}
-                            className={`p-3 rounded border-2 ${
+                            key={`product-progress-${gallery?.id}-${idx}`}
+                            className={`bg-white/90 rounded-lg p-3 ring-2 ${
                               isComplete
-                                ? 'bg-green-50 border-green-300'
+                                ? 'ring-green-300'
                                 : assignedCount > 0
-                                  ? 'bg-yellow-50 border-yellow-300'
-                                  : 'bg-gray-50 border-gray-300'
+                                  ? 'ring-yellow-300'
+                                  : 'ring-gray-300'
                             }`}
                             data-testid={`admin-product-stats-${idx}`}
                           >
@@ -638,7 +644,7 @@ export default function GalleryManagementWorkspace() {
                             const colorClass = productColors[productIndex % productColors.length];
 
                             return (
-                              <div key={productIndex} className={`space-y-2 p-4 rounded-lg border-2 ${colorClass.border} bg-white`}>
+                              <div key={`product-export-${gallery?.id}-${productIndex}`} className={`space-y-2 p-4 rounded-lg border-2 ${colorClass.border} bg-white`}>
                                 <div className="flex items-center justify-between">
                                   <h6 className={`font-semibold ${colorClass.text}`}>
                                     {product.prodottoNome}
