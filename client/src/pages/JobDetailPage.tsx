@@ -61,6 +61,7 @@ import type { Quote } from '@shared/quotes-types';
 import { apiRequest } from '@/lib/queryClient';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
 import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
+import FinancialSummaryCard from '@/components/jobs/FinancialSummaryCard';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -500,7 +501,29 @@ export default function JobDetailPage() {
                 {job.status}
               </Badge>
 
-              {/* Actions Dropdown */}
+              {/* Primary Actions */}
+              {(job.status === 'lead' || job.status === 'preventivo_inviato') && (
+                <Button 
+                  onClick={() => setQuoteBuilderOpen(true)}
+                  data-testid="action-generate-quote"
+                  className="hidden sm:flex"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Genera Preventivo
+                </Button>
+              )}
+              
+              <Button 
+                onClick={() => setEditModalOpen(true)}
+                variant="outline"
+                data-testid="action-edit"
+                className="hidden sm:flex"
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Modifica
+              </Button>
+
+              {/* Secondary Actions Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" data-testid="button-actions">
@@ -508,21 +531,7 @@ export default function JobDetailPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem
-                    onClick={() => setEditModalOpen(true)}
-                    data-testid="action-edit"
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    <span>Modifica Lavoro</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setQuoteBuilderOpen(true)}
-                    data-testid="action-generate-quote"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    <span>Genera Preventivo</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  {/* Destructive action */}
                   <DropdownMenuItem
                     onClick={handleDelete}
                     disabled={deleteMutation.isPending}
@@ -545,6 +554,15 @@ export default function JobDetailPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Financial Summary */}
+        <FinancialSummaryCard
+          totalePreventivato={job.financials.totalePreventivato}
+          totalePagato={job.financials.totalePagato}
+          saldoResiduo={job.financials.saldoResiduo}
+          totaleCosti={job.costi.reduce((sum, c) => sum + c.importo, 0)}
+          className="mb-6"
+        />
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Column */}
           <div className="lg:col-span-2 space-y-6">
@@ -572,10 +590,10 @@ export default function JobDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Moduli Prenotazione */}
+            {/* Preventivi e Ordini */}
             <Card>
               <CardHeader>
-                <CardTitle>Moduli di Prenotazione</CardTitle>
+                <CardTitle>Preventivi e Ordini</CardTitle>
               </CardHeader>
               <CardContent>
                 <ModuliJobSection 
@@ -602,7 +620,7 @@ export default function JobDetailPage() {
             {/* Pagamenti */}
             <Card>
               <CardHeader>
-                <CardTitle>Storico Pagamenti</CardTitle>
+                <CardTitle>Pagamenti e Scadenze</CardTitle>
               </CardHeader>
               <CardContent>
                 <PaymentScheduleSection 
@@ -613,12 +631,12 @@ export default function JobDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Gestione Firme */}
+            {/* Stato Preventivi */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Gestione Firme ({quotes?.length || 0})
+                  Stato Preventivi ({quotes?.length || 0})
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -919,6 +937,29 @@ export default function JobDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Mobile Sticky Actions Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 flex gap-2 lg:hidden z-50 shadow-lg">
+        <Button 
+          className="flex-1"
+          onClick={() => setEditModalOpen(true)}
+          variant="outline"
+          data-testid="mobile-action-edit"
+        >
+          <Edit className="h-4 w-4 mr-2" />
+          Modifica
+        </Button>
+        {(job.status === 'lead' || job.status === 'preventivo_inviato') && (
+          <Button 
+            className="flex-1"
+            onClick={() => setQuoteBuilderOpen(true)}
+            data-testid="mobile-action-quote"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Preventivo
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -65,12 +65,12 @@ export default function ClienteJobCard({ cliente, onViewDetails, onEdit }: Clien
             {onEdit && (
               <Button
                 variant="outline"
-                size="sm"
+                size="default"
                 onClick={onEdit}
                 data-testid={`button-edit-${cliente.id}`}
-                title="Modifica cliente"
               >
-                <Edit className="h-4 w-4" />
+                <Edit className="h-4 w-4 mr-2" />
+                Modifica
               </Button>
             )}
             {cliente.email && (

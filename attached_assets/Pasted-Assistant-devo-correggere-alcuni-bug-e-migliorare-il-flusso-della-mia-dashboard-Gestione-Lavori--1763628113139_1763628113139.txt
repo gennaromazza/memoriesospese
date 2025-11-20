@@ -1,0 +1,87 @@
+Assistant, devo correggere alcuni bug e migliorare il flusso della mia dashboard “Gestione Lavori”.
+Devi lavorare verificando nomi delle collezioni, percorsi, tipi TypeScript, Firestore schema e centralizzazione dei dati, senza creare duplicazioni.
+
+1️⃣ Rimozione schermata intermedia inutile
+
+Quando clicco su "Gestisci" in JobsListPage si apre una schermata intermedia ridondante.
+Devi:
+
+identificare il componente/route che genera questa pagina inutile
+
+eliminarla o bypassarla completamente
+
+fare in modo che cliccando su “Gestisci” si vada direttamente alla JobDetailPage, la pagina finale del lavoro
+
+Controlla eventuali route duplicate o componenti obsoleti.
+
+2️⃣ Sincronizzazione dei dati cliente su Jobs e Preventivi
+
+Oggi i dati del cliente (indirizzo, recapiti, ecc.) non vengono aggiornati correttamente nei lavori e nei preventivi.
+
+Devi implementare una centralizzazione reale dei dati del cliente:
+
+I dati vanno letti solo da clients
+
+Nei documenti jobs ci deve essere solo clientId, senza duplicazioni
+
+Quando modifico un cliente nella pagina "Clienti", i dati devono aggiornarsi in tempo reale in:
+
+JobsList
+
+JobDetailPage
+
+Preventivi
+
+💥 Aggiornamento UI deve essere istantaneo, quindi usa React Query con invalidazioni corrette o listeners Firestore se già presenti nel progetto.
+
+3️⃣ Pulsante “Edit Cliente” nella JobDetailPage
+
+Aggiungi un pulsante “Edit Cliente” nella JobDetailPage che:
+
+apre il modulo esistente della modifica cliente (non duplicare nulla)
+
+una volta salvato, aggiorna immediatamente l’interfaccia con i nuovi dati
+
+assicura che il preventivo mostri sempre i dati completi e aggiornati
+
+Assicurati che l’UI sia coerente con il design attuale (ShadCN).
+
+4️⃣ Revisione completa della UI di JobDetailPage
+
+Oltre alle modifiche sopra, devi analizzare e revisionare l’intera JobDetailPage per identificare e sistemare:
+
+bug logici
+
+problemi di flusso (navigazione, interazioni, step ridondanti)
+
+problemi visivi o di layout
+
+incoerenze nei componenti
+
+eventuali sezioni o elementi duplicati o non più utili
+
+Ottimizza la UX senza stravolgere l’architettura.
+
+5️⃣ Requisiti tecnici aggiuntivi
+
+Verifica i nomi collezioni: clients, jobs, quotes
+
+Mantieni coerenza con tipi TS e zod schema
+
+Centralizza le query in useClients, useJobs, ecc.
+
+Rimuovi codice duplicato o dati duplicati
+
+Mantieni compatibilità con tutto l’ecosistema admin
+
+Obiettivo finale
+
+❌ Rimuovere schermata inutile
+
+🔄 Sincronizzare i dati cliente in tutta l’app
+
+⚡ UI reattiva e istantanea
+
+✏️ Aggiungere pulsante “Edit Cliente”
+
+🔍 Revisione completa della JobDetailPage (logica + flusso + UI)

@@ -53,7 +53,6 @@ import { format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import CreateJobModal from './CreateJobModal';
-import JobDetailDrawer from './JobDetailDrawer';
 
 // Status pipeline labels
 const STATUS_LABELS: Record<JobStatus, string> = {
@@ -83,7 +82,6 @@ const STATUS_COLORS: Record<JobStatus, string> = {
 export default function JobsManager() {
   const [, navigate] = useLocation();
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>('all');
@@ -588,7 +586,7 @@ export default function JobsManager() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedJobId(job.id);
+                          navigate(`/admin/jobs/${job.id}`);
                         }}
                         data-testid={`button-manage-${job.id}`}
                       >
@@ -608,13 +606,6 @@ export default function JobsManager() {
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
       />
-      
-      {selectedJobId && (
-        <JobDetailDrawer
-          jobId={selectedJobId}
-          onClose={() => setSelectedJobId(null)}
-        />
-      )}
     </div>
   );
 }
