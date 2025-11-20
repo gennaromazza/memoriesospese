@@ -10,11 +10,13 @@ import { it } from 'date-fns/locale';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getPaymentSchedulesForJob } from '@/lib/payment-schedules';
+import type { PaymentSchedule } from '@shared/payment-schedule-types';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +25,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Tabs,
   TabsContent,
@@ -87,6 +99,15 @@ export default function GeneraPagamentiModal({
   const [dateModes, setDateModes] = useState<Array<'absolute' | 'relative'>>([]);
   const [relativeDaysArray, setRelativeDaysArray] = useState<number[]>([]);
   const [quoteSignatureDate, setQuoteSignatureDate] = useState<Date | undefined>();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [replaceExisting, setReplaceExisting] = useState(false);
+
+  // Fetch existing payment schedules for this job
+  const { data: existingSchedules = [] } = useQuery<PaymentSchedule[]>({
+    queryKey: ['payment-schedules-check', jobId],
+    queryFn: () => getPaymentSchedulesForJob(jobId),
+    enabled: open && !!jobId,
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -235,6 +256,15 @@ export default function GeneraPagamentiModal({
   // Mutation: crea payment schedule (automatic vs manual)
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Se replaceExisting = true, elimina prima i vecchi schedules
+      if (replaceExisting && existingSchedules.length > 0) {
+        console.log(`🗑️ Eliminazione ${existingSchedules.length} payment schedule(s) esistenti...`);
+        for (const schedule of existingSchedules) {
+          await deleteDoc(doc(db, 'paymentSchedules', schedule.id));
+        }
+        console.log('✅ Vecchi payment schedules eliminati');
+      }
+
       // Prepara body base (include dataRiferimento opzionale)
       const baseBody = {
         quoteId,
@@ -298,6 +328,13 @@ export default function GeneraPagamentiModal({
       return;
     }
 
+    // Controlla se esistono già payment schedules
+    if (existingSchedules.length > 0 && !replaceExisting) {
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    // Procedi con creazione (dopo conferma o se non esistono schedules)
     createMutation.mutate(data);
   };
 
@@ -707,5 +744,59 @@ export default function GeneraPagamentiModal({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* AlertDialog: Conferma sovrascrittura piano pagamenti esistente */}
+    <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>⚠️ Piano Pagamenti Già Esistente</AlertDialogTitle>
+          <AlertDialogDescription className="space-y-2">
+            <p>
+              Per questo lavoro esiste già {existingSchedules.length === 1 ? 'un piano pagamenti' : `${existingSchedules.length} piani pagamenti`} con{' '}
+              <strong>
+                {existingSchedules.reduce((sum, s) => sum + s.payments.length, 0)} rate totali
+              </strong>
+              {' '}per un importo di{' '}
+              <strong>
+                €{existingSchedules.reduce((sum, s) => sum + s.totale, 0).toFixed(2)}
+              </strong>
+              .
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Cosa vuoi fare?
+            </p>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel data-testid="button-cancel-schedule">
+            Annulla
+          </AlertDialogCancel>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setReplaceExisting(false);
+              setShowConfirmDialog(false);
+              // Forza submit con i dati del form corrente
+              form.handleSubmit(createMutation.mutate)();
+            }}
+            data-testid="button-add-anyway"
+          >
+            Aggiungi Comunque
+          </Button>
+          <AlertDialogAction
+            onClick={() => {
+              setReplaceExisting(true);
+              setShowConfirmDialog(false);
+              // Forza submit con i dati del form corrente
+              form.handleSubmit(createMutation.mutate)();
+            }}
+            className="bg-red-600 hover:bg-red-700"
+            data-testid="button-replace-schedule"
+          >
+            Sostituisci
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
