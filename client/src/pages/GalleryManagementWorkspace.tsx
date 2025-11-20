@@ -76,6 +76,23 @@ export default function GalleryManagementWorkspace() {
     enabled: !!galleryId,
   });
 
+  // 🔧 React Query: Carica foto fotografo - MOVED BEFORE useEffect
+  const {
+    data: allPhotos = [],
+    isLoading: isLoadingPhotos,
+    error: photosError
+  } = useQuery({
+    queryKey: ['photos', gallery?.id],
+    queryFn: async () => {
+      if (!gallery?.id) return [];
+      const photos = await PhotoService.getGalleryPhotos(gallery.id);
+      return photos;
+    },
+    enabled: !!gallery?.id,
+    retry: 2,
+    staleTime: 30000
+  });
+
   // Carica nomi foto esistenti per controllo duplicati
   useEffect(() => {
     if (allPhotos.length > 0) {
@@ -204,22 +221,7 @@ export default function GalleryManagementWorkspace() {
     multiple: true,
   });
 
-  // 🔧 React Query: Carica foto fotografo - 🔥 FIX: Sempre abilitata se gallery esiste
-  const {
-    data: allPhotos = [],
-    isLoading: isLoadingPhotos,
-    error: photosError
-  } = useQuery({
-    queryKey: ['photos', gallery?.id],
-    queryFn: async () => {
-      if (!gallery?.id) return [];
-      const photos = await PhotoService.getGalleryPhotos(gallery.id);
-      return photos;
-    },
-    enabled: !!gallery?.id,
-    retry: 2,
-    staleTime: 30000
-  });
+  
 
   // Filter selected photos
   // Multi-product mode: use photoAssignments, Legacy mode: use selectedPhotoIds
