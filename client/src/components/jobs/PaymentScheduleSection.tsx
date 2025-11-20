@@ -144,6 +144,8 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-schedules', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['paymentSchedule', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['paymentSchedules', 'aggregated', jobId] });
       queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       toast({
         title: 'Rata eliminata',

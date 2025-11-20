@@ -102,7 +102,8 @@ export async function getPaymentSchedule(scheduleId: string): Promise<PaymentSch
 }
 
 /**
- * Get payment schedule for job
+ * Get payment schedule for job (restituisce primo schedule trovato)
+ * NOTA: Se esistono duplicati, usa getPaymentSchedulesForJob per fetchare tutti
  */
 export async function getPaymentScheduleForJob(jobId: string): Promise<PaymentSchedule | null> {
   try {
@@ -114,13 +115,41 @@ export async function getPaymentScheduleForJob(jobId: string): Promise<PaymentSc
     const snapshot = await getDocs(q);
     if (snapshot.empty) return null;
     
-    const scheduleDoc = snapshot.docs[0]; // Un solo schedule per job
+    // Log warning se esistono duplicati (data issue da risolvere)
+    if (snapshot.docs.length > 1) {
+      console.warn(`⚠️ Job ${jobId} ha ${snapshot.docs.length} payment schedules duplicati!`);
+    }
+    
+    const scheduleDoc = snapshot.docs[0];
     return {
       id: scheduleDoc.id,
       ...scheduleDoc.data()
     } as PaymentSchedule;
   } catch (error) {
     console.error('❌ Errore get schedule for job:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get ALL payment schedules for job (per gestire duplicati)
+ * Usato da useJobFinancials per calcolare totali aggregati corretti
+ */
+export async function getPaymentSchedulesForJob(jobId: string): Promise<PaymentSchedule[]> {
+  try {
+    const q = query(
+      collection(db, SCHEDULES_COLLECTION),
+      where('jobId', '==', jobId)
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as PaymentSchedule));
+  } catch (error) {
+    console.error('❌ Errore get schedules for job:', error);
     throw error;
   }
 }

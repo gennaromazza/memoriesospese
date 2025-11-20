@@ -1,0 +1,132 @@
+Ciao Assistant, devo fare un refactor della Job Detail page della mia admin dashboard (screen allegati).
+Stack: React + TypeScript, Tailwind/shadcn, Firebase/Firestore. Route tipo: /admin/jobs/:jobId.
+
+1. Pulizia colonna destra / Workflow
+
+Attualmente, nella pagina Dettaglio Lavoro (secondo screenshot):
+
+A sinistra ho il blocco Clienti (2) + i pulsanti per email/whatsapp/telefono.
+
+Più in basso ci sono Moduli di Prenotazione, Storico Pagamenti, Piano Pagamenti, ecc.
+
+A destra ho una colonna con:
+
+Card Workflow con una lista di step (Data creazione, Primo appuntamento, Modulo di prenotazione, Lavoro confermato, Data del lavoro, Inizio lavorazione, Appuntamento visione file, Lavoro completo, ecc.).
+
+Sotto c’è la card Attività Recenti, che invece è utile.
+
+Quello che voglio:
+
+Semplificare il Workflow:
+
+Tutti i singoli step intermedi del workflow nella colonna destra possono sparire dall’interfaccia.
+
+Mi serve solo un toggle/checkbox/pulsante chiaro: “Lavoro completo / consegnato”.
+
+Questo pulsante deve essere spostato nella parte principale della pagina, vicino all’header del lavoro (titolo “Matrimonio Gennaro e Debora”, chip tipo “matrimonio”, “confermato”, ecc.), oppure subito sotto il titolo, in una piccola sezione riassuntiva orizzontale.
+
+Desktop: deve stare in linea/area visivamente collegata allo status.
+
+Mobile: deve essere facilmente cliccabile, niente micro-target.
+
+Collegare il pulsante allo status del lavoro:
+
+Nel backend ho già un campo status per il lavoro (es. lead, confermato, ecc.).
+
+Introduci/gestisci uno stato finale tipo consegnato (o completed) che viene impostato quando clicco sul pulsante “Lavoro completo / consegnato”.
+
+Quando questo stato è attivo:
+
+Nella tab Lavori (primo screenshot, tabella “Gestione Lavori”) nella colonna Status si deve vedere chiaramente lo stato “Consegnato” (stile pill come “Lead” / “Confermato”).
+
+Nell’header del Job Detail deve comparire allo stesso modo (chip/pill).
+
+Manteniamo la logica esistente per lead e confermato; consegnato è lo stato finale.
+
+Mantenere le parti utili della colonna destra:
+
+Lasciamo intatti:
+
+I due eventuali bottoni di azione rapida già presenti nella sezione destra (se ci sono quick actions che usano spesso, NON rimuoverli).
+
+La card Attività Recenti con la timeline degli eventi (richieste consulenza, invio email, ecc.).
+
+La vecchia card Workflow con tutti gli step deve essere rimossa o fortemente ridotta, lasciando solo ciò che serve (il nuovo pulsante “Lavoro completo / consegnato”, spostato nella parte principale come detto sopra).
+
+Layout orizzontale / responsive
+
+L’idea è che tutta questa parte di “stato del lavoro” sia più compatta e orizzontale, ideale anche da smartphone.
+
+Sotto il blocco Clienti o subito sotto il titolo del lavoro, inserisci una piccola sezione riassuntiva orizzontale (es. Status, Data lavoro, pulsante Lavoro completo).
+
+Su mobile la sezione può diventare a righe, ma deve restare pulita e veloce da leggere.
+
+2. Refactor della sidebar del Modulo Preventivo
+
+Nel Job Detail, nella sezione Moduli di Prenotazione:
+
+Quando clicco sul riquadro “Modulo Preventivo” si apre una sidebar laterale destra (terzo e quarto screenshot) che scurisce il resto della pagina.
+
+In questa sidebar vedo:
+
+Lista dei prodotti del modulo con descrizione e prezzo.
+
+Totale del preventivo.
+
+Sezione Firmato Digitalmente (firmato da, data, IP).
+
+Pulsante Genera Piano Pagamenti.
+
+Sezione Portale Cliente Firmato con link.
+
+Pulsante Esporta PDF.
+
+Pulsanti WhatsApp (es. “Gennaro”, “Debora”) per inviare il preventivo.
+
+Quello che voglio:
+
+Eliminare il comportamento di sidebar overlay:
+
+Quando clicco sul modulo preventivo, NON voglio più l’overlay fullscreen laterale.
+
+Invece, voglio che il contenuto che oggi sta nella sidebar venga mostrato direttamente nella pagina principale, sotto la card “Moduli di Prenotazione”.
+
+Nuovo layout inline (orizzontale dove possibile):
+
+Quando seleziono un modulo (es. clic su “Modulo Preventivo”), apri un pannello espandibile (accordion o dettaglio) subito sotto la lista dei moduli.
+
+Dentro questo pannello devo vedere gli stessi contenuti della sidebar:
+
+Lista prodotti (titolo + descrizione + prezzo).
+
+Totale.
+
+Stato firma digitale.
+
+Pulsante “Genera Piano Pagamenti”.
+
+Link portale cliente firmato.
+
+Pulsante “Esporta PDF”.
+
+Pulsanti per inviare via WhatsApp.
+
+Desktop: organizza queste informazioni in modo più orizzontale (es. prodotti a sinistra, totale+firma+azioni a destra) per evitare una colonna infinita.
+
+Mobile: le sezioni vanno impilate ma con margini e gerarchie chiare, facilmente scrollabile.
+
+Riutilizzare la logica esistente:
+
+Riusa la logica e i componenti già esistenti nella sidebar per popolare il nuovo pannello nella pagina.
+
+Rimuovi il codice non più necessario legato alla opening/closing della sidebar (stato isSidebarOpen, overlay, ecc.), o rendilo non usato.
+
+Assicurati che tutti i pulsanti continuino a funzionare come ora (firma, generazione piano pagamenti, link portale, export PDF, WhatsApp).
+
+3. Requisiti generali
+
+Mantieni lo stile visivo attuale (palette, card, pulsanti) per non rompere la coerenza con il resto della dashboard.
+
+Attenzione particolare alla responsività: la UI deve funzionare bene sia su desktop (layout a due colonne) sia su smartphone (stack verticale).
+
+Aggiorna eventuali tipi TypeScript (es. JobStatus union) e, dove necessario, la lettura/scrittura verso Firestore per includere il nuovo stato consegnato / completed.

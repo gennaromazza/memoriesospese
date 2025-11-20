@@ -1,10 +1,11 @@
 /**
  * useJobFinancials Hook
  * Calcola dati finanziari del job in real-time da payment schedules e costi
+ * GESTISCE DUPLICATI: fetcha TUTTI gli schedules del job e aggrega i totali
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { getPaymentScheduleForJob } from '@/lib/payment-schedules';
+import { getPaymentSchedulesForJob } from '@/lib/payment-schedules';
 import type { Job } from '@shared/jobs-types';
 
 interface JobFinancialsData {
@@ -18,13 +19,14 @@ interface JobFinancialsData {
 
 /**
  * Hook per calcolare i dati finanziari del job in tempo reale
- * Fetcha payment schedules per calcolare totalePagato correttamente
+ * Fetcha TUTTI i payment schedules e aggrega i totali per gestire duplicati
  */
 export function useJobFinancials(job: Job | null | undefined): JobFinancialsData {
-  // Fetch payment schedule del job
-  const { data: paymentSchedule, isLoading: scheduleLoading } = useQuery({
-    queryKey: ['paymentSchedule', job?.id],
-    queryFn: () => getPaymentScheduleForJob(job!.id),
+  // Fetch TUTTI i payment schedules del job (gestisce duplicati)
+  // NOTA: usa queryKey DIVERSA da PaymentScheduleSection per evitare cache type conflicts
+  const { data: paymentSchedules, isLoading: scheduleLoading } = useQuery({
+    queryKey: ['paymentSchedules', 'aggregated', job?.id], // Plurale + 'aggregated' per separare da singolo schedule
+    queryFn: () => getPaymentSchedulesForJob(job!.id),
     enabled: !!job?.id,
     staleTime: 10000, // 10 secondi - refresh frequente per vedere pagamenti aggiornati
   });
@@ -40,14 +42,29 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     };
   }
 
+  // Durante caricamento schedules, restituisci valori da job snapshot come fallback
+  if (scheduleLoading) {
+    return {
+      totalePreventivato: job.financials?.totalePreventivato || 0,
+      totalePagato: job.financials?.totalePagato || 0, // Fallback a snapshot
+      saldoResiduo: job.financials?.saldoResiduo || 0,
+      totaleCosti: job.costi?.reduce((sum, c) => sum + c.importo, 0) || 0,
+      margine: (job.financials?.totalePreventivato || 0) - (job.costi?.reduce((sum, c) => sum + c.importo, 0) || 0),
+      isLoading: true,
+    };
+  }
+
   // 1. Totale preventivato (da job snapshot - aggiornato da backend quando viene creato preventivo)
   const totalePreventivato = job.financials?.totalePreventivato || 0;
 
-  // 2. Total pagato REAL-TIME da payment schedule
-  // Somma tutti i pagamenti con importoPagato (stato 'pagato' o 'parziale')
-  const totalePagato = paymentSchedule?.payments
-    .filter(p => p.importoPagato && p.importoPagato > 0)
-    .reduce((sum, p) => sum + (p.importoPagato || 0), 0) || 0;
+  // 2. Total pagato REAL-TIME - Aggrega da TUTTI i payment schedules
+  // Somma tutti i pagamenti con importoPagato > 0 da tutti gli schedules
+  const totalePagato = (paymentSchedules || []).reduce((total, schedule) => {
+    const scheduleTotalPagato = (schedule.payments || [])
+      .filter(p => p.importoPagato && p.importoPagato > 0)
+      .reduce((sum, p) => sum + (p.importoPagato || 0), 0);
+    return total + scheduleTotalPagato;
+  }, 0);
 
   // 3. Totale costi REAL-TIME da array costi
   const totaleCosti = job.costi?.reduce((sum, c) => sum + c.importo, 0) || 0;
@@ -62,6 +79,6 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     saldoResiduo,
     totaleCosti,
     margine,
-    isLoading: scheduleLoading,
+    isLoading: false,
   };
 }
