@@ -318,8 +318,7 @@ export default function GestioneRataModal({
                       htmlFor="relative"
                       className="font-normal cursor-pointer"
                     >
-                      Relativa all'evento (
-                      {const localeIT = it; // workaround Replit/Vite format(eventDate, "dd/MM/yyyy", { locale: localeIT })})
+                      Relativa all'evento ({format(eventDate, "dd/MM/yyyy", { locale: it })})
                     </Label>
                   </div>
                 )}
