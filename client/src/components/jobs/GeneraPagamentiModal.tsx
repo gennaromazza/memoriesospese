@@ -101,6 +101,7 @@ export default function GeneraPagamentiModal({
   const [quoteSignatureDate, setQuoteSignatureDate] = useState<Date | undefined>();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch existing payment schedules for this job
   const { data: existingSchedules = [] } = useQuery<PaymentSchedule[]>({
@@ -298,6 +299,7 @@ export default function GeneraPagamentiModal({
       return response.json();
     },
     onSuccess: () => {
+      setIsSubmitting(false);
       queryClient.invalidateQueries({ queryKey: ['payment-schedules', jobId] });
       queryClient.invalidateQueries({ queryKey: ['paymentSchedule', jobId] });
       queryClient.invalidateQueries({ queryKey: ['paymentSchedules', 'aggregated', jobId] });
@@ -310,6 +312,7 @@ export default function GeneraPagamentiModal({
       form.reset();
     },
     onError: (error: Error) => {
+      setIsSubmitting(false);
       toast({
         title: 'Errore',
         description: error.message,
@@ -319,6 +322,11 @@ export default function GeneraPagamentiModal({
   });
 
   const onSubmit = (data: FormData) => {
+    // Previeni doppio submit
+    if (isSubmitting) {
+      return;
+    }
+
     if (!isValid) {
       toast({
         title: 'Totale non valido',
@@ -335,6 +343,7 @@ export default function GeneraPagamentiModal({
     }
 
     // Procedi con creazione (dopo conferma o se non esistono schedules)
+    setIsSubmitting(true);
     createMutation.mutate(data);
   };
 
@@ -503,10 +512,10 @@ export default function GeneraPagamentiModal({
               <Button 
                 type="button" 
                 onClick={() => onSubmit(form.getValues())} 
-                disabled={createMutation.isPending}
+                disabled={isSubmitting || createMutation.isPending}
                 data-testid="button-genera-automatico"
               >
-                {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Genera Piano Pagamenti
               </Button>
             </DialogFooter>
@@ -734,8 +743,8 @@ export default function GeneraPagamentiModal({
                   <Button type="button" variant="outline" onClick={onClose}>
                     Annulla
                   </Button>
-                  <Button type="submit" disabled={!isValid || createMutation.isPending}>
-                    {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  <Button type="submit" disabled={!isValid || isSubmitting || createMutation.isPending}>
+                    {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Genera Piano Pagamenti
                   </Button>
                 </DialogFooter>
