@@ -13,6 +13,8 @@ import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
   Dialog,
   DialogContent,
@@ -84,6 +86,7 @@ export default function GeneraPagamentiModal({
   const [selectedPreset, setSelectedPreset] = useState<'acconto-saldo' | '2-rate' | '3-rate'>('acconto-saldo');
   const [dateModes, setDateModes] = useState<Array<'absolute' | 'relative'>>([]);
   const [relativeDaysArray, setRelativeDaysArray] = useState<number[]>([]);
+  const [quoteSignatureDate, setQuoteSignatureDate] = useState<Date | undefined>();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -95,7 +98,7 @@ export default function GeneraPagamentiModal({
           descrizione: 'Pagamento totale',
         },
       ],
-      dataRiferimento: undefined, // Opzionale per lavori storici
+      dataRiferimento: undefined, // Auto-populated da firma preventivo
     },
   });
 
@@ -110,6 +113,30 @@ export default function GeneraPagamentiModal({
     setDateModes(prev => prev.filter((_, i) => i !== index));
     setRelativeDaysArray(prev => prev.filter((_, i) => i !== index));
   };
+
+  // Fetch quote signature date on mount
+  useEffect(() => {
+    const fetchQuoteSignatureDate = async () => {
+      try {
+        const quoteDoc = await getDoc(doc(db, 'quotes', quoteId));
+        if (quoteDoc.exists()) {
+          const quoteData = quoteDoc.data();
+          if (quoteData.signature?.signedAt) {
+            const signedDate = quoteData.signature.signedAt.toDate();
+            setQuoteSignatureDate(signedDate);
+            // Auto-popola dataRiferimento con la data di firma
+            form.setValue('dataRiferimento', signedDate);
+          }
+        }
+      } catch (error) {
+        console.error('Errore fetch quote signature:', error);
+      }
+    };
+
+    if (open && quoteId) {
+      fetchQuoteSignatureDate();
+    }
+  }, [open, quoteId, form]);
 
   // Sincronizza dateModes/relativeDaysArray quando si aggiungono nuove rate
   useEffect(() => {
@@ -291,18 +318,31 @@ export default function GeneraPagamentiModal({
                 name="dataRiferimento"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Data Firma/Riferimento (Opzionale)</FormLabel>
+                    <FormLabel>
+                      Data Firma/Riferimento
+                      {quoteSignatureDate && (
+                        <Badge variant="secondary" className="ml-2">
+                          Auto-rilevata dalla firma
+                        </Badge>
+                      )}
+                    </FormLabel>
                     <FormControl>
                       <DateInput
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder="gg/mm/aaaa (per lavori storici)"
+                        placeholder="gg/mm/aaaa"
                         data-testid="input-data-riferimento-global"
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma.
-                      Lascia vuoto per usare la data odierna.
+                      {quoteSignatureDate ? (
+                        <>
+                          Data firma preventivo rilevata automaticamente: <strong>{format(quoteSignatureDate, 'dd/MM/yyyy', { locale: it })}</strong>.
+                          Puoi modificarla se necessario.
+                        </>
+                      ) : (
+                        'Se stai inserendo un lavoro vecchio, puoi specificare quando è stata effettuata la firma. Lascia vuoto per usare la data odierna.'
+                      )}
                     </p>
                     <FormMessage />
                   </FormItem>
