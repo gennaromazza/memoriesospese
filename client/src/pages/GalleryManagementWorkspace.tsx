@@ -667,6 +667,84 @@ export default function GalleryManagementWorkspace() {
                     <p className="text-sm text-gray-600">Elaborazione in corso...</p>
                   </div>
                 )}
+
+                {/* Foto Esistenti con possibilità di eliminazione */}
+                {allPhotos.length > 0 && (
+                  <div className="mt-8 pt-8 border-t border-gray-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="font-semibold text-blue-gray text-lg">📸 Foto Caricate</h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {allPhotos.length} foto totali ({(allPhotos.reduce((sum, p) => sum + (p.size || 0), 0) / 1024 / 1024).toFixed(2)} MB)
+                        </p>
+                      </div>
+                    </div>
+
+                    {isLoadingPhotos ? (
+                      <div className="text-center py-12">
+                        <Loader2 className="w-8 h-8 text-sage animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Caricamento foto...</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {allPhotos.map((photo) => (
+                          <div
+                            key={photo.id}
+                            className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-sage transition-all"
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2">
+                              <p className="text-white text-xs text-center truncate w-full mb-2">
+                                {photo.name}
+                              </p>
+                              <p className="text-white/80 text-xs mb-3">
+                                {(photo.size / 1024).toFixed(0)} KB
+                              </p>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={async () => {
+                                  if (!confirm(`Eliminare "${photo.name}"? Questa azione è irreversibile.`)) return;
+                                  
+                                  try {
+                                    await PhotoService.deletePhoto(photo.id);
+                                    
+                                    // Update gallery photoCount
+                                    const newPhotoCount = Math.max(0, (gallery?.photoCount || 0) - 1);
+                                    await GalleryService.updateGallery(galleryId!, { photoCount: newPhotoCount });
+                                    
+                                    toast({
+                                      title: '✅ Foto eliminata',
+                                      description: `${photo.name} è stata eliminata con successo.`,
+                                    });
+                                    
+                                    // Invalidate queries
+                                    queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+                                    queryClient.invalidateQueries({ queryKey: ['photos', galleryId] });
+                                  } catch (error) {
+                                    toast({
+                                      title: '❌ Errore',
+                                      description: error instanceof Error ? error.message : 'Errore durante l\'eliminazione',
+                                      variant: 'destructive',
+                                    });
+                                  }
+                                }}
+                              >
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Elimina
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
