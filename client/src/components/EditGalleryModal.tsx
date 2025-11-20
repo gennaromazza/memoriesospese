@@ -22,6 +22,7 @@ import imageCompression from 'browser-image-compression';
 import { queryClient } from "../lib/queryClient";
 import { Info } from 'lucide-react';
 import { createAbsoluteUrl } from "../lib/basePath";
+import { useGalleryPhotos } from "../hooks/useGalleryPhotos";
 
 interface PhotoData {
   id: string;
@@ -95,7 +96,6 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   
   const availableThemes = getAllThemes();
   const [activeTab, setActiveTab] = useState<string>("details");
-  const [photos, setPhotos] = useState<PhotoData[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: any}>({});
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
@@ -114,6 +114,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
   // Traccia l'ID della galleria per evitare loop infiniti
   const currentGalleryId = useRef<string | null>(null);
+
+  // ✅ NUOVO: Delega caricamento foto a useGalleryPhotos
+  const photoData = useGalleryPhotos(gallery?.id, gallery?.code, {
+    pageSize: 200,
+    autoLoadStorage: true,
+    enablePagination: false
+  });
+  
+  // Combina tutte le foto per compatibilità
+  const photos = [...photoData.photos, ...photoData.guestPhotos, ...photoData.legacyPhotos];
+  const isLoading = photoData.isLoading;
 
   // MUTUA ESCLUSIVITÀ: Password e PIN non possono coesistere
   const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -148,182 +159,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   };
 
-  // Carica le foto dalla galleria (memoizzata per performance)
-  const loadPhotos = useCallback(async () => {
-    if (!gallery) {
-      console.log('❌ loadPhotos: Gallery non definita');
-      return;
-    }
-
-    console.log('🔄 Inizio caricamento foto per galleria:', gallery.id);
-    console.log('🔄 Stato photos prima del caricamento:', photos.length);
-    setIsLoading(true);
-    try {
-      // 1. Carica foto dal nuovo sistema (collezione photos con uploadedBy)
-      const photosQuery = query(
-        collection(db, "photos"),
-        where("galleryId", "==", gallery.id)
-      );
-
-      const photosSnapshot = await getDocs(photosQuery);
-      console.log('📷 Foto nuove trovate:', photosSnapshot.docs.length);
-
-      const loadedPhotos: PhotoData[] = [];
-
-      // Aggiungi foto dal nuovo sistema
-      photosSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        // Foto caricata dal nuovo sistema
-        loadedPhotos.push({
-          id: doc.id,
-          name: data.name || "",
-          url: data.url || "",
-          contentType: data.contentType || "image/jpeg",
-          size: data.size || 0,
-          createdAt: data.createdAt || new Date(),
-          galleryId: data.galleryId || gallery.id,
-          uploaderEmail: data.uploaderEmail,
-          uploaderName: data.uploaderName,
-          uploaderRole: data.uploaderRole,
-          uploadedBy: data.uploadedBy || 'legacy'
-        } as PhotoData);
-      });
-
-      // 2. COMPATIBILITÀ: Carica foto ospiti dalla vecchia collezione galleries/{galleryId}/photos
-      try {
-        const oldGuestPhotosRef = collection(db, "galleries", gallery.id, "photos");
-        const oldGuestPhotosSnapshot = await getDocs(oldGuestPhotosRef);
-
-        // Ottieni nomi foto già caricate per evitare duplicati
-        const existingPhotoNames = new Set(loadedPhotos.map(p => p.name));
-
-        oldGuestPhotosSnapshot.docs.forEach(doc => {
-          const photoData = doc.data();
-          const photoName = photoData.name || "";
-          const photoUrl = photoData.url || "";
-
-          // Evita duplicati basandoci sul nome della foto
-          if (!existingPhotoNames.has(photoName)) {
-            // Determina se è una foto ospite basandoci sull'URL del Storage
-            const isGuestPhoto = photoUrl.includes('/guests/') || 
-                               photoUrl.includes('guest-') ||
-                               photoData.uploadedBy === 'guest' ||
-                               photoData.uploaderRole === 'guest';
-
-            const oldPhoto: PhotoData = {
-              id: `old-guest-${doc.id}`, // ID speciale per foto vecchie
-              name: photoName,
-              url: photoUrl,
-              contentType: photoData.contentType || "image/jpeg",
-              size: photoData.size || 0,
-              createdAt: photoData.createdAt || new Date(),
-              galleryId: gallery.id,
-              uploaderEmail: photoData.uploaderEmail || (isGuestPhoto ? 'guest@legacy' : 'admin@legacy'),
-              uploaderName: photoData.uploaderName || (isGuestPhoto ? 'Ospite Legacy' : 'Admin Legacy'),
-              uploaderRole: isGuestPhoto ? 'guest' : 'admin',
-              uploadedBy: 'legacy'
-            } as PhotoData;
-
-            loadedPhotos.push(oldPhoto);
-            existingPhotoNames.add(photoName);
-          }
-        });
-
-        console.log('📸 Foto ospiti legacy caricate:', oldGuestPhotosSnapshot.docs.length);
-      } catch (error) {
-        console.log('⚠️ Errore caricamento foto ospiti legacy (normale se non esistono):', error);
-      }
-
-      // 3. COMPATIBILITÀ: Carica foto da Firebase Storage se non in Firestore
-      try {
-        const storageRef = ref(storage, `galleries/${gallery.id}/photos/`);
-        const storageList = await listAll(storageRef);
-
-        const existingPhotoNames = new Set(loadedPhotos.map(p => p.name));
-
-        for (const item of storageList.items) {
-          const fileName = item.name;
-
-          // Evita duplicati basandoci sul nome del file
-          if (!existingPhotoNames.has(fileName)) {
-            try {
-              const url = await getDownloadURL(item);
-              const metadata = await getMetadata(item);
-
-              const storagePhoto: PhotoData = {
-                id: `storage-${fileName}`,
-                name: item.name,
-                url: url,
-                contentType: metadata.contentType || 'image/jpeg',
-                size: metadata.size || 0,
-                createdAt: Timestamp.fromDate(metadata.timeCreated ? new Date(metadata.timeCreated) : new Date()),
-                galleryId: gallery.id,
-                uploaderEmail: 'legacy@storage',
-                uploaderName: 'Sistema Legacy',
-                uploaderRole: 'admin',
-                uploadedBy: 'legacy'
-              } as PhotoData;
-
-              loadedPhotos.push(storagePhoto);
-              existingPhotoNames.add(fileName);
-            } catch (error) {
-              console.log(`⚠️ Errore caricamento foto storage ${fileName}:`, error);
-            }
-          }
-        }
-
-        console.log('📸 Foto da Firebase Storage caricate:', storageList.items.length);
-      } catch (error) {
-        console.log('⚠️ Errore caricamento foto da Storage (normale se non esistono):', error);
-      }
-
-      // Ordina le foto per data (più recenti prima)
-      loadedPhotos.sort((a, b) => {
-        let aTime: number;
-        let bTime: number;
-
-        if (a.createdAt && typeof a.createdAt === 'object' && 'seconds' in a.createdAt) {
-          aTime = (a.createdAt as Timestamp).seconds * 1000;
-        } else {
-          aTime = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
-        }
-
-        if (b.createdAt && typeof b.createdAt === 'object' && 'seconds' in b.createdAt) {
-          bTime = (b.createdAt as Timestamp).seconds * 1000;
-        } else {
-          bTime = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
-        }
-
-        return bTime - aTime;
-      });
-
-      // Foto caricate con successo, incluse quelle legacy compatibili
-      console.log('📸 Totale foto caricate:', loadedPhotos.length);
-      console.log('📊 Breakdown foto:', {
-        nuove: loadedPhotos.filter(p => !p.id.startsWith('old-guest-') && !p.id.startsWith('storage-')).length,
-        legacy: loadedPhotos.filter(p => p.id.startsWith('old-guest-')).length,
-        storage: loadedPhotos.filter(p => p.id.startsWith('storage-')).length
-      });
-
-      setPhotos(loadedPhotos);
-      console.log('✅ Foto settate nello stato, lunghezza:', loadedPhotos.length);
-
-      // Verifica immediata che le foto siano state settate
-      setTimeout(() => {
-        console.log('🔍 Verifica stato photos dopo setPhotos:', photos.length);
-      }, 100);
-
-    } catch (error) {
-      console.error('❌ Errore nel caricamento foto:', error);
-      toast({
-        title: "Errore",
-        description: "Impossibile caricare le foto della galleria",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [gallery, toast]);
+  // ✅ RIMOSSA: loadPhotos() callback - ora gestito da useGalleryPhotos hook
 
   // Carica i dati della galleria quando cambia l'ID
   useEffect(() => {
@@ -505,13 +341,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [gallery]);
 
-  // Carica foto ogni volta che il modal si apre
-  useEffect(() => {
-    if (isOpen && gallery && gallery.id) {
-      console.log('🔄 Modal aperto - caricamento foto per galleria:', gallery.id);
-      loadPhotos();
-    }
-  }, [isOpen, gallery?.id]);
+  // ✅ REFACTORED: Foto caricate automaticamente da useGalleryPhotos hook
+  // (non serve più chiamata manuale quando modal si apre)
 
   // Reset currentGalleryId quando il modal si chiude
   useEffect(() => {
@@ -1154,8 +985,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         filesInputRef.current.value = '';
       }
 
-      // Ricarica le foto
-      loadPhotos();
+      // ✅ REFACTORED: Ricarica le foto usando il nuovo hook
+      await photoData.refetch();
 
       // Forza il refresh della galleria principale
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
