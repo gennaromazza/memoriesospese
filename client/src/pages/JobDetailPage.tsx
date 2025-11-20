@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -64,6 +64,9 @@ import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSecti
 import FinancialSummaryCard from '@/components/jobs/FinancialSummaryCard';
 import { useJobFinancials } from '@/hooks/useJobFinancials';
 import JobCompletedToggle from '@/components/jobs/JobCompletedToggle';
+import { ConsultationTemplate } from '@shared/consultation-types';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -87,6 +90,12 @@ export default function JobDetailPage() {
   const [isAllDay, setIsAllDay] = useState(false);
   const [durationPreset, setDurationPreset] = useState<'30min' | '1h' | '2h' | '3h' | 'custom'>('1h');
   const [customDurationHours, setCustomDurationHours] = useState('1');
+
+  // Consultation & Booking state
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [showConsultationDialog, setShowConsultationDialog] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [sendingConsultation, setSendingConsultation] = useState(false);
 
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
@@ -160,6 +169,12 @@ export default function JobDetailPage() {
       });
     },
     enabled: !!jobId
+  });
+
+  // Fetch consultation templates per questo jobType
+  const { data: consultationTemplates = [], isLoading: loadingTemplates } = useQuery<ConsultationTemplate[]>({
+    queryKey: [`/api/consultations/templates/by-job-type/${job?.jobType}`],
+    enabled: showTemplateSelector && !!job?.jobType,
   });
 
   const getStatusBadgeVariant = (status: string) => {
@@ -459,6 +474,71 @@ export default function JobDetailPage() {
     }
   });
 
+  // Consultation handlers
+  const handleOpenTemplateSelector = () => {
+    setShowTemplateSelector(true);
+    setSelectedTemplateId(null);
+  };
+
+  const handleSelectTemplate = () => {
+    if (!selectedTemplateId) {
+      toast({
+        title: 'Selezione mancante',
+        description: 'Seleziona un template consulenza',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setShowTemplateSelector(false);
+    setShowConsultationDialog(true);
+  };
+
+  const handleSendConsultation = async (channel: 'email' | 'whatsapp') => {
+    if (!selectedTemplateId) {
+      toast({
+        title: 'Errore',
+        description: 'Template consulenza non selezionato',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSendingConsultation(true);
+    try {
+      const response = await apiRequest(`/api/consultations/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: job!.id,
+          templateId: selectedTemplateId,
+          channel,
+        }),
+      });
+
+      if (channel === 'whatsapp') {
+        window.open(response.whatsappUrl, '_blank');
+      }
+
+      toast({
+        title: '✅ Consulenza inviata!',
+        description: channel === 'email' ? 'Email inviata al cliente' : 'Apri WhatsApp per inviare',
+      });
+
+      setShowConsultationDialog(false);
+      setSelectedTemplateId(null);
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['timeline', jobId] });
+    } catch (error: any) {
+      toast({
+        title: 'Errore',
+        description: error.message || 'Impossibile inviare consulenza',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingConsultation(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -568,13 +648,41 @@ export default function JobDetailPage() {
             </div>
           </div>
 
-          {/* Job Completed Toggle - Horizontal section below header */}
+          {/* Job Completed Toggle + Quick Actions - Horizontal section below header */}
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
-            <JobCompletedToggle 
-              jobId={job.id} 
-              currentJob={job}
-              className="max-w-2xl"
-            />
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <JobCompletedToggle 
+                jobId={job.id} 
+                currentJob={job}
+                className="flex-shrink-0"
+              />
+              
+              {/* Quick Action Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenTemplateSelector}
+                  data-testid="button-send-consultation"
+                  className="text-xs sm:text-sm"
+                >
+                  <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Appuntamento Consulenza</span>
+                  <span className="sm:hidden">Consulenza</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRequestCreateAppointment}
+                  data-testid="button-request-appointment-header"
+                  className="text-xs sm:text-sm"
+                >
+                  <CalendarPlus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Richiedi Appuntamento</span>
+                  <span className="sm:hidden">Appuntamento</span>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -981,6 +1089,130 @@ export default function JobDetailPage() {
             >
               {createEventMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Crea Evento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog 1: Selezione template consulenza */}
+      <Dialog open={showTemplateSelector} onOpenChange={setShowTemplateSelector}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Seleziona Tipo Consulenza</DialogTitle>
+            <DialogDescription>
+              Scegli quale consulenza inviare al cliente per {job.nomeEvento}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {loadingTemplates ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-sm text-muted-foreground">Caricamento template...</div>
+              </div>
+            ) : consultationTemplates.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-sm text-muted-foreground">
+                  Nessun template consulenza disponibile per {job.jobType}
+                </div>
+              </div>
+            ) : (
+              <RadioGroup value={selectedTemplateId || ''} onValueChange={setSelectedTemplateId}>
+                <div className="space-y-3">
+                  {consultationTemplates.map((template) => (
+                    <div
+                      key={template.id}
+                      className={cn(
+                        "flex items-start space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-colors",
+                        selectedTemplateId === template.id
+                          ? "border-primary bg-primary/5"
+                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                      )}
+                      onClick={() => setSelectedTemplateId(template.id)}
+                    >
+                      <RadioGroupItem value={template.id} id={template.id} />
+                      <Label htmlFor={template.id} className="flex-1 cursor-pointer">
+                        <div className="font-medium text-sm">{template.nome}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {template.descrizione}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            {template.durataMinuti} minuti
+                          </span>
+                        </div>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </RadioGroup>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowTemplateSelector(false)}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleSelectTemplate}
+              disabled={!selectedTemplateId || loadingTemplates}
+              data-testid="button-confirm-template"
+            >
+              Continua
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog 2: Scelta canale invio consulenza */}
+      <Dialog open={showConsultationDialog} onOpenChange={setShowConsultationDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invia Richiesta Consulenza</DialogTitle>
+            <DialogDescription>
+              Scegli come inviare la richiesta di appuntamento al cliente
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <Button
+              variant="outline"
+              className="w-full justify-start h-auto py-4"
+              onClick={() => handleSendConsultation('email')}
+              disabled={sendingConsultation}
+              data-testid="button-send-email"
+            >
+              <Mail className="h-5 w-5 mr-3" />
+              <div className="text-left">
+                <p className="font-medium">Invia via Email</p>
+                <p className="text-xs text-muted-foreground">
+                  Il cliente riceverà un'email con il link per prenotare
+                </p>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start h-auto py-4"
+              onClick={() => handleSendConsultation('whatsapp')}
+              disabled={sendingConsultation}
+              data-testid="button-send-whatsapp"
+            >
+              <MessageCircle className="h-5 w-5 mr-3" />
+              <div className="text-left">
+                <p className="font-medium">Invia via WhatsApp</p>
+                <p className="text-xs text-muted-foreground">
+                  Apri WhatsApp con messaggio pre-compilato
+                </p>
+              </div>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowConsultationDialog(false)}
+              disabled={sendingConsultation}
+            >
+              Annulla
             </Button>
           </DialogFooter>
         </DialogContent>
