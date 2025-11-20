@@ -5,15 +5,14 @@ import { getQuotesForJob, deleteQuote, resetQuoteSignature } from '@/lib/quotes'
 import { Quote, QuoteStatus } from '@shared/quotes-types';
 import { getJob } from '@/lib/jobs';
 import { getClienteById } from '@/lib/clienti';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -236,367 +235,352 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         )}
       </div>
 
-      {/* Quotes List */}
+      {/* Quotes List - Collapsible Inline */}
       <div className="space-y-3">
         {quotes.map(quote => (
-          <Card
+          <Collapsible
             key={quote.id}
-            className="cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => setSelectedQuoteId(quote.id)}
-            data-testid={`card-quote-${quote.id}`}
+            open={selectedQuoteId === quote.id}
+            onOpenChange={(open) => setSelectedQuoteId(open ? quote.id : null)}
           >
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  {/* Header */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">
-                      {quote.templateName || 'Modulo Preventivo'}
-                    </span>
-                    <Badge variant="outline" className="text-xs">
-                      {TYPE_LABELS[quote.type]}
-                    </Badge>
-                    <Badge className={STATUS_COLORS[quote.status]}>
-                      {STATUS_LABELS[quote.status]}
-                    </Badge>
-                  </div>
-
-                  {/* Info */}
-                  <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-                    <div>
-                      <span className="font-medium">Prodotti:</span> {quote.products.length}
-                    </div>
-                    <div>
-                      <span className="font-medium">Totale:</span>{' '}
-                      €{quote.type === 'fisso' 
-                        ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2) 
-                        : (quote.totaleSelezionato ?? quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)}
-                    </div>
-                    {quote.createdAt && (
-                      <div>
-                        <span className="font-medium">Creato:</span>{' '}
-                        {format(quote.createdAt.toDate(), 'dd/MM/yyyy', { locale: it })}
+            <Card data-testid={`card-quote-${quote.id}`}>
+              <CollapsibleTrigger asChild>
+                <CardContent className="p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      {/* Header */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">
+                          {quote.templateName || 'Modulo Preventivo'}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {TYPE_LABELS[quote.type]}
+                        </Badge>
+                        <Badge className={STATUS_COLORS[quote.status]}>
+                          {STATUS_LABELS[quote.status]}
+                        </Badge>
                       </div>
-                    )}
-                    {quote.signature && (
-                      <div className="text-green-600 font-medium">
-                        ✓ Firmato: {format(quote.signature.signedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: it })}
-                      </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(getQuoteUrl(quote), '_blank');
-                    }}
-                    data-testid={`button-view-${quote.id}`}
-                    title="Apri preventivo"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                  
+                      {/* Info */}
+                      <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                        <div>
+                          <span className="font-medium">Prodotti:</span> {quote.products.length}
+                        </div>
+                        <div>
+                          <span className="font-medium">Totale:</span>{' '}
+                          €{quote.type === 'fisso' 
+                            ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2) 
+                            : (quote.totaleSelezionato ?? quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)}
+                        </div>
+                        {quote.createdAt && (
+                          <div>
+                            <span className="font-medium">Creato:</span>{' '}
+                            {format(quote.createdAt.toDate(), 'dd/MM/yyyy', { locale: it })}
+                          </div>
+                        )}
+                        {quote.signature && (
+                          <div className="text-green-600 font-medium">
+                            ✓ Firmato: {format(quote.signature.signedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: it })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(getQuoteUrl(quote), '_blank');
+                        }}
+                        data-testid={`button-view-${quote.id}`}
+                        title="Apri preventivo"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                      
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteQuoteId(quote.id);
+                          }}
+                          data-testid={`button-delete-${quote.id}`}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title="Elimina preventivo"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </CollapsibleTrigger>
+
+              {/* Collapsible Content - Horizontal Layout */}
+              <CollapsibleContent>
+                <div className="border-t bg-muted/30 p-6">
+                  {/* Admin Actions Header */}
                   {isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteQuoteId(quote.id);
-                      }}
-                      data-testid={`button-delete-${quote.id}`}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      title="Elimina preventivo"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="font-semibold text-lg">Dettagli Preventivo</h3>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" data-testid="button-quote-actions">
+                            <MoreVertical className="h-4 w-4 mr-2" />
+                            Azioni
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {/* Reset signature (only for signed quotes) */}
+                          {quote.status === 'firmato' && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => setResetQuoteId(quote.id)}
+                                data-testid="menu-reset-signature"
+                              >
+                                <AlertTriangle className="h-4 w-4 mr-2" />
+                                Reimposta Firma
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          
+                          {/* Delete quote */}
+                          <DropdownMenuItem
+                            onClick={() => setDeleteQuoteId(quote.id)}
+                            className="text-destructive"
+                            data-testid="menu-delete-quote"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Elimina Preventivo
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   )}
+
+                  {/* 2-Column Layout: Products Left | Actions Right */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* LEFT COLUMN: Products + Total */}
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="font-semibold mb-3 text-base">Prodotti Inclusi</h3>
+                        <div className="space-y-2">
+                          {quote.products.map((product, idx) => (
+                            <div key={idx} className="flex items-start justify-between p-3 bg-background rounded-lg border">
+                              <div className="flex-1">
+                                <p className="font-medium">{product.nome}</p>
+                                {product.descrizione && (
+                                  <p className="text-sm text-muted-foreground mt-1">{product.descrizione}</p>
+                                )}
+                                {product.numeroFoto && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {product.numeroFoto} foto
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="font-semibold">€{product.prezzo.toFixed(2)}</p>
+                                {quote.type === 'variabile' && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    {product.selected ? (
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    ) : (
+                                      <XCircle className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <span className="text-xs text-muted-foreground">
+                                      {product.selected ? 'Selezionato' : 'Non selezionato'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 pt-4 border-t flex justify-between items-center">
+                          <span className="font-semibold text-lg">Totale Preventivo</span>
+                          <span className="font-bold text-2xl text-primary">
+                            €{quote.type === 'fisso' 
+                              ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2) 
+                              : (quote.totaleSelezionato ?? quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RIGHT COLUMN: Signature, Actions, Links */}
+                    <div className="space-y-4">
+                      {/* Signature */}
+                      {quote.signature && (
+                        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2 text-green-700 dark:text-green-400">
+                            <CheckCircle2 className="h-5 w-5" />
+                            Firmato Digitalmente
+                          </h3>
+                          <div className="space-y-2 text-sm">
+                            <p>
+                              <span className="font-medium">Firmato da:</span> {quote.signature.clientName}
+                            </p>
+                            <p>
+                              <span className="font-medium">Data:</span>{' '}
+                              {format(quote.signature.signedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: it })}
+                            </p>
+                            <p>
+                              <span className="font-medium">IP:</span> {quote.signature.ipAddress}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Genera Pagamenti (only for signed quotes) */}
+                      {quote.status === 'firmato' && isAdmin && (
+                        <div>
+                          <Button
+                            onClick={() => setGeneraPagamentiQuoteId(quote.id)}
+                            className="w-full"
+                            size="lg"
+                            data-testid="button-genera-pagamenti"
+                          >
+                            <CreditCard className="h-5 w-5 mr-2" />
+                            Genera Piano Pagamenti
+                          </Button>
+                          <p className="text-xs text-muted-foreground mt-2 text-center">
+                            Crea uno scadenzario pagamenti basato sul totale preventivato
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Public Link */}
+                      <div>
+                        <h3 className="font-semibold mb-3 text-sm">
+                          {quote.status === 'firmato' ? 'Portale Cliente Firmato' : 'Link Firma Preventivo'}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={getQuoteUrl(quote)}
+                            className="flex-1 px-3 py-2 bg-muted rounded text-sm border"
+                            onClick={(e) => e.currentTarget.select()}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              const url = getQuoteUrl(quote);
+                              try {
+                                await navigator.clipboard.writeText(url);
+                                setCopiedLink(true);
+                                toast({
+                                  title: "Link copiato!",
+                                  description: "Il link del portale è stato copiato negli appunti"
+                                });
+                                setTimeout(() => setCopiedLink(false), 2000);
+                              } catch (error) {
+                                toast({
+                                  title: "Errore",
+                                  description: "Impossibile copiare il link",
+                                  variant: "destructive"
+                                });
+                              }
+                            }}
+                            data-testid="button-copy-link"
+                          >
+                            {copiedLink ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(getQuoteUrl(quote), '_blank')}
+                            data-testid="button-open-portal"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {/* Export PDF Button - only for signed quotes */}
+                        {quote.status === 'firmato' && (
+                          <div className="mt-3">
+                            <Button
+                              onClick={() => window.open(getQuoteUrl(quote), '_blank')}
+                              className="w-full"
+                              variant="secondary"
+                              data-testid="button-export-pdf"
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Esporta PDF
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* WhatsApp Buttons */}
+                        {(() => {
+                          const clientiConWhatsApp = clienti.filter(c => {
+                            const phoneNumber = c.whatsapp || c.cellulare1;
+                            return phoneNumber && phoneNumber.trim() !== '';
+                          });
+                          
+                          if (clientiConWhatsApp.length === 0) return null;
+                          
+                          return (
+                            <div className="mt-3">
+                              <p className="text-xs text-muted-foreground mb-2">
+                                {quote.status === 'firmato' 
+                                  ? 'Invia preventivo firmato su WhatsApp:' 
+                                  : 'Invia preventivo su WhatsApp:'}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {clientiConWhatsApp.map((cliente, index) => {
+                                  const nomeEvento = job?.nomeEvento || 'il tuo evento';
+                                  const message = quote.status === 'firmato'
+                                    ? `Ecco il preventivo firmato per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli del contratto e i pagamenti\n\n${getQuoteUrl(quote)}`
+                                    : `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli e firmare se sei d'accordo\n\n${getQuoteUrl(quote)}`;
+                                  const phoneNumber = (cliente.whatsapp || cliente.cellulare1 || '').replace(/\s+/g, '').replace(/^\+/, '');
+                                  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+                                  
+                                  return (
+                                    <Button
+                                      key={cliente.id}
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => window.open(whatsappUrl, '_blank')}
+                                      className="bg-[#25D366] hover:bg-[#20BD5A] text-white border-[#25D366] hover:border-[#20BD5A]"
+                                      data-testid={`button-whatsapp-${index}`}
+                                    >
+                                      <Phone className="h-4 w-4 mr-2" />
+                                      {cliente.nome || `Cliente ${index + 1}`}
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Notes */}
+                      {quote.noteInterne && (
+                        <div className="bg-muted/50 p-4 rounded-lg border">
+                          <h3 className="font-semibold mb-2 text-sm">Note Interne</h3>
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {quote.noteInterne}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         ))}
       </div>
-
-      {/* Quote Detail Sheet */}
-      {selectedQuoteId && (() => {
-        const selectedQuote = quotes.find(q => q.id === selectedQuoteId);
-        if (!selectedQuote) return null;
-        
-        return (
-          <Sheet open={!!selectedQuoteId} onOpenChange={(open) => !open && setSelectedQuoteId(null)}>
-            <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-              <SheetHeader>
-                <div className="flex items-center justify-between">
-                  <SheetTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    {selectedQuote.templateName || 'Modulo Preventivo'}
-                  </SheetTitle>
-                  
-                  {/* Actions Dropdown */}
-                  {isAdmin && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" data-testid="button-quote-actions">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {/* Reset signature (only for signed quotes) */}
-                        {selectedQuote.status === 'firmato' && (
-                          <>
-                            <DropdownMenuItem
-                              onClick={() => setResetQuoteId(selectedQuote.id)}
-                              data-testid="menu-reset-signature"
-                            >
-                              <AlertTriangle className="h-4 w-4 mr-2" />
-                              Reimposta Firma
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-                        
-                        {/* Delete quote */}
-                        <DropdownMenuItem
-                          onClick={() => setDeleteQuoteId(selectedQuote.id)}
-                          className="text-destructive"
-                          data-testid="menu-delete-quote"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Elimina Preventivo
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              </SheetHeader>
-
-              <div className="space-y-6 mt-6">
-                {/* Status & Type */}
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{TYPE_LABELS[selectedQuote.type]}</Badge>
-                  <Badge className={STATUS_COLORS[selectedQuote.status]}>
-                    {STATUS_LABELS[selectedQuote.status]}
-                  </Badge>
-                </div>
-
-                {/* Products */}
-                <div>
-                  <h3 className="font-semibold mb-3">Prodotti</h3>
-                  <div className="space-y-2">
-                    {selectedQuote.products.map((product, idx) => (
-                      <div key={idx} className="flex items-start justify-between p-3 bg-muted rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium">{product.nome}</p>
-                          {product.descrizione && (
-                            <p className="text-sm text-muted-foreground mt-1">{product.descrizione}</p>
-                          )}
-                          {product.numeroFoto && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {product.numeroFoto} foto
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right ml-4">
-                          <p className="font-semibold">€{product.prezzo.toFixed(2)}</p>
-                          {selectedQuote.type === 'variabile' && (
-                            <div className="flex items-center gap-1 mt-1">
-                              {product.selected ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              ) : (
-                                <XCircle className="h-4 w-4 text-muted-foreground" />
-                              )}
-                              <span className="text-xs text-muted-foreground">
-                                {product.selected ? 'Selezionato' : 'Non selezionato'}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                    <span className="font-semibold text-lg">Totale</span>
-                    <span className="font-bold text-2xl">
-                      €{selectedQuote.type === 'fisso' 
-                        ? (selectedQuote.totaleBase ?? selectedQuote.totalAfterDiscount ?? 0).toFixed(2) 
-                        : (selectedQuote.totaleSelezionato ?? selectedQuote.totaleBase ?? selectedQuote.totalAfterDiscount ?? 0).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Signature */}
-                {selectedQuote.signature && (
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-green-600">
-                      <CheckCircle2 className="h-5 w-5" />
-                      Firmato Digitalmente
-                    </h3>
-                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg space-y-2">
-                      <p className="text-sm">
-                        <span className="font-medium">Firmato da:</span> {selectedQuote.signature.clientName}
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-medium">Data:</span>{' '}
-                        {format(selectedQuote.signature.signedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: it })}
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-medium">IP:</span> {selectedQuote.signature.ipAddress}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Genera Pagamenti (only for signed quotes) */}
-                {selectedQuote.status === 'firmato' && isAdmin && (
-                  <div className="border-t pt-4">
-                    <Button
-                      onClick={() => setGeneraPagamentiQuoteId(selectedQuote.id)}
-                      className="w-full"
-                      size="lg"
-                      data-testid="button-genera-pagamenti"
-                    >
-                      <CreditCard className="h-5 w-5 mr-2" />
-                      Genera Piano Pagamenti
-                    </Button>
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                      Crea uno scadenzario pagamenti basato sul totale preventivato
-                    </p>
-                  </div>
-                )}
-
-                {/* Public Link */}
-                <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-3">
-                    {selectedQuote.status === 'firmato' ? 'Portale Cliente Firmato' : 'Link Firma Preventivo'}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={getQuoteUrl(selectedQuote)}
-                      className="flex-1 px-3 py-2 bg-muted rounded text-sm"
-                      onClick={(e) => e.currentTarget.select()}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        const url = getQuoteUrl(selectedQuote);
-                        try {
-                          await navigator.clipboard.writeText(url);
-                          setCopiedLink(true);
-                          toast({
-                            title: "Link copiato!",
-                            description: "Il link del portale è stato copiato negli appunti"
-                          });
-                          setTimeout(() => setCopiedLink(false), 2000);
-                        } catch (error) {
-                          toast({
-                            title: "Errore",
-                            description: "Impossibile copiare il link",
-                            variant: "destructive"
-                          });
-                        }
-                      }}
-                      data-testid="button-copy-link"
-                    >
-                      {copiedLink ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => window.open(getQuoteUrl(selectedQuote), '_blank')}
-                      data-testid="button-open-portal"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Export PDF Button - only for signed quotes */}
-                  {selectedQuote.status === 'firmato' && (
-                    <div className="mt-3">
-                      <Button
-                        onClick={() => window.open(getQuoteUrl(selectedQuote), '_blank')}
-                        className="w-full bg-blue-gray hover:bg-blue-gray/90 text-white"
-                        size="lg"
-                        data-testid="button-export-pdf"
-                      >
-                        <Download className="h-5 w-5 mr-2" />
-                        Esporta PDF
-                      </Button>
-                      <p className="text-xs text-muted-foreground mt-2 text-center">
-                        Apri il portale firmato per scaricare il PDF del preventivo
-                      </p>
-                    </div>
-                  )}
-
-                  {/* WhatsApp Button - for all quotes with clients that have phone */}
-                  {(() => {
-                    // Use whatsapp field if available, otherwise use cellulare1
-                    const clientiConWhatsApp = clienti.filter(c => {
-                      const phoneNumber = c.whatsapp || c.cellulare1;
-                      return phoneNumber && phoneNumber.trim() !== '';
-                    });
-                    
-                    if (clientiConWhatsApp.length === 0) return null;
-                    
-                    return (
-                      <div className="mt-3">
-                        <p className="text-xs text-muted-foreground mb-2">
-                          {selectedQuote.status === 'firmato' 
-                            ? 'Invia preventivo firmato su WhatsApp:' 
-                            : 'Invia preventivo su WhatsApp:'}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {clientiConWhatsApp.map((cliente, index) => {
-                            const nomeEvento = job?.nomeEvento || 'il tuo evento';
-                            const message = selectedQuote.status === 'firmato'
-                              ? `Ecco il preventivo firmato per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli del contratto e i pagamenti\n\n${getQuoteUrl(selectedQuote)}`
-                              : `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli e firmare se sei d'accordo\n\n${getQuoteUrl(selectedQuote)}`;
-                            const phoneNumber = (cliente.whatsapp || cliente.cellulare1 || '').replace(/\s+/g, '').replace(/^\+/, '');
-                            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-                            
-                            return (
-                              <Button
-                                key={cliente.id}
-                                size="sm"
-                                variant="outline"
-                                onClick={() => window.open(whatsappUrl, '_blank')}
-                                className="bg-[#25D366] hover:bg-[#20BD5A] text-white border-[#25D366] hover:border-[#20BD5A]"
-                                data-testid={`button-whatsapp-${index}`}
-                              >
-                                <Phone className="h-4 w-4 mr-2" />
-                                {cliente.nome || `Cliente ${index + 1}`}
-                              </Button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Notes */}
-                {selectedQuote.noteInterne && (
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold mb-2">Note Interne</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {selectedQuote.noteInterne}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </SheetContent>
-          </Sheet>
-        );
-      })()}
 
       {/* Genera Pagamenti Modal */}
       {generaPagamentiQuoteId && (() => {

@@ -256,17 +256,26 @@ export async function updateJob(
 
 /**
  * Update job status
+ * Se newStatus = 'consegnato', salva automaticamente previousStatus per ripristino toggle
  */
 export async function updateJobStatus(
   jobId: string,
   newStatus: JobStatus,
-  userId: string
+  userId: string,
+  currentJob?: Job // Pass current job to save previousStatus
 ): Promise<void> {
   try {
-    await updateDoc(doc(db, JOBS_COLLECTION, jobId), {
+    const updateData: any = {
       status: newStatus,
       updatedAt: Timestamp.now()
-    });
+    };
+    
+    // Se stiamo marcando come 'consegnato', salva lo status precedente per ripristino
+    if (newStatus === 'consegnato' && currentJob && currentJob.status !== 'consegnato') {
+      updateData.previousStatus = currentJob.status;
+    }
+    
+    await updateDoc(doc(db, JOBS_COLLECTION, jobId), updateData);
     
     await addTimelineEvent({
       jobId,

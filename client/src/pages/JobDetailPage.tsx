@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,8 @@ import { Job, CostoLavoro } from '@shared/jobs-types';
 import { Cliente } from '@shared/clienti-types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { getJob, deleteJob, updateJob } from '@/lib/jobs';
+import { getJob, deleteJob, updateJob, getJobTimeline } from '@/lib/jobs';
+import type { JobTimelineEvent } from '@shared/jobs-types';
 import { nanoid } from 'nanoid';
 import { Timestamp } from 'firebase/firestore';
 import { getClienteById } from '@/lib/clienti';
@@ -44,7 +45,6 @@ import { getJobTypeBySlug } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import WorkflowTimeline from '@/components/jobs/WorkflowTimeline';
 import ClienteJobCard from '@/components/jobs/ClienteJobCard';
 import ModuliJobSection from '@/components/jobs/ModuliJobSection';
 import CostiLavoroTable from '@/components/jobs/CostiLavoroTable';
@@ -63,6 +63,7 @@ import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
 import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
 import FinancialSummaryCard from '@/components/jobs/FinancialSummaryCard';
 import { useJobFinancials } from '@/hooks/useJobFinancials';
+import JobCompletedToggle from '@/components/jobs/JobCompletedToggle';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -90,6 +91,13 @@ export default function JobDetailPage() {
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
     queryFn: () => getJob(jobId!),
+    enabled: !!jobId
+  });
+
+  // Fetch timeline events for activity section
+  const { data: timelineEvents = [] } = useQuery<JobTimelineEvent[]>({
+    queryKey: ['timeline', jobId],
+    queryFn: () => getJobTimeline(jobId!),
     enabled: !!jobId
   });
 
@@ -309,6 +317,7 @@ export default function JobDetailPage() {
           }
         });
         queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+        queryClient.invalidateQueries({ queryKey: ['timeline', jobId] }); // FIX: Refresh Attività Recenti
       } catch (error) {
         console.error('Errore salvataggio timeline:', error);
       }
@@ -419,6 +428,11 @@ export default function JobDetailPage() {
         isAllDay: false,
       });
     }
+  };
+
+  // Fix: Invalidate timeline cache when events are added
+  const invalidateTimeline = () => {
+    queryClient.invalidateQueries({ queryKey: ['timeline', jobId] });
   };
 
   // Update cliente mutation
@@ -553,6 +567,15 @@ export default function JobDetailPage() {
               </DropdownMenu>
             </div>
           </div>
+
+          {/* Job Completed Toggle - Horizontal section below header */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
+            <JobCompletedToggle 
+              jobId={job.id} 
+              currentJob={job}
+              className="max-w-2xl"
+            />
+          </div>
         </div>
       </div>
 
@@ -567,9 +590,8 @@ export default function JobDetailPage() {
           className="mb-6"
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Column */}
-          <div className="lg:col-span-2 space-y-6">
+        {/* Main Content - Full Width Layout */}
+        <div className="space-y-6">
             {/* Clienti Section */}
             <Card>
               <CardHeader>
@@ -735,24 +757,46 @@ export default function JobDetailPage() {
                 />
               </CardContent>
             </Card>
-          </div>
 
-          {/* Sidebar - Workflow */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle>Workflow</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <WorkflowTimeline
-                  job={job}
-                  isAdmin={true}
-                  onRequestCreateAppointment={handleRequestCreateAppointment}
-                  onEventAdded={() => queryClient.invalidateQueries({ queryKey: ['jobs', jobId] })}
-                />
-              </CardContent>
-            </Card>
-          </div>
+            {/* Attività Recenti */}
+            {timelineEvents.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Attività Recenti
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {timelineEvents.slice(0, 10).map((event) => {
+                      const eventDate = event.data?.toDate ? event.data.toDate() : new Date(event.data as any);
+                      const Icon = event.tipo === 'consulenza_inviata' || event.tipo === 'quote_sent' 
+                        ? Send 
+                        : event.tipo === 'appuntamento_creato' || event.tipo === 'calendar_event'
+                        ? CalendarIcon
+                        : CheckCircle;
+                      
+                      return (
+                        <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex-shrink-0 mt-0.5">
+                            <Icon className="h-4 w-4 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              {event.descrizione}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {format(eventDate, 'dd MMMM yyyy • HH:mm', { locale: it })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
         </div>
       </div>
 

@@ -103,6 +103,7 @@ export interface Job {
   nomeEvento: string;           // Nome descrittivo lavoro (es. "Matrimonio Silva")
   jobType: string;              // Dynamic job type slug from Firestore jobTypes collection
   eventDate: Timestamp;         // Data servizio fotografico
+  previousStatus?: JobStatus;   // Status precedente a 'consegnato' per ripristino toggle
   allDay: boolean;              // Evento tutto il giorno o orario specifico
   startTime?: string;           // Orario inizio (HH:mm) - opzionale se allDay = true
   endTime?: string;             // Orario fine (HH:mm) - opzionale
