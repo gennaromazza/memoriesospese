@@ -34,7 +34,7 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { getAllThemes } from "@shared/special-themes";
 import { getProductById } from "@/lib/products";
 import type { Product } from "@shared/booking-types";
-import { Info } from "lucide-react";
+import { Info, Eye, EyeOff } from "lucide-react";
 import { createAbsoluteUrl } from "@/lib/basePath";
 
 interface NewGalleryModalProps {
@@ -77,6 +77,7 @@ export default function NewGalleryModal({
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // State for password visibility
   const [specialTheme, setSpecialTheme] = useState<string>("none");
   const [specialPin, setSpecialPin] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -386,7 +387,6 @@ export default function NewGalleryModal({
             // Multi-Product Mode: Save productRequirements array
             galleryData.productRequirements = productReqs;
             galleryData.photoAssignments = {}; // Empty initially - client will populate during selection
-            galleryData.selectionStatus = "pending";
             galleryData.selectedPhotoIds = []; // Legacy field - mantieni per compatibility
             console.log(
               "💾 Salvando galleria multi-prodotto con productRequirements:",
@@ -579,6 +579,7 @@ export default function NewGalleryModal({
       setLocation("");
       setDescription("");
       setPassword("");
+      setShowPassword(false); // Reset password visibility
       setSpecialTheme("none");
       setSpecialPin("");
       setSelectionEnabled(false);
@@ -655,13 +656,28 @@ export default function NewGalleryModal({
             {specialTheme === "none" && (
               <div className="space-y-2">
                 <Label htmlFor="password">Password Accesso</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={handlePasswordChange}
-                  placeholder="Password per accedere alla galleria"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={handlePasswordChange}
+                    placeholder="Password per accedere alla galleria"
+                    className="pr-10" // Add padding to the right for the icon
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer"
+                    aria-label="Toggle password visibility"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </button>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Lascia vuoto per accesso libero
                 </p>
