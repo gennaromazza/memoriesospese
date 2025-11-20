@@ -296,7 +296,7 @@ export default function GalleryManagementWorkspace() {
     }
   }, [gallery]);
 
-  const selectedPhotos = useMemo(() =>
+  const clientSelectedPhotos = useMemo(() =>
     allPhotos.filter(photo => selectedPhotoIds.has(photo.id)),
     [allPhotos, selectedPhotoIds]
   );
@@ -392,8 +392,8 @@ export default function GalleryManagementWorkspace() {
 
   // Generate filename list for Lightroom (clean names without timestamp)
   const filenameList = useMemo(() =>
-    selectedPhotos.map(p => cleanFilenameForExport(p.name)).join('\n'),
-    [selectedPhotos, cleanFilenameForExport]
+    clientSelectedPhotos.map(p => cleanFilenameForExport(p.name)).join('\n'),
+    [clientSelectedPhotos, cleanFilenameForExport]
   );
 
   // Check deadline status (Task 20)
@@ -1021,11 +1021,11 @@ export default function GalleryManagementWorkspace() {
                 )}
 
                 {/* Selected Photos Grid */}
-                {selectedPhotos.length > 0 ? (
+                {clientSelectedPhotos.length > 0 ? (
                   <div className="space-y-4">
                     <h4 className="font-semibold text-blue-gray">Miniature Foto Selezionate</h4>
                     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {selectedPhotos.map((photo) => {
+                      {clientSelectedPhotos.map((photo) => {
                         const isSelected = selectedPhotoIds.has(photo.id);
                         return (
                           <PhotoCard
@@ -1051,7 +1051,7 @@ export default function GalleryManagementWorkspace() {
                 )}
 
                 {/* Filename Export for Lightroom */}
-                {selectedPhotos.length > 0 && (
+                {clientSelectedPhotos.length > 0 && (
                   <div className="space-y-6">
                     <h4 className="font-semibold text-blue-gray text-lg">📋 Nomi File per Lightroom</h4>
 
@@ -1059,7 +1059,7 @@ export default function GalleryManagementWorkspace() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
                         <h5 className="font-medium text-blue-gray">🎯 Tutte le Foto Selezionate</h5>
-                        <span className="text-sm text-gray-500">({selectedPhotos.length} foto)</span>
+                        <span className="text-sm text-gray-500">({clientSelectedPhotos.length} foto)</span>
                       </div>
                       <p className="text-sm text-gray-600">
                         Copia e incolla questi nomi in Lightroom per filtrare/selezionare tutte le foto:
