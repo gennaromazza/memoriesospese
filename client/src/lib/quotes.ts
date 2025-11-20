@@ -394,9 +394,9 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
         selected: data.selectedProducts?.includes(p.nome) || false
       }));
       
-      // Calcola totale selezionato
+      // Calcola totale selezionato: prodotti fissi (selectable=false) + prodotti variabili selezionati
       totaleSelezionato = updatedProducts
-        .filter(p => p.selected)
+        .filter(p => !p.selectable || p.selected)  // Fissi sempre inclusi + variabili solo se selected
         .reduce((sum, p) => sum + p.prezzo, 0);
     }
     

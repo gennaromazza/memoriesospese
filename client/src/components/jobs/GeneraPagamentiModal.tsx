@@ -4,7 +4,7 @@
  * Dual-mode: Automatico (presets) + Manuale (custom rate)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -100,8 +100,11 @@ export default function GeneraPagamentiModal({
   const [relativeDaysArray, setRelativeDaysArray] = useState<number[]>([]);
   const [quoteSignatureDate, setQuoteSignatureDate] = useState<Date | undefined>();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [replaceExisting, setReplaceExisting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Refs per passare i flag alla mutation senza dipendere da state (evita React batching e reset prematuro)
+  const bypassRef = useRef(false);
+  const replaceRef = useRef(false);
 
   // Fetch existing payment schedules for this job
   const { data: existingSchedules = [] } = useQuery<PaymentSchedule[]>({
@@ -135,6 +138,15 @@ export default function GeneraPagamentiModal({
     setDateModes(prev => prev.filter((_, i) => i !== index));
     setRelativeDaysArray(prev => prev.filter((_, i) => i !== index));
   };
+
+  // Reset state quando il modal viene chiuso
+  useEffect(() => {
+    if (!open) {
+      setIsSubmitting(false);
+      bypassRef.current = false;
+      replaceRef.current = false;
+    }
+  }, [open]);
 
   // Fetch quote signature date on mount
   useEffect(() => {
@@ -257,8 +269,8 @@ export default function GeneraPagamentiModal({
   // Mutation: crea payment schedule (automatic vs manual)
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      // Se replaceExisting = true, elimina prima i vecchi schedules
-      if (replaceExisting && existingSchedules.length > 0) {
+      // Usa ref invece di state per evitare reset prematuro
+      if (replaceRef.current && existingSchedules.length > 0) {
         console.log(`🗑️ Eliminazione ${existingSchedules.length} payment schedule(s) esistenti...`);
         for (const schedule of existingSchedules) {
           await deleteDoc(doc(db, 'paymentSchedules', schedule.id));
@@ -300,6 +312,8 @@ export default function GeneraPagamentiModal({
     },
     onSuccess: () => {
       setIsSubmitting(false);
+      bypassRef.current = false;
+      replaceRef.current = false;
       queryClient.invalidateQueries({ queryKey: ['payment-schedules', jobId] });
       queryClient.invalidateQueries({ queryKey: ['paymentSchedule', jobId] });
       queryClient.invalidateQueries({ queryKey: ['paymentSchedules', 'aggregated', jobId] });
@@ -313,6 +327,8 @@ export default function GeneraPagamentiModal({
     },
     onError: (error: Error) => {
       setIsSubmitting(false);
+      bypassRef.current = false;  // Reset per richiedere conferma su retry
+      // NON resettare replaceRef - mantiene l'intento per retry
       toast({
         title: 'Errore',
         description: error.message,
@@ -321,7 +337,7 @@ export default function GeneraPagamentiModal({
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: FormData, options?: { bypass?: boolean; replace?: boolean }) => {
     // Previeni doppio submit
     if (isSubmitting) {
       return;
@@ -336,8 +352,18 @@ export default function GeneraPagamentiModal({
       return;
     }
 
-    // Controlla se esistono già payment schedules
-    if (existingSchedules.length > 0 && !replaceExisting) {
+    // Se options fornite (confirm dialog), aggiorna i refs
+    if (options) {
+      if (options.bypass !== undefined) bypassRef.current = options.bypass;
+      if (options.replace !== undefined) replaceRef.current = options.replace;
+    }
+
+    // Usa refs per il controllo (mantengono valore tra renders)
+    const shouldBypass = bypassRef.current;
+    const shouldReplace = replaceRef.current;
+
+    // Controlla se esistono già payment schedules (solo se non bypassato)
+    if (existingSchedules.length > 0 && !shouldReplace && !shouldBypass) {
       setShowConfirmDialog(true);
       return;
     }
@@ -784,25 +810,27 @@ export default function GeneraPagamentiModal({
           <Button
             variant="outline"
             onClick={() => {
-              setReplaceExisting(false);
               setShowConfirmDialog(false);
-              // Forza submit con i dati del form corrente
-              form.handleSubmit(createMutation.mutate)();
+              // Passa parametri espliciti per evitare React batching issues
+              onSubmit(form.getValues(), { bypass: true, replace: false });
             }}
+            disabled={isSubmitting || createMutation.isPending}
             data-testid="button-add-anyway"
           >
+            {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Aggiungi Comunque
           </Button>
           <AlertDialogAction
             onClick={() => {
-              setReplaceExisting(true);
               setShowConfirmDialog(false);
-              // Forza submit con i dati del form corrente
-              form.handleSubmit(createMutation.mutate)();
+              // Passa parametri espliciti per evitare React batching issues
+              onSubmit(form.getValues(), { bypass: true, replace: true });
             }}
+            disabled={isSubmitting || createMutation.isPending}
             className="bg-red-600 hover:bg-red-700"
             data-testid="button-replace-schedule"
           >
+            {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Sostituisci
           </AlertDialogAction>
         </AlertDialogFooter>

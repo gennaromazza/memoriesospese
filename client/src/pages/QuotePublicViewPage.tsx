@@ -171,9 +171,9 @@ export default function QuotePublicViewPage() {
       return { totalBeforeDiscount, discountAmount, totalAfterDiscount };
     }
     
-    // Variable quote: calculate subtotal of selected products
+    // Variable quote: calculate subtotal of fixed products + selected variable products
     const subtotale = (quote.products ?? [])
-      .filter(p => selectedProducts.includes(p.nome))
+      .filter(p => !p.selectable || selectedProducts.includes(p.nome))  // Fissi sempre inclusi + variabili solo se selezionati
       .reduce((sum, p) => sum + p.prezzo, 0);
     
     // Apply discount to selected subtotal
