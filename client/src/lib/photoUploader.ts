@@ -311,12 +311,14 @@ export const uploadPhotos = async (
   progressCallback?: (info: { [filename: string]: UploadProgressInfo }) => void,
   summaryCallback?: (summary: UploadSummary) => void
 ): Promise<UploadedPhoto[]> => {
-  // Adatta la concorrenza in base al numero di file - più conservativo
-  const adaptiveConcurrency = files.length > 20 
-    ? Math.min(2, concurrency) // Massimo 2 per volumi elevati
-    : files.length > 10 
-      ? Math.min(2, concurrency) // Massimo 2 per volumi medi
-      : Math.max(1, concurrency - 1); // Minimo 1 per piccoli volumi
+  // Usa la concorrenza fornita o adattala intelligentemente
+  const adaptiveConcurrency = concurrency > 0 
+    ? Math.min(concurrency, 5) // Max 5 per sicurezza
+    : files.length > 20 
+      ? 2 // Massimo 2 per volumi elevati
+      : files.length > 10 
+        ? 3 // 3 per volumi medi
+        : Math.max(1, DEFAULT_CONCURRENCY); // Default per piccoli volumi
 
 
 

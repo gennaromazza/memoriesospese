@@ -23,6 +23,9 @@ interface UploadProgress {
   fileName: string;
   progress: number;
   status: 'pending' | 'uploading' | 'success' | 'error';
+  preview?: string; // Preview URL
+  size?: number; // File size
+  isDuplicate?: boolean; // Flag duplicati
 }
 
 // Memoized PhotoCard component for optimized rendering
@@ -41,7 +44,7 @@ const PhotoCard = memo(({ photo, isSelected, onToggle }: { photo: any; isSelecte
         src={photo.url}
         alt={photo.name}
         className="w-full h-full object-cover"
-        loading="lazy" // Added lazy loading
+        loading="lazy"
       />
       {isSelected && (
         <div className="absolute inset-0 bg-sage bg-opacity-30 flex items-center justify-center">
@@ -51,7 +54,7 @@ const PhotoCard = memo(({ photo, isSelected, onToggle }: { photo: any; isSelecte
     </div>
   );
 });
-PhotoCard.displayName = 'PhotoCard'; // Added display name for debugging
+PhotoCard.displayName = 'PhotoCard';
 
 export default function GalleryManagementWorkspace() {
   const [, params] = useRoute('/admin/gallery/:galleryId/manage');
@@ -61,6 +64,10 @@ export default function GalleryManagementWorkspace() {
   const galleryId = params?.galleryId;
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [existingPhotoNames, setExistingPhotoNames] = useState<Set<string>>(new Set());
+  const [uploadConcurrency, setUploadConcurrency] = useState(3); // Concorrenza configurabile
+  const [showPreview, setShowPreview] = useState(true);
 
   // Query gallery data
   const { data: gallery, isLoading } = useQuery<Gallery | null>({
@@ -69,34 +76,89 @@ export default function GalleryManagementWorkspace() {
     enabled: !!galleryId,
   });
 
+  // Carica nomi foto esistenti per controllo duplicati
+  useEffect(() => {
+    if (allPhotos.length > 0) {
+      const names = new Set(allPhotos.map(p => p.name));
+      setExistingPhotoNames(names);
+    }
+  }, [allPhotos]);
+
+  // Crea preview per file selezionati
+  const createPreviews = useCallback((files: File[]) => {
+    const previews = files.map(file => {
+      const isDuplicate = existingPhotoNames.has(file.name);
+      return {
+        fileName: file.name,
+        progress: 0,
+        status: 'pending' as const,
+        preview: URL.createObjectURL(file),
+        size: file.size,
+        isDuplicate
+      };
+    });
+    setUploadProgress(previews);
+  }, [existingPhotoNames]);
+
   // Upload mutation
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
       if (!galleryId || !user) throw new Error('Missing gallery or user');
 
-      // Initialize progress
-      setUploadProgress(files.map(file => ({
-        fileName: file.name,
-        progress: 0,
-        status: 'pending'
-      })));
+      // Filtra duplicati se richiesto
+      const duplicates = files.filter(f => existingPhotoNames.has(f.name));
+      const uniqueFiles = files.filter(f => !existingPhotoNames.has(f.name));
 
-      // Upload photos
+      if (duplicates.length > 0) {
+        toast({
+          title: `⚠️ ${duplicates.length} file duplicati`,
+          description: `Questi file verranno saltati: ${duplicates.slice(0, 3).map(f => f.name).join(', ')}${duplicates.length > 3 ? '...' : ''}`,
+        });
+      }
+
+      if (uniqueFiles.length === 0) {
+        throw new Error('Nessun file da caricare (tutti duplicati)');
+      }
+
+      // Initialize progress (mantiene preview esistenti)
+      setUploadProgress(prev => 
+        uniqueFiles.map(file => {
+          const existing = prev.find(p => p.fileName === file.name);
+          return {
+            fileName: file.name,
+            progress: 0,
+            status: 'pending' as const,
+            preview: existing?.preview || URL.createObjectURL(file),
+            size: file.size,
+            isDuplicate: false
+          };
+        })
+      );
+
+      // Upload photos con concorrenza configurabile
       const photos = await PhotoService.uploadPhotosToGallery(
-        files,
+        uniqueFiles,
         galleryId,
         user.uid,
         user.email || 'admin@studio.com',
         user.displayName || 'Admin',
         (progressArray) => {
-          // Update progress state
-          setUploadProgress(progressArray.map(p => ({
-            fileName: p.fileName,
-            progress: p.progress,
-            status: p.status === 'success' ? 'success' : p.status === 'error' ? 'error' : 'uploading'
-          })));
+          // Update progress state con dettagli migliorati
+          setUploadProgress(prev => 
+            progressArray.map(p => {
+              const existing = prev.find(x => x.fileName === p.fileName);
+              return {
+                fileName: p.fileName,
+                progress: p.progress,
+                status: p.status === 'success' ? 'success' : p.status === 'error' ? 'error' : 'uploading' as const,
+                preview: existing?.preview,
+                size: existing?.size
+              };
+            })
+          );
         },
-        'admin' // uploadedBy
+        'admin',
+        uploadConcurrency // Usa concorrenza configurabile
       );
 
       // Update gallery photoCount
@@ -393,6 +455,46 @@ export default function GalleryManagementWorkspace() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Controlli Upload */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={showPreview}
+                        onChange={(e) => setShowPreview(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      Mostra preview
+                    </label>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-600">Concorrenza:</span>
+                      <select
+                        value={uploadConcurrency}
+                        onChange={(e) => setUploadConcurrency(Number(e.target.value))}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm"
+                      >
+                        <option value={1}>1 (Lento, sicuro)</option>
+                        <option value={2}>2 (Bilanciato)</option>
+                        <option value={3}>3 (Veloce)</option>
+                        <option value={5}>5 (Molto veloce)</option>
+                      </select>
+                    </div>
+                  </div>
+                  {selectedFiles.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedFiles([]);
+                        setUploadProgress([]);
+                      }}
+                    >
+                      Cancella selezione
+                    </Button>
+                  )}
+                </div>
+
                 {/* Dropzone Area */}
                 <div
                   {...getRootProps()}
@@ -415,29 +517,144 @@ export default function GalleryManagementWorkspace() {
                       <p className="text-sm text-gray-500">
                         Supporta JPG, PNG, WebP, GIF - Upload multiplo abilitato
                       </p>
+                      {existingPhotoNames.size > 0 && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          ℹ️ Controllo automatico duplicati attivo ({existingPhotoNames.size} foto esistenti)
+                        </p>
+                      )}
                     </>
                   )}
                 </div>
 
-                {/* Upload Progress */}
-                {uploadProgress.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-blue-gray">Upload in corso...</h4>
-                    {uploadProgress.map((file, index) => (
-                      <div key={index} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            {file.status === 'success' && <CheckCircle className="w-4 h-4 text-green-600" />}
-                            {file.status === 'error' && <XCircle className="w-4 h-4 text-red-600" />}
-                            {file.status === 'uploading' && <Loader2 className="w-4 h-4 text-sage animate-spin" />}
-                            {file.status === 'pending' && <Loader2 className="w-4 h-4 text-gray-400" />}
-                            <span className="truncate max-w-xs">{file.fileName}</span>
-                          </div>
-                          <span className="text-gray-500">{Math.round(file.progress)}%</span>
-                        </div>
-                        <Progress value={file.progress} className="h-2" />
+                {/* Preview Files Selected */}
+                {showPreview && uploadProgress.length > 0 && (
+                  <div className="space-y-3 mt-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-blue-gray">
+                        Preview File ({uploadProgress.length})
+                      </h4>
+                      <div className="text-sm text-gray-500">
+                        Totale: {(uploadProgress.reduce((sum, f) => sum + (f.size || 0), 0) / 1024 / 1024).toFixed(2)} MB
                       </div>
-                    ))}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto">
+                      {uploadProgress.map((file, index) => (
+                        <div
+                          key={index}
+                          className={`relative group ${
+                            file.isDuplicate ? 'opacity-50' : ''
+                          }`}
+                        >
+                          <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200">
+                            {file.preview && (
+                              <img
+                                src={file.preview}
+                                alt={file.fileName}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2">
+                            <p className="text-white text-xs text-center truncate w-full">
+                              {file.fileName}
+                            </p>
+                            <p className="text-white/80 text-xs">
+                              {(file.size! / 1024).toFixed(0)} KB
+                            </p>
+                          </div>
+                          {file.isDuplicate && (
+                            <div className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded">
+                              Duplicato
+                            </div>
+                          )}
+                          {file.status === 'success' && (
+                            <div className="absolute top-1 left-1 bg-green-500 rounded-full p-1">
+                              <CheckCircle className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                          {file.status === 'error' && (
+                            <div className="absolute top-1 left-1 bg-red-500 rounded-full p-1">
+                              <XCircle className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                          {file.status === 'uploading' && (
+                            <div className="absolute bottom-0 inset-x-0 h-1 bg-gray-200">
+                              <div
+                                className="h-full bg-sage transition-all"
+                                style={{ width: `${file.progress}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Upload Progress con Statistiche */}
+                {uploadProgress.length > 0 && uploadMutation.isPending && (
+                  <div className="space-y-4">
+                    {/* Statistiche globali */}
+                    <div className="bg-gradient-to-r from-sage/10 to-blue-gray/10 rounded-lg p-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                        <div>
+                          <div className="text-2xl font-bold text-sage">
+                            {uploadProgress.filter(f => f.status === 'success').length}
+                          </div>
+                          <div className="text-xs text-gray-600">Completati</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            {uploadProgress.filter(f => f.status === 'uploading').length}
+                          </div>
+                          <div className="text-xs text-gray-600">In corso</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-gray-400">
+                            {uploadProgress.filter(f => f.status === 'pending').length}
+                          </div>
+                          <div className="text-xs text-gray-600">In attesa</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-red-600">
+                            {uploadProgress.filter(f => f.status === 'error').length}
+                          </div>
+                          <div className="text-xs text-gray-600">Errori</div>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <Progress 
+                          value={(uploadProgress.filter(f => f.status === 'success').length / uploadProgress.length) * 100} 
+                          className="h-3"
+                        />
+                        <p className="text-sm text-center text-gray-600 mt-2">
+                          {uploadProgress.filter(f => f.status === 'success').length} / {uploadProgress.length} file completati
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Lista dettagliata (collassabile) */}
+                    {!showPreview && (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {uploadProgress.map((file, index) => (
+                          <div key={index} className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                {file.status === 'success' && <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                                {file.status === 'error' && <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />}
+                                {file.status === 'uploading' && <Loader2 className="w-4 h-4 text-sage animate-spin flex-shrink-0" />}
+                                {file.status === 'pending' && <Loader2 className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                                <span className="truncate">{file.fileName}</span>
+                              </div>
+                              <span className="text-gray-500 ml-2 flex-shrink-0">{Math.round(file.progress)}%</span>
+                            </div>
+                            {file.status === 'uploading' && (
+                              <Progress value={file.progress} className="h-1" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

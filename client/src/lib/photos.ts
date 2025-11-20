@@ -94,14 +94,16 @@ export class PhotoService {
     uploaderEmail: string,
     uploaderName: string,
     onProgress?: (progress: any[]) => void,
-    uploadedBy: 'admin' | 'guest' = 'guest'
+    uploadedBy: 'admin' | 'guest' = 'guest',
+    concurrency: number = 3
   ): Promise<Photo[]> {
     try {
-      // Upload files to Storage
+      // Upload files to Storage con concorrenza configurabile
       const uploadResults = await StorageService.uploadGalleryPhotos(
         files, 
         galleryId, 
-        onProgress
+        onProgress,
+        concurrency
       );
 
       // Save metadata to Firestore
