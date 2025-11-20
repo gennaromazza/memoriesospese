@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
