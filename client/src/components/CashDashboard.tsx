@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText, Clock, ExternalLink } from "lucide-react";
 import { getFinancialSummary, getMonthlyData, getAllCashMovements, getForecastedIncome, exportFinancialData } from "@/lib/cash";
 import { getAllOrders } from "@/lib/orders";
 import CashRegister from "./CashRegister";
 import type { FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
+import { Link } from "wouter";
 
 export default function CashDashboard() {
   // Helper per convertire Date | Timestamp in Date
@@ -484,7 +485,7 @@ export default function CashDashboard() {
           <div>
             <h3 className="text-xl font-semibold text-blue-gray">📅 Calendario Incassi Previsti</h3>
             <p className="text-sm text-muted-foreground">
-              Saldi residui da ordini raggruppati per data servizio
+              Saldi residui da ordini e lavori raggruppati per data servizio/evento
             </p>
           </div>
 
@@ -557,16 +558,19 @@ export default function CashDashboard() {
                               {formatCurrency(forecast.importo)}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {forecast.ordini.length} ordini
+                              {forecast.ordini.length > 0 && `${forecast.ordini.length} ordini`}
+                              {forecast.ordini.length > 0 && (forecast.jobs?.length || 0) > 0 && ' • '}
+                              {(forecast.jobs?.length || 0) > 0 && `${forecast.jobs!.length} lavori`}
                             </div>
                           </div>
                         </div>
 
-                        {/* Lista ordini */}
+                        {/* Lista ordini + jobs */}
                         <div className="space-y-2 pt-3 border-t border-gray-200">
+                          {/* Ordini */}
                           {forecast.ordini.map((ordine) => (
                             <div
-                              key={ordine.id}
+                              key={`order-${ordine.id}`}
                               className="flex justify-between items-center text-sm bg-white/50 p-2 rounded"
                             >
                               <span className="font-medium">{ordine.nomeSposi}</span>
@@ -574,6 +578,25 @@ export default function CashDashboard() {
                                 {formatCurrency(ordine.importoResiduo)}
                               </span>
                             </div>
+                          ))}
+
+                          {/* Jobs con link a JobDetailPage */}
+                          {(forecast.jobs || []).map((job) => (
+                            <Link
+                              key={`job-${job.id}`}
+                              href={`/admin/jobs/${job.id}`}
+                            >
+                              <div className="flex justify-between items-center text-sm bg-white/50 p-2 rounded hover:bg-white hover:shadow-sm transition-all cursor-pointer group">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{job.clienteNome}</span>
+                                  <span className="text-xs text-muted-foreground">• {job.jobType}</span>
+                                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                                <span className="text-orange-600 font-semibold">
+                                  {formatCurrency(job.importoResiduo)}
+                                </span>
+                              </div>
+                            </Link>
                           ))}
                         </div>
                       </div>
