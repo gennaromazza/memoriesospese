@@ -1076,23 +1076,6 @@ export default function Gallery() {
     window.addEventListener("scroll", throttledScroll, { passive: true });
     return () => window.removeEventListener("scroll", throttledScroll);
   }, [throttledScroll]);
-
-  // Intersection Observer per auto-load foto
-  useEffect(() => {
-    if (!sentinelRef.current || !hasMorePhotosToShow) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMoreDisplayPhotos();
-        }
-      },
-      { rootMargin: '400px' } // Preload 400px prima
-    );
-
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [hasMorePhotosToShow, loadMoreDisplayPhotos]);
   // --- END SCROLL OPTIMIZATION ---
 
   // Combina tutte le foto per il lightbox
@@ -1210,13 +1193,32 @@ export default function Gallery() {
     return allDisplayPhotos.slice(0, displayedPhotosCount);
   }, [allDisplayPhotos, displayedPhotosCount]);
 
-  // 📊 Check se ci sono altre foto da caricare
-  const hasMorePhotosToShow = displayedPhotosCount < allDisplayPhotos.length;
-
   // 📄 Funzione per caricare altre foto
   const loadMoreDisplayPhotos = useCallback(() => {
     setDisplayedPhotosCount(prev => Math.min(prev + PHOTOS_PER_PAGE, allDisplayPhotos.length));
   }, [allDisplayPhotos.length, PHOTOS_PER_PAGE]);
+
+  // 📊 Check se ci sono altre foto da caricare
+  const hasMorePhotosToShow = useMemo(() => {
+    return displayedPhotosCount < allDisplayPhotos.length;
+  }, [displayedPhotosCount, allDisplayPhotos.length]);
+
+  // Intersection Observer per auto-load foto (DOPO le dichiarazioni che usa)
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMorePhotosToShow) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreDisplayPhotos();
+        }
+      },
+      { rootMargin: '400px' } // Preload 400px prima
+    );
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMorePhotosToShow, loadMoreDisplayPhotos]);
 
   // 📊 Multi-Product Progress Calculation
   const calculateProductProgress = useMemo(() => {
