@@ -237,15 +237,18 @@ export default function GalleryManagementWorkspace() {
 
       return photos;
     },
-    onSuccess: (photos) => {
+    onSuccess: async (photos) => {
       toast({
         title: '✅ Upload completato',
         description: `${photos.length} foto caricate con successo!`,
       });
 
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-      queryClient.invalidateQueries({ queryKey: ['photos', galleryId] });
+      // FORCE immediate cache clearing and refetch
+      await queryClient.resetQueries({ queryKey: ['photos', galleryId] });
+      await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+      
+      // Force immediate refetch
+      await queryClient.refetchQueries({ queryKey: ['photos', galleryId] });
 
       // Reset progress after 3s
       setTimeout(() => setUploadProgress([]), 3000);
@@ -755,6 +758,30 @@ export default function GalleryManagementWorkspace() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            await queryClient.resetQueries({ queryKey: ['photos', galleryId] });
+                            await queryClient.refetchQueries({ queryKey: ['photos', galleryId] });
+                            toast({
+                              title: '🔄 Foto ricaricate',
+                              description: 'Le foto sono state aggiornate.',
+                            });
+                          }}
+                          disabled={isLoadingPhotos}
+                        >
+                          {isLoadingPhotos ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              Caricamento...
+                            </>
+                          ) : (
+                            <>
+                              🔄 Ricarica Foto
+                            </>
+                          )}
+                        </Button>
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input
