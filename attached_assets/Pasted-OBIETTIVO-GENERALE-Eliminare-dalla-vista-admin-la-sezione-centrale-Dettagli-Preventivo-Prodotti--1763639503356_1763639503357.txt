@@ -1,0 +1,198 @@
+OBIETTIVO GENERALE
+
+Eliminare dalla vista admin la sezione centrale “Dettagli Preventivo / Prodotti Inclusi” (la lista di prodotti con descrizione, prezzo, badge “Selezionato/Non selezionato”), perché quelle informazioni le vedo già nella pagina pubblica del cliente.
+
+Riorganizzare la colonna di destra (quella che contiene:
+
+card “Firmato Digitalmente”
+
+pulsante “Genera Piano Pagamenti”
+
+campo “Portale Cliente Firmato” con link e icone
+
+bottone “Esporta PDF”
+
+pulsanti WhatsApp per invio a Gennaro / Debora
+
+menu “Azioni” in alto a destra)
+in modo più pulito e coerente con il resto del Job Detail.
+
+Spostare il pulsante “Genera Piano Pagamenti” dentro la sezione/tab “Pagamenti e Scadenze” del Job Detail, così che:
+
+Se non esiste ancora uno schedule di pagamenti → appare lì un grosso bottone per creare il piano.
+
+Se lo schedule esiste → il bottone non viene mostrato (o viene mostrato come azione secondaria contestuale).
+
+🧩 DETTAGLI PRECISI DELLE MODIFICHE UI
+1. Rimozione sezione “Dettagli Preventivo / Prodotti Inclusi”
+
+Individua il componente che rende:
+
+Il titolo “Dettagli Preventivo”
+
+La lista di card prodotto (Album 25x35, SelfieBooth, Foto Ospiti, ecc.) con:
+
+Nome prodotto
+
+Descrizione
+
+Prezzo a destra
+
+Badge “Selezionato / Non selezionato”
+
+Totale preventivo in basso
+
+Questo blocco va completamente rimosso dalla vista admin Job Detail.
+
+Non eliminare la logica di caricamento dei prodotti dal backend se serve altrove: limitati a non renderizzare questa sezione in questa pagina.
+
+Non toccare la pagina pubblica del preventivo / portale cliente: lì i prodotti devono continuare a essere mostrati.
+
+Se ti è utile, puoi creare un componente di layout più semplice nella parte centrale (ad esempio un placeholder o niente del tutto) purché l’interfaccia resti pulita e non ci siano spazi vuoti brutti.
+
+2. Riorganizzazione colonna di destra
+
+Attualmente la colonna di destra mostra, dall’alto verso il basso:
+
+Card Firmato Digitalmente (verde)
+
+Pulsante “Genera Piano Pagamenti” con descrizione sotto
+
+Sezione “Portale Cliente Firmato” con input testo + icone
+
+Bottone “Esporta PDF”
+
+Pulsanti WhatsApp per invio a Gennaro e Debora
+
+In alto a destra il menu “Azioni”
+
+Voglio che:
+
+Il menu “Azioni”:
+
+Resti in alto a destra, ma assicurati che sia ben allineato con il contenitore principale del preventivo.
+
+Contenga le stesse voci che ci sono ora (non cambiare la logica, solo layout se necessario).
+
+Card “Firmato Digitalmente”:
+
+Rimane una card separata (come ora), con:
+
+Stato (Firmato/Non firmato)
+
+Nome firmatario
+
+Data/ora
+
+IP
+
+Mantieni eventuali logiche esistenti collegate allo stato della firma.
+
+Sezione Pagamenti / Genera Piano Pagamenti:
+
+Rimuovi il pulsante “Genera Piano Pagamenti” dalla colonna destra.
+
+All’interno della sezione/tab “Pagamenti e Scadenze” del Job Detail:
+
+Se non esiste alcun payment schedule associato al job/quote:
+
+Mostra un bottone primario (stile shadcn Button) con testo tipo:
+Genera Piano Pagamenti
+e sotto una breve descrizione:
+Crea uno scadenzario pagamenti basato sul totale preventivo.
+
+Questo bottone deve richiamare la stessa funzione/handler che oggi viene chiamata dal bottone che stai spostando.
+
+Se esiste già un piano pagamenti:
+
+Mostra solo la tabella/lista delle rate come già esiste.
+
+Il bottone per generare il piano deve sparire o diventare un’azione secondaria (se già previsto) ma senza duplicazioni.
+
+Assicurati che non ci sia codice morto: la logica di generazione del piano deve stare in un unico posto riutilizzabile.
+
+Sezione “Portale Cliente Firmato” + Esporta PDF + WhatsApp
+
+Raggruppa questi elementi in un’unica card, ad esempio chiamata “Azioni documento / Condivisione preventivo”:
+
+Dentro questa card mantieni:
+
+Campo link portale cliente firmato (input read-only con URL).
+
+Icona/copier per copiare il link.
+
+Eventuale icona per aprire il link in nuova scheda.
+
+Pulsante “Esporta PDF” (stesso comportamento attuale).
+
+Pulsanti WhatsApp per invio a Gennaro e Debora:
+
+Stesso testo, stessa logica di generazione link WhatsApp attuale.
+
+Layout suggerito (puoi organizzarlo tu ma deve essere chiaro e responsive):
+
+Prima riga: label “Portale Cliente Firmato” e, sulla stessa riga o sotto, input con pulsanti copia/apri.
+
+Seconda riga: bottone “Esporta PDF”.
+
+Terza riga: bottoni WhatsApp affiancati (in desktop) e a tutta larghezza in mobile.
+
+📱 RESPONSIVE & UX
+
+Verifica che il nuovo layout funzioni bene sia su desktop che su mobile:
+
+Su schermi piccoli la colonna di destra può andare sotto quella principale, ma le card devono rimanere nell’ordine logico:
+
+Firmato Digitalmente
+
+Pagamenti (nel tab dedicato)
+
+Azioni documento / Condivisione preventivo
+
+Evita scroll orizzontali.
+
+Mantieni i padding, border-radius e spaziature coerenti con il resto della UI (standard shadcn dell’app).
+
+⚙️ TECNICO
+
+Il codice è in TypeScript, mantieni i tipi corretti.
+
+Non cambiare la struttura dei dati in Firestore e non toccare le API, a meno che non sia strettamente necessario per spostare il pulsante.
+
+Riutilizza il componente/handler già esistente per:
+
+Generazione piano pagamenti
+
+Esportazione PDF
+
+Invio link via WhatsApp
+
+Gestione firma digitale
+
+Se necessario, estrai piccole parti in componenti riutilizzabili, ma non stravolgere l’architettura.
+
+✅ OUTPUT ATTESO
+
+Nella vista admin del Job Detail / Dettaglio Preventivo:
+
+Nessuna sezione centrale “Dettagli Preventivo / Prodotti Inclusi”.
+
+Colonna destra con:
+
+Card “Firmato Digitalmente”.
+
+Card “Azioni documento / Condivisione preventivo” con:
+
+Link portale cliente + copia/apri
+
+Esporta PDF
+
+Bottoni WhatsApp
+
+Menu “Azioni” in alto a destra.
+
+Nella sezione/tab “Pagamenti e Scadenze”:
+
+Se nessun pagamento: bottone grande “Genera Piano Pagamenti” che usa la stessa logica attuale.
+
+Se ci sono pagamenti: mostra solo elenco rate, senza duplicare il bottone nella colonna destra.
