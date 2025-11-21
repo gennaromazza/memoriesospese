@@ -263,28 +263,7 @@
     </div>
 
     <script type="module">
-      // Importa Firebase
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-      import {
-        getFirestore,
-        collection,
-        getDocs,
-        query,
-        where,
-      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-      // Configurazione Firebase (usa le tue credenziali)
-      const firebaseConfig = {
-        apiKey: "AIzaSyBIe2M1CgjvPXLfFPnNa7GdU0h2rEpQk30",
-        authDomain: "memorie-sospese-2024.firebaseapp.com",
-        projectId: "memorie-sospese-2024",
-        storageBucket: "memorie-sospese-2024.firebasestorage.app",
-        messagingSenderId: "637866509691",
-        appId: "1:637866509691:web:f36ada8ecf18555e70cde8",
-      };
-
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
+      // Carica prodotti dal server invece che da Firebase direttamente
 
       // Funzione per creare un volantino
       function createVolantino(product) {
@@ -377,26 +356,27 @@
         return labels[categoria] || categoria;
       }
 
-      // Carica i prodotti da Firebase
+      // Carica i prodotti dal server
       async function loadProducts() {
         const container = document.getElementById("volantini-container");
 
         try {
-          const q = query(
-            collection(db, "products"),
-            where("attivo", "==", true),
-          );
-          const snapshot = await getDocs(q);
+          const response = await fetch('/api/products');
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          const products = await response.json();
 
-          if (snapshot.empty) {
+          if (!products || products.length === 0) {
             container.innerHTML =
               '<div class="controls"><h3 style="color: #c94b4b;">⚠️ Nessun prodotto attivo trovato</h3></div>';
             return;
           }
 
           let html = "";
-          snapshot.forEach((doc) => {
-            const product = { id: doc.id, ...doc.data() };
+          products.forEach((product) => {
             html += createVolantino(product);
           });
 
