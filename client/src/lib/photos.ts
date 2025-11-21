@@ -185,11 +185,32 @@ export class PhotoService {
       const snapshot = await getDocs(photosQuery);
       
       // Aggiungi foto moderne
+      let modernAdminCount = 0;
+      let modernGuestCount = 0;
+      let modernNormalizedCount = 0;
+      
       snapshot.docs.forEach(doc => {
-        const photo = { id: doc.id, ...doc.data() } as Photo;
+        const data = doc.data();
+        const originalUploadedBy = data.uploadedBy;
+        const normalizedUploadedBy = data.uploadedBy || 'admin';
+        
+        const photo = { 
+          id: doc.id, 
+          ...data,
+          // Normalizza uploadedBy: foto nella collezione `photos` senza uploadedBy sono admin (pre-fix)
+          uploadedBy: normalizedUploadedBy
+        } as Photo;
+        
+        // Track normalization
+        if (!originalUploadedBy) modernNormalizedCount++;
+        if (normalizedUploadedBy === 'admin') modernAdminCount++;
+        if (normalizedUploadedBy === 'guest') modernGuestCount++;
+        
         allPhotos.push(photo);
         existingPhotoNames.add(photo.name);
       });
+      
+      console.log(`📸 Gallery ${galleryId} - Collezione photos: ${snapshot.docs.length} foto totali (${modernAdminCount} admin, ${modernGuestCount} guest, ${modernNormalizedCount} normalizzate da undefined)`);
 
       // 2. Se non stiamo filtrando per solo 'guest' o 'admin', recupera anche foto legacy
       if (filterUploadedBy === 'all' || filterUploadedBy === 'exclude-guest') {
