@@ -17,7 +17,7 @@ import type {
   ConsultationWorkingHours
 } from '../../shared/consultation-types.js';
 import { DEFAULT_CONSULTATION_HOURS } from '../../shared/consultation-types.js';
-import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAllCalendars, type WorkingHours } from '../google-calendar.js';
+import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAllCalendars, createEuropeRomeDate, type WorkingHours } from '../google-calendar.js';
 import type { Booking } from '../../shared/booking-types.js';
 import { format } from 'date-fns'; // Importa la funzione format
 import { it } from 'date-fns/locale'; // Importa la localizzazione italiana
@@ -779,14 +779,15 @@ export async function isSlotAvailable(
   preloadedBookings?: QueryDocumentSnapshot[],
   preloadedJobs?: QueryDocumentSnapshot[]
 ): Promise<boolean> {
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
-
-  const slotStart = new Date(date);
-  slotStart.setHours(startHour, startMin, 0, 0);
-
-  const slotEnd = new Date(date);
-  slotEnd.setHours(endHour, endMin, 0, 0);
+  // 🔥 FIX TIMEZONE: Usa createEuropeRomeDate invece di new Date() + setHours()
+  // Questo assicura che stiamo usando Europe/Rome timezone come i timestamp Firestore
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+  
+  const slotStart = createEuropeRomeDate(dateStr, startTime);
+  const slotEnd = createEuropeRomeDate(dateStr, endTime);
 
   const isDebug = process.env.NODE_ENV === 'development';
 
