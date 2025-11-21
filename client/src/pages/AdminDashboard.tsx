@@ -41,6 +41,7 @@ import JobTypesManager from "@/components/job-types/JobTypesManager";
 import ProductCategoriesManager from "@/components/product-categories/ProductCategoriesManager";
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
+import PhotosMigration from "@/components/PhotosMigration";
 import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -238,7 +239,7 @@ export default function AdminDashboard() {
   const [activeConsultationSection, setActiveConsultationSection] = useState<'consulenze' | 'consulenze-templates'>(() => {
     return (sessionStorage.getItem('activeConsultationSection') as any) || 'consulenze';
   });
-  const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories'>(() => {
+  const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories' | 'migration'>(() => {
     return (sessionStorage.getItem('settingsSection') as any) || 'studio';
   });
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
@@ -2055,6 +2056,10 @@ export default function AdminDashboard() {
                     <FolderOpen className="h-4 w-4 flex-shrink-0" />
                     Categorie Prodotti
                   </TabsTrigger>
+                  <TabsTrigger value="migration" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 flex-shrink-0" />
+                    Migrazione Foto
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="studio">
@@ -2347,6 +2352,10 @@ export default function AdminDashboard() {
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <ProductCategoriesManager />
                   </div>
+                </TabsContent>
+
+                <TabsContent value="migration">
+                  <PhotosMigration />
                 </TabsContent>
               </Tabs>
             </TabsContent>

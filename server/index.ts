@@ -17,6 +17,7 @@ import calendarRoutes from './calendar-routes.js';
 import receiptRoutes from './receipt-routes.js';
 import collaboratoriRoutes from './collaboratori-routes.js';
 import productsRoutes from './products-routes.js';
+import migrationRoutes from './migration-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 
 
@@ -105,6 +106,10 @@ async function startServer() {
     // Products routes
     app.use('/api/products', productsRoutes);
     console.log('📦 Products API routes mounted at /api/products');
+
+    // Migration routes
+    app.use('/api/migrations', migrationRoutes);
+    console.log('🔄 Migration API routes mounted at /api/migrations');
 
     // Sitemap dinamica
     app.get('/sitemap.xml', async (req, res) => {
