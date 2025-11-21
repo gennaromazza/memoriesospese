@@ -42,7 +42,7 @@ import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { PhotoData } from "@/hooks/use-gallery-data";
 import { useQuery } from "@tanstack/react-query";
 import GalleryService from "@/lib/galleries";
-import PhotoService from "@/lib/photos"; // 🔧 Aggiunto per metodo unificato
+import PhotoService, { Photo } from "@/lib/photos"; // 🔧 Import Photo type per allineamento tipi
 import { queryClient } from "@/lib/queryClient";
 import GalleryFilter, {
   FilterCriteria,
@@ -82,7 +82,7 @@ import { CoupleStory } from "@shared/schema";
 import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotlight";
 
 // Memoized PhotoCard component for optimization with lazy loading
-const PhotoCard = memo(({ photo, index, onClick }: { photo: PhotoData, index: number, onClick: (index: number) => void }) => {
+const PhotoCard = memo(({ photo, index, onClick }: { photo: Photo, index: number, onClick: (index: number) => void }) => {
   const handleClick = useCallback(() => onClick(index), [onClick, index]);
 
   return (
