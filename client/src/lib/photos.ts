@@ -149,21 +149,43 @@ export class PhotoService {
 
   /**
    * Ottieni tutte le foto di una galleria
+   * @param galleryId - ID della galleria
+   * @param limitCount - Limite numero foto (opzionale)
+   * @param filterUploadedBy - Filtra per uploadedBy: 'all' | 'admin' | 'guest' | 'exclude-guest' (default: 'all')
    */
-  static async getGalleryPhotos(galleryId: string, limitCount?: number): Promise<Photo[]> {
+  static async getGalleryPhotos(
+    galleryId: string, 
+    limitCount?: number,
+    filterUploadedBy: 'all' | 'admin' | 'guest' | 'exclude-guest' = 'all'
+  ): Promise<Photo[]> {
     try {
-      let photosQuery = query(
-        collection(db, 'photos'),
+      let constraints: any[] = [
         where('galleryId', '==', galleryId),
         orderBy('createdAt', 'desc')
-      );
+      ];
+
+      // Applica filtro uploadedBy a livello query dove possibile
+      if (filterUploadedBy === 'admin') {
+        constraints.push(where('uploadedBy', '==', 'admin'));
+      } else if (filterUploadedBy === 'guest') {
+        constraints.push(where('uploadedBy', '==', 'guest'));
+      }
+      // 'exclude-guest' sarà filtrato lato client sotto
 
       if (limitCount) {
-        photosQuery = query(photosQuery, limit(limitCount));
+        constraints.push(limit(limitCount));
       }
       
+      const photosQuery = query(collection(db, 'photos'), ...constraints);
       const snapshot = await getDocs(photosQuery);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Photo));
+      let photos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Photo));
+      
+      // Filtro lato client per 'exclude-guest' (come fa GalleryService.getPhotosByGalleryId)
+      if (filterUploadedBy === 'exclude-guest') {
+        photos = photos.filter(photo => photo.uploadedBy !== 'guest');
+      }
+      
+      return photos;
     } catch (error) {
       console.error('Errore recupero foto galleria:', error);
       return [];

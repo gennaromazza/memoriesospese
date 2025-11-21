@@ -87,17 +87,19 @@ export default function GalleryManagementWorkspace() {
   const {
     data: allPhotos = [],
     isLoading: isLoadingPhotos,
-    error: photosError
+    error: photosError,
+    refetch: refetchPhotos
   } = useQuery({
-    queryKey: ['photos', gallery?.id],
+    queryKey: ['gallery-photos', galleryId], // 🔧 Standardized key + usa galleryId diretto
     queryFn: async () => {
-      if (!gallery?.id) return [];
-      const photos = await PhotoService.getGalleryPhotos(gallery.id);
+      if (!galleryId) return [];
+      // 🔧 Carica TUTTE le foto (admin + guest + legacy)
+      const photos = await PhotoService.getGalleryPhotos(galleryId);
       return photos;
     },
-    enabled: !!gallery?.id,
+    enabled: !!galleryId,
     retry: 2,
-    staleTime: 30000
+    staleTime: 0 // 🔧 NO CACHE per admin workflow - sempre dati freschi!
   });
 
   // Carica nomi foto esistenti per controllo duplicati
@@ -243,12 +245,16 @@ export default function GalleryManagementWorkspace() {
         description: `${photos.length} foto caricate con successo!`,
       });
 
-      // 🔧 Invalidazione GLOBALE cache foto per sincronizzazione cross-page
-      // Invalida tutte le query ['photos', *] indipendentemente dall'ID
-      // Questo assicura che Gallery.tsx (aperta con code) e GalleryManagementWorkspace (con ID)
-      // vedano le stesse foto aggiornate immediatamente
-      await queryClient.invalidateQueries({ queryKey: ['photos'] });
-      await queryClient.invalidateQueries({ queryKey: ['guestPhotos'] });
+      // 🔧 FORZA REFETCH IMMEDIATO di tutte le query foto attive
+      // refetchQueries bypassa staleTime e forza aggiornamento immediato
+      await queryClient.refetchQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return key === 'photos' || key === 'gallery-photos' || key === 'guestPhotos';
+        }
+      });
+      
+      // Invalida anche cache galleria per aggiornare photoCount
       await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
 
       // Reset progress after 3s
@@ -763,9 +769,8 @@ export default function GalleryManagementWorkspace() {
                           variant="outline"
                           size="sm"
                           onClick={async () => {
-                            // 🔧 Invalidazione globale per sincronizzazione cross-page
-                            await queryClient.invalidateQueries({ queryKey: ['photos'] });
-                            await queryClient.invalidateQueries({ queryKey: ['guestPhotos'] });
+                            // 🔧 FORZA REFETCH IMMEDIATO bypassa cache
+                            await refetchPhotos();
                             toast({
                               title: '🔄 Foto ricaricate',
                               description: 'Le foto sono state aggiornate.',
@@ -818,10 +823,14 @@ export default function GalleryManagementWorkspace() {
                                 
                                 setSelectedPhotos(new Set());
                                 
-                                // 🔧 Invalidazione globale per sincronizzazione cross-page
+                                // 🔧 FORZA REFETCH di tutte le query foto
+                                await queryClient.refetchQueries({ 
+                                  predicate: (query) => {
+                                    const key = query.queryKey[0];
+                                    return key === 'photos' || key === 'gallery-photos' || key === 'guestPhotos';
+                                  }
+                                });
                                 queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-                                queryClient.invalidateQueries({ queryKey: ['photos'] });
-                                queryClient.invalidateQueries({ queryKey: ['guestPhotos'] });
                               } catch (error) {
                                 toast({
                                   title: '❌ Errore',
@@ -917,10 +926,14 @@ export default function GalleryManagementWorkspace() {
                                         newSelected.delete(photo.id);
                                         setSelectedPhotos(newSelected);
                                         
-                                        // 🔧 Invalidazione globale per sincronizzazione cross-page
+                                        // 🔧 FORZA REFETCH di tutte le query foto
+                                        await queryClient.refetchQueries({ 
+                                          predicate: (query) => {
+                                            const key = query.queryKey[0];
+                                            return key === 'photos' || key === 'gallery-photos' || key === 'guestPhotos';
+                                          }
+                                        });
                                         queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-                                        queryClient.invalidateQueries({ queryKey: ['photos'] });
-                                        queryClient.invalidateQueries({ queryKey: ['guestPhotos'] });
                                       } catch (error) {
                                         toast({
                                           title: '❌ Errore',

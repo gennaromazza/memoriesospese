@@ -42,6 +42,7 @@ import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { PhotoData } from "@/hooks/use-gallery-data";
 import { useQuery } from "@tanstack/react-query";
 import GalleryService from "@/lib/galleries";
+import PhotoService from "@/lib/photos"; // 🔧 Aggiunto per metodo unificato
 import { queryClient } from "@/lib/queryClient";
 import GalleryFilter, {
   FilterCriteria,
@@ -205,11 +206,16 @@ export default function Gallery() {
     isLoading: isLoadingPhotos,
     error: photosError
   } = useQuery({
-    queryKey: ['photos', galleryData?.id],
-    queryFn: () => GalleryService.getPhotosByGalleryId(galleryData!.id),
+    queryKey: ['gallery-photos', galleryData?.id], // 🔧 Standardized key
+    queryFn: async () => {
+      if (!galleryData?.id) return [];
+      // 🔧 Usa PhotoService unificato con filtro exclude-guest (esclude foto ospiti)
+      const photos = await PhotoService.getGalleryPhotos(galleryData.id, undefined, 'exclude-guest');
+      return photos;
+    },
     enabled: !!galleryData?.id && hasValidAccess,
     retry: 2,
-    staleTime: 30000
+    staleTime: 5000 // 🔧 Ridotto a 5 secondi per gallery pubblica
   });
 
   // 🔧 React Query: Carica foto ospiti (enabled solo quando galleryData esiste E accesso validato)
@@ -218,11 +224,16 @@ export default function Gallery() {
     isLoading: isLoadingGuestPhotos,
     error: guestPhotosError
   } = useQuery({
-    queryKey: ['guestPhotos', galleryData?.id],
-    queryFn: () => GalleryService.getGuestPhotosByGalleryId(galleryData!.id),
+    queryKey: ['guest-photos', galleryData?.id], // 🔧 Standardized key
+    queryFn: async () => {
+      if (!galleryData?.id) return [];
+      // 🔧 Usa PhotoService unificato con filtro guest
+      const photos = await PhotoService.getGalleryPhotos(galleryData.id, undefined, 'guest');
+      return photos;
+    },
     enabled: !!galleryData?.id && hasValidAccess,
     retry: 2,
-    staleTime: 30000
+    staleTime: 5000 // 🔧 Ridotto a 5 secondi per gallery pubblica
   });
 
   // ✅ Lazy loading nativo - nessun preload necessario
@@ -249,9 +260,14 @@ export default function Gallery() {
   const handleRefreshPhotos = useCallback(async () => {
     if (!galleryData?.id) return;
 
-    // Invalida cache React Query per ricaricare foto
-    await queryClient.invalidateQueries({ queryKey: ['photos', galleryData.id] });
-    await queryClient.invalidateQueries({ queryKey: ['guestPhotos', galleryData.id] });
+    // 🔧 FORZA REFETCH di tutte le query foto per gallery corrente
+    await queryClient.refetchQueries({ 
+      predicate: (query) => {
+        if (!Array.isArray(query.queryKey)) return false;
+        const [key, id] = query.queryKey;
+        return (key === 'gallery-photos' || key === 'guest-photos') && id === galleryData.id;
+      }
+    });
 
     // Fallback con evento personalizzato per compatibilità
     refreshPhotos();
