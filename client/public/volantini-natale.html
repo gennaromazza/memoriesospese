@@ -396,25 +396,11 @@
 
       <div class="filter-section">
         <h3>🎯 Filtra per Categoria</h3>
-        <div class="filter-buttons">
+        <div class="filter-buttons" id="category-filter-buttons">
           <button class="filter-btn active" onclick="filterByCategory('all')" data-category="all">
             Tutti i Prodotti
           </button>
-          <button class="filter-btn" onclick="filterByCategory('album')" data-category="album">
-            📖 Album Fotografico
-          </button>
-          <button class="filter-btn" onclick="filterByCategory('stampe')" data-category="stampe">
-            🖼️ Stampe
-          </button>
-          <button class="filter-btn" onclick="filterByCategory('digitale')" data-category="digitale">
-            💾 File Digitali
-          </button>
-          <button class="filter-btn" onclick="filterByCategory('video')" data-category="video">
-            🎥 Video
-          </button>
-          <button class="filter-btn" onclick="filterByCategory('pacchetto')" data-category="pacchetto">
-            📦 Pacchetto Completo
-          </button>
+          <!-- I pulsanti delle categorie verranno aggiunti dinamicamente -->
         </div>
       </div>
     </div>
@@ -427,6 +413,7 @@
       // Stato del filtro
       let currentFilter = 'all';
       let allProducts = [];
+      let productCategories = [];
 
       // Funzione filtro categoria
       window.filterByCategory = function(category) {
@@ -558,15 +545,50 @@
       `;
       }
 
-      function getCategoriaLabel(categoria) {
-        const labels = {
-          album: "Album Fotografico",
-          stampe: "Stampe",
-          digitale: "File Digitali",
-          video: "Video",
-          pacchetto: "Pacchetto Completo",
+      function getCategoriaLabel(categoriaValue) {
+        const cat = productCategories.find(c => c.value === categoriaValue);
+        return cat ? cat.nome : categoriaValue;
+      }
+      
+      // Carica categorie dinamicamente e crea pulsanti filtro
+      async function loadProductCategories() {
+        try {
+          const response = await fetch('/api/product-categories');
+          if (response.ok) {
+            productCategories = await response.json();
+            
+            // Filtra solo categorie attive
+            const activeCategories = productCategories.filter(cat => cat.attivo);
+            
+            // Crea pulsanti filtro dinamicamente
+            const filterContainer = document.getElementById('category-filter-buttons');
+            
+            activeCategories.forEach(cat => {
+              const button = document.createElement('button');
+              button.className = 'filter-btn';
+              button.setAttribute('data-category', cat.value);
+              button.onclick = () => filterByCategory(cat.value);
+              button.innerHTML = `${getCategoryIcon(cat.value)} ${cat.nome}`;
+              filterContainer.appendChild(button);
+            });
+          }
+        } catch (error) {
+          console.warn('Errore caricamento categorie, uso valori predefiniti:', error);
+        }
+      }
+      
+      // Helper per ottenere icone categorie
+      function getCategoryIcon(categoryValue) {
+        const icons = {
+          matrimonio: '💒',
+          natale: '🎄',
+          album: '📖',
+          stampe: '🖼️',
+          digitale: '💾',
+          video: '🎥',
+          pacchetto: '📦'
         };
-        return labels[categoria] || categoria;
+        return icons[categoryValue] || '📸';
       }
 
       // Funzione rendering volantini con filtro
@@ -625,8 +647,13 @@
         }
       }
 
-      // Carica i prodotti all'avvio
-      loadProducts();
+      // Carica categorie e prodotti all'avvio
+      async function init() {
+        await loadProductCategories();
+        await loadProducts();
+      }
+      
+      init();
     </script>
   </body>
 </html>

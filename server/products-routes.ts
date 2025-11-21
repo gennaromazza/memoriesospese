@@ -30,4 +30,26 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/product-categories
+ * Recupera tutte le categorie prodotti ordinate per displayOrder
+ */
+router.get('/product-categories', async (req, res) => {
+  try {
+    const snapshot = await db.collection('productCategories')
+      .orderBy('displayOrder', 'asc')
+      .get();
+
+    const categories = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json(categories);
+  } catch (error) {
+    console.error('Errore recupero categorie prodotti:', error);
+    res.status(500).json({ error: 'Errore recupero categorie prodotti' });
+  }
+});
+
 export default router;
