@@ -1,0 +1,252 @@
+Devi fare una analisi accurata e completa del sistema di prenotazione consulenze e:
+
+Capire e risolvere il bug per cui:
+
+una cliente non riesce a prenotare una consulenza per sabato prossimo alle 15:30;
+
+lo slot risulta visivamente disponibile nel frontend;
+
+ma la cliente vede un errore rosso “prenotazione 409” (HTTP 409 Conflict).
+
+Sistemare tutti i bug di coerenza tra:
+
+regole/orari definiti nei template di consulenza;
+
+slot mostrati nel frontend;
+
+validazioni e controlli di conflitto nel backend / integrazione calendario.
+
+Il template specifico coinvolto nel bug è:
+
+Nome: Consulenza Comunione - Visione
+
+URL pubblica (routing indicativo):
+/comunione/OWvCHgpsHBrZ4NNiaQnk/prenota
+
+Inoltre, questo template non sta rispettando gli orari impostati nel pannello admin dell’applicazione: gli slot disponibili non coincidono con le fasce orarie configurate.
+
+📌 Nota importante:
+In passato esistevano degli impegni (eventi) per quel sabato nel calendario (Google Calendar o sistema interno), che sono stati cancellati.
+Ora lo slot appare libero nel frontend, ma a backend sembra ancora considerato occupato → appare errore 409.
+
+✅ Cosa devi fare (step-by-step)
+1. Mappare l’architettura del sistema consulenze
+
+Individua tutti i file frontend relativi a:
+
+pagina di prenotazione consulenza pubblica (es. BookingConsultationPage, ConsultationBookingPage o simili);
+
+componenti che generano e mostrano gli slot disponibili;
+
+gestione del template di consulenza lato admin (es. ConsultationTemplatesManager o simili).
+
+Individua tutto il codice backend / API relativo a:
+
+calcolo disponibilità (es. endpoint tipo /api/consultations/availability, /api/consultations/:id/slots o simili);
+
+creazione effettiva della prenotazione (es. /api/consultations/book o simili);
+
+integrazione con Google Calendar o sistema di calendario interno (busy times, eventi, ecc.);
+
+logica che genera l’errore HTTP 409 (Conflict).
+
+Forniscimi una breve mappa dei file e delle responsabilità (frontend & backend).
+
+2. Capire come funzionano i template di consulenza
+
+Trova il modello/dto del template di consulenza, per esempio in Firestore o nel codice TypeScript.
+Devi capire almeno:
+
+come vengono salvati:
+
+giorni della settimana disponibili;
+
+fasce orarie (es: inizio, fine, durata slot, eventuali pause);
+
+timezone (deve essere coerente con Europe/Rome);
+
+eventuali limiti per giorno / per slot.
+
+come vengono utilizzati:
+
+nella generazione degli slot (frontend/backend);
+
+nelle validazioni in fase di booking.
+
+Verifica se il template Consulenza Comunione - Visione ha:
+
+orari corretti;
+
+giorni corretti (incluso il sabato prossimo);
+
+durata slot coerente;
+
+eventuali limiti che potrebbero bloccare il booking.
+
+3. Analizzare il flusso di generazione slot
+
+Analizza la logica che genera gli slot disponibili:
+
+Dove vengono generati gli slot? Solo backend o anche frontend?
+
+Vengono considerati:
+
+orari del template;
+
+eventi già prenotati;
+
+eventi/“busy time” del calendario (Google Calendar o simile);
+
+timezone Europe/Rome con gestione corretta di offset/DST.
+
+Verifica se ci sono problemi tipici come:
+
+uso errato di UTC vs local time;
+
+confronto orari con timezone sbagliata;
+
+conversioni stringa → Date errate;
+
+arrotondamenti/offset che potrebbero far considerare lo slot sovrapposto a un evento cancellato.
+
+4. Analizzare il flusso di booking e gestione 409
+
+Trova l’esatto punto in cui viene lanciato l’errore 409 (Conflict) in fase di prenotazione.
+
+Cerca nel codebase dove viene fatto res.status(409) o equivalente.
+
+Capisci in quali casi viene restituito:
+
+conflitto con un’altra prenotazione già esistente;
+
+conflitto con un evento di calendario;
+
+violazione di regole del template (fuori orario, slot troppo vicino, ecc.);
+
+qualsiasi altro motivo.
+
+Aggiungi (se mancano) log dettagliati prima del 409, ad esempio:
+
+timestamp richiesto (con timezone esplicita);
+
+ID template;
+
+ID calendario o job;
+
+motivazione specifica del conflitto;
+
+elenco degli eventi/booking che generano il conflitto.
+
+5. Riprodurre e diagnosticare il bug specifico
+
+Simula il caso reale:
+
+Template: Consulenza Comunione - Visione
+
+URL: /comunione/OWvCHgpsHBrZ4NNiaQnk/prenota
+
+Slot: sabato prossimo alle 15:30 (orario Europa/Roma)
+
+Condizione: in passato esistevano degli impegni in calendario, poi rimossi.
+
+Task:
+
+Controlla se il sistema:
+
+mantiene una cache di eventi “busy” non aggiornata dopo la cancellazione;
+
+non sincronizza correttamente la rimozione degli eventi dal calendario;
+
+ha ancora in Firestore documenti di blocco o eventi vecchi non cancellati.
+
+Verifica se nel DB o nelle collection Firestore esistono:
+
+prenotazioni incomplete;
+
+“busy blocks” non rimossi;
+
+eventi soft-deleted che però vengono ancora considerati nei controlli.
+
+Assicurati che:
+
+se un evento viene cancellato dal calendario o dal sistema, NON debba più generare 409;
+
+il frontend non mostri mai come disponibile uno slot che il backend considera ancora occupato (e viceversa).
+
+6. Verificare il rispetto degli orari del template
+
+C’è un altro problema: il template non rispetta gli orari impostati.
+
+Confronta gli orari configurati nel template Consulenza Comunione - Visione con:
+
+slot mostrati nel calendario frontend;
+
+slot effettivamente accettati dal backend.
+
+Correggi tutte le discrepanze, assicurandoti che:
+
+il singolo source of truth per gli orari sia il template;
+
+qualsiasi logica di aggiustamento orari (padding pre/post, durata slot, ecc.) sia coerente tra frontend e backend;
+
+il calcolo degli slot utilizzi sempre la stessa timezone e le stesse regole.
+
+Se la logica orari è duplicata (es. un po’ in frontend e un po’ in backend), valuta di centralizzarla nel backend e far sì che il frontend mostri solo ciò che riceve dall’API.
+
+7. Correggere i bug e proporre modifiche al codice
+
+Quando hai individuato le cause:
+
+Proponi e applica modifiche al codice per:
+
+eliminare cache o dati obsoleti che generano falsi conflitti;
+
+rendere idempotente e affidabile la sincronizzazione con il calendario;
+
+garantire che cancellare un evento o un impegno liberi davvero quello slot;
+
+allineare completamente template → slot frontend → validazione backend.
+
+Mantieni le modifiche non distruttive e compatibili con i dati esistenti.
+
+Mostra i diff dei file modificati, con commenti chiari nel codice dove necessario.
+
+8. Aggiungere test e controlli
+
+Se possibile, aggiungi:
+
+test (anche solo di integrazione o unitari basilari) per:
+
+booking di uno slot libero;
+
+booking di uno slot occupato (409 corretto);
+
+cancellazione di un evento e successivo booking dello stesso slot (deve funzionare);
+
+log/console più espliciti per le richieste di booking fallite, almeno in ambiente dev.
+
+9. Output che voglio da te
+
+Alla fine del lavoro, voglio:
+
+Una spiegazione chiara:
+
+perché lo slot di sabato alle 15:30 risulta libero in UI ma dà 409 alla cliente;
+
+quali componenti/endpoint erano coinvolti;
+
+quali dati “sporchi” o logiche errate hanno causato il problema.
+
+I diff del codice modificato, pronti da copiare/incollare o da applicare in blocco.
+
+Una breve checklist finale tipo:
+
+✅ Sincronizzazione eventi → OK
+
+✅ Template Consulenza Comunione - Visione rispetta gli orari → OK
+
+✅ Slot frontend e backend coerenti → OK
+
+✅ Gestione errori 409 più chiara → OK
+
+Lavora direttamente sul progetto aperto, leggendo il codice esistente prima di proporre soluzioni, e assicurati di non introdurre regressioni sugli altri template di consulenza.
