@@ -1,0 +1,92 @@
+1. File: server/routes/consultation-routes.ts
+Obiettivo: Aggiungere l'import mancante per far funzionare il fix di Luxon suggerito prima.
+
+Istruzione: Aggiungi l'import di DateTime all'inizio del file.
+
+TypeScript
+
+// Cerca la riga: import { DateTime } from 'luxon';
+// Se non c'è, aggiungila tra gli import:
+
+import express, { Request, Response } from 'express';
+import { z } from 'zod';
+import axios from 'axios';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
+import { DateTime } from 'luxon'; // <--- AGGIUNGERE QUESTO
+import * as consultationService from './services/consultations.js';
+// ...
+2. File: client/src/pages/ConsultationBooking.tsx
+Obiettivo: Fix critico "Visualizzazione Timezone". Attualmente, se l'utente prenota mentre è all'estero (o ha l'orologio del PC sbagliato), il messaggio di conferma mostra l'orario locale del suo browser invece dell'orario reale dell'appuntamento (Roma). Dobbiamo usare le stringhe startTime fornite dal backend.
+
+Istruzione: Modifica la gestione dello stato selectedSlot e la visualizzazione nel modale di successo.
+
+Passo 2.1: Aggiorna lo stato selectedSlot per includere le stringhe orarie. Cerca la definizione dello stato selectedSlot e sostituiscila con:
+
+TypeScript
+
+  // Aggiungiamo startTime ed endTime come stringhe per preservare l'orario di Roma
+  const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date; startTime: string; endTime: string } | null>(null);
+Passo 2.2: Aggiorna il click sul bottone dello slot. Nella sezione dove renderizzi i bottoni degli slot (availableSlots.map...), aggiorna l'onClick per salvare anche le stringhe.
+
+Cerca questo blocco:
+
+TypeScript
+
+<Button
+  key={idx}
+  variant={isSelected ? "default" : "outline"}
+  onClick={() => setSelectedSlot({ start: slotStart, end: slotEnd })} // <--- DA CAMBIARE
+Sostituiscilo con:
+
+TypeScript
+
+<Button
+  key={idx}
+  variant={isSelected ? "default" : "outline"}
+  // FIX: Salviamo startTime/endTime (stringhe HH:mm fornite dal backend) per evitare conversioni errate del browser
+  onClick={() => setSelectedSlot({ 
+    start: slotStart, 
+    end: slotEnd, 
+    startTime: slot.startTime || format(slotStart, "HH:mm"), 
+    endTime: slot.endTime || format(slotEnd, "HH:mm") 
+  })}
+Passo 2.3: Aggiorna il Modale di Successo. Ora usa queste stringhe nel messaggio finale per garantire che l'utente veda "10:00" anche se è a New York.
+
+Cerca questo blocco nel Dialog di successo:
+
+TypeScript
+
+<span className="font-semibold text-sage">
+  {selectedSlot && `${format(selectedSlot.start, "HH:mm")} - ${format(selectedSlot.end, "HH:mm")}`}
+</span>
+Sostituiscilo con:
+
+TypeScript
+
+<span className="font-semibold text-sage">
+  {/* FIX: Uso le stringhe dirette per evitare problemi di fuso orario del browser */}
+  {selectedSlot && `${selectedSlot.startTime} - ${selectedSlot.endTime}`}
+</span>
+Passo 2.4: Migliora la gestione errori nel handleSubmit. Per mostrare all'utente il messaggio specifico "Slot occupato" se Google Calendar blocca la richiesta.
+
+Cerca la funzione handleSubmit e il blocco catch:
+
+TypeScript
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Impossibile completare la prenotazione';
+      toast({
+        variant: 'destructive',
+        title: 'Errore prenotazione',
+        description: errorMessage // Assicurati che il frontend mostri il messaggio del backend
+      });
+    }
+Nota: Questo va bene così com'è, purché il tuo apiRequest in queryClient.ts propaghi il messaggio di errore del JSON. Se non lo fa, l'utente vedrà un errore generico, ma il sistema sarà comunque protetto dal backend.
+
+Riassunto del Risultato
+Con queste modifiche:
+
+Backend: Usa Luxon per calcolare i giorni e controlla Google Calendar prima di ogni operazione critica.
+
+Frontend: Ignora il fuso orario del browser dell'utente e mostra sempre l'orario "ufficiale" dello slot (Roma), evitando confusione nei messaggi di conferma.
