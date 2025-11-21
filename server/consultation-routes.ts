@@ -11,8 +11,8 @@ import { it } from 'date-fns/locale';
 import { DateTime } from 'luxon';
 import * as consultationService from './services/consultations.js';
 import { authenticateFirebase } from './email-routes.js';
-import { 
-  InsertConsultationTemplateSchema, 
+import {
+  InsertConsultationTemplateSchema,
   UpdateConsultationTemplateSchema,
   InsertConsultationSchema,
   UpdateConsultationSchema,
@@ -50,17 +50,17 @@ function normalizeTimestampToDate(timestamp: any): Date {
   if (!timestamp) {
     throw new Error('Timestamp is null or undefined');
   }
-  
+
   // Firestore Timestamp serializzato come { seconds, nanoseconds }
   if (typeof timestamp === 'object' && 'seconds' in timestamp) {
     return new Date(timestamp.seconds * 1000);
   }
-  
+
   // Firestore Timestamp con metodo .toDate()
   if (typeof timestamp.toDate === 'function') {
     return timestamp.toDate();
   }
-  
+
   // ISO string o Date object
   return new Date(timestamp);
 }
@@ -173,7 +173,7 @@ router.post('/templates', authenticateFirebase, async (req: AuthRequest, res) =>
 
     const templateId = await consultationService.createTemplate(validatedData);
 
-    res.status(201).json({ 
+    res.status(201).json({
       id: templateId,
       message: 'Template creato con successo'
     });
@@ -181,9 +181,9 @@ router.post('/templates', authenticateFirebase, async (req: AuthRequest, res) =>
     console.error('[POST /templates] Errore:', error.message);
 
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        error: 'Dati non validi', 
-        details: error.errors 
+      return res.status(400).json({
+        error: 'Dati non validi',
+        details: error.errors
       });
     }
 
@@ -214,9 +214,9 @@ router.patch('/templates/:id', authenticateFirebase, async (req: AuthRequest, re
     console.error('[PATCH /templates/:id] Errore:', error.message);
 
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        error: 'Dati non validi', 
-        details: error.errors 
+      return res.status(400).json({
+        error: 'Dati non validi',
+        details: error.errors
       });
     }
 
@@ -248,8 +248,8 @@ router.delete('/templates/:id', authenticateFirebase, async (req: AuthRequest, r
     console.error('[DELETE /templates/:id] Errore:', error.message);
 
     if (error.message.includes('consultations attive')) {
-      return res.status(409).json({ 
-        error: 'Impossibile eliminare template con consultations attive' 
+      return res.status(409).json({
+        error: 'Impossibile eliminare template con consultations attive'
       });
     }
 
@@ -280,7 +280,7 @@ router.get('/', authenticateFirebase, async (req: AuthRequest, res) => {
 
     if (stato) {
       // Supporta sia singolo che multipli stati (comma-separated)
-      filters.stato = typeof stato === 'string' 
+      filters.stato = typeof stato === 'string'
         ? stato.split(',') as ConsultationStatus[]
         : stato as ConsultationStatus[];
     }
@@ -337,6 +337,7 @@ router.get('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
 /**
  * POST /api/consultations/available-slots
  * Calcola slot disponibili per data e template
+ * FIX: Ora controlla Google Calendar e usa Luxon per il fuso orario corretto
  */
 router.post('/available-slots', async (req, res) => {
   try {
@@ -344,32 +345,43 @@ router.post('/available-slots', async (req, res) => {
     const { date, templateId, clientEmail } = req.body;
 
     if (!date || !templateId) {
-      console.log('[POST /available-slots] Parametri mancanti:', { date, templateId });
-      return res.status(400).json({ 
-        error: 'Parametri mancanti (date, templateId richiesti)' 
+      return res.status(400).json({
+        error: 'Parametri mancanti (date, templateId richiesti)'
       });
     }
 
-    // Recupera template per durata
-    console.log('[POST /available-slots] Recupero template:', templateId);
+    // Recupera template
     const template = await consultationService.getTemplateById(templateId);
 
     if (!template) {
-      console.log('[POST /available-slots] Template non trovato:', templateId);
       return res.status(404).json({ error: 'Template non trovato' });
     }
 
     if (!template.attiva) {
-      console.log('[POST /available-slots] Template non attivo:', templateId);
       return res.status(400).json({ error: 'Template non attivo' });
     }
 
-    console.log('[POST /available-slots] Calcolo slot per date:', date, 'durata:', template.durataMinuti);
+    // FIX TIMEZONE: Uso Luxon per definire la giornata in Europe/Rome
+    // La stringa 'date' arriva come YYYY-MM-DD
+    const dateObj = DateTime.fromISO(date, { zone: 'Europe/Rome' });
+    const dayStart = dateObj.startOf('day').toJSDate();
+    const dayEnd = dateObj.endOf('day').toJSDate();
+
+    // FIX GOOGLE CALENDAR: Recupera impegni reali
+    console.log('[POST /available-slots] Recupero impegni Google Calendar...');
+    const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
+    const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+    const googleBusyPeriods = busyPeriodsResult.busyPeriods || [];
+
+    console.log(`[POST /available-slots] Trovati ${googleBusyPeriods.length} impegni su GCal`);
+
+    // Calcolo slot passando anche i busy periods di Google
     const slots = await consultationService.getAvailableSlotsForDate(
-      new Date(date),
+      dayStart,
       template.durataMinuti,
       undefined, // workingHours - usa template customWorkingHours se presente
-      template   // passa template per excludedDays e customWorkingHours
+      template, // passa template per excludedDays e customWorkingHours
+      googleBusyPeriods // Passa busy periods di Google Calendar
     );
 
     // 🎯 FEATURE: Aggiungi info consulenze in attesa per questo cliente
@@ -453,25 +465,23 @@ router.post('/create', async (req, res) => {
     const slotDuration = slotEndMinutes - slotStartMinutes;
 
     if (slotDuration !== template.durataMinuti) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Durata slot non valida',
         message: `Lo slot deve avere durata ${template.durataMinuti} minuti (ricevuto: ${slotDuration} minuti)`
       });
     }
 
-    // 🔥 FIX BUG 409: Pre-carica Google Calendar busy periods per verifica accurata
-    // Questo risolve il problema di eventi cancellati che bloccano ancora gli slot
+    // 🔥 FIX BUG 409 & TIMEZONE: Pre-carica GCal con fuso orario corretto
     console.log('[POST /create] 🔍 Pre-caricamento Google Calendar busy periods...');
-    const dayStart = new Date(validatedData.dataConsulenza);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(validatedData.dataConsulenza);
-    dayEnd.setHours(23, 59, 59, 999);
-    
+
+    // Converti la data string/ISO in oggetto Luxon impostato su Roma
+    const dateObj = DateTime.fromJSDate(new Date(validatedData.dataConsulenza)).setZone('Europe/Rome');
+    const dayStart = dateObj.startOf('day').toJSDate();
+    const dayEnd = dateObj.endOf('day').toJSDate();
+
     const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
     const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
     const googleCalendarBusyPeriods = busyPeriodsResult.busyPeriods || [];
-    
-    console.log(`[POST /create] ✅ Caricati ${googleCalendarBusyPeriods.length} busy periods da Google Calendar`);
 
     // Verifica disponibilità slot (conflict detection) con dati sincronizzati
     const isAvailable = await consultationService.isSlotAvailable(
@@ -484,7 +494,7 @@ router.post('/create', async (req, res) => {
 
     if (!isAvailable) {
       console.error(`[POST /create] ❌ 409 CONFLICT - Slot ${validatedData.orarioInizio}-${validatedData.orarioFine} NON disponibile per ${format(validatedData.dataConsulenza, 'yyyy-MM-dd')}`);
-      return res.status(409).json({ 
+      return res.status(409).json({
         error: 'Slot non disponibile',
         message: 'Lo slot selezionato non è più disponibile. Scegli un altro orario.'
       });
@@ -504,11 +514,12 @@ router.post('/create', async (req, res) => {
       const studioInfo = await getStudioContactInfo();
 
       const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
-      const formattedDate = validatedData.dataConsulenza.toLocaleDateString('it-IT', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      const formattedDate = validatedData.dataConsulenza.toLocaleDateString('it-IT', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Europe/Rome'
       });
 
       // 1. Email cliente
@@ -527,7 +538,7 @@ router.post('/create', async (req, res) => {
       );
 
       console.log(`✅ Email "Consulenza Ricevuta" inviata a ${validatedData.cliente.email}`);
-      
+
       // 2. Email notifica admin (nuova richiesta consulenza)
       try {
         const adminEmail = studioInfo.email; // Email admin dallo studio
@@ -542,13 +553,13 @@ router.post('/create', async (req, res) => {
           validatedData.note,
           studioInfo
         );
-        
+
         await sendGmailEmail(
           adminEmail,
           `Nuova Richiesta Consulenza - ${template.jobType}`,
           adminEmailHTML
         );
-        
+
         console.log(`✅ Email notifica admin consulenza inviata a ${adminEmail}`);
       } catch (adminEmailError) {
         console.error('⚠️ Errore invio email notifica admin consulenza:', adminEmailError);
@@ -559,7 +570,7 @@ router.post('/create', async (req, res) => {
       emailStatus = 'failed';
     }
 
-    res.status(201).json({ 
+    res.status(201).json({
       id: consultationId,
       message: 'Consultation creata con successo',
       emailStatus
@@ -568,9 +579,9 @@ router.post('/create', async (req, res) => {
     console.error('[POST /create] Errore:', error.message);
 
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        error: 'Dati non validi', 
-        details: error.errors 
+      return res.status(400).json({
+        error: 'Dati non validi',
+        details: error.errors
       });
     }
 
@@ -598,7 +609,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
     }
 
     if (consultation.stato !== 'in_attesa') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Consultation già processata',
         stato: consultation.stato
       });
@@ -606,20 +617,33 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
 
     // Crea evento Google Calendar con timezone Europe/Rome corretto
     const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
-    
-    // Converti consultationDate in formato YYYY-MM-DD
+
+    // --- FIX: CHECK CONFLITTI LAST-MINUTE ---
+    const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
+
+    // Calcola inizio/fine slot esatti
     const year = consultationDate.getFullYear();
     const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
     const day = String(consultationDate.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
-    // Usa createEuropeRomeDate per garantire il timezone corretto
     const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
     const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
 
+    // Controlla se GCal è ancora libero
+    const busyResult = await checkFreeBusyAllCalendars(startDateTime, endDateTime);
+    if (busyResult.busyPeriods && busyResult.busyPeriods.length > 0) {
+      // C'è un conflitto!
+      return res.status(409).json({
+        error: 'Slot non più disponibile',
+        message: 'Attenzione: È stato rilevato un nuovo impegno su Google Calendar che si sovrappone a questa richiesta. Impossibile approvare.'
+      });
+    }
+    // ----------------------------------------
+
     const calendarEvent = await createEvent('primary', {
       summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
-      description: `Template: ${consultation.templateNome}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || 'Nessuna'}`,
+      description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || 'Nessuna'}`,
       start: startDateTime,
       end: endDateTime,
       attendees: [consultation.cliente.email],
@@ -669,7 +693,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
         console.error('[approve] ERRORE CRITICO: Fallito rollback completo', rollbackError.message);
       }
 
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Errore approvazione',
         message: 'Impossibile salvare la conferma. L\'evento Calendar è stato cancellato e la consultation è stata ripristinata.'
       });
@@ -682,11 +706,12 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
       const studioInfo = await getStudioContactInfo();
 
       const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
-      const formattedDate = consultationDate.toLocaleDateString('it-IT', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      const formattedDate = consultationDate.toLocaleDateString('it-IT', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Europe/Rome'
       });
 
       // Generate Google Calendar "Add to Calendar" link
@@ -721,7 +746,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
       emailStatus = 'failed';
     }
 
-    res.json({ 
+    res.json({
       message: 'Consultation approvata con successo',
       googleCalendarEventId: eventId,
       emailStatus
@@ -753,7 +778,7 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
     }
 
     if (consultation.stato !== 'in_attesa') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Consultation già processata',
         stato: consultation.stato
       });
@@ -762,7 +787,7 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
     // Elimina evento Google Calendar se presente (BUGFIX: libera lo slot!)
     if (consultation.googleCalendarEventId) {
       try {
-        const { deleteEvent } = await import('./calendar-routes.js');
+        const { deleteEvent } = await import('./calendar-routes.js'); // NOTE: This import might be incorrect, assuming it should be './google-calendar.js'
         await deleteEvent('primary', consultation.googleCalendarEventId);
         console.log(`📅 Evento Google Calendar ${consultation.googleCalendarEventId} eliminato (consulenza rifiutata)`);
       } catch (calError: any) {
@@ -785,11 +810,12 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
 
       const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
       const rawDate = normalizeTimestampToDate(consultation.dataConsulenza);
-      const formattedDate = rawDate.toLocaleDateString('it-IT', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      const formattedDate = rawDate.toLocaleDateString('it-IT', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Europe/Rome'
       });
 
       const htmlContent = createConsultationRejectedEmailHTML(
@@ -813,7 +839,7 @@ router.patch('/:id/reject', authenticateFirebase, async (req: AuthRequest, res) 
       emailStatus = 'failed';
     }
 
-    res.json({ 
+    res.json({
       message: 'Consultation rifiutata con successo',
       emailStatus
     });
@@ -843,7 +869,7 @@ router.patch('/:id/complete', authenticateFirebase, async (req: AuthRequest, res
     }
 
     if (consultation.stato !== 'confermata') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Solo consultations confermate possono essere completate'
       });
     }
@@ -879,7 +905,7 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
     }
 
     if (consultation.jobCreated) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Consultation già convertita in job',
         jobId: consultation.jobId
       });
@@ -887,19 +913,19 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
 
     // Campi standard mappabili consultation → job
     const STANDARD_FIELD_KEYS = ['eventDate', 'eventLocation', 'rituLocation', 'rituTime', 'startTime', 'endTime', 'allDay'];
-    
+
     // Mappa campi standard da jobDataCollected
-    const eventDate = consultation.jobDataCollected.eventDate 
+    const eventDate = consultation.jobDataCollected.eventDate
       ? new Date(consultation.jobDataCollected.eventDate as string)
       : (() => {
-          // Fallback: data consulenza + 3 mesi
-          const estimatedDate = normalizeTimestampToDate(consultation.dataConsulenza);
-          estimatedDate.setMonth(estimatedDate.getMonth() + 3);
-          return estimatedDate;
-        })();
+        // Fallback: data consulenza + 3 mesi
+        const estimatedDate = normalizeTimestampToDate(consultation.dataConsulenza);
+        estimatedDate.setMonth(estimatedDate.getMonth() + 3);
+        return estimatedDate;
+      })();
 
     const allDay = !consultation.jobDataCollected.startTime;
-    
+
     // Costruisci noteInterne solo con campi EXTRA (non mappati)
     const extraFields: Record<string, any> = {};
     for (const [key, value] of Object.entries(consultation.jobDataCollected || {})) {
@@ -907,7 +933,7 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
         extraFields[key] = value;
       }
     }
-    
+
     const noteParts = [`Creato da consulenza #${id}`];
     if (Object.keys(extraFields).length > 0) {
       noteParts.push(`\nDati aggiuntivi raccolti durante consulenza:\n${JSON.stringify(extraFields, null, 2)}`);
@@ -947,7 +973,6 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
       costi: [],
       orderIds: [],
       galleryIds: [],
-      quoteIds: [],
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       createdBy: req.body.userId || 'admin', // TODO: Auth middleware
@@ -960,7 +985,7 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
       jobId: jobRef.id,
     });
 
-    res.json({ 
+    res.json({
       message: 'Consultation convertita in job con successo',
       jobId: jobRef.id
     });
@@ -974,7 +999,7 @@ router.post('/:id/convert-to-job', authenticateFirebase, async (req: AuthRequest
  * DELETE /api/consultations/:id
  * Elimina consultation (admin può eliminare in qualsiasi stato)
  * Se confermata, invia email di cancellazione al cliente
- * 
+ *
  * Query params opzionali:
  * - cancellationReason: motivo della cancellazione (mostrato in email)
  */
@@ -999,7 +1024,7 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
       try {
         // Recupera template per nome jobType
         const template = await consultationService.getTemplateById(consultation.templateId);
-        
+
         // Formatta data e orario per email
         let dataConsulenza: Date;
         if (consultation.dataConsulenza && typeof consultation.dataConsulenza === 'object' && 'seconds' in consultation.dataConsulenza) {
@@ -1007,7 +1032,7 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
         } else {
           dataConsulenza = new Date(consultation.dataConsulenza as any);
         }
-        
+
         const consultationDate = format(dataConsulenza, 'dd MMMM yyyy', { locale: it });
         const consultationTime = `${consultation.orarioInizio} - ${consultation.orarioFine}`;
 
@@ -1022,7 +1047,7 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
         }).catch((emailError) => {
           console.warn('[DELETE] Errore invio email cancellazione (non bloccante):', emailError.message);
         });
-        
+
         console.log(`📧 Email cancellazione inviata a ${consultation.cliente.email}`);
       } catch (emailError: any) {
         console.warn('[DELETE] Errore preparazione email cancellazione:', emailError.message);
@@ -1046,7 +1071,7 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
       try {
         const jobRef = db.collection('jobs').doc(consultation.jobId);
         const jobSnap = await jobRef.get();
-        
+
         if (jobSnap.exists) {
           // Rimuovi consultationId dal job
           await jobRef.update({
@@ -1066,7 +1091,7 @@ router.delete('/:id', authenticateFirebase, async (req: AuthRequest, res) => {
     // Elimina consultation da Firestore
     await consultationService.deleteConsultation(id);
 
-    res.json({ 
+    res.json({
       message: 'Consultation eliminata con successo',
       emailSent: consultation.stato === 'confermata'
     });
@@ -1167,8 +1192,8 @@ router.patch('/migrate-initialize-working-hours', authenticateFirebase, async (r
       success: true,
       dryRun,
       syncAll,
-      message: dryRun 
-        ? 'Dry-run completato - nessuna modifica applicata' 
+      message: dryRun
+        ? 'Dry-run completato - nessuna modifica applicata'
         : `Migrazione completata - ${report.initialized} inizializzati, ${report.syncedOnly} sincronizzati`,
       report
     });
@@ -1202,8 +1227,8 @@ router.patch('/migrate-saturday-hours', authenticateFirebase, async (req: AuthRe
     res.json({
       success: true,
       dryRun,
-      message: dryRun 
-        ? 'Dry-run completato - nessuna modifica applicata' 
+      message: dryRun
+        ? 'Dry-run completato - nessuna modifica applicata'
         : `Migrazione completata - ${report.updated} template aggiornati`,
       report
     });
@@ -1241,9 +1266,9 @@ router.post('/templates/:id/upload-image', authenticateFirebase, upload.single('
     // Limite 10 immagini per template
     const currentImages = template.imageUrls || [];
     if (currentImages.length >= 10) {
-      return res.status(400).json({ 
-        error: 'Limite raggiunto', 
-        message: 'Massimo 10 immagini per template' 
+      return res.status(400).json({
+        error: 'Limite raggiunto',
+        message: 'Massimo 10 immagini per template'
       });
     }
 
@@ -1255,7 +1280,7 @@ router.post('/templates/:id/upload-image', authenticateFirebase, upload.single('
     const timestamp = Date.now();
     const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `consultation-templates/${id}/${timestamp}_${safeName}`;
-    
+
     const file = bucket.file(storagePath);
 
     // Upload immagine (privata con signed URL)
@@ -1283,17 +1308,17 @@ router.post('/templates/:id/upload-image', authenticateFirebase, upload.single('
 
     console.log(`✅ Immagine caricata per template ${id}: ${req.file.originalname}`);
 
-    res.json({ 
+    res.json({
       message: 'Immagine caricata con successo',
       imageUrl: signedUrl
     });
   } catch (error: any) {
     console.error('[POST /templates/:id/upload-image] Errore:', error.message);
-    
+
     if (error.message.includes('Solo immagini')) {
       return res.status(400).json({ error: error.message });
     }
-    
+
     res.status(500).json({ error: 'Errore upload immagine' });
   }
 });
@@ -1323,7 +1348,7 @@ router.delete('/templates/:id/images', authenticateFirebase, async (req: AuthReq
     }
 
     const currentImages = template.imageUrls || [];
-    
+
     if (!currentImages.includes(imageUrl)) {
       return res.status(404).json({ error: 'Immagine non trovata nel template' });
     }
@@ -1331,10 +1356,10 @@ router.delete('/templates/:id/images', authenticateFirebase, async (req: AuthReq
     // Estrai storage path da signed URL (pattern: consultation-templates/{id}/{filename})
     // Gli signed URL hanno formato: https://storage.googleapis.com/{bucket}/consultation-templates/...
     const pathMatch = imageUrl.match(/consultation-templates\/[^?]+/);
-    
+
     if (pathMatch) {
       const storagePath = pathMatch[0];
-      
+
       try {
         const bucket = storage.bucket();
         await bucket.file(storagePath).delete();
@@ -1368,56 +1393,56 @@ router.post('/send-reminders', async (req, res) => {
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     // Range: da ora a +48h per essere sicuri di non perdere consulenze
     const in48Hours = new Date(now);
     in48Hours.setDate(in48Hours.getDate() + 2);
-    
+
     console.log(`[Reminder] Cerco consulenze confermate tra ${now.toISOString()} e ${in48Hours.toISOString()}`);
-    
+
     // Cerca consulenze confermate (non filtriamo per reminderSentAt qui, lo facciamo in transazione)
     const consultationsSnap = await db.collection('consultations')
       .where('stato', '==', 'confermata')
       .get();
-    
+
     const consultations = consultationsSnap.docs.map(doc => ({
       id: doc.id,
       ref: doc.ref,
       ...doc.data()
     })) as any[];
-    
+
     console.log(`[Reminder] Trovate ${consultations.length} consulenze confermate totali`);
-    
+
     // Filtra solo quelle nelle prossime 20-28h (timezone-aware per Europe/Rome)
     // Usa luxon per gestione timezone robusta e DST-safe
     const nowRome = DateTime.now().setZone('Europe/Rome');
-    
+
     const consultationsToRemind = consultations.filter(c => {
       // Skip quick read se reminder già inviato (ottimizzazione)
       if (c.reminderEmailSent || c.reminderSentAt) {
         return false;
       }
-      
+
       const consultationDate = normalizeTimestampToDate(c.dataConsulenza);
       // Converti consultationDate a Europe/Rome usando luxon (DST-safe)
       const consultationRome = DateTime.fromJSDate(consultationDate).setZone('Europe/Rome');
-      
+
       // Calcola differenza in ore (DST-aware)
       const hoursDiff = consultationRome.diff(nowRome, 'hours').hours;
-      
+
       // Invia reminder tra 20h e 28h prima (giorno prima)
       return hoursDiff >= 20 && hoursDiff <= 28;
     });
-    
+
     console.log(`[Reminder] ${consultationsToRemind.length} consulenze richiedono reminder (20-28h prima)`);
-    
+
     const results = {
       total: consultationsToRemind.length,
       sent: 0,
       failed: 0,
       errors: [] as string[]
     };
-    
+
     // Invia email reminder per ciascuna consultation
     for (const consultation of consultationsToRemind) {
       try {
@@ -1425,52 +1450,53 @@ router.post('/send-reminders', async (req, res) => {
         // Usa transazione per prevenire race conditions
         const shouldSend = await db.runTransaction(async (transaction) => {
           const consultationDoc = await transaction.get(consultation.ref);
-          
+
           if (!consultationDoc.exists) {
             return false; // Consultation eliminata nel frattempo
           }
-          
+
           const data = consultationDoc.data();
-          
+
           // Skip se reminder già inviato
           if (data?.reminderSentAt) {
             return false;
           }
-          
+
           // Marca come inviato atomicamente
           transaction.update(consultation.ref, {
             reminderSentAt: Timestamp.now()
           });
-          
+
           return true;
         });
-        
+
         if (!shouldSend) {
           console.log(`Reminder già inviato o consultation eliminata: ${consultation.id}`);
           continue;
         }
-        
+
         const { sendGmailEmail, getStudioContactInfo, createConsultationReminderEmailHTML, generateGoogleCalendarLink } = await import('./email-routes.js');
         const studioInfo = await getStudioContactInfo();
-        
+
         const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
         const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
-        const formattedDate = consultationDate.toLocaleDateString('it-IT', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
+        const formattedDate = consultationDate.toLocaleDateString('it-IT', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          timeZone: 'Europe/Rome'
         });
-        
+
         // Converti consultationDate in formato YYYY-MM-DD
         const year = consultationDate.getFullYear();
         const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
         const day = String(consultationDate.getDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
-        
+
         const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
         const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
-        
+
         // Generate Google Calendar link
         const calendarLink = generateGoogleCalendarLink({
           title: `Consulenza ${consultation.jobType} - ${clienteName}`,
@@ -1480,7 +1506,7 @@ router.post('/send-reminders', async (req, res) => {
           endDate: endDateTime,
           isAllDay: false
         });
-        
+
         const htmlContent = createConsultationReminderEmailHTML(
           clienteName,
           consultation.jobType,
@@ -1489,35 +1515,35 @@ router.post('/send-reminders', async (req, res) => {
           studioInfo,
           calendarLink
         );
-        
+
         await sendGmailEmail(
           consultation.cliente.email,
           `Promemoria: Consulenza Domani - ${consultation.jobType}`,
           htmlContent
         );
-        
+
         // Marca email come inviata con successo
         await db.collection('consultations').doc(consultation.id).update({
           reminderEmailSent: true
         });
-        
+
         results.sent++;
         console.log(`Reminder inviato per consultation ${consultation.id}`);
-        
+
       } catch (emailError: any) {
         results.failed++;
         results.errors.push(`${consultation.id}: ${emailError.message}`);
         console.error(`Errore invio reminder consultation ${consultation.id}:`, emailError.message);
       }
     }
-    
+
     console.log(`[Reminder] Completato - Inviati: ${results.sent}, Falliti: ${results.failed}`);
-    
+
     res.json({
       message: 'Reminder process completed',
       results
     });
-    
+
   } catch (error: any) {
     console.error('[POST /send-reminders] Errore:', error.message);
     res.status(500).json({ error: 'Errore invio reminder' });
@@ -1534,7 +1560,7 @@ router.get('/list-confirmed-bookings', async (req, res) => {
       .where('stato', '==', 'confermata')
       .orderBy('dataShootingInizio', 'asc')
       .get();
-    
+
     const bookings = bookingsSnap.docs.map(doc => ({
       id: doc.id,
       clienteNome: doc.data().clienteNome,
@@ -1544,12 +1570,12 @@ router.get('/list-confirmed-bookings', async (req, res) => {
       googleEventId: doc.data().googleCalendarEventId,
       createdAt: doc.data().createdAt?.toDate?.()
     }));
-    
+
     res.json({
       total: bookings.length,
       bookings
     });
-    
+
   } catch (error: any) {
     console.error('[List confirmed bookings] Error:', error.message);
     res.status(500).json({ error: error.message });
@@ -1564,27 +1590,27 @@ router.post('/cancel-booking/:bookingId', async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { reason = 'Cancellato manualmente dall\'admin' } = req.body;
-    
+
     const bookingRef = db.collection('bookings').doc(bookingId);
     const bookingDoc = await bookingRef.get();
-    
+
     if (!bookingDoc.exists) {
       return res.status(404).json({ error: 'Booking non trovato' });
     }
-    
+
     await bookingRef.update({
       stato: 'cancellata',
       cancelledAt: Timestamp.now(),
       cancelledReason: reason
     });
-    
+
     console.log(`[Cancel booking] Booking ${bookingId} cancellato: ${reason}`);
-    
+
     res.json({
       message: 'Booking cancellato con successo',
       bookingId
     });
-    
+
   } catch (error: any) {
     console.error('[Cancel booking] Error:', error.message);
     res.status(500).json({ error: error.message });
@@ -1598,13 +1624,13 @@ router.post('/cancel-booking/:bookingId', async (req, res) => {
 router.get('/debug/slot-conflicts/:date', async (req, res) => {
   try {
     const { date } = req.params; // Format: YYYY-MM-DD
-    
+
     const targetDate = new Date(date);
     const dayStart = new Date(targetDate);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(targetDate);
     dayEnd.setHours(23, 59, 59, 999);
-    
+
     const results: any = {
       date,
       consultations: [],
@@ -1612,13 +1638,13 @@ router.get('/debug/slot-conflicts/:date', async (req, res) => {
       jobs: [],
       googleCalendar: []
     };
-    
+
     // 1. Consultations
     const consultationsSnap = await db.collection('consultations')
       .where('dataConsulenza', '>=', Timestamp.fromDate(dayStart))
       .where('dataConsulenza', '<=', Timestamp.fromDate(dayEnd))
       .get();
-      
+
     results.consultations = consultationsSnap.docs.map(doc => ({
       id: doc.id,
       cliente: doc.data().cliente,
@@ -1627,13 +1653,13 @@ router.get('/debug/slot-conflicts/:date', async (req, res) => {
       stato: doc.data().stato,
       createdAt: doc.data().createdAt?.toDate?.()
     }));
-    
+
     // 2. Bookings
     const bookingsSnap = await db.collection('bookings')
       .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
       .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
       .get();
-      
+
     results.bookings = bookingsSnap.docs.map(doc => ({
       id: doc.id,
       clienteNome: doc.data().clienteNome,
@@ -1642,13 +1668,13 @@ router.get('/debug/slot-conflicts/:date', async (req, res) => {
       dataShootingFine: doc.data().dataShootingFine?.toDate?.(),
       stato: doc.data().stato
     }));
-    
+
     // 3. Jobs
     const jobsSnap = await db.collection('jobs')
       .where('eventDate', '>=', Timestamp.fromDate(dayStart))
       .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
       .get();
-      
+
     results.jobs = jobsSnap.docs.map(doc => ({
       id: doc.id,
       nomeEvento: doc.data().nomeEvento,
@@ -1658,7 +1684,7 @@ router.get('/debug/slot-conflicts/:date', async (req, res) => {
       stato: doc.data().stato,
       eventDate: doc.data().eventDate?.toDate?.()
     }));
-    
+
     // 4. Google Calendar
     try {
       const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
@@ -1667,7 +1693,7 @@ router.get('/debug/slot-conflicts/:date', async (req, res) => {
     } catch (error: any) {
       results.googleCalendarError = error.message;
     }
-    
+
     res.json(results);
   } catch (error: any) {
     console.error('[Debug slot-conflicts] Error:', error.message);

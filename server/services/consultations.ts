@@ -5,9 +5,9 @@
 
 import { db, FieldValue, Timestamp } from '../firebase-admin.js';
 import type { QueryDocumentSnapshot } from 'firebase-admin/firestore';
-import type { 
-  ConsultationTemplate, 
-  InsertConsultationTemplate, 
+import type {
+  ConsultationTemplate,
+  InsertConsultationTemplate,
   UpdateConsultationTemplate,
   Consultation,
   InsertConsultation,
@@ -23,7 +23,7 @@ import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAl
  * 🔥 FUNZIONE UNIVERSALE DI OVERLAP
  * Restituisce TRUE solo se esiste sovrapposizione reale (overlap > 0ms)
  * Normalizza i millisecondi per evitare drift UTC
- * 
+ *
  * @param startA - Inizio periodo A (Date o timestamp ms)
  * @param endA - Fine periodo A (Date o timestamp ms)
  * @param startB - Inizio periodo B (Date o timestamp ms)
@@ -41,16 +41,16 @@ export function hasRealOverlap(
   let endAMs = typeof endA === 'number' ? endA : endA.getTime();
   let startBMs = typeof startB === 'number' ? startB : startB.getTime();
   let endBMs = typeof endB === 'number' ? endB : endB.getTime();
-  
+
   // 🔥 NORMALIZZA: Rimuovi millisecondi per evitare drift (arrotonda al minuto)
   startAMs -= startAMs % 60000;
   endAMs -= endAMs % 60000;
   startBMs -= startBMs % 60000;
   endBMs -= endBMs % 60000;
-  
+
   // Verifica overlap reale (A termina DOPO che B inizia E A inizia PRIMA che B finisca)
   const hasOverlap = startAMs < endBMs && endAMs > startBMs;
-  
+
   // Debug logging per casi edge
   if (endAMs === startBMs || startAMs === endBMs) {
     console.log(`[hasRealOverlap] ⚠️  Caso edge - slot contigui ma NON sovrapposti:`);
@@ -58,7 +58,7 @@ export function hasRealOverlap(
     console.log(`   Periodo B: ${new Date(startBMs).toISOString()} -> ${new Date(endBMs).toISOString()}`);
     console.log(`   Overlap: ${hasOverlap} (dovrebbe essere false per slot contigui)`);
   }
-  
+
   return hasOverlap;
 }
 import type { Booking } from '../../shared/booking-types.js';
@@ -254,7 +254,7 @@ export async function auditTemplateWorkingHours() {
 /**
  * MIGRATION: Inizializza customWorkingHours per template che non ce l'hanno E sincronizza excludedDays per TUTTI
  * Usa DEFAULT_CONSULTATION_HOURS come base
- * 
+ *
  * BUG FIX: Template legacy hanno giorni in excludedDays che bloccano slot anche se customWorkingHours li attiva
  * Soluzione: rimuovere da excludedDays tutti i giorni attivi in customWorkingHours (per TUTTI i template)
  */
@@ -462,7 +462,7 @@ export async function migrateSaturdayHours(options: { dryRun?: boolean; force?: 
 
     // Se force=true E sabato era in excludedDays, rimuovilo
     const hadExcludedSaturday = template.excludedDays && template.excludedDays.includes(6);
-    const updatedExcludedDays = hadExcludedSaturday && force 
+    const updatedExcludedDays = hadExcludedSaturday && force
       ? template.excludedDays!.filter(day => day !== 6)
       : template.excludedDays;
 
@@ -842,7 +842,7 @@ export async function isSlotAvailable(
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const dateStr = `${year}-${month}-${day}`;
-  
+
   const slotStart = createEuropeRomeDate(dateStr, startTime);
   const slotEnd = createEuropeRomeDate(dateStr, endTime);
 
@@ -874,7 +874,7 @@ export async function isSlotAvailable(
     }
 
     const data = doc.data();
-    
+
     // 🔥 FIX: Escludi consultations con stati cancellati/archiviati
     const stato = data.stato || '';
     if (!['in_attesa', 'confermata'].includes(stato)) {
@@ -883,7 +883,7 @@ export async function isSlotAvailable(
       }
       continue;
     }
-    
+
     const [existStartHour, existStartMin] = data.orarioInizio.split(':').map(Number);
     const [existEndHour, existEndMin] = data.orarioFine.split(':').map(Number);
 
@@ -937,7 +937,7 @@ export async function isSlotAvailable(
 
   for (const doc of bookingDocs) {
     const data = doc.data();
-    
+
     // 🔥 FIX: Escludi bookings con stati cancellati/archiviati
     const stato = data.stato || '';
     if (!['in_attesa', 'confermata'].includes(stato)) {
@@ -946,7 +946,7 @@ export async function isSlotAvailable(
       }
       continue;
     }
-    
+
     // 🔥 FIX TIMEZONE: Usa hasRealOverlap per confronto consistente
     // I booking Firestore sono già in UTC corretto (16:30 UTC+1 = 15:30 UTC)
     const bookingStartUTC = data.dataShootingInizio.toDate();
@@ -960,7 +960,7 @@ export async function isSlotAvailable(
       // Il booking è salvato come 16:30 UTC+1, non 15:30 UTC
       const bookingStartLocal = new Date(bookingStartUTC.toLocaleString('en-US', { timeZone: 'Europe/Rome' }));
       const bookingEndLocal = new Date(bookingEndUTC.toLocaleString('en-US', { timeZone: 'Europe/Rome' }));
-      
+
       console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
       console.error(`   📋 Tipo: Booking`);
       console.error(`   🆔 ID: ${doc.id}`);
@@ -992,7 +992,7 @@ export async function isSlotAvailable(
       .where('eventDate', '<=', Timestamp.fromDate(jobEndOfDay));
 
     const jobs = await jobsQuery.get();
-    
+
     // Filtra solo job con stati rilevanti (che occupano realmente tempo)
     jobDocs = jobs.docs.filter((doc: any) => {
       const data = doc.data();
@@ -1003,7 +1003,7 @@ export async function isSlotAvailable(
 
   for (const doc of jobDocs) {
     const data = doc.data();
-    
+
     // 🔥 FIX: Doppio controllo - escludi job con stati non rilevanti (già filtrato in query ma per sicurezza)
     const stato = data.stato || '';
     if (!['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'].includes(stato)) {
@@ -1012,7 +1012,7 @@ export async function isSlotAvailable(
       }
       continue;
     }
-    
+
     // Se job è all-day, blocca l'intera giornata
     if (data.allDay === true) {
       // 🔍 ENHANCED LOGGING: Mostra dettagli job all-day
@@ -1025,21 +1025,21 @@ export async function isSlotAvailable(
       console.error(`   ⚠️  Job all-day blocca l'intera giornata`);
       return false; // Job all-day blocca tutti gli slot della giornata
     }
-    
+
     // Se job ha orari specifici, controlla overlap
     if (data.startTime && data.endTime) {
       const [jobStartHour, jobStartMin] = data.startTime.split(':').map(Number);
       const [jobEndHour, jobEndMin] = data.endTime.split(':').map(Number);
-      
+
       const jobStart = new Date(date);
       jobStart.setHours(jobStartHour, jobStartMin, 0, 0);
-      
+
       const jobEnd = new Date(date);
       jobEnd.setHours(jobEndHour, jobEndMin, 0, 0);
-      
+
       // 🔥 REFACTOR: Usa hasRealOverlap per verifica consistente
       const overlaps = hasRealOverlap(slotStart, slotEnd, jobStart, jobEnd);
-      
+
       if (overlaps) {
         // 🔍 ENHANCED LOGGING: Mostra dettagli job con orari
         console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
@@ -1055,7 +1055,7 @@ export async function isSlotAvailable(
   }
 
   // Check 4: Google Calendar events - busy periods (TUTTI I CALENDARI)
-  // IMPORTANTE: Se non abbiamo busy periods (array vuoto o undefined), 
+  // IMPORTANTE: Se non abbiamo busy periods (array vuoto o undefined),
   // assumiamo che Google Calendar sia disponibile (nessun conflitto)
   if (Array.isArray(googleCalendarBusyPeriods) && googleCalendarBusyPeriods.length > 0) {
     for (const busy of googleCalendarBusyPeriods) {
@@ -1072,7 +1072,7 @@ export async function isSlotAvailable(
         const busyStartStr = format(busyStart, 'HH:mm', { locale: it });
         const busyEndStr = format(busyEnd, 'HH:mm', { locale: it });
         const calendarInfo = busy.calendarName || 'Google Calendar';
-        
+
         console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
         console.error(`   📋 Tipo: Google Calendar Event`);
         console.error(`   📆 Calendario: ${calendarInfo}`);
@@ -1081,7 +1081,7 @@ export async function isSlotAvailable(
         if (busy.eventId) console.error(`   🆔 Event ID: ${busy.eventId}`);
         if (busy.summary) console.error(`   📝 Summary: ${busy.summary}`);
         console.error(`   ⚠️  Questo evento blocca lo slot richiesto`);
-        
+
         return false; // Conflict con evento Google Calendar
       }
     }
@@ -1104,7 +1104,8 @@ export async function getAvailableSlotsForDate(
   date: Date,
   durataMinuti: number,
   workingHours?: ConsultationWorkingHours[],
-  template?: ConsultationTemplate
+  template?: ConsultationTemplate,
+  externalBusyPeriods?: any[] // Aggiunto parametro per orari esterni
 ): Promise<ConsultationSlot[]> {
   const dayOfWeek = date.getDay();
 
@@ -1299,7 +1300,7 @@ export async function getAvailableSlotsForDate(
   // Garantisce che gli slot siano generati in Europe/Rome timezone
   const apertura = `${apH.toString().padStart(2, '0')}:${apM.toString().padStart(2, '0')}`;
   const chiusura = `${chH.toString().padStart(2, '0')}:${chM.toString().padStart(2, '0')}`;
-  
+
   // Usa dateStr già definito sopra
   let current = createEuropeRomeDate(dateStr, apertura);
   const endOfDay = createEuropeRomeDate(dateStr, chiusura);
