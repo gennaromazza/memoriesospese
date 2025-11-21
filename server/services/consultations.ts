@@ -30,7 +30,7 @@ import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAl
  * @param endB - Fine periodo B (Date o timestamp ms)
  * @returns true se c'è overlap reale, false altrimenti
  */
-function hasRealOverlap(
+export function hasRealOverlap(
   startA: Date | number,
   endA: Date | number,
   startB: Date | number,
@@ -1295,11 +1295,19 @@ export async function getAvailableSlotsForDate(
   const [apH, apM] = dayConfig.apertura.split(':').map(Number);
   const [chH, chM] = dayConfig.chiusura.split(':').map(Number);
 
-  let current = new Date(date);
-  current.setHours(apH, apM, 0, 0);
-
-  const endOfDay = new Date(date);
-  endOfDay.setHours(chH, chM, 0, 0);
+  // 🔥 FIX TIMEZONE: Usa createEuropeRomeDate per slot generation
+  // Garantisce che gli slot siano generati in Europe/Rome timezone
+  const apertura = `${apH.toString().padStart(2, '0')}:${apM.toString().padStart(2, '0')}`;
+  const chiusura = `${chH.toString().padStart(2, '0')}:${chM.toString().padStart(2, '0')}`;
+  
+  // Ricalcola dateStr per questo contesto
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+  
+  let current = createEuropeRomeDate(dateStr, apertura);
+  const endOfDay = createEuropeRomeDate(dateStr, chiusura);
 
   while (current < endOfDay) {
     const slotEnd = new Date(current.getTime() + durataMinuti * 60000);
@@ -1310,18 +1318,13 @@ export async function getAvailableSlotsForDate(
 
     // Check se slot è in pausa pranzo
     if (dayConfig.pausaInizio && dayConfig.pausaFine) {
-      const [pIH, pIM] = dayConfig.pausaInizio.split(':').map(Number);
-      const [pFH, pFM] = dayConfig.pausaFine.split(':').map(Number);
+      // 🔥 FIX TIMEZONE: Usa createEuropeRomeDate anche per pausa pranzo
+      const pausaStart = createEuropeRomeDate(dateStr, dayConfig.pausaInizio);
+      const pausaEnd = createEuropeRomeDate(dateStr, dayConfig.pausaFine);
 
-      const pausaStart = new Date(date);
-      pausaStart.setHours(pIH, pIM, 0, 0);
-
-      const pausaEnd = new Date(date);
-      pausaEnd.setHours(pFH, pFM, 0, 0);
-
-      // Skip se slot overlap con pausa
-      if (current < pausaEnd && slotEnd > pausaStart) {
-        current = new Date(pausaEnd);
+      // Skip se slot overlap con pausa usando hasRealOverlap
+      if (hasRealOverlap(current, slotEnd, pausaStart, pausaEnd)) {
+        current = new Date(pausaEnd.getTime());
         continue;
       }
     }

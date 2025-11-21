@@ -374,6 +374,8 @@ export default function ConsultationBooking() {
                           }
 
                           return availableSlots.map((slot: any, idx: number) => {
+                            // 🔥 FIX TIMEZONE: Usa startTime/endTime invece di ISO strings
+                            // Gli slot hanno già startTime e endTime come HH:mm in Europe/Rome
                             const slotStart = new Date(slot.start);
                             const slotEnd = new Date(slot.end);
                             const isSelected = selectedSlot?.start.getTime() === slotStart.getTime();
@@ -387,7 +389,8 @@ export default function ConsultationBooking() {
                                 data-testid={`button-slot-${idx}`}
                               >
                                 <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                {format(slotStart, "HH:mm")}
+                                {/* Usa startTime direttamente dallo slot che è già HH:mm in Europe/Rome */}
+                                {slot.startTime || format(slotStart, "HH:mm")}
                               </Button>
                             );
                           });
