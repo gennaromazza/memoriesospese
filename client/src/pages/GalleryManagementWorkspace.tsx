@@ -32,15 +32,17 @@ interface UploadProgress {
 }
 
 // Memoized PhotoCard component for optimized rendering
-const PhotoCard = memo(({ photo, isSelected, onToggle, readOnly }: { photo: any; isSelected: boolean; onToggle: (() => void) | undefined; readOnly?: boolean }) => {
+const PhotoCard = memo(({ photo, isSelected, onToggle, readOnly }: { photo: any; isSelected: boolean; onToggle?: () => void; readOnly?: boolean }) => {
   return (
     <div
       className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 group ${
         isSelected
           ? 'border-sage shadow-lg shadow-sage/40'
-          : !readOnly && 'border-gray-300 hover:border-sage hover:shadow-md'
+          : readOnly
+            ? 'border-gray-300 opacity-80'
+            : 'border-gray-300 hover:border-sage hover:shadow-md'
       } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
-      onClick={!readOnly ? onToggle : undefined}
+      onClick={readOnly ? undefined : onToggle}
       data-testid={`img-selected-${photo.id}`}
     >
       <img
@@ -1053,7 +1055,6 @@ export default function GalleryManagementWorkspace() {
                           key={photo.id}
                           photo={photo}
                           isSelected={true}
-                          onToggle={undefined}
                           readOnly={true}
                         />
                       ))}
