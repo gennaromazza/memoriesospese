@@ -1300,12 +1300,7 @@ export async function getAvailableSlotsForDate(
   const apertura = `${apH.toString().padStart(2, '0')}:${apM.toString().padStart(2, '0')}`;
   const chiusura = `${chH.toString().padStart(2, '0')}:${chM.toString().padStart(2, '0')}`;
   
-  // Ricalcola dateStr per questo contesto
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const dateStr = `${year}-${month}-${day}`;
-  
+  // Usa dateStr già definito sopra
   let current = createEuropeRomeDate(dateStr, apertura);
   const endOfDay = createEuropeRomeDate(dateStr, chiusura);
 
