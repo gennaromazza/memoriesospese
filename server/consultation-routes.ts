@@ -1525,6 +1525,73 @@ router.post('/send-reminders', async (req, res) => {
 });
 
 /**
+ * GET /api/consultations/list-confirmed-bookings
+ * 📋 Lista tutti i bookings confermati per review manuale
+ */
+router.get('/list-confirmed-bookings', async (req, res) => {
+  try {
+    const bookingsSnap = await db.collection('bookings')
+      .where('stato', '==', 'confermata')
+      .orderBy('dataShootingInizio', 'asc')
+      .get();
+    
+    const bookings = bookingsSnap.docs.map(doc => ({
+      id: doc.id,
+      clienteNome: doc.data().clienteNome,
+      clienteEmail: doc.data().clienteEmail,
+      dataInizio: doc.data().dataShootingInizio?.toDate?.(),
+      dataFine: doc.data().dataShootingFine?.toDate?.(),
+      googleEventId: doc.data().googleCalendarEventId,
+      createdAt: doc.data().createdAt?.toDate?.()
+    }));
+    
+    res.json({
+      total: bookings.length,
+      bookings
+    });
+    
+  } catch (error: any) {
+    console.error('[List confirmed bookings] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/consultations/cancel-booking/:bookingId
+ * ❌ Cancella manualmente un booking specifico
+ */
+router.post('/cancel-booking/:bookingId', async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { reason = 'Cancellato manualmente dall\'admin' } = req.body;
+    
+    const bookingRef = db.collection('bookings').doc(bookingId);
+    const bookingDoc = await bookingRef.get();
+    
+    if (!bookingDoc.exists) {
+      return res.status(404).json({ error: 'Booking non trovato' });
+    }
+    
+    await bookingRef.update({
+      stato: 'cancellata',
+      cancelledAt: Timestamp.now(),
+      cancelledReason: reason
+    });
+    
+    console.log(`[Cancel booking] Booking ${bookingId} cancellato: ${reason}`);
+    
+    res.json({
+      message: 'Booking cancellato con successo',
+      bookingId
+    });
+    
+  } catch (error: any) {
+    console.error('[Cancel booking] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/consultations/debug/slot-conflicts/:date
  * 🔍 DEBUG: Mostra tutte le risorse che occupano slot in una data specifica
  */
