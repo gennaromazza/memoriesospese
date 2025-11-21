@@ -816,6 +816,16 @@ export async function isSlotAvailable(
     }
 
     const data = doc.data();
+    
+    // 🔥 FIX: Escludi consultations con stati cancellati/archiviati
+    const stato = data.stato || '';
+    if (!['in_attesa', 'confermata'].includes(stato)) {
+      if (isDebug) {
+        console.log(`[Consultations] ⏭️  Skipping consultation ${doc.id} con stato: ${stato}`);
+      }
+      continue;
+    }
+    
     const [existStartHour, existStartMin] = data.orarioInizio.split(':').map(Number);
     const [existEndHour, existEndMin] = data.orarioFine.split(':').map(Number);
 
@@ -827,6 +837,15 @@ export async function isSlotAvailable(
 
     // Check overlap
     if (slotStart < existEnd && slotEnd > existStart) {
+      // 🔍 ENHANCED LOGGING: Mostra esattamente quale risorsa blocca lo slot
+      console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+      console.error(`   📋 Tipo: Consultation`);
+      console.error(`   🆔 ID: ${doc.id}`);
+      console.error(`   👤 Cliente: ${data.cliente?.nome || 'N/A'} ${data.cliente?.cognome || ''}`);
+      console.error(`   📧 Email: ${data.cliente?.email || 'N/A'}`);
+      console.error(`   🕐 Orario: ${data.orarioInizio}-${data.orarioFine}`);
+      console.error(`   📊 Stato: ${data.stato}`);
+      console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
       return false; // Conflict con consultation esistente
     }
   }
@@ -860,6 +879,16 @@ export async function isSlotAvailable(
 
   for (const doc of bookingDocs) {
     const data = doc.data();
+    
+    // 🔥 FIX: Escludi bookings con stati cancellati/archiviati
+    const stato = data.stato || '';
+    if (!['in_attesa', 'confermata'].includes(stato)) {
+      if (isDebug) {
+        console.log(`[Consultations] ⏭️  Skipping booking ${doc.id} con stato: ${stato}`);
+      }
+      continue;
+    }
+    
     const bookingStart = data.dataShootingInizio.toDate();
     const bookingEnd = data.dataShootingFine.toDate();
 
@@ -867,9 +896,17 @@ export async function isSlotAvailable(
     const overlaps = slotStart < bookingEnd && slotEnd > bookingStart;
 
     if (overlaps) {
-      if (isDebug) {
-        console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da booking`);
-      }
+      // 🔍 ENHANCED LOGGING: Mostra esattamente quale risorsa blocca lo slot
+      console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+      console.error(`   📋 Tipo: Booking`);
+      console.error(`   🆔 ID: ${doc.id}`);
+      console.error(`   🎬 Campagna: ${data.campagnaNome || 'N/A'}`);
+      console.error(`   👤 Cliente: ${data.clienteNome || 'N/A'}`);
+      console.error(`   📧 Email: ${data.clienteEmail || 'N/A'}`);
+      console.error(`   🕐 Orario inizio: ${format(bookingStart, 'HH:mm', { locale: it })}`);
+      console.error(`   🕐 Orario fine: ${format(bookingEnd, 'HH:mm', { locale: it })}`);
+      console.error(`   📊 Stato: ${data.stato}`);
+      console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
       return false; // Conflict con booking esistente
     }
   }
@@ -902,11 +939,25 @@ export async function isSlotAvailable(
   for (const doc of jobDocs) {
     const data = doc.data();
     
+    // 🔥 FIX: Doppio controllo - escludi job con stati non rilevanti (già filtrato in query ma per sicurezza)
+    const stato = data.stato || '';
+    if (!['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'].includes(stato)) {
+      if (isDebug) {
+        console.log(`[Consultations] ⏭️  Skipping job ${doc.id} con stato: ${stato}`);
+      }
+      continue;
+    }
+    
     // Se job è all-day, blocca l'intera giornata
     if (data.allDay === true) {
-      if (isDebug) {
-        console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da job all-day "${data.nomeEvento}"`);
-      }
+      // 🔍 ENHANCED LOGGING: Mostra dettagli job all-day
+      console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+      console.error(`   📋 Tipo: Job (All-Day)`);
+      console.error(`   🆔 ID: ${doc.id}`);
+      console.error(`   🎬 Nome Evento: ${data.nomeEvento || 'N/A'}`);
+      console.error(`   📊 Stato: ${data.stato}`);
+      console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
+      console.error(`   ⚠️  Job all-day blocca l'intera giornata`);
       return false; // Job all-day blocca tutti gli slot della giornata
     }
     
@@ -925,9 +976,14 @@ export async function isSlotAvailable(
       const overlaps = slotStart < jobEnd && slotEnd > jobStart;
       
       if (overlaps) {
-        if (isDebug) {
-          console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da job "${data.nomeEvento}" (${data.startTime}-${data.endTime})`);
-        }
+        // 🔍 ENHANCED LOGGING: Mostra dettagli job con orari
+        console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+        console.error(`   📋 Tipo: Job (Timed)`);
+        console.error(`   🆔 ID: ${doc.id}`);
+        console.error(`   🎬 Nome Evento: ${data.nomeEvento || 'N/A'}`);
+        console.error(`   🕐 Orario: ${data.startTime}-${data.endTime}`);
+        console.error(`   📊 Stato: ${data.stato}`);
+        console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
         return false; // Conflict con job esistente
       }
     }
@@ -947,19 +1003,29 @@ export async function isSlotAvailable(
       const overlaps = slotStart < busyEnd && slotEnd > busyStart;
 
       if (overlaps) {
-        if (isDebug) {
-          const busyStartStr = format(busyStart, 'HH:mm', { locale: it });
-          const busyEndStr = format(busyEnd, 'HH:mm', { locale: it });
-          const calendarInfo = busy.calendarName 
-            ? ` dal calendario "${busy.calendarName}"` 
-            : ' da Google Calendar';
-          console.log(`[Consultations] ❌ Slot ${startTime}-${endTime} BLOCCATO da evento${calendarInfo} (${busyStartStr}-${busyEndStr})`);
-        }
+        // 🔍 ENHANCED LOGGING: Mostra dettagli evento Google Calendar
+        const busyStartStr = format(busyStart, 'HH:mm', { locale: it });
+        const busyEndStr = format(busyEnd, 'HH:mm', { locale: it });
+        const calendarInfo = busy.calendarName || 'Google Calendar';
+        
+        console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+        console.error(`   📋 Tipo: Google Calendar Event`);
+        console.error(`   📆 Calendario: ${calendarInfo}`);
+        console.error(`   🕐 Orario: ${busyStartStr}-${busyEndStr}`);
+        console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
+        if (busy.eventId) console.error(`   🆔 Event ID: ${busy.eventId}`);
+        if (busy.summary) console.error(`   📝 Summary: ${busy.summary}`);
+        console.error(`   ⚠️  Questo evento blocca lo slot richiesto`);
+        
         return false; // Conflict con evento Google Calendar
       }
     }
   } else if (isDebug) {
     console.log(`[Consultations] ℹ️ Nessun busy period trovato su tutti i calendari Google per questa data`);
+  }
+
+  if (isDebug) {
+    console.log(`[Consultations] ✅ Slot ${startTime}-${endTime} DISPONIBILE - Nessun conflitto rilevato`);
   }
 
   return true;

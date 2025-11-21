@@ -459,14 +459,31 @@ router.post('/create', async (req, res) => {
       });
     }
 
-    // Verifica disponibilità slot (conflict detection)
+    // 🔥 FIX BUG 409: Pre-carica Google Calendar busy periods per verifica accurata
+    // Questo risolve il problema di eventi cancellati che bloccano ancora gli slot
+    console.log('[POST /create] 🔍 Pre-caricamento Google Calendar busy periods...');
+    const dayStart = new Date(validatedData.dataConsulenza);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(validatedData.dataConsulenza);
+    dayEnd.setHours(23, 59, 59, 999);
+    
+    const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
+    const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+    const googleCalendarBusyPeriods = busyPeriodsResult.busyPeriods || [];
+    
+    console.log(`[POST /create] ✅ Caricati ${googleCalendarBusyPeriods.length} busy periods da Google Calendar`);
+
+    // Verifica disponibilità slot (conflict detection) con dati sincronizzati
     const isAvailable = await consultationService.isSlotAvailable(
       validatedData.dataConsulenza,
       validatedData.orarioInizio,
-      validatedData.orarioFine
+      validatedData.orarioFine,
+      undefined, // excludeConsultationId
+      googleCalendarBusyPeriods // 🎯 Passa busy periods pre-caricati
     );
 
     if (!isAvailable) {
+      console.error(`[POST /create] ❌ 409 CONFLICT - Slot ${validatedData.orarioInizio}-${validatedData.orarioFine} NON disponibile per ${format(validatedData.dataConsulenza, 'yyyy-MM-dd')}`);
       return res.status(409).json({ 
         error: 'Slot non disponibile',
         message: 'Lo slot selezionato non è più disponibile. Scegli un altro orario.'
