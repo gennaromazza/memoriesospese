@@ -32,6 +32,7 @@ export interface Photo {
   uploaderUid: string;
   uploaderEmail: string;
   uploaderName: string;
+  uploadedBy?: 'admin' | 'guest'; // Campo opzionale - undefined per foto legacy
   likeCount: number;
   commentCount: number;
   position?: number;
@@ -180,7 +181,8 @@ export class PhotoService {
       const snapshot = await getDocs(photosQuery);
       let photos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Photo));
       
-      // Filtro lato client per 'exclude-guest' (come fa GalleryService.getPhotosByGalleryId)
+      // Filtro lato client per 'exclude-guest' 
+      // Include: admin, legacy (undefined), e qualsiasi altro valore tranne 'guest'
       if (filterUploadedBy === 'exclude-guest') {
         photos = photos.filter(photo => photo.uploadedBy !== 'guest');
       }
