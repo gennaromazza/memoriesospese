@@ -1,0 +1,127 @@
+*** FILE: src/app/admin/gallery/GalleryManagementWorkspace.tsx
+
+@@
+- const togglePhotoSelection = useCallback(async (photoId: string) => {
+-   if (!galleryId || !gallery) return;
+-   ...
+- }, [galleryId, gallery, selectedPhotoIds, toast]);
++ // 🔒 RIMOSSA: la selezione cliente non è più modificabile dall'admin
++ // (L'admin può solo resettare tutta la selezione)
+
+@@
+- <PhotoCard
+-   key={photo.id}
+-   photo={photo}
+-   isSelected={isSelected}
+-   onToggle={() => togglePhotoSelection(photo.id)}
+- />
++ {/* 🟢 READONLY: L'admin non può più alterare le selezioni del cliente */}
++ <PhotoCard
++   key={photo.id}
++   photo={photo}
++   isSelected={true}
++   onToggle={undefined}
++   readOnly={true}
++ />
+
+@@
+ const PhotoCard = memo(({ photo, isSelected, onToggle }: { photo: any; isSelected: boolean; onToggle: () => void }) => {
+-  return (
+-    <div
+-      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 group cursor-pointer ${
+-        isSelected
+-          ? 'border-sage shadow-lg shadow-sage/40'
+-          : 'border-gray-300 hover:border-sage hover:shadow-md'
+-      }`}
+-      onClick={onToggle}
+-      data-testid={`img-selected-${photo.id}`}
+-    >
++  return (
++    <div
++      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 group ${
++        onToggle ? 'cursor-pointer' : 'cursor-default'
++      }`}
++      onClick={onToggle}
++      data-testid={`img-selected-${photo.id}`}
++    >
+
+@@  {/* Section: Stato selezione cliente */}
+- {/* Selected Photos Grid */}
++ {/* Selected Photos Grid (READONLY) */}
+@@
+- {clientSelectedPhotos.length > 0 ? (
+-   <div className="space-y-4">
+-     <h4 className="font-semibold text-blue-gray">Miniature Foto Selezionate</h4>
+-     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+-       {clientSelectedPhotos.map((photo) => {
+-         const isSelected = selectedPhotoIds.has(photo.id);
+-         return (
+-           <PhotoCard
+-             key={photo.id}
+-             photo={photo}
+-             isSelected={isSelected}
+-             onToggle={() => togglePhotoSelection(photo.id)}
+-           />
+-         );
+-       })}
+-     </div>
+-   </div>
+- ) : (
++ {clientSelectedPhotos.length > 0 ? (
++   <div className="space-y-4">
++     <h4 className="font-semibold text-blue-gray">Miniature Foto Selezionate</h4>
++     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
++       {clientSelectedPhotos.map((photo) => (
++         <PhotoCard
++           key={photo.id}
++           photo={photo}
++           isSelected={true}
++           onToggle={undefined}
++           readOnly={true}
++         />
++       ))}
++     </div>
++   </div>
++ ) : (
+
+@@  {/* STATISTICHE SELEZIONI / DEADLINE */}
+   </div>
+ </CardContent>
+
++ {/* 🔄 RESET SELEZIONE CLIENTE */}
++ {gallery.selectionEnabled && (
++   <div className="mt-6">
++     <Button
++       variant="destructive"
++       size="lg"
++       onClick={async () => {
++         if (!confirm("Sei sicuro di voler resettare la selezione del cliente? L’utente dovrà rifarla da zero.")) return;
++ 
++         try {
++           await GalleryService.updateGallery(galleryId!, {
++             selectedPhotoIds: [],
++             photoAssignments: {},
++             selectionStatus: "pending",
++             selectionNotes: "",
++           });
++ 
++           toast({
++             title: "🔄 Selezione resettata",
++             description: "Il cliente può ora rifare la selezione.",
++           });
++ 
++           await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
++         } catch (err) {
++           toast({
++             title: "Errore",
++             description: "Impossibile resettare la selezione.",
++             variant: "destructive",
++           });
++         }
++       }}
++     >
++       🔄 Reset selezione cliente
++     </Button>
++   </div>
++ )}
+

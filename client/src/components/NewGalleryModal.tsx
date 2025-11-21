@@ -278,14 +278,18 @@ export default function NewGalleryModal({
       // CHECK PIN UNIVOCITÀ: Verifica che il PIN non sia già usato da altre gallerie
       if (specialTheme !== "none" && specialPin.trim()) {
         console.log("🔍 Verifica unicità PIN...");
-        const checkResponse = await fetch("/api/email/check-pin-unique", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            pin: specialPin.trim(),
-            currentGalleryId: null, // Nuova galleria, nessun ID ancora
-          }),
-        });
+
+        const checkResponse = await fetch(
+          `${window.location.origin}/api/email/check-pin-unique`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pin: specialPin.trim(),
+              currentGalleryId: null,
+            }),
+          },
+        );
 
         if (!checkResponse.ok) {
           throw new Error("Errore verifica unicità PIN");
@@ -372,7 +376,8 @@ export default function NewGalleryModal({
 
           if (hasSingleProduct) {
             // Single-Product Mode: Save as requiredPhotoCount (compatible with Gallery.tsx refactor)
-            galleryData.requiredPhotoCount = productReqs[0].prodottoNumeroFoto || 0;
+            galleryData.requiredPhotoCount =
+              productReqs[0].prodottoNumeroFoto || 0;
             galleryData.selectionStatus = "pending";
             galleryData.selectedPhotoIds = [];
             // NON salvare productRequirements per single-product
@@ -670,7 +675,9 @@ export default function NewGalleryModal({
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700 transition-colors"
-                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                      aria-label={
+                        showPassword ? "Nascondi password" : "Mostra password"
+                      }
                     >
                       {showPassword ? (
                         <EyeOff className="w-4 h-4" />
