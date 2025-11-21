@@ -32,7 +32,7 @@ export interface Photo {
   uploaderUid: string;
   uploaderEmail: string;
   uploaderName: string;
-  uploadedBy?: 'admin' | 'guest'; // Campo opzionale - undefined per foto legacy
+  uploadedBy?: 'admin' | 'guest' | 'legacy'; // Campo opzionale - undefined o 'legacy' per foto vecchie
   likeCount: number;
   commentCount: number;
   position?: number;
@@ -160,6 +160,10 @@ export class PhotoService {
     filterUploadedBy: 'all' | 'admin' | 'guest' | 'exclude-guest' = 'all'
   ): Promise<Photo[]> {
     try {
+      let allPhotos: Photo[] = [];
+      const existingPhotoNames = new Set<string>();
+
+      // 1. Recupera foto dalla collezione globale 'photos' (moderne)
       let constraints: any[] = [
         where('galleryId', '==', galleryId),
         orderBy('createdAt', 'desc')
@@ -171,23 +175,94 @@ export class PhotoService {
       } else if (filterUploadedBy === 'guest') {
         constraints.push(where('uploadedBy', '==', 'guest'));
       }
-      // 'exclude-guest' sarà filtrato lato client sotto
 
-      if (limitCount) {
+      if (limitCount && filterUploadedBy !== 'exclude-guest') {
+        // Applica limit solo se non dobbiamo unire con legacy
         constraints.push(limit(limitCount));
       }
       
       const photosQuery = query(collection(db, 'photos'), ...constraints);
       const snapshot = await getDocs(photosQuery);
-      let photos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Photo));
       
-      // Filtro lato client per 'exclude-guest' 
-      // Include: admin, legacy (undefined), e qualsiasi altro valore tranne 'guest'
-      if (filterUploadedBy === 'exclude-guest') {
-        photos = photos.filter(photo => photo.uploadedBy !== 'guest');
+      // Aggiungi foto moderne
+      snapshot.docs.forEach(doc => {
+        const photo = { id: doc.id, ...doc.data() } as Photo;
+        allPhotos.push(photo);
+        existingPhotoNames.add(photo.name);
+      });
+
+      // 2. Se non stiamo filtrando per solo 'guest' o 'admin', recupera anche foto legacy
+      if (filterUploadedBy === 'all' || filterUploadedBy === 'exclude-guest') {
+        try {
+          // Recupera foto dalla sottocollezione legacy galleries/{galleryId}/photos
+          const legacyRef = collection(db, 'galleries', galleryId, 'photos');
+          const legacySnapshot = await getDocs(legacyRef);
+          
+          legacySnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const photoName = data.name || '';
+            
+            // Evita duplicati basandosi sul nome
+            if (!existingPhotoNames.has(photoName)) {
+              const legacyPhoto: Photo = {
+                id: `legacy-${doc.id}`,
+                galleryId: galleryId,
+                name: photoName,
+                url: data.url || '',
+                thumbnailUrl: data.thumbnailUrl,
+                contentType: data.contentType || 'image/jpeg',
+                size: data.size || 0,
+                uploaderUid: data.uploaderUid || '',
+                uploaderEmail: data.uploaderEmail || 'legacy@system',
+                uploaderName: data.uploaderName || 'Legacy System',
+                uploadedBy: data.uploadedBy || 'legacy', // Se non ha uploadedBy, marca come 'legacy'
+                likeCount: data.likeCount || 0,
+                commentCount: data.commentCount || 0,
+                position: data.position,
+                chapterId: data.chapterId,
+                chapterPosition: data.chapterPosition,
+                createdAt: data.createdAt || new Date(),
+                updatedAt: data.updatedAt
+              };
+              
+              allPhotos.push(legacyPhoto);
+              existingPhotoNames.add(photoName);
+            }
+          });
+          
+          console.log(`📸 Gallery ${galleryId} - Recuperate ${legacySnapshot.docs.length} foto dalla sottocollezione legacy`);
+        } catch (error) {
+          console.log('⚠️ Nessuna sottocollezione legacy trovata (normale per gallerie nuove)');
+        }
       }
       
-      return photos;
+      // Debug: log foto prima del filtro
+      if (filterUploadedBy === 'exclude-guest') {
+        const adminPhotos = allPhotos.filter(p => p.uploadedBy === 'admin').length;
+        const guestPhotos = allPhotos.filter(p => p.uploadedBy === 'guest').length;
+        const legacyPhotos = allPhotos.filter(p => p.uploadedBy === 'legacy' || p.uploadedBy === undefined).length;
+        console.log(`📸 Gallery ${galleryId} - Prima del filtro: ${allPhotos.length} foto totali (${adminPhotos} admin, ${guestPhotos} guest, ${legacyPhotos} legacy)`);
+      }
+      
+      // Filtro lato client per 'exclude-guest'
+      if (filterUploadedBy === 'exclude-guest') {
+        allPhotos = allPhotos.filter(photo => photo.uploadedBy !== 'guest');
+        console.log(`📸 Gallery ${galleryId} - Dopo filtro exclude-guest: ${allPhotos.length} foto`);
+      }
+      
+      // Ordina per data decrescente
+      allPhotos.sort((a, b) => {
+        const dateA = a.createdAt?.seconds ? a.createdAt.seconds : 0;
+        const dateB = b.createdAt?.seconds ? b.createdAt.seconds : 0;
+        return dateB - dateA;
+      });
+      
+      // Applica limit finale se richiesto
+      if (limitCount) {
+        allPhotos = allPhotos.slice(0, limitCount);
+      }
+      
+      return allPhotos;
     } catch (error) {
       console.error('Errore recupero foto galleria:', error);
       return [];
