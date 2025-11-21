@@ -1,0 +1,104 @@
+Ecco il prompt dettagliato e pronto da incollare al tuo Assistant di Replit.
+
+Questo prompt è strutturato per risolvere specificamente:
+
+Il bug del "Venerdì al posto del Sabato" (il server legge la data in UTC e pensa sia il giorno prima).
+
+Il mancato passaggio dei dati di Google Calendar dalla rotta al servizio (il log mostrava "Trovati 0 impegni").
+
+Copia e incolla tutto il blocco qui sotto:
+
+PROMPT PER REPLIT AGENT:
+
+Ho identificato un bug critico nella gestione dei fusi orari e nel passaggio dei dati di Google Calendar. Attualmente, quando un utente seleziona una data (es. Sabato), il server la converte in UTC (es. Venerdì ore 23:00) e carica gli orari di apertura del giorno sbagliato. Inoltre, gli impegni di Google Calendar vengono recuperati nella rotta ma non arrivano alla logica di calcolo degli slot.
+
+Per favore, applica le seguenti modifiche ai file indicati.
+
+1. Modifica server/services/consultations.ts
+Dobbiamo aggiornare la funzione getAvailableSlotsForDate per usare Luxon per determinare il giorno della settimana (in fuso orario Rome) e accettare il parametro degli impegni esterni.
+
+Azioni:
+
+Assicurati che DateTime sia importato da 'luxon'.
+
+Aggiorna la firma della funzione getAvailableSlotsForDate per accettare externalBusyPeriods.
+
+Sostituisci la logica date.getDay() con la logica Luxon Europe/Rome.
+
+Unisci externalBusyPeriods agli slot occupati trovati nel DB.
+
+Codice di riferimento per getAvailableSlotsForDate:
+
+TypeScript
+
+// All'inizio del file
+import { DateTime } from 'luxon';
+
+// ...
+
+export async function getAvailableSlotsForDate(
+  date: Date,
+  durationMinutes: number,
+  workingHours?: any,
+  template?: any,
+  externalBusyPeriods: any[] = [] // <--- AGGIUNTO PARAMETRO
+) {
+  // FIX TIMEZONE: Determina il giorno della settimana basandosi su ROMA, non UTC
+  const romeDate = DateTime.fromJSDate(date).setZone('Europe/Rome');
+  // Luxon weekday: 1=Lun...7=Dom. JS getDay: 0=Dom...6=Sab.
+  // Convertiamo Luxon in formato JS (0-6) per compatibilità col DB
+  const dayOfWeek = romeDate.weekday === 7 ? 0 : romeDate.weekday;
+
+  console.log(`[getAvailableSlotsForDate] 🔍 DEBUG - Input Date: ${date.toISOString()}, Rome Day: ${dayOfWeek} (${romeDate.toFormat('EEEE')})`);
+
+  // ... logica recupero dayConfig usando dayOfWeek corretto ...
+
+  // FIX MERGE: Uniamo gli impegni del DB con quelli esterni (Google Calendar)
+  // Assumiamo che ci sia una logica che recupera 'busySlots' dal DB
+  // Trova il punto dove definisci 'allBusyPeriods' o simile e modificalo:
+  
+  // Esempio generico (adatta al codice esistente):
+  // const dbBusyPeriods = ... (logica esistente)
+  
+  const allBusyPeriods = [
+    // ...dbBusyPeriods (o come si chiama la variabile locale),
+    ...externalBusyPeriods
+  ];
+
+  console.log(`[getAvailableSlotsForDate] 📊 Totale periodi occupati (DB + GCal): ${allBusyPeriods.length}`);
+
+  // ... resto della funzione invariato ...
+}
+2. Modifica server/routes/consultation-routes.ts
+Dobbiamo assicurarci che la rotta POST /available-slots passi effettivamente i dati recuperati da Google Calendar al servizio.
+
+Azioni: Nella rotta router.post('/available-slots', ...):
+
+Verifica che googleBusyPeriods sia definito correttamente.
+
+Passalo come quinto argomento alla funzione consultationService.getAvailableSlotsForDate.
+
+Diff:
+
+TypeScript
+
+// Dentro router.post('/available-slots') ...
+
+    // FIX GOOGLE CALENDAR: Recupera impegni reali
+    console.log('[POST /available-slots] Recupero impegni Google Calendar...');
+    const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
+    
+    // Assicurati che dayStart e dayEnd siano definiti (dovrebbero già esserlo dai fix precedenti)
+    const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+    const googleBusyPeriods = busyPeriodsResult.busyPeriods || [];
+
+    console.log(`[POST /available-slots] Trovati ${googleBusyPeriods.length} impegni su GCal da passare al service`);
+
+    // Calcolo slot passando anche i busy periods di Google
+    const slots = await consultationService.getAvailableSlotsForDate(
+      dayStart, 
+      template.durataMinuti,
+      undefined, 
+      template,
+      googleBusyPeriods // <--- QUESTO È FONDAMENTALE
+    );
