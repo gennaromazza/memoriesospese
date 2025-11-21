@@ -562,7 +562,7 @@
         container.innerHTML = html;
       }
 
-      // Carica i prodotti dal server
+      // Carica i prodotti dal server - SOLO CATEGORIA NATALE
       async function loadProducts() {
         const container = document.getElementById("volantini-container");
 
@@ -573,11 +573,14 @@
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
           
-          allProducts = await response.json();
+          const allProductsFromServer = await response.json();
+          
+          // FILTRA SOLO PRODOTTI NATALE
+          allProducts = allProductsFromServer.filter(p => p.categoria === 'natale');
 
           if (!allProducts || allProducts.length === 0) {
             container.innerHTML =
-              '<div class="controls"><h3 style="color: #c41e3a;">⚠️ Nessun prodotto attivo trovato</h3></div>';
+              '<div class="controls"><h3 style="color: #c41e3a;">⚠️ Nessun prodotto Natale trovato</h3></div>';
             return;
           }
 
