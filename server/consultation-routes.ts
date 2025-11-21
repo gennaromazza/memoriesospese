@@ -1524,4 +1524,88 @@ router.post('/send-reminders', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/consultations/debug/slot-conflicts/:date
+ * 🔍 DEBUG: Mostra tutte le risorse che occupano slot in una data specifica
+ */
+router.get('/debug/slot-conflicts/:date', async (req, res) => {
+  try {
+    const { date } = req.params; // Format: YYYY-MM-DD
+    
+    const targetDate = new Date(date);
+    const dayStart = new Date(targetDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(targetDate);
+    dayEnd.setHours(23, 59, 59, 999);
+    
+    const results: any = {
+      date,
+      consultations: [],
+      bookings: [],
+      jobs: [],
+      googleCalendar: []
+    };
+    
+    // 1. Consultations
+    const consultationsSnap = await db.collection('consultations')
+      .where('dataConsulenza', '>=', Timestamp.fromDate(dayStart))
+      .where('dataConsulenza', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+      
+    results.consultations = consultationsSnap.docs.map(doc => ({
+      id: doc.id,
+      cliente: doc.data().cliente,
+      orarioInizio: doc.data().orarioInizio,
+      orarioFine: doc.data().orarioFine,
+      stato: doc.data().stato,
+      createdAt: doc.data().createdAt?.toDate?.()
+    }));
+    
+    // 2. Bookings
+    const bookingsSnap = await db.collection('bookings')
+      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+      
+    results.bookings = bookingsSnap.docs.map(doc => ({
+      id: doc.id,
+      clienteNome: doc.data().clienteNome,
+      clienteEmail: doc.data().clienteEmail,
+      dataShootingInizio: doc.data().dataShootingInizio?.toDate?.(),
+      dataShootingFine: doc.data().dataShootingFine?.toDate?.(),
+      stato: doc.data().stato
+    }));
+    
+    // 3. Jobs
+    const jobsSnap = await db.collection('jobs')
+      .where('eventDate', '>=', Timestamp.fromDate(dayStart))
+      .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+      
+    results.jobs = jobsSnap.docs.map(doc => ({
+      id: doc.id,
+      nomeEvento: doc.data().nomeEvento,
+      allDay: doc.data().allDay,
+      startTime: doc.data().startTime,
+      endTime: doc.data().endTime,
+      stato: doc.data().stato,
+      eventDate: doc.data().eventDate?.toDate?.()
+    }));
+    
+    // 4. Google Calendar
+    try {
+      const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
+      const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+      results.googleCalendar = busyPeriodsResult.busyPeriods || [];
+    } catch (error: any) {
+      results.googleCalendarError = error.message;
+    }
+    
+    res.json(results);
+  } catch (error: any) {
+    console.error('[Debug slot-conflicts] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
