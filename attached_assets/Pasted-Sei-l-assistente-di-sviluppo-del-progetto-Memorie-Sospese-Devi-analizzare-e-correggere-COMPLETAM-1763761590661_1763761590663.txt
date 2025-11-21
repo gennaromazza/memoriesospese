@@ -1,0 +1,98 @@
+Sei l’assistente di sviluppo del progetto “Memorie Sospese”.
+Devi analizzare e correggere COMPLETAMENTE il modulo “Consultation Service”
+(frontend + backend) che gestisce: slot consulenze, calcolo disponibilità,
+overlap, Google Calendar, booking conflicts, consultations, jobs, timezone
+Europe/Rome, e working hours dei template.
+
+OBIETTIVO:
+Risolvere tutti i bug che causano errore 409 quando un cliente prova a
+prenotare uno slot che il frontend mostra come disponibile, ma il backend lo
+blocca per conflitti NON reali.
+
+Problemi riscontrati:
+1. Lo slot di consulenza che finisce esattamente quando comincia un booking
+   (es. 15:30–16:30 vs booking 16:30–17:00) genera errore 409 anche se NON
+   esiste sovrapposizione reale.
+2. Le date in Firestore sono UTC, mentre createEuropeRomeDate genera orari in
+   Europe/Rome → piccole differenze di millisecondi creano falsi overlap.
+3. Il frontend mostra slot disponibili anche quando l’algoritmo backend li
+   considera occupati.
+4. La logica overlap usa `(slotStart < eventEnd && slotEnd > eventStart)`
+   che con i problemi di conversione porta a falsi positivi.
+5. Tutti i controlli overlap (consultations, bookings, jobs, Google Calendar)
+   usano versioni diverse della stessa logica → vanno unificati.
+6. Il sistema non normalizza i millisecondi dei timestamps → drift UTC.
+7. I template legacy possono avere excludedDays non sincronizzati.
+8. I Google Calendar all-day event devono bloccare tutta la giornata.
+9. Il frontend deve visualizzare gli slot con orario reale Europe/Rome,
+   non con ISO UTC convertiti male.
+
+Cosa devi fare:
+
+### A) Implementare una funzione universale di overlap:
+Una funzione `hasRealOverlap(startA, endA, startB, endB)` che ritorna TRUE
+solo se esiste una parte di tempo condivisa (overlap > 0 ms).
+Deve sostituire TUTTE le condizioni vecchie del tipo:
+(slotStart < otherEnd && slotEnd > otherStart)
+
+### B) Normalizzare i millisecondi
+Prima di ogni confronto, tronca i millisecondi:
+ms -= (ms % 60000)
+
+### C) Consolidare la logica overlap:
+Applicare la funzione `hasRealOverlap()` ai conflitti contro:
+- consultations attive
+- bookings attivi
+- jobs (timed e all-day)
+- eventi Google Calendar
+
+### D) Sistemare Timezone:
+- Tutti gli slot e confronti devono essere generati in Europe/Rome
+  usando createEuropeRomeDate, MA i confronti devono essere fatti in
+  millisecondi normalizzati, evitando conversioni multiple tra UTC e locale.
+
+- Assicurati che:
+  slotStartMs, slotEndMs, bookingStartMs, bookingEndMs
+  provengano da date coerenti e normalizzate.
+
+### E) Fix Template Working Hours:
+- Assicurati che `customWorkingHours` sia sempre presente dopo la
+  migrazione.
+- Assicurati che `excludedDays` sia sincronizzato.
+- Assicurati che un giorno con `attivo=false` non generi slot.
+
+### F) Fix Google Calendar:
+- Se esiste almeno un evento “all-day” blocca TUTTA la giornata.
+- Per eventi con dateTime usa la stessa funzione di overlap.
+- Log puliti per capire cosa blocca cosa.
+
+### G) Fix getAvailableSlotsForDate:
+- Quando generi gli slot, PRIMA controlla overlap tramite la nuova funzione.
+- Non mostrare slot che hanno available=false.
+- Tutti gli slot devono essere convertiti correttamente per il frontend.
+
+### H) Aggiornare il frontend:
+- Renderizza gli slot usando “Europe/Rome” con `toLocaleTimeString()`
+  o costruendo l’orario manualmente.
+- NON usare `toISOString()` per slot visibili agli utenti.
+
+### I) Testing automatico:
+Crea test/debug per verificare i seguenti casi:
+- slotEnd == bookingStart (DEVE essere disponibile)
+- slotEnd < bookingStart (DEVE essere disponibile)
+- slotStart < bookingEnd (DEVE essere NON disponibile)
+- slot esatto sulla pausa pranzo
+- job all-day blocca tutto
+- Google Calendar all-day blocca tutto
+- sabato lavorativo con template customWorkingHours
+
+### RISULTATO ATTESO:
+- Nessun falso 409.
+- Gli slot mostrati nel frontend corrispondono agli slot reali disponibili.
+- Tutti gli orari sono coerenti Europe/Rome.
+- Nessuna ambiguità UTC.
+- Sistema consulenze stabile, affidabile e allineato al backend.
+
+Applica ora TUTTE le modifiche necessarie nei file interessati
+(`/services/consultation-service.ts`, getAvailableSlotsForDate,
+isSlotAvailable, google-calendar.ts, e componenti frontend).

@@ -18,6 +18,49 @@ import type {
 } from '../../shared/consultation-types.js';
 import { DEFAULT_CONSULTATION_HOURS } from '../../shared/consultation-types.js';
 import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAllCalendars, createEuropeRomeDate, deleteEvent, type WorkingHours } from '../google-calendar.js';
+
+/**
+ * 🔥 FUNZIONE UNIVERSALE DI OVERLAP
+ * Restituisce TRUE solo se esiste sovrapposizione reale (overlap > 0ms)
+ * Normalizza i millisecondi per evitare drift UTC
+ * 
+ * @param startA - Inizio periodo A (Date o timestamp ms)
+ * @param endA - Fine periodo A (Date o timestamp ms)
+ * @param startB - Inizio periodo B (Date o timestamp ms)
+ * @param endB - Fine periodo B (Date o timestamp ms)
+ * @returns true se c'è overlap reale, false altrimenti
+ */
+function hasRealOverlap(
+  startA: Date | number,
+  endA: Date | number,
+  startB: Date | number,
+  endB: Date | number
+): boolean {
+  // Converti tutto in millisecondi
+  let startAMs = typeof startA === 'number' ? startA : startA.getTime();
+  let endAMs = typeof endA === 'number' ? endA : endA.getTime();
+  let startBMs = typeof startB === 'number' ? startB : startB.getTime();
+  let endBMs = typeof endB === 'number' ? endB : endB.getTime();
+  
+  // 🔥 NORMALIZZA: Rimuovi millisecondi per evitare drift (arrotonda al minuto)
+  startAMs -= startAMs % 60000;
+  endAMs -= endAMs % 60000;
+  startBMs -= startBMs % 60000;
+  endBMs -= endBMs % 60000;
+  
+  // Verifica overlap reale (A termina DOPO che B inizia E A inizia PRIMA che B finisca)
+  const hasOverlap = startAMs < endBMs && endAMs > startBMs;
+  
+  // Debug logging per casi edge
+  if (endAMs === startBMs || startAMs === endBMs) {
+    console.log(`[hasRealOverlap] ⚠️  Caso edge - slot contigui ma NON sovrapposti:`);
+    console.log(`   Periodo A: ${new Date(startAMs).toISOString()} -> ${new Date(endAMs).toISOString()}`);
+    console.log(`   Periodo B: ${new Date(startBMs).toISOString()} -> ${new Date(endBMs).toISOString()}`);
+    console.log(`   Overlap: ${hasOverlap} (dovrebbe essere false per slot contigui)`);
+  }
+  
+  return hasOverlap;
+}
 import type { Booking } from '../../shared/booking-types.js';
 import { format } from 'date-fns'; // Importa la funzione format
 import { it } from 'date-fns/locale'; // Importa la localizzazione italiana
@@ -850,8 +893,8 @@ export async function isSlotAvailable(
     const existEnd = new Date(date);
     existEnd.setHours(existEndHour, existEndMin, 0, 0);
 
-    // Check overlap
-    if (slotStart < existEnd && slotEnd > existStart) {
+    // 🔥 REFACTOR: Usa hasRealOverlap per verifica consistente
+    if (hasRealOverlap(slotStart, slotEnd, existStart, existEnd)) {
       // 🔍 ENHANCED LOGGING: Mostra esattamente quale risorsa blocca lo slot
       console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
       console.error(`   📋 Tipo: Consultation`);
@@ -904,19 +947,13 @@ export async function isSlotAvailable(
       continue;
     }
     
-    // 🔥 FIX TIMEZONE: Converti tutto in millisecondi per confronto consistente
+    // 🔥 FIX TIMEZONE: Usa hasRealOverlap per confronto consistente
     // I booking Firestore sono già in UTC corretto (16:30 UTC+1 = 15:30 UTC)
     const bookingStartUTC = data.dataShootingInizio.toDate();
     const bookingEndUTC = data.dataShootingFine.toDate();
 
-    // Converti in millisecondi per confronto matematico pulito
-    const slotStartMs = slotStart.getTime();
-    const slotEndMs = slotEnd.getTime();
-    const bookingStartMs = bookingStartUTC.getTime();
-    const bookingEndMs = bookingEndUTC.getTime();
-
-    // Check overlap usando millisecondi (confronto uniforme)
-    const overlaps = slotStartMs < bookingEndMs && slotEndMs > bookingStartMs;
+    // 🔥 REFACTOR: Usa hasRealOverlap che normalizza automaticamente i millisecondi
+    const overlaps = hasRealOverlap(slotStart, slotEnd, bookingStartUTC, bookingEndUTC);
 
     if (overlaps) {
       // 🔥 FIX DISPLAY: Formatta in Europe/Rome per mostrare orario corretto
@@ -1000,8 +1037,8 @@ export async function isSlotAvailable(
       const jobEnd = new Date(date);
       jobEnd.setHours(jobEndHour, jobEndMin, 0, 0);
       
-      // Check overlap
-      const overlaps = slotStart < jobEnd && slotEnd > jobStart;
+      // 🔥 REFACTOR: Usa hasRealOverlap per verifica consistente
+      const overlaps = hasRealOverlap(slotStart, slotEnd, jobStart, jobEnd);
       
       if (overlaps) {
         // 🔍 ENHANCED LOGGING: Mostra dettagli job con orari
@@ -1027,8 +1064,8 @@ export async function isSlotAvailable(
       const busyStart = new Date(busy.start);
       const busyEnd = new Date(busy.end);
 
-      // Check sovrapposizione completa (qualsiasi overlap blocca lo slot)
-      const overlaps = slotStart < busyEnd && slotEnd > busyStart;
+      // 🔥 REFACTOR: Usa hasRealOverlap per verifica consistente
+      const overlaps = hasRealOverlap(slotStart, slotEnd, busyStart, busyEnd);
 
       if (overlaps) {
         // 🔍 ENHANCED LOGGING: Mostra dettagli evento Google Calendar
