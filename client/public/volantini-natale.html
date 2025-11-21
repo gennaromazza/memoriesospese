@@ -394,15 +394,8 @@
       <button onclick="window.print()">🖨️ Stampa/Salva PDF</button>
       <button onclick="location.reload()">🔄 Ricarica</button>
 
-      <div class="filter-section">
-        <h3>🎯 Filtra per Categoria</h3>
-        <div class="filter-buttons" id="category-filter-buttons">
-          <button class="filter-btn active" onclick="filterByCategory('all')" data-category="all">
-            Tutti i Prodotti
-          </button>
-          <!-- I pulsanti delle categorie verranno aggiunti dinamicamente -->
-        </div>
-      </div>
+      <!-- Filtri categoria visibili solo per admin/personale interno -->
+      <!-- Per utenti ospiti/TV questa sezione è nascosta -->
     </div>
 
     <div id="volantini-container">
@@ -410,24 +403,10 @@
     </div>
 
     <script type="module">
-      // Stato del filtro
+      // Stato del filtro - sempre 'all' per utenti ospiti
       let currentFilter = 'all';
       let allProducts = [];
       let productCategories = [];
-
-      // Funzione filtro categoria
-      window.filterByCategory = function(category) {
-        currentFilter = category;
-        
-        // Aggiorna bottoni attivi
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-          btn.classList.remove('active');
-        });
-        document.querySelector(`[data-category="${category}"]`).classList.add('active');
-        
-        // Rigenera volantini
-        renderVolantini();
-      };
 
       // Funzione per creare fiocchi di neve
       function createSnowflakes() {
@@ -550,66 +529,33 @@
         return cat ? cat.nome : categoriaValue;
       }
       
-      // Carica categorie dinamicamente e crea pulsanti filtro
+      // Carica categorie per label prodotti
       async function loadProductCategories() {
         try {
           const response = await fetch('/api/product-categories');
           if (response.ok) {
             productCategories = await response.json();
-            
-            // Filtra solo categorie attive
-            const activeCategories = productCategories.filter(cat => cat.attivo);
-            
-            // Crea pulsanti filtro dinamicamente
-            const filterContainer = document.getElementById('category-filter-buttons');
-            
-            activeCategories.forEach(cat => {
-              const button = document.createElement('button');
-              button.className = 'filter-btn';
-              button.setAttribute('data-category', cat.value);
-              button.onclick = () => filterByCategory(cat.value);
-              button.innerHTML = `${getCategoryIcon(cat.value)} ${cat.nome}`;
-              filterContainer.appendChild(button);
-            });
           }
         } catch (error) {
-          console.warn('Errore caricamento categorie, uso valori predefiniti:', error);
+          console.warn('Errore caricamento categorie:', error);
         }
       }
-      
-      // Helper per ottenere icone categorie
-      function getCategoryIcon(categoryValue) {
-        const icons = {
-          matrimonio: '💒',
-          natale: '🎄',
-          album: '📖',
-          stampe: '🖼️',
-          digitale: '💾',
-          video: '🎥',
-          pacchetto: '📦'
-        };
-        return icons[categoryValue] || '📸';
-      }
 
-      // Funzione rendering volantini con filtro
+      // Funzione rendering volantini - mostra sempre tutti i prodotti
       function renderVolantini() {
         const container = document.getElementById("volantini-container");
-        
-        const filteredProducts = currentFilter === 'all' 
-          ? allProducts 
-          : allProducts.filter(p => p.categoria === currentFilter);
 
-        if (filteredProducts.length === 0) {
+        if (allProducts.length === 0) {
           container.innerHTML = `
             <div class="controls">
-              <h3 style="color: #c41e3a;">⚠️ Nessun prodotto in questa categoria</h3>
+              <h3 style="color: #c41e3a;">⚠️ Nessun prodotto disponibile</h3>
             </div>
           `;
           return;
         }
 
         let html = "";
-        filteredProducts.forEach((product) => {
+        allProducts.forEach((product) => {
           html += createVolantino(product);
         });
 
