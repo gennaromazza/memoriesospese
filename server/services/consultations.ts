@@ -18,6 +18,7 @@ import type {
 } from '../../shared/consultation-types.js';
 import { DEFAULT_CONSULTATION_HOURS } from '../../shared/consultation-types.js';
 import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAllCalendars, createEuropeRomeDate, deleteEvent, type WorkingHours } from '../google-calendar.js';
+import { DateTime } from 'luxon'; // Importa Luxon per gestione fusi orari
 
 /**
  * 🔥 FUNZIONE UNIVERSALE DI OVERLAP
@@ -1107,10 +1108,13 @@ export async function getAvailableSlotsForDate(
   template?: ConsultationTemplate,
   externalBusyPeriods?: any[] // Aggiunto parametro per orari esterni
 ): Promise<ConsultationSlot[]> {
-  const dayOfWeek = date.getDay();
+  // FIX TIMEZONE: Determina il giorno della settimana basandosi su ROMA, non UTC
+  const romeDate = DateTime.fromJSDate(date).setZone('Europe/Rome');
+  // Luxon weekday: 1=Lun...7=Dom. JS getDay: 0=Dom...6=Sab.
+  // Convertiamo Luxon in formato JS (0-6) per compatibilità col DB
+  const dayOfWeek = romeDate.weekday === 7 ? 0 : romeDate.weekday;
 
-  // 🔍 DEBUG: Log dettagliato per diagnosi bug lunedì
-  console.log(`[getAvailableSlotsForDate] 🔍 DEBUG - Date: ${date.toISOString()}, dayOfWeek: ${dayOfWeek}`);
+  console.log(`[getAvailableSlotsForDate] 🔍 DEBUG - Input Date: ${date.toISOString()}, Rome Day: ${dayOfWeek} (${romeDate.toFormat('EEEE')})`)
 
   // Check 1: Giorno escluso dal template?
   if (template?.excludedDays && template.excludedDays.includes(dayOfWeek)) {
@@ -1271,15 +1275,22 @@ export async function getAvailableSlotsForDate(
     if (isDebug) {
       console.log(`[Consultations] 🔍 Controllo disponibilità su TUTTI i calendari Google per ${dateStr}`);
     }
-    const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
-    googleBusyPeriods = Array.isArray(busyPeriodsResult) ? busyPeriodsResult : [];
-
-    if (isDebug && googleBusyPeriods.length > 0) {
-      console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods aggregati da tutti i calendari`);
-      // Log calendari che hanno eventi
-      const calendarsWithEvents = new Set(googleBusyPeriods.map((p: any) => p.calendarName).filter(Boolean));
-      if (calendarsWithEvents.size > 0) {
-        console.log(`[Consultations] 📅 Calendari con eventi: ${Array.from(calendarsWithEvents).join(', ')}`);
+    // Usa externalBusyPeriods se fornito, altrimenti chiama checkFreeBusyAllCalendars
+    if (externalBusyPeriods && externalBusyPeriods.length > 0) {
+      googleBusyPeriods = externalBusyPeriods;
+      if (isDebug) {
+        console.log(`[Consultations] ⚡ Utilizzati busy periods esterni forniti (${googleBusyPeriods.length} periodi)`);
+      }
+    } else {
+      const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+      googleBusyPeriods = Array.isArray(busyPeriodsResult) ? busyPeriodsResult : [];
+      if (isDebug && googleBusyPeriods.length > 0) {
+        console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods aggregati da tutti i calendari`);
+        // Log calendari che hanno eventi
+        const calendarsWithEvents = new Set(googleBusyPeriods.map((p: any) => p.calendarName).filter(Boolean));
+        if (calendarsWithEvents.size > 0) {
+          console.log(`[Consultations] 📅 Calendari con eventi: ${Array.from(calendarsWithEvents).join(', ')}`);
+        }
       }
     }
   } catch (error: any) {
@@ -1334,7 +1345,7 @@ export async function getAvailableSlotsForDate(
       startTime,
       endTime,
       undefined, // excludeConsultationId
-      googleBusyPeriods,
+      googleBusyPeriods, // Usa i busy periods (esterni o da Google)
       preloadedConsultations, // ⚡ OPTIMIZATION: passa array pre-caricato
       preloadedBookings,      // ⚡ OPTIMIZATION: passa array pre-caricato
       preloadedJobs           // ⚡ OPTIMIZATION: passa array pre-caricato jobs

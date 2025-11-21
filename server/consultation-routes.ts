@@ -375,13 +375,15 @@ router.post('/available-slots', async (req, res) => {
 
     console.log(`[POST /available-slots] Trovati ${googleBusyPeriods.length} impegni su GCal`);
 
-    // Calcolo slot passando anche i busy periods di Google
+    // FIX: Passa googleBusyPeriods come quinto parametro (externalBusyPeriods)
+    console.log(`[POST /available-slots] 📊 Passando ${googleBusyPeriods.length} busy periods da GCal al service`);
+    
     const slots = await consultationService.getAvailableSlotsForDate(
       dayStart,
       template.durataMinuti,
       undefined, // workingHours - usa template customWorkingHours se presente
       template, // passa template per excludedDays e customWorkingHours
-      googleBusyPeriods // Passa busy periods di Google Calendar
+      googleBusyPeriods // 🔥 CRITICAL: Passa busy periods di Google Calendar come externalBusyPeriods
     );
 
     // 🎯 FEATURE: Aggiungi info consulenze in attesa per questo cliente
