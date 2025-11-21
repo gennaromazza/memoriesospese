@@ -480,6 +480,20 @@
           </div>
 
           <div class="content">
+            ${
+              product.immagini && product.immagini.length > 0
+                ? `
+              <div style="margin-bottom: 20px; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                <img 
+                  src="${product.immagini[0]}" 
+                  alt="${product.nome}"
+                  style="width: 100%; height: 200px; object-fit: cover;"
+                />
+              </div>
+            `
+                : ""
+            }
+
             <div class="product-name">
               ${product.nome}
             </div>
