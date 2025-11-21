@@ -249,8 +249,17 @@ export default function GalleryManagementWorkspace() {
       // refetchQueries bypassa staleTime e forza aggiornamento immediato
       await queryClient.refetchQueries({ 
         predicate: (query) => {
+          if (!Array.isArray(query.queryKey)) return false;
           const key = query.queryKey[0];
-          return key === 'photos' || key === 'gallery-photos' || key === 'guestPhotos';
+          // Cattura TUTTE le query keys correlate alle foto
+          return typeof key === 'string' && (
+            key === 'photos' || 
+            key === 'gallery-photos' || 
+            key === 'guest-photos' ||
+            key === 'guestPhotos' || // legacy
+            key === 'top-liked-photos' || // widget top photos
+            key.includes('photo') // catch-all per altre varianti
+          );
         }
       });
       
@@ -826,8 +835,16 @@ export default function GalleryManagementWorkspace() {
                                 // 🔧 FORZA REFETCH di tutte le query foto
                                 await queryClient.refetchQueries({ 
                                   predicate: (query) => {
+                                    if (!Array.isArray(query.queryKey)) return false;
                                     const key = query.queryKey[0];
-                                    return key === 'photos' || key === 'gallery-photos' || key === 'guestPhotos';
+                                    return typeof key === 'string' && (
+                                      key === 'photos' || 
+                                      key === 'gallery-photos' || 
+                                      key === 'guest-photos' ||
+                                      key === 'guestPhotos' ||
+                                      key === 'top-liked-photos' ||
+                                      key.includes('photo')
+                                    );
                                   }
                                 });
                                 queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
@@ -929,8 +946,16 @@ export default function GalleryManagementWorkspace() {
                                         // 🔧 FORZA REFETCH di tutte le query foto
                                         await queryClient.refetchQueries({ 
                                           predicate: (query) => {
+                                            if (!Array.isArray(query.queryKey)) return false;
                                             const key = query.queryKey[0];
-                                            return key === 'photos' || key === 'gallery-photos' || key === 'guestPhotos';
+                                            return typeof key === 'string' && (
+                                              key === 'photos' || 
+                                              key === 'gallery-photos' || 
+                                              key === 'guest-photos' ||
+                                              key === 'guestPhotos' ||
+                                              key === 'top-liked-photos' ||
+                                              key.includes('photo')
+                                            );
                                           }
                                         });
                                         queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });

@@ -265,7 +265,13 @@ export default function Gallery() {
       predicate: (query) => {
         if (!Array.isArray(query.queryKey)) return false;
         const [key, id] = query.queryKey;
-        return (key === 'gallery-photos' || key === 'guest-photos') && id === galleryData.id;
+        // Cattura tutte le query correlate alla gallery corrente
+        return typeof key === 'string' && 
+               (key === 'gallery-photos' || 
+                key === 'guest-photos' || 
+                key === 'top-liked-photos' ||
+                key.includes('photo')) && 
+               id === galleryData.id;
       }
     });
 
