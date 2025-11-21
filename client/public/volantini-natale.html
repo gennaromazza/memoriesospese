@@ -1,290 +1,300 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Volantini Natale - Memorie Sospese</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Georgia', serif;
-      background: #f5f5f5;
-      padding: 20px;
-    }
-
-    .controls {
-      background: white;
-      padding: 20px;
-      margin-bottom: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-
-    .controls h2 {
-      margin-bottom: 10px;
-      color: #8b5a3c;
-    }
-
-    .controls p {
-      color: #666;
-      margin-bottom: 15px;
-    }
-
-    .controls button {
-      background: #8b5a3c;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
-      margin-right: 10px;
-    }
-
-    .controls button:hover {
-      background: #6d4530;
-    }
-
-    /* Formato 9:16 (es: 1080x1920px) */
-    .volantino {
-      width: 540px;
-      height: 960px;
-      background: linear-gradient(135deg, #8b5a3c 0%, #a67c5d 100%);
-      margin: 20px auto;
-      position: relative;
-      overflow: hidden;
-      page-break-after: always;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-    }
-
-    /* Decorazioni natalizie */
-    .volantino::before {
-      content: '❄️ ✨ 🎄 ✨ ❄️';
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 24px;
-      opacity: 0.3;
-    }
-
-    .volantino::after {
-      content: '🎁';
-      position: absolute;
-      bottom: 20px;
-      right: 20px;
-      font-size: 80px;
-      opacity: 0.1;
-    }
-
-    .header {
-      background: rgba(255, 255, 255, 0.95);
-      padding: 30px;
-      text-align: center;
-      margin: 40px 30px 30px 30px;
-      border-radius: 15px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-
-    .header h1 {
-      color: #8b5a3c;
-      font-size: 28px;
-      margin-bottom: 10px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-    }
-
-    .header p {
-      color: #c94b4b;
-      font-size: 18px;
-      font-weight: bold;
-    }
-
-    .content {
-      background: white;
-      margin: 0 30px;
-      padding: 40px;
-      border-radius: 15px;
-      min-height: 500px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-
-    .product-name {
-      color: #8b5a3c;
-      font-size: 32px;
-      font-weight: bold;
-      margin-bottom: 20px;
-      text-align: center;
-      line-height: 1.2;
-    }
-
-    .product-description {
-      color: #555;
-      font-size: 18px;
-      line-height: 1.6;
-      margin-bottom: 30px;
-      text-align: center;
-    }
-
-    .product-details {
-      background: #fef9f5;
-      padding: 25px;
-      border-radius: 10px;
-      margin-bottom: 25px;
-      border-left: 5px solid #c94b4b;
-    }
-
-    .product-details .detail-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid #e0e0e0;
-    }
-
-    .product-details .detail-item:last-child {
-      border-bottom: none;
-    }
-
-    .detail-label {
-      color: #666;
-      font-size: 16px;
-    }
-
-    .detail-value {
-      color: #8b5a3c;
-      font-size: 18px;
-      font-weight: bold;
-    }
-
-    .price-box {
-      background: linear-gradient(135deg, #c94b4b, #d66363);
-      color: white;
-      padding: 30px;
-      border-radius: 15px;
-      text-align: center;
-      margin-top: 30px;
-      box-shadow: 0 4px 10px rgba(201, 75, 75, 0.3);
-    }
-
-    .price-label {
-      font-size: 18px;
-      margin-bottom: 10px;
-      opacity: 0.9;
-    }
-
-    .price {
-      font-size: 48px;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-
-    .old-price {
-      text-decoration: line-through;
-      opacity: 0.7;
-      font-size: 24px;
-      margin-bottom: 10px;
-    }
-
-    .discount-badge {
-      background: #fff;
-      color: #c94b4b;
-      padding: 8px 20px;
-      border-radius: 20px;
-      display: inline-block;
-      font-weight: bold;
-      font-size: 16px;
-      margin-top: 10px;
-    }
-
-    .footer {
-      text-align: center;
-      color: white;
-      padding: 30px;
-      margin-top: 20px;
-    }
-
-    .footer .contact {
-      font-size: 16px;
-      margin-bottom: 10px;
-    }
-
-    .footer .website {
-      font-size: 20px;
-      font-weight: bold;
-      color: #fef9f5;
-    }
-
-    .footer .cta {
-      background: white;
-      color: #8b5a3c;
-      padding: 15px 30px;
-      border-radius: 25px;
-      display: inline-block;
-      margin-top: 20px;
-      font-weight: bold;
-      font-size: 18px;
-    }
-
-    @media print {
-      body {
-        background: white;
-        padding: 0;
-      }
-      .controls {
-        display: none;
-      }
-      .volantino {
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Volantini Natale - Memorie Sospese</title>
+    <style>
+      * {
         margin: 0;
-        box-shadow: none;
-        page-break-after: always;
+        padding: 0;
+        box-sizing: border-box;
       }
-    }
-  </style>
-</head>
-<body>
-  <div class="controls">
-    <h2>Generatore Volantini Natale 2024</h2>
-    <p>Clicca per stampare o salva come PDF. Ogni prodotto sarà su una pagina separata in formato 9:16.</p>
-    <button onclick="window.print()">🖨️ Stampa/Salva PDF</button>
-    <button onclick="location.reload()">🔄 Ricarica</button>
-  </div>
 
-  <div id="volantini-container">
-    <!-- I volantini verranno generati qui dal JavaScript -->
-  </div>
+      body {
+        font-family: "Georgia", serif;
+        background: #f5f5f5;
+        padding: 20px;
+      }
 
-  <script type="module">
-    // Importa Firebase
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-    import { getFirestore, collection, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+      .controls {
+        background: white;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
 
-    // Configurazione Firebase (usa le tue credenziali)
-    const firebaseConfig = {
-      apiKey: "AIzaSyBIe2M1CgjvPXLfFPnNa7GdU0h2rEpQk30",
-      authDomain: "memorie-sospese-2024.firebaseapp.com",
-      projectId: "memorie-sospese-2024",
-      storageBucket: "memorie-sospese-2024.firebasestorage.app",
-      messagingSenderId: "637866509691",
-      appId: "1:637866509691:web:f36ada8ecf18555e70cde8"
-    };
+      .controls h2 {
+        margin-bottom: 10px;
+        color: #8b5a3c;
+      }
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+      .controls p {
+        color: #666;
+        margin-bottom: 15px;
+      }
 
-    // Funzione per creare un volantino
-    function createVolantino(product) {
-      const hasDiscount = product.sconto && product.sconto > 0;
-      const prezzoOriginale = product.prezzo;
-      const prezzoFinale = hasDiscount ? product.prezzoFinale : product.prezzo;
+      .controls button {
+        background: #8b5a3c;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-right: 10px;
+      }
 
-      return `
+      .controls button:hover {
+        background: #6d4530;
+      }
+
+      /* Formato 9:16 (es: 1080x1920px) */
+      .volantino {
+        width: 540px;
+        height: 960px;
+        background: linear-gradient(135deg, #8b5a3c 0%, #a67c5d 100%);
+        margin: 20px auto;
+        position: relative;
+        overflow: hidden;
+        page-break-after: always;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+      }
+
+      /* Decorazioni natalizie */
+      .volantino::before {
+        content: "❄️ ✨ 🎄 ✨ ❄️";
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 24px;
+        opacity: 0.3;
+      }
+
+      .volantino::after {
+        content: "🎁";
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        font-size: 80px;
+        opacity: 0.1;
+      }
+
+      .header {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 30px;
+        text-align: center;
+        margin: 40px 30px 30px 30px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .header h1 {
+        color: #8b5a3c;
+        font-size: 28px;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+
+      .header p {
+        color: #c94b4b;
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      .content {
+        background: white;
+        margin: 0 30px;
+        padding: 40px;
+        border-radius: 15px;
+        min-height: 500px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .product-name {
+        color: #8b5a3c;
+        font-size: 32px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        text-align: center;
+        line-height: 1.2;
+      }
+
+      .product-description {
+        color: #555;
+        font-size: 18px;
+        line-height: 1.6;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      .product-details {
+        background: #fef9f5;
+        padding: 25px;
+        border-radius: 10px;
+        margin-bottom: 25px;
+        border-left: 5px solid #c94b4b;
+      }
+
+      .product-details .detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .product-details .detail-item:last-child {
+        border-bottom: none;
+      }
+
+      .detail-label {
+        color: #666;
+        font-size: 16px;
+      }
+
+      .detail-value {
+        color: #8b5a3c;
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      .price-box {
+        background: linear-gradient(135deg, #c94b4b, #d66363);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        text-align: center;
+        margin-top: 30px;
+        box-shadow: 0 4px 10px rgba(201, 75, 75, 0.3);
+      }
+
+      .price-label {
+        font-size: 18px;
+        margin-bottom: 10px;
+        opacity: 0.9;
+      }
+
+      .price {
+        font-size: 48px;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .old-price {
+        text-decoration: line-through;
+        opacity: 0.7;
+        font-size: 24px;
+        margin-bottom: 10px;
+      }
+
+      .discount-badge {
+        background: #fff;
+        color: #c94b4b;
+        padding: 8px 20px;
+        border-radius: 20px;
+        display: inline-block;
+        font-weight: bold;
+        font-size: 16px;
+        margin-top: 10px;
+      }
+
+      .footer {
+        text-align: center;
+        color: white;
+        padding: 30px;
+        margin-top: 20px;
+      }
+
+      .footer .contact {
+        font-size: 16px;
+        margin-bottom: 10px;
+      }
+
+      .footer .website {
+        font-size: 20px;
+        font-weight: bold;
+        color: #fef9f5;
+      }
+
+      .footer .cta {
+        background: white;
+        color: #8b5a3c;
+        padding: 15px 30px;
+        border-radius: 25px;
+        display: inline-block;
+        margin-top: 20px;
+        font-weight: bold;
+        font-size: 18px;
+      }
+
+      @media print {
+        body {
+          background: white;
+          padding: 0;
+        }
+        .controls {
+          display: none;
+        }
+        .volantino {
+          margin: 0;
+          box-shadow: none;
+          page-break-after: always;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <h2>Generatore Volantini Natale 2024</h2>
+      <p>
+        Clicca per stampare o salva come PDF. Ogni prodotto sarà su una pagina
+        separata in formato 9:16.
+      </p>
+      <button onclick="window.print()">🖨️ Stampa/Salva PDF</button>
+      <button onclick="location.reload()">🔄 Ricarica</button>
+    </div>
+
+    <div id="volantini-container">
+      <!-- I volantini verranno generati qui dal JavaScript -->
+    </div>
+
+    <script type="module">
+      // Importa Firebase
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import {
+        getFirestore,
+        collection,
+        getDocs,
+        query,
+        where,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+      // Configurazione Firebase (usa le tue credenziali)
+      const firebaseConfig = {
+        apiKey: "AIzaSyBIe2M1CgjvPXLfFPnNa7GdU0h2rEpQk30",
+        authDomain: "memorie-sospese-2024.firebaseapp.com",
+        projectId: "memorie-sospese-2024",
+        storageBucket: "memorie-sospese-2024.firebasestorage.app",
+        messagingSenderId: "637866509691",
+        appId: "1:637866509691:web:f36ada8ecf18555e70cde8",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      // Funzione per creare un volantino
+      function createVolantino(product) {
+        const hasDiscount = product.sconto && product.sconto > 0;
+        const prezzoOriginale = product.prezzo;
+        const prezzoFinale = hasDiscount
+          ? product.prezzoFinale
+          : product.prezzo;
+
+        return `
         <div class="volantino">
           <div class="header">
             <h1>🎄 Offerta Natale 2024 🎄</h1>
@@ -296,19 +306,27 @@
               ${product.nome}
             </div>
 
-            ${product.descrizione ? `
+            ${
+              product.descrizione
+                ? `
               <div class="product-description">
                 ${product.descrizione}
               </div>
-            ` : ''}
+            `
+                : ""
+            }
 
             <div class="product-details">
-              ${product.numeroFoto ? `
+              ${
+                product.numeroFoto
+                  ? `
                 <div class="detail-item">
                   <span class="detail-label">📸 Numero Foto</span>
                   <span class="detail-value">${product.numeroFoto} foto</span>
                 </div>
-              ` : ''}
+              `
+                  : ""
+              }
               
               <div class="detail-item">
                 <span class="detail-label">📦 Categoria</span>
@@ -319,15 +337,23 @@
             <div class="price-box">
               <div class="price-label">Prezzo Speciale Natale</div>
               
-              ${hasDiscount ? `
+              ${
+                hasDiscount
+                  ? `
                 <div class="old-price">€${prezzoOriginale.toFixed(2)}</div>
-              ` : ''}
+              `
+                  : ""
+              }
               
               <div class="price">€${prezzoFinale.toFixed(2)}</div>
               
-              ${hasDiscount ? `
+              ${
+                hasDiscount
+                  ? `
                 <div class="discount-badge">-${product.sconto}% di sconto!</div>
-              ` : ''}
+              `
+                  : ""
+              }
             </div>
           </div>
 
@@ -338,53 +364,56 @@
           </div>
         </div>
       `;
-    }
+      }
 
-    function getCategoriaLabel(categoria) {
-      const labels = {
-        'album': 'Album Fotografico',
-        'stampe': 'Stampe',
-        'digitale': 'File Digitali',
-        'video': 'Video',
-        'pacchetto': 'Pacchetto Completo'
-      };
-      return labels[categoria] || categoria;
-    }
+      function getCategoriaLabel(categoria) {
+        const labels = {
+          album: "Album Fotografico",
+          stampe: "Stampe",
+          digitale: "File Digitali",
+          video: "Video",
+          pacchetto: "Pacchetto Completo",
+        };
+        return labels[categoria] || categoria;
+      }
 
-    // Carica i prodotti da Firebase
-    async function loadProducts() {
-      const container = document.getElementById('volantini-container');
-      
-      try {
-        const q = query(collection(db, 'products'), where('attivo', '==', true));
-        const snapshot = await getDocs(q);
-        
-        if (snapshot.empty) {
-          container.innerHTML = '<div class="controls"><h3 style="color: #c94b4b;">⚠️ Nessun prodotto attivo trovato</h3></div>';
-          return;
-        }
+      // Carica i prodotti da Firebase
+      async function loadProducts() {
+        const container = document.getElementById("volantini-container");
 
-        let html = '';
-        snapshot.forEach(doc => {
-          const product = { id: doc.id, ...doc.data() };
-          html += createVolantino(product);
-        });
+        try {
+          const q = query(
+            collection(db, "products"),
+            where("attivo", "==", true),
+          );
+          const snapshot = await getDocs(q);
 
-        container.innerHTML = html;
-        
-      } catch (error) {
-        console.error('Errore caricamento prodotti:', error);
-        container.innerHTML = `
+          if (snapshot.empty) {
+            container.innerHTML =
+              '<div class="controls"><h3 style="color: #c94b4b;">⚠️ Nessun prodotto attivo trovato</h3></div>';
+            return;
+          }
+
+          let html = "";
+          snapshot.forEach((doc) => {
+            const product = { id: doc.id, ...doc.data() };
+            html += createVolantino(product);
+          });
+
+          container.innerHTML = html;
+        } catch (error) {
+          console.error("Errore caricamento prodotti:", error);
+          container.innerHTML = `
           <div class="controls">
             <h3 style="color: #c94b4b;">❌ Errore caricamento prodotti</h3>
             <p>${error.message}</p>
           </div>
         `;
+        }
       }
-    }
 
-    // Carica i prodotti all'avvio
-    loadProducts();
-  </script>
-</body>
+      // Carica i prodotti all'avvio
+      loadProducts();
+    </script>
+  </body>
 </html>
