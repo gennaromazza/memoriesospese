@@ -4,11 +4,143 @@
  */
 
 import express from 'express';
-import { getEvents, createEvent, createEuropeRomeDate } from './google-calendar.js';
+import { getEvents, createEvent, createEuropeRomeDate, getEventById } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { sendGmailEmail, getStudioContactInfo } from './email-routes.js';
 
 const router = express.Router();
+
+/**
+ * HELPER: Ensure job has valid Calendar event
+ * Verifica se evento esiste su Calendar, ricrea se stale/missing
+ * @returns { success, eventId, action: 'created' | 'verified' | 'recreated' }
+ */
+export async function ensureJobCalendarEvent(jobId: string): Promise<{
+  success: boolean;
+  eventId?: string;
+  action?: 'created' | 'verified' | 'recreated';
+  error?: string;
+}> {
+  try {
+    // 1. Fetch job da Firestore
+    const jobDoc = await db.collection('jobs').doc(jobId).get();
+    if (!jobDoc.exists) {
+      return { success: false, error: 'Job non trovato' };
+    }
+    
+    let job = jobDoc.data();
+    
+    // 2. Validation: job deve avere eventDate
+    if (!job.eventDate) {
+      return { success: false, error: 'Job senza eventDate' };
+    }
+    
+    // 3. Se ha googleCalendarEventId, verifica se esiste ancora su Calendar
+    let hadStaleId = false;  // Flag per distinguere 'recreated' vs 'created'
+    
+    if (job.googleCalendarEventId) {
+      console.log(`ℹ️  Job ${jobId} ha Calendar ID ${job.googleCalendarEventId}, verifico esistenza...`);
+      
+      const existingEvent = await getEventById('primary', job.googleCalendarEventId);
+      
+      if (existingEvent) {
+        console.log(`✅ Calendar event ${job.googleCalendarEventId} esiste - verified`);
+        return {
+          success: true,
+          eventId: job.googleCalendarEventId,
+          action: 'verified'
+        };
+      }
+      
+      // Evento non esiste più (cancellato manualmente) - rimuovi stale ID
+      console.warn(`⚠️  Calendar event ${job.googleCalendarEventId} NON esiste più - stale ID, ricreo...`);
+      hadStaleId = true;  // Salva flag PRIMA di delete
+      
+      await db.collection('jobs').doc(jobId).update({
+        googleCalendarEventId: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+    }
+    
+    // 4. Crea nuovo evento Calendar
+    const eventDate = job.eventDate.toDate();
+    const year = eventDate.getFullYear();
+    const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+    const day = String(eventDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    const summary = `📸 ${job.nomeEvento} (${job.jobType})`;
+    const description = `Job ID: ${jobId}\nStatus: ${job.status}\nProvenienza: ${job.provenance}${job.eventLocation ? `\nLocation: ${job.eventLocation}` : ''}`;
+    
+    let createdEvent;
+    
+    if (job.allDay) {
+      // All-day event
+      createdEvent = await createEvent('primary', {
+        summary,
+        description,
+        isAllDay: true,
+        startDateStr: dateStr,
+        location: job.eventLocation,
+        attendees: []
+      });
+    } else {
+      // Time-bound event
+      if (!job.startTime || !job.endTime) {
+        return { 
+          success: false,
+          error: 'Job non all-day deve avere startTime e endTime' 
+        };
+      }
+      
+      const startDateTime = createEuropeRomeDate(dateStr, job.startTime);
+      const endDateTime = createEuropeRomeDate(dateStr, job.endTime);
+      
+      createdEvent = await createEvent('primary', {
+        summary,
+        description,
+        start: startDateTime,
+        end: endDateTime,
+        location: job.eventLocation,
+        attendees: []
+      });
+    }
+    
+    // 5. Update job con nuovo googleCalendarEventId
+    await db.collection('jobs').doc(jobId).update({
+      googleCalendarEventId: createdEvent.id,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    
+    // 6. Verifica che update sia stato salvato (critical: evita success senza ID persistito)
+    const updatedJobDoc = await db.collection('jobs').doc(jobId).get();
+    const updatedJob = updatedJobDoc.data();
+    
+    if (!updatedJob || updatedJob.googleCalendarEventId !== createdEvent.id) {
+      console.error(`❌ CRITICAL: Firestore update failed - googleCalendarEventId non salvato per Job ${jobId}`);
+      return {
+        success: false,
+        error: 'Firestore update failed - Calendar event creato ma ID non salvato'
+      };
+    }
+    
+    const action = hadStaleId ? 'recreated' : 'created';
+    console.log(`✅ Calendar event ${action} per Job ${jobId}: ${createdEvent.id}`);
+    
+    return {
+      success: true,
+      eventId: createdEvent.id,
+      action
+    };
+    
+  } catch (error: any) {
+    console.error(`❌ Errore ensureJobCalendarEvent per Job ${jobId}:`, error);
+    return {
+      success: false,
+      error: error.message || 'Unknown error'
+    };
+  }
+}
 
 /**
  * GET /api/consultation-templates?jobType=Matrimonio
@@ -169,96 +301,31 @@ router.get('/check-calendar', async (req, res) => {
  * POST /api/jobs/:id/calendar-event
  * Crea/aggiorna evento Google Calendar per Job (quando diventa confermato, etc.)
  * Blocca slot per prenotazioni/consultations
+ * Verifica esistenza evento esistente, ricrea se stale
  */
 router.post('/:id/calendar-event', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Fetch job da Firestore
-    const jobDoc = await db.collection('jobs').doc(id).get();
-    if (!jobDoc.exists) {
-      return res.status(404).json({ error: 'Job non trovato' });
-    }
+    const result = await ensureJobCalendarEvent(id);
     
-    const job = jobDoc.data();
-    
-    // Validation: job deve avere eventDate
-    if (!job.eventDate) {
-      return res.status(400).json({ error: 'Job senza eventDate' });
-    }
-    
-    // Se già ha googleCalendarEventId, skip (idempotente)
-    if (job.googleCalendarEventId) {
-      console.log(`ℹ️  Job ${id} ha già Calendar event: ${job.googleCalendarEventId}`);
-      return res.json({
-        success: true,
-        eventId: job.googleCalendarEventId,
-        alreadyExists: true
+    if (!result.success) {
+      return res.status(400).json({ 
+        error: result.error || 'Errore durante la gestione Calendar event' 
       });
     }
-    
-    // Prepara event data
-    const eventDate = job.eventDate.toDate();
-    const year = eventDate.getFullYear();
-    const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-    const day = String(eventDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-    
-    const summary = `📸 ${job.nomeEvento} (${job.jobType})`;
-    const description = `Job ID: ${id}\nStatus: ${job.status}\nProvenienza: ${job.provenance}${job.eventLocation ? `\nLocation: ${job.eventLocation}` : ''}`;
-    
-    let createdEvent;
-    
-    if (job.allDay) {
-      // All-day event: usa formato date-only YYYY-MM-DD
-      createdEvent = await createEvent('primary', {
-        summary,
-        description,
-        isAllDay: true,
-        startDateStr: dateStr,
-        location: job.eventLocation,
-        attendees: [] // TODO: aggiungere email clienti se disponibile
-      });
-    } else {
-      // Time-bound event con startTime/endTime (formato "HH:mm")
-      if (!job.startTime || !job.endTime) {
-        return res.status(400).json({ 
-          error: 'Job non all-day deve avere startTime e endTime' 
-        });
-      }
-      
-      // Usa createEuropeRomeDate per timezone-safe dates
-      const startDateTime = createEuropeRomeDate(dateStr, job.startTime);
-      const endDateTime = createEuropeRomeDate(dateStr, job.endTime);
-      
-      createdEvent = await createEvent('primary', {
-        summary,
-        description,
-        start: startDateTime,
-        end: endDateTime,
-        location: job.eventLocation,
-        attendees: [] // TODO: aggiungere email clienti se disponibile
-      });
-    }
-    
-    // Update job con googleCalendarEventId
-    await db.collection('jobs').doc(id).update({
-      googleCalendarEventId: createdEvent.id,
-      updatedAt: FieldValue.serverTimestamp()
-    });
-    
-    console.log(`✅ Calendar event creato per Job ${id}: ${createdEvent.id}`);
     
     res.json({
       success: true,
-      eventId: createdEvent.id,
-      eventLink: createdEvent.htmlLink
+      eventId: result.eventId,
+      action: result.action,
+      alreadyExists: result.action === 'verified'
     });
     
   } catch (error: any) {
-    console.error(`❌ Errore creazione Calendar event per Job:`, error);
+    console.error(`❌ Errore endpoint Calendar event per Job:`, error);
     res.status(500).json({
-      error: 'Errore durante la creazione dell\'evento Calendar',
+      error: 'Errore durante la gestione dell\'evento Calendar',
       details: error.message
     });
   }

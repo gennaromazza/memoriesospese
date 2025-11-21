@@ -6,6 +6,7 @@
 import express from 'express';
 import { db } from './firebase-admin.js';
 import { triggerManualRetry } from './workers/cancellation-retry.js';
+import { ensureJobCalendarEvent } from './job-routes.js';
 
 const router = express.Router();
 
@@ -135,53 +136,56 @@ router.post('/jobs/reconcile-calendar', async (req, res) => {
     
     const allJobs = jobsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     
-    // Filtra solo quelli SENZA googleCalendarEventId
-    const jobsWithoutCalendarId = allJobs.filter(job => !job.googleCalendarEventId);
+    console.log(`📊 Trovati ${allJobs.length} jobs con blocking status da verificare/riconciliare`);
     
-    console.log(`📊 Trovati ${allJobs.length} jobs con blocking status, ${jobsWithoutCalendarId.length} senza googleCalendarEventId`);
-    
-    if (jobsWithoutCalendarId.length === 0) {
+    if (allJobs.length === 0) {
       return res.json({
         success: true,
-        message: 'Nessun job da riconciliare',
+        message: 'Nessun job con blocking status da riconciliare',
         stats: {
-          total: allJobs.length,
-          needsReconciliation: 0,
-          success: 0,
+          total: 0,
+          verified: 0,
+          created: 0,
+          recreated: 0,
           failures: 0
         }
       });
     }
     
-    // Process reconciliation per ogni job
+    // Process reconciliation per TUTTI i jobs (non solo quelli senza ID)
+    // ensureJobCalendarEvent() gestisce:
+    // - Jobs con ID valido → verifica esistenza → 'verified'
+    // - Jobs con ID stale → rimuove + ricrea → 'recreated'
+    // - Jobs senza ID → crea nuovo → 'created'
     const results = {
-      success: [] as Array<{ jobId: string; eventId: string; alreadyExisted: boolean }>,
+      verified: [] as Array<{ jobId: string; eventId: string }>,
+      created: [] as Array<{ jobId: string; eventId: string }>,
+      recreated: [] as Array<{ jobId: string; eventId: string }>,
       failures: [] as Array<{ jobId: string; error: string }>
     };
     
-    for (const job of jobsWithoutCalendarId) {
+    for (const job of allJobs) {
       try {
-        // Chiama backend endpoint per creare/trovare Calendar event
-        const response = await fetch(`http://localhost:5000/api/jobs/${job.id}/calendar-event`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
+        // Chiama helper per creare/verificare Calendar event
+        // Helper gestisce verifica esistenza + ricrea se stale
+        const result = await ensureJobCalendarEvent(job.id);
         
-        if (!response.ok) {
-          const errorData = await response.json();
+        if (result.success && result.action) {
+          // Categorizza per action type (action è undefined quando success=false)
+          if (result.action === 'verified') {
+            results.verified.push({ jobId: job.id, eventId: result.eventId! });
+          } else if (result.action === 'created') {
+            results.created.push({ jobId: job.id, eventId: result.eventId! });
+          } else if (result.action === 'recreated') {
+            results.recreated.push({ jobId: job.id, eventId: result.eventId! });
+          }
+        } else {
+          // success=false o action mancante → failure
           results.failures.push({
             jobId: job.id,
-            error: errorData.error || `HTTP ${response.status}`
+            error: result.error || 'Unknown error'
           });
-          continue;
         }
-        
-        const result = await response.json();
-        results.success.push({
-          jobId: job.id,
-          eventId: result.eventId,
-          alreadyExisted: result.alreadyExists || false
-        });
         
       } catch (error: any) {
         results.failures.push({
@@ -191,20 +195,25 @@ router.post('/jobs/reconcile-calendar', async (req, res) => {
       }
     }
     
-    console.log(`✅ Reconciliation completata: ${results.success.length} success, ${results.failures.length} failures`);
+    const totalSuccess = results.verified.length + results.created.length + results.recreated.length;
+    
+    console.log(`✅ Reconciliation completata: ${totalSuccess} success (${results.verified.length} verified, ${results.created.length} created, ${results.recreated.length} recreated), ${results.failures.length} failures`);
     
     res.json({
       success: true,
       message: 'Reconciliation completata',
       stats: {
         total: allJobs.length,
-        needsReconciliation: jobsWithoutCalendarId.length,
-        success: results.success.length,
+        verified: results.verified.length,
+        created: results.created.length,
+        recreated: results.recreated.length,
         failures: results.failures.length
       },
       details: {
-        successJobs: results.success,
-        failedJobs: results.failures
+        verified: results.verified,
+        created: results.created,
+        recreated: results.recreated,
+        failed: results.failures
       }
     });
     

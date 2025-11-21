@@ -139,6 +139,33 @@ export async function getEvents(
 }
 
 /**
+ * Ottiene singolo evento per ID
+ * @returns Event object or null if not found
+ */
+export async function getEventById(
+  calendarId: string = 'primary',
+  eventId: string
+) {
+  try {
+    const calendar = await getGoogleCalendarClient();
+    
+    const response = await calendar.events.get({
+      calendarId,
+      eventId
+    });
+    
+    return response.data;
+  } catch (error: any) {
+    // Google Calendar returns 404 if event doesn't exist
+    if (error.code === 404 || error.message?.includes('not found')) {
+      return null;
+    }
+    // Re-throw other errors
+    throw error;
+  }
+}
+
+/**
  * Verifica disponibilità (freebusy) per calcolare slot liberi
  * DEPRECATO: Usa checkFreeBusyMultiple per controllo multi-calendario
  */
