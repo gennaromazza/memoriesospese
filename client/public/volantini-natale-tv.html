@@ -1,0 +1,485 @@
+
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Volantini Natale TV - Memorie Sospese</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Georgia", serif;
+        background: linear-gradient(135deg, #c41e3a 0%, #8b1a2e 100%);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* Formato 16:9 per TV orizzontale (es: 1920x1080px) */
+      .volantino {
+        width: 100vw;
+        height: 100vh;
+        background: linear-gradient(135deg, #c41e3a 0%, #8b1a2e 50%, #c41e3a 100%);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 40px 80px;
+      }
+
+      /* Pattern di sfondo natalizio */
+      .volantino::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: 
+          radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+          radial-gradient(circle at 90% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+          radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+        pointer-events: none;
+      }
+
+      /* Fiocchi di neve animati */
+      .snowflakes {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+
+      .snowflake {
+        position: absolute;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 30px;
+        animation: fall linear infinite;
+      }
+
+      @keyframes fall {
+        0% {
+          transform: translateY(-100px) rotate(0deg);
+          opacity: 0;
+        }
+        10% {
+          opacity: 1;
+        }
+        90% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(1200px) rotate(360deg);
+          opacity: 0;
+        }
+      }
+
+      .container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 60px;
+        align-items: center;
+        height: 100%;
+        position: relative;
+        z-index: 1;
+      }
+
+      .left-section {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+      }
+
+      .header {
+        background: white;
+        padding: 30px 40px;
+        text-align: center;
+        border-radius: 20px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        position: relative;
+      }
+
+      .header::before {
+        content: "🎅";
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 70px;
+        filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+      }
+
+      .header h1 {
+        color: #c41e3a;
+        font-size: 42px;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+        font-weight: bold;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .header p {
+        color: #c41e3a;
+        font-size: 24px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .product-image {
+        width: 100%;
+        height: 400px;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        background: white;
+      }
+
+      .product-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .right-section {
+        background: white;
+        padding: 50px;
+        border-radius: 20px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .product-name {
+        color: #c41e3a;
+        font-size: 48px;
+        font-weight: bold;
+        margin-bottom: 25px;
+        text-align: center;
+        line-height: 1.2;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      .product-description {
+        color: #555;
+        font-size: 22px;
+        line-height: 1.6;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      .product-details {
+        background: #fef9f5;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        border-left: 5px solid #c94b4b;
+      }
+
+      .product-details .detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 0;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .product-details .detail-item:last-child {
+        border-bottom: none;
+      }
+
+      .detail-label {
+        color: #666;
+        font-size: 22px;
+      }
+
+      .detail-value {
+        color: #8b5a3c;
+        font-size: 26px;
+        font-weight: bold;
+      }
+
+      .price-box {
+        background: linear-gradient(135deg, #c41e3a, #d4263b);
+        color: white;
+        padding: 35px;
+        border-radius: 20px;
+        text-align: center;
+        box-shadow: 0 6px 20px rgba(196, 30, 58, 0.5);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .price-box::before {
+        content: "⭐";
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        font-size: 40px;
+        opacity: 0.3;
+      }
+
+      .price-box::after {
+        content: "⭐";
+        position: absolute;
+        bottom: 15px;
+        right: 15px;
+        font-size: 40px;
+        opacity: 0.3;
+      }
+
+      .price-label {
+        font-size: 24px;
+        margin-bottom: 15px;
+        opacity: 0.9;
+      }
+
+      .price {
+        font-size: 64px;
+        font-weight: bold;
+        margin-bottom: 15px;
+      }
+
+      .old-price {
+        text-decoration: line-through;
+        opacity: 0.7;
+        font-size: 32px;
+        margin-bottom: 15px;
+      }
+
+      .discount-badge {
+        background: #fff;
+        color: #c94b4b;
+        padding: 10px 25px;
+        border-radius: 25px;
+        display: inline-block;
+        font-weight: bold;
+        font-size: 20px;
+        margin-top: 15px;
+      }
+
+      .footer {
+        position: absolute;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        color: white;
+        z-index: 2;
+      }
+
+      .footer .website {
+        font-size: 28px;
+        font-weight: bold;
+        color: #fef9f5;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Auto-rotate slideshow */
+      .volantino {
+        animation: fadeIn 1s ease-in-out;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="slideshow-container">
+      <!-- I volantini verranno generati qui dal JavaScript -->
+    </div>
+
+    <script type="module">
+      let allProducts = [];
+      let productCategories = [];
+      let currentIndex = 0;
+      const SLIDE_DURATION = 8000; // 8 secondi per slide
+
+      // Funzione per creare fiocchi di neve
+      function createSnowflakes() {
+        const positions = [
+          { left: '10%', animationDuration: '10s', animationDelay: '0s' },
+          { left: '20%', animationDuration: '12s', animationDelay: '2s' },
+          { left: '30%', animationDuration: '9s', animationDelay: '1s' },
+          { left: '40%', animationDuration: '11s', animationDelay: '3s' },
+          { left: '50%', animationDuration: '13s', animationDelay: '1.5s' },
+          { left: '60%', animationDuration: '10s', animationDelay: '2.5s' },
+          { left: '70%', animationDuration: '11.5s', animationDelay: '0.5s' },
+          { left: '80%', animationDuration: '9.5s', animationDelay: '3.5s' },
+          { left: '90%', animationDuration: '12.5s', animationDelay: '1s' },
+        ];
+
+        let snowflakesHtml = '<div class="snowflakes">';
+        positions.forEach(pos => {
+          snowflakesHtml += `<div class="snowflake" style="left: ${pos.left}; animation-duration: ${pos.animationDuration}; animation-delay: ${pos.animationDelay}">❄️</div>`;
+        });
+        snowflakesHtml += '</div>';
+        
+        return snowflakesHtml;
+      }
+
+      // Funzione per creare un volantino
+      function createVolantino(product) {
+        const hasDiscount = product.sconto && product.sconto > 0;
+        const prezzoOriginale = product.prezzo;
+        const prezzoFinale = hasDiscount ? product.prezzoFinale : product.prezzo;
+
+        return `
+        <div class="volantino">
+          ${createSnowflakes()}
+          
+          <div class="container">
+            <div class="left-section">
+              <div class="header">
+                <h1>Christmas Shooting</h1>
+                <p>By Image Studio</p>
+              </div>
+
+              ${product.immagini && product.immagini.length > 0 ? `
+                <div class="product-image">
+                  <img src="${product.immagini[0]}" alt="${product.nome}" />
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="right-section">
+              <div>
+                <div class="product-name">${product.nome}</div>
+
+                ${product.descrizione ? `
+                  <div class="product-description">${product.descrizione}</div>
+                ` : ''}
+
+                <div class="product-details">
+                  ${product.numeroFoto ? `
+                    <div class="detail-item">
+                      <span class="detail-label">📸 Numero Foto</span>
+                      <span class="detail-value">${product.numeroFoto} foto</span>
+                    </div>
+                  ` : ''}
+                  
+                  <div class="detail-item">
+                    <span class="detail-label">📦 Categoria</span>
+                    <span class="detail-value">${getCategoriaLabel(product.categoria)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="price-box">
+                <div class="price-label">Prezzo Speciale Natale</div>
+                
+                ${hasDiscount ? `
+                  <div class="old-price">€${prezzoOriginale.toFixed(2)}</div>
+                ` : ''}
+                
+                <div class="price">€${prezzoFinale.toFixed(2)}</div>
+                
+                ${hasDiscount ? `
+                  <div class="discount-badge">-${product.sconto}% di sconto!</div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <div class="website">memoriesospese.it | 🎄 Prenota il tuo Shooting Natalizio! 🎄</div>
+          </div>
+        </div>
+      `;
+      }
+
+      function getCategoriaLabel(categoriaValue) {
+        const cat = productCategories.find(c => c.value === categoriaValue);
+        return cat ? cat.nome : categoriaValue;
+      }
+
+      // Carica categorie per label prodotti
+      async function loadProductCategories() {
+        try {
+          const response = await fetch('/api/product-categories');
+          if (response.ok) {
+            productCategories = await response.json();
+          }
+        } catch (error) {
+          console.warn('Errore caricamento categorie:', error);
+        }
+      }
+
+      // Mostra slide corrente
+      function showSlide(index) {
+        const container = document.getElementById("slideshow-container");
+        if (allProducts.length === 0) return;
+
+        const product = allProducts[index];
+        container.innerHTML = createVolantino(product);
+      }
+
+      // Auto-rotate slideshow
+      function startSlideshow() {
+        setInterval(() => {
+          currentIndex = (currentIndex + 1) % allProducts.length;
+          showSlide(currentIndex);
+        }, SLIDE_DURATION);
+      }
+
+      // Carica i prodotti dal server - SOLO CATEGORIA NATALE
+      async function loadProducts() {
+        const container = document.getElementById("slideshow-container");
+
+        try {
+          const response = await fetch('/api/products');
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          const allProductsFromServer = await response.json();
+          
+          // FILTRA SOLO PRODOTTI NATALE
+          allProducts = allProductsFromServer.filter(p => p.categoria === 'natale');
+
+          if (!allProducts || allProducts.length === 0) {
+            container.innerHTML = '<div style="color: white; text-align: center; padding: 50px; font-size: 32px;">⚠️ Nessun prodotto Natale trovato</div>';
+            return;
+          }
+
+          // Mostra prima slide
+          showSlide(0);
+
+          // Avvia slideshow automatico
+          if (allProducts.length > 1) {
+            startSlideshow();
+          }
+        } catch (error) {
+          console.error("Errore caricamento prodotti:", error);
+          container.innerHTML = `<div style="color: white; text-align: center; padding: 50px; font-size: 32px;">❌ Errore caricamento prodotti</div>`;
+        }
+      }
+
+      // Carica categorie e prodotti all'avvio
+      async function init() {
+        await loadProductCategories();
+        await loadProducts();
+      }
+      
+      init();
+    </script>
+  </body>
+</html>
