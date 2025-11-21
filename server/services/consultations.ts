@@ -17,7 +17,7 @@ import type {
   ConsultationWorkingHours
 } from '../../shared/consultation-types.js';
 import { DEFAULT_CONSULTATION_HOURS } from '../../shared/consultation-types.js';
-import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAllCalendars, createEuropeRomeDate, type WorkingHours } from '../google-calendar.js';
+import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAllCalendars, createEuropeRomeDate, deleteEvent, type WorkingHours } from '../google-calendar.js';
 import type { Booking } from '../../shared/booking-types.js';
 import { format } from 'date-fns'; // Importa la funzione format
 import { it } from 'date-fns/locale'; // Importa la localizzazione italiana
@@ -750,6 +750,19 @@ export async function deleteConsultation(id: string): Promise<void> {
 
   const data = doc.data();
 
+  // 🔥 FIX: Cancella evento Google Calendar se esiste
+  if (data?.googleCalendarEventId) {
+    try {
+      console.log(`[deleteConsultation] Cancellando evento Google Calendar ${data.googleCalendarEventId} per consultation ${id}...`);
+      await deleteEvent('primary', data.googleCalendarEventId);
+      console.log(`[deleteConsultation] ✅ Evento Calendar cancellato con successo`);
+    } catch (error: any) {
+      // Log errore ma non bloccare cancellazione
+      console.error(`[deleteConsultation] ⚠️  Errore cancellazione Calendar event ${data.googleCalendarEventId}:`, error.message);
+      // Continua comunque con cancellazione Firestore
+    }
+  }
+
   // Rimuovi reference da cliente
   if (data?.clienteId) {
     await db.collection('clienti').doc(data.clienteId).update({
@@ -758,6 +771,7 @@ export async function deleteConsultation(id: string): Promise<void> {
   }
 
   await db.collection('consultations').doc(id).delete();
+  console.log(`[deleteConsultation] ✅ Consultation ${id} eliminata da Firestore`);
 }
 
 /**
@@ -890,24 +904,37 @@ export async function isSlotAvailable(
       continue;
     }
     
-    const bookingStart = data.dataShootingInizio.toDate();
-    const bookingEnd = data.dataShootingFine.toDate();
+    // 🔥 FIX TIMEZONE: Converti tutto in millisecondi per confronto consistente
+    // I booking Firestore sono già in UTC corretto (16:30 UTC+1 = 15:30 UTC)
+    const bookingStartUTC = data.dataShootingInizio.toDate();
+    const bookingEndUTC = data.dataShootingFine.toDate();
 
-    // Check overlap
-    const overlaps = slotStart < bookingEnd && slotEnd > bookingStart;
+    // Converti in millisecondi per confronto matematico pulito
+    const slotStartMs = slotStart.getTime();
+    const slotEndMs = slotEnd.getTime();
+    const bookingStartMs = bookingStartUTC.getTime();
+    const bookingEndMs = bookingEndUTC.getTime();
+
+    // Check overlap usando millisecondi (confronto uniforme)
+    const overlaps = slotStartMs < bookingEndMs && slotEndMs > bookingStartMs;
 
     if (overlaps) {
-      // 🔍 ENHANCED LOGGING: Mostra esattamente quale risorsa blocca lo slot
+      // 🔥 FIX DISPLAY: Formatta in Europe/Rome per mostrare orario corretto
+      // Il booking è salvato come 16:30 UTC+1, non 15:30 UTC
+      const bookingStartLocal = new Date(bookingStartUTC.toLocaleString('en-US', { timeZone: 'Europe/Rome' }));
+      const bookingEndLocal = new Date(bookingEndUTC.toLocaleString('en-US', { timeZone: 'Europe/Rome' }));
+      
       console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
       console.error(`   📋 Tipo: Booking`);
       console.error(`   🆔 ID: ${doc.id}`);
       console.error(`   🎬 Campagna: ${data.campagnaNome || 'N/A'}`);
       console.error(`   👤 Cliente: ${data.clienteNome || 'N/A'}`);
       console.error(`   📧 Email: ${data.clienteEmail || 'N/A'}`);
-      console.error(`   🕐 Orario inizio: ${format(bookingStart, 'HH:mm', { locale: it })}`);
-      console.error(`   🕐 Orario fine: ${format(bookingEnd, 'HH:mm', { locale: it })}`);
+      console.error(`   🕐 Orario inizio: ${format(bookingStartLocal, 'HH:mm', { locale: it })} (Europe/Rome)`);
+      console.error(`   🕐 Orario fine: ${format(bookingEndLocal, 'HH:mm', { locale: it })} (Europe/Rome)`);
       console.error(`   📊 Stato: ${data.stato}`);
       console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
+      console.error(`   ⚠️  Timestamp UTC: ${bookingStartUTC.toISOString()} - ${bookingEndUTC.toISOString()}`);
       return false; // Conflict con booking esistente
     }
   }
