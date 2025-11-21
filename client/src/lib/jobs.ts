@@ -257,6 +257,7 @@ export async function updateJob(
 /**
  * Update job status
  * Se newStatus = 'consegnato', salva automaticamente previousStatus per ripristino toggle
+ * Se newStatus richiede blocco slot (confermato, shooting_fatto, etc.), crea Calendar event
  */
 export async function updateJobStatus(
   jobId: string,
@@ -285,6 +286,45 @@ export async function updateJobStatus(
     });
     
     console.log('✅ Status aggiornato:', jobId, newStatus);
+    
+    // Stati che richiedono blocco slot su Google Calendar
+    const BLOCKING_STATUSES: JobStatus[] = [
+      'confermato',
+      'shooting_fatto',
+      'selezione_pending',
+      'produzione'
+    ];
+    
+    // Se nuovo status richiede blocco, chiama SEMPRE backend (gestisce idempotenza)
+    // IMPORTANTE: non skippiamo se googleCalendarEventId esiste, perché:
+    // 1. Legacy jobs potrebbero non avere l'ID anche se evento esiste
+    // 2. Se evento cancellato ma ID presente, backend lo ricrea
+    if (BLOCKING_STATUSES.includes(newStatus)) {
+      try {
+        console.log(`📅 Status ${newStatus} richiede Calendar event - chiamo backend (idempotente)...`);
+        const response = await fetch(`/api/jobs/${jobId}/calendar-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('❌ Errore creazione Calendar event:', error);
+          // Non bloccare update status se Calendar fallisce - log warning only
+        } else {
+          const result = await response.json();
+          if (result.alreadyExists) {
+            console.log('ℹ️  Calendar event già esistente:', result.eventId);
+          } else {
+            console.log('✅ Calendar event creato:', result.eventId);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Errore chiamata API Calendar event:', error);
+        // Non bloccare update status se Calendar fallisce
+      }
+    }
+    
   } catch (error) {
     console.error('❌ Errore update status:', error);
     throw error;

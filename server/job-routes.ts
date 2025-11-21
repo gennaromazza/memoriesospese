@@ -4,7 +4,7 @@
  */
 
 import express from 'express';
-import { getEvents } from './google-calendar.js';
+import { getEvents, createEvent, createEuropeRomeDate } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { sendGmailEmail, getStudioContactInfo } from './email-routes.js';
 
@@ -161,6 +161,105 @@ router.get('/check-calendar', async (req, res) => {
     return res.status(500).json({ 
       error: 'Errore durante il controllo calendario',
       details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/jobs/:id/calendar-event
+ * Crea/aggiorna evento Google Calendar per Job (quando diventa confermato, etc.)
+ * Blocca slot per prenotazioni/consultations
+ */
+router.post('/:id/calendar-event', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Fetch job da Firestore
+    const jobDoc = await db.collection('jobs').doc(id).get();
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Job non trovato' });
+    }
+    
+    const job = jobDoc.data();
+    
+    // Validation: job deve avere eventDate
+    if (!job.eventDate) {
+      return res.status(400).json({ error: 'Job senza eventDate' });
+    }
+    
+    // Se già ha googleCalendarEventId, skip (idempotente)
+    if (job.googleCalendarEventId) {
+      console.log(`ℹ️  Job ${id} ha già Calendar event: ${job.googleCalendarEventId}`);
+      return res.json({
+        success: true,
+        eventId: job.googleCalendarEventId,
+        alreadyExists: true
+      });
+    }
+    
+    // Prepara event data
+    const eventDate = job.eventDate.toDate();
+    const year = eventDate.getFullYear();
+    const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+    const day = String(eventDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    const summary = `📸 ${job.nomeEvento} (${job.jobType})`;
+    const description = `Job ID: ${id}\nStatus: ${job.status}\nProvenienza: ${job.provenance}${job.eventLocation ? `\nLocation: ${job.eventLocation}` : ''}`;
+    
+    let createdEvent;
+    
+    if (job.allDay) {
+      // All-day event: usa formato date-only YYYY-MM-DD
+      createdEvent = await createEvent('primary', {
+        summary,
+        description,
+        isAllDay: true,
+        startDateStr: dateStr,
+        location: job.eventLocation,
+        attendees: [] // TODO: aggiungere email clienti se disponibile
+      });
+    } else {
+      // Time-bound event con startTime/endTime (formato "HH:mm")
+      if (!job.startTime || !job.endTime) {
+        return res.status(400).json({ 
+          error: 'Job non all-day deve avere startTime e endTime' 
+        });
+      }
+      
+      // Usa createEuropeRomeDate per timezone-safe dates
+      const startDateTime = createEuropeRomeDate(dateStr, job.startTime);
+      const endDateTime = createEuropeRomeDate(dateStr, job.endTime);
+      
+      createdEvent = await createEvent('primary', {
+        summary,
+        description,
+        start: startDateTime,
+        end: endDateTime,
+        location: job.eventLocation,
+        attendees: [] // TODO: aggiungere email clienti se disponibile
+      });
+    }
+    
+    // Update job con googleCalendarEventId
+    await db.collection('jobs').doc(id).update({
+      googleCalendarEventId: createdEvent.id,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    
+    console.log(`✅ Calendar event creato per Job ${id}: ${createdEvent.id}`);
+    
+    res.json({
+      success: true,
+      eventId: createdEvent.id,
+      eventLink: createdEvent.htmlLink
+    });
+    
+  } catch (error: any) {
+    console.error(`❌ Errore creazione Calendar event per Job:`, error);
+    res.status(500).json({
+      error: 'Errore durante la creazione dell\'evento Calendar',
+      details: error.message
     });
   }
 });

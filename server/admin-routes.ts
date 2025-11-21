@@ -116,4 +116,105 @@ router.get('/worker-health', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/jobs/reconcile-calendar
+ * Backfill googleCalendarEventId per legacy jobs con blocking status
+ * Utile dopo migrazioni o per riparazione automatica
+ */
+router.post('/jobs/reconcile-calendar', async (req, res) => {
+  try {
+    console.log('🔄 Avvio reconciliation Calendar events per legacy jobs...');
+    
+    // Stati bloccanti che richiedono Calendar event
+    const BLOCKING_STATUSES = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
+    
+    // Cerca tutti jobs con blocking status
+    const jobsSnapshot = await db.collection('jobs')
+      .where('status', 'in', BLOCKING_STATUSES)
+      .get();
+    
+    const allJobs = jobsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Filtra solo quelli SENZA googleCalendarEventId
+    const jobsWithoutCalendarId = allJobs.filter(job => !job.googleCalendarEventId);
+    
+    console.log(`📊 Trovati ${allJobs.length} jobs con blocking status, ${jobsWithoutCalendarId.length} senza googleCalendarEventId`);
+    
+    if (jobsWithoutCalendarId.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Nessun job da riconciliare',
+        stats: {
+          total: allJobs.length,
+          needsReconciliation: 0,
+          success: 0,
+          failures: 0
+        }
+      });
+    }
+    
+    // Process reconciliation per ogni job
+    const results = {
+      success: [] as Array<{ jobId: string; eventId: string; alreadyExisted: boolean }>,
+      failures: [] as Array<{ jobId: string; error: string }>
+    };
+    
+    for (const job of jobsWithoutCalendarId) {
+      try {
+        // Chiama backend endpoint per creare/trovare Calendar event
+        const response = await fetch(`http://localhost:5000/api/jobs/${job.id}/calendar-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          results.failures.push({
+            jobId: job.id,
+            error: errorData.error || `HTTP ${response.status}`
+          });
+          continue;
+        }
+        
+        const result = await response.json();
+        results.success.push({
+          jobId: job.id,
+          eventId: result.eventId,
+          alreadyExisted: result.alreadyExists || false
+        });
+        
+      } catch (error: any) {
+        results.failures.push({
+          jobId: job.id,
+          error: error.message || 'Unknown error'
+        });
+      }
+    }
+    
+    console.log(`✅ Reconciliation completata: ${results.success.length} success, ${results.failures.length} failures`);
+    
+    res.json({
+      success: true,
+      message: 'Reconciliation completata',
+      stats: {
+        total: allJobs.length,
+        needsReconciliation: jobsWithoutCalendarId.length,
+        success: results.success.length,
+        failures: results.failures.length
+      },
+      details: {
+        successJobs: results.success,
+        failedJobs: results.failures
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Errore durante reconciliation Calendar events:', error);
+    res.status(500).json({
+      error: 'Errore durante reconciliation',
+      details: error.message
+    });
+  }
+});
+
 export default router;
