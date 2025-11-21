@@ -5,7 +5,7 @@
 
 import express from 'express';
 import { db } from './firebase-admin.js';
-import { verifyFirebaseToken } from './firebase-admin.js';
+import { getAuth } from 'firebase-admin/auth';
 
 const router = express.Router();
 
@@ -26,7 +26,12 @@ router.post('/legacy-photos', async (req, res) => {
     }
 
     const token = authHeader.split('Bearer ')[1];
-    const decodedToken = await verifyFirebaseToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
+    
+    // Verifica email verificata (sicurezza extra)
+    if (!decodedToken.email_verified) {
+      return res.status(403).json({ error: 'Email non verificata' });
+    }
     
     if (!ADMIN_EMAILS.includes(decodedToken.email || '')) {
       return res.status(403).json({ error: 'Non autorizzato - solo admin' });
@@ -149,7 +154,12 @@ router.get('/legacy-photos/preview', async (req, res) => {
     }
 
     const token = authHeader.split('Bearer ')[1];
-    const decodedToken = await verifyFirebaseToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
+    
+    // Verifica email verificata (sicurezza extra)
+    if (!decodedToken.email_verified) {
+      return res.status(403).json({ error: 'Email non verificata' });
+    }
     
     if (!ADMIN_EMAILS.includes(decodedToken.email || '')) {
       return res.status(403).json({ error: 'Non autorizzato - solo admin' });
