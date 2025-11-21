@@ -18,7 +18,9 @@ import receiptRoutes from './receipt-routes.js';
 import collaboratoriRoutes from './collaboratori-routes.js';
 import productsRoutes from './products-routes.js';
 import migrationRoutes from './migration-routes.js';
+import adminRoutes from './admin-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
+import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 
 
 async function startServer() {
@@ -111,6 +113,10 @@ async function startServer() {
     app.use('/api/migrations', migrationRoutes);
     console.log('🔄 Migration API routes mounted at /api/migrations');
 
+    // Admin routes
+    app.use('/api/admin', adminRoutes);
+    console.log('🔐 Admin API routes mounted at /api/admin');
+
     // Sitemap dinamica
     app.get('/sitemap.xml', async (req, res) => {
       try {
@@ -139,13 +145,31 @@ async function startServer() {
     app.use(vite.middlewares);
     console.log('⚡ Vite middleware attached');
 
+    // Capture worker cleanup for graceful shutdown
+    let workerCleanup: (() => void) | null = null;
+
     // Start server
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Ready in ${Date.now() - start}ms`);
       console.log(`🌐 Server: http://0.0.0.0:${PORT}`);
       console.log(`📧 Email API: http://0.0.0.0:${PORT}/api/email/notify-new-photos`);
       console.log('✅ Development server ready!');
+      
+      // Start automated retry worker per cancellation_pending bookings
+      workerCleanup = startCancellationRetryWorker();
     });
+
+    // Graceful shutdown: cleanup worker on SIGTERM/SIGINT
+    const shutdown = (signal: string) => {
+      console.log(`\n🛑 ${signal} received, shutting down gracefully...`);
+      if (workerCleanup) {
+        workerCleanup();
+      }
+      process.exit(0);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
 
   } catch (error) {
     console.error('❌ Startup error:', error instanceof Error ? error.message : String(error));

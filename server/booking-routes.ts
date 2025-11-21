@@ -1592,7 +1592,17 @@ router.patch('/:id/update', async (req, res) => {
 /**
  * DELETE /api/booking/:bookingId/calendar-event
  * Cancella l'evento Google Calendar associato a una prenotazione
- * FIX BOOKING FANTASMA: Aggiorna anche stato Firestore a 'cancellata'
+ * 
+ * STATE-MACHINE CANCELLATION:
+ * 1. Marca booking come 'cancellation_pending' (mantieni googleCalendarEventId)
+ * 2. Tenta Calendar delete
+ * 3. Se success → 'cancellata' + rimuovi googleCalendarEventId
+ * 4. Se fail → rimane 'cancellation_pending' + googleCalendarEventId per retry
+ * 
+ * Questo garantisce:
+ * - MAI stato='confermata' senza Calendar event
+ * - Retry automatico possibile (googleCalendarEventId mantenuto)
+ * - Eventual consistency con automated/manual retry
  */
 router.delete('/:bookingId/calendar-event', async (req, res) => {
   try {
@@ -1605,37 +1615,124 @@ router.delete('/:bookingId/calendar-event', async (req, res) => {
       });
     }
 
-    // Step 1: Cancella evento da Google Calendar
-    const { deleteEvent } = await import('./google-calendar.js');
-    await deleteEvent('primary', googleCalendarEventId);
-    console.log(`✅ Evento Google Calendar cancellato: ${googleCalendarEventId}`);
-
-    // Step 2: IMPORTANTE - Aggiorna stato booking in Firestore per evitare booking fantasma
     const bookingRef = db.collection('bookings').doc(bookingId);
     const bookingDoc = await bookingRef.get();
     
-    if (bookingDoc.exists) {
-      await bookingRef.update({
-        stato: 'cancellata',
-        cancelledAt: FieldValue.serverTimestamp(),
-        cancelledReason: 'Evento cancellato da Google Calendar',
-        updatedAt: FieldValue.serverTimestamp()
+    if (!bookingDoc.exists) {
+      return res.status(404).json({
+        error: 'Booking non trovato in Firestore'
       });
-      console.log(`✅ Booking ${bookingId} aggiornato a stato 'cancellata' in Firestore`);
-    } else {
-      console.warn(`⚠️ Booking ${bookingId} non trovato in Firestore`);
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Evento Google Calendar cancellato e booking aggiornato in Firestore'
-    });
+    const bookingData = bookingDoc.data();
+    const currentState = bookingData?.stato;
+    const currentWorkflowState = bookingData?.statoWorkflow;
+
+    // Step 1: Marca come 'cancellation_pending' (se non già cancellata/pending)
+    if (currentState !== 'cancellata' && currentState !== 'cancellation_pending') {
+      await bookingRef.update({
+        stato: 'cancellation_pending',
+        cancellationMetadata: {
+          initiatedAt: FieldValue.serverTimestamp(),
+          reason: 'Evento cancellato da Google Calendar',
+          googleCalendarEventId: googleCalendarEventId,
+          // Retry tracking per automated worker
+          retryAttempts: 0,
+          lastAttemptAt: Timestamp.now(),
+          nextRetryAt: Timestamp.now(), // Immediate first retry - concrete Timestamp for worker query
+          lastErrorCode: null,
+          lastErrorMessage: null
+          // NON salvare originalStato/originalStatoWorkflow: mai usati, evita stale data
+          // Refetch latest workflow state in Step 3 invece
+        },
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      console.log(`✅ Step 1: Booking ${bookingId} → stato='cancellation_pending'`);
+    } else {
+      console.log(`ℹ️  Booking ${bookingId} già in stato='${currentState}' - skip pending`);
+    }
+
+    // Step 2: Tenta Calendar delete
+    const { deleteEvent } = await import('./google-calendar.js');
+    let calendarDeleted = false;
+    
+    try {
+      await deleteEvent('primary', googleCalendarEventId);
+      calendarDeleted = true;
+      console.log(`✅ Step 2: Evento Google Calendar cancellato: ${googleCalendarEventId}`);
+    } catch (error: any) {
+      // Se 404, evento già cancellato
+      if (error.code === 404 || error.message?.includes('Not Found')) {
+        calendarDeleted = true;
+        console.log(`ℹ️  Evento già cancellato (404) - procedo con finalizzazione`);
+      } else {
+        // Calendar API failure - update retry metadata e mantieni 'cancellation_pending'
+        console.error(`❌ Calendar delete fallito - booking rimane 'cancellation_pending': ${error.message}`);
+        
+        const currentMetadata = bookingData?.cancellationMetadata || {};
+        const retryAttempts = (currentMetadata.retryAttempts || 0) + 1;
+        const backoffMinutes = Math.min(Math.pow(2, retryAttempts), 60); // Exponential backoff, max 60min
+        const nextRetryAt = new Date(Date.now() + backoffMinutes * 60 * 1000);
+        
+        await bookingRef.update({
+          'cancellationMetadata.retryAttempts': retryAttempts,
+          'cancellationMetadata.lastAttemptAt': FieldValue.serverTimestamp(),
+          'cancellationMetadata.nextRetryAt': Timestamp.fromDate(nextRetryAt),
+          'cancellationMetadata.lastErrorCode': error.code || 'UNKNOWN',
+          'cancellationMetadata.lastErrorMessage': error.message,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        
+        console.log(`ℹ️  Retry metadata updated: attempts=${retryAttempts}, nextRetry in ${backoffMinutes}min`);
+        
+        return res.status(500).json({
+          error: 'Calendar delete fallito - booking in cancellation_pending',
+          details: error.message,
+          retryable: true,
+          bookingState: 'cancellation_pending',
+          retryAttempts,
+          nextRetryAt: nextRetryAt.toISOString()
+        });
+      }
+    }
+
+    // Step 3: Finalizza cancellazione (SOLO se Calendar delete success)
+    if (calendarDeleted) {
+      // IMPORTANTE: Re-fetch Firestore per ottenere workflow state AGGIORNATO
+      // (potrebbe essere cambiato da retry precedenti o altri update concorrenti)
+      const latestBookingDoc = await bookingRef.get();
+      if (!latestBookingDoc.exists) {
+        throw new Error('Booking non trovato durante finalizzazione');
+      }
+      
+      const latestData = latestBookingDoc.data();
+      const latestWorkflowState = latestData?.statoWorkflow;
+      const workflowUpdate = syncBookingWorkflowState('cancellata', latestWorkflowState);
+      
+      await bookingRef.update({
+        stato: 'cancellata',
+        ...workflowUpdate,
+        googleCalendarEventId: FieldValue.delete(),
+        cancelledAt: FieldValue.serverTimestamp(),
+        cancelledReason: 'Evento cancellato da Google Calendar',
+        cancellationMetadata: FieldValue.delete(), // Cleanup metadata
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      console.log(`✅ Step 3: Booking ${bookingId} → stato='cancellata' (workflow da ${latestWorkflowState}), googleCalendarEventId rimosso`);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Booking cancellato completamente',
+        finalState: 'cancellata'
+      });
+    }
 
   } catch (error: any) {
-    console.error('❌ Errore cancellazione evento Google Calendar:', error);
+    console.error('❌ Errore critico cancellazione booking:', error);
     res.status(500).json({
-      error: 'Errore durante la cancellazione dell\'evento dal calendario',
-      details: error.message
+      error: 'Errore critico durante la cancellazione del booking',
+      details: error.message,
+      retryable: false
     });
   }
 });
