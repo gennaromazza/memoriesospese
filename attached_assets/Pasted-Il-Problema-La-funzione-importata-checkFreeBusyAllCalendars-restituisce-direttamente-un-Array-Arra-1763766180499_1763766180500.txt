@@ -1,0 +1,55 @@
+Il Problema: La funzione importata checkFreeBusyAllCalendars restituisce direttamente un Array (Array<{start, end, ...}>), ma nel codice delle rotte la stiamo trattando come un oggetto che contiene una proprietà .busyPeriods. Di conseguenza, busyPeriodsResult.busyPeriods è undefined, il fallback || [] scatta sempre, e il sistema pensa che il calendario sia sempre vuoto.
+
+Azione Richiesta: Modifica server/routes/consultation-routes.ts correggendo tutte le occorrenze (sono 4) dove viene chiamata checkFreeBusyAllCalendars. Rimuovi il riferimento inesistente a .busyPeriods.
+
+Ecco i Diff specifici da applicare:
+
+1. Fix in POST /available-slots
+
+TypeScript
+
+// Cerca questo blocco errato:
+const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+const googleBusyPeriods = busyPeriodsResult.busyPeriods || [];
+
+// Sostituiscilo con:
+const googleBusyPeriods = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+// (Rimuovi busyPeriodsResult intermedio se non serve o assegna diretto)
+2. Fix in POST /create
+
+TypeScript
+
+// Cerca questo blocco errato:
+const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+const googleCalendarBusyPeriods = busyPeriodsResult.busyPeriods || [];
+
+// Sostituiscilo con:
+const googleCalendarBusyPeriods = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+3. Fix in PATCH /:id/approve Attenzione qui: cambia anche la condizione dell'IF.
+
+TypeScript
+
+// Cerca questo blocco errato:
+const busyResult = await checkFreeBusyAllCalendars(startDateTime, endDateTime);
+if (busyResult.busyPeriods && busyResult.busyPeriods.length > 0) { 
+    // ... errore conflitto 
+}
+
+// Sostituiscilo con:
+const busyResult = await checkFreeBusyAllCalendars(startDateTime, endDateTime);
+// Controllo diretto sulla lunghezza dell'array
+if (busyResult && busyResult.length > 0) {
+    // ... errore conflitto
+}
+4. Fix in GET /debug/slot-conflicts/:date
+
+TypeScript
+
+// Cerca questo blocco errato:
+const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+results.googleCalendar = busyPeriodsResult.busyPeriods || [];
+
+// Sostituiscilo con:
+const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+results.googleCalendar = busyPeriodsResult || [];
+Applica queste correzioni e riavvia il server. Questo farà sì che gli impegni di Google Calendar vengano finalmente letti correttamente e passati al calcolo degli slot.

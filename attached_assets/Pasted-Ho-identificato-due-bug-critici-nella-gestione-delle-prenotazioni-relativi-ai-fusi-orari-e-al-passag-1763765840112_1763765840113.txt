@@ -1,0 +1,103 @@
+Ho identificato due bug critici nella gestione delle prenotazioni relativi ai fusi orari e al passaggio dei dati.
+
+Il Problema:
+
+Errore Timezone: Quando un utente seleziona una data (es. Sabato 29 Nov), il server riceve la stringa, la converte in oggetto Date (UTC), che risulta essere Venerdì 28 Nov ore 23:00. Di conseguenza, il sistema calcola dayOfWeek come 5 (Venerdì) invece di 6 (Sabato) e carica gli orari di apertura sbagliati.
+
+Dati Persi: Nella rotta API, recuperiamo gli impegni di Google Calendar, ma non li stiamo passando correttamente alla funzione del servizio che calcola gli slot, quindi i conflitti non vengono rilevati inizialmente.
+
+Per favore, applica le seguenti modifiche ai file indicati.
+
+1. Modifica server/services/consultations.ts
+Dobbiamo aggiornare la funzione getAvailableSlotsForDate per usare Luxon per determinare il giorno della settimana (in fuso orario Rome) e accettare il parametro degli impegni esterni.
+
+Azioni:
+
+Assicurati che DateTime sia importato da 'luxon'.
+
+Aggiorna la firma della funzione getAvailableSlotsForDate per accettare externalBusyPeriods.
+
+Sostituisci la logica date.getDay() con la logica Luxon Europe/Rome.
+
+Unisci externalBusyPeriods agli slot occupati trovati nel DB.
+
+Codice di riferimento per getAvailableSlotsForDate:
+
+TypeScript
+
+// All'inizio del file
+import { DateTime } from 'luxon';
+
+// ...
+
+export async function getAvailableSlotsForDate(
+  date: Date,
+  durationMinutes: number,
+  workingHours?: any,
+  template?: any,
+  externalBusyPeriods: any[] = [] // <--- AGGIUNTO PARAMETRO (default array vuoto)
+) {
+  // FIX TIMEZONE: Determina il giorno della settimana basandosi su ROMA, non UTC
+  // Questo risolve il bug dove le 23:00 UTC del giorno prima venivano contate come giorno precedente
+  const romeDate = DateTime.fromJSDate(date).setZone('Europe/Rome');
+  
+  // Luxon weekday: 1=Lun...7=Dom. 
+  // JS getDay standard (usato dal DB): 0=Dom, 1=Lun...6=Sab.
+  // Convertiamo Luxon in formato JS (0-6) per compatibilità
+  const dayOfWeek = romeDate.weekday === 7 ? 0 : romeDate.weekday;
+
+  console.log(`[getAvailableSlotsForDate] 🔍 DEBUG - Input Date: ${date.toISOString()}, Rome Day: ${dayOfWeek} (${romeDate.toFormat('EEEE')})`);
+
+  // ... logica recupero dayConfig usando dayOfWeek corretto ...
+
+  // FIX MERGE: Uniamo gli impegni del DB con quelli esterni (Google Calendar)
+  // Cerca dove viene definita la variabile degli impegni (es. busySlots o allBusyPeriods) e uniscili:
+  
+  // Esempio (adatta al nome variabile esistente):
+  // const dbBusyPeriods = ... (tua logica esistente per recuperare slot occupati da DB)
+  
+  const allBusyPeriods = [
+    // ...dbBusyPeriods (impegni interni),
+    ...externalBusyPeriods // (impegni Google Calendar passati dalla rotta)
+  ];
+
+  console.log(`[getAvailableSlotsForDate] 📊 Totale periodi occupati (DB + GCal): ${allBusyPeriods.length}`);
+
+  // ... resto della funzione invariato ...
+}
+2. Modifica server/routes/consultation-routes.ts
+Dobbiamo assicurarci che la rotta POST /available-slots passi effettivamente i dati recuperati da Google Calendar al servizio.
+
+Azioni: Nella rotta router.post('/available-slots', ...):
+
+Verifica che googleBusyPeriods sia estratto correttamente dal risultato di checkFreeBusyAllCalendars.
+
+Passalo come quinto argomento alla funzione consultationService.getAvailableSlotsForDate.
+
+Diff:
+
+TypeScript
+
+// Dentro router.post('/available-slots') ...
+
+    // FIX GOOGLE CALENDAR: Recupera impegni reali
+    console.log('[POST /available-slots] Recupero impegni Google Calendar...');
+    const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
+    
+    // Assicurati che dayStart e dayEnd siano definiti (dovrebbero già esserlo dai fix precedenti usando Luxon)
+    const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
+    
+    // FIX: Assicurati di estrarre l'array correttamente
+    const googleBusyPeriods = busyPeriodsResult.busyPeriods || [];
+
+    console.log(`[POST /available-slots] Trovati ${googleBusyPeriods.length} impegni su GCal da passare al service`);
+
+    // Calcolo slot passando anche i busy periods di Google come 5° argomento
+    const slots = await consultationService.getAvailableSlotsForDate(
+      dayStart, 
+      template.durataMinuti,
+      undefined, 
+      template,
+      googleBusyPeriods // <--- QUESTO È FONDAMENTALE, PRIMA MANCAVA
+    );
+Applica queste modifiche e riavvia il server. Questo dovrebbe sincronizzare correttamente gli orari italiani (Sabato invece di Venerdì) e includere gli impegni di Google nel calcolo disponibilità.

@@ -370,8 +370,7 @@ router.post('/available-slots', async (req, res) => {
     // FIX GOOGLE CALENDAR: Recupera impegni reali
     console.log('[POST /available-slots] Recupero impegni Google Calendar...');
     const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
-    const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
-    const googleBusyPeriods = busyPeriodsResult.busyPeriods || [];
+    const googleBusyPeriods = await checkFreeBusyAllCalendars(dayStart, dayEnd);
 
     console.log(`[POST /available-slots] Trovati ${googleBusyPeriods.length} impegni su GCal`);
 
@@ -482,8 +481,7 @@ router.post('/create', async (req, res) => {
     const dayEnd = dateObj.endOf('day').toJSDate();
 
     const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
-    const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
-    const googleCalendarBusyPeriods = busyPeriodsResult.busyPeriods || [];
+    const googleCalendarBusyPeriods = await checkFreeBusyAllCalendars(dayStart, dayEnd);
 
     // Verifica disponibilità slot (conflict detection) con dati sincronizzati
     const isAvailable = await consultationService.isSlotAvailable(
@@ -634,7 +632,7 @@ router.patch('/:id/approve', authenticateFirebase, async (req: AuthRequest, res)
 
     // Controlla se GCal è ancora libero
     const busyResult = await checkFreeBusyAllCalendars(startDateTime, endDateTime);
-    if (busyResult.busyPeriods && busyResult.busyPeriods.length > 0) {
+    if (busyResult && busyResult.length > 0) {
       // C'è un conflitto!
       return res.status(409).json({
         error: 'Slot non più disponibile',
@@ -1691,7 +1689,7 @@ router.get('/debug/slot-conflicts/:date', async (req, res) => {
     try {
       const { checkFreeBusyAllCalendars } = await import('./google-calendar.js');
       const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
-      results.googleCalendar = busyPeriodsResult.busyPeriods || [];
+      results.googleCalendar = busyPeriodsResult || [];
     } catch (error: any) {
       results.googleCalendarError = error.message;
     }
