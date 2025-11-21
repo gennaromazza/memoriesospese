@@ -11,7 +11,7 @@ import { GalleryService, type Gallery } from '@/lib/galleries';
 import { PhotoService } from '@/lib/photos';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -32,15 +32,15 @@ interface UploadProgress {
 }
 
 // Memoized PhotoCard component for optimized rendering
-const PhotoCard = memo(({ photo, isSelected, onToggle }: { photo: any; isSelected: boolean; onToggle: () => void }) => {
+const PhotoCard = memo(({ photo, isSelected, onToggle, readOnly }: { photo: any; isSelected: boolean; onToggle: (() => void) | undefined; readOnly?: boolean }) => {
   return (
     <div
-      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 group cursor-pointer ${
+      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 group ${
         isSelected
           ? 'border-sage shadow-lg shadow-sage/40'
-          : 'border-gray-300 hover:border-sage hover:shadow-md'
-      }`}
-      onClick={onToggle}
+          : !readOnly && 'border-gray-300 hover:border-sage hover:shadow-md'
+      } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
+      onClick={!readOnly ? onToggle : undefined}
       data-testid={`img-selected-${photo.id}`}
     >
       <img
@@ -49,8 +49,13 @@ const PhotoCard = memo(({ photo, isSelected, onToggle }: { photo: any; isSelecte
         className="w-full h-full object-cover"
         loading="lazy"
       />
-      {isSelected && (
+      {isSelected && !readOnly && (
         <div className="absolute inset-0 bg-sage bg-opacity-30 flex items-center justify-center">
+          <CheckCircle className="w-8 h-8 text-white" />
+        </div>
+      )}
+      {readOnly && (
+        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
           <CheckCircle className="w-8 h-8 text-white" />
         </div>
       )}
@@ -81,6 +86,34 @@ export default function GalleryManagementWorkspace() {
     queryKey: ['gallery', galleryId],
     queryFn: () => (galleryId ? GalleryService.getGalleryById(galleryId) : null),
     enabled: !!galleryId,
+  });
+
+  // Mutation per aggiornare la galleria (usato per selezioni)
+  const updateGalleryMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Gallery> }) => {
+      await GalleryService.updateGallery(id, updates);
+    },
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['gallery', id] });
+      const previousGallery = queryClient.getQueryData(['gallery', id]) as Gallery;
+      queryClient.setQueryData(['gallery', id], { ...previousGallery, ...updates });
+      return { previousGallery };
+    },
+    onError: (err, variables, context) => {
+      toast({
+        title: '❌ Errore aggiornamento galleria',
+        description: err instanceof Error ? err.message : 'Errore sconosciuto',
+        variant: 'destructive',
+      });
+      // Rollback a `context.previousGallery`
+      if (context?.previousGallery) {
+        queryClient.setQueryData(['gallery', variables.id], context.previousGallery);
+      }
+    },
+    onSettled: async (data, error, variables) => {
+      // Invalida cache per assicurarsi che i dati siano freschi dopo l'update
+      await queryClient.invalidateQueries({ queryKey: ['gallery', variables.id] });
+    },
   });
 
   // 🔧 React Query: Carica foto fotografo - MOVED BEFORE useEffect
@@ -193,7 +226,7 @@ export default function GalleryManagementWorkspace() {
       }
 
       // Initialize progress (mantiene preview esistenti)
-      setUploadProgress(prev => 
+      setUploadProgress(prev =>
         uniqueFiles.map(file => {
           const existing = prev.find(p => p.fileName === file.name);
           return {
@@ -216,7 +249,7 @@ export default function GalleryManagementWorkspace() {
         user.displayName || 'Admin',
         (progressArray) => {
           // Update progress state con dettagli migliorati
-          setUploadProgress(prev => 
+          setUploadProgress(prev =>
             progressArray.map(p => {
               const existing = prev.find(x => x.fileName === p.fileName);
               return {
@@ -247,14 +280,14 @@ export default function GalleryManagementWorkspace() {
 
       // 🔧 FORZA REFETCH IMMEDIATO di tutte le query foto attive
       // refetchQueries bypassa staleTime e forza aggiornamento immediato
-      await queryClient.refetchQueries({ 
+      await queryClient.refetchQueries({
         predicate: (query) => {
           if (!Array.isArray(query.queryKey)) return false;
           const key = query.queryKey[0];
           // Cattura TUTTE le query keys correlate alle foto
           return typeof key === 'string' && (
-            key === 'photos' || 
-            key === 'gallery-photos' || 
+            key === 'photos' ||
+            key === 'gallery-photos' ||
             key === 'guest-photos' ||
             key === 'guestPhotos' || // legacy
             key === 'top-liked-photos' || // widget top photos
@@ -262,7 +295,7 @@ export default function GalleryManagementWorkspace() {
           );
         }
       });
-      
+
       // Invalida anche cache galleria per aggiornare photoCount
       await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
 
@@ -293,7 +326,7 @@ export default function GalleryManagementWorkspace() {
     multiple: true,
   });
 
-  
+
 
   // Filter selected photos
   // Multi-product mode: use photoAssignments, Legacy mode: use selectedPhotoIds
@@ -320,87 +353,8 @@ export default function GalleryManagementWorkspace() {
     [allPhotos, selectedPhotoIds]
   );
 
-  // Function to toggle photo selection
-  const togglePhotoSelection = useCallback(async (photoId: string) => {
-    if (!galleryId || !gallery) return;
-
-    // Optimistic update for UI
-    const previousSelectedIds = new Set(selectedPhotoIds);
-    const isCurrentlySelected = selectedPhotoIds.has(photoId);
-    const newSelectedIds = new Set(selectedPhotoIds);
-
-    if (isCurrentlySelected) {
-      newSelectedIds.delete(photoId);
-    } else {
-      newSelectedIds.add(photoId);
-    }
-
-    // Update React state immediately
-    // This is a simplified update. For more complex scenarios, consider useReducer or a dedicated state management library.
-    // Note: Direct state manipulation like this might need a more robust handling in a real app if `selectedPhotoIds` is derived in complex ways.
-    // For this example, we assume `selectedPhotoIds` is directly managed or recomputed correctly.
-
-    // This part needs to be adapted based on how `selectedPhotoIds` and `gallery.photoAssignments` are managed.
-    // If `selectedPhotoIds` is derived directly from `gallery.photoAssignments`, you'd need to update `gallery.photoAssignments`.
-    // For simplicity here, we'll just focus on the UI update and the backend call.
-
-    queryClient.setQueryData(['gallery', galleryId], {
-      ...gallery,
-      // This is a placeholder. The actual update logic depends on whether it's legacy or multi-product mode.
-      // For legacy mode:
-      selectedPhotoIds: Array.from(newSelectedIds),
-      // For multi-product mode, you'd modify gallery.photoAssignments, which is more complex.
-    });
-
-    // Perform the mutation to update the backend
-    try {
-      if (gallery.productRequirements) {
-        // Multi-product mode update logic would go here. This is a simplified example.
-        // You would need to determine which product the photo belongs to or how to assign it.
-        // For now, let's assume a simple add/remove based on current selection state.
-        const currentAssignments = gallery.photoAssignments || {};
-        const photoAssignments = { ...currentAssignments };
-
-        if (isCurrentlySelected) {
-          // Remove photo from all products if deselected
-          Object.keys(photoAssignments).forEach(pid => {
-            photoAssignments[pid] = photoAssignments[pid].filter((assignIndex: string) => assignIndex !== photoId);
-          });
-        } else {
-          // For a simple toggle, we might need a UI element to select the product.
-          // Here, we'll just add it to the first product as an example, which is likely incorrect logic.
-          // A proper implementation would require user input to assign to a product.
-          // Example: If adding, prompt user to select product or assign based on context.
-          // For now, let's skip complex assignment logic and focus on the UI toggle.
-        }
-        // await GalleryService.updateGallery(galleryId, { photoAssignments });
-      } else {
-        // Legacy mode update
-        await GalleryService.updateGallery(galleryId, {
-          selectedPhotoIds: Array.from(newSelectedIds),
-        });
-      }
-
-      toast({
-        title: isCurrentlySelected ? 'Foto rimossa' : 'Foto aggiunta',
-        description: `La foto è stata ${isCurrentlySelected ? 'rimossa' : 'aggiunta'} alle selezioni.`,
-      });
-      // Invalidate query to refetch the latest gallery data
-      await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-    } catch (error) {
-      toast({
-        title: '❌ Errore',
-        description: error instanceof Error ? error.message : 'Errore sconosciuto durante l\'aggiornamento delle selezioni.',
-        variant: 'destructive',
-      });
-      // Revert optimistic update
-      queryClient.setQueryData(['gallery', galleryId], {
-        ...gallery,
-        selectedPhotoIds: Array.from(previousSelectedIds),
-      });
-    }
-  }, [galleryId, gallery, selectedPhotoIds, toast]);
-
+  // 🔒 RIMOSSA: la selezione cliente non è più modificabile dall'admin
+  // (L'admin può solo resettare tutta la selezione)
 
   // Helper to remove timestamp prefix from filename for Lightroom export
   // Transforms: "1762272139996-DSCF4065.jpg" → "DSCF4065.jpg"
@@ -720,8 +674,8 @@ export default function GalleryManagementWorkspace() {
                         </div>
                       </div>
                       <div className="mt-4">
-                        <Progress 
-                          value={(uploadProgress.filter(f => f.status === 'success').length / uploadProgress.length) * 100} 
+                        <Progress
+                          value={(uploadProgress.filter(f => f.status === 'success').length / uploadProgress.length) * 100}
                           className="h-3"
                         />
                         <p className="text-sm text-center text-gray-600 mt-2">
@@ -814,32 +768,32 @@ export default function GalleryManagementWorkspace() {
                             size="sm"
                             onClick={async () => {
                               if (!confirm(`Eliminare ${selectedPhotos.size} foto? Questa azione è irreversibile.`)) return;
-                              
+
                               try {
-                                const deletePromises = Array.from(selectedPhotos).map(photoId => 
+                                const deletePromises = Array.from(selectedPhotos).map(photoId =>
                                   PhotoService.deletePhoto(photoId)
                                 );
                                 await Promise.all(deletePromises);
-                                
+
                                 // Update gallery photoCount
                                 const newPhotoCount = Math.max(0, (gallery?.photoCount || 0) - selectedPhotos.size);
                                 await GalleryService.updateGallery(galleryId!, { photoCount: newPhotoCount });
-                                
+
                                 toast({
                                   title: '✅ Foto eliminate',
                                   description: `${selectedPhotos.size} foto eliminate con successo.`,
                                 });
-                                
+
                                 setSelectedPhotos(new Set());
-                                
+
                                 // 🔧 FORZA REFETCH di tutte le query foto
-                                await queryClient.refetchQueries({ 
+                                await queryClient.refetchQueries({
                                   predicate: (query) => {
                                     if (!Array.isArray(query.queryKey)) return false;
                                     const key = query.queryKey[0];
                                     return typeof key === 'string' && (
-                                      key === 'photos' || 
-                                      key === 'gallery-photos' || 
+                                      key === 'photos' ||
+                                      key === 'gallery-photos' ||
                                       key === 'guest-photos' ||
                                       key === 'guestPhotos' ||
                                       key === 'top-liked-photos' ||
@@ -872,8 +826,8 @@ export default function GalleryManagementWorkspace() {
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                         {allPhotos
-                          .filter(photo => 
-                            searchTerm === '' || 
+                          .filter(photo =>
+                            searchTerm === '' ||
                             photo.name.toLowerCase().includes(searchTerm.toLowerCase())
                           )
                           .map((photo) => {
@@ -882,8 +836,8 @@ export default function GalleryManagementWorkspace() {
                               <div
                                 key={photo.id}
                                 className={`relative group aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                                  isSelected 
-                                    ? 'border-blue-500 ring-2 ring-blue-200' 
+                                  isSelected
+                                    ? 'border-blue-500 ring-2 ring-blue-200'
                                     : 'border-gray-200 hover:border-sage'
                                 }`}
                               >
@@ -915,7 +869,7 @@ export default function GalleryManagementWorkspace() {
                                   className="w-full h-full object-cover"
                                   loading="lazy"
                                 />
-                                
+
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2">
                                   <p className="text-white text-xs text-center truncate w-full mb-3">
                                     {photo.name}
@@ -925,32 +879,32 @@ export default function GalleryManagementWorkspace() {
                                     size="sm"
                                     onClick={async () => {
                                       if (!confirm(`Eliminare "${photo.name}"? Questa azione è irreversibile.`)) return;
-                                      
+
                                       try {
                                         await PhotoService.deletePhoto(photo.id);
-                                        
+
                                         // Update gallery photoCount
                                         const newPhotoCount = Math.max(0, (gallery?.photoCount || 0) - 1);
                                         await GalleryService.updateGallery(galleryId!, { photoCount: newPhotoCount });
-                                        
+
                                         toast({
                                           title: '✅ Foto eliminata',
                                           description: `${photo.name} è stata eliminata con successo.`,
                                         });
-                                        
+
                                         // Rimuovi da selectedPhotos se presente
                                         const newSelected = new Set(selectedPhotos);
                                         newSelected.delete(photo.id);
                                         setSelectedPhotos(newSelected);
-                                        
+
                                         // 🔧 FORZA REFETCH di tutte le query foto
-                                        await queryClient.refetchQueries({ 
+                                        await queryClient.refetchQueries({
                                           predicate: (query) => {
                                             if (!Array.isArray(query.queryKey)) return false;
                                             const key = query.queryKey[0];
                                             return typeof key === 'string' && (
-                                              key === 'photos' || 
-                                              key === 'gallery-photos' || 
+                                              key === 'photos' ||
+                                              key === 'gallery-photos' ||
                                               key === 'guest-photos' ||
                                               key === 'guestPhotos' ||
                                               key === 'top-liked-photos' ||
@@ -1089,22 +1043,20 @@ export default function GalleryManagementWorkspace() {
                   </div>
                 )}
 
-                {/* Selected Photos Grid */}
+                {/* Selected Photos Grid (READONLY) */}
                 {clientSelectedPhotos.length > 0 ? (
                   <div className="space-y-4">
-                    <h4 className="font-semibold text-blue-gray">Miniature Foto Selezionate</h4>
+                    <h4 className="font-semibold text-blue-gray">Miniature Foto Selezionate (Solo Lettura)</h4>
                     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {clientSelectedPhotos.map((photo) => {
-                        const isSelected = selectedPhotoIds.has(photo.id);
-                        return (
-                          <PhotoCard
-                            key={photo.id}
-                            photo={photo}
-                            isSelected={isSelected}
-                            onToggle={() => togglePhotoSelection(photo.id)}
-                          />
-                        );
-                      })}
+                      {clientSelectedPhotos.map((photo) => (
+                        <PhotoCard
+                          key={photo.id}
+                          photo={photo}
+                          isSelected={true}
+                          onToggle={undefined}
+                          readOnly={true}
+                        />
+                      ))}
                     </div>
                   </div>
                 ) : (
@@ -1226,6 +1178,47 @@ export default function GalleryManagementWorkspace() {
                   </div>
                 )}
               </CardContent>
+
+              {/* 🔄 RESET SELEZIONE CLIENTE */}
+              {gallery.selectionEnabled && clientSelectedPhotos.length > 0 && (
+                <CardFooter className="flex justify-end pt-6">
+                  <Button
+                    variant="destructive"
+                    size="lg"
+                    onClick={async () => {
+                      if (!confirm("Sei sicuro di voler resettare la selezione del cliente? L'utente dovrà rifarla da zero.")) return;
+
+                      try {
+                        await updateGalleryMutation.mutateAsync({
+                          id: galleryId!,
+                          updates: {
+                            selectedPhotoIds: [],
+                            photoAssignments: {},
+                            selectionStatus: 'pending',
+                            selectionNotes: '',
+                          },
+                        });
+
+                        toast({
+                          title: "🔄 Selezione resettata",
+                          description: "Il cliente può ora rifare la selezione.",
+                        });
+
+                        await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+                      } catch (err) {
+                        console.error("Errore reset selezione:", err);
+                        toast({
+                          title: "Errore",
+                          description: "Impossibile resettare la selezione.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    🔄 Reset selezione cliente
+                  </Button>
+                </CardFooter>
+              )}
             </Card>
           </TabsContent>
 
