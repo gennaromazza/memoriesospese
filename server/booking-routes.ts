@@ -1592,6 +1592,7 @@ router.patch('/:id/update', async (req, res) => {
 /**
  * DELETE /api/booking/:bookingId/calendar-event
  * Cancella l'evento Google Calendar associato a una prenotazione
+ * FIX BOOKING FANTASMA: Aggiorna anche stato Firestore a 'cancellata'
  */
 router.delete('/:bookingId/calendar-event', async (req, res) => {
   try {
@@ -1604,17 +1605,30 @@ router.delete('/:bookingId/calendar-event', async (req, res) => {
       });
     }
 
-    // Importa deleteEvent da google-calendar
+    // Step 1: Cancella evento da Google Calendar
     const { deleteEvent } = await import('./google-calendar.js');
-    
-    // Cancella evento da Google Calendar
     await deleteEvent('primary', googleCalendarEventId);
+    console.log(`✅ Evento Google Calendar cancellato: ${googleCalendarEventId}`);
 
-    console.log(`✅ Evento Google Calendar cancellato per booking ${bookingId}: ${googleCalendarEventId}`);
+    // Step 2: IMPORTANTE - Aggiorna stato booking in Firestore per evitare booking fantasma
+    const bookingRef = db.collection('bookings').doc(bookingId);
+    const bookingDoc = await bookingRef.get();
+    
+    if (bookingDoc.exists) {
+      await bookingRef.update({
+        stato: 'cancellata',
+        cancelledAt: FieldValue.serverTimestamp(),
+        cancelledReason: 'Evento cancellato da Google Calendar',
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      console.log(`✅ Booking ${bookingId} aggiornato a stato 'cancellata' in Firestore`);
+    } else {
+      console.warn(`⚠️ Booking ${bookingId} non trovato in Firestore`);
+    }
 
     res.status(200).json({
       success: true,
-      message: 'Evento Google Calendar cancellato con successo'
+      message: 'Evento Google Calendar cancellato e booking aggiornato in Firestore'
     });
 
   } catch (error: any) {
