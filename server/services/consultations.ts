@@ -1108,13 +1108,23 @@ export async function getAvailableSlotsForDate(
   template?: ConsultationTemplate,
   externalBusyPeriods?: any[] // Aggiunto parametro per orari esterni
 ): Promise<ConsultationSlot[]> {
+  // VALIDAZIONE CRITICA: Previeni loop infiniti con durataMinuti invalido
+  if (!durataMinuti || durataMinuti <= 0 || isNaN(durataMinuti)) {
+    const fallbackDuration = 30;
+    console.warn(`[getAvailableSlotsForDate] ⚠️ ATTENZIONE - durataMinuti invalido (${durataMinuti}), uso fallback ${fallbackDuration} minuti`);
+    if (template) {
+      console.warn(`[getAvailableSlotsForDate] Template "${template.nome}" ha durataMinuti invalido, aggiorna configurazione!`);
+    }
+    durataMinuti = fallbackDuration;
+  }
+
   // FIX TIMEZONE: Determina il giorno della settimana basandosi su ROMA, non UTC
   const romeDate = DateTime.fromJSDate(date).setZone('Europe/Rome');
   // Luxon weekday: 1=Lun...7=Dom. JS getDay: 0=Dom...6=Sab.
   // Convertiamo Luxon in formato JS (0-6) per compatibilità col DB
   const dayOfWeek = romeDate.weekday === 7 ? 0 : romeDate.weekday;
 
-  console.log(`[getAvailableSlotsForDate] 🔍 DEBUG - Input Date: ${date.toISOString()}, Rome Day: ${dayOfWeek} (${romeDate.toFormat('EEEE')})`)
+  console.log(`[getAvailableSlotsForDate] 🔍 DEBUG - Input Date: ${date.toISOString()}, Rome Day: ${dayOfWeek} (${romeDate.toFormat('EEEE')}), Durata slot: ${durataMinuti} minuti`)
 
   // Check 1: Giorno escluso dal template?
   if (template?.excludedDays && template.excludedDays.includes(dayOfWeek)) {
@@ -1359,8 +1369,8 @@ export async function getAvailableSlotsForDate(
       available,
     });
 
-    // Avanza di 30 minuti (slot standard)
-    current = new Date(current.getTime() + 30 * 60000);
+    // Avanza della durata configurata nel template
+    current = new Date(current.getTime() + durataMinuti * 60000);
   }
 
   if (isDebug) {
