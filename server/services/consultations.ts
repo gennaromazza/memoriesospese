@@ -1160,10 +1160,8 @@ export async function getAvailableSlotsForDate(
 
   // CONTROLLO EVENTI ALL-DAY GOOGLE CALENDAR
   // Se esiste un evento "tutto il giorno", blocca completamente il giorno
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const dateStr = `${year}-${month}-${day}`;
+  // FIX TIMEZONE: Usa romeDate per costruire dateStr invece di metodi nativi Date che usano UTC
+  const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
   try {
     const dayStart = new Date(date);
