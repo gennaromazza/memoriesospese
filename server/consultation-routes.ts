@@ -820,6 +820,302 @@ router.get(
 );
 
 /**
+ * POST /api/consultations/v2/:id/approve-with-override
+ * Approve consultation with conflict override
+ * Allows admin to force approval despite conflicts and optionally delete conflicting events
+ * 
+ * Body:
+ * - overrideConflicts: boolean - Force approval despite conflicts
+ * - deleteEventIds: string[] - IDs of Google Calendar events to delete (only from primary calendar)
+ * - reason: string - Required justification for override/deletion
+ */
+router.post(
+  "/v2/:id/approve-with-override",
+  authenticateFirebase,
+  async (req: AuthRequest, res) => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res.status(403).json({
+          error: "Solo gli amministratori possono forzare approvazioni",
+        });
+      }
+
+      const { id } = req.params;
+      const { overrideConflicts, deleteEventIds = [], reason } = req.body;
+
+      console.log(`[POST /v2/:id/approve-with-override] 🔵 Force approving consultation ${id}`);
+      console.log(`[POST /v2/:id/approve-with-override] Override: ${overrideConflicts}, Delete: ${deleteEventIds.length} events`);
+
+      // Validate required fields
+      if (!reason || reason.trim().length === 0) {
+        return res.status(400).json({
+          error: "Motivazione obbligatoria per override conflitto"
+        });
+      }
+
+      // Load consultation
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+
+      if (consultation.stato !== "in_attesa") {
+        return res.status(400).json({
+          error: "Consultation già processata",
+          stato: consultation.stato,
+        });
+      }
+
+      // Parse consultation date and time
+      const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
+      const year = consultationDate.getFullYear();
+      const month = String(consultationDate.getMonth() + 1).padStart(2, "0");
+      const day = String(consultationDate.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+
+      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
+      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+
+      // Get day boundaries for conflict check
+      const dateObj = DateTime.fromISO(dateStr, { zone: "Europe/Rome" });
+      const dayStart = dateObj.startOf("day").toJSDate();
+      const dayEnd = dateObj.endOf("day").toJSDate();
+
+      // Get conflict details for audit logging
+      const conflictDetails = await getConflictDetails(
+        startDateTime,
+        endDateTime,
+        dayStart,
+        dayEnd,
+        db
+      );
+
+      // Delete selected Google Calendar events (ONLY from primary calendar)
+      const deletedEvents: string[] = [];
+      const deletionErrors: string[] = [];
+
+      if (deleteEventIds.length > 0) {
+        console.log(`[POST /v2/:id/approve-with-override] 🗑️ Attempting to delete ${deleteEventIds.length} events`);
+
+        for (const eventId of deleteEventIds) {
+          // Find event in conflict details to verify it's from primary calendar
+          const eventToDelete = conflictDetails.conflicts.find(c => 
+            c.metadata.googleEventId === eventId
+          );
+
+          if (!eventToDelete) {
+            deletionErrors.push(`Evento ${eventId} non trovato nei conflitti`);
+            continue;
+          }
+
+          if (!eventToDelete.isDeletable) {
+            deletionErrors.push(`Evento "${eventToDelete.title}" non può essere cancellato (calendario esterno)`);
+            continue;
+          }
+
+          try {
+            await deleteEvent("primary", eventId);
+            deletedEvents.push(eventId);
+            console.log(`[POST /v2/:id/approve-with-override] ✅ Deleted event ${eventId} from primary calendar`);
+          } catch (delError: any) {
+            console.error(`[POST /v2/:id/approve-with-override] ❌ Error deleting event ${eventId}:`, delError.message);
+            deletionErrors.push(`Errore cancellazione "${eventToDelete.title}": ${delError.message}`);
+          }
+        }
+      }
+
+      // Create Google Calendar event for consultation
+      const calendarEvent = await createEvent("primary", {
+        summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+        description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}\n\n⚠️ APPROVAZIONE FORZATA\nMotivazione: ${reason}`,
+        start: startDateTime,
+        end: endDateTime,
+        attendees: [consultation.cliente.email],
+      });
+
+      const eventId = calendarEvent.id;
+      console.log(`[POST /v2/:id/approve-with-override] 📅 Created Google Calendar event ${eventId}`);
+
+      // Update Firestore (with rollback on error)
+      try {
+        await consultationService.updateConsultation(id, {
+          stato: "confermata",
+          googleCalendarEventId: eventId,
+        });
+
+        await db.collection("consultations").doc(id).update({
+          confermataDa: req.body.userId || email,
+          confermatail: Timestamp.now(),
+        });
+
+        console.log(`[POST /v2/:id/approve-with-override] ✅ Updated Firestore consultation ${id}`);
+      } catch (updateError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ❌ Error updating Firestore, executing rollback:", updateError.message);
+        
+        // Rollback: delete Calendar event
+        try {
+          if (eventId) {
+            await deleteEvent("primary", eventId);
+            console.log(`[POST /v2/:id/approve-with-override] 🔄 Rollback: deleted Calendar event ${eventId}`);
+          }
+
+          await consultationService.updateConsultation(id, {
+            stato: "in_attesa",
+          });
+
+          console.log(`[POST /v2/:id/approve-with-override] 🔄 Rollback: reverted consultation ${id} to in_attesa`);
+        } catch (rollbackError: any) {
+          console.error("[POST /v2/:id/approve-with-override] ❌ CRITICAL: Rollback failed", rollbackError.message);
+        }
+
+        return res.status(500).json({
+          error: "Errore approvazione",
+          details: updateError.message,
+        });
+      }
+
+      // Audit logging: save conflict override record
+      const auditRecord = {
+        consultationId: id,
+        adminEmail: email,
+        timestamp: Timestamp.now(),
+        action: overrideConflicts ? "force-approve" : "approve-with-deletion",
+        reason: reason,
+        conflictsOverridden: conflictDetails.conflicts.map(c => ({
+          eventId: c.id,
+          title: c.title,
+          source: c.source,
+          startTime: c.startTime,
+          endTime: c.endTime
+        })),
+        deletedEventIds: deletedEvents,
+        deletionErrors: deletionErrors,
+        consultationDetails: {
+          jobType: consultation.jobType,
+          clientName: `${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+          date: dateStr,
+          time: `${consultation.orarioInizio} - ${consultation.orarioFine}`
+        }
+      };
+
+      try {
+        await db.collection("conflict_overrides").add(auditRecord);
+        console.log(`[POST /v2/:id/approve-with-override] 📝 Audit log saved`);
+      } catch (auditError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ⚠️ Error saving audit log:", auditError.message);
+        // Non-blocking: continue even if audit fails
+      }
+
+      // Send approval email (same as regular approve)
+      let emailStatus = "sent";
+      try {
+        const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
+        const formattedDate = format(startDateTime, "EEEE d MMMM yyyy", {
+          locale: it,
+        });
+
+        const studioInfo = {
+          name: "Gennaro Mazzacane Photography",
+          address: "Via Roma 123, Napoli",
+          phone: "+39 123 456 7890",
+        };
+
+        const { generateGoogleCalendarLink } = await import("./email-routes.js");
+        const calendarLink = generateGoogleCalendarLink({
+          title: `Consulenza ${consultation.jobType} - ${clienteName}`,
+          description: `Consulenza per ${consultation.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+          location: studioInfo.address,
+          startDate: startDateTime,
+          endDate: endDateTime,
+          isAllDay: false,
+        });
+
+        const { createConsultationApprovedEmailHTML, sendGmailEmail } = await import("./email-routes.js");
+        const htmlContent = createConsultationApprovedEmailHTML(
+          clienteName,
+          consultation.jobType,
+          formattedDate,
+          `${consultation.orarioInizio} - ${consultation.orarioFine}`,
+          null,
+          studioInfo,
+          calendarLink,
+        );
+
+        await sendGmailEmail(
+          consultation.cliente.email,
+          `Consulenza Confermata - ${consultation.jobType}`,
+          htmlContent,
+        );
+
+        console.log(`[POST /v2/:id/approve-with-override] ✅ Sent approval email to ${consultation.cliente.email}`);
+      } catch (emailError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ⚠️ Error sending email:", emailError.message);
+        emailStatus = "failed";
+      }
+
+      // Send admin notification email about override
+      try {
+        const { sendGmailEmail } = await import("./email-routes.js");
+        const adminEmailContent = `
+          <h2>⚠️ Approvazione Forzata Consultation</h2>
+          <p><strong>Admin:</strong> ${email}</p>
+          <p><strong>Cliente:</strong> ${consultation.cliente.nome} ${consultation.cliente.cognome}</p>
+          <p><strong>Data:</strong> ${dateStr} ${consultation.orarioInizio} - ${consultation.orarioFine}</p>
+          <p><strong>Job Type:</strong> ${consultation.jobType}</p>
+          <hr>
+          <p><strong>Motivazione Override:</strong></p>
+          <p>${reason}</p>
+          <hr>
+          <p><strong>Conflitti Forzati (${conflictDetails.conflicts.length}):</strong></p>
+          <ul>
+            ${conflictDetails.conflicts.map(c => `<li>${c.title} (${c.source}) - ${c.startTime}${c.endTime ? ` - ${c.endTime}` : ''}</li>`).join('')}
+          </ul>
+          ${deletedEvents.length > 0 ? `
+            <hr>
+            <p><strong>Eventi Cancellati (${deletedEvents.length}):</strong></p>
+            <ul>
+              ${deletedEvents.map(id => `<li>${id}</li>`).join('')}
+            </ul>
+          ` : ''}
+          ${deletionErrors.length > 0 ? `
+            <hr>
+            <p><strong>⚠️ Errori Cancellazione:</strong></p>
+            <ul>
+              ${deletionErrors.map(err => `<li>${err}</li>`).join('')}
+            </ul>
+          ` : ''}
+        `;
+
+        await sendGmailEmail(
+          email,
+          `🚨 Approvazione Forzata - ${consultation.jobType}`,
+          adminEmailContent,
+        );
+
+        console.log(`[POST /v2/:id/approve-with-override] 📧 Sent admin notification to ${email}`);
+      } catch (adminEmailError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ⚠️ Error sending admin email:", adminEmailError.message);
+      }
+
+      res.json({
+        message: "Consultation approvata con override",
+        googleCalendarEventId: eventId,
+        emailStatus,
+        deletedEvents,
+        deletionErrors,
+        auditRecorded: true
+      });
+    } catch (error: any) {
+      console.error("[POST /v2/:id/approve-with-override] ❌ Error:", error.message);
+      console.error("[POST /v2/:id/approve-with-override] Stack:", error.stack);
+      res.status(500).json({ error: "Errore approvazione forzata" });
+    }
+  },
+);
+
+/**
  * PATCH /api/consultations/:id/reject
  * Rifiuta consultation (admin only)
  */
