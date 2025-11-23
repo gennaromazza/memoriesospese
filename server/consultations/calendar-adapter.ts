@@ -99,3 +99,116 @@ export function validateConsultationTemplate(template: ConsultationTemplate): bo
   
   return true;
 }
+
+/**
+ * Load all existing events for a specific date
+ * Centralizes event loading logic from consultations, bookings, jobs
+ * 
+ * @param dayStart Start of day in Europe/Rome
+ * @param dayEnd End of day in Europe/Rome
+ * @param db Firestore database instance
+ * @returns Array of CalendarEvents
+ */
+export async function getAllExistingEvents(
+  dayStart: Date,
+  dayEnd: Date,
+  db: any
+): Promise<Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }>> {
+  const { CalendarEvent } = await import('@/shared/calendar-types');
+  const { Timestamp } = await import('firebase-admin/firestore');
+  const { createEuropeRomeDate } = await import('../google-calendar');
+  
+  const existingEvents: Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }> = [];
+  
+  // 1. Load Google Calendar busy periods
+  const { checkGoogleCalendarBusyPeriods } = await import('../calendar-engine/google-sync');
+  const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
+  existingEvents.push(...googleBusy);
+  
+  console.log(`[Consultation Adapter] 📅 ${googleBusy.length} busy periods from Google Calendar`);
+  
+  // 2. Load existing consultations
+  const consultationsSnap = await db
+    .collection('consultations')
+    .where('dataConsulenza', '>=', Timestamp.fromDate(dayStart))
+    .where('dataConsulenza', '<=', Timestamp.fromDate(dayEnd))
+    .where('stato', 'in', ['in_attesa', 'confermata'])
+    .get();
+  
+  for (const doc of consultationsSnap.docs) {
+    const data = doc.data();
+    const consultationDate = data.dataConsulenza.toDate();
+    const year = consultationDate.getFullYear();
+    const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
+    const day = String(consultationDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    const start = createEuropeRomeDate(dateStr, data.orarioInizio);
+    const end = createEuropeRomeDate(dateStr, data.orarioFine);
+    
+    existingEvents.push({
+      start,
+      end,
+      allDay: false,
+      title: `Consultation ${data.cliente?.nome || ''}`,
+      source: 'consultation'
+    });
+  }
+  
+  console.log(`[Consultation Adapter] 📋 ${consultationsSnap.size} existing consultations`);
+  
+  // 3. Load jobs (only blocking statuses)
+  const jobsSnap = await db
+    .collection('jobs')
+    .where('eventDate', '>=', Timestamp.fromDate(dayStart))
+    .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
+    .get();
+  
+  const blockingStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
+  
+  for (const doc of jobsSnap.docs) {
+    const data = doc.data();
+    
+    if (!blockingStatuses.includes(data.stato)) {
+      continue;
+    }
+    
+    const eventDate = data.eventDate.toDate();
+    
+    if (data.allDay) {
+      const start = new Date(eventDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(eventDate);
+      end.setHours(23, 59, 59, 999);
+      
+      existingEvents.push({
+        start,
+        end,
+        allDay: true,
+        title: `Job ${data.nomeEvento || ''}`,
+        source: 'job'
+      });
+    } else if (data.startTime && data.endTime) {
+      const year = eventDate.getFullYear();
+      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+      const day = String(eventDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      const start = createEuropeRomeDate(dateStr, data.startTime);
+      const end = createEuropeRomeDate(dateStr, data.endTime);
+      
+      existingEvents.push({
+        start,
+        end,
+        allDay: false,
+        title: `Job ${data.nomeEvento || ''}`,
+        source: 'job'
+      });
+    }
+  }
+  
+  console.log(`[Consultation Adapter] 💼 ${existingEvents.filter(e => e.source === 'job').length} blocking jobs`);
+  console.log(`[Consultation Adapter] 🎯 TOTAL: ${existingEvents.length} blocking events`);
+  
+  return existingEvents;
+}

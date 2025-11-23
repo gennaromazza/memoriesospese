@@ -382,10 +382,19 @@ router.get("/:id", authenticateFirebase, async (req: AuthRequest, res) => {
 
 /**
  * POST /api/consultations/available-slots
- * Calcola slot disponibili per data e template
- * FIX: Ora controlla Google Calendar e usa Luxon per il fuso orario corretto
+ * DEPRECATED: Use /v2/available-slots instead
+ * Legacy endpoint - redirects to V2
  */
 router.post("/available-slots", async (req, res) => {
+  console.warn('[DEPRECATED] /api/consultations/available-slots called - redirecting to /v2/available-slots');
+  
+  // Forward request to V2 endpoint
+  return res.status(301).json({
+    error: 'deprecated',
+    message: 'This endpoint is deprecated. Use POST /api/consultations/v2/available-slots instead',
+    redirectTo: '/api/consultations/v2/available-slots'
+  });
+});
   try {
     console.log("[POST /available-slots] Request body:", req.body);
     const { date, templateId, clientEmail } = req.body;
@@ -479,9 +488,19 @@ router.post("/available-slots", async (req, res) => {
 
 /**
  * POST /api/consultations/create
- * Crea nuova consultation (pubblico)
+ * DEPRECATED: Use /v2/create instead
+ * Legacy endpoint - redirects to V2
  */
 router.post("/create", async (req, res) => {
+  console.warn('[DEPRECATED] /api/consultations/create called - redirecting to /v2/create');
+  
+  // Forward request to V2 endpoint
+  return res.status(301).json({
+    error: 'deprecated',
+    message: 'This endpoint is deprecated. Use POST /api/consultations/v2/create instead',
+    redirectTo: '/api/consultations/v2/create'
+  });
+});
   try {
     // Validazione base dati
     const {
@@ -1223,99 +1242,14 @@ router.post("/v2/create", async (req, res) => {
     const slotStart = DateTime.fromISO(`${dataConsulenza}T${orarioInizio}:00`, { zone: "Europe/Rome" }).toJSDate();
     const slotEnd = DateTime.fromISO(`${dataConsulenza}T${orarioFine}:00`, { zone: "Europe/Rome" }).toJSDate();
 
-    // Step 6: Get existing events via Calendar Engine V2
-    const { checkGoogleCalendarBusyPeriods } = await import('./calendar-engine/google-sync.js');
+    // Step 6: Get existing events via centralized adapter
     const { hasConflict } = await import('./calendar-engine/conflicts.js');
-    const { CalendarEvent } = await import('../shared/calendar-types.js');
+    const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
 
     const dayStart = dateObj.startOf("day").toJSDate();
     const dayEnd = dateObj.endOf("day").toJSDate();
 
-    const existingEvents: any[] = [];
-
-    // 6a. Google Calendar busy periods
-    const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
-    existingEvents.push(...googleBusy);
-
-    // 6b. Existing consultations
-    const consultationsSnap = await db
-      .collection("consultations")
-      .where("dataConsulenza", ">=", Timestamp.fromDate(dayStart))
-      .where("dataConsulenza", "<=", Timestamp.fromDate(dayEnd))
-      .where("stato", "in", ["in_attesa", "confermata"])
-      .get();
-
-    for (const doc of consultationsSnap.docs) {
-      const data = doc.data();
-      const consultationDate = data.dataConsulenza.toDate();
-      const year = consultationDate.getFullYear();
-      const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
-      const day = String(consultationDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-
-      const { createEuropeRomeDate } = await import('./google-calendar.js');
-      const start = createEuropeRomeDate(dateStr, data.orarioInizio);
-      const end = createEuropeRomeDate(dateStr, data.orarioFine);
-
-      existingEvents.push({
-        start,
-        end,
-        allDay: false,
-        title: `Consultation ${data.cliente?.nome || ''}`,
-        source: 'consultation'
-      });
-    }
-
-    // 6c. Jobs (blocking statuses only)
-    const jobsSnap = await db
-      .collection("jobs")
-      .where("eventDate", ">=", Timestamp.fromDate(dayStart))
-      .where("eventDate", "<=", Timestamp.fromDate(dayEnd))
-      .get();
-
-    const blockingStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
-
-    for (const doc of jobsSnap.docs) {
-      const data = doc.data();
-
-      if (!blockingStatuses.includes(data.stato)) {
-        continue;
-      }
-
-      const eventDate = data.eventDate.toDate();
-
-      if (data.allDay) {
-        const start = new Date(eventDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(eventDate);
-        end.setHours(23, 59, 59, 999);
-
-        existingEvents.push({
-          start,
-          end,
-          allDay: true,
-          title: `Job ${data.nomeEvento || ''}`,
-          source: 'job'
-        });
-      } else if (data.startTime && data.endTime) {
-        const year = eventDate.getFullYear();
-        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-        const day = String(eventDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-
-        const { createEuropeRomeDate } = await import('./google-calendar.js');
-        const start = createEuropeRomeDate(dateStr, data.startTime);
-        const end = createEuropeRomeDate(dateStr, data.endTime);
-
-        existingEvents.push({
-          start,
-          end,
-          allDay: false,
-          title: `Job ${data.nomeEvento || ''}`,
-          source: 'job'
-        });
-      }
-    }
+    const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
 
     // Step 7: Check conflicts via Calendar Engine V2
     const conflict = hasConflict(slotStart, slotEnd, existingEvents);
@@ -2380,102 +2314,9 @@ router.post("/v2/available-slots", async (req, res) => {
       } as SlotsResponse);
     }
 
-    // Step 7: Collect existing events from all sources
-    const existingEvents: CalendarEvent[] = [];
-
-    // 7a. Google Calendar busy periods
-    const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
-    existingEvents.push(...googleBusy);
-    console.log(`[POST /v2/available-slots] 📅 ${googleBusy.length} busy periods da Google Calendar`);
-
-    // 7b. Existing consultations
-    const consultationsSnap = await db
-      .collection("consultations")
-      .where("dataConsulenza", ">=", Timestamp.fromDate(dayStart))
-      .where("dataConsulenza", "<=", Timestamp.fromDate(dayEnd))
-      .where("stato", "in", ["in_attesa", "confermata"])
-      .get();
-
-    for (const doc of consultationsSnap.docs) {
-      const data = doc.data();
-      const consultationDate = normalizeTimestampToDate(data.dataConsulenza);
-      const year = consultationDate.getFullYear();
-      const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
-      const day = String(consultationDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-
-      const start = createEuropeRomeDate(dateStr, data.orarioInizio);
-      const end = createEuropeRomeDate(dateStr, data.orarioFine);
-
-      existingEvents.push({
-        start,
-        end,
-        allDay: false,
-        title: `Consultation ${data.cliente?.nome || ''}`,
-        source: 'consultation'
-      });
-    }
-
-    console.log(`[POST /v2/available-slots] 📋 ${consultationsSnap.size} consultations esistenti`);
-
-    // 7c. Bookings - DISABLED: Calendar Engine V2 manages them via adapters
-    // ⚠️ DO NOT re-enable manual booking queries here - causes phantom conflicts
-    console.log("[POST /v2/available-slots] ⏭️ Booking conflicts managed by Calendar Engine V2 adapter");
-
-    // 7d. Jobs (only blocking statuses)
-    const jobsSnap = await db
-      .collection("jobs")
-      .where("eventDate", ">=", Timestamp.fromDate(dayStart))
-      .where("eventDate", "<=", Timestamp.fromDate(dayEnd))
-      .get();
-
-    const blockingStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
-
-    for (const doc of jobsSnap.docs) {
-      const data = doc.data();
-
-      if (!blockingStatuses.includes(data.stato)) {
-        continue; // Skip non-blocking jobs
-      }
-
-      const eventDate = data.eventDate.toDate();
-
-      if (data.allDay) {
-        // All-day job blocks entire day
-        const start = new Date(eventDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(eventDate);
-        end.setHours(23, 59, 59, 999);
-
-        existingEvents.push({
-          start,
-          end,
-          allDay: true,
-          title: `Job ${data.nomeEvento || ''}`,
-          source: 'job'
-        });
-      } else if (data.startTime && data.endTime) {
-        // Time-bound job
-        const year = eventDate.getFullYear();
-        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-        const day = String(eventDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-
-        const start = createEuropeRomeDate(dateStr, data.startTime);
-        const end = createEuropeRomeDate(dateStr, data.endTime);
-
-        existingEvents.push({
-          start,
-          end,
-          allDay: false,
-          title: `Job ${data.nomeEvento || ''}`,
-          source: 'job'
-        });
-      }
-    }
-
-    console.log(`[POST /v2/available-slots] 💼 ${existingEvents.filter(e => e.source === 'job').length} jobs bloccanti`);
-    console.log(`[POST /v2/available-slots] 🎯 TOTALE: ${existingEvents.length} eventi bloccanti`);
+    // Step 7: Load all existing events via centralized adapter
+    const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
+    const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
 
     // Step 8: Generate slots using Calendar Engine
     const slots = await getAvailableSlotsForDate(dayStart, config, existingEvents);
