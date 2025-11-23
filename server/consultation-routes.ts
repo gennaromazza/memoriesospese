@@ -70,6 +70,155 @@ function normalizeTimestampToDate(timestamp: any): Date {
 }
 
 /**
+ * Helper: Ottiene dettagli completi dei conflitti per una consultation
+ * Include eventi Google Calendar (anche orfani) e eventi piattaforma
+ */
+async function getConflictDetails(
+  consultationStartTime: Date,
+  consultationEndTime: Date,
+  dayStart: Date,
+  dayEnd: Date,
+  db: any
+): Promise<{
+  hasConflict: boolean;
+  conflicts: Array<{
+    id: string;
+    title: string;
+    source: 'google-calendar' | 'job' | 'booking';
+    startTime: string;
+    endTime: string;
+    allDay: boolean;
+    calendarName?: string;
+    isDeletable: boolean;
+    metadata: {
+      jobId?: string;
+      bookingId?: string;
+      googleEventId?: string;
+      calendarId?: string;
+    };
+  }>;
+}> {
+  const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
+  const { hasConflict: checkConflict } = await import('./calendar-engine/conflicts.js');
+  const { getEventsWithDetailsAllCalendars } = await import('./google-calendar.js');
+  
+  // Load blocking events (NO Firestore consultations to match /available-slots)
+  const blockingEvents = await getAllExistingEvents(dayStart, dayEnd, db, {
+    includeConsultations: false,
+    includeJobs: true,
+    includeBookings: true
+  });
+  
+  // Check if there's a conflict
+  const hasConflicts = checkConflict(consultationStartTime, consultationEndTime, blockingEvents);
+  
+  if (!hasConflicts) {
+    return { hasConflict: false, conflicts: [] };
+  }
+  
+  // Get detailed Google Calendar events for metadata
+  const googleEvents = await getEventsWithDetailsAllCalendars(dayStart, dayEnd);
+  
+  // Build detailed conflict list
+  const conflicts: any[] = [];
+  
+  for (const event of blockingEvents) {
+    // Check if this event overlaps with consultation time
+    const eventStart = event.start.getTime();
+    const eventEnd = event.end.getTime();
+    const consultStart = consultationStartTime.getTime();
+    const consultEnd = consultationEndTime.getTime();
+    
+    const overlaps = eventStart < consultEnd && eventEnd > consultStart;
+    
+    if (!overlaps) continue;
+    
+    // Format times
+    const startTimeStr = `${event.start.getHours().toString().padStart(2, '0')}:${event.start.getMinutes().toString().padStart(2, '0')}`;
+    const endTimeStr = `${event.end.getHours().toString().padStart(2, '0')}:${event.end.getMinutes().toString().padStart(2, '0')}`;
+    
+    if (event.source === 'google-calendar') {
+      // Find matching Google Calendar event for full metadata
+      const googleEvent = googleEvents.find(ge => {
+        const geStart = new Date(ge.start).getTime();
+        const geEnd = new Date(ge.end).getTime();
+        return Math.abs(geStart - eventStart) < 1000 && Math.abs(geEnd - eventEnd) < 1000;
+      });
+      
+      conflicts.push({
+        id: googleEvent?.id || `gcal-${eventStart}`,
+        title: event.title || 'Evento senza titolo',
+        source: 'google-calendar',
+        startTime: event.allDay ? 'Tutto il giorno' : startTimeStr,
+        endTime: event.allDay ? '' : endTimeStr,
+        allDay: event.allDay || false,
+        calendarName: googleEvent?.calendarName || 'Google Calendar',
+        isDeletable: googleEvent?.calendarId === 'primary', // Only primary calendar events are deletable
+        metadata: {
+          googleEventId: googleEvent?.id,
+          calendarId: googleEvent?.calendarId || 'primary'
+        }
+      });
+    } else if (event.source === 'job') {
+      // Find job in Firestore for ID
+      const jobsSnap = await db.collection('jobs')
+        .where('eventDate', '>=', Timestamp.fromDate(dayStart))
+        .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
+        .get();
+      
+      let jobId = null;
+      for (const doc of jobsSnap.docs) {
+        const jobData = doc.data();
+        const jobEventDate = jobData.eventDate.toDate();
+        
+        // Match by time
+        if (jobData.startTime && jobData.endTime) {
+          const year = jobEventDate.getFullYear();
+          const month = String(jobEventDate.getMonth() + 1).padStart(2, '0');
+          const day = String(jobEventDate.getDate()).padStart(2, '0');
+          const dateStr = `${year}-${month}-${day}`;
+          const jobStart = createEuropeRomeDate(dateStr, jobData.startTime);
+          
+          if (Math.abs(jobStart.getTime() - eventStart) < 1000) {
+            jobId = doc.id;
+            break;
+          }
+        }
+      }
+      
+      conflicts.push({
+        id: jobId || `job-${eventStart}`,
+        title: event.title || 'Job',
+        source: 'job',
+        startTime: event.allDay ? 'Tutto il giorno' : startTimeStr,
+        endTime: event.allDay ? '' : endTimeStr,
+        allDay: event.allDay || false,
+        isDeletable: false, // Jobs cannot be deleted via this interface
+        metadata: {
+          jobId: jobId || undefined
+        }
+      });
+    } else if (event.source === 'booking') {
+      conflicts.push({
+        id: `booking-${eventStart}`,
+        title: event.title || 'Booking',
+        source: 'booking',
+        startTime: event.allDay ? 'Tutto il giorno' : startTimeStr,
+        endTime: event.allDay ? '' : endTimeStr,
+        allDay: event.allDay || false,
+        isDeletable: false, // Bookings cannot be deleted via this interface
+        metadata: {}
+      });
+    }
+  }
+  
+  return {
+    hasConflict: true,
+    conflicts
+  };
+}
+
+/**
  * Multer setup per upload immagini template
  */
 const upload = multer({
@@ -603,6 +752,69 @@ router.patch(
       console.error("[PATCH /v2/:id/approve] ❌ Error:", error.message);
       console.error("[PATCH /v2/:id/approve] Stack:", error.stack);
       res.status(500).json({ error: "Errore approvazione consultation" });
+    }
+  },
+);
+
+/**
+ * GET /api/consultations/v2/:id/conflicts
+ * Get detailed conflict information for a consultation
+ * Returns list of conflicting events with metadata for UI display
+ */
+router.get(
+  "/v2/:id/conflicts",
+  authenticateFirebase,
+  async (req: AuthRequest, res) => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res.status(403).json({
+          error: "Solo gli amministratori possono verificare conflitti",
+        });
+      }
+
+      const { id } = req.params;
+
+      console.log(`[GET /v2/:id/conflicts] 🔍 Checking conflicts for consultation ${id}`);
+
+      // Load consultation
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+
+      // Parse consultation date and time
+      const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
+      const year = consultationDate.getFullYear();
+      const month = String(consultationDate.getMonth() + 1).padStart(2, "0");
+      const day = String(consultationDate.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+
+      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
+      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+
+      // Get day boundaries
+      const dateObj = DateTime.fromISO(dateStr, { zone: "Europe/Rome" });
+      const dayStart = dateObj.startOf("day").toJSDate();
+      const dayEnd = dateObj.endOf("day").toJSDate();
+
+      // Get conflict details
+      const conflictDetails = await getConflictDetails(
+        startDateTime,
+        endDateTime,
+        dayStart,
+        dayEnd,
+        db
+      );
+
+      console.log(`[GET /v2/:id/conflicts] ${conflictDetails.hasConflict ? `⚠️ Found ${conflictDetails.conflicts.length} conflicts` : '✅ No conflicts'}`);
+
+      res.json(conflictDetails);
+    } catch (error: any) {
+      console.error("[GET /v2/:id/conflicts] ❌ Error:", error.message);
+      console.error("[GET /v2/:id/conflicts] Stack:", error.stack);
+      res.status(500).json({ error: "Errore verifica conflitti" });
     }
   },
 );
