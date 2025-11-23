@@ -104,11 +104,15 @@ function normalizeGoogleEvent(rawEvent: any): CalendarEvent {
 /**
  * Normalize a date/time value to JavaScript Date in Europe/Rome timezone
  * Handles: Date objects, ISO strings, Luxon DateTime, or any date-like input
+ * 
+ * IMPORTANT: If input is already a Date, we assume it's correctly normalized
+ * and return it as-is to avoid double conversion (which could cause DST drift)
  */
 function normalizeToDateRome(input: any): Date {
-  // If already a Date, convert to Rome timezone and back to ensure consistency
+  // If already a Date, assume it's already normalized correctly
+  // DO NOT reconvert to avoid DST drift or double timezone shifts
   if (input instanceof Date) {
-    return DateTime.fromJSDate(input, { zone: "Europe/Rome" }).toJSDate();
+    return input;
   }
 
   // If it's a string (ISO format), parse with Rome timezone
