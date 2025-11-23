@@ -2151,25 +2151,10 @@ router.post("/v2/available-slots", async (req, res) => {
     console.log(`[POST /v2/available-slots] 📋 ${consultationsSnap.size} consultations esistenti`);
 
     // 7c. Bookings
-    const bookingsSnap = await db
-      .collection("bookings")
-      .where("dataShootingInizio", ">=", Timestamp.fromDate(dayStart))
-      .where("dataShootingInizio", "<=", Timestamp.fromDate(dayEnd))
-      .where("stato", "in", ["confermata", "in_attesa"])
-      .get();
-
-    for (const doc of bookingsSnap.docs) {
-      const data = doc.data();
-      existingEvents.push({
-        start: data.dataShootingInizio.toDate(),
-        end: data.dataShootingFine.toDate(),
-        allDay: false,
-        title: 'Booking',
-        source: 'booking'
-      });
-    }
-
-    console.log(`[POST /v2/available-slots] 📸 ${bookingsSnap.size} bookings esistenti`);
+    // 🚫 LEGACY BOOKING CONFLICT CHECK DISABLED IN CALENDAR ENGINE V2
+    // Le bookings vengono gestite SOLO dall'adapter centralizzato del Calendar Engine.
+    // Questo blocco è disabilitato per evitare conflitti fantasma.
+    console.log("[POST /v2/available-slots] ⏭️ Booking conflicts DISABLED in V2 - managed by Calendar Engine adapter");
 
     // 7d. Jobs (only blocking statuses)
     const jobsSnap = await db
