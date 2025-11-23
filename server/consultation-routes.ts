@@ -381,51 +381,6 @@ router.get("/:id", authenticateFirebase, async (req: AuthRequest, res) => {
 });
 
 /**
- * POST /api/consultations/available-slots
- * DEPRECATED: Use /v2/available-slots instead
- * Legacy endpoint - redirects to V2
- */
-router.post("/available-slots", async (req, res) => {
-  console.warn('[DEPRECATED] /api/consultations/available-slots called - redirecting to /v2/available-slots');
-  
-  return res.status(301).json({
-    error: 'deprecated',
-    message: 'This endpoint is deprecated. Use POST /api/consultations/v2/available-slots instead',
-    redirectTo: '/api/consultations/v2/available-slots'
-  });
-});
-
-/**
- * POST /api/consultations/create
- * DEPRECATED: Use /v2/create instead
- * Legacy endpoint - redirects to V2
- */
-router.post("/create", async (req, res) => {
-  console.warn('[DEPRECATED] /api/consultations/create called - redirecting to /v2/create');
-  
-  return res.status(301).json({
-    error: 'deprecated',
-    message: 'This endpoint is deprecated. Use POST /api/consultations/v2/create instead',
-    redirectTo: '/api/consultations/v2/create'
-  });
-});
-
-/**
- * PATCH /api/consultations/:id/approve
- * DEPRECATED: Use /v2/approve instead
- * Legacy endpoint - redirects to V2
- */
-router.patch("/:id/approve", authenticateFirebase, async (req: AuthRequest, res) => {
-  console.warn('[DEPRECATED] /api/consultations/:id/approve called - redirecting to /v2/approve');
-  
-  return res.status(301).json({
-    error: 'deprecated',
-    message: 'This endpoint is deprecated. Use PATCH /api/consultations/v2/:id/approve instead',
-    redirectTo: `/api/consultations/v2/${req.params.id}/approve`
-  });
-});
-
-/**
  * PATCH /api/consultations/v2/:id/approve
  * Approve consultation using Calendar Engine V2 (NO LEGACY LOGIC)
  * 
