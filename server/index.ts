@@ -21,6 +21,7 @@ import migrationRoutes from './migration-routes.js';
 import adminRoutes from './admin-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
+import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
 
 
 async function startServer() {
@@ -146,7 +147,7 @@ async function startServer() {
     console.log('⚡ Vite middleware attached');
 
     // Capture worker cleanup for graceful shutdown
-    let workerCleanup: (() => void) | null = null;
+    let cancellationWorkerCleanup: (() => void) | null = null;
 
     // Start server
     app.listen(PORT, '0.0.0.0', () => {
@@ -156,15 +157,19 @@ async function startServer() {
       console.log('✅ Development server ready!');
       
       // Start automated retry worker per cancellation_pending bookings
-      workerCleanup = startCancellationRetryWorker();
+      cancellationWorkerCleanup = startCancellationRetryWorker();
+      
+      // Start Event Sync Guard worker (every 10 minutes)
+      startEventSyncWorker(10);
     });
 
-    // Graceful shutdown: cleanup worker on SIGTERM/SIGINT
+    // Graceful shutdown: cleanup workers on SIGTERM/SIGINT
     const shutdown = (signal: string) => {
       console.log(`\n🛑 ${signal} received, shutting down gracefully...`);
-      if (workerCleanup) {
-        workerCleanup();
+      if (cancellationWorkerCleanup) {
+        cancellationWorkerCleanup();
       }
+      stopEventSyncWorker();
       process.exit(0);
     };
 
