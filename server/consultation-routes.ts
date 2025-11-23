@@ -2077,7 +2077,7 @@ router.post("/v2/available-slots", async (req, res) => {
 
     // Step 3: Validate template
     if (!validateConsultationTemplate(template)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Template configurazione invalida",
         message: "Template manca di customWorkingHours o durataMinuti"
       });
@@ -2085,7 +2085,7 @@ router.post("/v2/available-slots", async (req, res) => {
 
     // Step 4: Convert template to AvailabilityConfig
     const config = consultationTemplateToAvailabilityConfig(template);
-    
+
     console.log("[POST /v2/available-slots] 📋 Config generato:", {
       slotDuration: config.slotDurationMinutes,
       excludedWeekdays: config.excludedWeekdays,
@@ -2099,11 +2099,11 @@ router.post("/v2/available-slots", async (req, res) => {
 
     // Step 6: Check for all-day events
     const hasAllDay = await hasAllDayEvent(dayStart);
-    
+
     if (hasAllDay) {
       console.log("[POST /v2/available-slots] 🚫 All-day event detected");
       const unavailabilityInfo = getUnavailabilityReason(dayStart, config, true);
-      
+
       return res.json({
         date,
         slots: [],
@@ -2182,20 +2182,20 @@ router.post("/v2/available-slots", async (req, res) => {
 
     for (const doc of jobsSnap.docs) {
       const data = doc.data();
-      
+
       if (!blockingStatuses.includes(data.stato)) {
         continue; // Skip non-blocking jobs
       }
 
       const eventDate = data.eventDate.toDate();
-      
+
       if (data.allDay) {
         // All-day job blocks entire day
         const start = new Date(eventDate);
         start.setHours(0, 0, 0, 0);
         const end = new Date(eventDate);
         end.setHours(23, 59, 59, 999);
-        
+
         existingEvents.push({
           start,
           end,
@@ -2239,7 +2239,7 @@ router.post("/v2/available-slots", async (req, res) => {
 
     if (slots.length === 0 && !hasAllDay) {
       const unavailabilityInfo = getUnavailabilityReason(dayStart, config, false);
-      
+
       if (unavailabilityInfo.reason) {
         response.unavailableReason = unavailabilityInfo.reason;
         response.message = unavailabilityInfo.message;
