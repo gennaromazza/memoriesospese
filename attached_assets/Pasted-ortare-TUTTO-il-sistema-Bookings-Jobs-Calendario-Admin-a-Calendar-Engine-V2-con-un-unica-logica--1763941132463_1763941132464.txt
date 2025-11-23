@@ -1,0 +1,52 @@
+ortare TUTTO il sistema (Bookings, Jobs, Calendario Admin) a Calendar Engine V2 con un’unica logica centralizzata identica a quella già implementata per le Consultazioni.
+
+📌 FASE 1 — BOOKING SYSTEM INTO V2
+1. Crea endpoints:
+   - /api/booking/v2/available-slots
+   - /api/booking/v2/create
+2. Usa “getAllExistingEvents()” come unica sorgente.
+3. Aggiungi bookingToAvailabilityConfig.
+4. Aggiungi bookingToCalendarEvent adapter.
+5. Ogni evento GCAL valido (opaque, non cancelled) deve bloccare slot anche se orfano.
+6. Rimuovi qualsiasi uso di checkFreeBusy, createEuropeRomeDate o timezone manuale.
+7. Rendi retrocompatibili gli endpoint legacy con 301 redirect.
+
+📌 FASE 2 — JOB SYSTEM INTO V2
+1. Implementa jobToCalendarEvent adapter.
+2. Ogni Job confermato deve apparire come Event nel Calendar Engine.
+3. Creare o aggiornare Google Calendar event alla creazione/approvazione job.
+4. In /v2/available-slots e /v2/create includere i Jobs come blocking.
+5. Usare la stessa logica di Conflict Detection delle consulenze.
+
+📌 FASE 3 — ADMIN CALENDAR (UI)
+1. Crea endpoint /api/calendar/v2/all-events.
+2. Restituisce:
+   - googleEvents (validi)
+   - consultations
+   - bookings
+   - jobs
+   - unifiedEvents (normalizzati Europe/Rome)
+3. Il frontend deve leggere SOLELY questo endpoint.
+4. Il calendario admin deve mostrare la vera agenda reale (GCAL + sistema).
+
+📌 FASE 4 — CODE CLEANUP
+1. Rimuovere TUTTI gli utilizzi di:
+   - checkFreeBusy
+   - checkFreeBusyAllCalendars
+   - getEvents (vecchio)
+   - createEuropeRomeDate
+   - timezone auto-gestito
+   - slot generation duplicata
+2. Aggiornare tutti gli import per usare Calendar Engine V2.
+
+📌 FASE 5 — VALIDAZIONE
+Test obbligatori automatici:
+A. Booking 13:00-14:00 con evento GCAL 11:00-11:30 → slot valido.
+B. Evento GCAL 13:00-13:30 → blocco slot.
+C. Evento GCAL all-day → blocco giornata.
+D. Job 15:00-16:00 → blocco slot per booking/consultation.
+E. Orphan GCAL event → deve bloccare sempre.
+F. Approva booking → crea evento GCAL.
+G. Cancello evento GCAL → Event Sync Guard deve riparare bookings/jobs/consultations.
+
+Agisci su tutto il codebase applicando patch multiple. Mantieni massima retrocompatibilità.

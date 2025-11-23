@@ -6,6 +6,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import ConflictResolutionModal from '@/components/consultations/ConflictResolutionModal';
 
 interface ConsultationsManagerProps {
   highlightConsultationId?: string | null;
@@ -148,6 +149,7 @@ export default function ConsultationsManager({
   const [cancellationReason, setCancellationReason] = useState('');
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [bulkDeleteRifiutateOpen, setBulkDeleteRifiutateOpen] = useState(false);
+  const [conflictConsultationId, setConflictConsultationId] = useState<string | null>(null);
   
   // Refs per scroll deeplink
   const consultationRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -352,11 +354,20 @@ export default function ConsultationsManager({
       setApproveConfirmId(null);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Approvazione fallita';
-      toast({
-        variant: 'destructive',
-        title: 'Errore',
-        description: errorMessage
-      });
+      
+      // Check for 409 conflict error
+      if (errorMessage.includes('409') || errorMessage.toLowerCase().includes('conflict')) {
+        // Close confirm dialog and open conflict resolution modal
+        setApproveConfirmId(null);
+        setConflictConsultationId(approveConfirmId);
+      } else {
+        // Generic error: show toast
+        toast({
+          variant: 'destructive',
+          title: 'Errore',
+          description: errorMessage
+        });
+      }
     }
   };
   
@@ -1023,6 +1034,16 @@ export default function ConsultationsManager({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Conflict Resolution Modal */}
+      <ConflictResolutionModal
+        open={!!conflictConsultationId}
+        onClose={() => setConflictConsultationId(null)}
+        consultationId={conflictConsultationId || ''}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
+        }}
+      />
     </div>
   );
 }
