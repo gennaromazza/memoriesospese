@@ -1,0 +1,192 @@
+La parte legacy di approvazione usa:
+
+checkFreeBusyAllCalendars legacy
+
+conflitti legacy
+
+parsing date legacy
+
+logica duplicata rispetto alla V2
+
+messaggi hard-coded
+
+nessuna normalizzazione eventi
+
+nessun uso di Calendar Engine V2
+
+Il risultato è che l’approvazione admin produce falsi positivi e 409 illegittimi.
+
+OBIETTIVO
+Migrare COMPLETAMENTE l’approvazione delle consultazioni a Calendar Engine V2.
+
+📌 COSA DEVI FARE (PASSO-PASSO)
+1. Individua e isola tutto il codice legacy della funzione di approvazione
+
+Nel file:
+
+server/consultation-routes.ts
+
+
+Trova l’endpoint:
+
+POST /api/consultations/approve
+
+
+Analizza TUTTO il contenuto e identifica:
+
+manual conflict detection
+
+manual Google Calendar queries
+
+manual Firestore consultas queries
+
+manual Firestore bookings queries
+
+manual Firestore jobs queries
+
+manual timezone handling
+
+manual overlap functions
+
+Segna tutto come legacy da rimuovere o deprecare.
+
+2. CREA UN NUOVO ENDPOINT V2
+
+Nel file server/consultation-routes.ts crea:
+
+POST /api/consultations/v2/approve
+
+
+Questo endpoint deve fare SOLO questo:
+
+Step A — Carica la richiesta consultazione (doc Firestore)
+Step B — Carica template consultazione
+
+E convertirlo in AvailabilityConfig con:
+
+import { consultationTemplateToAvailabilityConfig } 
+from "./calendar-adapter";
+
+Step C — Carica TUTTI gli eventi reali della giornata
+
+Inclusi:
+
+Google Calendar
+
+consultazioni esistenti (eccetto quella corrente)
+
+jobs
+
+bookings (se previsti per consultazioni)
+
+eventi all-day
+
+Usa SOLO questa API centralizzata:
+
+getAllExistingEvents(date, config)
+
+Step D — Normalizza tutti gli eventi Google Calendar
+
+Usa la funzione:
+
+normalizeGoogleEvent
+
+Step E — Check conflitti con Calendar Engine
+
+Usa:
+
+import { hasOverlap } from "../calendar-engine/conflicts";
+
+
+Verifica:
+
+slot scelto vs. eventi esistenti
+
+slot scelto vs. jobs
+
+slot scelto vs. consultations esistenti
+
+slot scelto vs. google-calendar busy events
+
+all-day events
+
+Step F — Se c'è conflitto
+
+Ritorna:
+
+res.status(409).json({
+  error: "Slot non più disponibile",
+  message: "Attenzione: È stato rilevato un nuovo impegno che si sovrappone. Impossibile approvare."
+});
+
+Step G — Se NON c’è conflitto
+
+Devi:
+
+Aggiornare Firestore → status = 'approved'
+
+Creare evento Google Calendar tramite:
+
+createGoogleCalendarEvent()
+
+
+Salvare nel doc il eventId creato
+
+Restituire:
+
+res.status(200).json({ success: true });
+
+3. Depreca la route legacy
+
+Modifica:
+
+POST /api/consultations/approve
+
+
+In modo che faccia SOLO:
+
+return res.status(301).json({
+  error: "deprecated",
+  message: "Use POST /api/consultations/v2/approve instead",
+  redirectTo: "/api/consultations/v2/approve"
+});
+
+4. Aggiorna frontend se necessario
+
+Assicurati che il V2 create e V2 approve siano considerati endpoint pubblici nei file:
+
+client/src/lib/queryClient.ts
+
+client/src/lib/consultations.ts
+
+Se trova /api/consultations/approve, sostituirlo con /api/consultations/v2/approve.
+
+5. Verifica dopo patch
+
+Dopo aver applicato tutte le modifiche:
+
+la prenotazione cliente via V2 deve funzionare
+
+l’approvazione admin deve funzionare senza falsi conflitti
+
+lo slot deve essere sbloccato correttamente
+
+deve essere creato l’evento Google Calendar
+
+nessun altro modulo deve essere toccato
+
+⚠️ RESTRIZIONI IMPORTANTI
+
+NON modificare la logica del Calendar Engine V2
+
+NON toccare slot.ts, conflicts.ts, timezone.ts
+
+NON toccare booking o calendar native
+
+NON toccare Firestore schema
+
+NON introdurre nuove dipendenze
+
+NON duplicare mai logica già presente negli adapter o nel Calendar Engine
+
+NON modificare /v2/available-slots
