@@ -357,20 +357,28 @@ export async function getEventsWithDetailsAllCalendars(
 
     for (const cal of calendars) {
       try {
-        const response = await calendar.events.list({
-          calendarId: cal.id,
-          timeMin: timeMin.toISOString(),
-          timeMax: timeMax.toISOString(),
-          singleEvents: true, // Espande eventi ricorrenti
-          orderBy: 'startTime',
-        });
+        let pageToken: string | null | undefined = undefined;
+        let calendarEventCount = 0;
+        
+        // Pagina attraverso TUTTI gli eventi del calendario
+        do {
+          const response = await calendar.events.list({
+            calendarId: cal.id,
+            timeMin: timeMin.toISOString(),
+            timeMax: timeMax.toISOString(),
+            singleEvents: true, // Espande eventi ricorrenti
+            orderBy: 'startTime',
+            maxResults: 250, // Max items per page
+            pageToken: pageToken,
+          });
 
-        const events = response.data.items || [];
-        totalFetched += events.length;
+          const events = response.data.items || [];
+          calendarEventCount += events.length;
+          totalFetched += events.length;
+          
+          pageToken = response.data.nextPageToken;
 
-        console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${events.length} eventi trovati`);
-
-        for (const event of events) {
+          for (const event of events) {
           const eventId = event.id || '';
           const summary = event.summary || 'Senza titolo';
           const status = event.status || '';
@@ -413,6 +421,10 @@ export async function getEventsWithDetailsAllCalendars(
             isAllDay,
           });
         }
+        } while (pageToken); // Continua finché ci sono altre pagine
+        
+        console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${calendarEventCount} eventi trovati (paginati)`);
+        
       } catch (calError: any) {
         console.error(
           `[Google Calendar V2] ❌ Errore recupero eventi calendario "${cal.summary}":`,

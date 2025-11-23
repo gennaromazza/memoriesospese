@@ -52,19 +52,29 @@ interface RepairAction {
 /**
  * Recupera TUTTI gli eventi da Google Calendar
  * Usa events.list() invece di freebusy per accedere ai dettagli completi
+ * Range: ultimi 30 giorni + prossimi 365 giorni
  */
 async function getAllGoogleCalendarEvents(): Promise<Set<string>> {
   console.log('[EVENT SYNC GUARD] 🔍 Fetching all events from Google Calendar...');
   
   try {
-    const events = await getEventsWithDetailsAllCalendars();
+    // Range: 30 giorni nel passato + 365 giorni nel futuro
+    const timeMin = new Date();
+    timeMin.setDate(timeMin.getDate() - 30);
+    
+    const timeMax = new Date();
+    timeMax.setDate(timeMax.getDate() + 365);
+    
+    console.log(`[EVENT SYNC GUARD] 📅 Range: ${timeMin.toISOString()} -> ${timeMax.toISOString()}`);
+    
+    const events = await getEventsWithDetailsAllCalendars(timeMin, timeMax);
     
     // Estrai solo gli ID degli eventi validi
     const eventIds = new Set<string>();
     
     events.forEach((event: any) => {
-      if (event.id) {
-        eventIds.add(event.id);
+      if (event.eventId) {
+        eventIds.add(event.eventId);
       }
     });
     
@@ -186,7 +196,18 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     console.log(`[EVENT SYNC GUARD] ✅ Found ${consultations.length} consultations with Google events`);
     console.log(`[EVENT SYNC GUARD] ✅ Found ${bookings.length} bookings with Google events`);
     
-    // 3. Confronta e ripara
+    // 3. Crea un Set di tutti gli eventi "noti" in Firestore
+    const knownEventIds = new Set<string>();
+    consultations.forEach(c => {
+      if (c.googleCalendarEventId) knownEventIds.add(c.googleCalendarEventId);
+    });
+    bookings.forEach(b => {
+      if (b.googleCalendarEventId) knownEventIds.add(b.googleCalendarEventId);
+    });
+    
+    console.log(`[EVENT SYNC GUARD] 📋 Total known events in Firestore: ${knownEventIds.size}`);
+    
+    // 4. Confronta e ripara
     console.log('\n[EVENT SYNC GUARD] 🔍 Analyzing inconsistencies...\n');
     
     const repairs: SyncReport['repairs'] = {
@@ -210,7 +231,27 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
       }
     }
     
-    // 4. Report finale
+    // 5. Identifica eventi orfani in Google Calendar
+    const orphanedEvents: string[] = [];
+    for (const gcalEventId of googleEventIds) {
+      if (!knownEventIds.has(gcalEventId)) {
+        orphanedEvents.push(gcalEventId);
+      }
+    }
+    
+    if (orphanedEvents.length > 0) {
+      console.log(`\n[EVENT SYNC GUARD] 👻 Found ${orphanedEvents.length} orphaned Google Calendar events`);
+      console.log('[EVENT SYNC GUARD] ℹ️  These events exist in Google Calendar but have no Firestore reference');
+      console.log('[EVENT SYNC GUARD] ℹ️  Consider manual cleanup if these are CRM-created events');
+      orphanedEvents.slice(0, 10).forEach(id => {
+        console.log(`   - Event ID: ${id}`);
+      });
+      if (orphanedEvents.length > 10) {
+        console.log(`   ... and ${orphanedEvents.length - 10} more`);
+      }
+    }
+    
+    // 6. Report finale
     const duration = Date.now() - startTime;
     const report: SyncReport = {
       timestamp: new Date(),
@@ -221,7 +262,7 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
         bookings: bookings.length,
       },
       repairs,
-      orphanedGoogleEvents: [], // TODO: implementare cleanup eventi orfani se necessario
+      orphanedGoogleEvents: orphanedEvents,
     };
     
     console.log('\n========================================');
@@ -247,7 +288,14 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     }
     
     if (repairs.consultations.length === 0 && repairs.bookings.length === 0) {
-      console.log('\n✅ No inconsistencies found — system is in sync!');
+      console.log('\n✅ No Firestore inconsistencies found!');
+    }
+    
+    if (orphanedEvents.length > 0) {
+      console.log(`\n⚠️  ${orphanedEvents.length} orphaned Google Calendar events detected`);
+      console.log('   These require manual review/cleanup');
+    } else {
+      console.log('\n✅ No orphaned Google Calendar events');
     }
     
     console.log('========================================\n');
