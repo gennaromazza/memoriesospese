@@ -1,0 +1,121 @@
+Devi implementare un sistema completo e professionale di sincronizzazione e auto-riparazione tra Google Calendar e il mio CRM “Memorie Sospese”.
+Questo sistema si chiama Event Sync Guard e deve eliminare per sempre il problema degli eventi fantasma (eventi presenti in una sorgente ma non nell’altra).
+
+🎯 OBIETTIVO
+
+Realizzare un servizio backend che, ogni pochi minuti, esegue una sincronizzazione bidirezionale:
+
+Recupera TUTTI gli eventi da Google Calendar tramite events.list()
+Non usare freebusy perché non filtra cancelled/transparent.
+
+Carica da Firestore TUTTE le seguenti collezioni:
+
+consultations
+
+bookings
+
+jobs (solo se usano googleCalendarEventId)
+
+Confronta:
+
+se Firestore contiene un googleCalendarEventId che NON esiste più su Google Calendar → correggi Firestore
+
+se Google Calendar contiene un evento creato dal CRM ma Firestore non ha più il riferimento → elimina l’evento GCAL
+
+Ripristina automaticamente lo stato corretto:
+
+CONSULTATIONS
+
+se stato = “confermata” ma GCAL event sparito → torna a “in_attesa”
+
+rimuovi googleCalendarEventId
+
+logga l’operazione
+
+BOOKINGS
+
+se evento sparito → torna stato = pending o richiesta
+
+rimuovi googleCalendarEventId
+
+JOBS
+
+se evento sparito → rimuovi googleCalendarEventId
+
+NON cambiare lo stato del job
+
+Log dettagliato:
+
+[EVENT SYNC GUARD] Consultation 83KhKs... repaired — Google Calendar event missing.
+[EVENT SYNC GUARD] Booking llWPuQe... restored — GCAL deleted manually.
+[EVENT SYNC GUARD] Job r8FssA... detached from deleted event.
+
+
+Tutto deve essere modulare, organizzato e posizionato nella cartella:
+
+server/sync/event-sync-guard.ts
+
+
+Aggiungi endpoint admin:
+
+POST /api/admin/sync-calendar
+
+
+per lanciare manualmente la sincronizzazione.
+
+Aggiungi un worker schedulato interno (interval 5–10 minuti) che esegue:
+
+runEventSyncGuard()
+
+🔥 FUNZIONALITÀ EXTRA NECESSARIE
+
+Usa solo events.list() con parametri:
+
+showDeleted: false
+singleEvents: true
+orderBy: "startTime"
+
+
+Filtra eventi:
+
+status !== "confirmed"
+
+transparency === "transparent"
+
+visibility === "free"
+
+Normalizza start/end in timezone Europe/Rome
+
+Integra la funzione nel Calendar Engine V2 (google-sync.ts)
+
+DEPRECATE completamente qualsiasi uso di:
+
+checkFreeBusyAllCalendars
+
+logic legacy dei booking/consultations
+
+📦 OUTPUT RICHIESTO
+
+Devi:
+
+creare il file completo event-sync-guard.ts
+
+integrare il worker nel server principale
+
+aggiungere endpoint admin
+
+aggiornare google-sync.ts e calendar-engine se servono
+
+rimuovere codice legacy se necessario
+
+realizzare logs chiari e puliti
+
+effettuare test automatici mostrando nella console:
+
+eventi GCAL recuperati
+
+differenze rilevate
+
+riparazioni effettuate
+
+Non fermarti a suggerire: implementa tutto il codice in maniera completa e perfettamente funzionante.»
