@@ -298,6 +298,147 @@ export async function checkFreeBusyAllCalendars(
 }
 
 /**
+ * CALENDAR ENGINE V2 — Enhanced event fetching with ghost event filtering
+ * Recupera eventi da tutti i calendari con filtri avanzati per:
+ * - Eventi cancellati (status: "cancelled")
+ * - Eventi trasparenti (transparency: "transparent")
+ * - Eventi con visibilità "free"
+ * 
+ * Questa funzione SOSTITUISCE checkFreeBusyAllCalendars per il Calendar Engine V2
+ * perché l'API freebusy NON filtra eventi cancellati/trasparenti.
+ */
+export async function getEventsWithDetailsAllCalendars(
+  timeMin: Date,
+  timeMax: Date,
+): Promise<
+  Array<{
+    start: string;
+    end: string;
+    calendarId?: string;
+    calendarName?: string;
+    eventId?: string;
+    summary?: string;
+    status?: string;
+    transparency?: string;
+    isAllDay?: boolean;
+  }>
+> {
+  try {
+    const calendar = await getGoogleCalendarClient();
+
+    // 1. Recupera lista di tutti i calendari
+    console.log("[Google Calendar V2] 📋 Recupero lista calendari con filtri avanzati...");
+    const calendars = await listCalendars();
+
+    if (!calendars || calendars.length === 0) {
+      console.warn("[Google Calendar V2] ⚠️ Nessun calendario trovato");
+      return [];
+    }
+
+    console.log(`[Google Calendar V2] ✅ Trovati ${calendars.length} calendari`);
+
+    // 2. Recupera eventi dettagliati da OGNI calendario
+    const allEvents: Array<{
+      start: string;
+      end: string;
+      calendarId?: string;
+      calendarName?: string;
+      eventId?: string;
+      summary?: string;
+      status?: string;
+      transparency?: string;
+      isAllDay?: boolean;
+    }> = [];
+
+    let totalFetched = 0;
+    let totalCancelled = 0;
+    let totalTransparent = 0;
+    let totalValid = 0;
+
+    for (const cal of calendars) {
+      try {
+        const response = await calendar.events.list({
+          calendarId: cal.id,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          singleEvents: true, // Espande eventi ricorrenti
+          orderBy: 'startTime',
+        });
+
+        const events = response.data.items || [];
+        totalFetched += events.length;
+
+        console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${events.length} eventi trovati`);
+
+        for (const event of events) {
+          const eventId = event.id || '';
+          const summary = event.summary || 'Senza titolo';
+          const status = event.status || '';
+          const transparency = event.transparency || 'opaque';
+
+          // FILTRO #1: Skip eventi cancellati
+          if (status === 'cancelled') {
+            totalCancelled++;
+            console.log(`[Google Calendar V2] 🚫 FILTRATO (cancelled): "${summary}" [${eventId}]`);
+            continue;
+          }
+
+          // FILTRO #2: Skip eventi trasparenti (non bloccano calendario)
+          if (transparency === 'transparent') {
+            totalTransparent++;
+            console.log(`[Google Calendar V2] 👻 FILTRATO (transparent): "${summary}" [${eventId}]`);
+            continue;
+          }
+
+          // Estrai start/end time
+          const start = event.start?.dateTime || event.start?.date;
+          const end = event.end?.dateTime || event.end?.date;
+          const isAllDay = !!event.start?.date; // All-day events use .date instead of .dateTime
+
+          if (!start || !end) {
+            console.warn(`[Google Calendar V2] ⚠️ Evento senza start/end: "${summary}" [${eventId}]`);
+            continue;
+          }
+
+          totalValid++;
+          allEvents.push({
+            start,
+            end,
+            calendarId: cal.id,
+            calendarName: cal.summary || cal.id,
+            eventId,
+            summary,
+            status,
+            transparency,
+            isAllDay,
+          });
+        }
+      } catch (calError: any) {
+        console.error(
+          `[Google Calendar V2] ❌ Errore recupero eventi calendario "${cal.summary}":`,
+          calError.message
+        );
+        // Continua con altri calendari
+      }
+    }
+
+    console.log(`[Google Calendar V2] 📊 SUMMARY:`);
+    console.log(`  Total fetched: ${totalFetched}`);
+    console.log(`  Filtered (cancelled): ${totalCancelled}`);
+    console.log(`  Filtered (transparent): ${totalTransparent}`);
+    console.log(`  Valid busy events: ${totalValid}`);
+
+    return allEvents;
+  } catch (error: any) {
+    console.error(
+      "[Google Calendar V2] ❌ Errore getEventsWithDetailsAllCalendars:",
+      error.message,
+    );
+    throw error;
+  }
+}
+
+/**
  * Crea nuovo evento calendario
  */
 export async function createEvent(

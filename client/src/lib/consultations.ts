@@ -175,21 +175,8 @@ export function useDeleteTemplate() {
   });
 }
 
+// CALENDAR ENGINE V2 — Unified API with timezone Europe/Rome and user-friendly messages
 export function useAvailableSlots() {
-  return useMutation({
-    mutationFn: async (data: { templateId: string; date: string }) => {
-      const res = await apiRequest(
-        "POST",
-        "/api/consultations/available-slots",
-        data,
-      );
-      return res.json();
-    },
-  });
-}
-
-// NEW CALENDAR ENGINE V2 — Unified API with better timezone handling and user-friendly messages
-export function useAvailableSlotsV2() {
   return useMutation({
     mutationFn: async (data: { templateId: string; date: string }) => {
       const res = await apiRequest(

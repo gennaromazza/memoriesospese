@@ -71,11 +71,9 @@ export async function apiRequest(
   // Prepara headers
   const headers: Record<string, string> = enhancedData ? { "Content-Type": "application/json" } : {};
   
-  // Endpoint consultations pubblici (NON richiedono auth)
+  // Endpoint consultations pubblici (NON richiedono auth) - SOLO V2
   const publicConsultationEndpoints = [
-    '/api/consultations/available-slots',
     '/api/consultations/v2/available-slots',
-    '/api/consultations/create',
     '/api/consultations/v2/create'
   ];
   
