@@ -2,8 +2,8 @@
 // Converts existing consultation template structure to unified Calendar Engine format
 // Does NOT modify existing logic
 
-import { AvailabilityConfig } from '@/shared/calendar-types';
-import { ConsultationTemplate, ConsultationWorkingHours } from '@/shared/consultation-types';
+import type { AvailabilityConfig } from "../../shared/calendar-types.js";
+import type { ConsultationTemplate } from "../../shared/consultation-types.js";
 
 /**
  * Convert consultation template to unified AvailabilityConfig
@@ -114,9 +114,8 @@ export async function getAllExistingEvents(
   dayEnd: Date,
   db: any
 ): Promise<Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }>> {
-  const { CalendarEvent } = await import('@/shared/calendar-types');
   const { Timestamp } = await import('firebase-admin/firestore');
-  const { createEuropeRomeDate } = await import('../google-calendar');
+  const { createEuropeRomeDate } = await import('../google-calendar.js');
   
   const existingEvents: Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }> = [];
   
@@ -157,7 +156,31 @@ export async function getAllExistingEvents(
   
   console.log(`[Consultation Adapter] 📋 ${consultationsSnap.size} existing consultations`);
   
-  // 3. Load jobs (only blocking statuses)
+  // 3. Load bookings (only confirmed)
+  const bookingsSnap = await db
+    .collection('bookings')
+    .where('stato', '==', 'confermata')
+    .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+    .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+    .get();
+
+  for (const doc of bookingsSnap.docs) {
+    const data = doc.data();
+    const startDate = data.dataShootingInizio.toDate();
+    const endDate = data.dataShootingFine?.toDate?.() || startDate;
+
+    existingEvents.push({
+      start: startDate,
+      end: endDate,
+      allDay: false,
+      title: `Booking ${data.clienteNome || ''}`,
+      source: 'booking'
+    });
+  }
+
+  console.log(`[Consultation Adapter] 📸 ${bookingsSnap.size} confirmed bookings (blocking)`);
+  
+  // 4. Load jobs (only blocking statuses)
   const jobsSnap = await db
     .collection('jobs')
     .where('eventDate', '>=', Timestamp.fromDate(dayStart))
