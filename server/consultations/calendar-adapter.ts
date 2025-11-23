@@ -120,11 +120,13 @@ export async function getAllExistingEvents(
   const existingEvents: Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }> = [];
   
   // 1. Load Google Calendar busy periods
+  // CRITICAL: checkGoogleCalendarBusyPeriods uses getEventsWithDetailsAllCalendars
+  // This ensures ALL valid Google Calendar events (including orphaned events) are loaded
   const { checkGoogleCalendarBusyPeriods } = await import('../calendar-engine/google-sync');
   const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
   existingEvents.push(...googleBusy);
   
-  console.log(`[Consultation Adapter] 📅 ${googleBusy.length} busy periods from Google Calendar`);
+  console.log(`[Consultation Adapter] 📅 ${googleBusy.length} busy periods from Google Calendar (ALL valid events, orphans included)`);
   
   // 2. Load existing consultations
   const consultationsSnap = await db

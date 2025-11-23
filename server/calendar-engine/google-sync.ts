@@ -136,7 +136,13 @@ function normalizeToDateRome(input: any): Date {
  * - Cancelled events (status: "cancelled")
  * - Transparent events (transparency: "transparent")
  * 
- * This replaces the legacy checkFreeBusyAllCalendars which doesn't filter these events.
+ * CRITICAL GUARANTEE: Returns ALL valid Google Calendar events, including:
+ * - Events with Firestore references (consultations, bookings, jobs)
+ * - Orphaned events (events in Google Calendar without Firestore reference)
+ * - Events from ALL configured calendars (not just primary)
+ * 
+ * This ensures 100% reliability: Google Calendar is the source of truth for availability.
+ * NO events are filtered based on googleCalendarEventId existence.
  *
  * CRITICAL: Normalizes all events to JavaScript Date objects in Europe/Rome timezone
  * This ensures .getTime() works correctly in conflict detection
@@ -151,10 +157,14 @@ export async function checkGoogleCalendarBusyPeriods(
 ): Promise<CalendarEvent[]> {
   try {
     // Use ENHANCED function with ghost event filtering
+    // CRITICAL: This returns ALL valid events, orphans included (no googleCalendarEventId filtering)
     const eventsWithDetails = await getEventsWithDetailsAllCalendars(timeMin, timeMax);
 
     console.log(
-      `[Calendar Engine V2] 📅 Received ${eventsWithDetails.length} VALID busy events from Google Calendar (after filtering)`,
+      `[Calendar Engine V2] 📅 Received ${eventsWithDetails.length} VALID events from Google Calendar`,
+    );
+    console.log(
+      `[Calendar Engine V2] ✅ ALL events are considered blocking (orphans included, no Firestore reference required)`,
     );
 
     // Convert to CalendarEvent format with NORMALIZED Date objects
@@ -226,6 +236,9 @@ export async function getGoogleCalendarEvents(
 /**
  * Check if there are any all-day events on the specified date
  * All-day events block the entire day from slot availability
+ * 
+ * CRITICAL: Uses getEventsWithDetailsAllCalendars to ensure ALL valid events
+ * (including orphaned events without Firestore references) are detected
  *
  * @param date Date to check (will be normalized to Europe/Rome day boundaries)
  * @returns true if any all-day event exists on this date
@@ -240,19 +253,21 @@ export async function hasAllDayEvent(date: Date): Promise<boolean> {
       `[Calendar Engine V2] 🔍 Checking for all-day events on ${dateRome.toFormat("yyyy-MM-dd")}`,
     );
 
-    // Get all events for the day and normalize them
-    const rawEvents = await originalGetEvents("primary", dayStart, dayEnd);
-    const normalizedEvents = rawEvents.map(normalizeGoogleEvent);
+    // CRITICAL: Use getEventsWithDetailsAllCalendars to get ALL valid events
+    // This includes orphaned events (events in Google Calendar without Firestore reference)
+    const eventsWithDetails = await getEventsWithDetailsAllCalendars(dayStart, dayEnd);
 
     // Filter for all-day events
-    const allDayEvents = normalizedEvents.filter(
-      (event) => event.allDay === true,
-    );
+    const allDayEvents = eventsWithDetails.filter(event => event.isAllDay === true);
 
     if (allDayEvents.length > 0) {
       console.log(
         `[Calendar Engine V2] 🚫 Found ${allDayEvents.length} all-day event(s):`,
-        allDayEvents.map((e) => e.title || "Untitled"),
+        allDayEvents.map((e) => e.summary || "Untitled"),
+      );
+      console.log(
+        `[Calendar Engine V2] 📋 All-day events sources:`,
+        allDayEvents.map((e) => e.calendarName),
       );
       return true;
     }
