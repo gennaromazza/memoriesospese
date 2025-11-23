@@ -1,0 +1,336 @@
+1. BUG GRAVE: legacy endpoint ancora “appesi” 👉 file NON COMPILA
+
+In consultation-routes.ts hai fatto benissimo a mettere:
+
+router.post("/available-slots", async (req, res) => {
+  console.warn('[DEPRECATED] /api/consultations/available-slots called - redirecting to /v2/available-slots');
+  return res.status(301).json({
+    error: 'deprecated',
+    message: 'This endpoint is deprecated. Use POST /api/consultations/v2/available-slots instead',
+    redirectTo: '/api/consultations/v2/available-slots'
+  });
+});
+
+
+e analogo per /create.
+
+❌ Ma sotto hai ancora TUTTO il vecchio codice con:
+
+});
+  try {
+    console.log("[POST /available-slots] Request body:", req.body);
+    ...
+
+
+Quella try è fuori da qualsiasi funzione → il file è invalid JS/TS.
+
+✅ FIX: tieni SOLO l’handler “deprecated”
+
+Cancella tutto il blocco vecchio dopo il router.post("/available-slots"... e dopo il router.post("/create"..., lasciando solo la parte 301.
+
+Ti lascio il pezzo corretto pronto da incollare:
+
+/**
+ * POST /api/consultations/available-slots
+ * DEPRECATED: Use /v2/available-slots instead
+ * Legacy endpoint - redirects to V2
+ */
+router.post("/available-slots", async (req, res) => {
+  console.warn(
+    '[DEPRECATED] /api/consultations/available-slots called - redirecting to /v2/available-slots'
+  );
+
+  return res.status(301).json({
+    error: "deprecated",
+    message:
+      "This endpoint is deprecated. Use POST /api/consultations/v2/available-slots instead",
+    redirectTo: "/api/consultations/v2/available-slots",
+  });
+});
+
+/**
+ * POST /api/consultations/create
+ * DEPRECATED: Use /v2/create instead
+ * Legacy endpoint - redirects to V2
+ */
+router.post("/create", async (req, res) => {
+  console.warn(
+    '[DEPRECATED] /api/consultations/create called - redirecting to /v2/create'
+  );
+
+  return res.status(301).json({
+    error: "deprecated",
+    message: "This endpoint is deprecated. Use POST /api/consultations/v2/create instead",
+    redirectTo: "/api/consultations/v2/create",
+  });
+});
+
+
+👉 Dopodiché il prossimo blocco nel file deve essere direttamente router.patch("/:id/approve"....
+
+2. BUG LOGICO: getAllExistingEvents NON carica i BOOKINGS
+
+Nel commento scrivi:
+
+ * Centralizes event loading logic from consultations, bookings, jobs
+
+
+Ma nel codice carichi solo:
+
+Google Calendar (busy)
+
+Consultations
+
+Jobs
+
+📌 Mancano i bookings, che nel vecchio sistema contribuivano ai conflitti (shooting confermati che devono bloccare le consulenze).
+
+✅ Patch per getAllExistingEvents
+
+Ti aggiungo esattamente la sezione “bookings” (blocca solo stato === "confermata" e usa dataShootingInizio/dataShootingFine):
+
+export async function getAllExistingEvents(
+  dayStart: Date,
+  dayEnd: Date,
+  db: any
+): Promise<Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }>> {
+  const { Timestamp } = await import('firebase-admin/firestore');
+  const { createEuropeRomeDate } = await import('../google-calendar');
+  
+  const existingEvents: Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }> = [];
+  
+  // 1. Load Google Calendar busy periods
+  const { checkGoogleCalendarBusyPeriods } = await import('../calendar-engine/google-sync');
+  const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
+  existingEvents.push(...googleBusy);
+  
+  console.log(`[Consultation Adapter] 📅 ${googleBusy.length} busy periods from Google Calendar`);
+  
+  // 2. Load existing consultations
+  const consultationsSnap = await db
+    .collection('consultations')
+    .where('dataConsulenza', '>=', Timestamp.fromDate(dayStart))
+    .where('dataConsulenza', '<=', Timestamp.fromDate(dayEnd))
+    .where('stato', 'in', ['in_attesa', 'confermata'])
+    .get();
+  
+  for (const doc of consultationsSnap.docs) {
+    const data = doc.data();
+    const consultationDate = data.dataConsulenza.toDate();
+    const year = consultationDate.getFullYear();
+    const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
+    const day = String(consultationDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    const start = createEuropeRomeDate(dateStr, data.orarioInizio);
+    const end = createEuropeRomeDate(dateStr, data.orarioFine);
+    
+    existingEvents.push({
+      start,
+      end,
+      allDay: false,
+      title: `Consultation ${data.cliente?.nome || ''}`,
+      source: 'consultation'
+    });
+  }
+  
+  console.log(`[Consultation Adapter] 📋 ${consultationsSnap.size} existing consultations`);
+  
+  // 3. Load bookings (only confirmed)
+  const bookingsSnap = await db
+    .collection('bookings')
+    .where('stato', '==', 'confermata')
+    .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+    .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+    .get();
+
+  for (const doc of bookingsSnap.docs) {
+    const data = doc.data();
+    const startDate = data.dataShootingInizio.toDate();
+    const endDate = data.dataShootingFine?.toDate?.() || startDate;
+
+    existingEvents.push({
+      start: startDate,
+      end: endDate,
+      allDay: false,
+      title: `Booking ${data.clienteNome || ''}`,
+      source: 'booking'
+    });
+  }
+
+  console.log(
+    `[Consultation Adapter] 📸 ${bookingsSnap.size} confirmed bookings (blocking)`
+  );
+  
+  // 4. Load jobs (only blocking statuses)
+  const jobsSnap = await db
+    .collection('jobs')
+    .where('eventDate', '>=', Timestamp.fromDate(dayStart))
+    .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
+    .get();
+  
+  const blockingStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
+  
+  for (const doc of jobsSnap.docs) {
+    const data = doc.data();
+    
+    if (!blockingStatuses.includes(data.stato)) {
+      continue;
+    }
+    
+    const eventDate = data.eventDate.toDate();
+    
+    if (data.allDay) {
+      const start = new Date(eventDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(eventDate);
+      end.setHours(23, 59, 59, 999);
+      
+      existingEvents.push({
+        start,
+        end,
+        allDay: true,
+        title: `Job ${data.nomeEvento || ''}`,
+        source: 'job'
+      });
+    } else if (data.startTime && data.endTime) {
+      const year = eventDate.getFullYear();
+      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+      const day = String(eventDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      const start = createEuropeRomeDate(dateStr, data.startTime);
+      const end = createEuropeRomeDate(dateStr, data.endTime);
+      
+      existingEvents.push({
+        start,
+        end,
+        allDay: false,
+        title: `Job ${data.nomeEvento || ''}`,
+        source: 'job'
+      });
+    }
+  }
+  
+  console.log(
+    `[Consultation Adapter] 💼 ${existingEvents.filter(e => e.source === 'job').length} blocking jobs`
+  );
+  console.log(
+    `[Consultation Adapter] 🎯 TOTAL: ${existingEvents.length} blocking events`
+  );
+  
+  return existingEvents;
+}
+
+
+Con questo:
+
+✅ I bookings tornano a bloccare gli slot
+
+✅ hasConflict riceve davvero “tutte” le fonti (GC + consultations + bookings + jobs)
+
+3. Piccoli dettagli di pulizia (non bloccanti ma consigliati)
+a) Import nel calendar-adapter
+
+Adesso hai:
+
+import { AvailabilityConfig } from '@/shared/calendar-types';
+import { ConsultationTemplate, ConsultationWorkingHours } from '@/shared/consultation-types';
+
+
+Mentre in consultation-routes.ts usi path relativi col .js finale:
+
+import {
+  InsertConsultationTemplateSchema,
+  ...
+} from "../shared/consultation-types.js";
+
+
+Per coerenza lato server (dist Node), ti conviene fare così anche nell’adapter:
+
+import type { AvailabilityConfig } from "../shared/calendar-types.js";
+import type { ConsultationTemplate } from "../shared/consultation-types.js";
+
+
+E puoi togliere ConsultationWorkingHours se non lo usi.
+
+b) Import duplicato di DateTime in /v2/create
+
+In cima al file hai già:
+
+import { DateTime } from "luxon";
+
+
+Dentro /v2/create fai:
+
+const { DateTime } = await import('luxon');
+
+
+Non è un bug, ma è ridondante. Puoi usare direttamente il DateTime già importato (come fai in altri endpoint), quindi elimina il dynamic import e lascia:
+
+const dateObj = DateTime.fromISO(dataConsulenza, { zone: "Europe/Rome" });
+const slotStart = DateTime.fromISO(`${dataConsulenza}T${orarioInizio}:00`, { zone: "Europe/Rome" }).toJSDate();
+const slotEnd = DateTime.fromISO(`${dataConsulenza}T${orarioFine}:00`, { zone: "Europe/Rome" }).toJSDate();
+
+4. Conferma sul flow V2
+
+La parte nuova è strutturata bene:
+
+/v2/available-slots
+
+Prende date + templateId
+
+Carica template
+
+Valida con validateConsultationTemplate
+
+Converte in AvailabilityConfig con consultationTemplateToAvailabilityConfig
+
+Calcola dayStart/dayEnd in Europe/Rome
+
+Se all-day event → ritorna vuoto con unavailableReason
+
+Carica tutti gli eventi con getAllExistingEvents
+
+Chiama getAvailableSlotsForDate
+
+Se 0 slot → getUnavailabilityReason oppure “sold out”
+
+/v2/create
+
+Valida body con InsertConsultationSchema
+
+Carica template
+
+Valida template (adapter)
+
+Calcola slotStart / slotEnd in Europe/Rome
+
+Da getAllExistingEvents ottiene eventi del giorno
+
+hasConflict verifica sovrapposizione reale
+
+Se ok → createConsultation + email
+
+Architetturalmente è 👍, dopo i 2 fix sopra diventa davvero Calendar Engine come single source of truth.
+
+5. Cosa ti consiglio di fare ora
+
+Applica le patch:
+
+Ripulisci i legacy endpoint /available-slots e /create
+
+Aggiorna getAllExistingEvents aggiungendo i bookings
+
+(Opzionale ma consigliato) sistema gli import nel calendar-adapter e in /v2/create
+
+Poi testa questi casi in ordine:
+
+Test A: giorno con solo 1 booking confermato → quello slot deve essere bloccato, gli altri liberi
+
+Test B: job all-day → nessuno slot disponibile, con unavailableReason = "all-day-event"
+
+Test C: Google Calendar evento 11:00–12:00, template con slot 09:00–10:00 e 11:00–12:00
+→ primo disponibile, secondo bloccato
+
+Test D: caso reale della cliente di sabato alle 15:30 che ti dava 409
