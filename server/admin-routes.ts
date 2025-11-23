@@ -226,4 +226,44 @@ router.post('/jobs/reconcile-calendar', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/sync-calendar
+ * Sincronizzazione manuale Google Calendar <-> Firestore
+ * Elimina eventi fantasma e ripara inconsistenze
+ */
+router.post('/sync-calendar', async (req, res) => {
+  try {
+    console.log('🔄 Admin triggered manual calendar sync');
+    
+    // Importa dinamicamente per evitare circular dependencies
+    const { runEventSyncGuard } = await import('./sync/event-sync-guard.js');
+    
+    const report = await runEventSyncGuard();
+    
+    res.json({
+      success: true,
+      message: 'Calendar sync completed successfully',
+      report: {
+        timestamp: report.timestamp,
+        duration: report.duration,
+        googleCalendarEvents: report.googleCalendarEvents,
+        firestoreRecords: report.firestoreRecords,
+        repairsPerformed: {
+          consultations: report.repairs.consultations.length,
+          bookings: report.repairs.bookings.length,
+          total: report.repairs.consultations.length + report.repairs.bookings.length
+        },
+        details: report.repairs
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Errore durante sync calendar:', error);
+    res.status(500).json({
+      error: 'Errore durante la sincronizzazione calendar',
+      details: error.message
+    });
+  }
+});
+
 export default router;
