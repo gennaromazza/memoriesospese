@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
-import { useTemplate, useAvailableSlots, useAvailableSlotsV2, useCreateConsultation } from '@/lib/consultations';
+import { useTemplate, useAvailableSlots, useCreateConsultation } from '@/lib/consultations';
 import { useParams, Link, useLocation } from 'wouter';
 import { ArrowLeft, ArrowRight, Calendar as CalendarIcon, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -42,7 +42,7 @@ export default function ConsultationBooking() {
   const { studioSettings } = useStudio();
 
   const { data: template, isLoading: isLoadingTemplate } = useTemplate(templateId);
-  const availableSlotsMutation = useAvailableSlotsV2(); // 🔵 Using Calendar Engine V2 for better timezone handling
+  const availableSlotsMutation = useAvailableSlots(); // 🔵 Using Calendar Engine V2 with ghost event filtering
   const createConsultationMutation = useCreateConsultation();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
