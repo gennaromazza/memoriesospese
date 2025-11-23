@@ -219,7 +219,7 @@ export function useCreateConsultation() {
 export function useApproveConsultation() {
   return useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("PATCH", `/api/consultations/${id}/approve`);
+      return apiRequest("PATCH", `/api/consultations/v2/${id}/approve`);
     },
     onSuccess: (_: unknown, id: string) => {
       queryClient.invalidateQueries({

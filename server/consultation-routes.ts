@@ -412,24 +412,49 @@ router.post("/create", async (req, res) => {
 
 /**
  * PATCH /api/consultations/:id/approve
- * Approva consultation e crea evento Google Calendar (admin only)
+ * DEPRECATED: Use /v2/approve instead
+ * Legacy endpoint - redirects to V2
+ */
+router.patch("/:id/approve", authenticateFirebase, async (req: AuthRequest, res) => {
+  console.warn('[DEPRECATED] /api/consultations/:id/approve called - redirecting to /v2/approve');
+  
+  return res.status(301).json({
+    error: 'deprecated',
+    message: 'This endpoint is deprecated. Use PATCH /api/consultations/v2/:id/approve instead',
+    redirectTo: `/api/consultations/v2/${req.params.id}/approve`
+  });
+});
+
+/**
+ * PATCH /api/consultations/v2/:id/approve
+ * Approve consultation using Calendar Engine V2 (NO LEGACY LOGIC)
+ * 
+ * Flow:
+ * 1. Load consultation request from Firestore
+ * 2. Load template and convert to AvailabilityConfig
+ * 3. Load ALL existing events for the day (Google Calendar, consultations, jobs, bookings)
+ * 4. Normalize all Google Calendar events
+ * 5. Check conflicts using Calendar Engine V2
+ * 6. If conflict: return 409
+ * 7. If no conflict: create Google Calendar event, update Firestore, send email
  */
 router.patch(
-  "/:id/approve",
+  "/v2/:id/approve",
   authenticateFirebase,
   async (req: AuthRequest, res) => {
     try {
       const { email } = req.user!;
       if (!ADMIN_EMAILS.includes(email)) {
-        return res
-          .status(403)
-          .json({
-            error: "Solo gli amministratori possono approvare consultations",
-          });
+        return res.status(403).json({
+          error: "Solo gli amministratori possono approvare consultations",
+        });
       }
 
       const { id } = req.params;
 
+      console.log(`[POST /v2/approve] 🔵 Calendar Engine V2 - Approving consultation ${id}`);
+
+      // Step 1: Load consultation request
       const consultation = await consultationService.getConsultationById(id);
 
       if (!consultation) {
@@ -443,46 +468,72 @@ router.patch(
         });
       }
 
-      // Crea evento Google Calendar con timezone Europe/Rome corretto
-      const consultationDate = normalizeTimestampToDate(
-        consultation.dataConsulenza,
-      );
+      // Step 2: Load template and convert to AvailabilityConfig
+      const template = await consultationService.getTemplateById(consultation.templateId);
 
-      // --- FIX: CHECK CONFLITTI LAST-MINUTE ---
-      const { checkFreeBusyAllCalendars } = await import(
-        "./google-calendar.js"
-      );
+      if (!template) {
+        return res.status(404).json({ error: "Template non trovato" });
+      }
 
-      // Calcola inizio/fine slot esatti
+      const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate } = await import('./consultations/calendar-adapter.js');
+
+      if (!validateConsultationTemplate(template)) {
+        return res.status(400).json({
+          error: "Template configurazione invalida",
+          message: "Template manca di customWorkingHours o durataMinuti"
+        });
+      }
+
+      const config = consultationTemplateToAvailabilityConfig(template);
+
+      // Step 3: Parse consultation date and time in Europe/Rome timezone
+      const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
       const year = consultationDate.getFullYear();
       const month = String(consultationDate.getMonth() + 1).padStart(2, "0");
       const day = String(consultationDate.getDate()).padStart(2, "0");
       const dateStr = `${year}-${month}-${day}`;
 
-      const startDateTime = createEuropeRomeDate(
-        dateStr,
-        consultation.orarioInizio,
-      );
-      const endDateTime = createEuropeRomeDate(
-        dateStr,
-        consultation.orarioFine,
-      );
+      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
+      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
 
-      // Controlla se GCal è ancora libero
-      const busyResult = await checkFreeBusyAllCalendars(
-        startDateTime,
-        endDateTime,
-      );
-      if (busyResult && busyResult.length > 0) {
-        // C'è un conflitto!
+      console.log(`[POST /v2/approve] 📅 Checking slot ${consultation.orarioInizio}-${consultation.orarioFine} on ${dateStr}`);
+
+      // Step 4: Load ALL existing events for the day
+      const dateObj = DateTime.fromISO(dateStr, { zone: "Europe/Rome" });
+      const dayStart = dateObj.startOf("day").toJSDate();
+      const dayEnd = dateObj.endOf("day").toJSDate();
+
+      const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
+      const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
+
+      // Step 5: Filter out the current consultation from existing events (it shouldn't block itself)
+      const otherEvents = existingEvents.filter(event => {
+        if (event.source !== 'consultation') return true;
+        
+        // Check if this is the same consultation by comparing times
+        const eventStartStr = `${event.start.getHours().toString().padStart(2, '0')}:${event.start.getMinutes().toString().padStart(2, '0')}`;
+        const eventEndStr = `${event.end.getHours().toString().padStart(2, '0')}:${event.end.getMinutes().toString().padStart(2, '0')}`;
+        
+        return !(eventStartStr === consultation.orarioInizio && eventEndStr === consultation.orarioFine);
+      });
+
+      console.log(`[POST /v2/approve] 📋 Loaded ${existingEvents.length} total events, ${otherEvents.length} excluding current consultation`);
+
+      // Step 6: Check conflicts using Calendar Engine V2
+      const { hasConflict } = await import('./calendar-engine/conflicts.js');
+      const conflict = hasConflict(startDateTime, endDateTime, otherEvents);
+
+      if (conflict) {
+        console.error(`[POST /v2/approve] ❌ CONFLICT - Slot ${consultation.orarioInizio}-${consultation.orarioFine} blocked`);
         return res.status(409).json({
           error: "Slot non più disponibile",
-          message:
-            "Attenzione: È stato rilevato un nuovo impegno su Google Calendar che si sovrappone a questa richiesta. Impossibile approvare.",
+          message: "Attenzione: È stato rilevato un nuovo impegno che si sovrappone a questa richiesta. Impossibile approvare."
         });
       }
-      // ----------------------------------------
 
+      console.log(`[POST /v2/approve] ✅ No conflicts detected, proceeding with approval`);
+
+      // Step 7: Create Google Calendar event
       const calendarEvent = await createEvent("primary", {
         summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
         description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
@@ -493,9 +544,10 @@ router.patch(
 
       const eventId = calendarEvent.id;
 
-      // Aggiorna consultation con compensating transaction (rollback Calendar su errore)
+      console.log(`[POST /v2/approve] 📅 Created Google Calendar event ${eventId}`);
+
+      // Step 8: Update Firestore with compensating transaction (rollback Calendar on error)
       try {
-        // Prepara updates (ometti googleCalendarEventId se null/undefined)
         const consultationUpdates: any = {
           stato: "confermata",
         };
@@ -505,56 +557,41 @@ router.patch(
 
         await consultationService.updateConsultation(id, consultationUpdates);
 
-        // Aggiorna metadata conferma
-        await db
-          .collection("consultations")
-          .doc(id)
-          .update({
-            confermataDa: req.body.userId || "admin", // TODO: Auth middleware
-            confermatail: Timestamp.now(),
-          });
+        await db.collection("consultations").doc(id).update({
+          confermataDa: req.body.userId || "admin",
+          confermatail: Timestamp.now(),
+        });
+
+        console.log(`[POST /v2/approve] ✅ Updated Firestore consultation ${id}`);
       } catch (updateError: any) {
-        // Rollback completo: elimina evento Calendar E revert consultation a stato in_attesa
-        console.error(
-          "[approve] Errore update Firestore, eseguo rollback completo:",
-          updateError.message,
-        );
+        console.error("[POST /v2/approve] ❌ Error updating Firestore, executing rollback:", updateError.message);
+        
         try {
-          // Step 1: Elimina evento Google Calendar appena creato
           if (eventId) {
             await deleteEvent("primary", eventId);
-            console.log(
-              `[approve] Rollback step 1 - evento Calendar ${eventId} eliminato`,
-            );
+            console.log(`[POST /v2/approve] 🔄 Rollback: deleted Calendar event ${eventId}`);
           }
 
-          // Step 2: Revert consultation a stato in_attesa (annulla updateConsultation)
           await consultationService.updateConsultation(id, {
             stato: "in_attesa",
           });
 
-          // Step 3: Clear googleCalendarEventId usando FieldValue.delete()
           await db.collection("consultations").doc(id).update({
             googleCalendarEventId: FieldValue.delete(),
           });
-          console.log(
-            `[approve] Rollback step 2-3 - consultation ${id} ripristinata a stato in_attesa`,
-          );
+
+          console.log(`[POST /v2/approve] 🔄 Rollback: reverted consultation ${id} to in_attesa`);
         } catch (rollbackError: any) {
-          console.error(
-            "[approve] ERRORE CRITICO: Fallito rollback completo",
-            rollbackError.message,
-          );
+          console.error("[POST /v2/approve] ❌ CRITICAL: Rollback failed", rollbackError.message);
         }
 
         return res.status(500).json({
           error: "Errore approvazione",
-          message:
-            "Impossibile salvare la conferma. L'evento Calendar è stato cancellato e la consultation è stata ripristinata.",
+          message: "Impossibile salvare la conferma. L'evento Calendar è stato cancellato e la consultation è stata ripristinata.",
         });
       }
 
-      // Invia email conferma (task 13)
+      // Step 9: Send confirmation email
       let emailStatus = "sent";
       try {
         const {
@@ -574,7 +611,6 @@ router.patch(
           timeZone: "Europe/Rome",
         });
 
-        // Generate Google Calendar "Add to Calendar" link
         const calendarLink = generateGoogleCalendarLink({
           title: `Consulenza ${consultation.jobType} - ${clienteName}`,
           description: `Consulenza per ${consultation.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
@@ -589,7 +625,7 @@ router.patch(
           consultation.jobType,
           formattedDate,
           `${consultation.orarioInizio} - ${consultation.orarioFine}`,
-          null, // meetingLink
+          null,
           studioInfo,
           calendarLink,
         );
@@ -600,24 +636,21 @@ router.patch(
           htmlContent,
         );
 
-        console.log(
-          `✅ Email "Consulenza Approvata" inviata a ${consultation.cliente.email}`,
-        );
+        console.log(`[POST /v2/approve] ✅ Sent approval email to ${consultation.cliente.email}`);
       } catch (emailError: any) {
-        console.error(
-          "⚠️ Errore invio email consulenza approvata:",
-          emailError.message,
-        );
+        console.error("[POST /v2/approve] ⚠️ Error sending email:", emailError.message);
         emailStatus = "failed";
       }
 
+      // Step 10: Return success
       res.json({
         message: "Consultation approvata con successo",
         googleCalendarEventId: eventId,
         emailStatus,
       });
     } catch (error: any) {
-      console.error("[PATCH /:id/approve] Errore:", error.message);
+      console.error("[PATCH /v2/:id/approve] ❌ Error:", error.message);
+      console.error("[PATCH /v2/:id/approve] Stack:", error.stack);
       res.status(500).json({ error: "Errore approvazione consultation" });
     }
   },
