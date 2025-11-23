@@ -2039,4 +2039,219 @@ router.get("/debug/slot-conflicts/:date", async (req, res) => {
   }
 });
 
+/**
+ * ========================================
+ * NEW CALENDAR ENGINE V2 — Unified API
+ * ========================================
+ * Endpoint v2 that uses centralized Calendar Engine
+ * Legacy endpoint /available-slots remains untouched
+ */
+
+router.post("/v2/available-slots", async (req, res) => {
+  try {
+    console.log("[POST /v2/available-slots] 🔵 Calendar Engine V2 - Request:", req.body);
+    const { date, templateId } = req.body;
+
+    if (!date || !templateId) {
+      return res.status(400).json({
+        error: "Parametri mancanti (date, templateId richiesti)",
+      });
+    }
+
+    // Step 1: Load template
+    const template = await consultationService.getTemplateById(templateId);
+
+    if (!template) {
+      return res.status(404).json({ error: "Template non trovato" });
+    }
+
+    if (!template.attiva) {
+      return res.status(400).json({ error: "Template non attivo" });
+    }
+
+    // Step 2: Import Calendar Engine modules
+    const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate } = await import('./consultations/calendar-adapter.js');
+    const { getAvailableSlotsForDate, getUnavailabilityReason } = await import('./calendar-engine/index.js');
+    const { checkGoogleCalendarBusyPeriods, hasAllDayEvent } = await import('./calendar-engine/google-sync.js');
+    const { CalendarEvent, SlotsResponse } = await import('../shared/calendar-types.js');
+
+    // Step 3: Validate template
+    if (!validateConsultationTemplate(template)) {
+      return res.status(400).json({ 
+        error: "Template configurazione invalida",
+        message: "Template manca di customWorkingHours o durataMinuti"
+      });
+    }
+
+    // Step 4: Convert template to AvailabilityConfig
+    const config = consultationTemplateToAvailabilityConfig(template);
+    
+    console.log("[POST /v2/available-slots] 📋 Config generato:", {
+      slotDuration: config.slotDurationMinutes,
+      excludedWeekdays: config.excludedWeekdays,
+      timezone: config.timezone
+    });
+
+    // Step 5: Parse date with Europe/Rome timezone
+    const dateObj = DateTime.fromISO(date, { zone: "Europe/Rome" });
+    const dayStart = dateObj.startOf("day").toJSDate();
+    const dayEnd = dateObj.endOf("day").toJSDate();
+
+    // Step 6: Check for all-day events
+    const hasAllDay = await hasAllDayEvent(dayStart);
+    
+    if (hasAllDay) {
+      console.log("[POST /v2/available-slots] 🚫 All-day event detected");
+      const unavailabilityInfo = getUnavailabilityReason(dayStart, config, true);
+      
+      return res.json({
+        date,
+        slots: [],
+        unavailableReason: unavailabilityInfo.reason,
+        message: unavailabilityInfo.message
+      } as SlotsResponse);
+    }
+
+    // Step 7: Collect existing events from all sources
+    const existingEvents: CalendarEvent[] = [];
+
+    // 7a. Google Calendar busy periods
+    const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
+    existingEvents.push(...googleBusy);
+    console.log(`[POST /v2/available-slots] 📅 ${googleBusy.length} busy periods da Google Calendar`);
+
+    // 7b. Existing consultations
+    const consultationsSnap = await db
+      .collection("consultations")
+      .where("dataConsulenza", ">=", Timestamp.fromDate(dayStart))
+      .where("dataConsulenza", "<=", Timestamp.fromDate(dayEnd))
+      .where("stato", "in", ["in_attesa", "confermata"])
+      .get();
+
+    for (const doc of consultationsSnap.docs) {
+      const data = doc.data();
+      const consultationDate = normalizeTimestampToDate(data.dataConsulenza);
+      const year = consultationDate.getFullYear();
+      const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
+      const day = String(consultationDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      const start = createEuropeRomeDate(dateStr, data.orarioInizio);
+      const end = createEuropeRomeDate(dateStr, data.orarioFine);
+
+      existingEvents.push({
+        start,
+        end,
+        title: `Consultation ${data.cliente?.nome || ''}`,
+        source: 'consultation'
+      });
+    }
+
+    console.log(`[POST /v2/available-slots] 📋 ${consultationsSnap.size} consultations esistenti`);
+
+    // 7c. Bookings
+    const bookingsSnap = await db
+      .collection("bookings")
+      .where("dataShootingInizio", ">=", Timestamp.fromDate(dayStart))
+      .where("dataShootingInizio", "<=", Timestamp.fromDate(dayEnd))
+      .where("stato", "in", ["confermata", "in_attesa"])
+      .get();
+
+    for (const doc of bookingsSnap.docs) {
+      const data = doc.data();
+      existingEvents.push({
+        start: data.dataShootingInizio.toDate(),
+        end: data.dataShootingFine.toDate(),
+        title: 'Booking',
+        source: 'booking'
+      });
+    }
+
+    console.log(`[POST /v2/available-slots] 📸 ${bookingsSnap.size} bookings esistenti`);
+
+    // 7d. Jobs (only blocking statuses)
+    const jobsSnap = await db
+      .collection("jobs")
+      .where("eventDate", ">=", Timestamp.fromDate(dayStart))
+      .where("eventDate", "<=", Timestamp.fromDate(dayEnd))
+      .get();
+
+    const blockingStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
+
+    for (const doc of jobsSnap.docs) {
+      const data = doc.data();
+      
+      if (!blockingStatuses.includes(data.stato)) {
+        continue; // Skip non-blocking jobs
+      }
+
+      const eventDate = data.eventDate.toDate();
+      
+      if (data.allDay) {
+        // All-day job blocks entire day
+        const start = new Date(eventDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(eventDate);
+        end.setHours(23, 59, 59, 999);
+        
+        existingEvents.push({
+          start,
+          end,
+          title: `Job ${data.nomeEvento || ''}`,
+          source: 'job'
+        });
+      } else if (data.startTime && data.endTime) {
+        // Time-bound job
+        const year = eventDate.getFullYear();
+        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const day = String(eventDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        const start = createEuropeRomeDate(dateStr, data.startTime);
+        const end = createEuropeRomeDate(dateStr, data.endTime);
+
+        existingEvents.push({
+          start,
+          end,
+          title: `Job ${data.nomeEvento || ''}`,
+          source: 'job'
+        });
+      }
+    }
+
+    console.log(`[POST /v2/available-slots] 💼 ${existingEvents.filter(e => e.source === 'job').length} jobs bloccanti`);
+    console.log(`[POST /v2/available-slots] 🎯 TOTALE: ${existingEvents.length} eventi bloccanti`);
+
+    // Step 8: Generate slots using Calendar Engine
+    const slots = await getAvailableSlotsForDate(dayStart, config, existingEvents);
+
+    console.log(`[POST /v2/available-slots] ✅ ${slots.length} slot disponibili generati`);
+
+    // Step 9: Prepare response with user-friendly message if no slots
+    const response: SlotsResponse = {
+      date,
+      slots
+    };
+
+    if (slots.length === 0 && !hasAllDay) {
+      const unavailabilityInfo = getUnavailabilityReason(dayStart, config, false);
+      
+      if (unavailabilityInfo.reason) {
+        response.unavailableReason = unavailabilityInfo.reason;
+        response.message = unavailabilityInfo.message;
+      } else {
+        // All slots are booked
+        response.unavailableReason = 'all-booked';
+        response.message = 'Ci dispiace, ma questa data è sold out';
+      }
+    }
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("[POST /v2/available-slots] ❌ Error:", error);
+    console.error("[POST /v2/available-slots] Stack:", error.stack);
+    res.status(500).json({ error: "Errore calcolo slot disponibili" });
+  }
+});
+
 export default router;
