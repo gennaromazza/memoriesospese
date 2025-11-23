@@ -1,0 +1,177 @@
+IMPORTANT — Perform a deep technical validation of the work you just completed.
+You must NOT respond with a generic confirmation.
+Check every requirement one-by-one.
+
+Verify the following items in detail:
+
+1. FILESYSTEM CHECK
+
+Confirm that the following files exist and contain valid, compilable TypeScript:
+
+/server/calendar-engine/index.ts
+
+/server/calendar-engine/timezone.ts
+
+/server/calendar-engine/conflicts.ts
+
+/server/calendar-engine/slots.ts
+
+/server/calendar-engine/google-sync.ts
+
+/shared/calendar-types.ts
+
+/server/booking/calendar-adapter.ts
+
+/server/consultations/calendar-adapter.ts
+
+/server/native-calendar/calendar-adapter.ts
+
+All new V2 routes:
+
+/api/v2/booking/slots
+/api/v2/consultations/slots
+/api/v2/calendar/slots
+
+
+If any file is missing, incomplete, or empty, fix it.
+
+2. CODE QUALITY CHECK
+
+For each new file:
+
+Check imports and exports
+
+Ensure no circular dependencies
+
+Ensure the Calendar Engine compiles without errors
+
+Ensure all functions have valid return types
+
+Ensure timezone handling uses Luxon correctly
+
+If any issues are found, FIX them.
+
+3. LEGACY SAFETY CHECK (CRITICAL)
+
+Verify that:
+
+❌ You did NOT modify or delete:
+
+existing backend routes
+
+existing functions in Booking/Consultations
+
+existing slot logic
+
+existing Google Calendar functions
+
+Firestore document structures
+
+old API endpoints (/api/booking/slots, /api/consultations/slots, etc.)
+
+If you changed anything legacy, revert it immediately.
+
+4. ROUTE VALIDATION
+
+For each V2 endpoint:
+
+Confirm the route:
+
+Loads the correct document (campaign, template, calendar)
+
+Converts it with the appropriate adapter → AvailabilityConfig
+
+Loads events using the new google-sync wrapper
+
+Calls getAvailableSlotsForDate
+
+Returns slots in JSON
+
+Never calls the legacy logic
+
+If any step is missing, add it.
+
+5. ADAPTER VALIDATION
+
+Check that:
+
+The Booking adapter maps all required booking fields → AvailabilityConfig
+
+The Consultation adapter maps all consultation fields → AvailabilityConfig
+
+The Native Calendar adapter does the same
+
+No adapter modifies the Firestore documents
+
+Fix missing mappings if needed.
+
+6. SLOT ENGINE VALIDATION
+
+Inspect /server/calendar-engine/slots.ts:
+
+Confirm the algorithm does EXACTLY:
+
+Convert date → Europe/Rome
+
+Determine weekday correctly
+
+Apply excludedWeekdays
+
+Apply excludedDates
+
+Read workingHoursByWeekday
+
+Generate time ranges
+
+Split into slotDurationMinutes
+
+Apply bufferBefore / bufferAfter
+
+Check every slot against hasOverlap
+
+Return valid slots in UTC
+
+If any step is missing or wrong → fix it.
+
+7. GOOGLE SYNC WRAPPER VALIDATION
+
+Check /server/calendar-engine/google-sync.ts:
+
+Must call existing Google functions (not reimplement them)
+
+Must normalize event times into Rome timezone before comparison
+
+Must return events in a standardized structure
+
+If missing, add missing logic.
+
+8. TYPE CHECK + BUILD CHECK
+
+Run:
+
+npm run build
+
+
+Then:
+
+Fix all TypeScript errors
+
+Fix all missing imports
+
+Fix all unused variables that prevent build
+
+Fix any build failures
+
+9. FINAL REPORT
+
+Provide:
+
+A list of all checked items
+
+Any fixes you had to perform
+
+Confirmation of final build passing
+
+A summary of how the V2 system behaves
+
+DO NOT return a generic “everything is fine” unless you truly validated each step.
