@@ -1,7 +1,7 @@
 # Image Studio - Piattaforma Completa per Fotografi Professionisti
 
 ## Overview
-Image Studio is an all-in-one platform for professional photographers, designed to streamline studio management. It aims to integrate photographers and clients into a single digital experience, managing every aspect of the photography business from initial contact to final delivery. Key capabilities include unified client management, advanced booking with Google Calendar integration, professional client-selection galleries, customizable client questionnaires, comprehensive order management, and an integrated email system. The vision is to be the definitive platform for professional photographers, covering all their business needs.
+Image Studio is an all-in-one platform for professional photographers, designed to streamline studio management. Its purpose is to integrate photographers and clients into a single digital experience, managing every aspect of the photography business from initial contact to final delivery. Key capabilities include unified client management, advanced booking with Google Calendar integration, professional client-selection galleries, customizable client questionnaires, comprehensive order management, and an integrated email system. The vision is to be the definitive platform for professional photographers, covering all their business needs and offering a complete digital solution for their business.
 
 ## User Preferences
 - Language: Italian for UI and user messages.
@@ -13,50 +13,54 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 
 ## System Architecture
 
-**Core Technologies:**
-- **Frontend:** React + TypeScript + Tailwind CSS
-- **Backend:** Express.js + Node.js (Optional/Fallback, migrating to Firebase-only where possible)
-- **Database & Services:** Firebase (Firestore, Storage, Authentication, Functions, Hosting)
+### UI/UX Decisions
+- **Public Website Design:** Playfair Display typography, warm terracotta/cream/sage color palette, mobile-first responsive, smooth animations.
+- **Admin Design:** Sage/beige color palette.
+- **Responsive Design:** Consistent UI across all platforms.
+- **Centralized Authentication Dialogs.**
 
-**Architectural Decisions & Patterns:**
-- **Dual-Surface Architecture:** Public marketing website (/, /portfolio, /storie, /blog) coexists with admin management system (/admin). Shared Firebase backend, distinct UX/design for each surface.
-- **Public Website:** SEO-optimized marketing site featuring portfolio masonry grid, blog system with WordPress import, biography storytelling, downloadable e-book "Lasciati Trasportare", and integrated booking/consultation CTAs. Design: Playfair Display typography, warm terracotta/cream/sage color palette, mobile-first responsive, smooth animations.
-- **Portfolio System:** Admin-curated public portfolio with photo selection from existing galleries, categorized by jobType (Matrimonio, Battesimo, etc), masonry grid layout with lightbox, lazy loading, featured photos for homepage carousel. Collection: `portfolioSelections` links gallery photos to public display.
-- **Blog System:** Firestore-based blog with draft/published/archived states, slug-based URLs, SEO meta fields, WordPress XML import capability for historical content migration. Admin editor for new posts, public-facing list and detail pages with responsive design.
-- **Site Content CMS:** Flexible content management via `siteContent` collection for homepage hero, services, biography sections. Admin can update text/images without code changes.
+### Technical Implementations
+- **Frontend:** React + TypeScript + Tailwind CSS.
+- **Backend:** Express.js + Node.js (migrating to Firebase-only where possible).
+- **Database & Services:** Firebase (Firestore, Storage, Authentication, Functions, Hosting).
 - **Authentication:** Unified Firebase Auth with backend validation; admin access via hardcoded list.
-- **UI/UX:** Responsive design, consistent UI, centralized authentication dialogs, dual color palettes (admin: existing sage/beige, public: enhanced terracotta/cream accents).
-- **Data Management:** Unified client management system with automatic booking/consultation-to-client linkage (`sourceRefs.consultationIds`); dual collection support for backward compatibility. Clients from consultations are created with complete schema (lifecycle.status, financials, sourceRefs). **Firestore Timestamp Conversion:** Enhanced `convertFirestoreTimestamp()` function supports both SDK format `{seconds, nanoseconds}` and HTTP-serialized format `{_seconds, _nanoseconds}` for seamless compatibility with Express API responses.
+- **Data Management:** Unified client management system with automatic booking/consultation-to-client linkage. Enhanced `convertFirestoreTimestamp()` for seamless compatibility.
 - **Image Handling:** Automatic compression, watermarking, duplicate detection, advanced cropping, multi-image uploads using Firebase Storage and signed URLs.
-- **Galleries:** Professional galleries with client-side selection, real-time updates, and secure access via passwords and PINs. Support for modular seasonal galleries with dedicated CSS. **Full Preload System:** Photos are completely preloaded in memory before displaying the gallery grid, with real-time progress counter ("X / Y foto caricate") and progress bar. Uses batch loading (10 photos at a time) with race condition prevention via useLayoutEffect + cancellation flags. Gallery appears only after all images are ready, ensuring simultaneous reveal instead of progressive loading.
-- **Subscription System:** Stripe integration for tiered access control.
-- **Email System:** Express.js server via Gmail API with dynamic templates, including timezone-aware "Add to Calendar" links for Google Calendar.
-- **Booking & Calendar System:** Campaign-based booking with Google Calendar integration, atomic transactions, comprehensive conflict detection (consultations + bookings + jobs + all Google Calendar events), flexible event duration, timezone-safe all-day events, and automated Google Calendar link generation. **Double-Booking Prevention:** System checks ALL availability sources via `isSlotAvailable()`: (1) Consultations collection with active states; (2) Bookings collection with confirmed/pending states; (3) **Jobs collection** (confermato/shooting_fatto/selezione_pending/produzione) supporting both all-day events and time-bound events with `startTime`/`endTime`; (4) All Google Calendar calendars (8+ calendars) via `checkFreeBusyAllCalendars()`. Performance-optimized with pre-loading for getAvailableSlotsForDate and fallback Firestore queries for backward compatibility. Post-fetch state filtering ensures cancelled/archived jobs never block slots.
-- **Security:** Gallery passwords/PINs stored in `gallerySecrets`, server-side verification, granular Firebase Security Rules, token verification, user isolation, and rate limiting. PDF uploads use signed URLs.
-- **Questionnaire System:** Secure crypto tokens, multi-step forms with auto-save, and ChatGPT export.
-- **Order & Job Management:** Integrated order and gallery creation within BookingsManager, supporting multi-product orders, comprehensive modification, and client email notifications. Features multi-client support, advanced scheduling, dynamic job types, and a comprehensive job detail page with workflow timeline, client management, payment tracking, and cost management.
-- **Photo Selection Workflow:** Enterprise-grade system with progress display, validation, deadline enforcement, automated email notifications, and admin review. Supports three modes: single-product, multi-product (using `productRequirements[]`), and legacy manual `requiredPhotoCount`.
-- **Transaction & Payment Tracking System:** Advanced payment tracking with `transactions` array, automated email notifications for payments, and dedicated registration buttons. **Event-Relative Payment Schedules:** Payment due dates can be set relative to event date (e.g., "-30" = 30 days before event, "+7" = 7 days after). Both GestioneRataModal (individual payment editor) and GeneraPagamentiModal (payment schedule generator) support dual-mode date selection with radio toggles for absolute/relative dates, +/- day controls for relative offsets, automatic date calculation from eventDate, and intelligent state preservation when adding/removing installments. Falls back to absolute dates when eventDate is unavailable with clear UX feedback. **Payment Reminder System:** Automated payment reminder emails via POST /api/payment-schedules/send-reminders endpoint (schedulable with Cloud Functions cron), targeting payments due within 7 days or overdue up to 30 days. Uses Luxon for DST-safe Europe/Rome timezone calculations, Firestore transactions for atomic duplicate prevention via `reminderSentAt` field, and dynamic email templates with color-coded urgency levels (red for overdue, orange for <7 days).
-- **Quote Management System:** Automated email notifications for quote lifecycle, robust backend protection for signed quotes, and admin-only reset signature. Unified client portal via `/quote/:token` adapts to quote status. Includes Instagram-ready admin notifications upon client signature. Advanced manual status management with Firebase-authenticated endpoints, preflight validation, token revocation tracking, comprehensive audit logging, and manual signature insertion. Integrated into JobDetailPage.
-- **Consultation System (Consulenze):** Pre-work consultation scheduling with admin-configurable templates, mandatory `customWorkingHours` per-template, Google Calendar integration with timezone-safe event creation (using `createEuropeRomeDate`), and automated email notifications. Consultations are standalone entities convertible to Jobs via API. Slot generation strictly requires `template.customWorkingHours`. Includes migration support for working hours. **Reminder System:** Automated 24h advance reminder emails via POST /api/consultations/send-reminders endpoint (schedulable with Cloud Functions cron), using Luxon for DST-safe Europe/Rome timezone calculations and Firestore transactions for atomic duplicate prevention. Consultations linked to unified client collection via `linkConsultationToCliente` with full schema compliance (lifecycle, financials, sourceRefs). **Calendar Engine V2 Migration (Nov 2025):** Complete migration to Calendar Engine V2 with advanced Google Calendar event filtering. System now uses `events.list()` API instead of `freebusy.query()` to access full event details, enabling filtering of phantom events (status='cancelled' or transparency='transparent'). All legacy endpoints removed (/create, /available-slots V1, /approve). Frontend exclusively uses V2 APIs (/v2/available-slots, /v2/create, /v2/approve) with unified `useAvailableSlots` hook. Comprehensive logging added for event filtering stats (total events, cancelled events, transparent events, final busy count). **Event Sync Guard (Nov 2025):** Enterprise-grade bidirectional synchronization system between Google Calendar and Firestore (consultations, bookings). Features full pagination via `nextPageToken` to handle unlimited calendar events, auto-repair of Firestore records with missing Google Calendar events (resets status and removes stale eventIds), orphaned event detection (events in Google Calendar without Firestore reference), scheduled worker running every 10 minutes, manual trigger via POST /api/admin/sync-calendar, and comprehensive logging with sync duration, repair count, and orphan statistics. Eliminates ghost events and maintains data consistency across systems. **100% Google Calendar as Source of Truth (Nov 2025):** CRITICAL GUARANTEE - ALL valid Google Calendar events (opaque, non-cancelled, non-transparent) ALWAYS block consultation slots and approval, regardless of Firestore reference. Orphaned events (events in Google Calendar without `googleCalendarEventId` in Firestore) are treated as valid blocking events. System uses exclusively `getEventsWithDetailsAllCalendars()` with full pagination for all availability checks (`getAllExistingEvents`, `hasAllDayEvent`, `checkGoogleCalendarBusyPeriods`). NO filtering by `googleCalendarEventId` existence - if event exists in Google Calendar, it blocks slots. This ensures 100% reliability with Google Calendar as the primary source of truth for studio availability. **Phantom 409 Fix (Nov 2025):** Eliminated phantom 409 conflicts in `/v2/approve` by implementing source-selective event loading via `getAllExistingEvents()` with filter options (`includeConsultations`, `includeJobs`, `includeBookings`). The `/v2/approve` endpoint now excludes Firestore consultations from blocking events (using `includeConsultations: false`) to match `/v2/available-slots` behavior, ensuring both endpoints see identical blocking events. Google Calendar events remain always included as the primary source of truth. This prevents false conflicts from Firestore consultations without corresponding Google Calendar events.
-- **Data Import:** Excel-based import system for clients and jobs, supporting structured field parsing and Firebase Storage integration.
+- **Galleries:** Professional client-selection galleries with real-time updates, secure access, and full preloading system for simultaneous image display.
+- **Email System:** Express.js server via Gmail API with dynamic templates and timezone-aware "Add to Calendar" links.
 - **Deployment:** Designed for subfolder deployment with dynamic base path detection, aiming for Firebase-only.
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and informative toast notifications.
-- **Admin Dashboard:** Enhanced navigation with dropdown menus, a Notification Center with deeplinks for approved photo selections and bookings, and a single-level tab structure for clear separation of concerns.
-- **Workflow State Management:** Unified WorkflowState enum (6 states) for booking/order tracking, managed via a touch-friendly dropdown in BookingsManager with email notifications to clients. Interactive workflow timeline displays dynamic events.
-- **Multi-Product Booking Support:** Backend supports `prodotti: OrderItem[]` for bookings with multiple products, ensuring server-side validation and backward compatibility.
-- **Collaborator Management & Payment System:** Token-based collaborator dashboard access (magic link). Comprehensive payment tracking with `pagamenti[]` array on assignments, integrated with CashMovement for financial tracking. Admin UI shows `saldo residuo`, payment history, and registration modal. Collaborator-facing dashboard displays job assignments, compensation totals, and payment history.
+- **Admin Dashboard:** Enhanced navigation, Notification Center, and single-level tab structure.
+- **Workflow State Management:** Unified WorkflowState enum for booking/order tracking, with email notifications and interactive timeline.
+- **Multi-Product Support:** Backend validation for `prodotti: OrderItem[]` in bookings.
+- **Collaborator Management:** Token-based dashboard access, comprehensive payment tracking integrated with CashMovement.
+
+### Feature Specifications
+- **Public Website:** SEO-optimized marketing site with portfolio masonry grid, blog system (WordPress import), biography, e-book download, and booking CTAs.
+- **Portfolio System:** Admin-curated public portfolio linked to existing galleries, categorized by `jobType`, with masonry grid, lightbox, lazy loading, and homepage carousel.
+- **Blog System:** Firestore-based blog with draft/published/archived states, slug-based URLs, SEO meta fields, and WordPress XML import.
+- **Site Content CMS:** Flexible content management via `siteContent` collection for dynamic updates.
+- **Subscription System:** Stripe integration for tiered access.
+- **Booking & Calendar System:** Campaign-based booking with Google Calendar integration, atomic transactions, comprehensive conflict detection across all calendar events and jobs. **100% Google Calendar as Source of Truth** for availability. Includes Event Sync Guard for bidirectional synchronization and Conflict Resolution System for managing approval conflicts with override justifications and audit logging.
+- **Security:** Gallery passwords/PINs stored in `gallerySecrets`, server-side verification, granular Firebase Security Rules, token verification, user isolation, and rate limiting.
+- **Questionnaire System:** Secure crypto tokens, multi-step forms with auto-save, and ChatGPT export.
+- **Order & Job Management:** Integrated order and gallery creation within BookingsManager, supporting multi-product orders, client email notifications, and comprehensive job detail page with workflow timeline, payment tracking, and cost management.
+- **Photo Selection Workflow:** Enterprise-grade system with progress display, validation, deadline enforcement, automated emails, and admin review, supporting single-product, multi-product, and legacy modes.
+- **Transaction & Payment Tracking System:** Advanced payment tracking with `transactions` array, automated email notifications, event-relative payment schedules, and automated payment reminder system via Cloud Functions.
+- **Quote Management System:** Automated email notifications, robust backend protection for signed quotes, admin-only reset signature, and unified client portal. Includes advanced manual status management and audit logging.
+- **Consultation System (Consulenze):** Pre-work consultation scheduling with admin-configurable templates, Google Calendar integration, automated email reminders, and conversion to Jobs via API. Migrated to Calendar Engine V2 for advanced Google Calendar event filtering and conflict detection.
+- **Data Import:** Excel-based import system for clients and jobs, supporting structured field parsing and Firebase Storage integration.
 
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting
 - **Stripe:** Payment processing for subscriptions
-- **Google Calendar API:** Booking slot management
+- **Google Calendar API:** Booking slot management and event synchronization
 - **Gmail API:** Email delivery
-- **Express.js:** Web application framework
+- **Express.js:** Web application framework (for backend services and APIs)
 - **React:** Frontend library
 - **TypeScript:** Type-safe JavaScript
 - **Tailwind CSS:** Utility-first CSS framework
 - **wouter:** React hook-based router
 - **browser-image-compression:** Client-side image compression
 - **html2pdf.js:** PDF generation from HTML
-- **luxon:** Timezone-aware date/time handling for DST-safe reminder scheduling
+- **luxon:** Timezone-aware date/time handling (for scheduling and reminders)
