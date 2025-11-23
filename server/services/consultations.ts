@@ -3,8 +3,8 @@
  * Gestisce CRUD operations, conflict detection, client linking per modulo Consulenze
  */
 
-import { db, FieldValue, Timestamp } from '../firebase-admin.js';
-import type { QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { db, FieldValue, Timestamp } from "../firebase-admin.js";
+import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import type {
   ConsultationTemplate,
   InsertConsultationTemplate,
@@ -14,11 +14,18 @@ import type {
   UpdateConsultation,
   ConsultationStatus,
   ConsultationSlot,
-  ConsultationWorkingHours
-} from '../../shared/consultation-types.js';
-import { DEFAULT_CONSULTATION_HOURS } from '../../shared/consultation-types.js';
-import { getAvailableSlots as getGoogleCalendarSlots, getEvents, checkFreeBusyAllCalendars, createEuropeRomeDate, deleteEvent, type WorkingHours } from '../google-calendar.js';
-import { DateTime } from 'luxon'; // Importa Luxon per gestione fusi orari
+  ConsultationWorkingHours,
+} from "../../shared/consultation-types.js";
+import { DEFAULT_CONSULTATION_HOURS } from "../../shared/consultation-types.js";
+import {
+  getAvailableSlots as getGoogleCalendarSlots,
+  getEvents,
+  checkFreeBusyAllCalendars,
+  createEuropeRomeDate,
+  deleteEvent,
+  type WorkingHours,
+} from "../google-calendar.js";
+import { DateTime } from "luxon"; // Importa Luxon per gestione fusi orari
 
 /**
  * 🔥 FUNZIONE UNIVERSALE DI OVERLAP
@@ -35,13 +42,13 @@ export function hasRealOverlap(
   startA: Date | number,
   endA: Date | number,
   startB: Date | number,
-  endB: Date | number
+  endB: Date | number,
 ): boolean {
   // Converti tutto in millisecondi
-  let startAMs = typeof startA === 'number' ? startA : startA.getTime();
-  let endAMs = typeof endA === 'number' ? endA : endA.getTime();
-  let startBMs = typeof startB === 'number' ? startB : startB.getTime();
-  let endBMs = typeof endB === 'number' ? endB : endB.getTime();
+  let startAMs = typeof startA === "number" ? startA : startA.getTime();
+  let endAMs = typeof endA === "number" ? endA : endA.getTime();
+  let startBMs = typeof startB === "number" ? startB : startB.getTime();
+  let endBMs = typeof endB === "number" ? endB : endB.getTime();
 
   // 🔥 NORMALIZZA: Rimuovi millisecondi per evitare drift (arrotonda al minuto)
   startAMs -= startAMs % 60000;
@@ -54,17 +61,25 @@ export function hasRealOverlap(
 
   // Debug logging per casi edge
   if (endAMs === startBMs || startAMs === endBMs) {
-    console.log(`[hasRealOverlap] ⚠️  Caso edge - slot contigui ma NON sovrapposti:`);
-    console.log(`   Periodo A: ${new Date(startAMs).toISOString()} -> ${new Date(endAMs).toISOString()}`);
-    console.log(`   Periodo B: ${new Date(startBMs).toISOString()} -> ${new Date(endBMs).toISOString()}`);
-    console.log(`   Overlap: ${hasOverlap} (dovrebbe essere false per slot contigui)`);
+    console.log(
+      `[hasRealOverlap] ⚠️  Caso edge - slot contigui ma NON sovrapposti:`,
+    );
+    console.log(
+      `   Periodo A: ${new Date(startAMs).toISOString()} -> ${new Date(endAMs).toISOString()}`,
+    );
+    console.log(
+      `   Periodo B: ${new Date(startBMs).toISOString()} -> ${new Date(endBMs).toISOString()}`,
+    );
+    console.log(
+      `   Overlap: ${hasOverlap} (dovrebbe essere false per slot contigui)`,
+    );
   }
 
   return hasOverlap;
 }
-import type { Booking } from '../../shared/booking-types.js';
-import { format } from 'date-fns'; // Importa la funzione format
-import { it } from 'date-fns/locale'; // Importa la localizzazione italiana
+import type { Booking } from "../../shared/booking-types.js";
+import { format } from "date-fns"; // Importa la funzione format
+import { it } from "date-fns/locale"; // Importa la localizzazione italiana
 
 /**
  * TEMPLATE OPERATIONS
@@ -74,11 +89,12 @@ import { it } from 'date-fns/locale'; // Importa la localizzazione italiana
  * Ottiene tutti i template consulenze
  */
 export async function getAllTemplates(): Promise<ConsultationTemplate[]> {
-  const snapshot = await db.collection('consultationTemplates')
-    .orderBy('nome', 'asc')
+  const snapshot = await db
+    .collection("consultationTemplates")
+    .orderBy("nome", "asc")
     .get();
 
-  return snapshot.docs.map(doc => ({
+  return snapshot.docs.map((doc: QueryDocumentSnapshot) => ({
     id: doc.id,
     ...doc.data(),
     createdAt: doc.data().createdAt || Timestamp.now(),
@@ -89,8 +105,10 @@ export async function getAllTemplates(): Promise<ConsultationTemplate[]> {
 /**
  * Ottiene template per ID
  */
-export async function getTemplateById(id: string): Promise<ConsultationTemplate | null> {
-  const doc = await db.collection('consultationTemplates').doc(id).get();
+export async function getTemplateById(
+  id: string,
+): Promise<ConsultationTemplate | null> {
+  const doc = await db.collection("consultationTemplates").doc(id).get();
 
   if (!doc.exists) {
     return null;
@@ -107,17 +125,20 @@ export async function getTemplateById(id: string): Promise<ConsultationTemplate 
 /**
  * Ottiene template attivi per tipo lavoro
  */
-export async function getActiveTemplatesByJobType(jobType: string): Promise<ConsultationTemplate[]> {
-  const snapshot = await db.collection('consultationTemplates')
-    .where('jobType', '==', jobType)
-    .where('attiva', '==', true)
+export async function getActiveTemplatesByJobType(
+  jobType: string,
+): Promise<ConsultationTemplate[]> {
+  const snapshot = await db
+    .collection("consultationTemplates")
+    .where("jobType", "==", jobType)
+    .where("attiva", "==", true)
     .get();
 
-  const templates = snapshot.docs.map(doc => ({
+  const templates = snapshot.docs.map((doc: QueryDocumentSnapshot) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt || Timestamp.now(),
-    updatedAt: doc.data().updatedAt || Timestamp.now(),
+    createdAt: doc.data()?.createdAt || Timestamp.now(),
+    updatedAt: doc.data()?.updatedAt || Timestamp.now(),
   })) as ConsultationTemplate[];
 
   return templates.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -127,8 +148,9 @@ export async function getActiveTemplatesByJobType(jobType: string): Promise<Cons
  * Ottiene tipi lavoro unici con template attivi (per index page)
  */
 export async function getJobTypesWithActiveTemplates(): Promise<string[]> {
-  const snapshot = await db.collection('consultationTemplates')
-    .where('attiva', '==', true)
+  const snapshot = await db
+    .collection("consultationTemplates")
+    .where("attiva", "==", true)
     .get();
 
   const jobTypes = new Set<string>();
@@ -145,25 +167,38 @@ export async function getJobTypesWithActiveTemplates(): Promise<string[]> {
 /**
  * Crea nuovo template
  */
-export async function createTemplate(data: InsertConsultationTemplate): Promise<string> {
+export async function createTemplate(
+  data: InsertConsultationTemplate,
+): Promise<string> {
   const now = Timestamp.now();
 
   // 🔍 DEBUG: Log del payload prima del salvataggio
-  console.log('[createTemplate] 🔍 DEBUG - Payload in ingresso:');
-  console.log('[createTemplate] 🔍 customWorkingHours:', data.customWorkingHours);
+  console.log("[createTemplate] 🔍 DEBUG - Payload in ingresso:");
+  console.log(
+    "[createTemplate] 🔍 customWorkingHours:",
+    data.customWorkingHours,
+  );
   if (data.customWorkingHours) {
-    console.log('[createTemplate] 🔍 customWorkingHours length:', data.customWorkingHours.length);
-    const mondayConfig = data.customWorkingHours.find(h => h.giornoSettimana === 1);
-    console.log('[createTemplate] 🔍 Monday config (giornoSettimana: 1):', mondayConfig);
+    console.log(
+      "[createTemplate] 🔍 customWorkingHours length:",
+      data.customWorkingHours.length,
+    );
+    const mondayConfig = data.customWorkingHours.find(
+      (h) => h.giornoSettimana === 1,
+    );
+    console.log(
+      "[createTemplate] 🔍 Monday config (giornoSettimana: 1):",
+      mondayConfig,
+    );
   }
 
-  const docRef = await db.collection('consultationTemplates').add({
+  const docRef = await db.collection("consultationTemplates").add({
     ...data,
     createdAt: now,
     updatedAt: now,
   });
 
-  console.log('[createTemplate] 🔍 Template salvato con ID:', docRef.id);
+  console.log("[createTemplate] 🔍 Template salvato con ID:", docRef.id);
 
   return docRef.id;
 }
@@ -171,8 +206,11 @@ export async function createTemplate(data: InsertConsultationTemplate): Promise<
 /**
  * Aggiorna template esistente
  */
-export async function updateTemplate(id: string, data: UpdateConsultationTemplate): Promise<void> {
-  const docRef = db.collection('consultationTemplates').doc(id);
+export async function updateTemplate(
+  id: string,
+  data: UpdateConsultationTemplate,
+): Promise<void> {
+  const docRef = db.collection("consultationTemplates").doc(id);
   const doc = await docRef.get();
 
   if (!doc.exists) {
@@ -180,12 +218,26 @@ export async function updateTemplate(id: string, data: UpdateConsultationTemplat
   }
 
   // 🔍 DEBUG: Log del payload prima dell'aggiornamento
-  console.log('[updateTemplate] 🔍 DEBUG - Payload update per template ID:', id);
-  console.log('[updateTemplate] 🔍 customWorkingHours:', data.customWorkingHours);
+  console.log(
+    "[updateTemplate] 🔍 DEBUG - Payload update per template ID:",
+    id,
+  );
+  console.log(
+    "[updateTemplate] 🔍 customWorkingHours:",
+    data.customWorkingHours,
+  );
   if (data.customWorkingHours) {
-    console.log('[updateTemplate] 🔍 customWorkingHours length:', data.customWorkingHours.length);
-    const mondayConfig = data.customWorkingHours.find(h => h.giornoSettimana === 1);
-    console.log('[updateTemplate] 🔍 Monday config (giornoSettimana: 1):', mondayConfig);
+    console.log(
+      "[updateTemplate] 🔍 customWorkingHours length:",
+      data.customWorkingHours.length,
+    );
+    const mondayConfig = data.customWorkingHours.find(
+      (h) => h.giornoSettimana === 1,
+    );
+    console.log(
+      "[updateTemplate] 🔍 Monday config (giornoSettimana: 1):",
+      mondayConfig,
+    );
   }
 
   await docRef.update({
@@ -193,7 +245,7 @@ export async function updateTemplate(id: string, data: UpdateConsultationTemplat
     updatedAt: Timestamp.now(),
   });
 
-  console.log('[updateTemplate] 🔍 Template aggiornato con successo');
+  console.log("[updateTemplate] 🔍 Template aggiornato con successo");
 }
 
 /**
@@ -201,17 +253,18 @@ export async function updateTemplate(id: string, data: UpdateConsultationTemplat
  */
 export async function deleteTemplate(id: string): Promise<void> {
   // Verifica che non ci siano consultations attive associate
-  const consultations = await db.collection('consultations')
-    .where('templateId', '==', id)
-    .where('stato', 'in', ['in_attesa', 'confermata'])
+  const consultations = await db
+    .collection("consultations")
+    .where("templateId", "==", id)
+    .where("stato", "in", ["in_attesa", "confermata"])
     .limit(1)
     .get();
 
   if (!consultations.empty) {
-    throw new Error('Impossibile eliminare template con consultations attive');
+    throw new Error("Impossibile eliminare template con consultations attive");
   }
 
-  await db.collection('consultationTemplates').doc(id).delete();
+  await db.collection("consultationTemplates").doc(id).delete();
 }
 
 /**
@@ -229,11 +282,13 @@ export async function auditTemplateWorkingHours() {
       nome: string;
       hasCustomWorkingHours: boolean;
       customWorkingHoursLength?: number;
-    }>
+    }>,
   };
 
   for (const template of templates) {
-    const hasCustom = !!(template.customWorkingHours && template.customWorkingHours.length > 0);
+    const hasCustom = !!(
+      template.customWorkingHours && template.customWorkingHours.length > 0
+    );
 
     if (hasCustom) {
       report.withCustomHours++;
@@ -245,7 +300,7 @@ export async function auditTemplateWorkingHours() {
       id: template.id,
       nome: template.nome,
       hasCustomWorkingHours: hasCustom,
-      customWorkingHoursLength: template.customWorkingHours?.length
+      customWorkingHoursLength: template.customWorkingHours?.length,
     });
   }
 
@@ -259,7 +314,9 @@ export async function auditTemplateWorkingHours() {
  * BUG FIX: Template legacy hanno giorni in excludedDays che bloccano slot anche se customWorkingHours li attiva
  * Soluzione: rimuovere da excludedDays tutti i giorni attivi in customWorkingHours (per TUTTI i template)
  */
-export async function migrateInitializeWorkingHours(options: { dryRun?: boolean; syncAll?: boolean } = {}) {
+export async function migrateInitializeWorkingHours(
+  options: { dryRun?: boolean; syncAll?: boolean } = {},
+) {
   const { dryRun = false, syncAll = false } = options;
 
   const templates = await getAllTemplates();
@@ -272,33 +329,39 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean;
     details: [] as Array<{
       id: string;
       nome: string;
-      action: 'initialized' | 'synced' | 'skipped';
+      action: "initialized" | "synced" | "skipped";
       reason: string;
       before?: { excludedDays?: number[]; hasCustomHours: boolean };
       after?: { excludedDays: number[]; customWorkingHours?: number };
-    }>
+    }>,
   };
 
   for (const template of templates) {
     const before = {
       excludedDays: template.excludedDays || [],
-      hasCustomHours: !!(template.customWorkingHours && template.customWorkingHours.length > 0)
+      hasCustomHours: !!(
+        template.customWorkingHours && template.customWorkingHours.length > 0
+      ),
     };
 
     // Caso 1: Template SENZA customWorkingHours -> inizializza + sincronizza
-    if (!template.customWorkingHours || template.customWorkingHours.length === 0) {
-      const activeDays = DEFAULT_CONSULTATION_HOURS
-        .filter(h => h.attivo)
-        .map(h => h.giornoSettimana);
+    if (
+      !template.customWorkingHours ||
+      template.customWorkingHours.length === 0
+    ) {
+      const activeDays = DEFAULT_CONSULTATION_HOURS.filter((h) => h.attivo).map(
+        (h) => h.giornoSettimana,
+      );
 
-      const cleanedExcludedDays = (template.excludedDays || [])
-        .filter(day => !activeDays.includes(day));
+      const cleanedExcludedDays = (template.excludedDays || []).filter(
+        (day) => !activeDays.includes(day),
+      );
 
       if (!dryRun) {
-        await db.collection('consultationTemplates').doc(template.id).update({
+        await db.collection("consultationTemplates").doc(template.id).update({
           customWorkingHours: DEFAULT_CONSULTATION_HOURS,
           excludedDays: cleanedExcludedDays,
-          updatedAt: Timestamp.now()
+          updatedAt: Timestamp.now(),
         });
       }
 
@@ -306,13 +369,13 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean;
       report.details.push({
         id: template.id,
         nome: template.nome,
-        action: 'initialized',
-        reason: 'Inizializzato customWorkingHours + sincronizzato excludedDays',
+        action: "initialized",
+        reason: "Inizializzato customWorkingHours + sincronizzato excludedDays",
         before,
         after: {
           excludedDays: cleanedExcludedDays,
-          customWorkingHours: DEFAULT_CONSULTATION_HOURS.length
-        }
+          customWorkingHours: DEFAULT_CONSULTATION_HOURS.length,
+        },
       });
       continue;
     }
@@ -320,20 +383,23 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean;
     // Caso 2: Template CON customWorkingHours -> sincronizza solo excludedDays (se syncAll=true)
     if (syncAll) {
       const activeDays = template.customWorkingHours
-        .filter(h => h.attivo)
-        .map(h => h.giornoSettimana);
+        .filter((h) => h.attivo)
+        .map((h) => h.giornoSettimana);
 
-      const cleanedExcludedDays = (template.excludedDays || [])
-        .filter(day => !activeDays.includes(day));
+      const cleanedExcludedDays = (template.excludedDays || []).filter(
+        (day) => !activeDays.includes(day),
+      );
 
       // Solo aggiorna se excludedDays cambia
-      const needsSync = JSON.stringify(before.excludedDays.sort()) !== JSON.stringify(cleanedExcludedDays.sort());
+      const needsSync =
+        JSON.stringify(before.excludedDays.sort()) !==
+        JSON.stringify(cleanedExcludedDays.sort());
 
       if (needsSync) {
         if (!dryRun) {
-          await db.collection('consultationTemplates').doc(template.id).update({
+          await db.collection("consultationTemplates").doc(template.id).update({
             excludedDays: cleanedExcludedDays,
-            updatedAt: Timestamp.now()
+            updatedAt: Timestamp.now(),
           });
         }
 
@@ -341,21 +407,21 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean;
         report.details.push({
           id: template.id,
           nome: template.nome,
-          action: 'synced',
-          reason: 'Sincronizzato excludedDays con customWorkingHours esistenti',
+          action: "synced",
+          reason: "Sincronizzato excludedDays con customWorkingHours esistenti",
           before,
           after: {
             excludedDays: cleanedExcludedDays,
-            customWorkingHours: template.customWorkingHours.length
-          }
+            customWorkingHours: template.customWorkingHours.length,
+          },
         });
       } else {
         report.skipped++;
         report.details.push({
           id: template.id,
           nome: template.nome,
-          action: 'skipped',
-          reason: 'customWorkingHours ed excludedDays già sincronizzati'
+          action: "skipped",
+          reason: "customWorkingHours ed excludedDays già sincronizzati",
         });
       }
     } else {
@@ -363,8 +429,9 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean;
       report.details.push({
         id: template.id,
         nome: template.nome,
-        action: 'skipped',
-        reason: 'Ha già customWorkingHours (usa syncAll=true per sincronizzare excludedDays)'
+        action: "skipped",
+        reason:
+          "Ha già customWorkingHours (usa syncAll=true per sincronizzare excludedDays)",
       });
     }
   }
@@ -376,7 +443,9 @@ export async function migrateInitializeWorkingHours(options: { dryRun?: boolean;
  * MIGRATION: Aggiorna customWorkingHours per abilitare sabato
  * Supporta dry-run mode per test senza modifiche
  */
-export async function migrateSaturdayHours(options: { dryRun?: boolean; force?: boolean } = {}) {
+export async function migrateSaturdayHours(
+  options: { dryRun?: boolean; force?: boolean } = {},
+) {
   const { dryRun = false, force = false } = options;
 
   const templates = await getAllTemplates();
@@ -390,22 +459,25 @@ export async function migrateSaturdayHours(options: { dryRun?: boolean; force?: 
     details: [] as Array<{
       id: string;
       nome: string;
-      action: 'updated' | 'skipped' | 'excluded' | 'missing-saturday';
+      action: "updated" | "skipped" | "excluded" | "missing-saturday";
       reason: string;
       before?: any;
       after?: any;
-    }>
+    }>,
   };
 
   for (const template of templates) {
     // Skip template senza customWorkingHours (usano DEFAULT)
-    if (!template.customWorkingHours || template.customWorkingHours.length === 0) {
+    if (
+      !template.customWorkingHours ||
+      template.customWorkingHours.length === 0
+    ) {
       report.skipped++;
       report.details.push({
         id: template.id,
         nome: template.nome,
-        action: 'skipped',
-        reason: 'Usa orari di default (nessun customWorkingHours)'
+        action: "skipped",
+        reason: "Usa orari di default (nessun customWorkingHours)",
       });
       continue;
     }
@@ -416,22 +488,24 @@ export async function migrateSaturdayHours(options: { dryRun?: boolean; force?: 
       report.details.push({
         id: template.id,
         nome: template.nome,
-        action: 'excluded',
-        reason: 'Sabato escluso intenzionalmente in excludedDays'
+        action: "excluded",
+        reason: "Sabato escluso intenzionalmente in excludedDays",
       });
       continue;
     }
 
     // Cerca configurazione sabato (giornoSettimana: 6)
-    const saturdayIndex = template.customWorkingHours.findIndex(h => h.giornoSettimana === 6);
+    const saturdayIndex = template.customWorkingHours.findIndex(
+      (h) => h.giornoSettimana === 6,
+    );
 
     if (saturdayIndex === -1) {
       report.missingSaturday++;
       report.details.push({
         id: template.id,
         nome: template.nome,
-        action: 'missing-saturday',
-        reason: 'customWorkingHours non contiene sabato (giornoSettimana: 6)'
+        action: "missing-saturday",
+        reason: "customWorkingHours non contiene sabato (giornoSettimana: 6)",
       });
       continue;
     }
@@ -444,8 +518,8 @@ export async function migrateSaturdayHours(options: { dryRun?: boolean; force?: 
       report.details.push({
         id: template.id,
         nome: template.nome,
-        action: 'skipped',
-        reason: 'Sabato già attivo'
+        action: "skipped",
+        reason: "Sabato già attivo",
       });
       continue;
     }
@@ -454,37 +528,40 @@ export async function migrateSaturdayHours(options: { dryRun?: boolean; force?: 
     const updatedSaturday: ConsultationWorkingHours = {
       ...saturdayConfig,
       attivo: true,
-      pausaInizio: '13:00',
-      pausaFine: '14:30'
+      pausaInizio: "13:00",
+      pausaFine: "14:30",
     };
 
     const updatedWorkingHours = [...template.customWorkingHours];
     updatedWorkingHours[saturdayIndex] = updatedSaturday;
 
     // Se force=true E sabato era in excludedDays, rimuovilo
-    const hadExcludedSaturday = template.excludedDays && template.excludedDays.includes(6);
-    const updatedExcludedDays = hadExcludedSaturday && force
-      ? template.excludedDays!.filter(day => day !== 6)
-      : template.excludedDays;
+    const hadExcludedSaturday =
+      template.excludedDays && template.excludedDays.includes(6);
+    const updatedExcludedDays =
+      hadExcludedSaturday && force
+        ? template.excludedDays!.filter((day) => day !== 6)
+        : template.excludedDays;
 
-    let reason = 'Sabato abilitato (attivo: false → true) con pausa pranzo 13:00-14:30';
+    let reason =
+      "Sabato abilitato (attivo: false → true) con pausa pranzo 13:00-14:30";
     if (hadExcludedSaturday && force) {
-      reason += ' + rimosso da excludedDays (force=true)';
+      reason += " + rimosso da excludedDays (force=true)";
     }
 
     report.details.push({
       id: template.id,
       nome: template.nome,
-      action: 'updated',
+      action: "updated",
       reason,
       before: saturdayConfig,
-      after: updatedSaturday
+      after: updatedSaturday,
     });
 
     // Applica modifica solo se non in dry-run
     if (!dryRun) {
       const updates: any = {
-        customWorkingHours: updatedWorkingHours
+        customWorkingHours: updatedWorkingHours,
       };
 
       // Aggiorna excludedDays solo se modificato
@@ -517,7 +594,7 @@ function normalizeEmail(email: string): string {
  */
 function generateClienteIdFromEmail(email: string): string {
   const normalized = normalizeEmail(email);
-  return Buffer.from(normalized).toString('base64url');
+  return Buffer.from(normalized).toString("base64url");
 }
 
 /**
@@ -531,14 +608,14 @@ async function linkConsultationToCliente(
     cognome: string;
     email: string;
     whatsapp: string;
-  }
+  },
 ): Promise<void> {
   const normalizedEmail = normalizeEmail(clienteData.email);
   const hashedId = generateClienteIdFromEmail(normalizedEmail);
 
   try {
     // Step 1: Cerca cliente esistente (hash ID o legacy)
-    const hashedDocRef = db.collection('clienti').doc(hashedId);
+    const hashedDocRef = db.collection("clienti").doc(hashedId);
     const hashedDocSnap = await hashedDocRef.get();
 
     let targetRef = hashedDocRef;
@@ -546,8 +623,9 @@ async function linkConsultationToCliente(
 
     if (!hashedDocSnap.exists) {
       // Cerca per email (legacy compatibility)
-      const legacyQuery = await db.collection('clienti')
-        .where('email', '==', normalizedEmail)
+      const legacyQuery = await db
+        .collection("clienti")
+        .where("email", "==", normalizedEmail)
         .limit(1)
         .get();
 
@@ -581,7 +659,7 @@ async function linkConsultationToCliente(
         lifecycle: {
           firstContactAt: now,
           lastInteractionAt: now,
-          status: 'lead',
+          status: "lead",
         },
         financials: {
           totalRevenue: 0,
@@ -592,34 +670,39 @@ async function linkConsultationToCliente(
         createdAt: now,
         updatedAt: now,
       });
-      console.log(`[Link Consultation] Nuovo cliente creato da consultation ${consultationId}`);
+      console.log(
+        `[Link Consultation] Nuovo cliente creato da consultation ${consultationId}`,
+      );
     } else {
       // Update cliente esistente
       const currentData = (await targetRef.get()).data();
 
       const updates: any = {
-        'sourceRefs.consultationIds': FieldValue.arrayUnion(consultationId),
-        'lifecycle.lastInteractionAt': now,
+        "sourceRefs.consultationIds": FieldValue.arrayUnion(consultationId),
+        "lifecycle.lastInteractionAt": now,
         updatedAt: now,
       };
 
       // Aggiorna solo campi mancanti
       if (!currentData?.nome) updates.nome = clienteData.nome;
       if (!currentData?.cognome) updates.cognome = clienteData.cognome;
-      if (!currentData?.whatsapp && clienteData.whatsapp) updates.whatsapp = clienteData.whatsapp;
-      if (!currentData?.cellulare1 && clienteData.whatsapp) updates.cellulare1 = clienteData.whatsapp;
+      if (!currentData?.whatsapp && clienteData.whatsapp)
+        updates.whatsapp = clienteData.whatsapp;
+      if (!currentData?.cellulare1 && clienteData.whatsapp)
+        updates.cellulare1 = clienteData.whatsapp;
 
       await targetRef.update(updates);
-      console.log(`[Link Consultation] Cliente esistente aggiornato per consultation ${consultationId}`);
+      console.log(
+        `[Link Consultation] Cliente esistente aggiornato per consultation ${consultationId}`,
+      );
     }
 
     // Step 3: Link consultation a cliente
-    await db.collection('consultations').doc(consultationId).update({
+    await db.collection("consultations").doc(consultationId).update({
       clienteId: targetRef.id,
     });
-
   } catch (error: any) {
-    console.error('[Link Consultation] Errore:', error.message);
+    console.error("[Link Consultation] Errore:", error.message);
     throw new Error(`Errore linking cliente: ${error.message}`);
   }
 }
@@ -634,22 +717,22 @@ export async function getAllConsultations(filters?: {
   dateFrom?: Date;
   dateTo?: Date;
 }): Promise<Consultation[]> {
-  let query: any = db.collection('consultations');
+  let query: any = db.collection("consultations");
 
   if (filters?.stato && filters.stato.length > 0) {
-    query = query.where('stato', 'in', filters.stato);
+    query = query.where("stato", "in", filters.stato);
   }
 
   if (filters?.jobType) {
-    query = query.where('jobType', '==', filters.jobType);
+    query = query.where("jobType", "==", filters.jobType);
   }
 
   if (filters?.templateId) {
-    query = query.where('templateId', '==', filters.templateId);
+    query = query.where("templateId", "==", filters.templateId);
   }
 
   // Ordina per data consulenza descending
-  query = query.orderBy('dataConsulenza', 'desc');
+  query = query.orderBy("dataConsulenza", "desc");
 
   const snapshot = await query.get();
 
@@ -661,12 +744,12 @@ export async function getAllConsultations(filters?: {
   // Filtri client-side per date range (Firestore non supporta range + in operator)
   if (filters?.dateFrom) {
     const fromTimestamp = Timestamp.fromDate(filters.dateFrom);
-    results = results.filter(c => c.dataConsulenza >= fromTimestamp);
+    results = results.filter((c) => c.dataConsulenza >= fromTimestamp);
   }
 
   if (filters?.dateTo) {
     const toTimestamp = Timestamp.fromDate(filters.dateTo);
-    results = results.filter(c => c.dataConsulenza <= toTimestamp);
+    results = results.filter((c) => c.dataConsulenza <= toTimestamp);
   }
 
   return results;
@@ -675,8 +758,10 @@ export async function getAllConsultations(filters?: {
 /**
  * Ottiene consultation per ID
  */
-export async function getConsultationById(id: string): Promise<Consultation | null> {
-  const doc = await db.collection('consultations').doc(id).get();
+export async function getConsultationById(
+  id: string,
+): Promise<Consultation | null> {
+  const doc = await db.collection("consultations").doc(id).get();
 
   if (!doc.exists) {
     return null;
@@ -694,12 +779,12 @@ export async function getConsultationById(id: string): Promise<Consultation | nu
  */
 export async function createConsultation(
   data: InsertConsultation,
-  template: ConsultationTemplate
+  template: ConsultationTemplate,
 ): Promise<string> {
   const now = Timestamp.now();
 
   // Crea consultation document
-  const docRef = await db.collection('consultations').add({
+  const docRef = await db.collection("consultations").add({
     // Template snapshot
     templateId: data.templateId,
     templateNome: template.nome,
@@ -721,7 +806,7 @@ export async function createConsultation(
     note: data.note,
 
     // Stati workflow
-    stato: 'in_attesa' as ConsultationStatus,
+    stato: "in_attesa" as ConsultationStatus,
 
     // Email tracking
     emailRicevutaInviata: false,
@@ -741,12 +826,20 @@ export async function createConsultation(
     await linkConsultationToCliente(docRef.id, data.cliente);
   } catch (linkError: any) {
     // Rollback: elimina consultation appena creata
-    console.error('[createConsultation] Errore linking cliente, eseguo rollback:', linkError.message);
+    console.error(
+      "[createConsultation] Errore linking cliente, eseguo rollback:",
+      linkError.message,
+    );
     try {
       await docRef.delete();
-      console.log(`[createConsultation] Rollback completato - consultation ${docRef.id} eliminata`);
+      console.log(
+        `[createConsultation] Rollback completato - consultation ${docRef.id} eliminata`,
+      );
     } catch (rollbackError: any) {
-      console.error('[createConsultation] ERRORE CRITICO: Fallito rollback consultation', rollbackError.message);
+      console.error(
+        "[createConsultation] ERRORE CRITICO: Fallito rollback consultation",
+        rollbackError.message,
+      );
     }
     throw new Error(`Errore creazione consultation: ${linkError.message}`);
   }
@@ -757,8 +850,11 @@ export async function createConsultation(
 /**
  * Aggiorna consultation esistente
  */
-export async function updateConsultation(id: string, data: UpdateConsultation): Promise<void> {
-  const docRef = db.collection('consultations').doc(id);
+export async function updateConsultation(
+  id: string,
+  data: UpdateConsultation,
+): Promise<void> {
+  const docRef = db.collection("consultations").doc(id);
   const doc = await docRef.get();
 
   if (!doc.exists) {
@@ -773,7 +869,9 @@ export async function updateConsultation(id: string, data: UpdateConsultation): 
   // Converti Date a Timestamp combinando data + orario
   if (data.dataConsulenza && data.orarioInizio) {
     // Costruisci ISO string completa per evitare ambiguità timezone
-    const combinedDate = new Date(`${data.dataConsulenza}T${data.orarioInizio}:00`);
+    const combinedDate = new Date(
+      `${data.dataConsulenza}T${data.orarioInizio}:00`,
+    );
     updates.dataConsulenza = Timestamp.fromDate(combinedDate);
   }
 
@@ -786,7 +884,7 @@ export async function updateConsultation(id: string, data: UpdateConsultation): 
  * Per consultations confermate, l'evento Google Calendar viene rimosso automaticamente
  */
 export async function deleteConsultation(id: string): Promise<void> {
-  const doc = await db.collection('consultations').doc(id).get();
+  const doc = await db.collection("consultations").doc(id).get();
 
   if (!doc.exists) {
     throw new Error(`Consultation ${id} non trovata`);
@@ -797,25 +895,37 @@ export async function deleteConsultation(id: string): Promise<void> {
   // 🔥 FIX: Cancella evento Google Calendar se esiste
   if (data?.googleCalendarEventId) {
     try {
-      console.log(`[deleteConsultation] Cancellando evento Google Calendar ${data.googleCalendarEventId} per consultation ${id}...`);
-      await deleteEvent('primary', data.googleCalendarEventId);
-      console.log(`[deleteConsultation] ✅ Evento Calendar cancellato con successo`);
+      console.log(
+        `[deleteConsultation] Cancellando evento Google Calendar ${data.googleCalendarEventId} per consultation ${id}...`,
+      );
+      await deleteEvent("primary", data.googleCalendarEventId);
+      console.log(
+        `[deleteConsultation] ✅ Evento Calendar cancellato con successo`,
+      );
     } catch (error: any) {
       // Log errore ma non bloccare cancellazione
-      console.error(`[deleteConsultation] ⚠️  Errore cancellazione Calendar event ${data.googleCalendarEventId}:`, error.message);
+      console.error(
+        `[deleteConsultation] ⚠️  Errore cancellazione Calendar event ${data.googleCalendarEventId}:`,
+        error.message,
+      );
       // Continua comunque con cancellazione Firestore
     }
   }
 
   // Rimuovi reference da cliente
   if (data?.clienteId) {
-    await db.collection('clienti').doc(data.clienteId).update({
-      consultationIds: FieldValue.arrayRemove(id),
-    });
+    await db
+      .collection("clienti")
+      .doc(data.clienteId)
+      .update({
+        consultationIds: FieldValue.arrayRemove(id),
+      });
   }
 
-  await db.collection('consultations').doc(id).delete();
-  console.log(`[deleteConsultation] ✅ Consultation ${id} eliminata da Firestore`);
+  await db.collection("consultations").doc(id).delete();
+  console.log(
+    `[deleteConsultation] ✅ Consultation ${id} eliminata da Firestore`,
+  );
 }
 
 /**
@@ -830,29 +940,29 @@ export async function deleteConsultation(id: string): Promise<void> {
 export async function isSlotAvailable(
   date: Date,
   startTime: string, // "HH:mm"
-  endTime: string,   // "HH:mm"
+  endTime: string, // "HH:mm"
   excludeConsultationId?: string,
   googleCalendarBusyPeriods?: any[],
   preloadedConsultations?: QueryDocumentSnapshot[],
   preloadedBookings?: QueryDocumentSnapshot[],
-  preloadedJobs?: QueryDocumentSnapshot[]
+  preloadedJobs?: QueryDocumentSnapshot[],
 ): Promise<boolean> {
   // 🔥 FIX TIMEZONE: Usa createEuropeRomeDate invece di new Date() + setHours()
   // Questo assicura che stiamo usando Europe/Rome timezone come i timestamp Firestore
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   const dateStr = `${year}-${month}-${day}`;
 
   const slotStart = createEuropeRomeDate(dateStr, startTime);
   const slotEnd = createEuropeRomeDate(dateStr, endTime);
 
-  const isDebug = process.env.NODE_ENV === 'development';
+  const isDebug = process.env.NODE_ENV === "development";
 
   // Check 1: Consultations esistenti (usa array pre-caricato se disponibile)
-  let consultationDocs = preloadedConsultations;
+  let consultationDocs: QueryDocumentSnapshot[] = preloadedConsultations || [];
 
-  if (!consultationDocs) {
+  if (!preloadedConsultations) {
     // Fallback: fetch se non pre-caricato (backward compatibility)
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
@@ -860,10 +970,11 @@ export async function isSlotAvailable(
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const consultationsQuery = db.collection('consultations')
-      .where('stato', 'in', ['in_attesa', 'confermata'])
-      .where('dataConsulenza', '>=', Timestamp.fromDate(startOfDay))
-      .where('dataConsulenza', '<=', Timestamp.fromDate(endOfDay));
+    const consultationsQuery = db
+      .collection("consultations")
+      .where("stato", "in", ["in_attesa", "confermata"])
+      .where("dataConsulenza", ">=", Timestamp.fromDate(startOfDay))
+      .where("dataConsulenza", "<=", Timestamp.fromDate(endOfDay));
 
     const consultations = await consultationsQuery.get();
     consultationDocs = consultations.docs;
@@ -877,16 +988,20 @@ export async function isSlotAvailable(
     const data = doc.data();
 
     // 🔥 FIX: Escludi consultations con stati cancellati/archiviati
-    const stato = data.stato || '';
-    if (!['in_attesa', 'confermata'].includes(stato)) {
+    const stato = data.stato || "";
+    if (!["in_attesa", "confermata"].includes(stato)) {
       if (isDebug) {
-        console.log(`[Consultations] ⏭️  Skipping consultation ${doc.id} con stato: ${stato}`);
+        console.log(
+          `[Consultations] ⏭️  Skipping consultation ${doc.id} con stato: ${stato}`,
+        );
       }
       continue;
     }
 
-    const [existStartHour, existStartMin] = data.orarioInizio.split(':').map(Number);
-    const [existEndHour, existEndMin] = data.orarioFine.split(':').map(Number);
+    const [existStartHour, existStartMin] = data.orarioInizio
+      .split(":")
+      .map(Number);
+    const [existEndHour, existEndMin] = data.orarioFine.split(":").map(Number);
 
     const existStart = new Date(date);
     existStart.setHours(existStartHour, existStartMin, 0, 0);
@@ -897,22 +1012,26 @@ export async function isSlotAvailable(
     // 🔥 REFACTOR: Usa hasRealOverlap per verifica consistente
     if (hasRealOverlap(slotStart, slotEnd, existStart, existEnd)) {
       // 🔍 ENHANCED LOGGING: Mostra esattamente quale risorsa blocca lo slot
-      console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+      console.error(
+        `[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`,
+      );
       console.error(`   📋 Tipo: Consultation`);
       console.error(`   🆔 ID: ${doc.id}`);
-      console.error(`   👤 Cliente: ${data.cliente?.nome || 'N/A'} ${data.cliente?.cognome || ''}`);
-      console.error(`   📧 Email: ${data.cliente?.email || 'N/A'}`);
+      console.error(
+        `   👤 Cliente: ${data.cliente?.nome || "N/A"} ${data.cliente?.cognome || ""}`,
+      );
+      console.error(`   📧 Email: ${data.cliente?.email || "N/A"}`);
       console.error(`   🕐 Orario: ${data.orarioInizio}-${data.orarioFine}`);
       console.error(`   📊 Stato: ${data.stato}`);
-      console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
+      console.error(`   📅 Data: ${format(date, "yyyy-MM-dd")}`);
       return false; // Conflict con consultation esistente
     }
   }
 
   // Check 2: Bookings esistenti (usa array pre-caricato se disponibile)
-  let bookingDocs = preloadedBookings;
+  let bookingDocs: QueryDocumentSnapshot[] = preloadedBookings || [];
 
-  if (!bookingDocs) {
+  if (!preloadedBookings) {
     // Fallback: fetch se non pre-caricato (backward compatibility)
     const bookingStartOfDay = new Date(date);
     bookingStartOfDay.setHours(0, 0, 0, 0);
@@ -920,10 +1039,11 @@ export async function isSlotAvailable(
     const bookingEndOfDay = new Date(date);
     bookingEndOfDay.setHours(23, 59, 59, 999);
 
-    const bookingsQuery = db.collection('bookings')
-      .where('stato', 'in', ['in_attesa', 'confermata'])
-      .where('dataShootingInizio', '>=', Timestamp.fromDate(bookingStartOfDay))
-      .where('dataShootingInizio', '<=', Timestamp.fromDate(bookingEndOfDay));
+    const bookingsQuery = db
+      .collection("bookings")
+      .where("stato", "in", ["in_attesa", "confermata"])
+      .where("dataShootingInizio", ">=", Timestamp.fromDate(bookingStartOfDay))
+      .where("dataShootingInizio", "<=", Timestamp.fromDate(bookingEndOfDay));
 
     const bookings = await bookingsQuery.get();
     bookingDocs = bookings.docs;
@@ -931,19 +1051,23 @@ export async function isSlotAvailable(
 
   if (isDebug && bookingDocs.length > 0) {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    console.log(`[Consultations] 📅 Controllo ${bookingDocs.length} bookings per ${year}-${month}-${day}, slot ${startTime}-${endTime}`);
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    console.log(
+      `[Consultations] 📅 Controllo ${bookingDocs.length} bookings per ${year}-${month}-${day}, slot ${startTime}-${endTime}`,
+    );
   }
 
   for (const doc of bookingDocs) {
     const data = doc.data();
 
     // 🔥 FIX: Escludi bookings con stati cancellati/archiviati
-    const stato = data.stato || '';
-    if (!['in_attesa', 'confermata'].includes(stato)) {
+    const stato = data.stato || "";
+    if (!["in_attesa", "confermata"].includes(stato)) {
       if (isDebug) {
-        console.log(`[Consultations] ⏭️  Skipping booking ${doc.id} con stato: ${stato}`);
+        console.log(
+          `[Consultations] ⏭️  Skipping booking ${doc.id} con stato: ${stato}`,
+        );
       }
       continue;
     }
@@ -954,33 +1078,52 @@ export async function isSlotAvailable(
     const bookingEndUTC = data.dataShootingFine.toDate();
 
     // 🔥 REFACTOR: Usa hasRealOverlap che normalizza automaticamente i millisecondi
-    const overlaps = hasRealOverlap(slotStart, slotEnd, bookingStartUTC, bookingEndUTC);
+    const overlaps = hasRealOverlap(
+      slotStart,
+      slotEnd,
+      bookingStartUTC,
+      bookingEndUTC,
+    );
 
     if (overlaps) {
       // 🔥 FIX DISPLAY: Formatta in Europe/Rome per mostrare orario corretto
       // Il booking è salvato come 16:30 UTC+1, non 15:30 UTC
-      const bookingStartLocal = new Date(bookingStartUTC.toLocaleString('en-US', { timeZone: 'Europe/Rome' }));
-      const bookingEndLocal = new Date(bookingEndUTC.toLocaleString('en-US', { timeZone: 'Europe/Rome' }));
+      const bookingStartLocal = new Date(
+        bookingStartUTC.toLocaleString("en-US", { timeZone: "Europe/Rome" }),
+      );
+      const bookingEndLocal = new Date(
+        bookingEndUTC.toLocaleString("en-US", { timeZone: "Europe/Rome" }),
+      );
 
-      console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+      console.error(
+        `[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`,
+      );
       console.error(`   📋 Tipo: Booking`);
       console.error(`   🆔 ID: ${doc.id}`);
-      console.error(`   🎬 Campagna: ${data.campagnaNome || 'N/A'}`);
-      console.error(`   👤 Cliente: ${data.clienteNome || 'N/A'}`);
-      console.error(`   📧 Email: ${data.clienteEmail || 'N/A'}`);
-      console.error(`   🕐 Orario inizio: ${format(bookingStartLocal, 'HH:mm', { locale: it })} (Europe/Rome)`);
-      console.error(`   🕐 Orario fine: ${format(bookingEndLocal, 'HH:mm', { locale: it })} (Europe/Rome)`);
+      console.error(`   🎬 Campagna: ${data.campagnaNome || "N/A"}`);
+      console.error(`   👤 Cliente: ${data.clienteNome || "N/A"}`);
+      console.error(`   📧 Email: ${data.clienteEmail || "N/A"}`);
+      console.error(
+        `   🕐 Orario inizio: ${format(bookingStartLocal, "HH:mm", { locale: it })} (Europe/Rome)`,
+      );
+      console.error(
+        `   🕐 Orario fine: ${format(bookingEndLocal, "HH:mm", { locale: it })} (Europe/Rome)`,
+      );
       console.error(`   📊 Stato: ${data.stato}`);
-      console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
-      console.error(`   ⚠️  Timestamp UTC: ${bookingStartUTC.toISOString()} - ${bookingEndUTC.toISOString()}`);
+      console.error(`   📅 Data: ${format(date, "yyyy-MM-dd")}`);
+      console.error(
+        `   ⚠️  Timestamp UTC: ${bookingStartUTC.toISOString()} - ${bookingEndUTC.toISOString()}`,
+      );
       return false; // Conflict con booking esistente
     }
   }
 
   // Check 3: Jobs esistenti (lavori confermati che occupano tempo)
-  let jobDocs = preloadedJobs;
+  // Garantisco che jobDocs sia sempre un array per evitare errore di "possibly undefined".
+  let jobDocs: QueryDocumentSnapshot[] = preloadedJobs || [];
 
-  if (!jobDocs) {
+  // Esegui il fetch solo se preloadedJobs non è stato fornito (=== undefined)
+  if (preloadedJobs === undefined) {
     // Fallback: fetch se non pre-caricato (backward compatibility)
     const jobStartOfDay = new Date(date);
     jobStartOfDay.setHours(0, 0, 0, 0);
@@ -988,17 +1131,23 @@ export async function isSlotAvailable(
     const jobEndOfDay = new Date(date);
     jobEndOfDay.setHours(23, 59, 59, 999);
 
-    const jobsQuery = db.collection('jobs')
-      .where('eventDate', '>=', Timestamp.fromDate(jobStartOfDay))
-      .where('eventDate', '<=', Timestamp.fromDate(jobEndOfDay));
+    const jobsQuery = db
+      .collection("jobs")
+      .where("eventDate", ">=", Timestamp.fromDate(jobStartOfDay))
+      .where("eventDate", "<=", Timestamp.fromDate(jobEndOfDay));
 
     const jobs = await jobsQuery.get();
 
     // Filtra solo job con stati rilevanti (che occupano realmente tempo)
     jobDocs = jobs.docs.filter((doc: any) => {
       const data = doc.data();
-      const stato = data.stato || '';
-      return ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'].includes(stato);
+      const stato = data.stato || "";
+      return [
+        "confermato",
+        "shooting_fatto",
+        "selezione_pending",
+        "produzione",
+      ].includes(stato);
     });
   }
 
@@ -1006,10 +1155,19 @@ export async function isSlotAvailable(
     const data = doc.data();
 
     // 🔥 FIX: Doppio controllo - escludi job con stati non rilevanti (già filtrato in query ma per sicurezza)
-    const stato = data.stato || '';
-    if (!['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'].includes(stato)) {
+    const stato = data.stato || "";
+    if (
+      ![
+        "confermato",
+        "shooting_fatto",
+        "selezione_pending",
+        "produzione",
+      ].includes(stato)
+    ) {
       if (isDebug) {
-        console.log(`[Consultations] ⏭️  Skipping job ${doc.id} con stato: ${stato}`);
+        console.log(
+          `[Consultations] ⏭️  Skipping job ${doc.id} con stato: ${stato}`,
+        );
       }
       continue;
     }
@@ -1017,20 +1175,22 @@ export async function isSlotAvailable(
     // Se job è all-day, blocca l'intera giornata
     if (data.allDay === true) {
       // 🔍 ENHANCED LOGGING: Mostra dettagli job all-day
-      console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+      console.error(
+        `[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`,
+      );
       console.error(`   📋 Tipo: Job (All-Day)`);
       console.error(`   🆔 ID: ${doc.id}`);
-      console.error(`   🎬 Nome Evento: ${data.nomeEvento || 'N/A'}`);
+      console.error(`   🎬 Nome Evento: ${data.nomeEvento || "N/A"}`);
       console.error(`   📊 Stato: ${data.stato}`);
-      console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
+      console.error(`   📅 Data: ${format(date, "yyyy-MM-dd")}`);
       console.error(`   ⚠️  Job all-day blocca l'intera giornata`);
       return false; // Job all-day blocca tutti gli slot della giornata
     }
 
     // Se job ha orari specifici, controlla overlap
     if (data.startTime && data.endTime) {
-      const [jobStartHour, jobStartMin] = data.startTime.split(':').map(Number);
-      const [jobEndHour, jobEndMin] = data.endTime.split(':').map(Number);
+      const [jobStartHour, jobStartMin] = data.startTime.split(":").map(Number);
+      const [jobEndHour, jobEndMin] = data.endTime.split(":").map(Number);
 
       const jobStart = new Date(date);
       jobStart.setHours(jobStartHour, jobStartMin, 0, 0);
@@ -1043,13 +1203,15 @@ export async function isSlotAvailable(
 
       if (overlaps) {
         // 🔍 ENHANCED LOGGING: Mostra dettagli job con orari
-        console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+        console.error(
+          `[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`,
+        );
         console.error(`   📋 Tipo: Job (Timed)`);
         console.error(`   🆔 ID: ${doc.id}`);
-        console.error(`   🎬 Nome Evento: ${data.nomeEvento || 'N/A'}`);
+        console.error(`   🎬 Nome Evento: ${data.nomeEvento || "N/A"}`);
         console.error(`   🕐 Orario: ${data.startTime}-${data.endTime}`);
         console.error(`   📊 Stato: ${data.stato}`);
-        console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
+        console.error(`   📅 Data: ${format(date, "yyyy-MM-dd")}`);
         return false; // Conflict con job esistente
       }
     }
@@ -1058,7 +1220,10 @@ export async function isSlotAvailable(
   // Check 4: Google Calendar events - busy periods (TUTTI I CALENDARI)
   // IMPORTANTE: Se non abbiamo busy periods (array vuoto o undefined),
   // assumiamo che Google Calendar sia disponibile (nessun conflitto)
-  if (Array.isArray(googleCalendarBusyPeriods) && googleCalendarBusyPeriods.length > 0) {
+  if (
+    Array.isArray(googleCalendarBusyPeriods) &&
+    googleCalendarBusyPeriods.length > 0
+  ) {
     for (const busy of googleCalendarBusyPeriods) {
       if (!busy.start || !busy.end) continue;
 
@@ -1070,15 +1235,17 @@ export async function isSlotAvailable(
 
       if (overlaps) {
         // 🔍 ENHANCED LOGGING: Mostra dettagli evento Google Calendar
-        const busyStartStr = format(busyStart, 'HH:mm', { locale: it });
-        const busyEndStr = format(busyEnd, 'HH:mm', { locale: it });
-        const calendarInfo = busy.calendarName || 'Google Calendar';
+        const busyStartStr = format(busyStart, "HH:mm", { locale: it });
+        const busyEndStr = format(busyEnd, "HH:mm", { locale: it });
+        const calendarInfo = busy.calendarName || "Google Calendar";
 
-        console.error(`[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`);
+        console.error(
+          `[Consultations] ❌ CONFLICT DETECTED - Slot ${startTime}-${endTime} BLOCCATO da:`,
+        );
         console.error(`   📋 Tipo: Google Calendar Event`);
         console.error(`   📆 Calendario: ${calendarInfo}`);
         console.error(`   🕐 Orario: ${busyStartStr}-${busyEndStr}`);
-        console.error(`   📅 Data: ${format(date, 'yyyy-MM-dd')}`);
+        console.error(`   📅 Data: ${format(date, "yyyy-MM-dd")}`);
         if (busy.eventId) console.error(`   🆔 Event ID: ${busy.eventId}`);
         if (busy.summary) console.error(`   📝 Summary: ${busy.summary}`);
         console.error(`   ⚠️  Questo evento blocca lo slot richiesto`);
@@ -1087,11 +1254,15 @@ export async function isSlotAvailable(
       }
     }
   } else if (isDebug) {
-    console.log(`[Consultations] ℹ️ Nessun busy period trovato su tutti i calendari Google per questa data`);
+    console.log(
+      `[Consultations] ℹ️ Nessun busy period trovato su tutti i calendari Google per questa data`,
+    );
   }
 
   if (isDebug) {
-    console.log(`[Consultations] ✅ Slot ${startTime}-${endTime} DISPONIBILE - Nessun conflitto rilevato`);
+    console.log(
+      `[Consultations] ✅ Slot ${startTime}-${endTime} DISPONIBILE - Nessun conflitto rilevato`,
+    );
   }
 
   return true;
@@ -1106,29 +1277,37 @@ export async function getAvailableSlotsForDate(
   durataMinuti: number,
   workingHours?: ConsultationWorkingHours[],
   template?: ConsultationTemplate,
-  externalBusyPeriods?: any[] // Aggiunto parametro per orari esterni
+  externalBusyPeriods?: any[], // Aggiunto parametro per orari esterni
 ): Promise<ConsultationSlot[]> {
   // VALIDAZIONE CRITICA: Previeni loop infiniti con durataMinuti invalido
   if (!durataMinuti || durataMinuti <= 0 || isNaN(durataMinuti)) {
     const fallbackDuration = 30;
-    console.warn(`[getAvailableSlotsForDate] ⚠️ ATTENZIONE - durataMinuti invalido (${durataMinuti}), uso fallback ${fallbackDuration} minuti`);
+    console.warn(
+      `[getAvailableSlotsForDate] ⚠️ ATTENZIONE - durataMinuti invalido (${durataMinuti}), uso fallback ${fallbackDuration} minuti`,
+    );
     if (template) {
-      console.warn(`[getAvailableSlotsForDate] Template "${template.nome}" ha durataMinuti invalido, aggiorna configurazione!`);
+      console.warn(
+        `[getAvailableSlotsForDate] Template "${template.nome}" ha durataMinuti invalido, aggiorna configurazione!`,
+      );
     }
     durataMinuti = fallbackDuration;
   }
 
   // FIX TIMEZONE: Determina il giorno della settimana basandosi su ROMA, non UTC
-  const romeDate = DateTime.fromJSDate(date).setZone('Europe/Rome');
+  const romeDate = DateTime.fromJSDate(date).setZone("Europe/Rome");
   // Luxon weekday: 1=Lun...7=Dom. JS getDay: 0=Dom...6=Sab.
   // Convertiamo Luxon in formato JS (0-6) per compatibilità col DB
   const dayOfWeek = romeDate.weekday === 7 ? 0 : romeDate.weekday;
 
-  console.log(`[getAvailableSlotsForDate] 🔍 DEBUG - Input Date: ${date.toISOString()}, Rome Day: ${dayOfWeek} (${romeDate.toFormat('EEEE')}), Durata slot: ${durataMinuti} minuti`)
+  console.log(
+    `[getAvailableSlotsForDate] 🔍 DEBUG - Input Date: ${date.toISOString()}, Rome Day: ${dayOfWeek} (${romeDate.toFormat("EEEE")}), Durata slot: ${durataMinuti} minuti`,
+  );
 
   // Check 1: Giorno escluso dal template?
   if (template?.excludedDays && template.excludedDays.includes(dayOfWeek)) {
-    console.log(`[getAvailableSlotsForDate] Giorno ${dayOfWeek} escluso dal template ${template.nome}`);
+    console.log(
+      `[getAvailableSlotsForDate] Giorno ${dayOfWeek} escluso dal template ${template.nome}`,
+    );
     return []; // Giorno bloccato da template
   }
 
@@ -1137,31 +1316,45 @@ export async function getAvailableSlotsForDate(
   const hours = template?.customWorkingHours || workingHours;
 
   if (!hours || hours.length === 0) {
-    console.log(`[getAvailableSlotsForDate] ⚠️ Nessun orario configurato per template/parametri`);
+    console.log(
+      `[getAvailableSlotsForDate] ⚠️ Nessun orario configurato per template/parametri`,
+    );
     return []; // Nessun orario configurato
   }
 
-  console.log(`[getAvailableSlotsForDate] 🔍 Working hours array length: ${hours.length}`);
-  console.log(`[getAvailableSlotsForDate] 🔍 Looking for giornoSettimana: ${dayOfWeek}`);
+  console.log(
+    `[getAvailableSlotsForDate] 🔍 Working hours array length: ${hours.length}`,
+  );
+  console.log(
+    `[getAvailableSlotsForDate] 🔍 Looking for giornoSettimana: ${dayOfWeek}`,
+  );
 
-  const dayConfig = hours.find(h => h.giornoSettimana === dayOfWeek);
+  const dayConfig = hours.find((h) => h.giornoSettimana === dayOfWeek);
 
-  console.log(`[getAvailableSlotsForDate] 🔍 dayConfig found:`, dayConfig ? {
-    giornoSettimana: dayConfig.giornoSettimana,
-    attivo: dayConfig.attivo,
-    apertura: dayConfig.apertura,
-    chiusura: dayConfig.chiusura
-  } : 'NOT FOUND');
+  console.log(
+    `[getAvailableSlotsForDate] 🔍 dayConfig found:`,
+    dayConfig
+      ? {
+          giornoSettimana: dayConfig.giornoSettimana,
+          attivo: dayConfig.attivo,
+          apertura: dayConfig.apertura,
+          chiusura: dayConfig.chiusura,
+        }
+      : "NOT FOUND",
+  );
 
   if (!dayConfig || !dayConfig.attivo) {
-    console.log(`[getAvailableSlotsForDate] ⚠️ Giorno ${dayOfWeek} non disponibile - dayConfig:`, dayConfig);
+    console.log(
+      `[getAvailableSlotsForDate] ⚠️ Giorno ${dayOfWeek} non disponibile - dayConfig:`,
+      dayConfig,
+    );
     return []; // Giorno non disponibile
   }
 
   // CONTROLLO EVENTI ALL-DAY GOOGLE CALENDAR
   // Se esiste un evento "tutto il giorno", blocca completamente il giorno
   // FIX TIMEZONE: Usa romeDate per costruire dateStr invece di metodi nativi Date che usano UTC
-  const dateStr = romeDate.toFormat('yyyy-MM-dd');
+  const dateStr = romeDate.toFormat("yyyy-MM-dd");
 
   try {
     const dayStart = new Date(date);
@@ -1172,16 +1365,16 @@ export async function getAvailableSlotsForDate(
 
     console.log(`[Consultations] Controllo eventi all-day per ${dateStr}`);
 
-    const events = await getEvents('primary', dayStart, dayEnd);
-    const allDayEvents = events.filter(event => {
+    const events = await getEvents("primary", dayStart, dayEnd);
+    const allDayEvents = events.filter((event: any) => {
       // Eventi all-day hanno 'date' invece di 'dateTime'
       const hasDateStart = event.start?.date && !event.start?.dateTime;
       const hasDateEnd = event.end?.date && !event.end?.dateTime;
 
       if (hasDateStart || hasDateEnd) {
         // Verifica che l'evento copra la data richiesta
-        const eventStartDate = event.start?.date || '';
-        const eventEndDate = event.end?.date || '';
+        const eventStartDate = event.start?.date || "";
+        const eventEndDate = event.end?.date || "";
 
         // Gli eventi all-day hanno end date = giorno dopo (es. evento 20/12 ha end = 21/12)
         // Quindi controlliamo se dateStr è >= start E < end
@@ -1192,20 +1385,33 @@ export async function getAvailableSlotsForDate(
     });
 
     if (allDayEvents.length > 0) {
-      console.log(`[Consultations] 🚫 Trovati ${allDayEvents.length} eventi all-day per ${dateStr}:`);
-      allDayEvents.forEach(event => {
-        console.log(`  - "${event.summary}" (${event.start?.date} → ${event.end?.date})`);
+      console.log(
+        `[Consultations] 🚫 Trovati ${allDayEvents.length} eventi all-day per ${dateStr}:`,
+      );
+      allDayEvents.forEach((event: any) => {
+        console.log(
+          `  - "${event.summary}" (${event.start?.date} → ${event.end?.date})`,
+        );
       });
-      console.log(`[Consultations] ❌ GIORNO BLOCCATO - Nessuno slot disponibile`);
+      console.log(
+        `[Consultations] ❌ GIORNO BLOCCATO - Nessuno slot disponibile`,
+      );
 
       // Ritorna array vuoto = nessuno slot disponibile
       return [];
     }
 
-    console.log(`[Consultations] ✅ Nessun evento all-day trovato per ${dateStr}`);
+    console.log(
+      `[Consultations] ✅ Nessun evento all-day trovato per ${dateStr}`,
+    );
   } catch (error: any) {
-    console.error('[Consultations] ⚠️ Errore controllo eventi all-day Google Calendar:', error.message);
-    console.error('[Consultations] Procedo comunque con calcolo slot da Firestore');
+    console.error(
+      "[Consultations] ⚠️ Errore controllo eventi all-day Google Calendar:",
+      error.message,
+    );
+    console.error(
+      "[Consultations] Procedo comunque con calcolo slot da Firestore",
+    );
     // Se il controllo all-day fallisce, continua con la logica normale
   }
 
@@ -1216,109 +1422,152 @@ export async function getAvailableSlotsForDate(
   const dayEnd = new Date(date);
   dayEnd.setHours(23, 59, 59, 999);
 
-  const isDebug = process.env.NODE_ENV === 'development';
+  const isDebug = process.env.NODE_ENV === "development";
 
   // Fetch consultations per questa giornata
   let preloadedConsultations: QueryDocumentSnapshot[] = [];
   try {
-    const consultationsSnapshot = await db.collection('consultations')
-      .where('stato', 'in', ['in_attesa', 'confermata'])
-      .where('dataConsulenza', '>=', Timestamp.fromDate(dayStart))
-      .where('dataConsulenza', '<=', Timestamp.fromDate(dayEnd))
+    const consultationsSnapshot = await db
+      .collection("consultations")
+      .where("stato", "in", ["in_attesa", "confermata"])
+      .where("dataConsulenza", ">=", Timestamp.fromDate(dayStart))
+      .where("dataConsulenza", "<=", Timestamp.fromDate(dayEnd))
       .get();
 
     preloadedConsultations = consultationsSnapshot.docs;
 
     if (isDebug) {
-      console.log(`[Consultations] ⚡ Pre-caricati ${preloadedConsultations.length} consultations per ${dateStr}`);
+      console.log(
+        `[Consultations] ⚡ Pre-caricati ${preloadedConsultations.length} consultations per ${dateStr}`,
+      );
     }
   } catch (error: any) {
-    console.error('[Consultations] ⚠️ Errore pre-caricamento consultations:', error.message);
+    console.error(
+      "[Consultations] ⚠️ Errore pre-caricamento consultations:",
+      error.message,
+    );
   }
 
   // Fetch bookings per questa giornata
   let preloadedBookings: QueryDocumentSnapshot[] = [];
   try {
-    const bookingsSnapshot = await db.collection('bookings')
-      .where('stato', 'in', ['in_attesa', 'confermata'])
-      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
-      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+    const bookingsSnapshot = await db
+      .collection("bookings")
+      .where("stato", "in", ["in_attesa", "confermata"])
+      .where("dataShootingInizio", ">=", Timestamp.fromDate(dayStart))
+      .where("dataShootingInizio", "<=", Timestamp.fromDate(dayEnd))
       .get();
 
     preloadedBookings = bookingsSnapshot.docs;
 
     if (isDebug) {
-      console.log(`[Consultations] ⚡ Pre-caricati ${preloadedBookings.length} bookings per ${dateStr}`);
+      console.log(
+        `[Consultations] ⚡ Pre-caricati ${preloadedBookings.length} bookings per ${dateStr}`,
+      );
     }
   } catch (error: any) {
-    console.error('[Consultations] ⚠️ Errore pre-caricamento bookings:', error.message);
+    console.error(
+      "[Consultations] ⚠️ Errore pre-caricamento bookings:",
+      error.message,
+    );
   }
 
   // Fetch jobs per questa giornata (lavori confermati che occupano tempo)
   let preloadedJobs: QueryDocumentSnapshot[] = [];
   try {
-    const jobsSnapshot = await db.collection('jobs')
-      .where('eventDate', '>=', Timestamp.fromDate(dayStart))
-      .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
+    const jobsSnapshot = await db
+      .collection("jobs")
+      .where("eventDate", ">=", Timestamp.fromDate(dayStart))
+      .where("eventDate", "<=", Timestamp.fromDate(dayEnd))
       .get();
 
     // Filtra solo job con stati rilevanti (che occupano realmente tempo)
     preloadedJobs = jobsSnapshot.docs.filter((doc: any) => {
       const data = doc.data();
-      const stato = data.stato || '';
+      const stato = data.stato || "";
       // Stati che bloccano slot: confermato, shooting_fatto, selezione_pending, produzione
-      return ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'].includes(stato);
+      return [
+        "confermato",
+        "shooting_fatto",
+        "selezione_pending",
+        "produzione",
+      ].includes(stato);
     });
 
     if (isDebug) {
-      console.log(`[Consultations] ⚡ Pre-caricati ${preloadedJobs.length} jobs attivi per ${dateStr}`);
+      console.log(
+        `[Consultations] ⚡ Pre-caricati ${preloadedJobs.length} jobs attivi per ${dateStr}`,
+      );
     }
   } catch (error: any) {
-    console.error('[Consultations] ⚠️ Errore pre-caricamento jobs:', error.message);
+    console.error(
+      "[Consultations] ⚠️ Errore pre-caricamento jobs:",
+      error.message,
+    );
   }
 
   // CONTROLLO BUSY PERIODS GOOGLE CALENDAR - TUTTI I CALENDARI (una sola chiamata per l'intera giornata)
   let googleBusyPeriods: any[] = [];
   try {
     if (isDebug) {
-      console.log(`[Consultations] 🔍 Controllo disponibilità su TUTTI i calendari Google per ${dateStr}`);
+      console.log(
+        `[Consultations] 🔍 Controllo disponibilità su TUTTI i calendari Google per ${dateStr}`,
+      );
     }
     // Usa externalBusyPeriods se fornito, altrimenti chiama checkFreeBusyAllCalendars
     if (externalBusyPeriods && externalBusyPeriods.length > 0) {
       googleBusyPeriods = externalBusyPeriods;
       if (isDebug) {
-        console.log(`[Consultations] ⚡ Utilizzati busy periods esterni forniti (${googleBusyPeriods.length} periodi)`);
+        console.log(
+          `[Consultations] ⚡ Utilizzati busy periods esterni forniti (${googleBusyPeriods.length} periodi)`,
+        );
       }
     } else {
-      const busyPeriodsResult = await checkFreeBusyAllCalendars(dayStart, dayEnd);
-      googleBusyPeriods = Array.isArray(busyPeriodsResult) ? busyPeriodsResult : [];
+      const busyPeriodsResult = await checkFreeBusyAllCalendars(
+        dayStart,
+        dayEnd,
+      );
+      googleBusyPeriods = Array.isArray(busyPeriodsResult)
+        ? busyPeriodsResult
+        : [];
       if (isDebug && googleBusyPeriods.length > 0) {
-        console.log(`[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods aggregati da tutti i calendari`);
+        console.log(
+          `[Consultations] ✅ Trovati ${googleBusyPeriods.length} busy periods aggregati da tutti i calendari`,
+        );
         // Log calendari che hanno eventi
-        const calendarsWithEvents = new Set(googleBusyPeriods.map((p: any) => p.calendarName).filter(Boolean));
+        const calendarsWithEvents = new Set(
+          googleBusyPeriods.map((p: any) => p.calendarName).filter(Boolean),
+        );
         if (calendarsWithEvents.size > 0) {
-          console.log(`[Consultations] 📅 Calendari con eventi: ${Array.from(calendarsWithEvents).join(', ')}`);
+          console.log(
+            `[Consultations] 📅 Calendari con eventi: ${Array.from(calendarsWithEvents).join(", ")}`,
+          );
         }
       }
     }
   } catch (error: any) {
-    console.error('[Consultations] ❌ ERRORE CRITICO fetching busy periods Google Calendar:', error.message);
+    console.error(
+      "[Consultations] ❌ ERRORE CRITICO fetching busy periods Google Calendar:",
+      error.message,
+    );
     // ⚠️ CAMBIO IMPORTANTE: Se Google Calendar fallisce, BLOCCA gli slot invece di fail silenzioso
     // Questo previene double-booking se l'API ha problemi
-    console.error('[Consultations] 🚨 Per sicurezza, tutti gli slot saranno marcati come NON disponibili');
+    console.error(
+      "[Consultations] 🚨 Per sicurezza, tutti gli slot saranno marcati come NON disponibili",
+    );
     throw error; // Propaga errore per notificare utente
   }
 
   // Genera tutti gli slot possibili per la giornata
   const slots: ConsultationSlot[] = [];
 
-  const [apH, apM] = dayConfig.apertura.split(':').map(Number);
-  const [chH, chM] = dayConfig.chiusura.split(':').map(Number);
+  const [apH, apM] = dayConfig.apertura.split(":").map(Number);
+  const [chH, chM] = dayConfig.chiusura.split(":").map(Number);
 
   // 🔥 FIX TIMEZONE: Usa createEuropeRomeDate per slot generation
   // Garantisce che gli slot siano generati in Europe/Rome timezone
-  const apertura = `${apH.toString().padStart(2, '0')}:${apM.toString().padStart(2, '0')}`;
-  const chiusura = `${chH.toString().padStart(2, '0')}:${chM.toString().padStart(2, '0')}`;
+  const apertura = `${apH.toString().padStart(2, "0")}:${apM.toString().padStart(2, "0")}`;
+  const chiusura = `${chH.toString().padStart(2, "0")}:${chM.toString().padStart(2, "0")}`;
 
   // Usa dateStr già definito sopra
   let current = createEuropeRomeDate(dateStr, apertura);
@@ -1344,8 +1593,8 @@ export async function getAvailableSlotsForDate(
       }
     }
 
-    const startTime = `${current.getHours().toString().padStart(2, '0')}:${current.getMinutes().toString().padStart(2, '0')}`;
-    const endTime = `${slotEnd.getHours().toString().padStart(2, '0')}:${slotEnd.getMinutes().toString().padStart(2, '0')}`;
+    const startTime = `${current.getHours().toString().padStart(2, "0")}:${current.getMinutes().toString().padStart(2, "0")}`;
+    const endTime = `${slotEnd.getHours().toString().padStart(2, "0")}:${slotEnd.getMinutes().toString().padStart(2, "0")}`;
 
     // Verifica disponibilità usando array pre-caricati (ZERO query Firestore per slot!)
     const available = await isSlotAvailable(
@@ -1355,8 +1604,8 @@ export async function getAvailableSlotsForDate(
       undefined, // excludeConsultationId
       googleBusyPeriods, // Usa i busy periods (esterni o da Google)
       preloadedConsultations, // ⚡ OPTIMIZATION: passa array pre-caricato
-      preloadedBookings,      // ⚡ OPTIMIZATION: passa array pre-caricato
-      preloadedJobs           // ⚡ OPTIMIZATION: passa array pre-caricato jobs
+      preloadedBookings, // ⚡ OPTIMIZATION: passa array pre-caricato
+      preloadedJobs, // ⚡ OPTIMIZATION: passa array pre-caricato jobs
     );
 
     slots.push({
@@ -1372,7 +1621,9 @@ export async function getAvailableSlotsForDate(
   }
 
   if (isDebug) {
-    console.log(`[Consultations] ⚡ Generati ${slots.length} slot totali (${slots.filter(s => s.available).length} disponibili)`);
+    console.log(
+      `[Consultations] ⚡ Generati ${slots.length} slot totali (${slots.filter((s) => s.available).length} disponibili)`,
+    );
   }
 
   return slots;

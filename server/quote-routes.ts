@@ -2,21 +2,21 @@
  * Quote API Routes - Portale cliente preventivi firmati
  */
 
-import { Router, Request, Response } from 'express';
-import { db, FieldValue } from './firebase-admin.js';
-import { getAuth } from 'firebase-admin/auth';
-import type { Quote, RevokedToken } from '../shared/quotes-types.js';
-import type { PaymentSchedule } from '../shared/payment-schedule-types.js';
-import { 
-  sendGmailEmail, 
+import { Router, Request, Response } from "express";
+import { db, FieldValue } from "./firebase-admin.js";
+import { getAuth } from "firebase-admin/auth";
+import type { Quote, RevokedToken } from "../shared/quotes-types.js";
+import type { PaymentSchedule } from "../shared/payment-schedule-types.js";
+import {
+  sendGmailEmail,
   getStudioContactInfo,
   createQuoteSignedEmailHTML,
   createPaymentReminderEmailHTML,
-  createQuoteSentEmailHTML // Importato il nuovo template
-} from './email-routes.js';
-import { nanoid } from 'nanoid';
+  createQuoteSentEmailHTML, // Importato il nuovo template
+} from "./email-routes.js";
+import { nanoid } from "nanoid";
 // Importo admin per Timestamp.now()
-import * as admin from 'firebase-admin';
+import * as admin from "firebase-admin";
 
 const router = Router();
 
@@ -30,55 +30,56 @@ async function verifyAdminAuth(req: Request, res: Response, next: Function) {
     const authHeader = req.headers.authorization;
 
     // 1. Verifica presenza token
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
-        error: 'Non autorizzato',
-        message: 'Token di autenticazione mancante'
+        error: "Non autorizzato",
+        message: "Token di autenticazione mancante",
       });
     }
 
     // 2. Verifica Firebase ID token
-    const idToken = authHeader.split('Bearer ')[1];
+    const idToken = authHeader.split("Bearer ")[1];
     let decodedToken;
 
     try {
       decodedToken = await getAuth().verifyIdToken(idToken);
     } catch (error) {
-      console.error('❌ Token Firebase non valido:', error);
+      console.error("❌ Token Firebase non valido:", error);
       return res.status(403).json({
-        error: 'Accesso negato',
-        message: 'Token di autenticazione non valido o scaduto'
+        error: "Accesso negato",
+        message: "Token di autenticazione non valido o scaduto",
       });
     }
 
     // 3. Verifica che il token appartenga all'admin
     // SICUREZZA: Usa SOLO decodedToken.email (verificato da Firebase)
     // NON fidarsi di req.headers['x-admin-email'] (può essere spoofato)
-    const ADMIN_EMAIL = 'gennaro.mazzacane@gmail.com';
+    const ADMIN_EMAIL = "gennaro.mazzacane@gmail.com";
     const verifiedEmail = decodedToken.email;
 
     if (verifiedEmail !== ADMIN_EMAIL) {
-      console.warn(`⚠️ Tentativo accesso admin non autorizzato: ${verifiedEmail}`);
+      console.warn(
+        `⚠️ Tentativo accesso admin non autorizzato: ${verifiedEmail}`,
+      );
       return res.status(403).json({
-        error: 'Accesso negato',
-        message: 'Solo gli admin possono accedere a questa risorsa'
+        error: "Accesso negato",
+        message: "Solo gli admin possono accedere a questa risorsa",
       });
     }
 
     // 4. Inietta identità verificata in req per downstream handlers
     (req as any).verifiedAdmin = {
       email: verifiedEmail,
-      uid: decodedToken.uid
+      uid: decodedToken.uid,
     };
 
     // Token valido e utente admin: procedi
     next();
-
   } catch (error) {
-    console.error('❌ Errore verifica autenticazione:', error);
+    console.error("❌ Errore verifica autenticazione:", error);
     return res.status(500).json({
-      error: 'Errore server',
-      message: 'Errore durante la verifica dell\'autenticazione'
+      error: "Errore server",
+      message: "Errore durante la verifica dell'autenticazione",
     });
   }
 }
@@ -103,25 +104,30 @@ function serializeTimestamp(timestamp: any): string | null {
 async function logAuditEvent(data: {
   quoteId: string;
   adminEmail: string;
-  action: 'status_change' | 'signature_override' | 'token_regenerated' | 'quote_created' | 'quote_deleted';
+  action:
+    | "status_change"
+    | "signature_override"
+    | "token_regenerated"
+    | "quote_created"
+    | "quote_deleted";
   previousValue?: any;
   newValue?: any;
   reason?: string;
   metadata?: Record<string, any>;
 }): Promise<void> {
   try {
-    await db.collection('quoteAuditLog').add({
+    await db.collection("quoteAuditLog").add({
       quoteId: data.quoteId,
       adminEmail: data.adminEmail,
       action: data.action,
       previousValue: data.previousValue || null,
       newValue: data.newValue || null,
-      reason: data.reason || '',
+      reason: data.reason || "",
       metadata: data.metadata || {},
-      timestamp: new Date()
+      timestamp: new Date(),
     });
   } catch (error) {
-    console.error('❌ Errore logging audit event:', error);
+    console.error("❌ Errore logging audit event:", error);
     // Non blocca l'operazione se logging fallisce
   }
 }
@@ -131,59 +137,77 @@ async function logAuditEvent(data: {
  */
 async function validateQuoteStatusChange(
   quote: Quote,
-  newStatus: string
+  newStatus: string,
 ): Promise<{ allowed: boolean; error?: string; warnings?: string[] }> {
-
   const warnings: string[] = [];
 
   try {
     // Fetch payment schedule collegato
-    const scheduleSnapshot = await db.collection('paymentSchedules')
-      .where('quoteId', '==', quote.id)
+    const scheduleSnapshot = await db
+      .collection("paymentSchedules")
+      .where("quoteId", "==", quote.id)
       .limit(1)
       .get();
 
     let schedule: PaymentSchedule | null = null;
     if (!scheduleSnapshot.empty) {
       const scheduleDoc = scheduleSnapshot.docs[0];
-      schedule = { id: scheduleDoc.id, ...scheduleDoc.data() } as PaymentSchedule;
+      schedule = {
+        id: scheduleDoc.id,
+        ...scheduleDoc.data(),
+      } as PaymentSchedule;
     }
 
     // BLOCCO HARD: Preventivo firmato con pagamenti ricevuti
     // Non è possibile riportare il preventivo a stati pre-firma se ci sono incassi registrati
-    if (quote.status === 'firmato' && schedule?.totalePagato && schedule.totalePagato > 0) {
-      const statiPreFirma = ['bozza', 'inviato', 'visionato', 'rifiutato', 'annullato', 'scaduto'];
+    if (
+      quote.status === "firmato" &&
+      schedule?.totalePagato &&
+      schedule.totalePagato > 0
+    ) {
+      const statiPreFirma = [
+        "bozza",
+        "inviato",
+        "visionato",
+        "rifiutato",
+        "annullato",
+        "scaduto",
+      ];
       if (statiPreFirma.includes(newStatus)) {
         return {
           allowed: false,
-          error: `Impossibile riportare il preventivo a stato "${newStatus}": sono già stati incassati ${schedule.totalePagato}€. Il preventivo deve rimanere "firmato".`
+          error: `Impossibile riportare il preventivo a stato "${newStatus}": sono già stati incassati ${schedule.totalePagato}€. Il preventivo deve rimanere "firmato".`,
         };
       }
     }
 
     // WARNING: Pagamenti schedulati (ma non ancora ricevuti)
     if (schedule?.payments && schedule.payments.length > 0) {
-      const paymentsScheduled = schedule.payments.filter((p: any) => p.stato !== 'pagato').length;
+      const paymentsScheduled = schedule.payments.filter(
+        (p: any) => p.stato !== "pagato",
+      ).length;
       if (paymentsScheduled > 0) {
-        warnings.push(`⚠️ Ci sono ${paymentsScheduled} pagamenti schedulati nel piano. Verificare l'impatto del cambio stato.`);
+        warnings.push(
+          `⚠️ Ci sono ${paymentsScheduled} pagamenti schedulati nel piano. Verificare l'impatto del cambio stato.`,
+        );
       }
     }
 
     // BLOCCO: Firma mancante per stato "firmato"
-    if (newStatus === 'firmato' && !quote.signature) {
+    if (newStatus === "firmato" && !quote.signature) {
       return {
         allowed: false,
-        error: 'Inserisci prima la firma del cliente per impostare lo stato "firmato"'
+        error:
+          'Inserisci prima la firma del cliente per impostare lo stato "firmato"',
       };
     }
 
     return { allowed: true, warnings };
-
   } catch (error) {
-    console.error('❌ Errore validazione cambio stato:', error);
+    console.error("❌ Errore validazione cambio stato:", error);
     return {
       allowed: false,
-      error: 'Errore durante la validazione. Riprova.'
+      error: "Errore durante la validazione. Riprova.",
     };
   }
 }
@@ -192,32 +216,35 @@ async function validateQuoteStatusChange(
  * GET /api/quotes/public/:token
  * Portale pubblico per preview e firma preventivo (NON richiede status='firmato')
  */
-router.get('/public/:token', async (req: Request, res: Response) => {
+router.get("/public/:token", async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
 
     if (!token) {
       return res.status(400).json({
-        error: 'Token mancante',
-        message: 'Il token di accesso è richiesto'
+        error: "Token mancante",
+        message: "Il token di accesso è richiesto",
       });
     }
 
     // 1. Cerca quote tramite publicToken ATTIVO (non revocato)
-    const quotesSnapshot = await db.collection('quotes')
-      .where('publicToken', '==', token)
+    const quotesSnapshot = await db
+      .collection("quotes")
+      .where("publicToken", "==", token)
       .limit(1)
       .get();
 
     if (quotesSnapshot.empty) {
       // Token non trovato come publicToken attivo, verifica se è revocato
-      const allQuotesSnapshot = await db.collection('quotes').get();
+      const allQuotesSnapshot = await db.collection("quotes").get();
       let isRevoked = false;
 
       for (const doc of allQuotesSnapshot.docs) {
         const data = doc.data();
         if (data.revokedTokens && Array.isArray(data.revokedTokens)) {
-          const revoked = data.revokedTokens.find((rt: any) => rt.token === token);
+          const revoked = data.revokedTokens.find(
+            (rt: any) => rt.token === token,
+          );
           if (revoked) {
             isRevoked = true;
             break;
@@ -227,14 +254,15 @@ router.get('/public/:token', async (req: Request, res: Response) => {
 
       if (isRevoked) {
         return res.status(410).json({
-          error: 'Link revocato',
-          message: 'Questo link è stato revocato. Richiedi un nuovo link aggiornato.'
+          error: "Link revocato",
+          message:
+            "Questo link è stato revocato. Richiedi un nuovo link aggiornato.",
         });
       }
 
       return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il link non è valido o è scaduto'
+        error: "Preventivo non trovato",
+        message: "Il link non è valido o è scaduto",
       });
     }
 
@@ -247,29 +275,29 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       const expiryDate = quote.expiresAt.toDate();
       if (expiryDate < now) {
         return res.status(410).json({
-          error: 'Link scaduto',
-          message: 'Questo preventivo è scaduto'
+          error: "Link scaduto",
+          message: "Questo preventivo è scaduto",
         });
       }
     }
 
     // 3. Update viewedAt se prima visualizzazione (solo per status 'inviato')
-    if (quote.status === 'inviato' && !quote.viewedAt) {
+    if (quote.status === "inviato" && !quote.viewedAt) {
       try {
-        await db.collection('quotes').doc(quote.id).update({
-          status: 'visionato',
-          viewedAt: new Date()
+        await db.collection("quotes").doc(quote.id).update({
+          status: "visionato",
+          viewedAt: new Date(),
         });
-        quote.status = 'visionato';
+        quote.status = "visionato";
       } catch (error) {
-        console.error('⚠️ Errore update viewedAt:', error);
+        console.error("⚠️ Errore update viewedAt:", error);
         // Non bloccare se fallisce
       }
     }
 
     // 4. Fetch job info - priorità dati salvati in quote, fallback a Firestore
-    let jobInfo: { 
-      nomeEvento?: string; 
+    let jobInfo: {
+      nomeEvento?: string;
       eventDate?: string | null;
       rito?: string;
       location?: string;
@@ -285,30 +313,30 @@ router.get('/public/:token', async (req: Request, res: Response) => {
         nomeEvento: quote.jobInfo.nomeEvento,
         eventDate: serializeTimestamp(quote.jobInfo.eventDate),
         rito: quote.jobInfo.rito,
-        location: quote.jobInfo.location
+        location: quote.jobInfo.location,
       };
     } else if (quote.jobId) {
       // Fallback: fetch da Firestore se quote non ha jobInfo (backward compatibility)
-      const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
+      const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
       if (jobDoc.exists) {
         const jobData = jobDoc.data();
         jobInfo = {
           nomeEvento: jobData?.nomeEvento,
           eventDate: serializeTimestamp(jobData?.eventDate),
-          rito: jobData?.rituLocation || '',
-          location: jobData?.eventLocation || '',
+          rito: jobData?.rituLocation || "",
+          location: jobData?.eventLocation || "",
           rituTime: jobData?.rituTime,
           startTime: jobData?.startTime,
           endTime: jobData?.endTime,
-          allDay: jobData?.allDay
+          allDay: jobData?.allDay,
         };
       }
     }
 
     // 5. Fetch clienti info - priorità dati salvati in quote, fallback a Firestore
-    let clientiInfo: Array<{ 
+    let clientiInfo: Array<{
       id: string;
-      nome?: string; 
+      nome?: string;
       cognome?: string;
       email?: string;
       telefono?: string;
@@ -319,7 +347,7 @@ router.get('/public/:token', async (req: Request, res: Response) => {
 
     if (quote.clientiInfo && quote.clientiInfo.length > 0) {
       // Usa dati salvati in quote (nomi campi allineati con frontend)
-      clientiInfo = quote.clientiInfo.map(c => ({
+      clientiInfo = quote.clientiInfo.map((c) => ({
         id: c.id,
         nome: c.nome,
         cognome: c.cognome,
@@ -327,14 +355,14 @@ router.get('/public/:token', async (req: Request, res: Response) => {
         telefono: c.telefono,
         indirizzo: c.indirizzo,
         citta: c.citta,
-        cap: c.cap
+        cap: c.cap,
       }));
     } else {
       // Fallback: fetch da Firestore se quote non ha clientiInfo (backward compatibility)
       // Prima recupera clientiIds dal job
       let clientIds: string[] = [];
       if (quote.jobId) {
-        const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
+        const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
         if (jobDoc.exists) {
           clientIds = jobDoc.data()?.clientiIds || [];
         }
@@ -347,22 +375,22 @@ router.get('/public/:token', async (req: Request, res: Response) => {
 
       if (clientIds.length > 0) {
         const clientiDocs = await Promise.all(
-          clientIds.map((id: string) => db.collection('clienti').doc(id).get())
+          clientIds.map((id: string) => db.collection("clienti").doc(id).get()),
         );
 
         clientiInfo = clientiDocs
-          .filter(doc => doc.exists)
-          .map(doc => {
+          .filter((doc) => doc.exists)
+          .map((doc) => {
             const data = doc.data();
             return {
               id: doc.id,
               nome: data?.nome,
               cognome: data?.cognome,
               email: data?.email,
-              telefono: data?.cellulare1 || data?.cellulare2 || '',
-              indirizzo: data?.via || '',
-              citta: data?.citta || '',
-              cap: data?.cap || ''
+              telefono: data?.cellulare1 || data?.cellulare2 || "",
+              indirizzo: data?.via || "",
+              citta: data?.citta || "",
+              cap: data?.cap || "",
             };
           });
       }
@@ -380,15 +408,15 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       totalAfterDiscount: quote.totalAfterDiscount,
       totaleBase: quote.totaleBase,
       totaleSelezionato: quote.totaleSelezionato,
-      contractClauses: (quote.contractClauses ?? []).map(c => ({
+      contractClauses: (quote.contractClauses ?? []).map((c) => ({
         id: c.id,
         text: c.text,
-        required: c.required
+        required: c.required,
         // NON include 'accepted' e 'acceptedAt' per preview
       })),
       status: quote.status,
       expiresAt: serializeTimestamp(quote.expiresAt),
-      templateName: quote.templateName
+      templateName: quote.templateName,
     };
 
     // 7. Return dati per preview cliente
@@ -397,15 +425,14 @@ router.get('/public/:token', async (req: Request, res: Response) => {
       data: {
         quote: safeQuote,
         jobInfo,
-        clientiInfo
-      }
+        clientiInfo,
+      },
     });
-
   } catch (error) {
-    console.error('❌ Errore fetch quote pubblico:', error);
+    console.error("❌ Errore fetch quote pubblico:", error);
     return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+      error: "Errore server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
     });
   }
 });
@@ -414,32 +441,35 @@ router.get('/public/:token', async (req: Request, res: Response) => {
  * GET /api/quotes/signed/:token
  * Portale pubblico preventivo firmato con piano pagamenti
  */
-router.get('/signed/:token', async (req: Request, res: Response) => {
+router.get("/signed/:token", async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
 
     if (!token) {
       return res.status(400).json({
-        error: 'Token mancante',
-        message: 'Il token di accesso è richiesto'
+        error: "Token mancante",
+        message: "Il token di accesso è richiesto",
       });
     }
 
     // 1. Cerca quote tramite publicToken ATTIVO (non revocato)
-    const quotesSnapshot = await db.collection('quotes')
-      .where('publicToken', '==', token)
+    const quotesSnapshot = await db
+      .collection("quotes")
+      .where("publicToken", "==", token)
       .limit(1)
       .get();
 
     if (quotesSnapshot.empty) {
       // Token non trovato come publicToken attivo, verifica se è revocato
-      const allQuotesSnapshot = await db.collection('quotes').get();
+      const allQuotesSnapshot = await db.collection("quotes").get();
       let isRevoked = false;
 
       for (const doc of allQuotesSnapshot.docs) {
         const data = doc.data();
         if (data.revokedTokens && Array.isArray(data.revokedTokens)) {
-          const revoked = data.revokedTokens.find((rt: any) => rt.token === token);
+          const revoked = data.revokedTokens.find(
+            (rt: any) => rt.token === token,
+          );
           if (revoked) {
             isRevoked = true;
             break;
@@ -449,14 +479,15 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
 
       if (isRevoked) {
         return res.status(410).json({
-          error: 'Link revocato',
-          message: 'Questo link è stato revocato. Richiedi un nuovo link aggiornato.'
+          error: "Link revocato",
+          message:
+            "Questo link è stato revocato. Richiedi un nuovo link aggiornato.",
         });
       }
 
       return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il link non è valido o è scaduto'
+        error: "Preventivo non trovato",
+        message: "Il link non è valido o è scaduto",
       });
     }
 
@@ -464,10 +495,10 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
     const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
     // 2. Verifica che sia firmato
-    if (quote.status !== 'firmato') {
+    if (quote.status !== "firmato") {
       return res.status(403).json({
-        error: 'Accesso negato',
-        message: 'Questo preventivo non è ancora stato firmato'
+        error: "Accesso negato",
+        message: "Questo preventivo non è ancora stato firmato",
       });
     }
 
@@ -477,8 +508,8 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       const expiryDate = quote.expiresAt.toDate();
       if (expiryDate < now) {
         return res.status(410).json({
-          error: 'Link scaduto',
-          message: 'Questo preventivo è scaduto'
+          error: "Link scaduto",
+          message: "Questo preventivo è scaduto",
         });
       }
     }
@@ -486,14 +517,18 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
     // 4. Fetch payment schedule associato
     let safePaymentSchedule: any = null;
 
-    const scheduleSnapshot = await db.collection('paymentSchedules')
-      .where('quoteId', '==', quote.id)
+    const scheduleSnapshot = await db
+      .collection("paymentSchedules")
+      .where("quoteId", "==", quote.id)
       .limit(1)
       .get();
 
     if (!scheduleSnapshot.empty) {
       const scheduleDoc = scheduleSnapshot.docs[0];
-      const fullSchedule = { id: scheduleDoc.id, ...scheduleDoc.data() } as PaymentSchedule;
+      const fullSchedule = {
+        id: scheduleDoc.id,
+        ...scheduleDoc.data(),
+      } as PaymentSchedule;
 
       // Redact private fields for client viewing + serialize timestamps
       safePaymentSchedule = {
@@ -501,21 +536,21 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
         totale: fullSchedule.totale,
         totalePagato: fullSchedule.totalePagato,
         saldoResiduo: fullSchedule.saldoResiduo,
-        payments: (fullSchedule.payments || []).map(p => ({
+        payments: (fullSchedule.payments || []).map((p) => ({
           id: p.id,
           tipo: p.tipo,
           importo: p.importo,
           dataScadenza: serializeTimestamp(p.dataScadenza),
           stato: p.stato,
           dataPagamento: serializeTimestamp(p.dataPagamento),
-          note: p.note || ''
-        }))
+          note: p.note || "",
+        })),
       };
     }
 
     // 5. Fetch job info - priorità dati salvati in quote, fallback a Firestore
-    let jobInfo: { 
-      nomeEvento?: string; 
+    let jobInfo: {
+      nomeEvento?: string;
       eventDate?: string | null;
       rito?: string;
       location?: string;
@@ -527,26 +562,26 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
         nomeEvento: quote.jobInfo.nomeEvento,
         eventDate: serializeTimestamp(quote.jobInfo.eventDate),
         rito: quote.jobInfo.rito,
-        location: quote.jobInfo.location
+        location: quote.jobInfo.location,
       };
     } else if (quote.jobId) {
       // Fallback: fetch da Firestore se quote non ha jobInfo (backward compatibility)
-      const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
+      const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
       if (jobDoc.exists) {
         const jobData = jobDoc.data();
         jobInfo = {
           nomeEvento: jobData?.nomeEvento,
           eventDate: serializeTimestamp(jobData?.eventDate),
-          rito: jobData?.rituLocation || '',
-          location: jobData?.eventLocation || ''
+          rito: jobData?.rituLocation || "",
+          location: jobData?.eventLocation || "",
         };
       }
     }
 
     // 6. Fetch clienti info - SEMPRE fetch real-time da Firestore per avere dati aggiornati
-    let clientiInfo: Array<{ 
+    let clientiInfo: Array<{
       id: string;
-      nome?: string; 
+      nome?: string;
       cognome?: string;
       email?: string;
       telefono?: string;
@@ -559,45 +594,51 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
     // Prova prima a fetchare da Firestore (real-time data) con error handling
     try {
       let clientIds: string[] = [];
-      
+
       // Fetch job clientiIds con error handling per job archiviati/cancellati
       if (quote.jobId) {
         try {
-          const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
+          const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
           if (jobDoc.exists) {
             clientIds = jobDoc.data()?.clientiIds || [];
           }
         } catch (jobError) {
           // Job non accessibile (permission error, deleted, etc.) - ignora e procedi con fallback
-          console.warn(`⚠️ Job ${quote.jobId} non accessibile per quote ${quote.id}, uso fallback`, jobError);
+          console.warn(
+            `⚠️ Job ${quote.jobId} non accessibile per quote ${quote.id}, uso fallback`,
+            jobError,
+          );
         }
       }
 
       if (clientIds.length > 0) {
         // Fetch clienti REAL-TIME da Firestore
         const clientiDocs = await Promise.all(
-          clientIds.map((id: string) => db.collection('clienti').doc(id).get())
+          clientIds.map((id: string) => db.collection("clienti").doc(id).get()),
         );
 
         clientiInfo = clientiDocs
-          .filter(doc => doc.exists)
-          .map(doc => {
+          .filter((doc) => doc.exists)
+          .map((doc) => {
             const data = doc.data();
             return {
               id: doc.id,
               nome: data?.nome,
               cognome: data?.cognome,
               email: data?.email,
-              telefono: data?.cellulare1 || data?.cellulare2 || '',
-              indirizzo: data?.via || '',
-              citta: data?.citta || '',
-              cap: data?.cap || '',
-              provincia: data?.provincia || ''
+              telefono: data?.cellulare1 || data?.cellulare2 || "",
+              indirizzo: data?.via || "",
+              citta: data?.citta || "",
+              cap: data?.cap || "",
+              provincia: data?.provincia || "",
             };
           });
       } else if (quote.clienteId) {
         // Fallback se job non ha clientiIds
-        const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
+        const clienteDoc = await db
+          .collection("clienti")
+          .doc(quote.clienteId)
+          .get();
         if (clienteDoc.exists) {
           const clienteData = clienteDoc.data();
           clientiInfo.push({
@@ -605,22 +646,29 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
             nome: clienteData?.nome,
             cognome: clienteData?.cognome,
             email: clienteData?.email,
-            telefono: clienteData?.cellulare1 || clienteData?.cellulare2 || '',
-            indirizzo: clienteData?.via || '',
-            citta: clienteData?.citta || '',
-            cap: clienteData?.cap || '',
-            provincia: clienteData?.provincia || ''
+            telefono: clienteData?.cellulare1 || clienteData?.cellulare2 || "",
+            indirizzo: clienteData?.via || "",
+            citta: clienteData?.citta || "",
+            cap: clienteData?.cap || "",
+            provincia: clienteData?.provincia || "",
           });
         }
       }
     } catch (firestoreError) {
       // Errore generale Firestore (permission, network, etc.) - usa snapshot
-      console.warn(`⚠️ Errore Firestore durante fetch clienti per quote ${quote.id}, uso snapshot`, firestoreError);
+      console.warn(
+        `⚠️ Errore Firestore durante fetch clienti per quote ${quote.id}, uso snapshot`,
+        firestoreError,
+      );
     }
 
     // Fallback finale: usa snapshot salvato in quote se real-time fetch ha fallito
-    if (clientiInfo.length === 0 && quote.clientiInfo && quote.clientiInfo.length > 0) {
-      clientiInfo = quote.clientiInfo.map(c => ({
+    if (
+      clientiInfo.length === 0 &&
+      quote.clientiInfo &&
+      quote.clientiInfo.length > 0
+    ) {
+      clientiInfo = quote.clientiInfo.map((c) => ({
         id: c.id,
         nome: c.nome,
         cognome: c.cognome,
@@ -629,7 +677,7 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
         indirizzo: c.indirizzo,
         citta: c.citta,
         cap: c.cap,
-        provincia: c.provincia || ''
+        provincia: c.provincia || "",
       }));
     }
 
@@ -645,13 +693,15 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
       totalAfterDiscount: quote.totalAfterDiscount,
       totaleSelezionato: quote.totaleSelezionato,
       contractClauses: quote.contractClauses,
-      signature: quote.signature ? {
-        clientName: quote.signature.clientName,
-        signedAt: serializeTimestamp(quote.signature.signedAt),
-        imageUrl: quote.signature.imageUrl
-      } : null,
+      signature: quote.signature
+        ? {
+            clientName: quote.signature.clientName,
+            signedAt: serializeTimestamp(quote.signature.signedAt),
+            imageUrl: quote.signature.imageUrl,
+          }
+        : null,
       status: quote.status,
-      signedAt: serializeTimestamp(quote.signature?.signedAt)
+      signedAt: serializeTimestamp(quote.signature?.signedAt),
     };
 
     // 8. Return dati completi
@@ -661,15 +711,14 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
         quote: safeQuote,
         paymentSchedule: safePaymentSchedule,
         jobInfo: jobInfo || null,
-        clientiInfo: clientiInfo || []
-      }
+        clientiInfo: clientiInfo || [],
+      },
     });
-
   } catch (error) {
-    console.error('❌ Errore fetch quote firmato:', error);
+    console.error("❌ Errore fetch quote firmato:", error);
     return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+      error: "Errore server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
     });
   }
 });
@@ -679,33 +728,35 @@ router.get('/signed/:token', async (req: Request, res: Response) => {
  * Delete quote con cascade cleanup (admin-only)
  * Query params: forceDelete=true per override protezione preventivi firmati
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const adminEmail = req.headers['x-admin-email'] as string;
-    const forceDelete = req.query.forceDelete === 'true';
+    const adminEmail = req.headers["x-admin-email"] as string;
+    const forceDelete = req.query.forceDelete === "true";
 
     // 1. Admin-only check
-    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
+    if (!adminEmail || adminEmail !== "gennaro.mazzacane@gmail.com") {
       return res.status(403).json({
-        error: 'Accesso negato',
-        message: 'Solo gli amministratori possono eliminare preventivi'
+        error: "Accesso negato",
+        message: "Solo gli amministratori possono eliminare preventivi",
       });
     }
 
     // 2. Pre-fetch legacy schedules for quotes without paymentScheduleIds
     //    NOTE: Query MUST be OUTSIDE transaction (Firestore limitation)
-    const legacyQuery = db.collection('paymentSchedules').where('quoteId', '==', id);
+    const legacyQuery = db
+      .collection("paymentSchedules")
+      .where("quoteId", "==", id);
     const legacySnapshot = await legacyQuery.get();
-    const legacyScheduleRefs = legacySnapshot.docs.map(doc => doc.ref);
+    const legacyScheduleRefs = legacySnapshot.docs.map((doc) => doc.ref);
 
     // 3. Firestore transaction per atomicità (usando paymentScheduleIds se disponibili)
     await db.runTransaction(async (transaction) => {
-      const quoteRef = db.collection('quotes').doc(id);
+      const quoteRef = db.collection("quotes").doc(id);
       const quoteDoc = await transaction.get(quoteRef);
 
       if (!quoteDoc.exists) {
-        throw new Error('Preventivo non trovato');
+        throw new Error("Preventivo non trovato");
       }
 
       const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
@@ -714,39 +765,48 @@ router.delete('/:id', async (req: Request, res: Response) => {
       const scheduleIds = quote.paymentScheduleIds || [];
 
       if (scheduleIds.length === 0 && legacyScheduleRefs.length > 0) {
-        console.warn(`⚠️ Quote ${id} senza paymentScheduleIds, usando ${legacyScheduleRefs.length} schedules da fallback query`);
+        console.warn(
+          `⚠️ Quote ${id} senza paymentScheduleIds, usando ${legacyScheduleRefs.length} schedules da fallback query`,
+        );
       }
 
       // 5. Re-read payment schedules INSIDE transaction for atomicity
-      const scheduleRefs = scheduleIds.length > 0 
-        ? scheduleIds.map(scheduleId => db.collection('paymentSchedules').doc(scheduleId))
-        : legacyScheduleRefs;
+      const scheduleRefs =
+        scheduleIds.length > 0
+          ? scheduleIds.map((scheduleId) =>
+              db.collection("paymentSchedules").doc(scheduleId),
+            )
+          : legacyScheduleRefs;
 
       const scheduleSnapshots = await Promise.all(
-        scheduleRefs.map(ref => transaction.get(ref))
+        scheduleRefs.map((ref) => transaction.get(ref)),
       );
 
       // 6. Read job BEFORE any writes (Firestore transaction requirement)
       let jobDoc: any = null;
       if (quote.jobId) {
-        const jobRef = db.collection('jobs').doc(quote.jobId);
+        const jobRef = db.collection("jobs").doc(quote.jobId);
         jobDoc = await transaction.get(jobRef);
       }
 
       // 7. PROTEZIONE: Blocca delete preventivi firmati senza forceDelete
-      if (quote.status === 'firmato' && !forceDelete) {
+      if (quote.status === "firmato" && !forceDelete) {
         // Check if any schedule has payments for detailed error message
-        const hasPagamenti = scheduleSnapshots.some(snap => {
+        const hasPagamenti = scheduleSnapshots.some((snap) => {
           if (!snap.exists) return false;
           const schedule = snap.data() as PaymentSchedule;
-          return (schedule.totalePagato ?? 0) > 0 || 
-            schedule.payments?.some(p => p.stato === 'pagato' || p.stato === 'parziale');
+          return (
+            (schedule.totalePagato ?? 0) > 0 ||
+            schedule.payments?.some(
+              (p) => p.stato === "pagato" || p.stato === "parziale",
+            )
+          );
         });
 
         if (hasPagamenti) {
-          throw new Error('SIGNED_QUOTE_WITH_PAYMENTS');
+          throw new Error("SIGNED_QUOTE_WITH_PAYMENTS");
         } else {
-          throw new Error('SIGNED_QUOTE_PROTECTION');
+          throw new Error("SIGNED_QUOTE_PROTECTION");
         }
       }
 
@@ -755,7 +815,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
       // 9. Update job: remove preventivoId AND update financials
       if (quote.jobId && jobDoc && jobDoc.exists) {
-        const jobRef = db.collection('jobs').doc(quote.jobId);
+        const jobRef = db.collection("jobs").doc(quote.jobId);
         const jobData = jobDoc.data();
 
         // Calcola nuovo totale preventivato sottraendo il quote eliminato
@@ -765,7 +825,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
         transaction.update(jobRef, {
           preventivoId: FieldValue.delete(),
-          'financials.totalePreventivato': newTotale
+          "financials.totalePreventivato": newTotale,
         });
       }
 
@@ -779,33 +839,34 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Preventivo eliminato con successo'
+      message: "Preventivo eliminato con successo",
     });
-
   } catch (error) {
-    console.error('❌ Errore delete quote:', error);
+    console.error("❌ Errore delete quote:", error);
 
     // Bubble specific protection errors to frontend
     if (error instanceof Error) {
-      if (error.message === 'SIGNED_QUOTE_PROTECTION') {
+      if (error.message === "SIGNED_QUOTE_PROTECTION") {
         return res.status(403).json({
-          error: 'SIGNED_QUOTE_PROTECTION',
-          message: 'Impossibile eliminare un preventivo firmato senza forceDelete'
+          error: "SIGNED_QUOTE_PROTECTION",
+          message:
+            "Impossibile eliminare un preventivo firmato senza forceDelete",
         });
       }
 
-      if (error.message === 'SIGNED_QUOTE_WITH_PAYMENTS') {
+      if (error.message === "SIGNED_QUOTE_WITH_PAYMENTS") {
         return res.status(403).json({
-          error: 'SIGNED_QUOTE_WITH_PAYMENTS',
-          message: 'Impossibile eliminare un preventivo firmato con pagamenti già registrati'
+          error: "SIGNED_QUOTE_WITH_PAYMENTS",
+          message:
+            "Impossibile eliminare un preventivo firmato con pagamenti già registrati",
         });
       }
     }
 
     // Generic error fallback
     return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+      error: "Errore server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
     });
   }
 });
@@ -815,54 +876,54 @@ router.delete('/:id', async (req: Request, res: Response) => {
  * Reimposta firma preventivo (firmato → bozza)
  * Admin-only - Rimuove firma e dataFirma mantenendo resto dei dati
  */
-router.patch('/:id/reset-signature', async (req: Request, res: Response) => {
+router.patch("/:id/reset-signature", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const adminEmail = req.headers['x-admin-email'] as string;
+    const adminEmail = req.headers["x-admin-email"] as string;
 
     // 1. Validate admin
-    if (!adminEmail || adminEmail !== 'gennaro.mazzacane@gmail.com') {
+    if (!adminEmail || adminEmail !== "gennaro.mazzacane@gmail.com") {
       return res.status(403).json({
-        error: 'Non autorizzato',
-        message: 'Solo gli admin possono reimpostare le firme'
+        error: "Non autorizzato",
+        message: "Solo gli admin possono reimpostare le firme",
       });
     }
 
     // 2. Fetch quote
-    const quoteRef = db.collection('quotes').doc(id);
+    const quoteRef = db.collection("quotes").doc(id);
     const quoteDoc = await quoteRef.get();
 
     if (!quoteDoc.exists) {
       return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il preventivo specificato non esiste'
+        error: "Preventivo non trovato",
+        message: "Il preventivo specificato non esiste",
       });
     }
 
     const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
     // 3. Validate quote is signed
-    if (quote.status !== 'firmato') {
+    if (quote.status !== "firmato") {
       return res.status(400).json({
-        error: 'Preventivo non firmato',
-        message: 'Solo i preventivi firmati possono essere reimpostati'
+        error: "Preventivo non firmato",
+        message: "Solo i preventivi firmati possono essere reimpostati",
       });
     }
 
     // 4. Reset signature fields and clause acceptance
     // Build update object
     const updateData: any = {
-      status: 'bozza',
-      signature: FieldValue.delete(),        // Remove QuoteSignature object
-      clausesAccepted: FieldValue.delete(),  // Remove top-level accepted clauses array
+      status: "bozza",
+      signature: FieldValue.delete(), // Remove QuoteSignature object
+      clausesAccepted: FieldValue.delete(), // Remove top-level accepted clauses array
       // Legacy fields (backward compatibility)
       dataFirma: FieldValue.delete(),
-      clienteFirma: FieldValue.delete()
+      clienteFirma: FieldValue.delete(),
     };
 
     // Reset contractClauses if present (omit accepted/acceptedAt - Firestore doesn't allow FieldValue.delete in arrays)
     if (quote.contractClauses && Array.isArray(quote.contractClauses)) {
-      const resetClauses = quote.contractClauses.map(clause => {
+      const resetClauses = quote.contractClauses.map((clause) => {
         const { accepted, acceptedAt, ...rest } = clause as any;
         return rest;
       });
@@ -873,14 +934,13 @@ router.patch('/:id/reset-signature', async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Firma reimpostata con successo'
+      message: "Firma reimpostata con successo",
     });
-
   } catch (error) {
-    console.error('❌ Errore reset signature:', error);
+    console.error("❌ Errore reset signature:", error);
     return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+      error: "Errore server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
     });
   }
 });
@@ -890,24 +950,24 @@ router.patch('/:id/reset-signature', async (req: Request, res: Response) => {
  * Invia preventivo via email al cliente
  * PUBBLICO - può essere chiamato dall'admin senza autenticazione Firebase
  */
-router.post('/send-quote', async (req: Request, res: Response) => {
+router.post("/send-quote", async (req: Request, res: Response) => {
   try {
     const { quoteId } = req.body;
 
     if (!quoteId) {
       return res.status(400).json({
-        error: 'Quote ID mancante',
-        message: 'Il parametro quoteId è richiesto'
+        error: "Quote ID mancante",
+        message: "Il parametro quoteId è richiesto",
       });
     }
 
     // Fetch quote
-    const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+    const quoteDoc = await db.collection("quotes").doc(quoteId).get();
 
     if (!quoteDoc.exists) {
       return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il preventivo specificato non esiste'
+        error: "Preventivo non trovato",
+        message: "Il preventivo specificato non esiste",
       });
     }
 
@@ -918,7 +978,7 @@ router.post('/send-quote', async (req: Request, res: Response) => {
 
     // Aggiungi email da clientiInfo (tutti i clienti)
     if (quote.clientiInfo && quote.clientiInfo.length > 0) {
-      quote.clientiInfo.forEach(cliente => {
+      quote.clientiInfo.forEach((cliente) => {
         if (cliente.email && !recipientEmails.includes(cliente.email)) {
           recipientEmails.push(cliente.email);
         }
@@ -927,7 +987,10 @@ router.post('/send-quote', async (req: Request, res: Response) => {
 
     // Fallback: aggiungi email da clienteId se non ci sono altre email
     if (recipientEmails.length === 0 && quote.clienteId) {
-      const clienteDoc = await db.collection('clienti').doc(quote.clienteId).get();
+      const clienteDoc = await db
+        .collection("clienti")
+        .doc(quote.clienteId)
+        .get();
       if (clienteDoc.exists) {
         const clienteData = clienteDoc.data();
         if (clienteData?.email) {
@@ -938,28 +1001,32 @@ router.post('/send-quote', async (req: Request, res: Response) => {
 
     // Fallback finale: usa quote.sentTo se presente (split se contiene virgole)
     if (recipientEmails.length === 0 && quote.sentTo) {
-      const sentToEmails = quote.sentTo.split(',').map(e => e.trim()).filter(e => e.length > 0);
+      const sentToEmails = quote.sentTo
+        .split(",")
+        .map((e) => e.trim())
+        .filter((e) => e.length > 0);
       recipientEmails.push(...sentToEmails);
     }
 
     if (recipientEmails.length === 0) {
       return res.status(400).json({
-        error: 'Email destinatario mancante',
-        message: 'Impossibile determinare l\'email del cliente'
+        error: "Email destinatario mancante",
+        message: "Impossibile determinare l'email del cliente",
       });
     }
 
     // Determina nome cliente
-    let clienteName = 'Cliente';
+    let clienteName = "Cliente";
     if (quote.clientiInfo && quote.clientiInfo.length > 0) {
       const firstCliente = quote.clientiInfo[0];
-      clienteName = `${firstCliente.nome || ''} ${firstCliente.cognome || ''}`.trim();
+      clienteName =
+        `${firstCliente.nome || ""} ${firstCliente.cognome || ""}`.trim();
     }
 
     // Costruisci URL pubblico
-    const baseUrl = process.env.REPLIT_DOMAINS 
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-      : 'http://localhost:5000';
+    const baseUrl = process.env.REPLIT_DOMAINS
+      ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+      : "http://localhost:5000";
     const quoteUrl = `${baseUrl}/quote/${quote.publicToken}`;
 
     // Formato data evento
@@ -967,10 +1034,10 @@ router.post('/send-quote', async (req: Request, res: Response) => {
     if (quote.jobInfo?.eventDate) {
       const timestamp = quote.jobInfo.eventDate as any;
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      eventDate = date.toLocaleDateString('it-IT', { 
-        day: '2-digit', 
-        month: 'long', 
-        year: 'numeric' 
+      eventDate = date.toLocaleDateString("it-IT", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
       });
     }
 
@@ -978,46 +1045,52 @@ router.post('/send-quote', async (req: Request, res: Response) => {
     const studioInfo = await getStudioContactInfo();
 
     // Calcola data scadenza preventivo (opzionale, es: 30 giorni da oggi)
-    const expiresAt = quote.expiresAt 
-      ? (quote.expiresAt as any).toDate ? (quote.expiresAt as any).toDate() : new Date(quote.expiresAt)
+    const expiresAt = quote.expiresAt
+      ? (quote.expiresAt as any).toDate
+        ? (quote.expiresAt as any).toDate()
+        : new Date(quote.expiresAt)
       : undefined;
 
     // Crea HTML email per PREVENTIVO INVIATO (non ancora firmato)
     const htmlContent = createQuoteSentEmailHTML(
       clienteName,
-      quote.type || 'fisso',
-      quote.jobInfo?.nomeEvento || 'Evento',
+      quote.type || "fisso",
+      quote.jobInfo?.nomeEvento || "Evento",
       quote.totalAfterDiscount || 0,
       quoteUrl,
       expiresAt,
-      studioInfo
+      studioInfo,
     );
 
-    const subject = `Preventivo Personalizzato - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
+    const subject = `Preventivo Personalizzato - ${quote.jobInfo?.nomeEvento || "Evento"}`;
 
     // Invia email a TUTTI i clienti
     await sendGmailEmail(recipientEmails, subject, htmlContent);
 
     // Update quote con tracking invio
-    await db.collection('quotes').doc(quoteId).update({
-      sentAt: new Date(),
-      sentTo: recipientEmails.join(', '), // Salva tutte le email
-      status: 'inviato'
-    });
+    await db
+      .collection("quotes")
+      .doc(quoteId)
+      .update({
+        sentAt: new Date(),
+        sentTo: recipientEmails.join(", "), // Salva tutte le email
+        status: "inviato",
+      });
 
-    console.log(`✅ Preventivo ${quoteId} inviato via email a ${recipientEmails.join(', ')}`);
+    console.log(
+      `✅ Preventivo ${quoteId} inviato via email a ${recipientEmails.join(", ")}`,
+    );
 
     return res.status(200).json({
       success: true,
-      message: `Preventivo inviato con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? 'cliente' : 'clienti'}`,
-      recipientEmails
+      message: `Preventivo inviato con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? "cliente" : "clienti"}`,
+      recipientEmails,
     });
-
   } catch (error) {
-    console.error('❌ Errore send-quote:', error);
+    console.error("❌ Errore send-quote:", error);
     return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+      error: "Errore server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
     });
   }
 });
@@ -1027,143 +1100,162 @@ router.post('/send-quote', async (req: Request, res: Response) => {
  * Invia email di conferma quando il cliente firma il preventivo
  * PUBBLICO - chiamato automaticamente dopo accettazione preventivo
  */
-router.post('/quote-signed-notification', async (req: Request, res: Response) => {
-  try {
-    const { quoteId } = req.body;
+router.post(
+  "/quote-signed-notification",
+  async (req: Request, res: Response) => {
+    try {
+      const { quoteId } = req.body;
 
-    if (!quoteId) {
-      return res.status(400).json({
-        error: 'Quote ID mancante',
-        message: 'Il parametro quoteId è richiesto'
-      });
-    }
+      if (!quoteId) {
+        return res.status(400).json({
+          error: "Quote ID mancante",
+          message: "Il parametro quoteId è richiesto",
+        });
+      }
 
-    // Fetch quote
-    const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+      // Fetch quote
+      const quoteDoc = await db.collection("quotes").doc(quoteId).get();
 
-    if (!quoteDoc.exists) {
-      return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il preventivo specificato non esiste'
-      });
-    }
+      if (!quoteDoc.exists) {
+        return res.status(404).json({
+          error: "Preventivo non trovato",
+          message: "Il preventivo specificato non esiste",
+        });
+      }
 
-    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+      const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
-    // Verifica che sia firmato
-    if (quote.status !== 'firmato' || !quote.signature) {
-      return res.status(400).json({
-        error: 'Preventivo non firmato',
-        message: 'Il preventivo deve essere firmato per inviare la notifica'
-      });
-    }
+      // Verifica che sia firmato
+      if (quote.status !== "firmato" || !quote.signature) {
+        return res.status(400).json({
+          error: "Preventivo non firmato",
+          message: "Il preventivo deve essere firmato per inviare la notifica",
+        });
+      }
 
-    // Raccoglie TUTTE le email dei clienti
-    const recipientEmails: string[] = [];
+      // Raccoglie TUTTE le email dei clienti
+      const recipientEmails: string[] = [];
 
-    // Aggiungi email da clientiInfo (tutti i clienti)
-    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
-      quote.clientiInfo.forEach(cliente => {
-        if (cliente.email && !recipientEmails.includes(cliente.email)) {
-          recipientEmails.push(cliente.email);
-        }
-      });
-    }
+      // Aggiungi email da clientiInfo (tutti i clienti)
+      if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+        quote.clientiInfo.forEach((cliente) => {
+          if (cliente.email && !recipientEmails.includes(cliente.email)) {
+            recipientEmails.push(cliente.email);
+          }
+        });
+      }
 
-    // Fallback: usa quote.sentTo se presente (split se contiene virgole)
-    if (recipientEmails.length === 0 && quote.sentTo) {
-      const sentToEmails = quote.sentTo.split(',').map(e => e.trim()).filter(e => e.length > 0);
-      recipientEmails.push(...sentToEmails);
-    }
+      // Fallback: usa quote.sentTo se presente (split se contiene virgole)
+      if (recipientEmails.length === 0 && quote.sentTo) {
+        const sentToEmails = quote.sentTo
+          .split(",")
+          .map((e) => e.trim())
+          .filter((e) => e.length > 0);
+        recipientEmails.push(...sentToEmails);
+      }
 
-    if (recipientEmails.length === 0) {
-      return res.status(400).json({
-        error: 'Email destinatario mancante',
-        message: 'Impossibile determinare l\'email del cliente'
-      });
-    }
+      if (recipientEmails.length === 0) {
+        return res.status(400).json({
+          error: "Email destinatario mancante",
+          message: "Impossibile determinare l'email del cliente",
+        });
+      }
 
-    // Nome cliente
-    const clienteName = quote.signature.clientName || 'Cliente';
+      // Nome cliente
+      const clienteName = quote.signature.clientName || "Cliente";
 
-    // Data firma
-    const signedAt = quote.signature.signedAt.toDate().toLocaleDateString('it-IT', { 
-      day: '2-digit', 
-      month: 'long', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+      // Data firma
+      const signedAt = quote.signature.signedAt
+        .toDate()
+        .toLocaleDateString("it-IT", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
 
-    // Recupera prossimo pagamento (se esiste payment schedule)
-    let nextPaymentAmount: number | undefined;
-    let nextPaymentDate: string | undefined;
+      // Recupera prossimo pagamento (se esiste payment schedule)
+      let nextPaymentAmount: number | undefined;
+      let nextPaymentDate: string | undefined;
 
-    if (quote.paymentScheduleIds && quote.paymentScheduleIds.length > 0) {
-      const scheduleDoc = await db.collection('paymentSchedules').doc(quote.paymentScheduleIds[0]).get();
-      if (scheduleDoc.exists) {
-        const schedule = scheduleDoc.data() as PaymentSchedule;
-        const nextPayment = schedule.payments.find(p => p.stato === 'atteso');
-        if (nextPayment) {
-          nextPaymentAmount = nextPayment.importo;
-          nextPaymentDate = nextPayment.dataScadenza.toDate().toLocaleDateString('it-IT', { 
-            day: '2-digit', 
-            month: 'long', 
-            year: 'numeric' 
-          });
+      if (quote.paymentScheduleIds && quote.paymentScheduleIds.length > 0) {
+        const scheduleDoc = await db
+          .collection("paymentSchedules")
+          .doc(quote.paymentScheduleIds[0])
+          .get();
+        if (scheduleDoc.exists) {
+          const schedule = scheduleDoc.data() as PaymentSchedule;
+          const nextPayment = schedule.payments.find(
+            (p) => p.stato === "atteso",
+          );
+          if (nextPayment) {
+            nextPaymentAmount = nextPayment.importo;
+            nextPaymentDate = nextPayment.dataScadenza
+              .toDate()
+              .toLocaleDateString("it-IT", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              });
+          }
         }
       }
+
+      // URL portale unificato (auto-adatta a stato preventivo)
+      const baseUrl = process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+        : "http://localhost:5000";
+      const portalUrl = `${baseUrl}/quote/${quote.publicToken}`;
+
+      // Recupera dati studio
+      const studioInfo = await getStudioContactInfo();
+
+      // Crea HTML email (TODO: creare template specifico per firma preventivo)
+      const nextPaymentData =
+        nextPaymentAmount && nextPaymentDate
+          ? {
+              importo: nextPaymentAmount,
+              dataScadenza: new Date(nextPaymentDate),
+              descrizione: "Prossimo pagamento",
+            }
+          : undefined;
+
+      const htmlContent = createQuoteSignedEmailHTML(
+        clienteName,
+        quote.type || "fisso",
+        quote.jobInfo?.nomeEvento || "Evento",
+        quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+        new Date(signedAt),
+        portalUrl,
+        nextPaymentData,
+        undefined,
+        studioInfo,
+      );
+
+      const subject = `Preventivo Firmato - ${quote.jobInfo?.nomeEvento || "Evento"}`;
+
+      // Invia email a TUTTI i clienti
+      await sendGmailEmail(recipientEmails, subject, htmlContent);
+
+      console.log(
+        `✅ Notifica firma preventivo ${quoteId} inviata a ${recipientEmails.join(", ")}`,
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: `Notifica firma inviata con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? "cliente" : "clienti"}`,
+        recipientEmails,
+      });
+    } catch (error) {
+      console.error("❌ Errore quote-signed-notification:", error);
+      return res.status(500).json({
+        error: "Errore server",
+        message: error instanceof Error ? error.message : "Errore sconosciuto",
+      });
     }
-
-    // URL portale unificato (auto-adatta a stato preventivo)
-    const baseUrl = process.env.REPLIT_DOMAINS 
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-      : 'http://localhost:5000';
-    const portalUrl = `${baseUrl}/quote/${quote.publicToken}`;
-
-    // Recupera dati studio
-    const studioInfo = await getStudioContactInfo();
-
-    // Crea HTML email (TODO: creare template specifico per firma preventivo)  
-    const nextPaymentData = nextPaymentAmount && nextPaymentDate ? {
-      importo: nextPaymentAmount,
-      dataScadenza: new Date(nextPaymentDate),
-      descrizione: 'Prossimo pagamento'
-    } : undefined;
-
-    const htmlContent = createQuoteSignedEmailHTML(
-      clienteName,
-      quote.type || 'fisso',
-      quote.jobInfo?.nomeEvento || 'Evento',
-      quote.totaleSelezionato || quote.totalAfterDiscount || 0,
-      new Date(signedAt),
-      portalUrl,
-      nextPaymentData,
-      undefined,
-      studioInfo
-    );
-
-    const subject = `Preventivo Firmato - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
-
-    // Invia email a TUTTI i clienti
-    await sendGmailEmail(recipientEmails, subject, htmlContent);
-
-    console.log(`✅ Notifica firma preventivo ${quoteId} inviata a ${recipientEmails.join(', ')}`);
-
-    return res.status(200).json({
-      success: true,
-      message: `Notifica firma inviata con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? 'cliente' : 'clienti'}`,
-      recipientEmails
-    });
-
-  } catch (error) {
-    console.error('❌ Errore quote-signed-notification:', error);
-    return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
-    });
-  }
-});
+  },
+);
 
 /**
  * POST /api/quotes/admin-quote-signed-notification
@@ -1171,129 +1263,142 @@ router.post('/quote-signed-notification', async (req: Request, res: Response) =>
  * Email creativa e social-ready per Instagram Stories
  * PUBBLICO - chiamato automaticamente dopo firma preventivo
  */
-router.post('/admin-quote-signed-notification', async (req: Request, res: Response) => {
-  try {
-    const { quoteId } = req.body;
+router.post(
+  "/admin-quote-signed-notification",
+  async (req: Request, res: Response) => {
+    try {
+      const { quoteId } = req.body;
 
-    if (!quoteId) {
-      return res.status(400).json({
-        error: 'Quote ID mancante',
-        message: 'Il parametro quoteId è richiesto'
+      if (!quoteId) {
+        return res.status(400).json({
+          error: "Quote ID mancante",
+          message: "Il parametro quoteId è richiesto",
+        });
+      }
+
+      // Fetch quote
+      const quoteDoc = await db.collection("quotes").doc(quoteId).get();
+
+      if (!quoteDoc.exists) {
+        return res.status(404).json({
+          error: "Preventivo non trovato",
+          message: "Il preventivo specificato non esiste",
+        });
+      }
+
+      const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+      // Verifica che sia firmato
+      if (quote.status !== "firmato" || !quote.signature) {
+        return res.status(400).json({
+          error: "Preventivo non firmato",
+          message: "Il preventivo deve essere firmato per inviare la notifica",
+        });
+      }
+
+      // Email admin hardcoded
+      const ADMIN_EMAIL = "gennaro.mazzacane@gmail.com";
+
+      // Nome cliente
+      let clienteName = "Cliente";
+      if (quote.signature?.clientName) {
+        clienteName = quote.signature.clientName;
+      } else if (quote.clientiInfo && quote.clientiInfo.length > 0) {
+        const firstCliente = quote.clientiInfo[0];
+        clienteName =
+          `${firstCliente.nome || ""} ${firstCliente.cognome || ""}`.trim();
+      }
+
+      // Data firma
+      const signedAt = quote.signature.signedAt
+        .toDate()
+        .toLocaleDateString("it-IT", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+      // Recupera dati studio
+      const studioInfo = await getStudioContactInfo();
+
+      // Crea HTML email per admin (riusa template standard)
+      const htmlContent = createQuoteSignedEmailHTML(
+        clienteName,
+        quote.type || "fisso",
+        quote.jobInfo?.nomeEvento || "Nuovo Evento",
+        quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+        quote.signature.signedAt.toDate(),
+        `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "http://localhost:5000"}/quote/${quote.publicToken}`,
+        undefined,
+        undefined,
+        studioInfo,
+      );
+
+      const subject = ` CONTRATTO FIRMATO! ${clienteName} - ${quote.jobInfo?.nomeEvento || "Evento"}`;
+
+      // Invia email all'admin
+      await sendGmailEmail([ADMIN_EMAIL], subject, htmlContent);
+
+      console.log(
+        `✅ Notifica ADMIN firma preventivo ${quoteId} inviata a ${ADMIN_EMAIL}`,
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Notifica admin inviata con successo",
+        adminEmail: ADMIN_EMAIL,
+      });
+    } catch (error) {
+      console.error("❌ Errore admin-quote-signed-notification:", error);
+      return res.status(500).json({
+        error: "Errore server",
+        message: error instanceof Error ? error.message : "Errore sconosciuto",
       });
     }
-
-    // Fetch quote
-    const quoteDoc = await db.collection('quotes').doc(quoteId).get();
-
-    if (!quoteDoc.exists) {
-      return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il preventivo specificato non esiste'
-      });
-    }
-
-    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
-
-    // Verifica che sia firmato
-    if (quote.status !== 'firmato' || !quote.signature) {
-      return res.status(400).json({
-        error: 'Preventivo non firmato',
-        message: 'Il preventivo deve essere firmato per inviare la notifica'
-      });
-    }
-
-    // Email admin hardcoded
-    const ADMIN_EMAIL = 'gennaro.mazzacane@gmail.com';
-
-    // Nome cliente
-    let clienteName = 'Cliente';
-    if (quote.signature?.clientName) {
-      clienteName = quote.signature.clientName;
-    } else if (quote.clientiInfo && quote.clientiInfo.length > 0) {
-      const firstCliente = quote.clientiInfo[0];
-      clienteName = `${firstCliente.nome || ''} ${firstCliente.cognome || ''}`.trim();
-    }
-
-    // Data firma
-    const signedAt = quote.signature.signedAt.toDate().toLocaleDateString('it-IT', { 
-      day: '2-digit', 
-      month: 'long', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    // Recupera dati studio
-    const studioInfo = await getStudioContactInfo();
-
-    // Crea HTML email per admin (riusa template standard)
-    const htmlContent = createQuoteSignedEmailHTML(
-      clienteName,
-      quote.type || 'fisso',
-      quote.jobInfo?.nomeEvento || 'Nuovo Evento',
-      quote.totaleSelezionato || quote.totalAfterDiscount || 0,
-      quote.signature.signedAt.toDate(),
-      `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:5000'}/quote/${quote.publicToken}`,
-      undefined,
-      undefined,
-      studioInfo
-    );
-
-    const subject = `🎉 CONTRATTO FIRMATO! ${clienteName} - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
-
-    // Invia email all'admin
-    await sendGmailEmail([ADMIN_EMAIL], subject, htmlContent);
-
-    console.log(`✅ Notifica ADMIN firma preventivo ${quoteId} inviata a ${ADMIN_EMAIL}`);
-
-    return res.status(200).json({
-      success: true,
-      message: 'Notifica admin inviata con successo',
-      adminEmail: ADMIN_EMAIL
-    });
-
-  } catch (error) {
-    console.error('❌ Errore admin-quote-signed-notification:', error);
-    return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
-    });
-  }
-});
+  },
+);
 
 /**
  * POST /api/quotes/payment-reminder
  * Invia promemoria pagamento in scadenza
  * PUBBLICO - chiamato manualmente dall'admin o da job schedulato
  */
-router.post('/payment-reminder', async (req: Request, res: Response) => {
+router.post("/payment-reminder", async (req: Request, res: Response) => {
   try {
     const { paymentScheduleId, paymentIndex } = req.body;
 
     if (!paymentScheduleId || paymentIndex === undefined) {
       return res.status(400).json({
-        error: 'Parametri mancanti',
-        message: 'paymentScheduleId e paymentIndex sono richiesti'
+        error: "Parametri mancanti",
+        message: "paymentScheduleId e paymentIndex sono richiesti",
       });
     }
 
     // Fetch payment schedule
-    const scheduleDoc = await db.collection('paymentSchedules').doc(paymentScheduleId).get();
+    const scheduleDoc = await db
+      .collection("paymentSchedules")
+      .doc(paymentScheduleId)
+      .get();
 
     if (!scheduleDoc.exists) {
       return res.status(404).json({
-        error: 'Scadenzario non trovato',
-        message: 'Il piano pagamenti specificato non esiste'
+        error: "Scadenzario non trovato",
+        message: "Il piano pagamenti specificato non esiste",
       });
     }
 
-    const schedule = { id: scheduleDoc.id, ...scheduleDoc.data() } as PaymentSchedule;
+    const schedule = {
+      id: scheduleDoc.id,
+      ...scheduleDoc.data(),
+    } as PaymentSchedule;
     const payment = schedule.payments[paymentIndex];
 
     if (!payment) {
       return res.status(404).json({
-        error: 'Pagamento non trovato',
-        message: 'Il pagamento specificato non esiste'
+        error: "Pagamento non trovato",
+        message: "Il pagamento specificato non esiste",
       });
     }
 
@@ -1302,17 +1407,17 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
     const scheduleQuoteId = (schedule as any).quoteId as string | undefined;
     if (!scheduleQuoteId) {
       return res.status(400).json({
-        error: 'Quote ID mancante',
-        message: 'Il payment schedule non ha un quoteId collegato'
+        error: "Quote ID mancante",
+        message: "Il payment schedule non ha un quoteId collegato",
       });
     }
 
-    const quoteDoc = await db.collection('quotes').doc(scheduleQuoteId).get();
+    const quoteDoc = await db.collection("quotes").doc(scheduleQuoteId).get();
 
     if (!quoteDoc.exists) {
       return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il preventivo collegato non esiste'
+        error: "Preventivo non trovato",
+        message: "Il preventivo collegato non esiste",
       });
     }
 
@@ -1323,7 +1428,7 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
 
     // Aggiungi email da clientiInfo (tutti i clienti)
     if (quote.clientiInfo && quote.clientiInfo.length > 0) {
-      quote.clientiInfo.forEach(cliente => {
+      quote.clientiInfo.forEach((cliente) => {
         if (cliente.email && !recipientEmails.includes(cliente.email)) {
           recipientEmails.push(cliente.email);
         }
@@ -1332,43 +1437,49 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
 
     // Fallback: usa quote.sentTo se presente (split se contiene virgole)
     if (recipientEmails.length === 0 && quote.sentTo) {
-      const sentToEmails = quote.sentTo.split(',').map(e => e.trim()).filter(e => e.length > 0);
+      const sentToEmails = quote.sentTo
+        .split(",")
+        .map((e) => e.trim())
+        .filter((e) => e.length > 0);
       recipientEmails.push(...sentToEmails);
     }
 
     if (recipientEmails.length === 0) {
       return res.status(400).json({
-        error: 'Email destinatario mancante',
-        message: 'Impossibile determinare l\'email del cliente'
+        error: "Email destinatario mancante",
+        message: "Impossibile determinare l'email del cliente",
       });
     }
 
     // Nome cliente
-    let clienteName = 'Cliente';
+    let clienteName = "Cliente";
     if (quote.signature?.clientName) {
       clienteName = quote.signature.clientName;
     } else if (quote.clientiInfo && quote.clientiInfo.length > 0) {
       const firstCliente = quote.clientiInfo[0];
-      clienteName = `${firstCliente.nome || ''} ${firstCliente.cognome || ''}`.trim();
+      clienteName =
+        `${firstCliente.nome || ""} ${firstCliente.cognome || ""}`.trim();
     }
 
     // Calcola giorni fino a scadenza
     const dueDate = payment.dataScadenza.toDate();
     const today = new Date();
-    const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const daysUntilDue = Math.ceil(
+      (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+    );
     const isOverdue = daysUntilDue < 0;
 
     // Formato data scadenza
-    const paymentDueDate = dueDate.toLocaleDateString('it-IT', { 
-      day: '2-digit', 
-      month: 'long', 
-      year: 'numeric' 
+    const paymentDueDate = dueDate.toLocaleDateString("it-IT", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
     });
 
     // URL portale unificato (auto-adatta a stato preventivo)
-    const baseUrl = process.env.REPLIT_DOMAINS 
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-      : 'http://localhost:5000';
+    const baseUrl = process.env.REPLIT_DOMAINS
+      ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+      : "http://localhost:5000";
     const portalUrl = `${baseUrl}/quote/${quote.publicToken}`;
 
     // Recupera dati studio
@@ -1377,38 +1488,39 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
     // Crea HTML email
     const htmlContent = createPaymentReminderEmailHTML(
       clienteName,
-      quote.jobInfo?.nomeEvento || 'Evento',
+      quote.jobInfo?.nomeEvento || "Evento",
       payment.importo,
       paymentDueDate,
-      (payment as any).descrizione || 'Rata',
+      (payment as any).descrizione || "Rata",
       daysUntilDue,
       isOverdue,
       portalUrl,
-      studioInfo
+      studioInfo,
     );
 
-    const subject = isOverdue 
-      ? `Pagamento Scaduto - ${quote.jobInfo?.nomeEvento || 'Evento'}`
-      : `Promemoria Pagamento - ${quote.jobInfo?.nomeEvento || 'Evento'}`;
+    const subject = isOverdue
+      ? `Pagamento Scaduto - ${quote.jobInfo?.nomeEvento || "Evento"}`
+      : `Promemoria Pagamento - ${quote.jobInfo?.nomeEvento || "Evento"}`;
 
     // Invia email a TUTTI i clienti
     await sendGmailEmail(recipientEmails, subject, htmlContent);
 
-    console.log(`✅ Promemoria pagamento inviato a ${recipientEmails.join(', ')} per scadenzario ${paymentScheduleId}`);
+    console.log(
+      `✅ Promemoria pagamento inviato a ${recipientEmails.join(", ")} per scadenzario ${paymentScheduleId}`,
+    );
 
     return res.status(200).json({
       success: true,
-      message: `Promemoria pagamento inviato con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? 'cliente' : 'clienti'}`,
+      message: `Promemoria pagamento inviato con successo a ${recipientEmails.length} ${recipientEmails.length === 1 ? "cliente" : "clienti"}`,
       recipientEmails,
       daysUntilDue,
-      isOverdue
+      isOverdue,
     });
-
   } catch (error) {
-    console.error('❌ Errore payment-reminder:', error);
+    console.error("❌ Errore payment-reminder:", error);
     return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+      error: "Errore server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
     });
   }
 });
@@ -1419,260 +1531,290 @@ router.post('/payment-reminder', async (req: Request, res: Response) => {
  * Ritorna warnings e blocchi senza modificare il preventivo
  * Admin-only + Firebase Auth
  */
-router.get('/:id/status/validate', verifyAdminAuth, async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { newStatus } = req.query;
-    const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
+router.get(
+  "/:id/status/validate",
+  verifyAdminAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { newStatus } = req.query;
+      const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
 
-    // 2. Validate newStatus
-    const validStatuses = ['bozza', 'inviato', 'visionato', 'firmato', 'rifiutato', 'scaduto', 'annullato'];
-    if (!newStatus || !validStatuses.includes(newStatus as string)) {
-      return res.status(400).json({
-        error: 'Stato non valido',
-        message: `Lo stato deve essere uno tra: ${validStatuses.join(', ')}`
+      // 2. Validate newStatus
+      const validStatuses = [
+        "bozza",
+        "inviato",
+        "visionato",
+        "firmato",
+        "rifiutato",
+        "scaduto",
+        "annullato",
+      ];
+      if (!newStatus || !validStatuses.includes(newStatus as string)) {
+        return res.status(400).json({
+          error: "Stato non valido",
+          message: `Lo stato deve essere uno tra: ${validStatuses.join(", ")}`,
+        });
+      }
+
+      // 3. Fetch quote
+      const quoteDoc = await db.collection("quotes").doc(id).get();
+
+      if (!quoteDoc.exists) {
+        return res.status(404).json({
+          error: "Preventivo non trovato",
+          message: "Il preventivo specificato non esiste",
+        });
+      }
+
+      const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+      // 4. Validazioni finanziarie (senza modificare nulla)
+      const validation = await validateQuoteStatusChange(
+        quote,
+        newStatus as string,
+      );
+
+      return res.status(200).json({
+        success: true,
+        allowed: validation.allowed,
+        warnings: validation.warnings || [],
+        error: validation.error || null,
+        currentStatus: quote.status,
+        requestedStatus: newStatus,
+      });
+    } catch (error) {
+      console.error("❌ Errore validazione stato preventivo:", error);
+      return res.status(500).json({
+        error: "Errore server",
+        message: error instanceof Error ? error.message : "Errore sconosciuto",
       });
     }
-
-    // 3. Fetch quote
-    const quoteDoc = await db.collection('quotes').doc(id).get();
-
-    if (!quoteDoc.exists) {
-      return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il preventivo specificato non esiste'
-      });
-    }
-
-    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
-
-    // 4. Validazioni finanziarie (senza modificare nulla)
-    const validation = await validateQuoteStatusChange(quote, newStatus as string);
-
-    return res.status(200).json({
-      success: true,
-      allowed: validation.allowed,
-      warnings: validation.warnings || [],
-      error: validation.error || null,
-      currentStatus: quote.status,
-      requestedStatus: newStatus
-    });
-
-  } catch (error) {
-    console.error('❌ Errore validazione stato preventivo:', error);
-    return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
-    });
-  }
-});
+  },
+);
 
 /**
  * PATCH /api/quotes/:id/status
  * Cambio manuale stato preventivo con validazioni finanziarie e rigenerazione token
  * Admin-only + Firebase Auth
  */
-router.patch('/:id/status', verifyAdminAuth, async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { newStatus, reason } = req.body;
-    const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
+router.patch(
+  "/:id/status",
+  verifyAdminAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { newStatus, reason } = req.body;
+      const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
 
-    // 2. Validate newStatus
-    const validStatuses = ['bozza', 'inviato', 'visionato', 'firmato', 'rifiutato', 'scaduto', 'annullato'];
-    if (!newStatus || !validStatuses.includes(newStatus)) {
-      return res.status(400).json({
-        error: 'Stato non valido',
-        message: `Lo stato deve essere uno tra: ${validStatuses.join(', ')}`
-      });
-    }
+      // 2. Validate newStatus
+      const validStatuses = [
+        "bozza",
+        "inviato",
+        "visionato",
+        "firmato",
+        "rifiutato",
+        "scaduto",
+        "annullato",
+      ];
+      if (!newStatus || !validStatuses.includes(newStatus)) {
+        return res.status(400).json({
+          error: "Stato non valido",
+          message: `Lo stato deve essere uno tra: ${validStatuses.join(", ")}`,
+        });
+      }
 
-    // 3. Fetch quote
-    const quoteRef = db.collection('quotes').doc(id);
-    const quoteDoc = await quoteRef.get();
+      // 3. Fetch quote
+      const quoteRef = db.collection("quotes").doc(id);
+      const quoteDoc = await quoteRef.get();
 
-    if (!quoteDoc.exists) {
-      return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il preventivo specificato non esiste'
-      });
-    }
+      if (!quoteDoc.exists) {
+        return res.status(404).json({
+          error: "Preventivo non trovato",
+          message: "Il preventivo specificato non esiste",
+        });
+      }
 
-    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
-    const oldStatus = quote.status;
+      const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+      const oldStatus = quote.status;
 
-    // 4. Validazioni finanziarie
-    const validation = await validateQuoteStatusChange(quote, newStatus);
+      // 4. Validazioni finanziarie
+      const validation = await validateQuoteStatusChange(quote, newStatus);
 
-    if (!validation.allowed) {
-      return res.status(400).json({
-        error: 'Cambio stato bloccato',
-        message: validation.error,
-        warnings: validation.warnings
-      });
-    }
+      if (!validation.allowed) {
+        return res.status(400).json({
+          error: "Cambio stato bloccato",
+          message: validation.error,
+          warnings: validation.warnings,
+        });
+      }
 
-    // 5. Determina se rigenerare token
-    const shouldRegenerateToken = ['annullato', 'bozza', 'scaduto'].includes(newStatus);
+      // 5. Determina se rigenerare token
+      const shouldRegenerateToken = ["annullato", "bozza", "scaduto"].includes(
+        newStatus,
+      );
 
-    const updateData: any = {
-      status: newStatus,
-      updatedAt: new Date()
-    };
-
-    // 6. Rigenerazione token se necessario
-    if (shouldRegenerateToken && quote.publicToken) {
-      const oldToken = quote.publicToken;
-      const newToken = nanoid(32);
-
-      // Crea entry per token revocato
-      const revokedEntry: RevokedToken = {
-        token: oldToken,
-        revokedAt: new Date() as any,
-        revokedBy: adminEmail,
-        reason: `status_change: ${oldStatus} → ${newStatus}`
+      const updateData: any = {
+        status: newStatus,
+        updatedAt: new Date(),
       };
 
-      updateData.publicToken = newToken;
-      updateData.revokedTokens = FieldValue.arrayUnion(revokedEntry);
+      // 6. Rigenerazione token se necessario
+      if (shouldRegenerateToken && quote.publicToken) {
+        const oldToken = quote.publicToken;
+        const newToken = nanoid(32);
 
-      // Log rigenerazione token
+        // Crea entry per token revocato
+        const revokedEntry: RevokedToken = {
+          token: oldToken,
+          revokedAt: new Date() as any,
+          revokedBy: adminEmail,
+          reason: `status_change: ${oldStatus} → ${newStatus}`,
+        };
+
+        updateData.publicToken = newToken;
+        updateData.revokedTokens = FieldValue.arrayUnion(revokedEntry);
+
+        // Log rigenerazione token
+        await logAuditEvent({
+          quoteId: id,
+          adminEmail,
+          action: "token_regenerated",
+          previousValue: oldToken,
+          newValue: newToken,
+          reason: `Cambio stato: ${oldStatus} → ${newStatus}`,
+        });
+      }
+
+      // 7. Update preventivo
+      await quoteRef.update(updateData);
+
+      // 8. Log cambio stato
       await logAuditEvent({
         quoteId: id,
         adminEmail,
-        action: 'token_regenerated',
-        previousValue: oldToken,
-        newValue: newToken,
-        reason: `Cambio stato: ${oldStatus} → ${newStatus}`
+        action: "status_change",
+        previousValue: oldStatus,
+        newValue: newStatus,
+        reason: reason || "Cambio manuale admin",
+        metadata: {
+          tokenRegenerated: shouldRegenerateToken,
+          warnings: validation.warnings,
+        },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Stato aggiornato da "${oldStatus}" a "${newStatus}"`,
+        warnings: validation.warnings,
+        tokenRegenerated: shouldRegenerateToken,
+        newToken: shouldRegenerateToken ? updateData.publicToken : undefined,
+      });
+    } catch (error) {
+      console.error("❌ Errore cambio stato preventivo:", error);
+      return res.status(500).json({
+        error: "Errore server",
+        message: error instanceof Error ? error.message : "Errore sconosciuto",
       });
     }
-
-    // 7. Update preventivo
-    await quoteRef.update(updateData);
-
-    // 8. Log cambio stato
-    await logAuditEvent({
-      quoteId: id,
-      adminEmail,
-      action: 'status_change',
-      previousValue: oldStatus,
-      newValue: newStatus,
-      reason: reason || 'Cambio manuale admin',
-      metadata: {
-        tokenRegenerated: shouldRegenerateToken,
-        warnings: validation.warnings
-      }
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: `Stato aggiornato da "${oldStatus}" a "${newStatus}"`,
-      warnings: validation.warnings,
-      tokenRegenerated: shouldRegenerateToken,
-      newToken: shouldRegenerateToken ? updateData.publicToken : undefined
-    });
-
-  } catch (error) {
-    console.error('❌ Errore cambio stato preventivo:', error);
-    return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
-    });
-  }
-});
+  },
+);
 
 /**
  * PATCH /api/quotes/:id/signature/manual
  * Inserimento manuale firma cliente (retroattiva o forzata)
  * Admin-only + Firebase Auth
  */
-router.patch('/:id/signature/manual', verifyAdminAuth, async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { clientName, signedAt, reason } = req.body;
-    const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
+router.patch(
+  "/:id/signature/manual",
+  verifyAdminAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { clientName, signedAt, reason } = req.body;
+      const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
 
-    // 2. Validate input
-    if (!clientName || !signedAt) {
-      return res.status(400).json({
-        error: 'Dati incompleti',
-        message: 'Nome cliente e data firma sono obbligatori'
+      // 2. Validate input
+      if (!clientName || !signedAt) {
+        return res.status(400).json({
+          error: "Dati incompleti",
+          message: "Nome cliente e data firma sono obbligatori",
+        });
+      }
+
+      // 3. Fetch quote
+      const quoteRef = db.collection("quotes").doc(id);
+      const quoteDoc = await quoteRef.get();
+
+      if (!quoteDoc.exists) {
+        return res.status(404).json({
+          error: "Preventivo non trovato",
+          message: "Il preventivo specificato non esiste",
+        });
+      }
+
+      const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+      // 4. Crea oggetto firma manuale
+      const manualSignature = {
+        clientName: clientName.trim(),
+        signedAt: new Date(signedAt),
+        ipAddress: "admin-manual-override",
+        userAgent: `Admin: ${adminEmail}`,
+        // imageUrl non presente per firme manuali
+      };
+
+      // 5. Update preventivo con firma + stato firmato
+      await quoteRef.update({
+        signature: manualSignature,
+        status: "firmato",
+        updatedAt: new Date(),
+      });
+
+      // 6. Log inserimento firma manuale
+      await logAuditEvent({
+        quoteId: id,
+        adminEmail,
+        action: "signature_override",
+        newValue: {
+          clientName,
+          signedAt,
+        },
+        reason: reason || "Inserimento manuale firma admin",
+        metadata: {
+          previousStatus: quote.status,
+          hadPreviousSignature: !!quote.signature,
+        },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Firma inserita manualmente con successo",
+        signature: {
+          clientName,
+          signedAt,
+          insertedBy: adminEmail,
+        },
+      });
+    } catch (error) {
+      console.error("❌ Errore inserimento firma manuale:", error);
+      return res.status(500).json({
+        error: "Errore server",
+        message: error instanceof Error ? error.message : "Errore sconosciuto",
       });
     }
-
-    // 3. Fetch quote
-    const quoteRef = db.collection('quotes').doc(id);
-    const quoteDoc = await quoteRef.get();
-
-    if (!quoteDoc.exists) {
-      return res.status(404).json({
-        error: 'Preventivo non trovato',
-        message: 'Il preventivo specificato non esiste'
-      });
-    }
-
-    const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
-
-    // 4. Crea oggetto firma manuale
-    const manualSignature = {
-      clientName: clientName.trim(),
-      signedAt: new Date(signedAt),
-      ipAddress: 'admin-manual-override',
-      userAgent: `Admin: ${adminEmail}`
-      // imageUrl non presente per firme manuali
-    };
-
-    // 5. Update preventivo con firma + stato firmato
-    await quoteRef.update({
-      signature: manualSignature,
-      status: 'firmato',
-      updatedAt: new Date()
-    });
-
-    // 6. Log inserimento firma manuale
-    await logAuditEvent({
-      quoteId: id,
-      adminEmail,
-      action: 'signature_override',
-      newValue: {
-        clientName,
-        signedAt
-      },
-      reason: reason || 'Inserimento manuale firma admin',
-      metadata: {
-        previousStatus: quote.status,
-        hadPreviousSignature: !!quote.signature
-      }
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Firma inserita manualmente con successo',
-      signature: {
-        clientName,
-        signedAt,
-        insertedBy: adminEmail
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Errore inserimento firma manuale:', error);
-    return res.status(500).json({
-      error: 'Errore server',
-      message: error instanceof Error ? error.message : 'Errore sconosciuto'
-    });
-  }
-});
+  },
+);
 
 /**
  * GET /api/quotes/health
  * Health check per quote API
  */
-router.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'quote-api',
-    timestamp: new Date().toISOString() 
+router.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "quote-api",
+    timestamp: new Date().toISOString(),
   });
 });
 

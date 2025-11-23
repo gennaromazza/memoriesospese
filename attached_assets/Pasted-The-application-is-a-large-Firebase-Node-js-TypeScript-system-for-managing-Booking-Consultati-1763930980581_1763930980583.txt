@@ -1,0 +1,287 @@
+The application is a large Firebase + Node.js + TypeScript system for managing:
+
+Booking
+
+Consultations
+
+Internal Calendar
+
+Google Calendar sync
+
+Timezone handling (Europe/Rome vs UTC)
+
+Currently, each module implements its own logic for:
+
+generating available time slots
+
+handling weekdays
+
+parsing hours and minutes
+
+validating excluded days
+
+checking conflicts
+
+converting dates to UTC
+
+syncing with Google Calendar
+
+These implementations were created at different moments, in different files, with different rules, causing severe inconsistencies.
+
+❗ Actual symptoms:
+
+Wrong available slots shown to clients
+
+Misaligned timezones (UTC vs Europe/Rome)
+
+Conflicts (409) triggered incorrectly
+
+Google Calendar events ignored or incorrectly mapped
+
+Slots shown available when they should be blocked
+
+Different front-end modules produce different results
+
+Duplicate and conflicting backend logic producing drift
+
+The system is unstable because BOOKING, CONSULTATIONS, and NATIVE CALENDAR all calculate slots in different ways.
+
+We need to fully centralize the logic.
+
+🎯 2. GOAL
+
+Create a new central module called Calendar Engine that implements:
+
+a single unified logic for timezones
+
+a single unified logic for slot generation
+
+a single unified logic for conflict detection
+
+a single unified logic for Google Calendar integration
+
+Without modifying or breaking the existing system.
+
+The new module must run in parallel, behind new V2 APIs.
+
+Eventually, the old logic will be removed (not in this step).
+
+🔒 3. CONSTRAINTS (VERY IMPORTANT FOR REPLIT)
+
+During this task:
+
+❌ Do NOT delete any existing code
+
+❌ Do NOT modify existing APIs
+
+❌ Do NOT break backward compatibility
+
+❌ Do NOT edit existing booking or consultation logic except to add adapters
+
+❌ Do NOT modify Firestore documents
+
+You must:
+
+✅ ONLY add new files
+
+✅ ONLY add new “v2” routes
+
+✅ ONLY wrap existing logic, not replace it
+
+✅ Keep the new code fully isolated and safe
+
+✅ Add comments marking all new code
+
+🏗️ 4. WHAT YOU MUST BUILD
+A. Create a new backend folder: /server/calendar-engine/
+
+Files to create:
+
+/server/calendar-engine/
+  index.ts
+  timezone.ts
+  slots.ts
+  conflicts.ts
+  google-sync.ts
+
+timezone.ts
+
+Implement:
+
+toRome(...) — normalize any input into Luxon DateTime in zone Europe/Rome
+
+toUTC(...) — convert a Rome DateTime to UTC JS Date
+
+utility functions to normalize strings/Date/Timestamp
+
+conflicts.ts
+
+Implement:
+
+export function hasOverlap(startA, endA, startB, endB): boolean
+
+
+Based on millisecond precision.
+
+slots.ts
+
+Implement:
+
+export function getAvailableSlotsForDate(
+  date: Date,
+  config: AvailabilityConfig,
+  existingEvents: { start: Date; end: Date }[]
+)
+
+
+Steps:
+
+Convert to Europe/Rome
+
+Verify weekday and excludedDates
+
+Generate slots from workingHoursByWeekday
+
+Apply slotDuration + buffers
+
+Filter with hasOverlap
+
+Return final slots in UTC for API response
+
+google-sync.ts
+
+Create wrappers for functions already existing in the project:
+
+checkFreeBusyAllCalendars
+
+getEvents
+
+createEvent
+
+deleteEvent
+
+DO NOT change existing Google Calendar logic. Only wrap it.
+
+B. Create shared type: /shared/calendar-types.ts
+export interface AvailabilityConfig {
+  timezone: "Europe/Rome";
+  slotDurationMinutes: number;
+  workingHoursByWeekday: {
+    [weekday: number]: Array<{ startTime: string; endTime: string }>;
+  };
+  excludedWeekdays?: number[];
+  excludedDates?: string[];
+  bufferBeforeMinutes?: number;
+  bufferAfterMinutes?: number;
+}
+
+C. Create adapters
+Booking → AvailabilityConfig
+
+File:
+
+/server/booking/calendar-adapter.ts
+
+
+Convert the existing campaign structure into the standardized config.
+
+Consultations → AvailabilityConfig
+
+File:
+
+/server/consultations/calendar-adapter.ts
+
+
+Convert the existing consultation template into the standardized config.
+
+Native Calendar → AvailabilityConfig
+
+File:
+
+/server/native-calendar/calendar-adapter.ts
+
+D. Create NEW API routes (v2)
+
+Do NOT touch the old routes.
+
+Create:
+
+/api/v2/booking/slots
+/api/v2/consultations/slots
+/api/v2/calendar/slots
+
+
+Each route must follow the same flow:
+
+Fetch the document (booking campaign, consultation template, calendar config)
+
+Convert it via the adapter → AvailabilityConfig
+
+Fetch Google Calendar events via wrapped functions
+
+Use the Calendar Engine to calculate slots
+
+Return them
+
+Add comments:
+
+// NEW CALENDAR ENGINE V2 — added safely, legacy untouched
+
+E. Frontend: do NOT modify existing code
+
+ONLY add new fetch helpers:
+
+fetchBookingSlotsV2()
+fetchConsultationSlotsV2()
+fetchCalendarSlotsV2()
+
+
+Do not replace the old ones.
+
+📋 5. EXECUTION STEPS FOR REPLIT ASSISTANT (MANDATORY)
+
+Follow this exact order:
+
+Create all new folders and files
+
+Implement skeleton logic (compilable)
+
+Add imports/exports correctly
+
+Add all V2 routes
+
+Add adapter implementations
+
+Add frontend helper functions
+
+Run TypeScript checks
+
+Fix all errors related to the new code
+
+Show the full diff of created/modified files
+
+Ensure the system builds without affecting existing logic
+
+🛑 6. DO NOT TOUCH THE OLD CODEBASE
+
+This is the MOST important requirement.
+
+If a file appears to require changes, instead:
+
+create a wrapper
+
+or create a parallel v2 version
+
+NEVER modify old logic
+
+🏁 7. FINAL OUTPUT
+
+At the end:
+
+Show all files created
+
+Show diffs only for modified files
+
+Confirm no old functions were touched
+
+Confirm the system still builds successfully

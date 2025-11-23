@@ -270,8 +270,13 @@ export async function checkFreeBusyAllCalendars(
             `[Google Calendar] 🔴 Calendario "${calName}": ${busyPeriods.length} busy periods`,
           );
 
-          // Aggiungi metadata per logging migliore
           busyPeriods.forEach((period: any) => {
+            const start = new Date(period.start);
+            const end = new Date(period.end);
+
+            // Filtra periodi con durata nulla o contigui (nessuna sovrapposizione reale)
+            if (start.getTime() >= end.getTime()) return;
+
             allBusyPeriods.push({
               start: period.start,
               end: period.end,
@@ -279,9 +284,7 @@ export async function checkFreeBusyAllCalendars(
               calendarName: calName,
             });
           });
-        }
-      }
-    }
+
 
     console.log(
       `[Google Calendar] 📊 Totale busy periods aggregati: ${allBusyPeriods.length}`,
@@ -331,39 +334,12 @@ export async function createEvent(
     startField = { date: eventData.startDateStr };
     endField = { date: endDateStr };
   } else if (eventData.start && eventData.end) {
-    // Normalizza a dateTime "floating" in fuso Europe/Rome
-    const startLocal = new Date(eventData.start);
-    const endLocal = new Date(eventData.end);
-
-    const formatLocal = (d: Date) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      const hours = String(d.getHours()).padStart(2, "0");
-      const minutes = String(d.getMinutes()).padStart(2, "0");
-      const seconds = String(d.getSeconds()).padStart(2, "0");
-      // YYYY-MM-DDTHH:mm:ss senza Z → floating nel timeZone indicato
-      return (
-        year +
-        "-" +
-        month +
-        "-" +
-        day +
-        "T" +
-        hours +
-        ":" +
-        minutes +
-        ":" +
-        seconds
-      );
-    };
-
     startField = {
-      dateTime: formatLocal(startLocal),
+      dateTime: eventData.start.toISOString(),
       timeZone: "Europe/Rome",
     };
     endField = {
-      dateTime: formatLocal(endLocal),
+      dateTime: eventData.end.toISOString(),
       timeZone: "Europe/Rome",
     };
   } else {

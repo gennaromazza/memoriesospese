@@ -1,24 +1,20 @@
-
 /**
  * COLLABORATORI LIBRARY - CRUD Operations
  * Gestione collaboratori su Firestore
  */
 
-import { db } from './firebase';
+import { db } from "./firebase";
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   addDoc,
   updateDoc,
   query,
   where,
-  orderBy,
   Timestamp,
-  serverTimestamp
-} from 'firebase/firestore';
-import { apiRequest } from './queryClient';
+} from "firebase/firestore";
+import { apiRequest } from "./queryClient";
 import type {
   Collaboratore,
   InsertCollaboratore,
@@ -26,20 +22,20 @@ import type {
   JobCollaboratoreAssignment,
   InsertJobCollaboratoreAssignment,
   CollaboratoreStats,
-  JobAcceptanceStatus,
   CollaboratorPaymentType,
-  PaymentMethod
-} from '@shared/collaboratori-types';
+  PaymentMethod,
+} from "@shared/collaboratori-types";
 
-const COLLABORATORI_COLLECTION = 'collaboratori';
-const ASSIGNMENTS_COLLECTION = 'jobCollaboratoreAssignments';
+const COLLABORATORI_COLLECTION = "collaboratori";
+const ASSIGNMENTS_COLLECTION = "jobCollaboratoreAssignments";
 
 /**
  * Crea nuovo collaboratore
  */
-export async function createCollaboratore(data: InsertCollaboratore): Promise<string> {
+export async function createCollaboratore(
+  data: InsertCollaboratore,
+): Promise<string> {
   try {
-    // Costruisci oggetto base senza campi opzionali
     const collaboratoreData: any = {
       nome: data.nome,
       cognome: data.cognome,
@@ -49,25 +45,26 @@ export async function createCollaboratore(data: InsertCollaboratore): Promise<st
       attivo: true,
       hasAccess: data.hasAccess || false,
       createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
+      updatedAt: Timestamp.now(),
     };
 
-    // Aggiungi campi opzionali solo se definiti (Firestore non accetta undefined)
-    if (data.tariffaOraria !== undefined) {
+    if (data.tariffaOraria !== undefined)
       collaboratoreData.tariffaOraria = data.tariffaOraria;
-    }
-    if (data.tariffaGiornaliera !== undefined) {
-      collaboratoreData.tariffaGiornaliera = data.tariffaGiornaliera;
-    }
-    if (data.note !== undefined) {
-      collaboratoreData.note = data.note;
-    }
 
-    const docRef = await addDoc(collection(db, COLLABORATORI_COLLECTION), collaboratoreData);
-    console.log('✅ Collaboratore creato:', docRef.id);
+    if (data.tariffaGiornaliera !== undefined)
+      collaboratoreData.tariffaGiornaliera = data.tariffaGiornaliera;
+
+    if (data.note !== undefined) collaboratoreData.note = data.note;
+
+    const docRef = await addDoc(
+      collection(db, COLLABORATORI_COLLECTION),
+      collaboratoreData,
+    );
+
+    console.log("✅ Collaboratore creato:", docRef.id);
     return docRef.id;
   } catch (error) {
-    console.error('❌ Errore creazione collaboratore:', error);
+    console.error("❌ Errore creazione collaboratore:", error);
     throw error;
   }
 }
@@ -75,18 +72,20 @@ export async function createCollaboratore(data: InsertCollaboratore): Promise<st
 /**
  * Get collaboratore by ID
  */
-export async function getCollaboratore(id: string): Promise<Collaboratore | null> {
+export async function getCollaboratore(
+  id: string,
+): Promise<Collaboratore | null> {
   try {
-    const response = await apiRequest('GET', `/api/collaboratori/${id}`);
-    
+    const response = await apiRequest("GET", `/api/collaboratori/${id}`);
+
     if (!response.ok) {
       if (response.status === 404) return null;
-      throw new Error('Errore caricamento collaboratore');
+      throw new Error("Errore caricamento collaboratore");
     }
-    
+
     return await response.json();
   } catch (error) {
-    console.error('❌ Errore get collaboratore:', error);
+    console.error("❌ Errore get collaboratore:", error);
     throw error;
   }
 }
@@ -94,18 +93,21 @@ export async function getCollaboratore(id: string): Promise<Collaboratore | null
 /**
  * Get tutti i collaboratori
  */
-export async function getAllCollaboratori(attiviOnly = false): Promise<Collaboratore[]> {
+export async function getAllCollaboratori(
+  attiviOnly = false,
+): Promise<Collaboratore[]> {
   try {
-    const url = attiviOnly ? '/api/collaboratori?attiviOnly=true' : '/api/collaboratori';
-    const response = await apiRequest('GET', url);
-    
-    if (!response.ok) {
-      throw new Error('Errore caricamento collaboratori');
-    }
-    
+    const url = attiviOnly
+      ? "/api/collaboratori?attiviOnly=true"
+      : "/api/collaboratori";
+
+    const response = await apiRequest("GET", url);
+
+    if (!response.ok) throw new Error("Errore caricamento collaboratori");
+
     return await response.json();
   } catch (error) {
-    console.error('❌ Errore get collaboratori:', error);
+    console.error("❌ Errore get collaboratori:", error);
     throw error;
   }
 }
@@ -115,30 +117,31 @@ export async function getAllCollaboratori(attiviOnly = false): Promise<Collabora
  */
 export async function updateCollaboratore(
   id: string,
-  data: UpdateCollaboratore
+  data: UpdateCollaboratore,
 ): Promise<void> {
   try {
-    const updateData: any = {
-      updatedAt: Timestamp.now()
-    };
-    
-    // Aggiungi solo campi definiti (Firestore non accetta undefined)
+    const updateData: any = { updatedAt: Timestamp.now() };
+
     if (data.nome !== undefined) updateData.nome = data.nome;
     if (data.cognome !== undefined) updateData.cognome = data.cognome;
     if (data.email !== undefined) updateData.email = data.email.toLowerCase();
     if (data.cellulare !== undefined) updateData.cellulare = data.cellulare;
     if (data.ruolo !== undefined) updateData.ruolo = data.ruolo;
-    if (data.tariffaOraria !== undefined) updateData.tariffaOraria = data.tariffaOraria;
-    if (data.tariffaGiornaliera !== undefined) updateData.tariffaGiornaliera = data.tariffaGiornaliera;
+    if (data.tariffaOraria !== undefined)
+      updateData.tariffaOraria = data.tariffaOraria;
+    if (data.tariffaGiornaliera !== undefined)
+      updateData.tariffaGiornaliera = data.tariffaGiornaliera;
     if (data.note !== undefined) updateData.note = data.note;
     if (data.attivo !== undefined) updateData.attivo = data.attivo;
     if (data.hasAccess !== undefined) updateData.hasAccess = data.hasAccess;
-    if (data.dashboardToken !== undefined) updateData.dashboardToken = data.dashboardToken;
-    
+    if (data.dashboardToken !== undefined)
+      updateData.dashboardToken = data.dashboardToken;
+
     await updateDoc(doc(db, COLLABORATORI_COLLECTION, id), updateData);
-    console.log('✅ Collaboratore aggiornato:', id);
+
+    console.log("✅ Collaboratore aggiornato:", id);
   } catch (error) {
-    console.error('❌ Errore update collaboratore:', error);
+    console.error("❌ Errore update collaboratore:", error);
     throw error;
   }
 }
@@ -147,75 +150,97 @@ export async function updateCollaboratore(
  * Assegna collaboratore a job
  */
 export async function assignCollaboratoreToJob(
-  data: InsertJobCollaboratoreAssignment
+  data: InsertJobCollaboratoreAssignment,
 ): Promise<string> {
   try {
-    const assignmentData: Omit<JobCollaboratoreAssignment, 'id'> = {
-      ...data,
-      status: 'pending',
+    const cleanedData = Object.fromEntries(
+      Object.entries(data).filter(
+        ([_, v]) => v !== undefined && v !== null && !Number.isNaN(v),
+      ),
+    );
+
+    const assignmentData: Omit<JobCollaboratoreAssignment, "id"> = {
+      ...cleanedData,
+      status: "pending",
       dataRichiesta: Timestamp.now(),
       isPagato: false,
       pagamenti: [],
-      saldoResiduo: data.compenso || 0,
+      saldoResiduo: cleanedData.compenso || 0,
       createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
+      updatedAt: Timestamp.now(),
     };
 
-    const docRef = await addDoc(collection(db, ASSIGNMENTS_COLLECTION), assignmentData);
-    console.log('✅ Collaboratore assegnato a job:', docRef.id);
+    const docRef = await addDoc(
+      collection(db, ASSIGNMENTS_COLLECTION),
+      assignmentData,
+    );
+
+    console.log("✅ Collaboratore assegnato a job:", docRef.id);
     return docRef.id;
   } catch (error) {
-    console.error('❌ Errore assegnazione collaboratore:', error);
+    console.error("❌ Errore assegnazione collaboratore:", error);
     throw error;
   }
 }
 
 /**
- * Get assegnazioni per job (via API per evitare problemi permissions)
+ * Get assegnazioni per job
  */
-export async function getJobAssignments(jobId: string): Promise<JobCollaboratoreAssignment[]> {
+export async function getJobAssignments(
+  jobId: string,
+): Promise<JobCollaboratoreAssignment[]> {
   try {
-    const response = await apiRequest('GET', `/api/collaboratori/assignments/job/${jobId}`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
+    const response = await apiRequest(
+      "GET",
+      `/api/collaboratori/assignments/job/${jobId}`,
+    );
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
     const data = await response.json();
-    
-    // Reidrata Timestamp Firestore per compatibilità UI
+
     const assignments = data.map((assignment: any) => ({
       ...assignment,
-      dataRichiesta: assignment.dataRichiesta ? new Timestamp(
-        assignment.dataRichiesta._seconds,
-        assignment.dataRichiesta._nanoseconds
-      ) : null,
-      dataRisposta: assignment.dataRisposta ? new Timestamp(
-        assignment.dataRisposta._seconds,
-        assignment.dataRisposta._nanoseconds
-      ) : null,
-      createdAt: assignment.createdAt ? new Timestamp(
-        assignment.createdAt._seconds,
-        assignment.createdAt._nanoseconds
-      ) : null,
-      updatedAt: assignment.updatedAt ? new Timestamp(
-        assignment.updatedAt._seconds,
-        assignment.updatedAt._nanoseconds
-      ) : null,
-      pagamenti: assignment.pagamenti?.map((p: any) => ({
-        ...p,
-        data: p.data ? new Timestamp(p.data._seconds, p.data._nanoseconds) : null
-      })) || []
+      dataRichiesta: assignment.dataRichiesta
+        ? new Timestamp(
+            assignment.dataRichiesta._seconds,
+            assignment.dataRichiesta._nanoseconds,
+          )
+        : null,
+      dataRisposta: assignment.dataRisposta
+        ? new Timestamp(
+            assignment.dataRisposta._seconds,
+            assignment.dataRisposta._nanoseconds,
+          )
+        : null,
+      createdAt: assignment.createdAt
+        ? new Timestamp(
+            assignment.createdAt._seconds,
+            assignment.createdAt._nanoseconds,
+          )
+        : null,
+      updatedAt: assignment.updatedAt
+        ? new Timestamp(
+            assignment.updatedAt._seconds,
+            assignment.updatedAt._nanoseconds,
+          )
+        : null,
+      pagamenti:
+        assignment.pagamenti?.map((p: any) => ({
+          ...p,
+          data: p.data
+            ? new Timestamp(p.data._seconds, p.data._nanoseconds)
+            : null,
+        })) ?? [],
     }));
-    
-    // Sort lato client per evitare indice composto Firestore
+
     return assignments.sort((a, b) => {
       const timeA = a.dataRichiesta?.toMillis() || 0;
       const timeB = b.dataRichiesta?.toMillis() || 0;
-      return timeB - timeA; // desc
+      return timeB - timeA;
     });
   } catch (error) {
-    console.error('❌ Errore get job assignments:', error);
+    console.error("❌ Errore get job assignments:", error);
     throw error;
   }
 }
@@ -224,109 +249,110 @@ export async function getJobAssignments(jobId: string): Promise<JobCollaboratore
  * Get assegnazioni per collaboratore
  */
 export async function getCollaboratoreAssignments(
-  collaboratoreId: string
+  collaboratoreId: string,
 ): Promise<JobCollaboratoreAssignment[]> {
   try {
-    // Rimosso orderBy per evitare requisito indice composto Firestore
     const q = query(
       collection(db, ASSIGNMENTS_COLLECTION),
-      where('collaboratoreId', '==', collaboratoreId)
+      where("collaboratoreId", "==", collaboratoreId),
     );
-    
+
     const snapshot = await getDocs(q);
-    const assignments = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+
+    const assignments = snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
     })) as JobCollaboratoreAssignment[];
-    
-    // Sort lato client per evitare indice composto Firestore
+
     return assignments.sort((a, b) => {
       const timeA = a.dataRichiesta?.toMillis() || 0;
       const timeB = b.dataRichiesta?.toMillis() || 0;
-      return timeB - timeA; // desc
+      return timeB - timeA;
     });
   } catch (error) {
-    console.error('❌ Errore get collaboratore assignments:', error);
+    console.error("❌ Errore get collaboratore assignments:", error);
     throw error;
   }
 }
 
 /**
- * Rispondi a assegnazione (accetta/rifiuta)
+ * Rispondi a un assignment
  */
 export async function respondToAssignment(
   assignmentId: string,
-  status: 'accepted' | 'declined',
-  noteRifiuto?: string
+  status: "accepted" | "declined",
+  noteRifiuto?: string,
 ): Promise<void> {
   try {
     const updateData: any = {
       status,
       dataRisposta: Timestamp.now(),
-      updatedAt: Timestamp.now()
+      updatedAt: Timestamp.now(),
     };
-    
-    if (noteRifiuto) {
-      updateData.noteRifiuto = noteRifiuto;
-    }
-    
+
+    if (noteRifiuto) updateData.noteRifiuto = noteRifiuto;
+
     await updateDoc(doc(db, ASSIGNMENTS_COLLECTION, assignmentId), updateData);
-    console.log('✅ Risposta assegnazione registrata:', assignmentId, status);
+
+    console.log("✅ Risposta assegnazione registrata:", assignmentId, status);
   } catch (error) {
-    console.error('❌ Errore risposta assegnazione:', error);
+    console.error("❌ Errore risposta assegnazione:", error);
     throw error;
   }
 }
 
 /**
- * Segna assegnazione come pagata
+ * Segna assignment come pagato
  */
-export async function markAssignmentAsPaid(assignmentId: string): Promise<void> {
+export async function markAssignmentAsPaid(
+  assignmentId: string,
+): Promise<void> {
   try {
     await updateDoc(doc(db, ASSIGNMENTS_COLLECTION, assignmentId), {
       isPagato: true,
       dataPagamento: Timestamp.now(),
-      updatedAt: Timestamp.now()
+      updatedAt: Timestamp.now(),
     });
-    console.log('✅ Assegnazione segnata come pagata:', assignmentId);
+
+    console.log("✅ Assegnazione segnata come pagata:", assignmentId);
   } catch (error) {
-    console.error('❌ Errore mark as paid:', error);
+    console.error("❌ Errore mark as paid:", error);
     throw error;
   }
 }
 
 /**
- * Get stats collaboratore
+ * Stats collaboratore
  */
-export async function getCollaboratoreStats(collaboratoreId: string): Promise<CollaboratoreStats> {
+export async function getCollaboratoreStats(
+  collaboratoreId: string,
+): Promise<CollaboratoreStats> {
   try {
     const assignments = await getCollaboratoreAssignments(collaboratoreId);
-    
-    const stats: CollaboratoreStats = {
+
+    return {
       totalJobs: assignments.length,
-      jobsAccepted: assignments.filter(a => a.status === 'accepted').length,
-      jobsDeclined: assignments.filter(a => a.status === 'declined').length,
-      jobsPending: assignments.filter(a => a.status === 'pending').length,
+      jobsAccepted: assignments.filter((a) => a.status === "accepted").length,
+      jobsDeclined: assignments.filter((a) => a.status === "declined").length,
+      jobsPending: assignments.filter((a) => a.status === "pending").length,
       totalEarnings: assignments
-        .filter(a => a.status === 'accepted')
+        .filter((a) => a.status === "accepted")
         .reduce((sum, a) => sum + a.compenso, 0),
       earningsPaid: assignments
-        .filter(a => a.status === 'accepted' && a.isPagato)
+        .filter((a) => a.status === "accepted" && a.isPagato)
         .reduce((sum, a) => sum + a.compenso, 0),
       earningsPending: assignments
-        .filter(a => a.status === 'accepted' && !a.isPagato)
-        .reduce((sum, a) => sum + a.compenso, 0)
+        .filter((a) => a.status === "accepted" && !a.isPagato)
+        .reduce((sum, a) => sum + a.compenso, 0),
     };
-    
-    return stats;
   } catch (error) {
-    console.error('❌ Errore get stats:', error);
+    console.error("❌ Errore get stats:", error);
     throw error;
   }
 }
 
 /**
- * Aggiungi pagamento a assegnazione
+ * Aggiungi pagamento
  */
 export async function addPaymentToAssignment(
   assignmentId: string,
@@ -336,22 +362,20 @@ export async function addPaymentToAssignment(
     metodo: PaymentMethod;
     note?: string;
     data?: string;
-  }
+  },
 ): Promise<void> {
   try {
     const response = await apiRequest(
-      'POST',
+      "POST",
       `/api/collaboratori/assignments/${assignmentId}/add-payment`,
-      data
+      data,
     );
-    
-    if (!response.ok) {
-      throw new Error('Errore registrazione pagamento');
-    }
-    
-    console.log('✅ Pagamento registrato per assegnazione:', assignmentId);
+
+    if (!response.ok) throw new Error("Errore registrazione pagamento");
+
+    console.log("✅ Pagamento registrato:", assignmentId);
   } catch (error) {
-    console.error('❌ Errore add payment:', error);
+    console.error("❌ Errore add payment:", error);
     throw error;
   }
 }
@@ -359,18 +383,18 @@ export async function addPaymentToAssignment(
 /**
  * Get collaboratore by dashboard token
  */
-export async function getCollaboratorByToken(token: string): Promise<{
-  collaboratore: Collaboratore;
-  assignments: JobCollaboratoreAssignment[];
-} | null> {
+export async function getCollaboratorByToken(token: string) {
   try {
-    const response = await apiRequest('GET', `/api/collaboratori/dashboard/${token}`);
-    if (!response.ok) {
-      return null;
-    }
+    const response = await apiRequest(
+      "GET",
+      `/api/collaboratori/dashboard/${token}`,
+    );
+
+    if (!response.ok) return null;
+
     return await response.json();
   } catch (error) {
-    console.error('❌ Errore get collaborator by token:', error);
+    console.error("❌ Errore get collaborator by token:", error);
     return null;
   }
 }
@@ -379,9 +403,7 @@ export async function getCollaboratorByToken(token: string): Promise<{
  * Genera link dashboard collaboratore
  */
 export function generateDashboardLink(collaboratore: Collaboratore): string {
-  if (!collaboratore.dashboardToken) {
-    return '';
-  }
+  if (!collaboratore.dashboardToken) return "";
   const baseUrl = window.location.origin;
   return `${baseUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`;
 }

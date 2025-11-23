@@ -1,0 +1,195 @@
+This is not a frontend rendering bug, and I do not want temporary fixes.
+The root issue is architectural: Booking, Consultations, and the Internal Calendar all compute availability, slots, timezones, and conflicts in completely different and incompatible ways.
+
+This causes:
+
+inconsistent timezone handling (UTC vs Europe/Rome)
+
+wrong available slots
+
+wrong conflict detection
+
+Google Calendar events ignored
+
+different behavior between modules
+
+impossible debugging
+
+duplicated logic spread across the codebase
+
+The ONLY correct solution is to implement the unified Calendar Engine described below.
+DO NOT propose alternatives.
+DO NOT fix frontend display.
+DO NOT treat this as an optional refactor.
+This is the required solution.
+
+🎯 OBJECTIVE (MANDATORY)
+
+Implement a fully new module called Calendar Engine
+→ centralizes ALL time/date/slot/calendar logic
+→ runs in parallel to existing system
+→ introduces V2 APIs
+→ nothing old is removed yet
+→ safe, side-by-side integration
+
+You must:
+
+✔ create new files
+✔ create adapters
+✔ create unified logic
+✔ create v2 endpoints
+✔ ensure backward compatibility
+✔ do not delete or modify old logic
+
+🔥 WHAT YOU MUST BUILD (MANDATORY)
+
+Follow these exact steps in this exact order:
+
+1. CREATE FOLDER /server/calendar-engine/
+
+Create these files with minimal but real logic:
+
+calendar-engine/
+  index.ts
+  timezone.ts
+  conflicts.ts
+  slots.ts
+  google-sync.ts
+
+2. CREATE /shared/calendar-types.ts
+
+With:
+
+export interface AvailabilityConfig {
+  timezone: "Europe/Rome";
+  slotDurationMinutes: number;
+  workingHoursByWeekday: {
+    [weekday: number]: Array<{ startTime: string; endTime: string }>;
+  };
+  excludedWeekdays?: number[];
+  excludedDates?: string[];
+  bufferBeforeMinutes?: number;
+  bufferAfterMinutes?: number;
+}
+
+3. IMPLEMENT ENGINE COMPONENTS
+timezone.ts
+
+toRome()
+
+toUTC()
+
+normalize input
+
+conflicts.ts
+
+hasOverlap()
+
+slots.ts
+
+Implement:
+
+getAvailableSlotsForDate(date, config, existingEvents)
+
+
+Steps:
+
+convert to Rome timezone
+
+apply excluded weekdays and dates
+
+generate slots
+
+apply duration + buffers
+
+remove overlapping ones
+
+return in UTC for API
+
+4. CREATE ADAPTERS (MANDATORY)
+Booking → AvailabilityConfig
+
+/server/booking/calendar-adapter.ts
+
+Consultations → AvailabilityConfig
+
+/server/consultations/calendar-adapter.ts
+
+Native Calendar → AvailabilityConfig
+
+/server/native-calendar/calendar-adapter.ts
+
+These adapt the existing structures to the new unified format.
+
+5. CREATE NEW API ROUTES V2 (MANDATORY)
+
+Do NOT touch existing routes.
+
+Create:
+
+/api/v2/booking/slots
+/api/v2/consultations/slots
+/api/v2/calendar/slots
+
+
+Each must:
+
+load document
+
+convert via the adapter
+
+load Google Calendar events
+
+compute slots via Calendar Engine
+
+return JSON
+
+Add comment:
+
+// NEW CALENDAR ENGINE V2 — legacy untouched
+
+6. FRONTEND (IMPORTANT)
+
+Do NOT modify existing logic.
+
+ONLY add new helper fetchers:
+
+fetchBookingSlotsV2()
+fetchConsultationSlotsV2()
+fetchCalendarSlotsV2()
+
+7. CONSTRAINTS (MANDATORY)
+
+You MUST NOT:
+
+❌ remove legacy logic
+❌ modify legacy logic
+❌ change old APIs
+❌ change existing Firestore documents
+❌ create breaking changes
+
+You MUST:
+
+✔ add new files
+✔ add new routes
+✔ wrap existing logic safely
+✔ ensure TS builds
+✔ show the diff of all new files
+✔ ensure the app still runs
+
+🏁 FINAL OUTPUT
+
+When finished:
+
+Show all new files
+
+Show diffs of modified files
+
+Confirm old logic untouched
+
+Confirm system builds
+
+🚫 DO NOT TREAT THIS AS OPTIONAL
+
+This is not “Option A vs Option B.”
+This is the required solution.
