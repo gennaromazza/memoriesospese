@@ -104,136 +104,168 @@ export function validateConsultationTemplate(template: ConsultationTemplate): bo
  * Load all existing events for a specific date
  * Centralizes event loading logic from consultations, bookings, jobs
  * 
+ * CRITICAL FILTERING OPTIONS:
+ * - Google Calendar events are ALWAYS included (100% source of truth)
+ * - Firestore consultations can be excluded via includeConsultations: false
+ * - This ensures /available-slots and /approve use identical blocking events
+ * 
  * @param dayStart Start of day in Europe/Rome
  * @param dayEnd End of day in Europe/Rome
  * @param db Firestore database instance
+ * @param options Filtering options for Firestore data sources
  * @returns Array of CalendarEvents
  */
 export async function getAllExistingEvents(
   dayStart: Date,
   dayEnd: Date,
-  db: any
+  db: any,
+  options?: {
+    includeConsultations?: boolean; // default: true (for backwards compatibility)
+    includeJobs?: boolean;          // default: true
+    includeBookings?: boolean;      // default: true
+  }
 ): Promise<Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }>> {
   const { Timestamp } = await import('firebase-admin/firestore');
   const { createEuropeRomeDate } = await import('../google-calendar.js');
+  
+  // Apply default options (all true for backwards compatibility)
+  const {
+    includeConsultations = true,
+    includeJobs = true,
+    includeBookings = true
+  } = options || {};
   
   const existingEvents: Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }> = [];
   
   // 1. Load Google Calendar busy periods
   // CRITICAL: checkGoogleCalendarBusyPeriods uses getEventsWithDetailsAllCalendars
   // This ensures ALL valid Google Calendar events (including orphaned events) are loaded
+  // Google Calendar events are ALWAYS included (100% source of truth)
   const { checkGoogleCalendarBusyPeriods } = await import('../calendar-engine/google-sync');
   const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
   existingEvents.push(...googleBusy);
   
   console.log(`[Consultation Adapter] 📅 ${googleBusy.length} busy periods from Google Calendar (ALL valid events, orphans included)`);
   
-  // 2. Load existing consultations
-  const consultationsSnap = await db
-    .collection('consultations')
-    .where('dataConsulenza', '>=', Timestamp.fromDate(dayStart))
-    .where('dataConsulenza', '<=', Timestamp.fromDate(dayEnd))
-    .where('stato', 'in', ['in_attesa', 'confermata'])
-    .get();
-  
-  for (const doc of consultationsSnap.docs) {
-    const data = doc.data();
-    const consultationDate = data.dataConsulenza.toDate();
-    const year = consultationDate.getFullYear();
-    const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
-    const day = String(consultationDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+  // 2. Load existing consultations (OPTIONAL - can be excluded via options)
+  if (includeConsultations) {
+    const consultationsSnap = await db
+      .collection('consultations')
+      .where('dataConsulenza', '>=', Timestamp.fromDate(dayStart))
+      .where('dataConsulenza', '<=', Timestamp.fromDate(dayEnd))
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
     
-    const start = createEuropeRomeDate(dateStr, data.orarioInizio);
-    const end = createEuropeRomeDate(dateStr, data.orarioFine);
-    
-    existingEvents.push({
-      start,
-      end,
-      allDay: false,
-      title: `Consultation ${data.cliente?.nome || ''}`,
-      source: 'consultation'
-    });
-  }
-  
-  console.log(`[Consultation Adapter] 📋 ${consultationsSnap.size} existing consultations`);
-  
-  // 3. Load bookings (only confirmed)
-  const bookingsSnap = await db
-    .collection('bookings')
-    .where('stato', '==', 'confermata')
-    .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
-    .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
-    .get();
-
-  for (const doc of bookingsSnap.docs) {
-    const data = doc.data();
-    const startDate = data.dataShootingInizio.toDate();
-    const endDate = data.dataShootingFine?.toDate?.() || startDate;
-
-    existingEvents.push({
-      start: startDate,
-      end: endDate,
-      allDay: false,
-      title: `Booking ${data.clienteNome || ''}`,
-      source: 'booking'
-    });
-  }
-
-  console.log(`[Consultation Adapter] 📸 ${bookingsSnap.size} confirmed bookings (blocking)`);
-  
-  // 4. Load jobs (only blocking statuses)
-  const jobsSnap = await db
-    .collection('jobs')
-    .where('eventDate', '>=', Timestamp.fromDate(dayStart))
-    .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
-    .get();
-  
-  const blockingStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
-  
-  for (const doc of jobsSnap.docs) {
-    const data = doc.data();
-    
-    if (!blockingStatuses.includes(data.stato)) {
-      continue;
-    }
-    
-    const eventDate = data.eventDate.toDate();
-    
-    if (data.allDay) {
-      const start = new Date(eventDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(eventDate);
-      end.setHours(23, 59, 59, 999);
-      
-      existingEvents.push({
-        start,
-        end,
-        allDay: true,
-        title: `Job ${data.nomeEvento || ''}`,
-        source: 'job'
-      });
-    } else if (data.startTime && data.endTime) {
-      const year = eventDate.getFullYear();
-      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-      const day = String(eventDate.getDate()).padStart(2, '0');
+    for (const doc of consultationsSnap.docs) {
+      const data = doc.data();
+      const consultationDate = data.dataConsulenza.toDate();
+      const year = consultationDate.getFullYear();
+      const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
+      const day = String(consultationDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
       
-      const start = createEuropeRomeDate(dateStr, data.startTime);
-      const end = createEuropeRomeDate(dateStr, data.endTime);
+      const start = createEuropeRomeDate(dateStr, data.orarioInizio);
+      const end = createEuropeRomeDate(dateStr, data.orarioFine);
       
       existingEvents.push({
         start,
         end,
         allDay: false,
-        title: `Job ${data.nomeEvento || ''}`,
-        source: 'job'
+        title: `Consultation ${data.cliente?.nome || ''}`,
+        source: 'consultation'
       });
     }
+    
+    console.log(`[Consultation Adapter] 📋 ${consultationsSnap.size} Firestore consultations (included)`);
+  } else {
+    console.log(`[Consultation Adapter] 🚫 Firestore consultations EXCLUDED from blocking events`);
   }
   
-  console.log(`[Consultation Adapter] 💼 ${existingEvents.filter(e => e.source === 'job').length} blocking jobs`);
-  console.log(`[Consultation Adapter] 🎯 TOTAL: ${existingEvents.length} blocking events`);
+  // 3. Load bookings (only confirmed) (OPTIONAL - can be excluded via options)
+  if (includeBookings) {
+    const bookingsSnap = await db
+      .collection('bookings')
+      .where('stato', '==', 'confermata')
+      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+
+    for (const doc of bookingsSnap.docs) {
+      const data = doc.data();
+      const startDate = data.dataShootingInizio.toDate();
+      const endDate = data.dataShootingFine?.toDate?.() || startDate;
+
+      existingEvents.push({
+        start: startDate,
+        end: endDate,
+        allDay: false,
+        title: `Booking ${data.clienteNome || ''}`,
+        source: 'booking'
+      });
+    }
+
+    console.log(`[Consultation Adapter] 📸 ${bookingsSnap.size} confirmed bookings (included)`);
+  } else {
+    console.log(`[Consultation Adapter] 🚫 Bookings EXCLUDED from blocking events`);
+  }
+  
+  // 4. Load jobs (only blocking statuses) (OPTIONAL - can be excluded via options)
+  if (includeJobs) {
+    const jobsSnap = await db
+      .collection('jobs')
+      .where('eventDate', '>=', Timestamp.fromDate(dayStart))
+      .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+    
+    const blockingStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
+    
+    for (const doc of jobsSnap.docs) {
+      const data = doc.data();
+      
+      if (!blockingStatuses.includes(data.stato)) {
+        continue;
+      }
+      
+      const eventDate = data.eventDate.toDate();
+      
+      if (data.allDay) {
+        const start = new Date(eventDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(eventDate);
+        end.setHours(23, 59, 59, 999);
+        
+        existingEvents.push({
+          start,
+          end,
+          allDay: true,
+          title: `Job ${data.nomeEvento || ''}`,
+          source: 'job'
+        });
+      } else if (data.startTime && data.endTime) {
+        const year = eventDate.getFullYear();
+        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const day = String(eventDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        
+        const start = createEuropeRomeDate(dateStr, data.startTime);
+        const end = createEuropeRomeDate(dateStr, data.endTime);
+        
+        existingEvents.push({
+          start,
+          end,
+          allDay: false,
+          title: `Job ${data.nomeEvento || ''}`,
+          source: 'job'
+        });
+      }
+    }
+    
+    console.log(`[Consultation Adapter] 💼 ${existingEvents.filter(e => e.source === 'job').length} blocking jobs (included)`);
+  } else {
+    console.log(`[Consultation Adapter] 🚫 Jobs EXCLUDED from blocking events`);
+  }
+  
+  console.log(`[Consultation Adapter] 🎯 TOTAL: ${existingEvents.length} blocking events (Google: always, Firestore: ${includeConsultations ? 'consultations✓' : 'consultations✗'} ${includeBookings ? 'bookings✓' : 'bookings✗'} ${includeJobs ? 'jobs✓' : 'jobs✗'})`);
   
   return existingEvents;
 }
