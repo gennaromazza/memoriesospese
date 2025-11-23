@@ -1,0 +1,125 @@
+Ti fornisco tre parti fondamentali del mio progetto:
+
+server/calendar-engine/google-sync.ts
+
+server/calendar-engine/slots.ts
+
+la route V2 /api/consultations/v2/available-slots
+
+Il problema attuale è:
+
+TypeError: event.start.getTime is not a function
+
+
+➡️ Significa che gli eventi Google Calendar non vengono normalizzati a oggetti Date reali prima di essere passati allo slot engine.
+
+È fondamentale capire questo punto:
+
+Lo slot engine in slots.ts È CORRETTO e non deve essere toccato.
+
+Gli eventi interni (consultations, bookings, jobs) sono già Date e vanno bene.
+
+Il problema riguarda SOLO gli eventi provenienti da Google Calendar.
+
+Il wrapper google-sync.ts normalizza correttamente i “busy periods” di checkFreeBusyAllCalendars,
+MA non normalizza gli eventi restituiti da getEvents().
+
+E anche la funzione hasAllDayEvent() usa originalGetEvents senza normalizzarli.
+
+Quando la route v2 aggiunge questi eventi in existingEvents, alcuni sono:
+
+{ start: { dateTime: '...' }, end: { dateTime: '...' } }
+
+{ start: { date: 'YYYY-MM-DD' } } (all-day)
+
+o anche DateTime di Luxon
+
+Lo slot engine si aspetta SEMPRE:
+
+{
+  start: Date,
+  end: Date,
+  allDay: boolean
+}
+
+🎯 OBIETTIVO DEL TUO LAVORO
+
+Produrre una patch chirurgica che:
+
+Normalizza TUTTI gli eventi di Google Calendar
+– sia quelli di checkFreeBusyAllCalendars
+– sia quelli di getEvents()
+– sia quelli rilevati in hasAllDayEvent()
+
+Usa Luxon con timezone Europe/Rome.
+
+Ritorna sempre .toJSDate() per garantire .getTime() valido.
+
+NON modifica:
+
+slots.ts
+
+consultation adapter
+
+booking adapter
+
+shared types, se non necessario
+
+la route v1 legacy
+
+nessuna API esistente
+
+nessuna struttura Firestore
+
+nessun campo extra
+
+nessuna logica di availability
+
+Produce una patch minima e chiara:
+
+file modificati
+
+diff preciso
+
+spiegazione delle modifiche
+
+📌 Focus tecnico dei tuoi interventi
+
+Serve solo:
+
+una funzione normalizeGoogleEvent(rawEvent) in google-sync.ts
+
+aggiornare getGoogleCalendarEvents() per restituire versioni normalizzate
+
+aggiornare hasAllDayEvent() per normalizzare PRIMA di analizzare
+
+NON cambiare nulla della logica “source: booking/job/consultation”
+
+📌 Formato richiesto
+
+Rispondi in questo formato:
+
+### 🔧 Patch completa
+<diff pronto da incollare>
+
+### 🧠 Spiegazione tecnica
+<perché e cosa hai cambiato>
+
+### 📁 File toccati
+- server/calendar-engine/google-sync.ts
+- (se serve) minima modifica nella route v2 per usare il nuovo normalizer
+
+### 🚫 NON HO TOCCATO
+- slots.ts
+- tutto il legacy
+- tutta la business logic
+
+❗IMPORTANTE
+
+Se trovi ambiguità tra “all-day” e “dateTime”, risolvi così:
+
+se start.date → all-day → start = YYYY-MM-DDT00:00:00.000 Europe/Rome
+
+se start.dateTime → normale → usa .fromISO(...).setZone("Europe/Rome")
+
+converti sempre in .toJSDate()
