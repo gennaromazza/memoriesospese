@@ -882,13 +882,43 @@ router.post(
         noteInterne: noteParts.join("\n"),
       };
 
-      // Crea job (riutilizza logica jobs esistente)
+      // Crea job (riutilizza logica jobs esistenti)
       const jobRef = await db.collection("jobs").add({
         ...jobData,
         consultationId: id, // Riferimento bidirezionale per cleanup
         status: "lead",
         financials: {
+          totalePreventivato: 0,
+          totaleOrdini: 0,
+          totalePagato: 0,
+          saldoResiduo: 0,
+        },
+        pdfs: [],
+        costi: [],
+        orderIds: [],
+        galleryIds: [],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        createdBy: req.body.userId || "admin", // TODO: Auth middleware
+        jobSource: "consultation",
+      });
 
+      // Aggiorna consultation con job ID
+      await consultationService.updateConsultation(id, {
+        jobCreated: true,
+        jobId: jobRef.id,
+      });
+
+      res.json({
+        message: "Consultation convertita in job con successo",
+        jobId: jobRef.id,
+      });
+    } catch (error: any) {
+      console.error("[POST /:id/convert-to-job] Errore:", error.message);
+      res.status(500).json({ error: "Errore conversione consultation in job" });
+    }
+  },
+);
 
 /**
  * POST /api/consultations/v2/create
@@ -1069,38 +1099,6 @@ router.post("/v2/create", async (req, res) => {
     res.status(500).json({ error: "Errore creazione consultation" });
   }
 });
-
-          totalePreventivato: 0,
-          totaleOrdini: 0,
-          totalePagato: 0,
-          saldoResiduo: 0,
-        },
-        pdfs: [],
-        costi: [],
-        orderIds: [],
-        galleryIds: [],
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        createdBy: req.body.userId || "admin", // TODO: Auth middleware
-        jobSource: "consultation",
-      });
-
-      // Aggiorna consultation con job ID
-      await consultationService.updateConsultation(id, {
-        jobCreated: true,
-        jobId: jobRef.id,
-      });
-
-      res.json({
-        message: "Consultation convertita in job con successo",
-        jobId: jobRef.id,
-      });
-    } catch (error: any) {
-      console.error("[POST /:id/convert-to-job] Errore:", error.message);
-      res.status(500).json({ error: "Errore conversione consultation in job" });
-    }
-  },
-);
 
 /**
  * DELETE /api/consultations/:id

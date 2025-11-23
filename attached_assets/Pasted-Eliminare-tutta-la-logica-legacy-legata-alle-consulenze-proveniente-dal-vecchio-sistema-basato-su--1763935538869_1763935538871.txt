@@ -1,0 +1,137 @@
+Eliminare tutta la logica legacy legata alle consulenze proveniente dal vecchio sistema basato su:
+
+getAvailableSlotsForDate old (service legacy)
+
+isSlotAvailable old
+
+Vecchio flow “create”
+
+Vecchio flow “available-slots”
+
+Vecchia gestione timezone
+
+Vecchia gestione busy periods
+
+Vecchie query manuali a bookings / consultations / jobs
+
+Vecchie funzioni duplicate in consultationService
+
+E garantire che rimangano soltanto:
+
+Calendar Engine V2
+
+calendar-adapter.ts come unica fonte di fetch eventi
+
+v2/available-slots come unico endpoint per generare slot
+
+v2/create come unico endpoint di creazione consultation
+
+Nessun uso della logica legacy in nessun file
+
+🧠 CONTESTO TECNICO IMPORTANTE
+Il nuovo flusso DEVE rimanere questo:
+client → /api/consultations/v2/... → adapter → Calendar Engine V2
+
+
+e NON ci deve essere nessuna delle seguenti cose:
+
+nessun uso di consultationService.getAvailableSlotsForDate (legacy)
+
+nessun uso di consultationService.isSlotAvailable (legacy)
+
+nessun calcolo manuale di slot in consultation-routes.ts
+
+nessun check manuale free/busy via google-calendar.js fuori dal calendar-engine
+
+nessun residuo di endpoint legacy oltre ai redirect 301
+
+nessuna doppia query bookings / jobs / consultations fuori dall'adapter
+
+nessun codice commentato o lasciato sospeso
+
+nessuna duplicazione dei blocchi try/catch legacy rimasti appesi
+
+nessun import di funzioni legacy non più utilizzate
+
+📝 TASK CHE DEVI ESEGUIRE
+1️⃣ Scansione completa del progetto
+
+Cerca in tutto il repository (TS e JS):
+
+stringa "available-slots"
+
+stringa "isSlotAvailable"
+
+stringa "getAvailableSlotsForDate"
+
+stringa "slot"
+
+stringa "checkFreeBusyAllCalendars"
+
+stringa "legacy"
+
+stringa "calendar"
+
+ogni file che importa cose da consultationService che riguardano slot
+
+qualunque endpoint in consultation-routes.ts dopo i redirect 301
+
+ogni funzione duplicata o ridondante nel service consultations.js
+
+Elenca TUTTE le tracce legacy che trovi, con:
+
+percorso file
+
+numero linee
+
+snippet breve
+
+perché deve essere rimosso
+
+2️⃣ Proponi una strategia di cleanup
+
+Prima di modificare, voglio un piano con:
+
+quali file vanno puliti
+
+quali funzioni vanno cancellate
+
+quali endpoint vanno resi 301
+
+quali import vanno rimossi
+
+quali duplicazioni vanno eliminate
+
+cosa va spostato in Calendar Engine o Adapter
+
+cosa può essere eliminato del tutto
+
+3️⃣ Applicazione patch SICURA e PASSO-PASSO
+
+Per ogni modifica:
+
+Proponi diff completo del file
+
+Aspetta mia conferma
+
+Applica il diff
+
+Ricontrolla ed elimina import non usati
+
+Esegui una analisi statica del risultato
+
+4️⃣ Verifica finale
+
+Dopo aver finito le modifiche:
+
+verifica che NESSUNA funzione legacy venga più importata
+
+verifica che NESSUN endpoint legacy venga più eseguito
+
+verifica che tutti gli slot vengano generati solo da Calendar Engine V2
+
+verifica che create usi SOLO il flusso nuovo
+
+verifica che bookings / consultations / jobs vengano caricati solo da adapter
+
+verifica che non esista codice morto o commentato
