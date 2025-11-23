@@ -1,0 +1,107 @@
+Ti descrivo il problema:
+
+Nel modulo Consultations V2, che utilizza il nuovo Calendar Engine V2, avvengono conflitti fantasma.
+
+Esempio reale:
+
+Lo slot richiesto è 09:00–10:30
+
+Una Booking esistente è 11:00–11:30
+
+Non c'è nessuna sovrapposizione
+
+Tuttavia il backend segnala conflitto
+
+Il log dimostra che il conflitto NON arriva dal Calendar Engine V2,
+MA dalla logica legacy che controlla le Booking direttamente dalla route delle Consultazioni.
+
+🎯 OBIETTIVO DEL FIX
+
+Disattivare SOLO nella route V2 delle Consultazioni
+il controllo dei conflitti con le Booking legacy
+che avviene PRIMA del Calendar Engine V2.
+
+In pratica:
+
+Consultations V2 deve ignorare completamente il vecchio controllo Booking → Consultazioni
+
+Tutto deve essere gestito SOLO dal Calendar Engine V2
+
+NON deve essere toccato nessun endpoint legacy
+
+NON deve essere modificata la logica di booking legacy
+
+La modifica deve essere localizzata alla nuova route V2
+
+🔍 COSA DEVI CERCARE
+
+Nel file:
+
+server/consultation-routes.ts
+
+
+trova il codice nella route V2 simile a questo pattern:
+
+// Check bookings for the same day
+const bookings = ...
+for (const b of bookings) {
+   check manual overlap ...
+}
+
+
+oppure:
+
+// Controllo bookings legacy
+...
+
+
+oppure:
+
+if (bookingStart < slotEnd && bookingEnd > slotStart) {
+   conflict ...
+}
+
+
+Questo blocco deve essere disattivato.
+
+🔧 COSA DEVI FARE
+
+Produrre una patch che:
+
+Isola completamente il codice legacy di controllo conflict Booking→Consultazioni.
+
+Lo sostituisce con un commento chiaro:
+
+// 🚫 LEGACY BOOKING CONFLICT CHECK DISABLED IN CALENDAR ENGINE V2
+// Tutti i conflitti vengono ora gestiti esclusivamente dal Calendar Engine V2.
+// Questo blocco rimane intatto per la route legacy, ma è disattivato qui.
+
+
+Non rimuove il codice — solo commentato o bypassato.
+
+Non modifica alcuna logica legacy.
+
+Non modifica alcuna logica del Calendar Engine.
+
+Non modifica alcun comportamento delle booking legacy.
+
+📌 FORMATO DI USCITA RICHIESTO
+
+Rispondi in questo formato:
+
+### 🔧 Patch (diff)
+<diff completo e pronto da applicare>
+
+### 🧠 Spiegazione tecnica
+<perché è corretto>
+
+### 📁 File modificati
+- server/consultation-routes.ts
+
+### 🚫 NON HO TOCCATO
+- legacy /available-slots
+- booking legacy logic
+- google calendar engine
+- slots engine
+- adapter consultations
+- firestore structures
