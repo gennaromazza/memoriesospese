@@ -1,0 +1,140 @@
+Il sistema Consulenze del mio progetto presenta ancora conflitti fantasma (409) durante la prenotazione, nonostante il Calendar Engine V2 sia stato implementato.
+Il problema più grave è che esiste logica duplicata tra:
+
+/api/consultations/create
+
+/api/consultations/v2/create
+
+/api/consultations/available-slots
+
+/api/consultations/v2/available-slots
+
+Engine centralizzato calendar-engine/*
+
+Adapter consultations/calendar-adapter
+
+Vecchia logica conflict detection legacy
+
+👉 Serve una sistemazione strutturale, non cosmetica.
+
+🎯 IL TUO TASK
+
+Scansiona automaticamente tutto il progetto e identifica:
+
+dove viene calcolata la disponibilità degli slot
+
+dove vengono letti gli impegni (consultations, bookings, jobs)
+
+dove viene consultato Google Calendar
+
+dove viene eseguita la conflict detection
+
+ogni file che contiene logica di slot e orari
+
+Riconosci e rimuovi tutta la logica duplicata e legacy che entra in conflitto con Calendar Engine V2.
+
+Uniforma TUTTA la piattaforma affinché:
+
+/v2/available-slots usi SOLO il Calendar Engine V2
+
+/v2/create usi SOLO il Calendar Engine V2
+
+nessuna route richiami più checkFreeBusyAllCalendars direttamente
+
+nessuna route ricrei manualmente overlap, busy periods, comparazioni date, ecc.
+
+tutti i controlli siano centralizzati nel Calendar Engine
+
+Verifica la presenza di logica legacy ancora attiva, come:
+
+check multipli di bookings
+
+query duplicate in più punti
+
+normalizzazioni custom
+
+conversioni timezone duplicate
+
+pre-caricamenti Google Calendar
+
+Costruisci una route /v2/create minimalista, sicura e allineata all’engine, con questa struttura:
+
+carica template
+
+valida template via adapter
+
+genera config V2
+
+ottieni eventi esistenti via engine
+
+controlla conflitto via engine
+
+crea consultation
+
+invia email
+
+ritorna OK
+
+Nessuna logica legacy o duplicata.
+
+Assicurati che i tipi dell’engine siano coerenti:
+
+AvailabilityConfig
+
+CalendarEvent
+
+SlotsResponse
+
+Testa la correzione:
+
+simula almeno 3 casi di slot disponibili
+
+simula sovrapposizioni reali
+
+simula conflitti fantasma con dati attuali
+
+verifica che 409 NON venga restituito quando lo slot è corretto
+
+Conserva la compatibilità con:
+
+bookings (ma la logica conflitti non deve essere duplicata nella route)
+
+consultations esistenti
+
+jobs bloccanti
+
+Google Calendar tramite wrapper V2
+
+🚫 RESTRIZIONI IMPORTANTI
+
+NON ricreare manualmente la conflict detection nella route
+
+NON fare refactor globale non richiesto
+
+NON introdurre nuove dipendenze
+
+NON cambiare il comportamento dei file esterni al modulo Consulenze e Calendar Engine se non necessario
+
+NON rompere nessun endpoint legacy
+
+NON eliminare funzionalità esistenti (email, job conversion, ecc.)
+
+🔥 OUTPUT FINALE ATTESO
+
+Route /v2/create perfettamente funzionante (≈ 40–80 righe)
+
+Route /v2/available-slots ripulita e perfettamente allineata all’engine
+
+Nessuna logica duplicata o conflict detection legacy fuori dall’engine
+
+Engine V2 centrale e unico responsabile dei conflitti
+
+Conflitti fantasma risolti al 100%
+
+Conferma dei test eseguiti nel log Replit Assistant
+
+Patch finale con diff preciso e sicuro
+
+📌 Nota finale
+
+Se trovi errori architetturali nel mio Calendar Engine V2 o nell’adapter, correggili pure, ma solo se strettamente necessario alla risoluzione dei conflitti.
