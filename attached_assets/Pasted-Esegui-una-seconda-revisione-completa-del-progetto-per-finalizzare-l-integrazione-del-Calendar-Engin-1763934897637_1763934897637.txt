@@ -1,0 +1,121 @@
+Esegui una seconda revisione completa del progetto per finalizzare l’integrazione del Calendar Engine V2 e garantire che NON esista più logica duplicata, residuale o legacy che possa reintrodurre conflitti fantasma.
+
+🎯 OBIETTIVO
+Centralizzare al 100% la conflict detection nel Calendar Engine V2 e rimuovere TUTTA la logica duplicata nelle route e nei servizi.
+
+📌 TASK
+1. Cerca in tutto il progetto le seguenti cose:
+
+Qualsiasi query manuale su /bookings
+
+Qualsiasi query manuale su /jobs
+
+Qualsiasi query manuale su /consultations usata in modo duplicato
+
+Qualsiasi chiamata diretta a:
+
+checkFreeBusyAllCalendars
+
+checkFreeBusyAllCalendars as originalCheckFreeBusy
+
+getEvents
+
+normalizeTimestampToDate
+
+parsing manuale orari
+
+createEuropeRomeDate fatta fuori dall’adapter
+
+Ogni utilizzo fuori dal Calendar Engine V2 o dai suoi adapter va rimosso.
+
+2. Route da correggere
+
+/api/consultations/create → deve essere disattivata o convertita per richiamare /v2/create
+
+/api/consultations/available-slots → deve essere disattivata o convertita in wrapper verso /v2/available-slots
+
+/api/consultations/v2/available-slots → rimuovi TUTTA la logica manuale: bookings, jobs, consultations.
+❗ Deve solo:
+
+leggere template
+
+convertire template in config
+
+chiamare Engine V2 per verificare all-day events
+
+chiamare Engine V2 per ottenere gli eventi
+
+restituire gli slot
+
+/api/consultations/v2/create → rimuovi completamente lettura manuale di bookings, jobs, consultations
+Deve solo:
+
+leggere template
+
+chiamare adapter → config
+
+usare Engine V2 per verificare conflitti
+
+salvare la consultation
+
+inviare email
+
+3. Correggi Calendar Adapter
+
+Verifica che:
+
+converta workingHours e excludedDays correttamente
+
+generi AvailabilityConfig coerente
+
+sia l’unica fonte della configurazione, senza logica nella route
+
+4. Correggi Calendar Engine V2
+
+Verifica:
+
+normalizzazione eventi
+
+timezone Rome
+
+gestione all-day
+
+overlap 100% corretta
+
+nessun drift fra busy periods
+
+5. Test automatici
+
+Esegui test automatici su date reali e simulate:
+
+Test A — Slot disponibile
+
+Slot 09:00–10:30 con busy period alle 11:00–11:30 → deve essere disponibile.
+
+Test B — Sovrapposizione reale
+
+Due slot 09:00–10:30 e 10:15–11:45 → il secondo deve essere bloccato.
+
+Test C — All day event
+
+Se Google Calendar ha un evento all-day → nessuno slot deve essere mostrato.
+
+Test D — Jobs
+
+Job confermato dalle 15:00 alle 16:30 → tutti gli slot sovrapposti devono essere bloccati.
+
+6. Output atteso
+
+Patch completa e sicura
+
+Diff dettagliato
+
+Lista dei file modificati
+
+Log test automatizzati
+
+Conferma finale che:
+
+🔵 NON esiste più alcuna logica legacy fuori dall’engine
+🟢 Tutti i conflitti vengono gestiti dal Calendar Engine V2
+🟢 I conflitti fantasma sono risolti al 100%
