@@ -1,0 +1,174 @@
+La route /api/consultations/v2/available-slots funziona correttamente e usa Calendar Engine V2
+
+Ma la route di creazione /api/consultations/create è legacy e continua a usare:
+
+booking legacy conflict check
+
+overlaps vecchi
+
+analisi orari vecchia
+
+logica non normalizzata
+
+Questo fa sì che anche se lo slot V2 è valido, la route legacy generi:
+
+409 CONFLICT - Slot NON disponibile
+
+
+La cause è chiara:
+
+👉 La conferma usa codice legacy non compatibile con Calendar Engine V2.
+👉 La creazione deve avere UNA LOGICA NUOVA COME GLI SLOT.
+
+Quindi serve una route moderna:
+
+POST /api/consultations/v2/create
+
+🎯 OBIETTIVO DELLA PATCH
+
+Creare una nuova route:
+
+router.post("/v2/create", ...)
+
+
+che deve:
+
+prendere templateId, date, startTime, endTime, clientData
+
+ricostruire correttamente lo slot usando Calendar Engine V2
+→ NO legacy conversions
+
+verificare conflitti usando SOLO:
+
+existingEvents provenienti da Calendar Engine
+
+salvare la consultazione in Firestore con:
+
+orario normalizzato
+
+timezone Europe/Rome
+
+stato "in_attesa" o "confermata" (come legacy)
+
+creare l’evento corrispondente in Google Calendar (wrapper V2)
+
+restituire:
+
+{ "success": true, "consultationId": "..." }
+
+🔧 GUIDA TECNICA PER LA PATCH
+
+La nuova route deve:
+
+✔ Importare ciò che serve
+
+Calendar Engine V2:
+
+import {
+  getAvailableSlotsForDate,
+  createGoogleCalendarEvent,
+  checkGoogleCalendarBusyPeriods,
+  hasAllDayEvent
+} from "../calendar-engine";
+
+
+Template consultations (già esistenti)
+
+Firestore
+
+Luxon DateTime
+
+✔ Ricostruire lo slot selezionato
+
+Ricevi nel body:
+
+{
+  "templateId": "...",
+  "date": "2025-11-29",
+  "start": "09:00",
+  "end": "10:30",
+  "client": { ... }
+}
+
+
+Crea:
+
+const startDateRome = DateTime.fromISO(`${date}T${start}`, { zone: "Europe/Rome" });
+const endDateRome   = DateTime.fromISO(`${date}T${end}`, { zone: "Europe/Rome" });
+
+✔ Controllare conflitti usando Calendar Engine
+
+Non usare codice legacy.
+
+Ottieni gli eventi:
+
+const existingEvents = await checkGoogleCalendarBusyPeriods(startDateRome.toJSDate(), endDateRome.toJSDate());
+
+
+Poi aggiungi eventuali consultazioni esistenti (solo V2 standardizzate).
+(Il codice legacy non va toccato)
+
+Filtro conflitti:
+
+if (hasOverlap(startDateRome.toJSDate(), endDateRome.toJSDate(), event.start, event.end)) {
+   return res.status(409).json({ error: "slot_unavailable" });
+}
+
+✔ Se ok → salva in Firestore
+
+Crea la consultation:
+
+inizio
+
+fine
+
+date
+
+stato
+
+dataCreazione
+
+client info
+
+templateId
+
+✔ Crea evento Google Calendar
+
+Usa wrapper V2:
+
+await createGoogleCalendarEvent("primary", {
+  summary: "Consultazione",
+  start: { dateTime: startDateRome.toISO() },
+  end: { dateTime: endDateRome.toISO() }
+});
+
+📁 DOVE METTERE LA ROUTE
+
+Dentro:
+
+server/consultation-routes.ts
+
+
+Sotto a:
+
+router.post("/v2/available-slots", ...)
+
+📌 FORMATO DI RISPOSTA RICHIESTO DA REPLIT ASSISTANT
+
+Rispondi con:
+
+### 🔧 Patch (diff)
+<patch completa>
+
+### 🧠 Spiegazione tecnica
+<spiega cosa hai fatto e perché>
+
+### 📁 File modificati
+- server/consultation-routes.ts
+
+### 🚫 NON TOCCARE
+- legacy route /available-slots
+- legacy route /create
+- booking legacy
+- job legacy
+- google-calendar legacy
