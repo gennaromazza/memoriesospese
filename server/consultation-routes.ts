@@ -1154,6 +1154,274 @@ router.post(
         consultationId: id, // Riferimento bidirezionale per cleanup
         status: "lead",
         financials: {
+
+
+/**
+ * POST /api/consultations/v2/create
+ * Create consultation using Calendar Engine V2 (NO LEGACY LOGIC)
+ * 
+ * Flow:
+ * 1. Load template
+ * 2. Validate template via adapter
+ * 3. Generate AvailabilityConfig
+ * 4. Get existing events via Calendar Engine
+ * 5. Check conflicts via Calendar Engine
+ * 6. Create consultation in Firestore
+ * 7. Send confirmation email
+ * 8. Return success
+ */
+router.post("/v2/create", async (req, res) => {
+  try {
+    const {
+      templateId,
+      cliente,
+      dataConsulenza,
+      orarioInizio,
+      orarioFine,
+      jobDataCollected,
+      note,
+    } = req.body;
+
+    // Step 1: Validate input
+    const validatedData = InsertConsultationSchema.parse({
+      templateId,
+      cliente,
+      dataConsulenza,
+      orarioInizio,
+      orarioFine,
+      jobDataCollected: jobDataCollected || {},
+      note: note || "",
+    });
+
+    // Step 2: Load template
+    const template = await consultationService.getTemplateById(templateId);
+
+    if (!template) {
+      return res.status(404).json({ error: "Template non trovato" });
+    }
+
+    if (!template.attiva) {
+      return res.status(400).json({ error: "Template non attivo" });
+    }
+
+    // Step 3: Validate template via adapter
+    const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate } = await import('./consultations/calendar-adapter.js');
+
+    if (!validateConsultationTemplate(template)) {
+      return res.status(400).json({
+        error: "Template configurazione invalida",
+        message: "Template manca di customWorkingHours o durataMinuti"
+      });
+    }
+
+    // Step 4: Generate AvailabilityConfig
+    const config = consultationTemplateToAvailabilityConfig(template);
+
+    // Step 5: Parse date and time in Europe/Rome timezone
+    const { DateTime } = await import('luxon');
+    const dateObj = DateTime.fromISO(dataConsulenza, { zone: "Europe/Rome" });
+    const slotStart = DateTime.fromISO(`${dataConsulenza}T${orarioInizio}:00`, { zone: "Europe/Rome" }).toJSDate();
+    const slotEnd = DateTime.fromISO(`${dataConsulenza}T${orarioFine}:00`, { zone: "Europe/Rome" }).toJSDate();
+
+    // Step 6: Get existing events via Calendar Engine V2
+    const { checkGoogleCalendarBusyPeriods } = await import('./calendar-engine/google-sync.js');
+    const { hasConflict } = await import('./calendar-engine/conflicts.js');
+    const { CalendarEvent } = await import('../shared/calendar-types.js');
+
+    const dayStart = dateObj.startOf("day").toJSDate();
+    const dayEnd = dateObj.endOf("day").toJSDate();
+
+    const existingEvents: any[] = [];
+
+    // 6a. Google Calendar busy periods
+    const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
+    existingEvents.push(...googleBusy);
+
+    // 6b. Existing consultations
+    const consultationsSnap = await db
+      .collection("consultations")
+      .where("dataConsulenza", ">=", Timestamp.fromDate(dayStart))
+      .where("dataConsulenza", "<=", Timestamp.fromDate(dayEnd))
+      .where("stato", "in", ["in_attesa", "confermata"])
+      .get();
+
+    for (const doc of consultationsSnap.docs) {
+      const data = doc.data();
+      const consultationDate = data.dataConsulenza.toDate();
+      const year = consultationDate.getFullYear();
+      const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
+      const day = String(consultationDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      const { createEuropeRomeDate } = await import('./google-calendar.js');
+      const start = createEuropeRomeDate(dateStr, data.orarioInizio);
+      const end = createEuropeRomeDate(dateStr, data.orarioFine);
+
+      existingEvents.push({
+        start,
+        end,
+        allDay: false,
+        title: `Consultation ${data.cliente?.nome || ''}`,
+        source: 'consultation'
+      });
+    }
+
+    // 6c. Jobs (blocking statuses only)
+    const jobsSnap = await db
+      .collection("jobs")
+      .where("eventDate", ">=", Timestamp.fromDate(dayStart))
+      .where("eventDate", "<=", Timestamp.fromDate(dayEnd))
+      .get();
+
+    const blockingStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione'];
+
+    for (const doc of jobsSnap.docs) {
+      const data = doc.data();
+
+      if (!blockingStatuses.includes(data.stato)) {
+        continue;
+      }
+
+      const eventDate = data.eventDate.toDate();
+
+      if (data.allDay) {
+        const start = new Date(eventDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(eventDate);
+        end.setHours(23, 59, 59, 999);
+
+        existingEvents.push({
+          start,
+          end,
+          allDay: true,
+          title: `Job ${data.nomeEvento || ''}`,
+          source: 'job'
+        });
+      } else if (data.startTime && data.endTime) {
+        const year = eventDate.getFullYear();
+        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const day = String(eventDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        const { createEuropeRomeDate } = await import('./google-calendar.js');
+        const start = createEuropeRomeDate(dateStr, data.startTime);
+        const end = createEuropeRomeDate(dateStr, data.endTime);
+
+        existingEvents.push({
+          start,
+          end,
+          allDay: false,
+          title: `Job ${data.nomeEvento || ''}`,
+          source: 'job'
+        });
+      }
+    }
+
+    // Step 7: Check conflicts via Calendar Engine V2
+    const conflict = hasConflict(slotStart, slotEnd, existingEvents);
+
+    if (conflict) {
+      console.error(`[POST /v2/create] ❌ CONFLICT - Slot ${orarioInizio}-${orarioFine} blocked by ${conflict.source}`);
+      return res.status(409).json({
+        error: "Slot non disponibile",
+        message: "Lo slot selezionato non è più disponibile. Scegli un altro orario.",
+        conflictSource: conflict.source
+      });
+    }
+
+    // Step 8: Create consultation
+    const consultationId = await consultationService.createConsultation(
+      validatedData as any,
+      template
+    );
+
+    // Step 9: Send confirmation email
+    let emailStatus = "sent";
+    try {
+      const {
+        sendGmailEmail,
+        getStudioContactInfo,
+        createConsultationReceivedEmailHTML,
+        createAdminNotificationEmailHTML,
+      } = await import("./email-routes.js");
+      const studioInfo = await getStudioContactInfo();
+
+      const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
+      const consultationDateObj = new Date(validatedData.dataConsulenza);
+      const formattedDate = consultationDateObj.toLocaleDateString("it-IT", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "Europe/Rome",
+      });
+
+      const htmlContent = createConsultationReceivedEmailHTML(
+        clienteName,
+        template.jobType,
+        formattedDate,
+        `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+        studioInfo,
+      );
+
+      await sendGmailEmail(
+        validatedData.cliente.email,
+        `Richiesta Consulenza Ricevuta - ${template.jobType}`,
+        htmlContent,
+      );
+
+      console.log(`✅ Email "Consulenza Ricevuta" inviata a ${validatedData.cliente.email}`);
+
+      // Admin notification email
+      try {
+        const adminEmail = studioInfo.email;
+        const adminEmailHTML = createAdminNotificationEmailHTML(
+          clienteName,
+          validatedData.cliente.email,
+          validatedData.cliente.whatsapp,
+          template.jobType,
+          formattedDate,
+          `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+          undefined,
+          validatedData.note,
+          studioInfo,
+        );
+
+        await sendGmailEmail(
+          adminEmail,
+          `Nuova Richiesta Consulenza - ${template.jobType}`,
+          adminEmailHTML,
+        );
+
+        console.log(`✅ Email notifica admin consulenza inviata a ${adminEmail}`);
+      } catch (adminEmailError) {
+        console.error("⚠️ Errore invio email notifica admin consulenza:", adminEmailError);
+      }
+    } catch (emailError: any) {
+      console.error("⚠️ Errore invio email consulenza ricevuta:", emailError.message);
+      emailStatus = "failed";
+    }
+
+    // Step 10: Return success
+    res.status(201).json({
+      id: consultationId,
+      message: "Consultation creata con successo",
+      emailStatus,
+    });
+  } catch (error: any) {
+    console.error("[POST /v2/create] Errore:", error.message);
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: "Dati non validi",
+        details: error.errors,
+      });
+    }
+
+    res.status(500).json({ error: "Errore creazione consultation" });
+  }
+});
+
           totalePreventivato: 0,
           totaleOrdini: 0,
           totalePagato: 0,
@@ -2150,11 +2418,9 @@ router.post("/v2/available-slots", async (req, res) => {
 
     console.log(`[POST /v2/available-slots] 📋 ${consultationsSnap.size} consultations esistenti`);
 
-    // 7c. Bookings
-    // 🚫 LEGACY BOOKING CONFLICT CHECK DISABLED IN CALENDAR ENGINE V2
-    // Le bookings vengono gestite SOLO dall'adapter centralizzato del Calendar Engine.
-    // Questo blocco è disabilitato per evitare conflitti fantasma.
-    console.log("[POST /v2/available-slots] ⏭️ Booking conflicts DISABLED in V2 - managed by Calendar Engine adapter");
+    // 7c. Bookings - DISABLED: Calendar Engine V2 manages them via adapters
+    // ⚠️ DO NOT re-enable manual booking queries here - causes phantom conflicts
+    console.log("[POST /v2/available-slots] ⏭️ Booking conflicts managed by Calendar Engine V2 adapter");
 
     // 7d. Jobs (only blocking statuses)
     const jobsSnap = await db
