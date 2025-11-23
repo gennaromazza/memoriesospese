@@ -205,7 +205,7 @@ export function useAvailableSlotsV2() {
 export function useCreateConsultation() {
   return useMutation({
     mutationFn: async (data: InsertConsultation) => {
-      const res = await apiRequest("POST", "/api/consultations/create", data);
+      const res = await apiRequest("POST", "/api/consultations/v2/create", data);
       return res.json();
     },
     onSuccess: () => {

@@ -74,7 +74,9 @@ export async function apiRequest(
   // Endpoint consultations pubblici (NON richiedono auth)
   const publicConsultationEndpoints = [
     '/api/consultations/available-slots',
-    '/api/consultations/create'
+    '/api/consultations/v2/available-slots',
+    '/api/consultations/create',
+    '/api/consultations/v2/create'
   ];
   
   const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => url.includes(endpoint));
