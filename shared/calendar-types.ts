@@ -55,13 +55,17 @@ export interface TimeSlot {
 
 /**
  * Represents an existing event that may block slots
+ * All Date objects MUST be JavaScript Date instances (not strings or Luxon DateTime)
  */
 export interface CalendarEvent {
-  /** Event start time */
+  /** Event start time as JavaScript Date */
   start: Date;
   
-  /** Event end time */
+  /** Event end time as JavaScript Date */
   end: Date;
+  
+  /** Whether this is an all-day event */
+  allDay: boolean;
   
   /** Event title/summary (optional, for debugging) */
   title?: string;

@@ -2142,6 +2142,7 @@ router.post("/v2/available-slots", async (req, res) => {
       existingEvents.push({
         start,
         end,
+        allDay: false,
         title: `Consultation ${data.cliente?.nome || ''}`,
         source: 'consultation'
       });
@@ -2162,6 +2163,7 @@ router.post("/v2/available-slots", async (req, res) => {
       existingEvents.push({
         start: data.dataShootingInizio.toDate(),
         end: data.dataShootingFine.toDate(),
+        allDay: false,
         title: 'Booking',
         source: 'booking'
       });
@@ -2197,6 +2199,7 @@ router.post("/v2/available-slots", async (req, res) => {
         existingEvents.push({
           start,
           end,
+          allDay: true,
           title: `Job ${data.nomeEvento || ''}`,
           source: 'job'
         });
@@ -2213,6 +2216,7 @@ router.post("/v2/available-slots", async (req, res) => {
         existingEvents.push({
           start,
           end,
+          allDay: false,
           title: `Job ${data.nomeEvento || ''}`,
           source: 'job'
         });

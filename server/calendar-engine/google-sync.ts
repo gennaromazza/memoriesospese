@@ -1,6 +1,7 @@
 // NEW CALENDAR ENGINE V2 — Google Calendar integration wrapper
 // Wraps existing Google Calendar functions without modifying them
 
+import { DateTime } from 'luxon';
 import { CalendarEvent } from '@/shared/calendar-types';
 import { 
   checkFreeBusyAllCalendars as originalCheckFreeBusy,
@@ -10,12 +11,39 @@ import {
 } from '../google-calendar';
 
 /**
+ * Normalize a date/time value to JavaScript Date in Europe/Rome timezone
+ * Handles: Date objects, ISO strings, Luxon DateTime, or any date-like input
+ */
+function normalizeToDate(input: any): Date {
+  // If already a Date, convert to Rome timezone and back to ensure consistency
+  if (input instanceof Date) {
+    return DateTime.fromJSDate(input, { zone: 'Europe/Rome' }).toJSDate();
+  }
+  
+  // If it's a string (ISO format), parse with Rome timezone
+  if (typeof input === 'string') {
+    return DateTime.fromISO(input, { zone: 'Europe/Rome' }).toJSDate();
+  }
+  
+  // If it's a Luxon DateTime, convert to Rome timezone
+  if (input && typeof input === 'object' && 'toJSDate' in input) {
+    return input.setZone('Europe/Rome').toJSDate();
+  }
+  
+  // Fallback: try to create a Date
+  return new Date(input);
+}
+
+/**
  * Check all Google Calendar busy periods
  * Wrapper around existing checkFreeBusyAllCalendars function
  * 
+ * CRITICAL: Normalizes all events to JavaScript Date objects in Europe/Rome timezone
+ * This ensures .getTime() works correctly in conflict detection
+ * 
  * @param timeMin Start of time range
  * @param timeMax End of time range
- * @returns Array of busy periods as CalendarEvents
+ * @returns Array of busy periods as CalendarEvents with normalized Date objects
  */
 export async function checkGoogleCalendarBusyPeriods(
   timeMin: Date,
@@ -25,14 +53,35 @@ export async function checkGoogleCalendarBusyPeriods(
     // Call existing function - returns array directly, not {busyPeriods: [...]}
     const busyPeriods = await originalCheckFreeBusy(timeMin, timeMax);
     
-    // Convert to CalendarEvent format
-    return busyPeriods.map(period => ({
-      start: period.start,
-      end: period.end,
-      source: 'google-calendar'
-    }));
+    console.log(`[Calendar Engine V2] 📅 Received ${busyPeriods.length} busy periods from Google Calendar`);
+    
+    // Convert to CalendarEvent format with NORMALIZED Date objects
+    return busyPeriods.map((period, idx) => {
+      const startDate = normalizeToDate(period.start);
+      const endDate = normalizeToDate(period.end);
+      
+      // Log first event for debugging
+      if (idx === 0 && busyPeriods.length > 0) {
+        console.log(`[Calendar Engine V2] 🔍 First busy period normalized:`, {
+          original_start: period.start,
+          original_end: period.end,
+          normalized_start: startDate,
+          normalized_end: endDate,
+          start_type: typeof startDate,
+          has_getTime: typeof startDate.getTime === 'function'
+        });
+      }
+      
+      return {
+        start: startDate,
+        end: endDate,
+        allDay: false, // Busy periods are always time-specific, not all-day
+        source: 'google-calendar'
+      };
+    });
   } catch (error: any) {
     console.error('[Calendar Engine V2] ⚠️ Error checking Google Calendar:', error.message);
+    console.error('[Calendar Engine V2] Stack:', error.stack);
     return []; // Return empty array on error to not block slot generation
   }
 }
