@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
-import { useTemplate, useAvailableSlots, useCreateConsultation } from '@/lib/consultations';
+import { useTemplate, useAvailableSlots, useAvailableSlotsV2, useCreateConsultation } from '@/lib/consultations';
 import { useParams, Link, useLocation } from 'wouter';
 import { ArrowLeft, ArrowRight, Calendar as CalendarIcon, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -42,7 +42,7 @@ export default function ConsultationBooking() {
   const { studioSettings } = useStudio();
 
   const { data: template, isLoading: isLoadingTemplate } = useTemplate(templateId);
-  const availableSlotsMutation = useAvailableSlots();
+  const availableSlotsMutation = useAvailableSlotsV2(); // 🔵 Using Calendar Engine V2 for better timezone handling
   const createConsultationMutation = useCreateConsultation();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -366,16 +366,17 @@ export default function ConsultationBooking() {
                           const availableSlots = availableSlotsMutation.data.slots?.filter((slot: any) => slot.available !== false) || [];
 
                           if (availableSlots.length === 0) {
+                            // 🔵 Calendar Engine V2 provides user-friendly unavailability messages
+                            const message = availableSlotsMutation.data.message || 'Nessuno slot disponibile per questa data';
                             return (
                               <div className="col-span-full text-center py-8 text-gray-500">
-                                Nessuno slot disponibile per questa data
+                                <p className="font-medium">{message}</p>
                               </div>
                             );
                           }
 
                           return availableSlots.map((slot: any, idx: number) => {
-                            // 🔥 FIX TIMEZONE: Usa startTime/endTime invece di ISO strings
-                            // Gli slot hanno già startTime e endTime come HH:mm in Europe/Rome
+                            // 🔵 Calendar Engine V2 provides properly formatted times in Europe/Rome timezone
                             const slotStart = new Date(slot.start);
                             const slotEnd = new Date(slot.end);
                             const isSelected = selectedSlot?.start.getTime() === slotStart.getTime();
@@ -389,8 +390,8 @@ export default function ConsultationBooking() {
                                 data-testid={`button-slot-${idx}`}
                               >
                                 <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                {/* Usa startTime direttamente dallo slot che è già HH:mm in Europe/Rome */}
-                                {slot.startTime || format(slotStart, "HH:mm")}
+                                {/* Use label from Calendar Engine V2 which is already in Europe/Rome timezone */}
+                                {slot.label || format(slotStart, "HH:mm")}
                               </Button>
                             );
                           });

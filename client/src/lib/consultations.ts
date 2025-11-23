@@ -188,6 +188,20 @@ export function useAvailableSlots() {
   });
 }
 
+// NEW CALENDAR ENGINE V2 — Unified API with better timezone handling and user-friendly messages
+export function useAvailableSlotsV2() {
+  return useMutation({
+    mutationFn: async (data: { templateId: string; date: string }) => {
+      const res = await apiRequest(
+        "POST",
+        "/api/consultations/v2/available-slots",
+        data,
+      );
+      return res.json();
+    },
+  });
+}
+
 export function useCreateConsultation() {
   return useMutation({
     mutationFn: async (data: InsertConsultation) => {
