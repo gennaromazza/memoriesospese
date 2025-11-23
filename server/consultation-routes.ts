@@ -454,29 +454,25 @@ router.patch(
       console.log(`[POST /v2/approve] 📅 Checking slot ${consultation.orarioInizio}-${consultation.orarioFine} on ${dateStr}`);
 
       // Step 4: Load ALL existing events for the day
+      // CRITICAL FIX: Exclude Firestore consultations to match /v2/available-slots behavior
+      // This prevents phantom 409 conflicts caused by Firestore consultations without Google Calendar events
       const dateObj = DateTime.fromISO(dateStr, { zone: "Europe/Rome" });
       const dayStart = dateObj.startOf("day").toJSDate();
       const dayEnd = dateObj.endOf("day").toJSDate();
 
       const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
-      const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
-
-      // Step 5: Filter out the current consultation from existing events (it shouldn't block itself)
-      const otherEvents = existingEvents.filter(event => {
-        if (event.source !== 'consultation') return true;
-        
-        // Check if this is the same consultation by comparing times
-        const eventStartStr = `${event.start.getHours().toString().padStart(2, '0')}:${event.start.getMinutes().toString().padStart(2, '0')}`;
-        const eventEndStr = `${event.end.getHours().toString().padStart(2, '0')}:${event.end.getMinutes().toString().padStart(2, '0')}`;
-        
-        return !(eventStartStr === consultation.orarioInizio && eventEndStr === consultation.orarioFine);
+      const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db, {
+        includeConsultations: false,  // CRITICAL: Exclude Firestore consultations
+        includeJobs: true,             // Keep jobs as blocking events
+        includeBookings: true          // Keep bookings as blocking events
       });
 
-      console.log(`[POST /v2/approve] 📋 Loaded ${existingEvents.length} total events, ${otherEvents.length} excluding current consultation`);
+      console.log(`[POST /v2/approve] 📋 Loaded ${existingEvents.length} blocking events (Google Calendar + Jobs + Bookings, NO Firestore consultations)`);
 
-      // Step 6: Check conflicts using Calendar Engine V2
+      // Step 5: Check conflicts using Calendar Engine V2
+      // NO NEED to filter out current consultation - it's not loaded from Firestore
       const { hasConflict } = await import('./calendar-engine/conflicts.js');
-      const conflict = hasConflict(startDateTime, endDateTime, otherEvents);
+      const conflict = hasConflict(startDateTime, endDateTime, existingEvents);
 
       if (conflict) {
         console.error(`[POST /v2/approve] ❌ CONFLICT - Slot ${consultation.orarioInizio}-${consultation.orarioFine} blocked`);
