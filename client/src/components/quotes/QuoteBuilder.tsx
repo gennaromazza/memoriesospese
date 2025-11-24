@@ -644,7 +644,7 @@ export default function QuoteBuilder({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogChange}>
-      <DialogContent className="w-[98vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto z-[60]">
+      <DialogContent className="w-[98vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="text-2xl">{jobType.icona}</span>
