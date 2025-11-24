@@ -41,6 +41,7 @@ import GeneraPagamentiModal from './GeneraPagamentiModal';
 interface ModuliJobSectionProps {
   jobId: string;
   onCreateModulo?: () => void;
+  onEditQuote?: (quoteId: string) => void;
   clienteId?: string;
   isAdmin?: boolean;
 }
@@ -76,7 +77,7 @@ const getQuoteUrl = (quote: Quote) => {
   return `${baseUrl}/quote/${quote.publicToken}`;
 };
 
-export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isAdmin = false }: ModuliJobSectionProps) {
+export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, clienteId, isAdmin = false }: ModuliJobSectionProps) {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
@@ -341,9 +342,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                             <>
                               <DropdownMenuItem
                                 onClick={() => {
-                                  // Navigate to JobDetailPage with quote builder open
-                                  // The parent component should handle this
-                                  navigate(`/admin/jobs/${jobId}?editQuote=${quote.id}`);
+                                  // Call parent callback to open QuoteBuilder in edit mode
+                                  onEditQuote?.(quote.id);
                                 }}
                                 data-testid="menu-edit-quote"
                               >

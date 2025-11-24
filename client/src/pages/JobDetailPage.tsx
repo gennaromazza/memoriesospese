@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock } from 'lucide-react';
@@ -78,15 +78,23 @@ export default function JobDetailPage() {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
 
-  // Check for editQuote query param
-  const urlParams = new URLSearchParams(location.split('?')[1]);
-  const editQuoteId = urlParams.get('editQuote');
-
-  const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(!!editQuoteId);
+  // State for modals
+  const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
+
+  // Sync URL param to state for deep-linking support
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.split('?')[1]);
+    const editQuoteParam = urlParams.get('editQuote');
+    if (editQuoteParam) {
+      setEditingQuoteId(editQuoteParam);
+      setQuoteBuilderOpen(true);
+    }
+  }, [location]);
 
   // Calendar event modal state
   const [showCalendarDialog, setShowCalendarDialog] = useState(false);
@@ -747,7 +755,14 @@ export default function JobDetailPage() {
                   <ModuliJobSection 
                     jobId={job.id}
                     clienteId={job.clientiIds[0]}
-                    onCreateModulo={() => setQuoteBuilderOpen(true)}
+                    onCreateModulo={() => {
+                      setEditingQuoteId(null);
+                      setQuoteBuilderOpen(true);
+                    }}
+                    onEditQuote={(quoteId) => {
+                      setEditingQuoteId(quoteId);
+                      setQuoteBuilderOpen(true);
+                    }}
                     isAdmin={true}
                   />
                 </CardContent>
@@ -943,8 +958,10 @@ export default function JobDetailPage() {
             open={quoteBuilderOpen}
             onClose={() => {
               setQuoteBuilderOpen(false);
-              // Rimuovi parametro editQuote dalla URL
-              if (editQuoteId) {
+              setEditingQuoteId(null);
+              // Clean URL if it has editQuote param
+              const urlParams = new URLSearchParams(location.split('?')[1]);
+              if (urlParams.has('editQuote')) {
                 navigate(`/admin/jobs/${jobId}`);
               }
             }}
@@ -952,7 +969,7 @@ export default function JobDetailPage() {
             jobType={jobType}
             jobTypeSlug={job.jobType}
             clienteId={job.clientiIds[0]}
-            editQuoteId={editQuoteId || undefined}
+            editQuoteId={editingQuoteId || undefined}
           />
         )}
 
