@@ -935,6 +935,11 @@ export default function JobDetailPage() {
                 </Card>
               )}
             </div>
+
+            {/* Right Column - Secondary Info (Hidden on Mobile) */}
+            <div className="lg:col-span-5 space-y-6 hidden lg:block">
+              {/* Placeholder for right column content */}
+            </div>
           </div>
 
           {/* Quote Builder Modal */}
