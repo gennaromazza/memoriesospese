@@ -58,11 +58,14 @@ router.get('/events', authenticateFirebase, async (req, res) => {
     const timeMin = new Date(startDate as string);
     const timeMax = new Date(endDate as string);
 
+    // Track Google Calendar event IDs for deduplication
+    let googleEvents: any[] = [];
+
     // 1. Google Calendar events
     try {
       console.log(`📅 Fetching Google Calendar events (${startDate} → ${endDate})`);
       
-      const googleEvents = await getEvents(
+      googleEvents = await getEvents(
         (calendarId as string) || 'primary',
         timeMin,
         timeMax
@@ -88,7 +91,8 @@ router.get('/events', authenticateFirebase, async (req, res) => {
       warnings.push(`Google Calendar non disponibile: ${errorMessage}`);
     }
 
-    // 2. Consulenze nel range di date (tutte, incluse rifiutate per gestione cancellazione)
+    // 2. Consulenze nel range di date (deduplicazione intelligente)
+    // Carica solo consulenze che NON hanno evento Google corrispondente
     try {
       console.log(`🗓️ Fetching consulenze (${startDate} → ${endDate})`);
       
@@ -97,66 +101,115 @@ router.get('/events', authenticateFirebase, async (req, res) => {
         .where('dataConsulenza', '<=', timeMax)
         .get();
       
+      // Crea set di googleCalendarEventId per lookup veloce
+      const googleEventIds = new Set(
+        googleEvents?.map(e => e.id).filter(Boolean) || []
+      );
+      
+      let sincronizzate = 0;
+      let nonSincronizzate = 0;
+      let orphaned = 0;
+      
       consultazioniSnap.forEach(doc => {
         const c = doc.data();
+        const hasGoogleId = !!c.googleCalendarEventId;
+        const googleEventExists = hasGoogleId && googleEventIds.has(c.googleCalendarEventId);
+        
+        // Skippa SOLO se ha googleCalendarEventId E l'evento Google esiste davvero
+        if (hasGoogleId && googleEventExists) {
+          sincronizzate++;
+          return; // Già presente negli eventi Google
+        }
+        
+        // Includi se: non ha googleId OPPURE ha googleId ma evento Google mancante (orphan)
         const clienteNome = `${c.cliente?.nome || ''} ${c.cliente?.cognome || ''}`.trim() || 'Cliente';
+        const isOrphan = hasGoogleId && !googleEventExists;
+        
+        if (isOrphan) orphaned++;
+        else nonSincronizzate++;
         
         events.push({
-          id: `c-${doc.id}`, // ID prefissato per display
-          title: `Consulenza: ${clienteNome}`,
-          description: c.note || undefined,
+          id: `c-${doc.id}`,
+          title: `Consulenza: ${clienteNome}${isOrphan ? ' ⚠️' : ''}`,
+          description: isOrphan 
+            ? `⚠️ DESYNC: Evento Google eliminato o mancante\n\n${c.note || ''}`
+            : c.note || undefined,
           start: c.dataConsulenza?.toDate?.()?.toISOString() || c.dataConsulenza,
           end: c.dataConsulenza?.toDate?.()?.toISOString() || c.dataConsulenza,
           type: 'consulenza',
           clientName: clienteNome,
           clientEmail: c.cliente?.email || undefined,
           entityStatus: c.stato || undefined,
-          entityId: doc.id, // ID puro per delete API
+          entityId: doc.id,
+          googleEventId: c.googleCalendarEventId || undefined,
         });
       });
 
-      console.log(`✅ Caricate ${consultazioniSnap.size} consulenze`);
+      console.log(`✅ Consulenze: ${nonSincronizzate} non sync, ${sincronizzate} sincronizzate, ${orphaned} orphan/desync`);
     } catch (error: any) {
       const errorMessage = error?.message || String(error);
       console.error('⚠️ Errore caricamento consulenze (continuiamo comunque):', errorMessage);
       warnings.push(`Consulenze non disponibili: ${errorMessage}`);
     }
 
-    // 3. Jobs con eventDate nel range
+    // 3. Jobs con eventDate nel range (deduplicazione intelligente)
+    // Carica solo jobs che NON hanno evento Google corrispondente
     try {
-      console.log(`💼 Fetching jobs attivi (${startDate} → ${endDate})`);
+      console.log(`💼 Fetching jobs (${startDate} → ${endDate})`);
       
       const jobsSnap = await db.collection('jobs')
         .where('eventDate', '>=', timeMin)
         .where('eventDate', '<=', timeMax)
         .get();
       
+      // Crea set di googleCalendarEventId per lookup veloce
+      const googleEventIds = new Set(
+        googleEvents?.map(e => e.id).filter(Boolean) || []
+      );
+      
+      let sincronizzati = 0;
+      let nonSincronizzati = 0;
+      let orphaned = 0;
+      
       jobsSnap.forEach(doc => {
         const job = doc.data();
+        const hasGoogleId = !!job.googleCalendarEventId;
+        const googleEventExists = hasGoogleId && googleEventIds.has(job.googleCalendarEventId);
         
-        // Recupera nome evento o tipo job
+        // Skippa SOLO se ha googleCalendarEventId E l'evento Google esiste davvero
+        if (hasGoogleId && googleEventExists) {
+          sincronizzati++;
+          return; // Già presente negli eventi Google
+        }
+        
+        // Includi se: non ha googleId OPPURE ha googleId ma evento Google mancante (orphan)
         const jobTitle = job.nomeEvento || job.jobType || 'Job';
-        
-        // Recupera nome cliente (può essere in clienteNome o costruito da clienti array)
         let clienteNome = job.clienteNome || 'Cliente';
         if (!job.clienteNome && job.clientiIds && job.clientiIds.length > 0) {
-          // Se non c'è clienteNome ma ci sono clienti, usa "Cliente Multiplo"
           clienteNome = job.clientiIds.length === 1 ? 'Cliente' : 'Clienti Multipli';
         }
         
+        const isOrphan = hasGoogleId && !googleEventExists;
+        
+        if (isOrphan) orphaned++;
+        else nonSincronizzati++;
+        
         events.push({
           id: `j-${doc.id}`,
-          title: `${jobTitle}: ${clienteNome}`,
-          description: job.noteInterne || job.note || undefined,
+          title: `${jobTitle}: ${clienteNome}${isOrphan ? ' ⚠️' : ''}`,
+          description: isOrphan 
+            ? `⚠️ DESYNC: Evento Google eliminato o mancante\n\n${job.noteInterne || job.note || ''}`
+            : job.noteInterne || job.note || undefined,
           start: job.eventDate?.toDate?.()?.toISOString() || job.eventDate,
           end: job.eventDate?.toDate?.()?.toISOString() || job.eventDate,
           type: 'job',
           clientName: clienteNome,
           clientEmail: job.clienteEmail || undefined,
+          googleEventId: job.googleCalendarEventId || undefined,
         });
       });
 
-      console.log(`✅ Caricati ${jobsSnap.size} jobs`);
+      console.log(`✅ Jobs: ${nonSincronizzati} non sync, ${sincronizzati} sincronizzati, ${orphaned} orphan/desync`);
     } catch (error: any) {
       const errorMessage = error?.message || String(error);
       console.error('⚠️ Errore caricamento jobs (continuiamo comunque):', errorMessage);
