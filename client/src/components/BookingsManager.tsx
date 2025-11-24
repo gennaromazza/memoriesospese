@@ -326,10 +326,9 @@ export default function BookingsManager({
     if (timeFilter !== "all") {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const dayAfterTomorrow = new Date(tomorrow);
-      dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
+      // FIX: Usa math per evitare mutazioni e bug timezone
+      const tomorrow = new Date(today.getTime() + 86400000);
+      const dayAfterTomorrow = new Date(tomorrow.getTime() + 86400000);
 
       filtered = filtered.filter((b) => {
         const getTime = (timestamp: any): number => {
@@ -354,11 +353,10 @@ export default function BookingsManager({
           );
         } else if (timeFilter === "next-week") {
           // Prossima settimana: dal prossimo lunedì alla prossima domenica
-          const nextMonday = new Date(today);
+          // FIX: Usa math per calcoli giorni (evita getDay() e setDate())
           const daysUntilMonday = (8 - today.getDay()) % 7 || 7;
-          nextMonday.setDate(today.getDate() + daysUntilMonday);
-          const nextSunday = new Date(nextMonday);
-          nextSunday.setDate(nextMonday.getDate() + 7);
+          const nextMonday = new Date(today.getTime() + daysUntilMonday * 86400000);
+          const nextSunday = new Date(nextMonday.getTime() + 7 * 86400000);
 
           return (
             bookingTime >= nextMonday.getTime() &&

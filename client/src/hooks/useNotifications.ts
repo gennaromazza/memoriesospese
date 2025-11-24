@@ -92,8 +92,8 @@ export function useNotifications() {
       
       const fetchComments = async () => {
         try {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          // FIX: Usa math per calcolo date (evita setDate())
+          const sevenDaysAgo = new Date(new Date().getTime() - 7 * 86400000);
           const commentsRef = collection(db, 'comments');
           const commentsQuery = query(
             commentsRef,
@@ -130,9 +130,9 @@ export function useNotifications() {
       
       const fetchSelections = async () => {
         try {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          sevenDaysAgo.setHours(0, 0, 0, 0);
+          // FIX: Usa math per calcolo date (evita setDate() e setHours())
+          const date = new Date(new Date().getTime() - 7 * 86400000);
+          const sevenDaysAgo = new Date(date.getFullYear(), date.getMonth(), date.getDate());
           
           const galleriesRef = collection(db, 'galleries');
           const completedSelectionsQuery = query(

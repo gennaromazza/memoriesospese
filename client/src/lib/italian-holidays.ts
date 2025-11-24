@@ -61,9 +61,9 @@ export function isItalianHoliday(date: Date): boolean {
   if (isFixedHoliday) return true;
   
   // Calcola Pasqua e Pasquetta (giorno dopo Pasqua)
+  // FIX: Usa math per calcolo date (evita setDate())
   const easter = getEasterDate(year);
-  const easterMonday = new Date(easter);
-  easterMonday.setDate(easter.getDate() + 1);
+  const easterMonday = new Date(easter.getTime() + 86400000);
   
   return isSameDay(date, easter) || isSameDay(date, easterMonday);
 }

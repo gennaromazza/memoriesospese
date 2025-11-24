@@ -117,9 +117,9 @@ export async function getActiveCampaigns(): Promise<BookingCampaign[]> {
   return campaigns
     .filter(c => {
       // Calcola data inizio slider (considera anticipo se presente)
+      // FIX: Usa math per calcolo date (evita setDate())
       const giorniAnticipo = c.giorniAnticipoSlider || 0;
-      const dataInizioSlider = new Date(c.dataInizio);
-      dataInizioSlider.setDate(dataInizioSlider.getDate() - giorniAnticipo);
+      const dataInizioSlider = new Date(c.dataInizio.getTime() - giorniAnticipo * 86400000);
       
       // Slider visibile da: (dataInizio - anticipo) fino a dataFine
       return dataInizioSlider <= now && c.dataFine >= now;

@@ -310,8 +310,9 @@ export class CommentService {
       const total = totalSnapshot.docs.length;
 
       // Comments today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // FIX: Usa constructor per reset ore (evita setHours())
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const todayQuery = query(
         collection(db, 'comments'),
         where('createdAt', '>=', today)
@@ -320,9 +321,9 @@ export class CommentService {
       const todayCount = todaySnapshot.docs.length;
 
       // Comments this week
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      weekAgo.setHours(0, 0, 0, 0);
+      // FIX: Usa math per calcolo date (evita setDate() e setHours())
+      const date = new Date(new Date().getTime() - 7 * 86400000);
+      const weekAgo = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const weekQuery = query(
         collection(db, 'comments'),
         where('createdAt', '>=', weekAgo)

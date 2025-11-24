@@ -336,8 +336,9 @@ export class VoiceMemoService {
       const locked = total - unlocked;
       
       // Today count
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // FIX: Usa constructor per reset ore (evita setHours())
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const todayCount = allMemos.filter(memo => 
         memo.createdAt?.toDate() >= today
       ).length;
