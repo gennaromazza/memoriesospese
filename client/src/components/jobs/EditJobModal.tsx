@@ -335,31 +335,61 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Modifica Lavoro</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="w-[95vw] max-w-3xl h-[90vh] sm:h-auto max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b">
+            <DialogTitle className="text-lg sm:text-xl">Modifica Lavoro</DialogTitle>
+            <DialogDescription className="text-sm">
               Aggiorna i dettagli del lavoro "{job.nomeEvento}"
             </DialogDescription>
           </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 sm:space-y-6" id="edit-job-form">
+                {/* Form content will be here */}
+              </form>
+            </Form>
+          </div>
+          <div className="px-4 sm:px-6 py-4 border-t bg-gray-50 dark:bg-gray-900 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={updateMutation.isPending}
+              data-testid="button-cancel"
+              className="flex-1 sm:flex-initial"
+            >
+              Annulla
+            </Button>
+            <Button
+              type="submit"
+              form="edit-job-form"
+              disabled={updateMutation.isPending || checkingConflicts}
+              data-testid="button-save"
+              className="flex-1 sm:flex-initial"
+            >
+              {updateMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Salva
+            </Button>
+          </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-              {/* Nome Evento */}
+          {/* Nome Evento */}
               <FormField
                 control={form.control}
                 name="nomeEvento"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome Evento *</FormLabel>
+                    <FormLabel className="text-sm sm:text-base">Nome Evento *</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         placeholder="es. Matrimonio Sara e Luca"
                         data-testid="input-nome-evento"
+                        className="text-sm sm:text-base"
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="text-xs sm:text-sm" />
                   </FormItem>
                 )}
               />
@@ -419,13 +449,13 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
               />
 
               {/* Tipo e Provenienza */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <FormField
                   control={form.control}
                   name="jobType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tipo Lavoro *</FormLabel>
+                      <FormLabel className="text-sm sm:text-base">Tipo Lavoro *</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
@@ -564,13 +594,13 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
 
               {/* Orari (condizionale) */}
               {!allDay && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <FormField
                     control={form.control}
                     name="startTime"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Ora Inizio *</FormLabel>
+                        <FormLabel className="text-sm sm:text-base">Ora Inizio *</FormLabel>
                         <FormControl>
                           <Input
                             {...field}
@@ -650,31 +680,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                 </div>
               )}
 
-              {/* Actions */}
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onClose}
-                  disabled={updateMutation.isPending}
-                  data-testid="button-cancel"
-                >
-                  Annulla
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={updateMutation.isPending || checkingConflicts}
-                  data-testid="button-save"
-                >
-                  {updateMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Salva Modifiche
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
+              </DialogContent>
       </Dialog>
 
       {/* Conflicts Alert Dialog */}

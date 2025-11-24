@@ -101,7 +101,7 @@ export default function GeneraPagamentiModal({
   const [quoteSignatureDate, setQuoteSignatureDate] = useState<Date | undefined>();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Refs per passare i flag alla mutation senza dipendere da state (evita React batching e reset prematuro)
   const bypassRef = useRef(false);
   const replaceRef = useRef(false);
@@ -376,17 +376,17 @@ export default function GeneraPagamentiModal({
   return (
     <>
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Genera Piano Pagamenti</DialogTitle>
-          <DialogDescription>
-            Totale preventivato: <strong className="text-foreground">€{quoteTotale.toFixed(2)}</strong>
+      <DialogContent className="w-[95vw] max-w-2xl h-[90vh] sm:h-auto max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b">
+          <DialogTitle className="text-lg sm:text-xl">Genera Piano Pagamenti</DialogTitle>
+          <DialogDescription className="text-sm">
+            Crea automaticamente le rate di pagamento per questo preventivo
           </DialogDescription>
         </DialogHeader>
-
-        <Form {...form}>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+          <Form {...form}>
           {/* Data Firma/Riferimento globale (per lavori storici) - disponibile per ENTRAMBI i tab */}
-          <Card className="bg-muted/30">
+          <Card className="bg-muted/30 mb-6">
             <CardContent className="p-4">
               <FormField
                 control={form.control}
@@ -427,7 +427,7 @@ export default function GeneraPagamentiModal({
           </Card>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'automatico' | 'manuale')}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="automatico">Automatico</TabsTrigger>
               <TabsTrigger value="manuale">Manuale</TabsTrigger>
             </TabsList>
@@ -439,7 +439,7 @@ export default function GeneraPagamentiModal({
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Card 
+              <Card
                 className={cn(
                   "cursor-pointer hover:bg-accent transition-colors border-2",
                   selectedPreset === 'acconto-saldo' && "border-primary bg-primary/5"
@@ -462,7 +462,7 @@ export default function GeneraPagamentiModal({
                 </CardContent>
               </Card>
 
-              <Card 
+              <Card
                 className={cn(
                   "cursor-pointer hover:bg-accent transition-colors border-2",
                   selectedPreset === '2-rate' && "border-primary bg-primary/5"
@@ -485,7 +485,7 @@ export default function GeneraPagamentiModal({
                 </CardContent>
               </Card>
 
-              <Card 
+              <Card
                 className={cn(
                   "cursor-pointer hover:bg-accent transition-colors border-2",
                   selectedPreset === '3-rate' && "border-primary bg-primary/5"
@@ -535,9 +535,9 @@ export default function GeneraPagamentiModal({
               <Button type="button" variant="outline" onClick={onClose}>
                 Annulla
               </Button>
-              <Button 
-                type="button" 
-                onClick={() => onSubmit(form.getValues())} 
+              <Button
+                type="button"
+                onClick={() => onSubmit(form.getValues())}
                 disabled={isSubmitting || createMutation.isPending}
                 data-testid="button-genera-automatico"
               >
@@ -678,7 +678,7 @@ export default function GeneraPagamentiModal({
                                   +
                                 </Button>
                                 <span className="text-sm text-muted-foreground ml-2">
-                                  {relativeDaysArray[index] === 0 ? 'giorno evento' : 
+                                  {relativeDaysArray[index] === 0 ? 'giorno evento' :
                                    relativeDaysArray[index] > 0 ? `giorni dopo` : `giorni prima`}
                                 </span>
                               </div>
@@ -750,7 +750,7 @@ export default function GeneraPagamentiModal({
                         <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 mt-2">
                           <AlertCircle className="h-4 w-4" />
                           <span>
-                            Differenza: €{Math.abs(differenza).toFixed(2)} 
+                            Differenza: €{Math.abs(differenza).toFixed(2)}
                             {differenza > 0 ? ' in eccesso' : ' in difetto'}
                           </span>
                         </div>
@@ -778,6 +778,33 @@ export default function GeneraPagamentiModal({
           </TabsContent>
         </Tabs>
         </Form>
+        </div>
+        <DialogFooter className="px-4 sm:px-6 py-4 border-t bg-gray-50 dark:bg-gray-900 flex-row gap-2">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={createMutation.isPending}
+            className="flex-1 sm:flex-initial"
+          >
+            Annulla
+          </Button>
+          {activeTab === 'automatico' ? (
+             <Button
+                onClick={() => onSubmit(form.getValues())}
+                disabled={isSubmitting || createMutation.isPending}
+                data-testid="button-genera-automatico"
+                className="flex-1 sm:flex-initial"
+             >
+                {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Genera Piano Pagamenti
+              </Button>
+          ) : (
+            <Button type="submit" disabled={!isValid || isSubmitting || createMutation.isPending} className="flex-1 sm:flex-initial">
+                {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Genera Piano Pagamenti
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
 
@@ -815,6 +842,7 @@ export default function GeneraPagamentiModal({
               onSubmit(form.getValues(), { bypass: true, replace: false });
             }}
             disabled={isSubmitting || createMutation.isPending}
+            className="flex-1 sm:flex-initial"
             data-testid="button-add-anyway"
           >
             {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -827,7 +855,7 @@ export default function GeneraPagamentiModal({
               onSubmit(form.getValues(), { bypass: true, replace: true });
             }}
             disabled={isSubmitting || createMutation.isPending}
-            className="bg-red-600 hover:bg-red-700"
+            className="bg-red-600 hover:bg-red-700 flex-1 sm:flex-initial"
             data-testid="button-replace-schedule"
           >
             {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
