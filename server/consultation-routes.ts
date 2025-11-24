@@ -556,14 +556,32 @@ router.patch(
 
       const { id } = req.params;
 
-      console.log(`[POST /v2/approve] 🔵 Calendar Engine V2 - Approving consultation ${id}`);
+      console.log(`[PATCH /v2/:id/approve] 🔵 Searching consultation with ID: ${id}`);
 
       // Step 1: Load consultation request
       const consultation = await consultationService.getConsultationById(id);
 
       if (!consultation) {
-        return res.status(404).json({ error: "Consultation non trovata" });
+        console.error(`[PATCH /v2/:id/approve] ❌ Consultation NOT found with ID: ${id}`);
+        
+        // Debug: List all consultations in database to help diagnose
+        try {
+          const allDocs = await db.collection("consultations").get();
+          const allIds = allDocs.docs.map(doc => doc.id);
+          console.error(`[PATCH /v2/:id/approve] 📋 Available consultation IDs: ${allIds.join(', ')}`);
+          console.error(`[PATCH /v2/:id/approve] 📊 Total consultations in DB: ${allIds.length}`);
+        } catch (debugError) {
+          console.error(`[PATCH /v2/:id/approve] Debug error:`, debugError);
+        }
+        
+        return res.status(404).json({ 
+          error: "Consultation non trovata",
+          requestedId: id,
+          debug: "Verificare ID consulenza"
+        });
       }
+
+      console.log(`[PATCH /v2/:id/approve] ✅ Consultation found:`, consultation.cliente?.nome);
 
       if (consultation.stato !== "in_attesa") {
         return res.status(400).json({
