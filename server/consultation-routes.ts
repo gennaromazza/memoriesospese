@@ -542,10 +542,17 @@ router.get("/:id", authenticateFirebase, async (req: AuthRequest, res) => {
  * 6. If conflict: return 409
  * 7. If no conflict: create Google Calendar event, update Firestore, send email
  */
+/**
+ * PATCH /api/consultations/v2/:id/approve
+ * ROUTE IS DEFINED HERE - THIS LOGS IMMEDIATELY WHEN ROUTE IS MATCHED
+ */
 router.patch(
   "/v2/:id/approve",
   authenticateFirebase,
   async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    console.error(`🚨🚨🚨 [PATCH /v2/:id/approve] ROUTE MATCHED - ID: ${id}`);
+    
     try {
       const { email } = req.user!;
       if (!ADMIN_EMAILS.includes(email)) {
@@ -553,8 +560,6 @@ router.patch(
           error: "Solo gli amministratori possono approvare consultations",
         });
       }
-
-      const { id } = req.params;
 
       console.log(`[PATCH /v2/:id/approve] 🔵 Searching consultation with ID: ${id}`);
 

@@ -1,0 +1,31 @@
+[DEBUG] consultation.dataConsulenza: {_seconds: 1764423000, _nanoseconds: 0}
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: {id: 'ovAX2od0BFLFKZNDl6Vh', templateId: 'k54leQAunWtrO66dc6hH', templateNome: 'Visione Foto', jobType: 'matrimonio', durataMinuti: 90, …}
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: {_seconds: 1764349200, _nanoseconds: 0}
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: {id: 'lLdVOT1KihX5KnO2LLMQ', templateId: 'ajU4hfgh4j2JVTmPUzmO', templateNome: 'Visione Foto', jobType: 'battesimo', durataMinuti: 60, …}
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: {_seconds: 1764423000, _nanoseconds: 0}
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: {id: 'ovAX2od0BFLFKZNDl6Vh', templateId: 'k54leQAunWtrO66dc6hH', templateNome: 'Visione Foto', jobType: 'matrimonio', durataMinuti: 90, …}
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: {_seconds: 1764349200, _nanoseconds: 0}
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: {id: 'lLdVOT1KihX5KnO2LLMQ', templateId: 'ajU4hfgh4j2JVTmPUzmO', templateNome: 'Visione Foto', jobType: 'battesimo', durataMinuti: 60, …}
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: {_seconds: 1764423000, _nanoseconds: 0}
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: {id: 'ovAX2od0BFLFKZNDl6Vh', templateId: 'k54leQAunWtrO66dc6hH', templateNome: 'Visione Foto', jobType: 'matrimonio', durataMinuti: 90, …}
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: {_seconds: 1764349200, _nanoseconds: 0}
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: {id: 'lLdVOT1KihX5KnO2LLMQ', templateId: 'ajU4hfgh4j2JVTmPUzmO', templateNome: 'Visione Foto', jobType: 'battesimo', durataMinuti: 60, …}
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: {_seconds: 1764423000, _nanoseconds: 0}
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: {id: 'ovAX2od0BFLFKZNDl6Vh', templateId: 'k54leQAunWtrO66dc6hH', templateNome: 'Visione Foto', jobType: 'matrimonio', durataMinuti: 90, …}
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: {_seconds: 1764349200, _nanoseconds: 0}
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: {id: 'lLdVOT1KihX5KnO2LLMQ', templateId: 'ajU4hfgh4j2JVTmPUzmO', templateNome: 'Visione Foto', jobType: 'battesimo', durataMinuti: 60, …}
