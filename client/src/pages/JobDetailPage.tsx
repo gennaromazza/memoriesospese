@@ -658,178 +658,144 @@ export default function JobDetailPage() {
             </div>
           </div>
 
-          {/* Job Completed Toggle + Quick Actions - Horizontal section below header */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
-            <div className="flex flex-col sm:flex-row gap-4 items-start">
-              <JobCompletedToggle 
-                jobId={job.id} 
-                currentJob={job}
-                className="flex-shrink-0"
-              />
-              
-              {/* Quick Action Buttons */}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenTemplateSelector}
-                  data-testid="button-send-consultation"
-                  className="text-xs sm:text-sm"
-                >
-                  <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">Appuntamento Consulenza</span>
-                  <span className="sm:hidden">Consulenza</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRequestCreateAppointment}
-                  data-testid="button-request-appointment-header"
-                  className="text-xs sm:text-sm"
-                >
-                  <CalendarPlus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">Richiedi Appuntamento</span>
-                  <span className="sm:hidden">Appuntamento</span>
-                </Button>
-              </div>
-            </div>
-          </div>
+          
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 lg:pb-8">
-        {/* Financial Summary */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 lg:pb-8">
+        {/* Quick Actions Bar */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between bg-gradient-to-r from-blue-gray/5 to-sage/5 p-4 rounded-lg border border-sage/20">
+          <JobCompletedToggle 
+            jobId={job.id} 
+            currentJob={job}
+            className="flex-shrink-0"
+          />
+          
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenTemplateSelector}
+              data-testid="button-send-consultation"
+              className="bg-white hover:bg-sage/10 border-sage/30"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Appuntamento Consulenza</span>
+              <span className="sm:hidden">Consulenza</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRequestCreateAppointment}
+              data-testid="button-request-appointment-header"
+              className="bg-white hover:bg-sage/10 border-sage/30"
+            >
+              <CalendarPlus className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Richiedi Appuntamento</span>
+              <span className="sm:hidden">Appuntamento</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Financial Summary - Enhanced */}
         <FinancialSummaryCard
           totalePreventivato={jobFinancials.totalePreventivato}
           totalePagato={jobFinancials.totalePagato}
           saldoResiduo={jobFinancials.saldoResiduo}
           totaleCosti={jobFinancials.totaleCosti}
-          className="mb-6"
+          className="mb-6 shadow-md"
         />
 
-        {/* Main Content - Full Width Layout */}
-        <div className="space-y-6">
-            {/* Clienti Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Clienti ({job.clientiIds.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {clientiLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {clienti.map(cliente => (
-                      <ClienteJobCard 
-                        key={cliente.id} 
-                        cliente={cliente}
-                        onEdit={() => setEditingCliente(cliente)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+        {/* Main Content - Modern Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column - Primary Info */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Clienti Section */}
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-blue-gray/5 to-transparent">
+                  <CardTitle className="flex items-center gap-2">
+                    <span>Clienti</span>
+                    <Badge variant="outline" className="ml-auto">{job.clientiIds.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  {clientiLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {clienti.map(cliente => (
+                        <ClienteJobCard 
+                          key={cliente.id} 
+                          cliente={cliente}
+                          onEdit={() => setEditingCliente(cliente)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-            {/* Preventivi e Ordini */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Preventivi e Ordini</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ModuliJobSection 
-                  jobId={job.id}
-                  clienteId={job.clientiIds[0]}
-                  onCreateModulo={() => setQuoteBuilderOpen(true)}
-                  isAdmin={true}
-                />
-              </CardContent>
-            </Card>
+              {/* Preventivi e Ordini */}
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-sage/5 to-transparent">
+                  <CardTitle>Preventivi e Ordini</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <ModuliJobSection 
+                    jobId={job.id}
+                    clienteId={job.clientiIds[0]}
+                    onCreateModulo={() => setQuoteBuilderOpen(true)}
+                    isAdmin={true}
+                  />
+                </CardContent>
+              </Card>
 
-            {/* Quote Builder Modal */}
-            {job.clientiIds.length > 0 && quoteBuilderOpen && jobType && (
-              <QuoteBuilder
-                open={quoteBuilderOpen}
-                onClose={() => {
-                  setQuoteBuilderOpen(false);
-                  // Remove editQuote param from URL
-                  if (editQuoteId) {
-                    navigate(`/admin/jobs/${jobId}`);
-                  }
-                }}
-                jobId={job.id}
-                jobType={jobType}
-                jobTypeSlug={job.jobType}
-                clienteId={job.clientiIds[0]}
-                editQuoteId={editQuoteId || undefined}
-              />
-            )}
+              {/* Pagamenti */}
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-green-50 to-transparent dark:from-green-950/20">
+                  <CardTitle>Pagamenti e Scadenze</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <PaymentScheduleSection 
+                    jobId={job.id}
+                    eventDate={job.eventDate ? job.eventDate.toDate() : null}
+                    isAdmin={true}
+                    onGeneratePayments={!quotesLoading ? () => {
+                      const signedQuote = quotes?.find(q => q.status === 'firmato');
+                      if (signedQuote) {
+                        setGeneraPagamentiQuoteId(signedQuote.id);
+                      } else {
+                        toast({
+                          title: 'Nessun preventivo firmato',
+                          description: 'Per generare un piano pagamenti è necessario avere almeno un preventivo firmato.',
+                          variant: 'destructive',
+                        });
+                      }
+                    } : undefined}
+                  />
+                </CardContent>
+              </Card>
 
-            {/* Genera Pagamenti Modal */}
-            {generaPagamentiQuoteId && (() => {
-              const targetQuote = quotes?.find(q => q.id === generaPagamentiQuoteId);
-              
-              // Doppia validazione: preventivo deve esistere ED essere firmato
-              if (!targetQuote || !job.clientiIds[0]) return null;
-              if (targetQuote.status !== 'firmato') {
-                console.warn('Tentativo di generare piano pagamenti per preventivo non firmato');
-                return null;
-              }
+              {/* Note e Personalizzazioni */}
+              <JobNotesSection job={job} />
+            </div>
 
-              const totale = calculateQuoteTotalForPayments(targetQuote);
-
-              return (
-                <GeneraPagamentiModal
-                  open={true}
-                  onClose={() => setGeneraPagamentiQuoteId(null)}
-                  quoteId={targetQuote.id}
-                  quoteTotale={totale}
-                  jobId={job.id}
-                  clienteId={job.clientiIds[0]}
-                  eventDate={job.eventDate ? job.eventDate.toDate() : null}
-                />
-              );
-            })()}
-
-            {/* Pagamenti */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Pagamenti e Scadenze</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <PaymentScheduleSection 
-                  jobId={job.id}
-                  eventDate={job.eventDate ? job.eventDate.toDate() : null}
-                  isAdmin={true}
-                  onGeneratePayments={!quotesLoading ? () => {
-                    // Trova primo preventivo firmato
-                    const signedQuote = quotes?.find(q => q.status === 'firmato');
-                    if (signedQuote) {
-                      setGeneraPagamentiQuoteId(signedQuote.id);
-                    } else {
-                      toast({
-                        title: 'Nessun preventivo firmato',
-                        description: 'Per generare un piano pagamenti è necessario avere almeno un preventivo firmato. Crea e firma un preventivo prima di generare lo scadenzario.',
-                        variant: 'destructive',
-                      });
-                    }
-                  } : undefined}
-                />
-              </CardContent>
-            </Card>
+            {/* Right Column - Secondary Info */}
+            <div className="lg:col-span-5 space-y-6">
 
             {/* Stato Preventivi */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Stato Preventivi ({quotes?.length || 0})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-terracotta/5 to-transparent">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Stato Preventivi
+                    <Badge variant="outline" className="ml-auto">{quotes?.length || 0}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
                 {quotesLoading ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin" />
@@ -906,41 +872,39 @@ export default function JobDetailPage() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+              </Card>
 
-            {/* Note e Personalizzazioni */}
-            <JobNotesSection job={job} />
+              {/* Collaboratori */}
+              <JobCollaboratoriSection jobId={job.id} />
 
-            {/* Collaboratori */}
-            <JobCollaboratoriSection jobId={job.id} />
-
-            {/* Costi */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Costi Lavoro</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CostiLavoroTable
-                  costi={job.costi || []}
-                  totalePreventivato={jobFinancials.totalePreventivato}
-                  onAddCosto={handleAddCosto}
-                  onUpdateCosto={handleUpdateCosto}
-                  onDeleteCosto={handleDeleteCosto}
-                  isAdmin={true}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Attività Recenti */}
-            {timelineEvents.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" />
-                    Attività Recenti
-                  </CardTitle>
+              {/* Costi */}
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-transparent dark:from-orange-950/20">
+                  <CardTitle>Costi Lavoro</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
+                  <CostiLavoroTable
+                    costi={job.costi || []}
+                    totalePreventivato={jobFinancials.totalePreventivato}
+                    onAddCosto={handleAddCosto}
+                    onUpdateCosto={handleUpdateCosto}
+                    onDeleteCosto={handleDeleteCosto}
+                    isAdmin={true}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Attività Recenti */}
+              {timelineEvents.length > 0 && (
+                <Card className="shadow-sm hover:shadow-md transition-shadow">
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-transparent dark:from-purple-950/20">
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5" />
+                      Attività Recenti
+                      <Badge variant="outline" className="ml-auto">{timelineEvents.length}</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-6">
                   <div className="space-y-3">
                     {timelineEvents.slice(0, 10).map((event) => {
                       const eventDate = event.data?.toDate ? event.data.toDate() : new Date(event.data as any);
@@ -968,8 +932,53 @@ export default function JobDetailPage() {
                     })}
                   </div>
                 </CardContent>
-              </Card>
-            )}
+                </Card>
+              )}
+            </div>
+          </div>
+
+          {/* Quote Builder Modal */}
+          {job.clientiIds.length > 0 && quoteBuilderOpen && jobType && (
+            <QuoteBuilder
+              open={quoteBuilderOpen}
+              onClose={() => {
+                setQuoteBuilderOpen(false);
+                if (editQuoteId) {
+                  navigate(`/admin/jobs/${jobId}`);
+                }
+              }}
+              jobId={job.id}
+              jobType={jobType}
+              jobTypeSlug={job.jobType}
+              clienteId={job.clientiIds[0]}
+              editQuoteId={editQuoteId || undefined}
+            />
+          )}
+
+          {/* Genera Pagamenti Modal */}
+          {generaPagamentiQuoteId && (() => {
+            const targetQuote = quotes?.find(q => q.id === generaPagamentiQuoteId);
+            
+            if (!targetQuote || !job.clientiIds[0]) return null;
+            if (targetQuote.status !== 'firmato') {
+              console.warn('Tentativo di generare piano pagamenti per preventivo non firmato');
+              return null;
+            }
+
+            const totale = calculateQuoteTotalForPayments(targetQuote);
+
+            return (
+              <GeneraPagamentiModal
+                open={true}
+                onClose={() => setGeneraPagamentiQuoteId(null)}
+                quoteId={targetQuote.id}
+                quoteTotale={totale}
+                jobId={job.id}
+                clienteId={job.clientiIds[0]}
+                eventDate={job.eventDate ? job.eventDate.toDate() : null}
+              />
+            );
+          })()}
         </div>
       </div>
 
