@@ -229,10 +229,11 @@ export async function getAllExistingEvents(
       const eventDate = data.eventDate.toDate();
       
       if (data.allDay) {
-        const start = new Date(eventDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(eventDate);
-        end.setHours(23, 59, 59, 999);
+        // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+        const { toRome, toUTC } = await import('../calendar-engine/timezone.js');
+        const eventDT = toRome(eventDate);
+        const start = toUTC(eventDT.startOf('day'));
+        const end = toUTC(eventDT.endOf('day'));
         
         existingEvents.push({
           start,

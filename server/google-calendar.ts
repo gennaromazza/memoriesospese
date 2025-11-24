@@ -4,6 +4,7 @@
  */
 
 import { google } from "googleapis";
+import { DateTime } from "luxon";
 
 let connectionSettings: any;
 
@@ -473,13 +474,11 @@ export async function createEvent(
   let endField: any;
 
   if (eventData.isAllDay && eventData.startDateStr) {
-    const [year, month, day] = eventData.startDateStr.split("-").map(Number);
-    const endDateObj = new Date(year, month - 1, day);
-    endDateObj.setDate(endDateObj.getDate() + 1);
-    const endYear = endDateObj.getFullYear();
-    const endMonth = String(endDateObj.getMonth() + 1).padStart(2, "0");
-    const endDay = String(endDateObj.getDate()).padStart(2, "0");
-    const endDateStr = `${endYear}-${endMonth}-${endDay}`;
+    // FIX: Usa Luxon per calcolo DST-safe della end date (+1 giorno)
+    const { DateTime } = await import('luxon');
+    const startDT = DateTime.fromFormat(eventData.startDateStr, 'yyyy-MM-dd', { zone: 'Europe/Rome' });
+    const endDT = startDT.plus({ days: 1 });
+    const endDateStr = endDT.toFormat('yyyy-MM-dd');
 
     startField = { date: eventData.startDateStr };
     endField = { date: endDateStr };
@@ -634,27 +633,28 @@ function validateTimeFormat(time: string, fieldName: string): void {
 
 /**
  * Crea Date in timezone Europe/Rome dalla stringa YYYY-MM-DD + orario HH:MM
- * NOTA: Gestisce correttamente timezone per evitare shift UTC
+ * FIX: Usa Luxon per garantire timezone DST-safe (elimina .setHours legacy)
  * Esportata per uso in consultation-routes e altri moduli
  */
 export function createEuropeRomeDate(dateStr: string, time: string): Date {
+  // FIX: Usa Calendar Engine V2 per parsing DST-safe (usa import top-level)
   const [hours, minutes] = time.split(":").map(Number);
 
-  // Parse date in formato YYYY-MM-DD
-  const [year, month, day] = dateStr.split("-").map(Number);
+  // Crea DateTime in Europe/Rome timezone con data + ora
+  const dt = DateTime.fromObject(
+    { 
+      year: parseInt(dateStr.split('-')[0]),
+      month: parseInt(dateStr.split('-')[1]),
+      day: parseInt(dateStr.split('-')[2]),
+      hour: hours,
+      minute: minutes,
+      second: 0,
+      millisecond: 0
+    },
+    { zone: 'Europe/Rome' }
+  );
 
-  // Crea date string completo con timezone Europe/Rome
-  // Format: 2025-11-01T09:00:00.000+01:00 (winter) o +02:00 (summer)
-  const dateTimeStr = `${dateStr}T${time}:00.000`;
-
-  // Usa toLocaleString per garantire interpretazione Europe/Rome
-  const date = new Date(dateTimeStr);
-
-  // Verifica che non ci sia shift UTC applicando offset manualmente
-  date.setFullYear(year, month - 1, day);
-  date.setHours(hours, minutes, 0, 0);
-
-  return date;
+  return dt.toJSDate();
 }
 
 export async function getAvailableSlots(

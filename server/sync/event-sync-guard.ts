@@ -58,12 +58,11 @@ async function getAllGoogleCalendarEvents(): Promise<Set<string>> {
   console.log('[EVENT SYNC GUARD] 🔍 Fetching all events from Google Calendar...');
   
   try {
-    // Range: 30 giorni nel passato + 365 giorni nel futuro
-    const timeMin = new Date();
-    timeMin.setDate(timeMin.getDate() - 30);
-    
-    const timeMax = new Date();
-    timeMax.setDate(timeMax.getDate() + 365);
+    // FIX: Usa Luxon per calcoli timezone-safe
+    const { DateTime } = await import('luxon');
+    const nowRome = DateTime.now().setZone('Europe/Rome');
+    const timeMin = nowRome.minus({ days: 30 }).toJSDate();
+    const timeMax = nowRome.plus({ days: 365 }).toJSDate();
     
     console.log(`[EVENT SYNC GUARD] 📅 Range: ${timeMin.toISOString()} -> ${timeMax.toISOString()}`);
     

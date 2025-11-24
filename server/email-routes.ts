@@ -6,6 +6,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { google } from "googleapis";
 import { db } from './firebase-admin.js';
+import { DateTime } from 'luxon';
 
 const router = Router();
 
@@ -207,8 +208,9 @@ export function generateGoogleCalendarLink(params: {
       let endFormatted: string;
       if (startDay === endDay) {
         // Single-day event: end deve essere start+1 (esclusivo)
-        const endPlusOne = new Date(end);
-        endPlusOne.setDate(endPlusOne.getDate() + 1);
+        // FIX: Usa Luxon per calcolo DST-safe (usa import top-level)
+        const endDT = DateTime.fromJSDate(end, { zone: 'Europe/Rome' });
+        const endPlusOne = endDT.plus({ days: 1 }).toJSDate();
         endFormatted = formatYYYYMMDD(endPlusOne);
       } else {
         // Multi-day event: end è già esclusivo, usa così com'è

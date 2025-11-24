@@ -8,6 +8,7 @@ import { db } from './firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import { nanoid } from 'nanoid';
+import { DateTime } from 'luxon';
 
 const router = Router();
 
@@ -44,10 +45,10 @@ router.get('/presets/:quoteId', async (req: Request, res: Response) => {
     }
 
     const today = new Date();
+    // FIX: Usa Luxon per addDays DST-safe (usa import top-level)
     const addDays = (date: Date, days: number) => {
-      const result = new Date(date);
-      result.setDate(result.getDate() + days);
-      return result;
+      const dt = DateTime.fromJSDate(date, { zone: 'Europe/Rome' });
+      return dt.plus({ days }).toJSDate();
     };
 
     // Genera preset automatici
@@ -170,10 +171,10 @@ router.post('/generate-auto', async (req: Request, res: Response) => {
     }
 
     const today = new Date();
+    // FIX: Usa Luxon per addDays DST-safe (usa import top-level)
     const addDays = (date: Date, days: number) => {
-      const result = new Date(date);
-      result.setDate(result.getDate() + days);
-      return result;
+      const dt = DateTime.fromJSDate(date, { zone: 'Europe/Rome' });
+      return dt.plus({ days }).toJSDate();
     };
 
     // Genera payments automaticamente basato su preset
@@ -327,10 +328,10 @@ router.post('/generate', async (req: Request, res: Response) => {
       }
 
       const today = baseDate;
+      // FIX: Usa Luxon per addDaysHelper DST-safe (usa import top-level)
       const addDaysHelper = (date: Date, days: number) => {
-        const result = new Date(date);
-        result.setDate(result.getDate() + days);
-        return result;
+        const dt = DateTime.fromJSDate(date, { zone: 'Europe/Rome' });
+        return dt.plus({ days }).toJSDate();
       };
 
       // Genera payments automaticamente
@@ -971,11 +972,10 @@ router.delete('/:scheduleId/payments/:paymentId', async (req: Request, res: Resp
  */
 router.post('/send-reminders', async (req: Request, res: Response) => {
   try {
-    const { DateTime } = await import('luxon');
-    
-    const now = new Date();
-    const in7Days = new Date(now);
-    in7Days.setDate(in7Days.getDate() + 7);
+    // FIX: Usa Luxon per calcolo DST-safe (usa import top-level)
+    const nowRome = DateTime.now().setZone('Europe/Rome');
+    const now = nowRome.toJSDate();
+    const in7Days = nowRome.plus({ days: 7 }).toJSDate();
     
     console.log(`[Payment Reminder] Cerco pagamenti in scadenza tra ${now.toISOString()} e ${in7Days.toISOString()}`);
     

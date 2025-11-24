@@ -187,8 +187,10 @@ export async function getAllExistingBookingEvents(
   try {
     // Estendi range di ricerca per catturare booking che iniziano il giorno prima
     // ma potrebbero occupare slot del giorno richiesto
-    const searchStart = new Date(dayStart);
-    searchStart.setDate(searchStart.getDate() - 1);
+    // FIX: Usa Luxon per calcolo DST-safe
+    const { DateTime } = await import('luxon');
+    const dayStartDT = DateTime.fromJSDate(dayStart, { zone: 'Europe/Rome' });
+    const searchStart = dayStartDT.minus({ days: 1 }).toJSDate();
     
     // Query separata per in_attesa
     const inAttesaSnap = await firestoreDb

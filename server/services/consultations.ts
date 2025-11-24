@@ -964,11 +964,11 @@ export async function isSlotAvailable(
 
   if (!preloadedConsultations) {
     // Fallback: fetch se non pre-caricato (backward compatibility)
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+    const { toRome, toUTC } = await import('../calendar-engine/timezone.js');
+    const dateDT = toRome(date);
+    const startOfDay = toUTC(dateDT.startOf('day'));
+    const endOfDay = toUTC(dateDT.endOf('day'));
 
     const consultationsQuery = db
       .collection("consultations")
@@ -998,16 +998,9 @@ export async function isSlotAvailable(
       continue;
     }
 
-    const [existStartHour, existStartMin] = data.orarioInizio
-      .split(":")
-      .map(Number);
-    const [existEndHour, existEndMin] = data.orarioFine.split(":").map(Number);
-
-    const existStart = new Date(date);
-    existStart.setHours(existStartHour, existStartMin, 0, 0);
-
-    const existEnd = new Date(date);
-    existEnd.setHours(existEndHour, existEndMin, 0, 0);
+    // FIX: Usa createEuropeRomeDate per costruire date DST-safe
+    const existStart = createEuropeRomeDate(dateStr, data.orarioInizio);
+    const existEnd = createEuropeRomeDate(dateStr, data.orarioFine);
 
     // 🔥 REFACTOR: Usa hasRealOverlap per verifica consistente
     if (hasRealOverlap(slotStart, slotEnd, existStart, existEnd)) {
@@ -1033,11 +1026,11 @@ export async function isSlotAvailable(
 
   if (!preloadedBookings) {
     // Fallback: fetch se non pre-caricato (backward compatibility)
-    const bookingStartOfDay = new Date(date);
-    bookingStartOfDay.setHours(0, 0, 0, 0);
-
-    const bookingEndOfDay = new Date(date);
-    bookingEndOfDay.setHours(23, 59, 59, 999);
+    // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+    const { toRome: toRomeBooking, toUTC: toUTCBooking } = await import('../calendar-engine/timezone.js');
+    const dateDTBooking = toRomeBooking(date);
+    const bookingStartOfDay = toUTCBooking(dateDTBooking.startOf('day'));
+    const bookingEndOfDay = toUTCBooking(dateDTBooking.endOf('day'));
 
     const bookingsQuery = db
       .collection("bookings")
@@ -1125,11 +1118,11 @@ export async function isSlotAvailable(
   // Esegui il fetch solo se preloadedJobs non è stato fornito (=== undefined)
   if (preloadedJobs === undefined) {
     // Fallback: fetch se non pre-caricato (backward compatibility)
-    const jobStartOfDay = new Date(date);
-    jobStartOfDay.setHours(0, 0, 0, 0);
-
-    const jobEndOfDay = new Date(date);
-    jobEndOfDay.setHours(23, 59, 59, 999);
+    // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+    const { toRome: toRomeJob, toUTC: toUTCJob } = await import('../calendar-engine/timezone.js');
+    const dateDTJob = toRomeJob(date);
+    const jobStartOfDay = toUTCJob(dateDTJob.startOf('day'));
+    const jobEndOfDay = toUTCJob(dateDTJob.endOf('day'));
 
     const jobsQuery = db
       .collection("jobs")
@@ -1189,14 +1182,9 @@ export async function isSlotAvailable(
 
     // Se job ha orari specifici, controlla overlap
     if (data.startTime && data.endTime) {
-      const [jobStartHour, jobStartMin] = data.startTime.split(":").map(Number);
-      const [jobEndHour, jobEndMin] = data.endTime.split(":").map(Number);
-
-      const jobStart = new Date(date);
-      jobStart.setHours(jobStartHour, jobStartMin, 0, 0);
-
-      const jobEnd = new Date(date);
-      jobEnd.setHours(jobEndHour, jobEndMin, 0, 0);
+      // FIX: Usa createEuropeRomeDate per costruire date DST-safe
+      const jobStart = createEuropeRomeDate(dateStr, data.startTime);
+      const jobEnd = createEuropeRomeDate(dateStr, data.endTime);
 
       // 🔥 REFACTOR: Usa hasRealOverlap per verifica consistente
       const overlaps = hasRealOverlap(slotStart, slotEnd, jobStart, jobEnd);
@@ -1357,11 +1345,10 @@ export async function getAvailableSlotsForDate(
   const dateStr = romeDate.toFormat("yyyy-MM-dd");
 
   try {
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
+    // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+    const { toUTC: toUTCAllDay } = await import('../calendar-engine/timezone.js');
+    const dayStart = toUTCAllDay(romeDate.startOf('day'));
+    const dayEnd = toUTCAllDay(romeDate.endOf('day'));
 
     console.log(`[Consultations] Controllo eventi all-day per ${dateStr}`);
 
@@ -1416,11 +1403,10 @@ export async function getAvailableSlotsForDate(
   }
 
   // PERFORMANCE OPTIMIZATION: Pre-carica consultations + bookings UNA VOLTA per l'intera giornata
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
+  // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+  const { toUTC: toUTCPreload } = await import('../calendar-engine/timezone.js');
+  const dayStart = toUTCPreload(romeDate.startOf('day'));
+  const dayEnd = toUTCPreload(romeDate.endOf('day'));
 
   const isDebug = process.env.NODE_ENV === "development";
 

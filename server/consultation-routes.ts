@@ -1354,11 +1354,12 @@ router.post(
         ? new Date(consultation.jobDataCollected.eventDate as string)
         : (() => {
             // Fallback: data consulenza + 3 mesi
+            // FIX: Usa Luxon per calcolo DST-safe (usa import top-level)
             const estimatedDate = normalizeTimestampToDate(
               consultation.dataConsulenza,
             );
-            estimatedDate.setMonth(estimatedDate.getMonth() + 3);
-            return estimatedDate;
+            const dateDT = DateTime.fromJSDate(estimatedDate, { zone: 'Europe/Rome' });
+            return dateDT.plus({ months: 3 }).toJSDate();
           })();
 
       const allDay = !consultation.jobDataCollected.startTime;
@@ -2130,13 +2131,11 @@ router.delete(
  */
 router.post("/send-reminders", async (req, res) => {
   try {
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    // Range: da ora a +48h per essere sicuri di non perdere consulenze
-    const in48Hours = new Date(now);
-    in48Hours.setDate(in48Hours.getDate() + 2);
+    // FIX: Usa Luxon per calcoli timezone-safe
+    const nowRomeDT = DateTime.now().setZone("Europe/Rome");
+    const now = nowRomeDT.toJSDate();
+    const tomorrow = nowRomeDT.plus({ days: 1 }).toJSDate();
+    const in48Hours = nowRomeDT.plus({ days: 2 }).toJSDate();
 
     console.log(
       `[Reminder] Cerco consulenze confermate tra ${now.toISOString()} e ${in48Hours.toISOString()}`,
@@ -2390,11 +2389,11 @@ router.get("/debug/slot-conflicts/:date", async (req, res) => {
   try {
     const { date } = req.params; // Format: YYYY-MM-DD
 
-    const targetDate = new Date(date);
-    const dayStart = new Date(targetDate);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(targetDate);
-    dayEnd.setHours(23, 59, 59, 999);
+    // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+    const { parseDateString, toUTC } = await import('./calendar-engine/timezone.js');
+    const targetDate = parseDateString(date);
+    const dayStart = toUTC(targetDate.startOf('day'));
+    const dayEnd = toUTC(targetDate.endOf('day'));
 
     const results: any = {
       date,
