@@ -1579,8 +1579,11 @@ export async function getAvailableSlotsForDate(
       }
     }
 
-    const startTime = `${current.getHours().toString().padStart(2, "0")}:${current.getMinutes().toString().padStart(2, "0")}`;
-    const endTime = `${slotEnd.getHours().toString().padStart(2, "0")}:${slotEnd.getMinutes().toString().padStart(2, "0")}`;
+    // FIX: Usa Luxon per leggere ore/minuti in Europe/Rome (non UTC!)
+    const currentRome = DateTime.fromJSDate(current, { zone: 'Europe/Rome' });
+    const slotEndRome = DateTime.fromJSDate(slotEnd, { zone: 'Europe/Rome' });
+    const startTime = `${currentRome.hour.toString().padStart(2, "0")}:${currentRome.minute.toString().padStart(2, "0")}`;
+    const endTime = `${slotEndRome.hour.toString().padStart(2, "0")}:${slotEndRome.minute.toString().padStart(2, "0")}`;
 
     // Verifica disponibilità usando array pre-caricati (ZERO query Firestore per slot!)
     const available = await isSlotAvailable(

@@ -137,9 +137,11 @@ async function getConflictDetails(
     
     if (!overlaps) continue;
     
-    // Format times
-    const startTimeStr = `${event.start.getHours().toString().padStart(2, '0')}:${event.start.getMinutes().toString().padStart(2, '0')}`;
-    const endTimeStr = `${event.end.getHours().toString().padStart(2, '0')}:${event.end.getMinutes().toString().padStart(2, '0')}`;
+    // Format times - FIX: Usa Luxon per leggere ore/minuti in Europe/Rome (non UTC!)
+    const startRome = DateTime.fromJSDate(event.start, { zone: 'Europe/Rome' });
+    const endRome = DateTime.fromJSDate(event.end, { zone: 'Europe/Rome' });
+    const startTimeStr = `${startRome.hour.toString().padStart(2, '0')}:${startRome.minute.toString().padStart(2, '0')}`;
+    const endTimeStr = `${endRome.hour.toString().padStart(2, '0')}:${endRome.minute.toString().padStart(2, '0')}`;
     
     if (event.source === 'google-calendar') {
       // Find matching Google Calendar event for full metadata
