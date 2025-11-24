@@ -172,18 +172,18 @@ export default function ConsultationsManager({
   const markViewedMutation = useMarkConsultationViewed();
   const deleteMutation = useDeleteConsultation();
   
-  // Mutation bulk delete consultazioni rifiutate
+  // Mutation bulk delete consultazioni rifiutate/annullate
   const bulkDeleteRifiutateMutation = useMutation({
     mutationFn: async () => {
-      const rifiutate = consultations.filter(c => c.stato === 'rifiutata');
+      const daEliminare = consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata');
       
-      if (rifiutate.length === 0) {
-        throw new Error('Nessuna consultazione rifiutata da eliminare');
+      if (daEliminare.length === 0) {
+        throw new Error('Nessuna consultazione rifiutata/annullata da eliminare');
       }
       
       // Elimina sequenzialmente per evitare race conditions
       const errors: string[] = [];
-      for (const c of rifiutate) {
+      for (const c of daEliminare) {
         try {
           await apiRequest('DELETE', `/api/consultations/${c.id}`);
         } catch (error: any) {
@@ -195,13 +195,13 @@ export default function ConsultationsManager({
         throw new Error(`Errori durante eliminazione: ${errors.join(', ')}`);
       }
       
-      return rifiutate.length;
+      return daEliminare.length;
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
       toast({
         title: 'Pulizia completata',
-        description: `${count} consultazione/i rifiutata/e eliminata/e con successo`,
+        description: `${count} consultazione/i rifiutata/e o annullata/e eliminata/e con successo`,
       });
       setBulkDeleteRifiutateOpen(false);
     },
@@ -560,7 +560,7 @@ export default function ConsultationsManager({
             </div>
           </div>
           
-          {consultations.filter(c => c.stato === 'rifiutata').length > 0 && (
+          {consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata').length > 0 && (
             <div className="flex justify-end">
               <Button
                 variant="outline"
@@ -570,7 +570,7 @@ export default function ConsultationsManager({
                 data-testid="button-cleanup-rifiutate"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Pulisci consultazioni rifiutate ({consultations.filter(c => c.stato === 'rifiutata').length})
+                Pulisci consultazioni rifiutate/annullate ({consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata').length})
               </Button>
             </div>
           )}
@@ -1008,14 +1008,14 @@ export default function ConsultationsManager({
         </AlertDialogContent>
       </AlertDialog>
       
-      {/* Bulk Delete Rifiutate Confirmation */}
+      {/* Bulk Delete Rifiutate/Annullate Confirmation */}
       <AlertDialog open={bulkDeleteRifiutateOpen} onOpenChange={setBulkDeleteRifiutateOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Pulizia Consultazioni Rifiutate</AlertDialogTitle>
+            <AlertDialogTitle>Pulizia Consultazioni Rifiutate/Annullate</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per eliminare definitivamente tutte le consultazioni rifiutate ({consultations.filter(c => c.stato === 'rifiutata').length} totali).
-              Questa operazione è irreversibile.
+              Stai per eliminare definitivamente tutte le consultazioni rifiutate o annullate ({consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata').length} totali).
+              Questa operazione cancellerà anche gli eventuali eventi Google Calendar associati ed è irreversibile.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

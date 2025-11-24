@@ -1,0 +1,241 @@
+🚀 Firebase: connessione diretta ai servizi produzione
+firebase.ts:51 📋 Questionari e token validation: produzione Firebase
+seed-job-types.ts:67 💡 Per eseguire il seed dei jobTypes, digita: window.seedJobTypes()
+seed-product-categories.ts:67 💡 Per eseguire il seed delle categorie prodotti, digita: window.seedProductCategories()
+2NewGalleryModal.tsx:115 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:424 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Wed Dec 03 2025 17:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 13:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 09:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Tue Nov 25 2025 17:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 22 2025 12:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Wed Dec 03 2025 17:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 13:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 09:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Tue Nov 25 2025 17:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 22 2025 12:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Wed Dec 03 2025 17:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 13:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 09:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Tue Nov 25 2025 17:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 22 2025 12:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Wed Dec 03 2025 17:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 13:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 09:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Tue Nov 25 2025 17:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 22 2025 12:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:348 [handleApprove] Approving with ID: ovAX2od0BFLFKZNDl6Vh
+ConsultationsManager.tsx:349 [handleApprove] All consultations: Array(7)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+5The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+/api/consultations/v2/ovAX2od0BFLFKZNDl6Vh/approve:1  Failed to load resource: the server responded with a status of 409 (Conflict)
+@tanstack_react-query.js?v=19040063:1271 Error: 409: {"error":"Slot non più disponibile","message":"Attenzione: È stato rilevato un nuovo impegno che si sovrappone a questa richiesta. Impossibile approvare."}
+    at throwIfResNotOk (queryClient.ts:8:11)
+    at async apiRequest (queryClient.ts:116:3)
+execute @ @tanstack_react-query.js?v=19040063:1271
+ConsultationsManager.tsx:360 [handleApprove] Error: 409: {"error":"Slot non più disponibile","message":"Attenzione: È stato rilevato un nuovo impegno che si sovrappone a questa richiesta. Impossibile approvare."}
+handleApprove @ ConsultationsManager.tsx:360
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Sat Nov 29 2025 14:30:00 GMT+0100 (Ora standard dell’Europa centrale)
+ConsultationsManager.tsx:621 🔍 [DEBUG] consultation.dataConsulenza: Object
+ConsultationsManager.tsx:622 🔍 [DEBUG] consultation.dataConsulenza type: object
+ConsultationsManager.tsx:623 🔍 [DEBUG] consultation object: Object
+ConsultationsManager.tsx:640 🔍 [DEBUG] normalized date: Fri Nov 28 2025 18:00:00 GMT+0100 (Ora standard dell’Europa centrale)
+/api/consultations/v2:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+@tanstack_react-query.js?v=19040063:873 Error: 404: {"error":"Consultation non trovata"}
+    at throwIfResNotOk (queryClient.ts:8:11)
+    at async Object.queryFn (queryClient.ts:177:5)
+onError @ @tanstack_react-query.js?v=19040063:873
+client:536 WebSocket connection to 'wss://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/?token=izVV_zBQOzcS' failed: Error in connection establishment: net::ERR_CONNECTION_TIMED_OUT
+setupWebSocket @ client:536
+client:560 [vite] server connection lost. Polling for restart...
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:749
+(anonymous) @ client:561
+client:736  GET https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/ net::ERR_CONNECTION_TIMED_OUT
+ping @ client:736
+waitForSuccessfulPing @ client:755
+await in waitForSuccessfulPing
+(anonymous) @ client:561

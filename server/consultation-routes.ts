@@ -2577,4 +2577,85 @@ router.post("/v2/available-slots", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/consultations/cleanup-orphaned-events
+ * One-time cleanup script: trova consultazioni annullate/rifiutate con eventi Google Calendar attivi e li cancella
+ * Admin only
+ */
+router.post("/cleanup-orphaned-events", authenticateFirebase, async (req: AuthRequest, res) => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({
+        error: "Solo gli amministratori possono eseguire questa operazione",
+      });
+    }
+
+    console.log("[POST /cleanup-orphaned-events] 🧹 Starting cleanup of orphaned Google Calendar events");
+
+    // Trova tutte le consultazioni annullate o rifiutate con googleCalendarEventId
+    const consultationsSnap = await db
+      .collection("consultations")
+      .where("stato", "in", ["annullata", "rifiutata"])
+      .get();
+
+    const orphanedEvents: Array<{ id: string; eventId: string; cliente: string; data: string }> = [];
+    const deleted: string[] = [];
+    const errors: Array<{ id: string; error: string }> = [];
+
+    for (const doc of consultationsSnap.docs) {
+      const data = doc.data();
+      
+      if (data.googleCalendarEventId) {
+        const clienteName = `${data.cliente?.nome || ''} ${data.cliente?.cognome || ''}`.trim();
+        const dataStr = data.dataConsulenza?.toDate?.()?.toLocaleDateString("it-IT") || "N/A";
+        
+        orphanedEvents.push({
+          id: doc.id,
+          eventId: data.googleCalendarEventId,
+          cliente: clienteName,
+          data: dataStr
+        });
+
+        // Tenta di cancellare l'evento Google Calendar
+        try {
+          await deleteEvent("primary", data.googleCalendarEventId);
+          deleted.push(doc.id);
+          
+          // Rimuovi googleCalendarEventId dal documento Firestore
+          await db.collection("consultations").doc(doc.id).update({
+            googleCalendarEventId: FieldValue.delete()
+          });
+          
+          console.log(`✅ Eliminato evento Google Calendar ${data.googleCalendarEventId} per consultation ${doc.id}`);
+        } catch (calError: any) {
+          console.error(`❌ Errore eliminazione evento ${data.googleCalendarEventId}:`, calError.message);
+          errors.push({
+            id: doc.id,
+            error: calError.message
+          });
+        }
+      }
+    }
+
+    const summary = {
+      totalOrphaned: orphanedEvents.length,
+      deleted: deleted.length,
+      failed: errors.length,
+      orphanedEvents,
+      errors
+    };
+
+    console.log("[POST /cleanup-orphaned-events] 🏁 Cleanup completato:", summary);
+
+    res.json({
+      message: "Pulizia eventi orfani completata",
+      summary
+    });
+  } catch (error: any) {
+    console.error("[POST /cleanup-orphaned-events] ❌ Error:", error.message);
+    res.status(500).json({ error: "Errore durante pulizia eventi orfani" });
+  }
+});
+
 export default router;
