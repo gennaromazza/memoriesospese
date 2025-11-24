@@ -312,3 +312,14 @@ export function useMarkConsultationViewed() {
     },
   });
 }
+
+export function useConflictDetails(consultationId: string | undefined) {
+  return useQuery({
+    queryKey: [...CONSULTATION_KEYS.consultation(consultationId!), 'conflicts'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/consultations/v2/${consultationId}/conflicts`);
+      return res.json();
+    },
+    enabled: !!consultationId,
+  });
+}

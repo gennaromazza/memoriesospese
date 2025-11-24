@@ -74,7 +74,9 @@ export async function apiRequest(
   // Endpoint consultations pubblici (NON richiedono auth) - SOLO V2
   const publicConsultationEndpoints = [
     '/api/consultations/v2/available-slots',
-    '/api/consultations/v2/create'
+    '/api/consultations/v2/create',
+    '/api/consultations/templates/', // Public template endpoints
+    '/api/consultations/job-types' // Public job types endpoint
   ];
   
   const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => url.includes(endpoint));
@@ -86,7 +88,8 @@ export async function apiRequest(
     '/api/quote/',
     '/api/quotes/',
     '/api/booking/',
-    '/api/calendar/'
+    '/api/calendar/',
+    '/api/consultations/v2/' // All V2 consultation endpoints except public ones
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici
