@@ -4,13 +4,21 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getAllQuoteTemplates, createQuoteTemplate } from '@/lib/quotes';
+import {
+  getAllQuoteTemplates,
+  createQuoteTemplate,
+  updateQuoteTemplate,
+  deleteQuoteTemplate,
+  toggleTemplateActive,
+  updateTemplatesOrder,
+  getQuoteTemplate
+} from '@/lib/quotes';
 import { getAllProducts } from '@/lib/products';
 import { getJobTypes } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
@@ -31,6 +39,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   Form,
   FormControl,
@@ -62,9 +92,30 @@ import {
   Euro,
   Percent,
   Tag,
-  Package
+  Package,
+  MoreVertical,
+  GripVertical,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import type { QuoteProduct } from '@shared/quotes-types';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import type { QuoteProduct, QuoteTemplate } from '@shared/quotes-types';
 
 const templateSchema = z.object({
   nome: z.string().min(1, 'Nome richiesto'),
@@ -90,16 +141,189 @@ const templateSchema = z.object({
 
 type FormData = z.infer<typeof templateSchema>;
 
+// Sortable Template Card Component
+function SortableTemplateCard({
+  template,
+  jobTypes,
+  onEdit,
+  onDelete,
+  onToggle,
+}: {
+  template: QuoteTemplate & { id: string };
+  jobTypes: any[];
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggle: () => void;
+}) {
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: template.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const jobType = jobTypes.find((jt) => jt.slug === template.jobType);
+  const totale = template.defaultProducts.reduce(
+    (sum, p) => sum + p.prezzo,
+    0,
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className={!template.attivo ? "opacity-60" : ""}>
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            {/* Drag Handle */}
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing pt-1"
+            >
+              <GripVertical className="h-5 w-5 text-muted-foreground" />
+            </div>
+
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    {jobType && <span>{jobType.icona}</span>}
+                    {template.nome}
+                  </CardTitle>
+                  <CardDescription>
+                    {jobType?.nome || template.jobType}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={template.attivo}
+                    onCheckedChange={onToggle}
+                    data-testid={`switch-template-${template.id}`}
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[200]">
+                      <DropdownMenuItem onClick={onEdit}>
+                        <Edit2 className="h-4 w-4 mr-2" />
+                        Modifica
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setIsPreviewOpen(!isPreviewOpen)}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        {isPreviewOpen ? "Nascondi" : "Anteprima"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={onDelete}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Elimina
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Tipo:</span>
+            <Badge variant="outline">
+              {template.type === "fisso" ? "Fisso" : "Variabile"}
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Prodotti:</span>
+            <span className="font-medium">
+              {template.defaultProducts.length}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-sm">Totale:</span>
+            <span className="text-lg font-bold text-sage">
+              €{totale.toLocaleString()}
+            </span>
+          </div>
+
+          {/* Preview Expandable */}
+          <Collapsible open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full mt-2">
+                {isPreviewOpen ? (
+                  <ChevronUp className="h-4 w-4 mr-2" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 mr-2" />
+                )}
+                {isPreviewOpen ? "Nascondi prodotti" : "Mostra prodotti"}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3 space-y-2">
+              <div className="text-xs font-semibold text-muted-foreground">
+                PRODOTTI INCLUSI
+              </div>
+              {template.defaultProducts.map((product, idx) => (
+                <div
+                  key={idx}
+                  className="flex justify-between items-start text-sm border-l-2 border-sage/20 pl-2"
+                >
+                  <div className="flex-1">
+                    <div className="font-medium">{product.nome}</div>
+                    {product.descrizione && (
+                      <div className="text-xs text-muted-foreground">
+                        {product.descrizione}
+                      </div>
+                    )}
+                  </div>
+                  <div className="font-semibold">€{product.prezzo}</div>
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function QuoteTemplatesManager() {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
 
   // Query templates
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templatesData = [], isLoading } = useQuery({
     queryKey: ['quote-templates'],
     queryFn: getAllQuoteTemplates
   });
+
+  // Sort templates by ordine field
+  const templates = useMemo(() => {
+    return [...templatesData].sort((a, b) => {
+      if (a.ordine !== undefined && b.ordine !== undefined) {
+        return a.ordine - b.ordine;
+      }
+      return 0;
+    });
+  }, [templatesData]);
 
   // Query job types - only active ones
   const { data: jobTypes = [] } = useQuery({
@@ -115,6 +339,21 @@ export default function QuoteTemplatesManager() {
     queryKey: ['products'],
     queryFn: getAllProducts
   });
+
+  // Query single template for editing
+  const { data: editingTemplate } = useQuery({
+    queryKey: ['quote-template', editingTemplateId],
+    queryFn: () => getQuoteTemplate(editingTemplateId!),
+    enabled: !!editingTemplateId,
+  });
+
+  // Drag & Drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Form
   const form = useForm<FormData>({
@@ -144,6 +383,75 @@ export default function QuoteTemplatesManager() {
     control: form.control,
     name: 'customProducts'
   });
+
+  // Reset form to defaults when opening create modal
+  useEffect(() => {
+    if (createModalOpen && !editModalOpen) {
+      form.reset({
+        nome: '',
+        jobType: '',
+        type: 'fisso',
+        catalogProductIds: [],
+        customProducts: [{
+          nome: '',
+          descrizione: '',
+          prezzo: 0,
+          numeroFoto: 0,
+          categoria: ''
+        }],
+        theme: {
+          primaryColor: '#8B9A8B',
+          secondaryColor: '#C8B8A8',
+          footerText: 'Image Studio - Fotografia professionale'
+        },
+        attivo: true,
+        discountType: undefined,
+        discountValue: undefined
+      });
+    }
+  }, [createModalOpen, editModalOpen, form]);
+
+  // Load editing template data into form when editingTemplate changes
+  useEffect(() => {
+    if (editingTemplate && editModalOpen) {
+      const customProducts = editingTemplate.defaultProducts
+        .filter((p) => !p.productId)
+        .map((p) => ({
+          nome: p.nome,
+          descrizione: p.descrizione || '',
+          prezzo: p.prezzo,
+          numeroFoto: p.numeroFoto || 0,
+          categoria: p.categoria || '',
+        }));
+
+      const catalogProductIds = editingTemplate.defaultProducts
+        .filter((p) => p.productId)
+        .map((p) => p.productId!);
+
+      form.reset({
+        nome: editingTemplate.nome,
+        jobType: editingTemplate.jobType as string,
+        type: editingTemplate.type,
+        catalogProductIds,
+        customProducts:
+          customProducts.length > 0
+            ? customProducts
+            : [
+                {
+                  nome: '',
+                  descrizione: '',
+                  prezzo: 0,
+                  numeroFoto: 0,
+                  categoria: '',
+                },
+              ],
+        discountType: (editingTemplate as any).discountType,
+        discountValue: (editingTemplate as any).discountValue,
+        theme: editingTemplate.theme,
+        attivo: editingTemplate.attivo,
+      });
+    }
+  }, [editingTemplate, editModalOpen, form]);
 
   // Watch values for totals
   const catalogProductIds = form.watch('catalogProductIds') || [];
@@ -210,7 +518,7 @@ export default function QuoteTemplatesManager() {
         }
       ];
 
-      const templateData = {
+      const templateData: any = {
         nome: data.nome,
         jobType: data.jobType as any,
         type: data.type,
@@ -219,6 +527,12 @@ export default function QuoteTemplatesManager() {
         defaultClauses,
         attivo: data.attivo
       };
+
+      // Only include discount fields if they are actually defined
+      if (data.discountType !== undefined && data.discountValue !== undefined) {
+        templateData.discountType = data.discountType;
+        templateData.discountValue = data.discountValue;
+      }
 
       return createQuoteTemplate(templateData, user!.uid);
     },
@@ -240,8 +554,147 @@ export default function QuoteTemplatesManager() {
     }
   });
 
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: FormData }) => {
+      const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(prodId => {
+        const product = catalogProducts.find(p => p.id === prodId);
+        if (!product) throw new Error(`Prodotto ${prodId} non trovato`);
+        return {
+          productId: product.id,
+          nome: product.nome,
+          descrizione: product.descrizione,
+          prezzo: product.prezzoFinale || product.prezzo,
+          selectable: data.type === 'variabile',
+          numeroFoto: product.numeroFoto,
+          categoria: product.categoria,
+          immagini: product.immagini || []
+        };
+      });
+
+      const customQuoteProducts: QuoteProduct[] = data.customProducts
+        .filter(p => p.nome.trim())
+        .map(p => ({
+          nome: p.nome,
+          descrizione: p.descrizione,
+          prezzo: p.prezzo,
+          selectable: data.type === 'variabile',
+          numeroFoto: p.numeroFoto,
+          categoria: p.categoria
+        }));
+
+      const allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
+
+      const updateData: any = {
+        nome: data.nome,
+        jobType: data.jobType as any,
+        type: data.type,
+        theme: data.theme,
+        defaultProducts: allProducts,
+        defaultClauses: editingTemplate?.defaultClauses || [
+          {
+            text: 'Il cliente accetta i termini e condizioni del servizio',
+            required: true,
+            ordine: 1
+          }
+        ],
+        attivo: data.attivo
+      };
+
+      // Only include discount fields if they are actually defined
+      if (data.discountType !== undefined && data.discountValue !== undefined) {
+        updateData.discountType = data.discountType;
+        updateData.discountValue = data.discountValue;
+      }
+
+      await updateQuoteTemplate(id, updateData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
+      toast({
+        title: 'Template aggiornato!',
+        description: 'Le modifiche sono state salvate'
+      });
+      setEditModalOpen(false);
+      setEditingTemplateId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: deleteQuoteTemplate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
+      toast({
+        title: 'Template eliminato',
+        description: 'Il template è stato disattivato'
+      });
+      setDeleteTemplateId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Toggle active mutation
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, attivo }: { id: string; attivo: boolean }) =>
+      toggleTemplateActive(id, attivo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
+    }
+  });
+
+  // Reorder mutation
+  const reorderMutation = useMutation({
+    mutationFn: updateTemplatesOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
+      toast({
+        title: 'Ordine salvato',
+        description: 'La nuova disposizione è stata salvata'
+      });
+    }
+  });
+
+  // Drag end handler
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = templates.findIndex(t => t.id === active.id);
+      const newIndex = templates.findIndex(t => t.id === over.id);
+
+      const newTemplates = arrayMove(templates, oldIndex, newIndex);
+      const newOrder = newTemplates.map(t => t.id);
+
+      // Optimistic update
+      queryClient.setQueryData(['quote-templates'], newTemplates);
+
+      // Persist to Firestore
+      reorderMutation.mutate(newOrder);
+    }
+  };
+
   const onSubmit = (data: FormData) => {
-    createMutation.mutate(data);
+    if (editModalOpen && editingTemplateId) {
+      // Edit mode
+      updateMutation.mutate({ id: editingTemplateId, data });
+    } else {
+      // Create mode
+      createMutation.mutate(data);
+    }
   };
 
   if (isLoading) {
@@ -268,7 +721,7 @@ export default function QuoteTemplatesManager() {
         </Button>
       </div>
 
-      {/* Templates Grid */}
+      {/* Templates Grid with Drag & Drop */}
       {templates.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
@@ -276,72 +729,68 @@ export default function QuoteTemplatesManager() {
             <p className="text-muted-foreground mb-4">
               Nessun template creato
             </p>
-            <Button onClick={() => setCreateModalOpen(true)} className="bg-sage hover:bg-dark-sage">
+            <Button onClick={() => setCreateModalOpen(true)} className="bg-sage hover:bg-dark-sage" data-testid="button-create-template">
               <Plus className="h-4 w-4 mr-2" />
               Crea il primo template
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {templates.map(template => {
-            const jobType = jobTypes.find(jt => jt.slug === template.jobType);
-            const totale = template.defaultProducts.reduce((sum, p) => sum + p.prezzo, 0);
-            
-            return (
-              <Card key={template.id} className={!template.attivo ? 'opacity-60' : ''}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="flex items-center gap-2">
-                        {jobType && <span>{jobType.icona}</span>}
-                        {template.nome}
-                      </CardTitle>
-                      <CardDescription>
-                        {jobType?.nome || template.jobType}
-                      </CardDescription>
-                    </div>
-                    {!template.attivo && (
-                      <Badge variant="secondary">Disattivo</Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Tipo:</span>
-                    <Badge variant="outline">
-                      {template.type === 'fisso' ? 'Fisso' : 'Variabile'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Prodotti:</span>
-                    <span className="font-medium">
-                      {template.defaultProducts.length}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-sm">Totale:</span>
-                    <span className="text-lg font-bold text-sage">
-                      €{totale.toLocaleString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={templates.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {templates.map((template) => (
+                <SortableTemplateCard
+                  key={template.id}
+                  template={template as QuoteTemplate & { id: string }}
+                  jobTypes={jobTypes}
+                  onEdit={() => {
+                    setEditingTemplateId(template.id);
+                    setEditModalOpen(true);
+                  }}
+                  onDelete={() => setDeleteTemplateId(template.id)}
+                  onToggle={() =>
+                    toggleMutation.mutate({
+                      id: template.id,
+                      attivo: !template.attivo,
+                    })
+                  }
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
-      {/* Create Template Modal */}
-      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+      {/* Create/Edit Template Modal */}
+      <Dialog
+        open={createModalOpen || editModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateModalOpen(false);
+            setEditModalOpen(false);
+            setEditingTemplateId(null);
+            form.reset();
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Crea Template Preventivo
+              {editModalOpen ? 'Modifica Template Preventivo' : 'Crea Template Preventivo'}
             </DialogTitle>
             <DialogDescription>
-              Crea un template riutilizzabile con prodotti e prezzi preimpostati
+              {editModalOpen
+                ? 'Modifica il template con nuovi prodotti e prezzi'
+                : 'Crea un template riutilizzabile con prodotti e prezzi preimpostati'}
             </DialogDescription>
           </DialogHeader>
 
@@ -689,26 +1138,57 @@ export default function QuoteTemplatesManager() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setCreateModalOpen(false)}
-                  disabled={createMutation.isPending}
+                  onClick={() => {
+                    setCreateModalOpen(false);
+                    setEditModalOpen(false);
+                    setEditingTemplateId(null);
+                    form.reset();
+                  }}
+                  disabled={createMutation.isPending || updateMutation.isPending}
                 >
                   Annulla
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createMutation.isPending}
+                  disabled={createMutation.isPending || updateMutation.isPending}
                   className="bg-sage hover:bg-dark-sage"
                 >
-                  {createMutation.isPending && (
+                  {(createMutation.isPending || updateMutation.isPending) && (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   )}
-                  Crea Template
+                  {editModalOpen ? 'Salva Modifiche' : 'Crea Template'}
                 </Button>
               </div>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!deleteTemplateId}
+        onOpenChange={() => setDeleteTemplateId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare questo template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il template verrà disattivato e non sarà più disponibile per la
+              creazione di nuovi preventivi. I preventivi esistenti creati da
+              questo template non saranno modificati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTemplateId && deleteMutation.mutate(deleteTemplateId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

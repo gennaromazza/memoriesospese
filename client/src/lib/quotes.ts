@@ -11,6 +11,7 @@ import {
   getDocs,
   addDoc,
   updateDoc,
+  writeBatch,
   query,
   where,
   orderBy,
@@ -640,6 +641,70 @@ export async function getQuoteTemplate(templateId: string): Promise<QuoteTemplat
     } as QuoteTemplate;
   } catch (error) {
     console.error('❌ Errore get template:', error);
+    throw error;
+  }
+}
+
+export async function updateQuoteTemplate(
+  templateId: string,
+  data: Partial<InsertQuoteTemplate>
+): Promise<void> {
+  try {
+    const updateData = {
+      ...data,
+      updatedAt: Timestamp.now()
+    };
+    
+    const cleanedData = removeUndefinedFields(updateData);
+    await updateDoc(doc(db, TEMPLATES_COLLECTION, templateId), cleanedData);
+    console.log('✅ Template aggiornato:', templateId);
+  } catch (error) {
+    console.error('❌ Errore update template:', error);
+    throw error;
+  }
+}
+
+export async function deleteQuoteTemplate(templateId: string): Promise<void> {
+  try {
+    // Soft delete - set attivo = false
+    await updateDoc(doc(db, TEMPLATES_COLLECTION, templateId), {
+      attivo: false,
+      updatedAt: Timestamp.now()
+    });
+    console.log('✅ Template disattivato:', templateId);
+  } catch (error) {
+    console.error('❌ Errore delete template:', error);
+    throw error;
+  }
+}
+
+export async function toggleTemplateActive(templateId: string, attivo: boolean): Promise<void> {
+  try {
+    await updateDoc(doc(db, TEMPLATES_COLLECTION, templateId), {
+      attivo,
+      updatedAt: Timestamp.now()
+    });
+    console.log(`✅ Template ${attivo ? 'attivato' : 'disattivato'}:`, templateId);
+  } catch (error) {
+    console.error('❌ Errore toggle template:', error);
+    throw error;
+  }
+}
+
+export async function updateTemplatesOrder(templateIds: string[]): Promise<void> {
+  try {
+    const batch = writeBatch(db);
+    templateIds.forEach((id, index) => {
+      const templateRef = doc(db, TEMPLATES_COLLECTION, id);
+      batch.update(templateRef, { 
+        ordine: index,
+        updatedAt: Timestamp.now()
+      });
+    });
+    await batch.commit();
+    console.log('✅ Ordine template aggiornato');
+  } catch (error) {
+    console.error('❌ Errore update ordine:', error);
     throw error;
   }
 }
