@@ -1074,6 +1074,7 @@ router.post("/send-quote", async (req: Request, res: Response) => {
       .update({
         sentAt: new Date(),
         sentTo: recipientEmails.join(", "), // Salva tutte le email
+        emailSentAt: new Date(), // Traccia invio manuale email
         status: "inviato",
       });
 

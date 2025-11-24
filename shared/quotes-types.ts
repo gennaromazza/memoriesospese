@@ -167,6 +167,7 @@ export interface Quote {
   sentAt?: Timestamp;
   sentTo?: string;              // Email destinatario
   viewedAt?: Timestamp;         // Prima visualizzazione
+  emailSentAt?: Timestamp;      // Quando email è stata inviata manualmente
   
   // Note interne
   noteInterne?: string;

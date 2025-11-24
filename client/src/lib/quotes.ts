@@ -704,6 +704,35 @@ async function getTemplateName(templateId: string): Promise<string | undefined> 
   return template?.nome;
 }
 
+/**
+ * Invia preventivo via email al cliente manualmente
+ */
+export async function sendQuoteEmailManually(quoteId: string): Promise<{ success: boolean; message: string; recipientEmails?: string[] }> {
+  try {
+    const response = await fetch('/api/quotes/send-quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quoteId })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Errore invio email preventivo');
+    }
+
+    const result = await response.json();
+    console.log('✅ Email preventivo inviata:', result);
+    return {
+      success: true,
+      message: result.message,
+      recipientEmails: result.recipientEmails
+    };
+  } catch (error) {
+    console.error('❌ Errore invio email preventivo:', error);
+    throw error;
+  }
+}
+
 function getDefaultTheme() {
   return {
     primaryColor: '#8B9A8B',
