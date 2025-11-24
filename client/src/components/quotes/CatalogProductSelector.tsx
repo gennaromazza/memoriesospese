@@ -4,6 +4,8 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getActiveProductCategories } from '@/lib/product-categories';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +19,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, Package, Euro, Image as ImageIcon } from 'lucide-react';
-import { useProductCategories } from '@/lib/products';
 import type { Product } from '@shared/booking-types';
 
 interface CatalogProductSelectorProps {
@@ -33,14 +34,17 @@ export default function CatalogProductSelector({
 }: CatalogProductSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  
-  // Carica categorie dinamiche da Firestore
-  const { data: productCategories = [] } = useProductCategories();
-  
+
+  // Query categorie configurate
+  const { data: configuredCategories = [] } = useQuery({
+    queryKey: ['product-categories', 'active'],
+    queryFn: getActiveProductCategories
+  });
+
   // Filter products
   const filteredProducts = useMemo(() => {
     let filtered = products.filter(p => p.attivo);
-    
+
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -49,26 +53,26 @@ export default function CatalogProductSelector({
         p.descrizione?.toLowerCase().includes(query)
       );
     }
-    
+
     // Category filter
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(p => p.categoria === categoryFilter);
     }
-    
+
     return filtered;
   }, [products, searchQuery, categoryFilter]);
-  
+
   // Get unique categories usate dai prodotti (filtra solo quelle con almeno un prodotto)
   const usedCategories = useMemo(() => {
     const usedCatValues = new Set(products.map(p => p.categoria));
-    return productCategories.filter(cat => usedCatValues.has(cat.value));
-  }, [products, productCategories]);
-  
+    return configuredCategories.filter(cat => usedCatValues.has(cat.value));
+  }, [products, configuredCategories]);
+
   // Helper per ottenere il nome visualizzato della categoria
   const getCategoryDisplayName = (categoryValue: string) => {
-    return productCategories.find(cat => cat.value === categoryValue)?.nome || categoryValue;
+    return configuredCategories.find(cat => cat.value === categoryValue)?.nome || categoryValue;
   };
-  
+
   // Toggle product selection
   const toggleProduct = (productId: string) => {
     if (selectedProductIds.includes(productId)) {
@@ -77,7 +81,7 @@ export default function CatalogProductSelector({
       onSelectionChange([...selectedProductIds, productId]);
     }
   };
-  
+
   // Calculate total
   const selectedTotal = useMemo(() => {
     return selectedProductIds.reduce((sum, id) => {
@@ -85,7 +89,16 @@ export default function CatalogProductSelector({
       return sum + (product?.prezzoFinale || product?.prezzo || 0);
     }, 0);
   }, [selectedProductIds, products]);
-  
+
+  // Mappa categorie per display
+  const categoryDisplayMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    configuredCategories.forEach(cat => {
+      map[cat.value] = cat.nome;
+    });
+    return map;
+  }, [configuredCategories]);
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -100,22 +113,32 @@ export default function CatalogProductSelector({
             data-testid="input-search-catalog"
           />
         </div>
-        
+
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
           <SelectTrigger className="w-48" data-testid="select-category-filter">
-            <SelectValue placeholder="Categoria" />
+            <SelectValue placeholder="Categoria">
+              {categoryFilter === 'all'
+                ? 'Tutte le categorie'
+                : categoryDisplayMap[categoryFilter] || categoryFilter}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le categorie</SelectItem>
-            {usedCategories.map(cat => (
-              <SelectItem key={cat.value} value={cat.value}>
-                {cat.nome}
+            {configuredCategories.length === 0 ? (
+              <SelectItem value="none" disabled>
+                Nessuna categoria configurata
               </SelectItem>
-            ))}
+            ) : (
+              configuredCategories.map(category => (
+                <SelectItem key={category.value} value={category.value}>
+                  {category.nome}
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
       </div>
-      
+
       {/* Stats header */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -124,7 +147,7 @@ export default function CatalogProductSelector({
             {selectedProductIds.length} di {filteredProducts.length} selezionati
           </span>
         </div>
-        
+
         {selectedProductIds.length > 0 && (
           <div className="flex items-center gap-2 font-semibold text-primary">
             <Euro className="h-4 w-4" />
@@ -132,7 +155,7 @@ export default function CatalogProductSelector({
           </div>
         )}
       </div>
-      
+
       {/* Products grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[400px] overflow-y-auto pr-2">
         {filteredProducts.length === 0 ? (
@@ -144,7 +167,10 @@ export default function CatalogProductSelector({
           filteredProducts.map((product) => {
             const isSelected = selectedProductIds.includes(product.id);
             const priceToDisplay = product.prezzoFinale || product.prezzo;
-            
+            const categoryName = product.categoria
+              ? (categoryDisplayMap[product.categoria] || product.categoria)
+              : 'Altro';
+
             return (
               <Card
                 key={product.id}
@@ -169,7 +195,7 @@ export default function CatalogProductSelector({
                         <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
                       </div>
                     )}
-                    
+
                     {/* Checkbox overlay */}
                     <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -179,18 +205,18 @@ export default function CatalogProductSelector({
                         data-testid={`checkbox-product-${product.id}`}
                       />
                     </div>
-                    
+
                     {/* Category badge */}
                     {product.categoria && (
                       <Badge
                         variant="secondary"
                         className="absolute bottom-2 left-2 text-xs"
                       >
-                        {getCategoryDisplayName(product.categoria)}
+                        {categoryName}
                       </Badge>
                     )}
                   </div>
-                  
+
                   {/* Product info */}
                   <div className="space-y-1">
                     <div className="flex items-start justify-between gap-2">
@@ -198,20 +224,20 @@ export default function CatalogProductSelector({
                         {product.nome}
                       </Label>
                     </div>
-                    
+
                     {product.descrizione && (
                       <p className="text-xs text-muted-foreground line-clamp-2">
                         {product.descrizione}
                       </p>
                     )}
-                    
+
                     <div className="flex items-center justify-between pt-2">
                       {product.numeroFoto > 0 && (
                         <span className="text-xs text-muted-foreground">
                           {product.numeroFoto} foto
                         </span>
                       )}
-                      
+
                       <div className="flex items-center gap-1">
                         {product.sconto > 0 && (
                           <span className="text-xs text-muted-foreground line-through">

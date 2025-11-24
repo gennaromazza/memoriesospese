@@ -101,10 +101,13 @@ export default function QuoteTemplatesManager() {
     queryFn: getAllQuoteTemplates
   });
 
-  // Query job types
+  // Query job types - only active ones
   const { data: jobTypes = [] } = useQuery({
     queryKey: ['job-types'],
-    queryFn: getJobTypes
+    queryFn: async () => {
+      const allJobTypes = await getJobTypes();
+      return allJobTypes.filter(jt => jt.attivo);
+    }
   });
 
   // Query catalog products
@@ -373,19 +376,37 @@ export default function QuoteTemplatesManager() {
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleziona tipo..." />
+                            <SelectValue placeholder="Seleziona tipo...">
+                              {field.value && jobTypes.length > 0 ? (
+                                <span className="flex items-center gap-2">
+                                  {jobTypes.find(jt => jt.slug === field.value)?.icona}{' '}
+                                  {jobTypes.find(jt => jt.slug === field.value)?.nome}
+                                </span>
+                              ) : (
+                                'Seleziona tipo...'
+                              )}
+                            </SelectValue>
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {jobTypes.map(jt => (
-                            <SelectItem key={jt.id} value={jt.slug}>
-                              <span className="flex items-center gap-2">
-                                {jt.icona} {jt.nome}
-                              </span>
+                          {jobTypes.length === 0 ? (
+                            <SelectItem value="none" disabled>
+                              Nessun tipo lavoro configurato
                             </SelectItem>
-                          ))}
+                          ) : (
+                            jobTypes.map(jt => (
+                              <SelectItem key={jt.id} value={jt.slug}>
+                                <span className="flex items-center gap-2">
+                                  {jt.icona} {jt.nome}
+                                </span>
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
+                      <FormDescription className="text-xs">
+                        {jobTypes.length} tipi disponibili
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
