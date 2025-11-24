@@ -137,6 +137,13 @@ const templateSchema = z.object({
     footerText: z.string().optional()
   }),
   attivo: z.boolean().default(true)
+}).refine((data) => {
+  const hasType = data.discountType !== undefined;
+  const hasValue = data.discountValue !== undefined;
+  return hasType === hasValue;
+}, {
+  message: 'Tipo e valore sconto devono essere entrambi specificati o entrambi vuoti',
+  path: ['discountType']
 });
 
 type FormData = z.infer<typeof templateSchema>;
