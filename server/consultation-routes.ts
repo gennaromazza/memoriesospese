@@ -78,7 +78,8 @@ async function getConflictDetails(
   consultationEndTime: Date,
   dayStart: Date,
   dayEnd: Date,
-  db: any
+  db: any,
+  excludeConsultationId?: string // Optional ID to exclude from conflicts
 ): Promise<{
   hasConflict: boolean;
   conflicts: Array<{
@@ -102,12 +103,15 @@ async function getConflictDetails(
   const { hasConflict: checkConflict } = await import('./calendar-engine/conflicts.js');
   const { getEventsWithDetailsAllCalendars } = await import('./google-calendar.js');
   
-  // Load blocking events (NO Firestore consultations to match /available-slots)
+  // CRITICAL FIX: Exclude Firestore consultations to match approval logic
+  // This prevents phantom conflicts from consultations without Google Calendar events
   const blockingEvents = await getAllExistingEvents(dayStart, dayEnd, db, {
-    includeConsultations: false,
+    includeConsultations: false,  // Match /v2/:id/approve behavior
     includeJobs: true,
     includeBookings: true
   });
+  
+  console.log(`[Conflict Details] Loaded ${blockingEvents.length} blocking events (NO Firestore consultations)`);
   
   // Check if there's a conflict
   const hasConflicts = checkConflict(consultationStartTime, consultationEndTime, blockingEvents);
@@ -823,12 +827,14 @@ router.get(
       const dayEnd = dateObj.endOf("day").toJSDate();
 
       // Get conflict details
+      // CRITICAL: Match approval logic by excluding Firestore consultations
       const conflictDetails = await getConflictDetails(
         startDateTime,
         endDateTime,
         dayStart,
         dayEnd,
-        db
+        db,
+        consultationId // Pass ID to exclude current consultation
       );
 
       console.log(`[GET /v2/:id/conflicts] ${conflictDetails.hasConflict ? `⚠️ Found ${conflictDetails.conflicts.length} conflicts` : '✅ No conflicts'}`);
