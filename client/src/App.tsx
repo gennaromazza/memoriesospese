@@ -55,6 +55,7 @@ import AdminJsonImporter from "./pages/admin/AdminJsonImporter";
 import QuoteManagementDemo from "./pages/admin/QuoteManagementDemo";
 import CollaboratorAssignmentResponse from "./pages/CollaboratorAssignmentResponse";
 import CollaboratoreDashboard from "./pages/CollaboratoreDashboard";
+import BulkEmailSender from "./pages/BulkEmailSender";
 
 // Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
 import './scripts/seed-job-types';
@@ -119,6 +120,7 @@ function AppRoutes() {
 
       <Route path="/admin" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
+      <Route path="/admin/bulk-email" component={BulkEmailSender} />
       <Route path="/admin/faq" component={Faq} />
       <Route path="/admin/galleries/:galleryId" component={AdminGalleryAccess} />
       <Route path="/admin/galleries/:galleryId/questionnaire" component={QuestionnaireManager} />

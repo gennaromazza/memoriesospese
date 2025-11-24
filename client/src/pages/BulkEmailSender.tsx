@@ -1,0 +1,504 @@
+/**
+ * BulkEmailSender - Sistema invio massivo email ai clienti
+ * Supporta selezione destinatari, editor HTML, preview, rate limiting
+ */
+
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface BulkEmailRecipient {
+  email: string;
+  nome: string;
+  cognome: string;
+  clientId?: string;
+}
+
+interface BulkEmailJob {
+  id: string;
+  subject: string;
+  body: string;
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  errors: Array<{ email: string; error: string }>;
+  createdAt: any;
+  completedAt?: any;
+}
+
+export default function BulkEmailSender() {
+  const { toast } = useToast();
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [filter, setFilter] = useState<string>('all');
+  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Query destinatari disponibili
+  const { data: recipientsData, isLoading: recipientsLoading } = useQuery({
+    queryKey: ['/api/bulk-email/recipients', filter],
+    queryFn: async () => {
+      const params = filter !== 'all' ? `?filter=${filter}` : '';
+      const response = await fetch(`/api/bulk-email/recipients${params}`);
+      if (!response.ok) throw new Error('Errore caricamento destinatari');
+      return response.json();
+    }
+  });
+
+  const recipients: BulkEmailRecipient[] = recipientsData?.recipients || [];
+
+  // Query job attivo (polling ogni 2 secondi se in progress)
+  const { data: activeJobData } = useQuery({
+    queryKey: ['/api/bulk-email/jobs', activeJobId],
+    queryFn: async () => {
+      if (!activeJobId) return null;
+      const response = await fetch(`/api/bulk-email/jobs/${activeJobId}`);
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!activeJobId,
+    refetchInterval: (data) => {
+      const job = data?.job as BulkEmailJob | undefined;
+      return job?.status === 'in_progress' ? 2000 : false;
+    }
+  });
+
+  const activeJob: BulkEmailJob | null = activeJobData?.job || null;
+
+  // Query tutti i job
+  const { data: jobsData } = useQuery({
+    queryKey: ['/api/bulk-email/jobs'],
+    refetchInterval: 5000 // Aggiorna ogni 5 secondi
+  });
+
+  const allJobs: BulkEmailJob[] = jobsData?.jobs || [];
+
+  // Mutation invio email
+  const sendMutation = useMutation({
+    mutationFn: async () => {
+      const selectedList = Array.from(selectedRecipients)
+        .map(email => recipients.find(r => r.email === email))
+        .filter(Boolean);
+
+      if (selectedList.length === 0) {
+        throw new Error('Seleziona almeno un destinatario');
+      }
+
+      if (!subject.trim() || !body.trim()) {
+        throw new Error('Oggetto e corpo email sono obbligatori');
+      }
+
+      return apiRequest('/api/bulk-email/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          subject,
+          body,
+          recipients: selectedList,
+          senderId: 'admin'
+        })
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: '✅ Invio avviato!',
+        description: `Invio di ${selectedRecipients.size} email in corso...`
+      });
+      setActiveJobId(data.jobId);
+      queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/jobs'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: '❌ Errore',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Toggle seleziona tutti
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedRecipients(new Set());
+    } else {
+      setSelectedRecipients(new Set(recipients.map(r => r.email)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // Toggle singolo destinatario
+  const handleToggleRecipient = (email: string) => {
+    const newSet = new Set(selectedRecipients);
+    if (newSet.has(email)) {
+      newSet.delete(email);
+    } else {
+      newSet.add(email);
+    }
+    setSelectedRecipients(newSet);
+    setSelectAll(newSet.size === recipients.length);
+  };
+
+  // Template email esempio
+  const insertExampleTemplate = () => {
+    setSubject('Cambio Piattaforma - Nuova Area Clienti');
+    setBody(`<div style="margin-bottom: 20px;">
+  <p>Ciao <strong>{nome}</strong>,</p>
+  <p>Ti scriviamo per informarti di un importante aggiornamento della nostra piattaforma.</p>
+</div>
+
+<div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+  <h3 style="color: #8b5a3c; margin-top: 0;">🎉 Nuova Area Clienti</h3>
+  <p>Abbiamo completamente rinnovato il sistema di gestione per offrirti un'esperienza ancora migliore:</p>
+  <ul style="line-height: 1.8;">
+    <li><strong>Gallerie Fotografiche</strong> più veloci e intuitive</li>
+    <li><strong>Preventivi Digitali</strong> firmabili online</li>
+    <li><strong>Scadenzario Pagamenti</strong> automatico</li>
+    <li><strong>Gestione Completa</strong> del tuo servizio fotografico</li>
+  </ul>
+</div>
+
+<p>Tutte le tue informazioni sono state migrate nella nuova piattaforma. Se hai domande o necessiti di supporto, non esitare a contattarci.</p>
+
+<p style="margin-top: 30px;">A presto,<br><strong>Gennaro Mazzacane</strong></p>`);
+  };
+
+  return (
+    <div className="container mx-auto p-6 max-w-7xl">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold mb-2">📧 Invio Email Massivo</h1>
+        <p className="text-muted-foreground">
+          Sistema di invio massivo per comunicazioni ai clienti (max 2,000 email/giorno)
+        </p>
+      </div>
+
+      <Tabs defaultValue="compose" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="compose">
+            <Mail className="h-4 w-4 mr-2" />
+            Componi Email
+          </TabsTrigger>
+          <TabsTrigger value="jobs">
+            <Loader2 className="h-4 w-4 mr-2" />
+            Jobs Attivi ({allJobs.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="compose" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Editor Email */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>✍️ Componi Messaggio</CardTitle>
+                  <CardDescription>
+                    Usa <code className="bg-muted px-1">{`{nome}`}</code>, <code className="bg-muted px-1">{`{cognome}`}</code>, <code className="bg-muted px-1">{`{nome_completo}`}</code> per personalizzare
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="subject">Oggetto Email</Label>
+                    <Input
+                      id="subject"
+                      placeholder="Es: Cambio Piattaforma - Nuova Area Clienti"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      data-testid="input-email-subject"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label htmlFor="body">Corpo Email (HTML supportato)</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={insertExampleTemplate}
+                        data-testid="button-insert-template"
+                      >
+                        📝 Template Esempio
+                      </Button>
+                    </div>
+                    <Textarea
+                      id="body"
+                      placeholder="Inserisci il corpo dell'email qui (HTML supportato)..."
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      rows={16}
+                      className="font-mono text-sm"
+                      data-testid="textarea-email-body"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowPreview(!showPreview)}
+                      data-testid="button-toggle-preview"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      {showPreview ? 'Nascondi' : 'Mostra'} Anteprima
+                    </Button>
+                  </div>
+
+                  {showPreview && (
+                    <Card className="bg-muted/50">
+                      <CardHeader>
+                        <CardTitle className="text-sm">📧 Anteprima Email</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="bg-white p-6 rounded-lg">
+                          <div className="mb-4 pb-4 border-b">
+                            <p className="text-sm text-muted-foreground mb-1">Oggetto:</p>
+                            <p className="font-semibold">{subject || '(nessun oggetto)'}</p>
+                          </div>
+                          <div 
+                            dangerouslySetInnerHTML={{ 
+                              __html: body.replace(/\{nome\}/g, '<span class="bg-yellow-100">Mario</span>')
+                                          .replace(/\{cognome\}/g, '<span class="bg-yellow-100">Rossi</span>')
+                                          .replace(/\{nome_completo\}/g, '<span class="bg-yellow-100">Mario Rossi</span>')
+                            }} 
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Selezione Destinatari */}
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Destinatari ({selectedRecipients.size})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="filter">Filtra Clienti</Label>
+                    <Select value={filter} onValueChange={setFilter}>
+                      <SelectTrigger id="filter" data-testid="select-recipient-filter">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tutti i clienti</SelectItem>
+                        <SelectItem value="anno_corrente">Anno corrente</SelectItem>
+                        <SelectItem value="anno_2024">Anno 2024</SelectItem>
+                        <SelectItem value="anno_2023">Anno 2023</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {recipientsLoading ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Caricamento...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 py-2 border-b">
+                        <Checkbox
+                          checked={selectAll}
+                          onCheckedChange={handleSelectAll}
+                          id="select-all"
+                          data-testid="checkbox-select-all"
+                        />
+                        <Label htmlFor="select-all" className="cursor-pointer font-semibold">
+                          Seleziona tutti ({recipients.length})
+                        </Label>
+                      </div>
+
+                      <ScrollArea className="h-[400px]">
+                        <div className="space-y-2">
+                          {recipients.map((recipient) => (
+                            <div
+                              key={recipient.email}
+                              className="flex items-start gap-2 p-2 rounded hover:bg-muted/50"
+                            >
+                              <Checkbox
+                                checked={selectedRecipients.has(recipient.email)}
+                                onCheckedChange={() => handleToggleRecipient(recipient.email)}
+                                id={`recipient-${recipient.email}`}
+                                data-testid={`checkbox-recipient-${recipient.email}`}
+                              />
+                              <Label
+                                htmlFor={`recipient-${recipient.email}`}
+                                className="cursor-pointer flex-1"
+                              >
+                                <p className="font-medium text-sm">
+                                  {recipient.nome} {recipient.cognome}
+                                </p>
+                                <p className="text-xs text-muted-foreground">{recipient.email}</p>
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </>
+                  )}
+
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={() => sendMutation.mutate()}
+                    disabled={sendMutation.isPending || selectedRecipients.size === 0 || !subject.trim() || !body.trim()}
+                    data-testid="button-send-bulk-email"
+                  >
+                    {sendMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Invio in corso...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Invia a {selectedRecipients.size} destinatari
+                      </>
+                    )}
+                  </Button>
+
+                  {selectedRecipients.size > 2000 && (
+                    <div className="flex items-start gap-2 p-3 bg-destructive/10 rounded-lg">
+                      <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-destructive">
+                        <strong>Limite Gmail superato!</strong><br />
+                        Max 2,000 email/giorno. Seleziona meno destinatari.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Progress attivo */}
+              {activeJob && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      {activeJob.status === 'in_progress' && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {activeJob.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-600" />}
+                      {activeJob.status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
+                      Job Corrente
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span>Progress</span>
+                        <span className="font-semibold">
+                          {activeJob.sentCount} / {activeJob.totalRecipients}
+                        </span>
+                      </div>
+                      <Progress 
+                        value={(activeJob.sentCount / activeJob.totalRecipients) * 100} 
+                        className="h-2"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span>{activeJob.sentCount} inviate</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4 text-destructive" />
+                        <span>{activeJob.failedCount} errori</span>
+                      </div>
+                    </div>
+
+                    {activeJob.errors.length > 0 && (
+                      <div className="mt-3 p-2 bg-destructive/10 rounded text-xs">
+                        <p className="font-semibold mb-1">Errori:</p>
+                        {activeJob.errors.slice(0, 3).map((err, idx) => (
+                          <p key={idx} className="text-destructive">
+                            {err.email}: {err.error}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="jobs">
+          <Card>
+            <CardHeader>
+              <CardTitle>📊 Storico Jobs</CardTitle>
+              <CardDescription>Ultimi 50 job di invio massivo</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {allJobs.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Mail className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Nessun job trovato</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {allJobs.map((job) => (
+                    <div
+                      key={job.id}
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-semibold">{job.subject}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(job.createdAt?.seconds * 1000 || job.createdAt).toLocaleString('it-IT')}
+                          </p>
+                        </div>
+                        <Badge variant={
+                          job.status === 'completed' ? 'default' : 
+                          job.status === 'in_progress' ? 'outline' : 
+                          'destructive'
+                        }>
+                          {job.status}
+                        </Badge>
+                      </div>
+
+                      <Progress 
+                        value={(job.sentCount / job.totalRecipients) * 100} 
+                        className="h-2 mb-2"
+                      />
+
+                      <div className="flex items-center gap-4 text-sm">
+                        <span>
+                          <CheckCircle className="h-4 w-4 inline mr-1 text-green-600" />
+                          {job.sentCount}/{job.totalRecipients}
+                        </span>
+                        {job.failedCount > 0 && (
+                          <span className="text-destructive">
+                            <XCircle className="h-4 w-4 inline mr-1" />
+                            {job.failedCount} errori
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
