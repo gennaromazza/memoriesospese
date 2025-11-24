@@ -19,6 +19,7 @@ import collaboratoriRoutes from './collaboratori-routes.js';
 import productsRoutes from './products-routes.js';
 import migrationRoutes from './migration-routes.js';
 import adminRoutes from './admin-routes.js';
+import bulkEmailRoutes from './bulk-email-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
@@ -117,6 +118,10 @@ async function startServer() {
     // Admin routes
     app.use('/api/admin', adminRoutes);
     console.log('🔐 Admin API routes mounted at /api/admin');
+
+    // Bulk Email routes
+    app.use('/api/bulk-email', bulkEmailRoutes);
+    console.log('📮 Bulk Email API routes mounted at /api/bulk-email');
 
     // Sitemap dinamica
     app.get('/sitemap.xml', async (req, res) => {
