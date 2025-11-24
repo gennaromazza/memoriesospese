@@ -2605,10 +2605,26 @@ router.post("/v2/available-slots", async (req, res) => {
 
     console.log(`[POST /v2/available-slots] ✅ ${slots.length} slot disponibili generati`);
 
+    // Step 8.5: Format slots with startTime/endTime strings (for UI display)
+    const formattedSlots = slots.map((slot) => ({
+      start: slot.start.toISOString(),
+      end: slot.end.toISOString(),
+      startTime: slot.start.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Rome",
+      }),
+      endTime: slot.end.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Rome",
+      }),
+    }));
+
     // Step 9: Prepare response with user-friendly message if no slots
     const response: SlotsResponse = {
       date,
-      slots
+      slots: formattedSlots
     };
 
     if (slots.length === 0 && !hasAllDay) {
