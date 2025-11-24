@@ -1922,4 +1922,426 @@ router.delete("/:bookingId/calendar-event", async (req, res) => {
   }
 });
 
+/**
+ * ========================================
+ * NEW CALENDAR ENGINE V2 — Unified API for Bookings
+ * ========================================
+ * Endpoint v2 that uses centralized Calendar Engine
+ * Legacy endpoint /available-slots remains untouched
+ */
+
+/**
+ * POST /api/booking/v2/create
+ * Crea booking usando Calendar Engine V2 per conflict detection
+ * 
+ * Body: {
+ *   campaignId: string,
+ *   cliente: { nome, cognome, email, whatsapp },
+ *   dataShootingInizio: ISO string,
+ *   dataShootingFine: ISO string,
+ *   prodottoId?: string (legacy),
+ *   prodottoNome?: string (legacy),
+ *   prodotti?: OrderItem[] (multi-product),
+ *   note: string,
+ *   isManual?: boolean,
+ *   createdByAdmin?: string
+ * }
+ * 
+ * NOTA: Non richiede più workingHours/durataMinuti - vengono presi dalla campaign
+ */
+router.post("/v2/create", async (req, res) => {
+  try {
+    console.log("[POST /v2/create] 🔵 Calendar Engine V2 - Request");
+    
+    const {
+      campaignId,
+      cliente,
+      dataShootingInizio,
+      dataShootingFine,
+      prodottoId,
+      prodottoNome,
+      prodotti,
+      note,
+      isManual,
+      createdByAdmin,
+    } = req.body;
+
+    // Validazione parametri base
+    if (!campaignId || !cliente || !dataShootingInizio || !dataShootingFine) {
+      return res.status(400).json({
+        error: "Parametri mancanti",
+      });
+    }
+
+    // Validazione cliente
+    const requiredFields = isManual
+      ? !cliente.nome?.trim() ||
+        !cliente.cognome?.trim() ||
+        !cliente.email?.trim()
+      : !cliente.nome?.trim() ||
+        !cliente.cognome?.trim() ||
+        !cliente.email?.trim() ||
+        !cliente.whatsapp?.trim();
+
+    if (requiredFields) {
+      return res.status(400).json({
+        error: "Dati cliente incompleti",
+      });
+    }
+
+    // Parse date
+    const slotStart = new Date(dataShootingInizio);
+    const slotEnd = new Date(dataShootingFine);
+
+    if (isNaN(slotStart.getTime()) || isNaN(slotEnd.getTime())) {
+      return res.status(400).json({
+        error: "Date invalide",
+      });
+    }
+
+    // Step 1: Load and validate campaign
+    const campaignDoc = await db.collection("booking_campaigns").doc(campaignId).get();
+
+    if (!campaignDoc.exists) {
+      return res.status(404).json({ error: "Campagna non trovata" });
+    }
+
+    const campaign = campaignDoc.data();
+
+    if (!campaign?.attiva) {
+      return res.status(400).json({ error: "Campagna non attiva" });
+    }
+
+    // Step 2: Import Calendar Engine modules
+    const { campaignToAvailabilityConfig, validateCampaign } = await import('./booking/calendar-adapter.js');
+    const { getAvailableSlotsForDate } = await import('./calendar-engine/index.js');
+    const { DateTime } = await import('luxon');
+
+    if (!validateCampaign(campaign)) {
+      return res.status(400).json({
+        error: "Campagna configurazione invalida",
+        message: "Campagna manca di orari lavorativi o durata shooting"
+      });
+    }
+
+    // Step 3: Verify excluded days
+    const excludedDays = campaign?.excludedDays || [];
+    if (excludedDays.length > 0) {
+      const dayOfWeek = slotStart.getDay();
+      if (excludedDays.includes(dayOfWeek)) {
+        return res.status(400).json({
+          error: "Giorno non disponibile",
+          message: "Il giorno selezionato non è disponibile per le prenotazioni in questa campagna.",
+        });
+      }
+    }
+
+    // Step 4: Validate products belong to campaign
+    const prodottiDisponibili = campaign?.prodottiDisponibili || [];
+    const prodottiDisponibiliIds = prodottiDisponibili.map((p: any) =>
+      typeof p === "string" ? p : p.id,
+    );
+
+    if (prodotti && Array.isArray(prodotti) && prodotti.length > 0) {
+      const invalidProducts = prodotti.filter(
+        (item: any) => !prodottiDisponibiliIds.includes(item.prodottoId),
+      );
+
+      if (invalidProducts.length > 0) {
+        return res.status(400).json({
+          error: "Prodotti non validi",
+          message: "Alcuni prodotti selezionati non sono disponibili per questa campagna.",
+        });
+      }
+    }
+
+    if (prodottoId && !prodottiDisponibiliIds.includes(prodottoId)) {
+      return res.status(400).json({
+        error: "Prodotto non valido",
+        message: "Il prodotto selezionato non è disponibile per questa campagna.",
+      });
+    }
+
+    // Step 5: Calendar Engine V2 conflict detection
+    const config = campaignToAvailabilityConfig(campaign);
+    const dateObj = DateTime.fromISO(dataShootingInizio, { zone: "Europe/Rome" });
+    const dayStart = dateObj.startOf("day").toJSDate();
+    const dayEnd = dateObj.endOf("day").toJSDate();
+
+    // Load all existing events
+    const { getAllExistingBookingEvents } = await import('./booking/calendar-adapter.js');
+    const existingEvents = await getAllExistingBookingEvents(dayStart, dayEnd, db);
+
+    // Generate available slots
+    const availableSlots = await getAvailableSlotsForDate(dayStart, config, existingEvents);
+
+    // Verify slot is still available
+    const slotStillAvailable = availableSlots.some(
+      (slot) =>
+        Math.abs(new Date(slot.start).getTime() - slotStart.getTime()) < 1000 &&
+        Math.abs(new Date(slot.end).getTime() - slotEnd.getTime()) < 1000,
+    );
+
+    if (!slotStillAvailable) {
+      console.warn(`[POST /v2/create] ❌ Conflict: slot not available`);
+      return res.status(409).json({
+        error: "Slot non più disponibile",
+        message: "Lo slot selezionato è stato prenotato da qualcun altro. Scegli un altro orario.",
+      });
+    }
+
+    console.log(`[POST /v2/create] ✅ Slot verified available using Calendar Engine V2`);
+
+    // Step 6: Create booking (same as legacy)
+    const workflowUpdate = syncBookingWorkflowState("in_attesa");
+
+    const bookingData: any = {
+      campaignId,
+      cliente: {
+        nome: cliente.nome.trim(),
+        cognome: cliente.cognome.trim(),
+        email: cliente.email.trim().toLowerCase(),
+        whatsapp: cliente.whatsapp?.trim() || "",
+      },
+      dataShootingInizio: Timestamp.fromDate(slotStart),
+      dataShootingFine: Timestamp.fromDate(slotEnd),
+      prodottoId: prodottoId || null,
+      prodottoNome: prodottoNome || null,
+      prodotti: prodotti || null,
+      note: note || "",
+      stato: "in_attesa",
+      ...workflowUpdate,
+      emailRicevutaInviata: false,
+      emailConfermataInviata: false,
+      googleCalendarEventId: null, // Created on approval
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    if (isManual) {
+      bookingData.isManual = true;
+      bookingData.createdByAdmin = createdByAdmin || "admin";
+    }
+
+    const bookingRef = await db.collection("bookings").add(bookingData);
+    console.log(`[POST /v2/create] ✅ Booking created: ${bookingRef.id}`);
+
+    // Step 7: Send emails (same as legacy)
+    try {
+      const campaignName = campaign?.nome || "Shooting Fotografico";
+
+      const bookingDate = slotStart.toLocaleDateString("it-IT", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const bookingTime = `${slotStart.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Rome",
+      })} - ${slotEnd.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Rome",
+      })}`;
+
+      const durationMinutes = Math.round(
+        (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60),
+      );
+
+      const {
+        sendGmailEmail,
+        createBookingReceivedEmailHTML,
+        createAdminNotificationEmailHTML,
+        getStudioContactInfo,
+      } = await import("./email-routes.js");
+
+      const studioInfo = await getStudioContactInfo();
+      const clienteName = `${cliente.nome} ${cliente.cognome}`;
+
+      // Send client email
+      const emailHTML = createBookingReceivedEmailHTML(
+        clienteName,
+        campaignName,
+        bookingDate,
+        bookingTime,
+        durationMinutes,
+        prodottoNome,
+        studioInfo,
+        undefined,
+      );
+
+      await sendGmailEmail(
+        cliente.email,
+        `Prenotazione Ricevuta - ${campaignName}`,
+        emailHTML,
+      );
+
+      await bookingRef.update({ emailRicevutaInviata: true });
+      console.log(`[POST /v2/create] ✅ Email sent to ${cliente.email}`);
+
+      // Send admin email
+      try {
+        const adminEmailHTML = createAdminNotificationEmailHTML(
+          clienteName,
+          cliente.email,
+          cliente.whatsapp,
+          campaignName,
+          bookingDate,
+          bookingTime,
+          prodottoNome,
+          note,
+          studioInfo,
+        );
+
+        await sendGmailEmail(
+          studioInfo.email,
+          `Nuova Prenotazione - ${campaignName}`,
+          adminEmailHTML,
+        );
+
+        await bookingRef.update({ emailAdminInviata: true });
+        console.log(`[POST /v2/create] ✅ Admin notification sent`);
+      } catch (adminEmailError) {
+        console.error("[POST /v2/create] ⚠️ Admin email failed:", adminEmailError);
+      }
+    } catch (emailError) {
+      console.error("[POST /v2/create] ⚠️ Email failed:", emailError);
+    }
+
+    // Step 8: Link to client
+    await linkBookingToClienteServer(bookingRef.id, {
+      nome: cliente.nome,
+      cognome: cliente.cognome,
+      email: cliente.email,
+      whatsapp: cliente.whatsapp,
+    });
+
+    return res.status(201).json({
+      success: true,
+      bookingId: bookingRef.id,
+      message: "Prenotazione creata con successo - in attesa di approvazione admin",
+    });
+  } catch (error: any) {
+    console.error("[POST /v2/create] ❌ Error:", error);
+    
+    if (error.message?.includes("Google Calendar")) {
+      return res.status(503).json({
+        error: "Errore Google Calendar",
+        details: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      error: "Errore interno del server",
+      message: error.message || "Errore sconosciuto",
+    });
+  }
+});
+
+router.post("/v2/available-slots", async (req, res) => {
+  try {
+    console.log("[POST /v2/available-slots] 🔵 Calendar Engine V2 - Request:", req.body);
+    const { date, campaignId } = req.body;
+
+    if (!date || !campaignId) {
+      return res.status(400).json({
+        error: "Parametri mancanti (date, campaignId richiesti)",
+      });
+    }
+
+    // Step 1: Load campaign
+    const campaignDoc = await db.collection("booking_campaigns").doc(campaignId).get();
+
+    if (!campaignDoc.exists) {
+      return res.status(404).json({ error: "Campagna non trovata" });
+    }
+
+    const campaign = campaignDoc.data();
+
+    if (!campaign?.attiva) {
+      return res.status(400).json({ error: "Campagna non attiva" });
+    }
+
+    // Step 2: Import Calendar Engine modules
+    const { campaignToAvailabilityConfig, validateCampaign } = await import('./booking/calendar-adapter.js');
+    const { getAvailableSlotsForDate, getUnavailabilityReason } = await import('./calendar-engine/index.js');
+    const { hasAllDayEvent } = await import('./calendar-engine/google-sync.js');
+    const { SlotsResponse } = await import('../shared/calendar-types.js');
+
+    // Step 3: Validate campaign
+    if (!validateCampaign(campaign)) {
+      return res.status(400).json({
+        error: "Campagna configurazione invalida",
+        message: "Campagna manca di orari lavorativi o durata shooting"
+      });
+    }
+
+    // Step 4: Convert campaign to AvailabilityConfig
+    const config = campaignToAvailabilityConfig(campaign);
+
+    console.log("[POST /v2/available-slots] 📋 Config generato:", {
+      slotDuration: config.slotDurationMinutes,
+      excludedWeekdays: config.excludedWeekdays,
+      timezone: config.timezone
+    });
+
+    // Step 5: Parse date with Europe/Rome timezone
+    const { DateTime } = await import('luxon');
+    const dateObj = DateTime.fromISO(date, { zone: "Europe/Rome" });
+    const dayStart = dateObj.startOf("day").toJSDate();
+    const dayEnd = dateObj.endOf("day").toJSDate();
+
+    // Step 6: Check for all-day events
+    const hasAllDay = await hasAllDayEvent(dayStart);
+
+    if (hasAllDay) {
+      console.log("[POST /v2/available-slots] 🚫 All-day event detected");
+      const unavailabilityInfo = getUnavailabilityReason(dayStart, config, true);
+
+      return res.json({
+        date,
+        slots: [],
+        unavailableReason: unavailabilityInfo.reason,
+        message: unavailabilityInfo.message
+      } as SlotsResponse);
+    }
+
+    // Step 7: Load all existing events via centralized adapter
+    const { getAllExistingBookingEvents } = await import('./booking/calendar-adapter.js');
+    const existingEvents = await getAllExistingBookingEvents(dayStart, dayEnd, db);
+
+    // Step 8: Generate slots using Calendar Engine
+    const slots = await getAvailableSlotsForDate(dayStart, config, existingEvents);
+
+    console.log(`[POST /v2/available-slots] ✅ ${slots.length} slot disponibili generati`);
+
+    // Step 9: Prepare response with user-friendly message if no slots
+    const response: SlotsResponse = {
+      date,
+      slots
+    };
+
+    if (slots.length === 0 && !hasAllDay) {
+      const unavailabilityInfo = getUnavailabilityReason(dayStart, config, false);
+
+      if (unavailabilityInfo.reason) {
+        response.unavailableReason = unavailabilityInfo.reason;
+        response.message = unavailabilityInfo.message;
+      } else {
+        // All slots are booked
+        response.unavailableReason = 'all-booked';
+        response.message = 'Ci dispiace, ma questa data è sold out';
+      }
+    }
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("[POST /v2/available-slots] ❌ Error:", error);
+    console.error("[POST /v2/available-slots] Stack:", error.stack);
+    res.status(500).json({ error: "Errore calcolo slot disponibili" });
+  }
+});
+
 export default router;
