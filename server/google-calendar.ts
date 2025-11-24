@@ -484,39 +484,25 @@ export async function createEvent(
     startField = { date: eventData.startDateStr };
     endField = { date: endDateStr };
   } else if (eventData.start && eventData.end) {
-    // Normalizza a dateTime "floating" in fuso Europe/Rome
-    const startLocal = new Date(eventData.start);
-    const endLocal = new Date(eventData.end);
-
-    const formatLocal = (d: Date) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      const hours = String(d.getHours()).padStart(2, "0");
-      const minutes = String(d.getMinutes()).padStart(2, "0");
-      const seconds = String(d.getSeconds()).padStart(2, "0");
-      // YYYY-MM-DDTHH:mm:ss senza Z → floating nel timeZone indicato
-      return (
-        year +
-        "-" +
-        month +
-        "-" +
-        day +
-        "T" +
-        hours +
-        ":" +
-        minutes +
-        ":" +
-        seconds
-      );
+    // FIXED: Usa Luxon per garantire timezone Europe/Rome corretto
+    // Problema legacy: .getHours() leggeva timezone del server (UTC) causando slittamenti
+    const { DateTime } = await import('luxon');
+    
+    // Converti Date → DateTime in Europe/Rome timezone
+    const startDT = DateTime.fromJSDate(eventData.start, { zone: 'Europe/Rome' });
+    const endDT = DateTime.fromJSDate(eventData.end, { zone: 'Europe/Rome' });
+    
+    // Formatta come YYYY-MM-DDTHH:mm:ss (floating, senza Z)
+    const formatLocal = (dt: any) => {
+      return dt.toFormat('yyyy-MM-dd\'T\'HH:mm:ss');
     };
 
     startField = {
-      dateTime: formatLocal(startLocal),
+      dateTime: formatLocal(startDT),
       timeZone: "Europe/Rome",
     };
     endField = {
-      dateTime: formatLocal(endLocal),
+      dateTime: formatLocal(endDT),
       timeZone: "Europe/Rome",
     };
   } else {
@@ -568,17 +554,26 @@ export async function updateEvent(
   if (eventData.summary) requestBody.summary = eventData.summary;
   if (eventData.description) requestBody.description = eventData.description;
   if (eventData.location) requestBody.location = eventData.location;
-  if (eventData.start) {
-    requestBody.start = {
-      dateTime: eventData.start.toISOString(),
-      timeZone: "Europe/Rome",
-    };
-  }
-  if (eventData.end) {
-    requestBody.end = {
-      dateTime: eventData.end.toISOString(),
-      timeZone: "Europe/Rome",
-    };
+  
+  // FIXED: Usa Luxon per timezone corretto (come createEvent)
+  if (eventData.start || eventData.end) {
+    const { DateTime } = await import('luxon');
+    
+    if (eventData.start) {
+      const startDT = DateTime.fromJSDate(eventData.start, { zone: 'Europe/Rome' });
+      requestBody.start = {
+        dateTime: startDT.toFormat('yyyy-MM-dd\'T\'HH:mm:ss'),
+        timeZone: "Europe/Rome",
+      };
+    }
+    
+    if (eventData.end) {
+      const endDT = DateTime.fromJSDate(eventData.end, { zone: 'Europe/Rome' });
+      requestBody.end = {
+        dateTime: endDT.toFormat('yyyy-MM-dd\'T\'HH:mm:ss'),
+        timeZone: "Europe/Rome",
+      };
+    }
   }
 
   const response = await calendar.events.patch({
