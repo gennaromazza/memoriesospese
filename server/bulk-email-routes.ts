@@ -1,6 +1,6 @@
 /**
  * Bulk Email Routes - Sistema invio massivo email ai clienti
- * Rate limiting: 2,000 email/giorno (limite Gmail API)
+ * Ottimizzato per: Performance Firestore, Crash Recovery, Atomic Locking
  */
 
 import { Router, Request, Response } from "express";
@@ -10,11 +10,14 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
-// Rate limiting Gmail API
+// --- CONFIGURAZIONE ---
 const GMAIL_DAILY_LIMIT = 2000;
-const BATCH_SIZE = 50; // Invio in batch da 50
-const DELAY_BETWEEN_BATCHES_MS = 2000; // 2 secondi tra batch
+const BATCH_SIZE = 50; // Aggiornamento DB ogni 50 email
+const CONCURRENCY_LIMIT = 5; // Invii paralleli a Gmail (max 5 alla volta)
+const DELAY_BETWEEN_BATCHES_MS = 2000; // Rate limiting passivo
+const HEARTBEAT_TIMEOUT = 5 * 60 * 1000; // 5 minuti
 
+// --- INTERFACCE ---
 interface BulkEmailRecipient {
   email: string;
   nome: string;
@@ -28,160 +31,145 @@ interface BulkEmailJob {
   body: string;
   recipients: BulkEmailRecipient[];
   totalRecipients: number;
-  quotaReserved: number; // Quota riservata all'inizio
-  quotaConsumed: number; // Quota effettivamente consumata (sent emails)
+  quotaReserved: number;
+  quotaConsumed: number;
   sentCount: number;
   failedCount: number;
   status: 'queued' | 'in_progress' | 'completed' | 'failed';
   errors: Array<{ email: string; error: string }>;
   createdAt: Date;
-  startedAt?: Date; // Quando worker ha iniziato esecuzione
+  startedAt?: Date;
   completedAt?: Date;
-  lastHeartbeatAt: Date; // Timestamp ultimo aggiornamento (worker alive)
+  lastHeartbeatAt: Date;
   createdBy: string;
+  quotaDate: string;
 }
 
-// Constants per heartbeat timeout
-const HEARTBEAT_TIMEOUT = 5 * 60 * 1000; // 5 minuti in ms
+// --- VARIABILI GLOBALI ---
+let dispatcherRunning = false;
+let dispatcherInterval: NodeJS.Timeout | null = null;
+
+// ============================================================================
+// CORE LOGIC: CLEANUP & DISPATCHER
+// ============================================================================
 
 /**
- * Cleanup jobs stale (lastHeartbeatAt > HEARTBEAT_TIMEOUT) e rilascia quota
- * HEARTBEAT-AWARE: usa lastHeartbeatAt invece di createdAt
+ * Cleanup Jobs Stale
+ * Rilascia quota e marca come failed i jobs che non danno segni di vita (heartbeat) da 5 min
  */
 export async function cleanupStaleJobs() {
   try {
     const heartbeatTimeout = new Date(Date.now() - HEARTBEAT_TIMEOUT);
-    
-    // Query jobs con heartbeat scaduto
+
+    // Trova jobs in_progress fermi da troppo tempo
     const staleJobs = await db.collection('bulkEmailJobs')
-      .where('status', 'in', ['queued', 'in_progress'])
+      .where('status', '==', 'in_progress')
       .where('lastHeartbeatAt', '<', heartbeatTimeout)
       .get();
 
-    if (staleJobs.empty) {
-      return;
-    }
+    if (staleJobs.empty) return;
 
-    console.log(`🧹 Trovati ${staleJobs.size} jobs stale (heartbeat timeout), cleanup in corso...`);
+    console.log(`🧹 Trovati ${staleJobs.size} jobs bloccati/stale. Avvio recovery...`);
 
     for (const jobDoc of staleJobs.docs) {
-      // TRANSACTIONAL cleanup: re-verify stale before releasing quota
-      await db.runTransaction(async (transaction) => {
-        const freshDoc = await transaction.get(jobDoc.ref);
+      await db.runTransaction(async (t) => {
+        const freshDoc = await t.get(jobDoc.ref);
         if (!freshDoc.exists) return;
 
         const job = freshDoc.data();
-        const lastHeartbeat = job?.lastHeartbeatAt?.toDate() || new Date(0);
-        const isStillStale = lastHeartbeat < heartbeatTimeout;
-
-        // Re-check: job potrebbe essere stato ripreso da dispatcher
-        if (!isStillStale || !['queued', 'in_progress'].includes(job?.status)) {
-          return; // Skip, non è più stale
+        // Controllo paranoico: assicuriamoci che sia ancora stale
+        if (job?.status !== 'in_progress' || job?.lastHeartbeatAt.toDate() > heartbeatTimeout) {
+            return;
         }
 
-        const quotaReserved = job?.quotaReserved || 0;
-        const quotaConsumed = job?.quotaConsumed || 0;
+        const reserved = job.quotaReserved || 0;
+        const consumed = job.quotaConsumed || 0;
 
-        // ALWAYS release reserved and confirm sent (anche se quotaConsumed === quotaReserved)
-        if (quotaReserved > 0 && job?.quotaDate) {
+        // Rilascio quota safe
+        if (reserved > 0 && job.quotaDate) {
           const quotaRef = db.collection('emailQuota').doc(job.quotaDate);
-          transaction.update(quotaRef, {
-            reserved: FieldValue.increment(-quotaReserved),
-            sent: FieldValue.increment(quotaConsumed)
+          t.update(quotaRef, {
+            reserved: FieldValue.increment(-reserved),
+            sent: FieldValue.increment(consumed)
           });
-
-          console.log(`🧹 Job ${jobDoc.id}: reserved -${quotaReserved}, sent +${quotaConsumed}`);
+          // Azzera reserved sul job per evitare doppi rilasci
+          t.update(jobDoc.ref, { quotaReserved: 0 });
         }
 
-        // Marca job come failed
-        transaction.update(jobDoc.ref, {
+        // Marca come failed
+        t.update(jobDoc.ref, {
           status: 'failed',
-          errors: [{ email: 'system', error: 'Job timeout - heartbeat expired', retry: false }],
+          errors: FieldValue.arrayUnion({ email: 'system', error: 'Job crashed/timeout (Heartbeat expired)', retry: false }),
           completedAt: new Date()
         });
       });
     }
-
-    console.log(`✅ Cleanup completato: ${staleJobs.size} jobs stale processati`);
+    console.log(`✅ Cleanup completato.`);
   } catch (error: any) {
     console.error('❌ Errore cleanup stale jobs:', error.message);
   }
 }
 
 /**
- * Dispatcher Loop: Pull and execute queued/in_progress jobs
- * Gira in background in-process, riprende jobs dopo restart
+ * Dispatcher Loop
+ * Prende il prossimo job in coda in modo ATOMICO (evita conflitti tra server)
  */
-let dispatcherRunning = false;
-let dispatcherInterval: NodeJS.Timeout | null = null;
-
 export async function processNextBulkEmailJob() {
-  if (dispatcherRunning) {
-    // Già un job in esecuzione, skip per evitare concorrenza
-    return;
-  }
+  if (dispatcherRunning) return;
 
   try {
     dispatcherRunning = true;
 
-    // Pull oldest queued job OR stale in_progress job (heartbeat scaduto)
-    const now = new Date();
-    const heartbeatGrace = new Date(now.getTime() - HEARTBEAT_TIMEOUT);
-
-    const queuedJobs = await db.collection('bulkEmailJobs')
+    // 1. Cerca il job più vecchio in coda
+    const queuedSnapshot = await db.collection('bulkEmailJobs')
       .where('status', '==', 'queued')
       .orderBy('createdAt', 'asc')
       .limit(1)
       .get();
 
-    const staleInProgressJobs = await db.collection('bulkEmailJobs')
-      .where('status', '==', 'in_progress')
-      .where('lastHeartbeatAt', '<', heartbeatGrace)
-      .orderBy('lastHeartbeatAt', 'asc')
-      .limit(1)
-      .get();
+    if (queuedSnapshot.empty) return; // Nessun lavoro da fare
 
-    // Priorità: queued > stale in_progress
-    const jobDoc = !queuedJobs.empty ? queuedJobs.docs[0] : 
-                   !staleInProgressJobs.empty ? staleInProgressJobs.docs[0] : null;
+    const potentialJobRef = queuedSnapshot.docs[0].ref;
 
-    if (!jobDoc) {
-      // Nessun job da processare
-      return;
-    }
+    // 2. ATOMIC LOCK: Tenta di reclamare il job
+    const claimedJobData = await db.runTransaction(async (t) => {
+      const doc = await t.get(potentialJobRef);
+      if (!doc.exists) throw new Error('Job sparito');
 
-    const job = jobDoc.data();
-    const quotaDate = job?.quotaDate;
+      const data = doc.data();
+      if (data?.status !== 'queued') {
+        throw new Error('Già preso'); // Qualcun altro lo sta elaborando
+      }
 
-    if (!quotaDate) {
-      console.error(`❌ Job ${jobDoc.id} senza quotaDate, skip`);
-      return;
-    }
+      // Lock immediato
+      t.update(potentialJobRef, {
+        status: 'in_progress',
+        startedAt: new Date(),
+        lastHeartbeatAt: new Date()
+      });
 
-    console.log(`📮 Dispatcher executing job ${jobDoc.id} (status: ${job?.status})`);
+      return { id: doc.id, quotaDate: data?.quotaDate };
+    });
 
-    // Esegui job
-    await sendBulkEmails(jobDoc.id, quotaDate);
+    console.log(`🚀 Dispatcher ha avviato il job: ${claimedJobData.id}`);
+
+    // 3. Esegui l'invio (fuori dalla transazione)
+    await sendBulkEmails(claimedJobData.id, claimedJobData.quotaDate);
 
   } catch (error: any) {
-    console.error('❌ Errore dispatcher:', error.message);
+    if (error.message !== 'Già preso' && error.message !== 'Job sparito') {
+      console.error('❌ Errore Dispatcher:', error.message);
+    }
   } finally {
     dispatcherRunning = false;
   }
 }
 
+// Start/Stop Dispatcher Helpers
 export function startBulkEmailDispatcher(intervalMs: number = 5000) {
-  if (dispatcherInterval) {
-    console.warn('⚠️  Dispatcher già avviato');
-    return;
-  }
-
-  console.log(`📮 Starting bulk email dispatcher (interval: ${intervalMs}ms)`);
-  
-  // Esegui subito una volta
-  processNextBulkEmailJob();
-
-  // Poi ogni intervalMs
+  if (dispatcherInterval) return;
+  console.log(`📮 Dispatcher avviato (poll ogni ${intervalMs}ms)`);
+  processNextBulkEmailJob(); // Run immediato
   dispatcherInterval = setInterval(processNextBulkEmailJob, intervalMs);
 }
 
@@ -189,21 +177,170 @@ export function stopBulkEmailDispatcher() {
   if (dispatcherInterval) {
     clearInterval(dispatcherInterval);
     dispatcherInterval = null;
-    console.log('🛑 Bulk email dispatcher stopped');
+    console.log('🛑 Dispatcher fermato');
+  }
+}
+
+
+// ============================================================================
+// CORE LOGIC: SENDING ENGINE (Optimized)
+// ============================================================================
+
+async function sendBulkEmails(jobId: string, quotaDate: string) {
+  const jobRef = db.collection('bulkEmailJobs').doc(jobId);
+
+  let sentCount = 0;
+  let failedCount = 0;
+  let currentErrors: Array<{ email: string; error: string; retry: boolean }> = [];
+
+  try {
+    const jobDoc = await jobRef.get();
+    if (!jobDoc.exists) throw new Error('Job non trovato');
+    const jobData = jobDoc.data();
+
+    const recipients = jobData?.recipients || [];
+    const subject = jobData?.subject;
+    const body = jobData?.body;
+
+    // --- LOOP BATCH (es. 0..50, 50..100) ---
+    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+      const batch = recipients.slice(i, i + BATCH_SIZE);
+
+      // Parallelismo Controllato all'interno del batch (chunks di 5)
+      for (let j = 0; j < batch.length; j += CONCURRENCY_LIMIT) {
+        const chunk = batch.slice(j, j + CONCURRENCY_LIMIT);
+
+        // Esegui chunk in parallelo
+        const results = await Promise.all(chunk.map(recipient => 
+          sendSingleEmailWrapper(recipient, subject, body)
+        ));
+
+        // Raccogli risultati in memoria
+        for (const res of results) {
+          if (res.success) {
+            sentCount++;
+          } else {
+            failedCount++;
+            currentErrors.push({ 
+              email: res.email, 
+              error: res.error || 'Unknown', 
+              retry: false 
+            });
+          }
+        }
+      }
+
+      // --- AGGIORNAMENTO FIRESTORE (Solo 1 volta per Batch!) ---
+      // Aggiorna contatori e Heartbeat per evitare timeout
+      await jobRef.update({
+        sentCount,
+        failedCount,
+        quotaConsumed: sentCount, // Aggiorniamo il consumato reale
+        errors: currentErrors.length > 0 ? FieldValue.arrayUnion(...currentErrors) : undefined,
+        lastHeartbeatAt: new Date() // <--- CRITICO: tiene vivo il job
+      });
+
+      // Pulisci buffer errori
+      currentErrors = [];
+
+      // Rate Limiting
+      if (i + BATCH_SIZE < recipients.length) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
+      }
+    }
+
+    // --- COMPLETAMENTO ---
+    const finalStatus = (sentCount === 0 && recipients.length > 0) ? 'failed' : 'completed';
+    await jobRef.update({
+      status: finalStatus,
+      sentCount,
+      failedCount,
+      quotaConsumed: sentCount,
+      completedAt: new Date(),
+      lastHeartbeatAt: new Date()
+    });
+
+    console.log(`✅ Job ${jobId} completato. Inviate: ${sentCount}, Fallite: ${failedCount}`);
+
+  } catch (error: any) {
+    console.error(`❌ Errore fatale job ${jobId}:`, error);
+    await jobRef.update({
+      status: 'failed',
+      errors: FieldValue.arrayUnion({ email: 'system', error: error.message }),
+      completedAt: new Date()
+    });
+  } finally {
+    // RILASCIO QUOTA FINALE (Always run)
+    await releaseQuotaAtomic(jobId, quotaDate, sentCount);
   }
 }
 
 /**
- * GET /api/bulk-email/recipients - Ottieni lista destinatari disponibili
+ * Wrapper per gestire errori su singola email senza rompere il Promise.all
  */
+async function sendSingleEmailWrapper(recipient: BulkEmailRecipient, subject: string, body: string) {
+  try {
+    await sendSingleEmail(recipient, subject, body);
+    return { success: true, email: recipient.email };
+  } catch (e: any) {
+    // Retry veloce (opzionale)
+    const isTemp = e.message.includes('timeout') || e.message.includes('rate');
+    if (isTemp) {
+        try {
+            await new Promise(r => setTimeout(r, 1000));
+            await sendSingleEmail(recipient, subject, body);
+            return { success: true, email: recipient.email };
+        } catch (retryErr) {}
+    }
+    return { success: false, email: recipient.email, error: e.message };
+  }
+}
+
+/**
+ * Helper per Rilascio Quota Atomico
+ * Calcola (Reserved - Consumed) e restituisce la differenza al pool giornaliero
+ */
+async function releaseQuotaAtomic(jobId: string, quotaDate: string, finalSentCount: number) {
+  try {
+    const jobRef = db.collection('bulkEmailJobs').doc(jobId);
+    const quotaRef = db.collection('emailQuota').doc(quotaDate);
+
+    await db.runTransaction(async (t) => {
+      const jobDoc = await t.get(jobRef);
+      if (!jobDoc.exists) return;
+
+      const data = jobDoc.data();
+      const reserved = data?.quotaReserved || 0;
+      // Se il job è crashato prima di aggiornare il DB, usiamo finalSentCount locale, altrimenti quello su DB
+      const consumed = Math.max(data?.quotaConsumed || 0, finalSentCount); 
+
+      if (reserved > 0) {
+        // Aggiorna Quota Globale
+        t.update(quotaRef, {
+          reserved: FieldValue.increment(-reserved), // Rimuovi prenotazione
+          sent: FieldValue.increment(consumed)       // Aggiungi invii reali
+        });
+
+        // Imposta reserved a 0 sul job per impedire rilasci futuri doppi
+        t.update(jobRef, { quotaReserved: 0 });
+
+        console.log(`📊 Quota Rilasciata: Liberati ${reserved}, Confermati ${consumed}`);
+      }
+    });
+  } catch (e) {
+    console.error('❌ Errore rilascio quota:', e);
+  }
+}
+
+// ============================================================================
+// API ROUTES
+// ============================================================================
+
 router.get('/recipients', async (req: Request, res: Response) => {
   try {
     const { filter } = req.query;
-
-    // Query base: tutti i clienti
     let query = db.collection('clienti');
 
-    // Applica filtri se presenti
     if (filter === 'anno_corrente') {
       const currentYear = new Date().getFullYear();
       query = query.where('anno', '==', currentYear);
@@ -227,393 +364,119 @@ router.get('/recipients', async (req: Request, res: Response) => {
       }
     });
 
-    res.json({ 
-      success: true, 
-      recipients,
-      total: recipients.length
-    });
-
+    res.json({ success: true, recipients, total: recipients.length });
   } catch (error: any) {
-    console.error('❌ Errore recupero destinatari:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-/**
- * POST /api/bulk-email/send - Invia email massiva con rate limiting
- */
 router.post('/send', async (req: Request, res: Response) => {
   try {
     const { subject, body, recipients, senderId } = req.body;
 
     if (!subject || !body || !recipients || recipients.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Soggetto, corpo e destinatari sono obbligatori'
-      });
+      return res.status(400).json({ success: false, error: 'Dati mancanti' });
     }
 
-    // SINGLE ATOMIC TRANSACTION: Check quota + Reserve + Create Job
-    // Elimina OGNI possibilità di leak (no window tra operations)
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
     const quotaRef = db.collection('emailQuota').doc(today);
     const jobRef = db.collection('bulkEmailJobs').doc();
 
     const result = await db.runTransaction(async (transaction) => {
-      // 1. Check quota disponibile (reserved + sent)
+      // 1. Check Quota
       const quotaDoc = await transaction.get(quotaRef);
       const data = quotaDoc.exists ? quotaDoc.data() : {};
       const currentReserved = data?.reserved || 0;
       const currentSent = data?.sent || 0;
       const totalUsed = currentReserved + currentSent;
-      const remainingQuota = GMAIL_DAILY_LIMIT - totalUsed;
 
-      if (recipients.length > remainingQuota) {
-        throw new Error(`Quota giornaliera insufficiente. Usate ${totalUsed}/${GMAIL_DAILY_LIMIT} oggi (reserved: ${currentReserved}, sent: ${currentSent}). Rimanenti: ${remainingQuota}.`);
+      if ((totalUsed + recipients.length) > GMAIL_DAILY_LIMIT) {
+        throw new Error(`Quota insufficiente. Usati: ${totalUsed}/${GMAIL_DAILY_LIMIT}`);
       }
 
-      // 2. Reserve quota (atomic increment RESERVED, not SENT)
+      // 2. Reserve Quota
       transaction.set(quotaRef, {
         reserved: FieldValue.increment(recipients.length),
         date: today,
         lastUpdated: new Date()
       }, { merge: true });
 
-      // 3. Create job document (atomically con quota reservation)
-      // HEARTBEAT-AWARE: lastHeartbeatAt, quotaConsumed, status='queued'
-      const job = {
+      // 3. Create Job
+      const job: BulkEmailJob = {
         id: jobRef.id,
         subject,
         body,
-        recipients, // PERSIST recipients list per recovery
+        recipients,
         totalRecipients: recipients.length,
         quotaReserved: recipients.length,
-        quotaConsumed: 0, // Inizialmente 0, incrementato dal worker
+        quotaConsumed: 0,
         quotaDate: today,
         sentCount: 0,
         failedCount: 0,
-        status: 'queued', // Inizia come queued, dispatcher lo mette in_progress
+        status: 'queued',
         errors: [],
         createdAt: new Date(),
-        lastHeartbeatAt: new Date(), // Inizializzato a createdAt
+        lastHeartbeatAt: new Date(),
         createdBy: senderId || 'admin'
       };
 
       transaction.set(jobRef, job);
-
-      return { jobId: jobRef.id, reserved: recipients.length };
+      return { jobId: jobRef.id };
     });
 
-    // Transaction completata → quota riservata E job creato atomically
-    // Job è in status='queued', verrà processato dal dispatcher loop
-
-    res.json({
-      success: true,
-      jobId: result.jobId,
-      message: `Job ${result.jobId} creato. Dispatcher lo processera' a breve.`
-    });
+    res.json({ success: true, jobId: result.jobId, message: 'Job in coda' });
 
   } catch (error: any) {
-    console.error('❌ Errore avvio bulk email:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('❌ Errore POST /send:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-/**
- * GET /api/bulk-email/jobs/:jobId - Ottieni stato job
- */
-router.get('/jobs/:jobId', async (req: Request, res: Response) => {
-  try {
-    const { jobId } = req.params;
-    const jobDoc = await db.collection('bulkEmailJobs').doc(jobId).get();
-
-    if (!jobDoc.exists) {
-      return res.status(404).json({
-        success: false,
-        error: 'Job non trovato'
-      });
-    }
-
-    res.json({
-      success: true,
-      job: jobDoc.data()
-    });
-
-  } catch (error: any) {
-    console.error('❌ Errore recupero job:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-/**
- * GET /api/bulk-email/jobs - Lista tutti i job
- */
 router.get('/jobs', async (req: Request, res: Response) => {
   try {
-    const snapshot = await db.collection('bulkEmailJobs')
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get();
-
-    const jobs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    res.json({
-      success: true,
-      jobs
-    });
-
+    const snapshot = await db.collection('bulkEmailJobs').orderBy('createdAt', 'desc').limit(50).get();
+    const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ success: true, jobs });
   } catch (error: any) {
-    console.error('❌ Errore recupero jobs:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-/**
- * Funzione asincrona per invio batch con rate limiting e quota tracking
- * Legge recipients dal job doc per supportare recovery dopo crash
- */
-async function sendBulkEmails(
-  jobId: string,
-  quotaDate: string
-) {
-  const jobRef = db.collection('bulkEmailJobs').doc(jobId);
-  const quotaRef = db.collection('emailQuota').doc(quotaDate);
-
-  let sentCount = 0;
-  let failedCount = 0;
-  const errors: Array<{ email: string; error: string; retry: boolean }> = [];
-
+router.get('/jobs/:jobId', async (req: Request, res: Response) => {
   try {
-    // Leggi job doc per ottenere subject, body, recipients
-    const jobDoc = await jobRef.get();
-    if (!jobDoc.exists) {
-      throw new Error('Job non trovato');
-    }
-
-    const jobData = jobDoc.data();
-    const subject = jobData?.subject;
-    const body = jobData?.body;
-    const recipients = jobData?.recipients || [];
-
-    if (!subject || !body || recipients.length === 0) {
-      throw new Error('Job data incompleto');
-    }
-
-    // Aggiorna stato a in_progress con startedAt e heartbeat
-    await jobRef.update({
-      status: 'in_progress',
-      startedAt: new Date(),
-      lastHeartbeatAt: new Date()
-    });
-
-    // Dividi in batch per rate limiting
-    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-      const batch = recipients.slice(i, i + BATCH_SIZE);
-
-      // Invia batch corrente
-      for (const recipient of batch) {
-        try {
-          await sendSingleEmail(recipient, subject, body);
-          sentCount++;
-
-          // NON aggiornare quota qui - già riservata in transazione iniziale
-          // Quota sarà confermata al completamento job
-
-          // Aggiorna progress DOPO OGNI EMAIL (non ogni 10)
-          await jobRef.update({
-            sentCount,
-            failedCount
-          });
-
-        } catch (error: any) {
-          failedCount++;
-          
-          // Classifica errore (temporaneo vs permanente)
-          const isTemporary = error.message.includes('timeout') || 
-                             error.message.includes('rate') ||
-                             error.message.includes('temporarily');
-          
-          errors.push({
-            email: recipient.email,
-            error: error.message,
-            retry: isTemporary
-          });
-
-          // Aggiorna errors array (max 100 per non esplodere Firestore)
-          if (errors.length <= 100) {
-            await jobRef.update({
-              failedCount,
-              errors
-            });
-          }
-
-          console.error(`❌ Errore invio a ${recipient.email}:`, error.message);
-
-          // Retry se errore temporaneo (max 3 tentativi)
-          if (isTemporary) {
-            let retrySuccess = false;
-            for (let retry = 1; retry <= 3; retry++) {
-              try {
-                console.log(`🔄 Retry ${retry}/3 per ${recipient.email}`);
-                await new Promise(resolve => setTimeout(resolve, 1000 * retry)); // Backoff esponenziale
-                await sendSingleEmail(recipient, subject, body);
-                
-                // Retry riuscito! Aggiorna stats
-                sentCount++;
-                failedCount--;
-                retrySuccess = true;
-                
-                // Rimuovi l'errore dall'array (successo al retry)
-                const errorIndex = errors.findIndex(e => e.email === recipient.email);
-                if (errorIndex !== -1) {
-                  errors.splice(errorIndex, 1);
-                }
-
-                // Aggiorna job con nuovo stato
-                await jobRef.update({
-                  sentCount,
-                  failedCount,
-                  errors: errors.slice(0, 100)
-                });
-
-                console.log(`✅ Retry riuscito per ${recipient.email}`);
-                break;
-              } catch (retryError: any) {
-                if (retry === 3) {
-                  console.error(`❌ Retry fallito definitivamente per ${recipient.email}`);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // UPDATE HEARTBEAT dopo ogni batch (prova di vita per long-running jobs)
-      await jobRef.update({
-        sentCount,
-        failedCount,
-        quotaConsumed: sentCount, // quotaConsumed = email inviate con successo
-        lastHeartbeatAt: new Date() // CRITICAL: aggiorna heartbeat ogni batch
-      });
-
-      // Delay tra batch per rispettare rate limiting
-      if (i + BATCH_SIZE < recipients.length) {
-        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
-      }
-    }
-
-    // Determina status finale
-    const finalStatus = sentCount === 0 ? 'failed' : 'completed';
-
-    // Completa job (quota accounting fatto nel finally block)
-    await jobRef.update({
-      status: finalStatus,
-      sentCount,
-      failedCount,
-      quotaConsumed: sentCount, // Final update
-      errors: errors.slice(0, 100), // Max 100 errori salvati
-      completedAt: new Date()
-    });
-
-    console.log(`✅ Bulk email completato: ${sentCount}/${recipients.length} inviate, ${failedCount} fallite`);
-
+    const doc = await db.collection('bulkEmailJobs').doc(req.params.jobId).get();
+    if (!doc.exists) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, job: doc.data() });
   } catch (error: any) {
-    console.error('❌ Errore fatale bulk email:', error);
-    
-    // Marca job come failed
-    await jobRef.update({
-      status: 'failed',
-      sentCount,
-      failedCount,
-      errors: [{ email: 'system', error: error.message, retry: false }, ...errors.slice(0, 99)],
-      completedAt: new Date()
-    });
-  } finally {
-    // FINALLY BLOCK: Rilascia quota reserved, incrementa sent (anche in caso di crash/error)
-    // Questo garantisce che quota accounting sia sempre corretto
-    try {
-      const jobDoc = await jobRef.get();
-      const data = jobDoc.data();
-      const quotaReserved = data?.quotaReserved || 0;
-      const quotaConsumed = data?.quotaConsumed || sentCount;
-      const quotaDate = data?.quotaDate;
-
-      if (quotaDate && quotaReserved > 0) {
-        const quotaRef = db.collection('emailQuota').doc(quotaDate);
-        
-        // Atomic update: -reserved, +sent
-        await quotaRef.update({
-          reserved: FieldValue.increment(-quotaReserved), // Rilascia tutto il reserved
-          sent: FieldValue.increment(quotaConsumed) // Incrementa sent
-        });
-        
-        console.log(`📊 Quota aggiornata (finally): reserved -${quotaReserved}, sent +${quotaConsumed}`);
-      }
-    } catch (releaseError: any) {
-      // Log errore ma non propagare (evita loop infinito)
-      console.error('❌ Errore rilascio quota in finally:', releaseError.message);
-    }
+    res.status(500).json({ success: false, error: error.message });
   }
-}
+});
 
-/**
- * Invia singola email tramite Gmail API usando sendGmailEmail esistente
- */
-async function sendSingleEmail(
-  recipient: BulkEmailRecipient,
-  subject: string,
-  body: string
-): Promise<void> {
-  try {
-    // Personalizza corpo con nome destinatario se presente variabile
-    let personalizedBody = body;
-    if (recipient.nome) {
-      personalizedBody = body
-        .replace(/\{nome\}/g, recipient.nome)
-        .replace(/\{cognome\}/g, recipient.cognome)
-        .replace(/\{nome_completo\}/g, `${recipient.nome} ${recipient.cognome}`.trim());
-    }
+// ============================================================================
+// EMAIL HELPER
+// ============================================================================
 
-    const emailHTML = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        ${personalizedBody}
-        
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-          <p style="margin: 5px 0; font-weight: 600;">Memorie Sospese</p>
-          <p style="margin: 5px 0;">Email: memoriesospese@gennaromazzacane.it</p>
-          <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
-        </div>
+async function sendSingleEmail(recipient: BulkEmailRecipient, subject: string, body: string): Promise<void> {
+  let personalizedBody = body;
+  if (recipient.nome) {
+    personalizedBody = body
+      .replace(/\{nome\}/g, recipient.nome)
+      .replace(/\{cognome\}/g, recipient.cognome)
+      .replace(/\{nome_completo\}/g, `${recipient.nome} ${recipient.cognome}`.trim());
+  }
+
+  const emailHTML = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      ${personalizedBody}
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
+        <p style="margin: 5px 0; font-weight: 600;">Memorie Sospese</p>
+        <p style="margin: 5px 0;">Email: memoriesospese@gennaromazzacane.it</p>
+        <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
       </div>
-    `;
+    </div>
+  `;
 
-    // Usa la funzione esistente sendGmailEmail
-    await sendGmailEmail(
-      recipient.email,
-      subject,
-      emailHTML
-    );
-
-    console.log(`✅ Email inviata a ${recipient.email}`);
-
-  } catch (error: any) {
-    console.error(`❌ Errore invio email a ${recipient.email}:`, error);
-    throw new Error(`Impossibile inviare email: ${error.message}`);
-  }
+  await sendGmailEmail(recipient.email, subject, emailHTML);
 }
 
 export default router;
