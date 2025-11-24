@@ -123,3 +123,41 @@ export function getWeekday(dt: DateTime): number {
   const luxonWeekday = dt.weekday; // 1 = Mon, 7 = Sun
   return luxonWeekday === 7 ? 0 : luxonWeekday;
 }
+
+/**
+ * Parse YYYY-MM-DD date string to DateTime in Europe/Rome
+ * Guaranteed to return the correct date in Rome timezone
+ */
+export function parseDateString(dateStr: string): DateTime {
+  return DateTime.fromFormat(dateStr, 'yyyy-MM-dd', { zone: TIMEZONE });
+}
+
+/**
+ * Get day boundaries (start and end) for Firestore queries
+ * Returns { dayStart, dayEnd } as JavaScript Dates in UTC
+ * 
+ * @param date Input date (any format accepted by toRome)
+ * @param extendStartByDays Extend start by N days (default 0, use -1 to include previous day)
+ */
+export function getDayBoundaries(
+  date: Date | Timestamp | string,
+  extendStartByDays: number = 0
+): { dayStart: Date; dayEnd: Date } {
+  const romeDate = toRome(date);
+  
+  // Start of day (00:00:00)
+  let dayStartDT = romeDate.startOf('day');
+  
+  // Extend start if needed (e.g., -1 day to catch bookings from previous day)
+  if (extendStartByDays !== 0) {
+    dayStartDT = dayStartDT.plus({ days: extendStartByDays });
+  }
+  
+  // End of day (23:59:59.999)
+  const dayEndDT = romeDate.endOf('day');
+  
+  return {
+    dayStart: toUTC(dayStartDT),
+    dayEnd: toUTC(dayEndDT)
+  };
+}

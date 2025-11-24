@@ -286,9 +286,11 @@ router.post("/available-slots", async (req, res) => {
     }
 
     // Verifica se il giorno è escluso (0=Domenica, 1=Lunedì, ..., 6=Sabato)
+    // FIX: Usa Calendar Engine V2 per timezone corretto
     if (excludedDays && Array.isArray(excludedDays)) {
-      const requestedDate = new Date(date);
-      const dayOfWeek = requestedDate.getDay();
+      const { parseDateString, getWeekday } = await import('./calendar-engine/timezone.js');
+      const requestedDate = parseDateString(date); // DateTime in Europe/Rome
+      const dayOfWeek = getWeekday(requestedDate); // 0=Sunday, 1=Monday, etc.
 
       if (excludedDays.includes(dayOfWeek)) {
         // Giorno escluso - ritorna array vuoto
@@ -320,14 +322,10 @@ router.post("/available-slots", async (req, res) => {
     let slots = slotsFromCalendar;
 
     try {
-      // Estendi l'intervallo di ricerca per catturare prenotazioni che iniziano il giorno prima
-      // ma potrebbero ancora occupare slot del giorno richiesto
-      const dayStart = new Date(date);
-      dayStart.setHours(0, 0, 0, 0);
-      dayStart.setDate(dayStart.getDate() - 1); // Inizia dal giorno precedente
-
-      const dayEnd = new Date(date);
-      dayEnd.setHours(23, 59, 59, 999);
+      // FIX: Usa Calendar Engine V2 per day boundaries corretti
+      // Estendi di -1 giorno per catturare prenotazioni che iniziano il giorno prima
+      const { getDayBoundaries } = await import('./calendar-engine/timezone.js');
+      const { dayStart, dayEnd } = getDayBoundaries(date, -1); // -1 = include previous day
 
       console.log(
         `[Available Slots] Controllo prenotazioni esistenti per campagna ${campaignId} tra ${dayStart.toISOString()} e ${dayEnd.toISOString()}`,
@@ -541,7 +539,10 @@ router.post("/create", async (req, res) => {
     const excludedDays = campaign?.excludedDays || [];
 
     if (excludedDays.length > 0) {
-      const dayOfWeek = slotStart.getDay(); // 0=Domenica, 1=Lunedì, ..., 6=Sabato
+      // FIX: Usa Calendar Engine V2 per weekday detection corretto
+      const { toRome, getWeekday } = await import('./calendar-engine/timezone.js');
+      const romeDateSlot = toRome(slotStart);
+      const dayOfWeek = getWeekday(romeDateSlot); // 0=Sunday, 1=Monday, etc.
 
       if (excludedDays.includes(dayOfWeek)) {
         return res.status(400).json({
@@ -617,11 +618,9 @@ router.post("/create", async (req, res) => {
     }
 
     // 2. Verifica anche booking esistenti in Firestore con overlap check (prevenzione race condition)
-    // NOTA: Firestore non supporta range queries su più campi, quindi recuperiamo tutti i booking del giorno e filtriamo in memoria
-    const dayStart = new Date(slotStart);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(slotStart);
-    dayEnd.setHours(23, 59, 59, 999);
+    // FIX: Usa Calendar Engine V2 per day boundaries corretti
+    const { getDayBoundaries } = await import('./calendar-engine/timezone.js');
+    const { dayStart, dayEnd } = getDayBoundaries(slotStart, 0); // No extension needed
 
     const existingBookingsSnapshot = await db
       .collection("bookings")
@@ -1195,10 +1194,9 @@ router.patch("/:id/approve", async (req, res) => {
     }
 
     // Verifica overlap con altri booking in Firestore (escluso questo)
-    const dayStart = new Date(slotStart);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(slotStart);
-    dayEnd.setHours(23, 59, 59, 999);
+    // FIX: Usa Calendar Engine V2 per day boundaries corretti
+    const { getDayBoundaries: getDayBoundariesOverride } = await import('./calendar-engine/timezone.js');
+    const { dayStart, dayEnd } = getDayBoundariesOverride(slotStart, 0);
 
     const otherBookingsSnapshot = await db
       .collection("bookings")
@@ -2313,9 +2311,12 @@ router.post("/v2/create", async (req, res) => {
     }
 
     // Step 3: Verify excluded days
+    // FIX: Usa Calendar Engine V2 per weekday detection corretto
     const excludedDays = campaign?.excludedDays || [];
     if (excludedDays.length > 0) {
-      const dayOfWeek = slotStart.getDay();
+      const { toRome: toRomeWeekday, getWeekday: getWeekdayV2 } = await import('./calendar-engine/timezone.js');
+      const romeDateSlot2 = toRomeWeekday(slotStart);
+      const dayOfWeek = getWeekdayV2(romeDateSlot2);
       if (excludedDays.includes(dayOfWeek)) {
         return res.status(400).json({
           error: "Giorno non disponibile",
