@@ -127,7 +127,46 @@ export const getQueryFn: <T>(options: {
     // Se l'app è in sottocartella, anche le API devono avere il base path
     const finalUrl = url.startsWith('/api') ? createUrl(url) : url;
     
+    // Prepara headers con stesso logic di apiRequest
+    const headers: Record<string, string> = {};
+    
+    // Endpoint consultations pubblici (NON richiedono auth) - SOLO V2
+    const publicConsultationEndpoints = [
+      '/api/consultations/v2/available-slots',
+      '/api/consultations/v2/create',
+      '/api/consultations/templates/', // Public template endpoints
+      '/api/consultations/job-types' // Public job types endpoint
+    ];
+    
+    const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => url.includes(endpoint));
+    
+    // Aggiungi token Firebase per endpoint che lo richiedono
+    const firebaseAuthEndpoints = [
+      '/api/import/',
+      '/api/email/',
+      '/api/quote/',
+      '/api/quotes/',
+      '/api/booking/',
+      '/api/calendar/',
+      '/api/consultations/v2/' // All V2 consultation endpoints except public ones
+    ];
+    
+    // Check specifico per consultations: tutti tranne i pubblici
+    const isConsultationsEndpoint = url.includes('/api/consultations');
+    const needsFirebaseAuth = (isConsultationsEndpoint && !isPublicConsultationEndpoint) || 
+                              firebaseAuthEndpoints.some(endpoint => url.includes(endpoint));
+    
+    if (needsFirebaseAuth && auth.currentUser) {
+      try {
+        const token = await auth.currentUser.getIdToken();
+        headers['Authorization'] = `Bearer ${token}`;
+      } catch (error) {
+        console.error('Errore ottenimento token Firebase:', error);
+      }
+    }
+    
     const res = await fetch(finalUrl, {
+      headers,
       credentials: "include",
     });
 

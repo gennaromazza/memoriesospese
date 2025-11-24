@@ -64,14 +64,21 @@ export default function ConflictResolutionModal({
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
   const [reason, setReason] = useState("");
 
-  // Fetch conflict details (only when authenticated)
-  const { data: conflictData, isLoading: isLoadingConflicts } = useQuery<{
+  // Fetch conflict details (wait for auth ready to avoid 401 loop)
+  const { data: conflictData, isLoading: isLoadingConflicts, refetch } = useQuery<{
     hasConflict: boolean;
     conflicts: ConflictEvent[];
   }>({
     queryKey: ['/api/consultations/v2', consultationId, 'conflicts'],
     enabled: open && !!consultationId && !authLoading && !!user,
   });
+
+  // Refetch when user becomes available (handles auth transitions)
+  useEffect(() => {
+    if (open && consultationId && user && !authLoading) {
+      refetch();
+    }
+  }, [user, open, consultationId, authLoading, refetch]);
 
   // Reset state when modal opens/closes
   useEffect(() => {
