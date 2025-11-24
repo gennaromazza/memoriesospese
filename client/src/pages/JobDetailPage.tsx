@@ -56,6 +56,8 @@ import EditJobModal from '@/components/jobs/EditJobModal';
 import EditClienteModal from '@/components/jobs/EditClienteModal';
 import { updateCliente } from '@/lib/clienti';
 import QuoteManagementPanel from '@/components/quotes/QuoteManagementPanel';
+import SendQuoteEmailButton from '@/components/quotes/SendQuoteEmailButton';
+import QuoteEmailStatusBadge from '@/components/quotes/QuoteEmailStatusBadge';
 import JobNotesSection from '@/components/jobs/JobNotesSection';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy } from 'firebase/firestore';
@@ -871,6 +873,15 @@ export default function JobDetailPage() {
                             </div>
                           </div>
                         </button>
+
+                        {/* Email Status Badge */}
+                        <div className="border-t px-4 py-3 bg-muted/10 flex items-center justify-between">
+                          <QuoteEmailStatusBadge quote={quote} />
+                          <SendQuoteEmailButton 
+                            quote={quote}
+                            onEmailSent={() => queryClient.invalidateQueries({ queryKey: ['jobs', jobId] })}
+                          />
+                        </div>
 
                         {/* Quote Management Panel - Expandable */}
                         {expandedQuoteId === quote.id && (
