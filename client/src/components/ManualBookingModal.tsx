@@ -78,23 +78,14 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     ? products.filter(p => selectedCampaign.prodottiDisponibili.includes(p.id))
     : [];
 
-  // Query slot disponibili per data selezionata
+  // Query slot disponibili per data selezionata (V2: usa Calendar Engine V2)
   const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
     queryKey: ['manual-booking-slots', dataShootingDate, campaignId],
     queryFn: async () => {
       if (!dataShootingDate || !selectedCampaign) return [];
       
-      return await getAvailableSlots(
-        dataShootingDate,
-        {
-          apertura: selectedCampaign.orarioApertura,
-          pausaInizio: selectedCampaign.orarioPausaInizio,
-          pausaFine: selectedCampaign.orarioPausaFine,
-          chiusura: selectedCampaign.orarioChiusura,
-        },
-        selectedCampaign.durataShootingMinuti,
-        selectedCampaign.excludedDays
-      );
+      // V2: Campaign configuration loaded server-side
+      return await getAvailableSlots(dataShootingDate, selectedCampaign.id);
     },
     enabled: !!dataShootingDate && !!selectedCampaign,
   });
@@ -248,7 +239,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       const firstProductId = selectedProducts.length > 0 ? selectedProducts[0].prodottoId : undefined;
       const firstProduct = firstProductId ? products.find(p => p.id === firstProductId) : undefined;
 
-      // Payload prenotazione (include workingHours e durataMinuti dalla campagna)
+      // Payload prenotazione V2 (no workingHours/durataMinuti - loaded server-side)
       const bookingPayload = {
         campaignId,
         cliente: {
@@ -263,21 +254,14 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         prodottoNome: firstProduct?.nome,
         prodotti: prodottiOrderItems, // Nuovo campo multi-prodotto
         note: note.trim(),
-        workingHours: {
-          apertura: selectedCampaign.orarioApertura,
-          pausaInizio: selectedCampaign.orarioPausaInizio,
-          pausaFine: selectedCampaign.orarioPausaFine,
-          chiusura: selectedCampaign.orarioChiusura,
-        },
-        durataMinuti: selectedCampaign.durataShootingMinuti,
         isManual: true,
         createdByAdmin: user?.email || 'admin',
       };
 
-      console.log('📝 Creazione prenotazione manuale:', bookingPayload);
+      console.log('📝 Creazione prenotazione manuale (V2):', bookingPayload);
 
-      // Chiamata API
-      const response = await fetch('/api/booking/create', {
+      // Chiamata API V2
+      const response = await fetch('/api/booking/v2/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bookingPayload),

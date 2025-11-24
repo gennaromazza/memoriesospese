@@ -23,7 +23,8 @@ import { WorkflowState } from '@shared/schema';
 const COLLECTION = 'bookings';
 
 /**
- * Crea nuova prenotazione via endpoint server (atomico con Google Calendar)
+ * Crea nuova prenotazione via endpoint server V2 (usa Calendar Engine V2)
+ * Non richiede più workingHours/durataMinuti - usa solo campaignId
  */
 export async function createBooking(data: {
   campaignId: string;
@@ -37,16 +38,12 @@ export async function createBooking(data: {
   dataShootingFine: Date;
   prodottoId?: string;
   prodottoNome?: string;
+  prodotti?: Array<{ prodottoId: string; prodottoNome: string; quantity: number }>;
   note: string;
-  workingHours: {
-    apertura: string;
-    pausaInizio: string;
-    pausaFine: string;
-    chiusura: string;
-  };
-  durataMinuti: number;
+  isManual?: boolean;
+  createdByAdmin?: string;
 }): Promise<string> {
-  const response = await fetch('/api/booking/create', {
+  const response = await fetch('/api/booking/v2/create', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -58,9 +55,10 @@ export async function createBooking(data: {
       dataShootingFine: data.dataShootingFine.toISOString(),
       prodottoId: data.prodottoId,
       prodottoNome: data.prodottoNome,
+      prodotti: data.prodotti,
       note: data.note,
-      workingHours: data.workingHours,
-      durataMinuti: data.durataMinuti,
+      isManual: data.isManual,
+      createdByAdmin: data.createdByAdmin,
     }),
   });
 
@@ -74,34 +72,26 @@ export async function createBooking(data: {
 }
 
 /**
- * Ottiene slot disponibili da API server
+ * Ottiene slot disponibili da API server V2 (usa Calendar Engine V2)
+ * Non richiede più workingHours/durataMinuti - usa solo campaignId
  */
 export async function getAvailableSlots(
   date: string, // YYYY-MM-DD
-  workingHours: {
-    apertura: string;
-    pausaInizio: string;
-    pausaFine: string;
-    chiusura: string;
-  },
-  durataMinuti: number,
-  excludedDays?: number[] // Array di giorni esclusi (0=Domenica, 1=Lunedì, ..., 6=Sabato)
+  campaignId: string
 ): Promise<Array<{
   start: string;
   end: string;
   startTime: string;
   endTime: string;
 }>> {
-  const response = await fetch('/api/booking/available-slots', {
+  const response = await fetch('/api/booking/v2/available-slots', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       date,
-      workingHours,
-      durataMinuti,
-      excludedDays,
+      campaignId,
     }),
   });
 
@@ -193,10 +183,10 @@ export async function getBookingsByStatus(
 }
 
 /**
- * Approva prenotazione (admin only) - chiama API server
+ * Approva prenotazione (admin only) - chiama API server V2 con Calendar Engine V2
  */
 export async function approveBooking(bookingId: string, adminUid: string): Promise<void> {
-  const response = await fetch(`/api/booking/${bookingId}/approve`, {
+  const response = await fetch(`/api/booking/v2/${bookingId}/approve`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',

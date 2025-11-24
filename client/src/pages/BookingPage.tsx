@@ -108,25 +108,16 @@ export default function BookingPage() {
     enabled: !!campaign,
   });
 
-  // Query slots disponibili per data selezionata
+  // Query slots disponibili per data selezionata (V2: usa Calendar Engine V2)
   const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
-    queryKey: ["available-slots", selectedDate, campaign?.code],
+    queryKey: ["available-slots", selectedDate, campaign?.id],
     queryFn: async () => {
       if (!selectedDate || !campaign) return [];
 
       const dateStr = format(selectedDate, "yyyy-MM-dd");
 
-      return await getAvailableSlots(
-        dateStr,
-        {
-          apertura: campaign.orarioApertura,
-          pausaInizio: campaign.orarioPausaInizio,
-          pausaFine: campaign.orarioPausaFine,
-          chiusura: campaign.orarioChiusura,
-        },
-        campaign.durataShootingMinuti,
-        campaign.excludedDays,
-      );
+      // V2: Campaign configuration loaded server-side
+      return await getAvailableSlots(dateStr, campaign.id);
     },
     enabled: !!selectedDate && !!campaign,
   });
@@ -140,6 +131,7 @@ export default function BookingPage() {
 
       const prodotto = products.find((p) => p.id === formData.prodottoId);
 
+      // V2: No workingHours/durataMinuti needed (loaded server-side)
       return await createBooking({
         campaignId: campaign.id,
         cliente: {
@@ -153,13 +145,6 @@ export default function BookingPage() {
         prodottoId: formData.prodottoId || undefined,
         prodottoNome: prodotto?.nome || undefined,
         note: formData.note,
-        workingHours: {
-          apertura: campaign.orarioApertura,
-          pausaInizio: campaign.orarioPausaInizio,
-          pausaFine: campaign.orarioPausaFine,
-          chiusura: campaign.orarioChiusura,
-        },
-        durataMinuti: campaign.durataShootingMinuti,
       });
     },
     onSuccess: () => {
