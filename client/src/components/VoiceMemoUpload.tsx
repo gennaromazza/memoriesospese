@@ -340,8 +340,8 @@ export default function VoiceMemoUpload({
   };
 
   const getTomorrowDate = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // FIX: Usa math per evitare setDate()
+    const tomorrow = new Date(new Date().getTime() + 86400000);
     return tomorrow.toISOString().split('T')[0];
   };
 

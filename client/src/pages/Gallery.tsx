@@ -1100,9 +1100,9 @@ export default function Gallery() {
         // Filtra per data
         if (filters.startDate && photoDate < filters.startDate) return false;
         if (filters.endDate) {
-          // Imposta l'ora finale a 23:59:59
-          const endDateWithTime = new Date(filters.endDate);
-          endDateWithTime.setHours(23, 59, 59);
+          // FIX: Usa math per set end of day (evita setHours())
+          const ed = new Date(filters.endDate);
+          const endDateWithTime = new Date(ed.getFullYear(), ed.getMonth(), ed.getDate(), 23, 59, 59);
           if (photoDate > endDateWithTime) return false;
         }
 

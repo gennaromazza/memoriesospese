@@ -196,8 +196,8 @@ export default function WeddingVideosPage() {
   // Video Nuovi (ultimi 30 giorni)
   const newVideos = videos.filter(v => {
     if (!v.createdAt) return false;
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // FIX: Usa math per calcolo date (evita setDate())
+    const thirtyDaysAgo = new Date(new Date().getTime() - 30 * 86400000);
     const videoDate = v.createdAt.toDate ? v.createdAt.toDate() : new Date(v.createdAt);
     return videoDate >= thirtyDaysAgo;
   }).slice(0, 8);

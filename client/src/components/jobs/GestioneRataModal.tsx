@@ -123,11 +123,12 @@ export default function GestioneRataModal({
       });
 
       // Se c'è eventDate e payment, prova a calcolare l'offset relativo
+      // FIX: Usa constructor per reset ore (evita setHours())
       if (eventDate && payment?.dataScadenza) {
-        const eventDateNormalized = new Date(eventDate);
-        eventDateNormalized.setHours(0, 0, 0, 0);
-        const paymentDateNormalized = new Date(paymentDate);
-        paymentDateNormalized.setHours(0, 0, 0, 0);
+        const ed = new Date(eventDate);
+        const eventDateNormalized = new Date(ed.getFullYear(), ed.getMonth(), ed.getDate());
+        const pd = new Date(paymentDate);
+        const paymentDateNormalized = new Date(pd.getFullYear(), pd.getMonth(), pd.getDate());
 
         const diffTime =
           paymentDateNormalized.getTime() - eventDateNormalized.getTime();
