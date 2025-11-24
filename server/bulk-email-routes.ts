@@ -6,6 +6,7 @@
 import { Router, Request, Response } from "express";
 import { db } from './firebase-admin.js';
 import { sendGmailEmail } from './email-routes.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
 
@@ -99,22 +100,51 @@ router.post('/send', async (req: Request, res: Response) => {
       });
     }
 
-    // Verifica limite giornaliero
-    if (recipients.length > GMAIL_DAILY_LIMIT) {
+    // Verifica E RISERVA quota giornaliera atomicamente con per-job metadata
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const quotaRef = db.collection('emailQuota').doc(today);
+
+    // Transaction per check + atomic increment
+    const reservationResult = await db.runTransaction(async (transaction) => {
+      const quotaDoc = await transaction.get(quotaRef);
+      const currentSent = quotaDoc.exists ? (quotaDoc.data()?.sent || 0) : 0;
+      const remainingQuota = GMAIL_DAILY_LIMIT - currentSent;
+
+      if (recipients.length > remainingQuota) {
+        throw new Error(`Quota giornaliera insufficiente. Inviate ${currentSent}/${GMAIL_DAILY_LIMIT} oggi. Rimanenti: ${remainingQuota}.`);
+      }
+
+      // Atomic increment (no overwrite risk)
+      transaction.set(quotaRef, {
+        sent: FieldValue.increment(recipients.length),
+        date: today,
+        lastUpdated: new Date()
+      }, { merge: true });
+
+      return { currentSent, reserved: recipients.length };
+    });
+
+    // Se transazione fallisce, ritorna errore
+    if (!reservationResult) {
       return res.status(400).json({
         success: false,
-        error: `Limite giornaliero Gmail superato. Max ${GMAIL_DAILY_LIMIT} email/giorno.`
+        error: 'Errore riserva quota. Riprova.'
       });
     }
 
-    // Crea job in Firestore per tracking
+    // Crea job in Firestore per tracking con per-job quota metadata
     const jobRef = db.collection('bulkEmailJobs').doc();
-    const job: BulkEmailJob = {
+    const job: Omit<BulkEmailJob, 'recipients'> & { 
+      totalRecipients: number;
+      quotaReserved: number; // Quota riservata per QUESTO job
+      quotaDate: string; // Data quota (per recovery)
+    } = {
       id: jobRef.id,
       subject,
       body,
-      recipients,
       totalRecipients: recipients.length,
+      quotaReserved: reservationResult.reserved, // Salva quanto riservato
+      quotaDate: today, // Salva data per recovery
       sentCount: 0,
       failedCount: 0,
       status: 'pending',
@@ -123,16 +153,33 @@ router.post('/send', async (req: Request, res: Response) => {
       createdBy: senderId || 'admin'
     };
 
-    await jobRef.set(job);
+    let jobCreated = false;
+    try {
+      await jobRef.set(job);
+      jobCreated = true;
 
-    // Avvia invio asincrono (non bloccare la risposta)
-    sendBulkEmails(jobRef.id, subject, body, recipients);
+      // Avvia invio asincrono (non bloccare la risposta)
+      sendBulkEmails(jobRef.id, subject, body, recipients, today);
 
-    res.json({
-      success: true,
-      jobId: jobRef.id,
-      message: `Invio di ${recipients.length} email avviato`
-    });
+      res.json({
+        success: true,
+        jobId: jobRef.id,
+        message: `Invio di ${recipients.length} email avviato`
+      });
+
+    } catch (jobError: any) {
+      // Job creation failed → rilascia quota riservata
+      if (!jobCreated) {
+        console.error('❌ Job creation fallita, rilascio quota:', jobError.message);
+        
+        // Rilascia quota atomicamente
+        await quotaRef.update({
+          sent: FieldValue.increment(-reservationResult.reserved)
+        });
+      }
+      
+      throw jobError; // Propaga errore
+    }
 
   } catch (error: any) {
     console.error('❌ Errore avvio bulk email:', error);
@@ -202,23 +249,25 @@ router.get('/jobs', async (req: Request, res: Response) => {
 });
 
 /**
- * Funzione asincrona per invio batch con rate limiting
+ * Funzione asincrona per invio batch con rate limiting e quota tracking
  */
 async function sendBulkEmails(
   jobId: string,
   subject: string,
   body: string,
-  recipients: BulkEmailRecipient[]
+  recipients: BulkEmailRecipient[],
+  quotaDate: string
 ) {
   const jobRef = db.collection('bulkEmailJobs').doc(jobId);
+  const quotaRef = db.collection('emailQuota').doc(quotaDate);
+
+  let sentCount = 0;
+  let failedCount = 0;
+  const errors: Array<{ email: string; error: string; retry: boolean }> = [];
 
   try {
     // Aggiorna stato a in_progress
     await jobRef.update({ status: 'in_progress' });
-
-    let sentCount = 0;
-    let failedCount = 0;
-    const errors: Array<{ email: string; error: string }> = [];
 
     // Dividi in batch per rate limiting
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
@@ -230,22 +279,75 @@ async function sendBulkEmails(
           await sendSingleEmail(recipient, subject, body);
           sentCount++;
 
-          // Aggiorna progress ogni 10 email
-          if (sentCount % 10 === 0) {
+          // NON aggiornare quota qui - già riservata in transazione iniziale
+          // Quota sarà confermata al completamento job
+
+          // Aggiorna progress DOPO OGNI EMAIL (non ogni 10)
+          await jobRef.update({
+            sentCount,
+            failedCount
+          });
+
+        } catch (error: any) {
+          failedCount++;
+          
+          // Classifica errore (temporaneo vs permanente)
+          const isTemporary = error.message.includes('timeout') || 
+                             error.message.includes('rate') ||
+                             error.message.includes('temporarily');
+          
+          errors.push({
+            email: recipient.email,
+            error: error.message,
+            retry: isTemporary
+          });
+
+          // Aggiorna errors array (max 100 per non esplodere Firestore)
+          if (errors.length <= 100) {
             await jobRef.update({
-              sentCount,
               failedCount,
               errors
             });
           }
 
-        } catch (error: any) {
-          failedCount++;
-          errors.push({
-            email: recipient.email,
-            error: error.message
-          });
           console.error(`❌ Errore invio a ${recipient.email}:`, error.message);
+
+          // Retry se errore temporaneo (max 3 tentativi)
+          if (isTemporary) {
+            let retrySuccess = false;
+            for (let retry = 1; retry <= 3; retry++) {
+              try {
+                console.log(`🔄 Retry ${retry}/3 per ${recipient.email}`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * retry)); // Backoff esponenziale
+                await sendSingleEmail(recipient, subject, body);
+                
+                // Retry riuscito! Aggiorna stats
+                sentCount++;
+                failedCount--;
+                retrySuccess = true;
+                
+                // Rimuovi l'errore dall'array (successo al retry)
+                const errorIndex = errors.findIndex(e => e.email === recipient.email);
+                if (errorIndex !== -1) {
+                  errors.splice(errorIndex, 1);
+                }
+
+                // Aggiorna job con nuovo stato
+                await jobRef.update({
+                  sentCount,
+                  failedCount,
+                  errors: errors.slice(0, 100)
+                });
+
+                console.log(`✅ Retry riuscito per ${recipient.email}`);
+                break;
+              } catch (retryError: any) {
+                if (retry === 3) {
+                  console.error(`❌ Retry fallito definitivamente per ${recipient.email}`);
+                }
+              }
+            }
+          }
         }
       }
 
@@ -255,24 +357,50 @@ async function sendBulkEmails(
       }
     }
 
+    // Determina status finale
+    const finalStatus = sentCount === 0 ? 'failed' : 'completed';
+
     // Completa job
     await jobRef.update({
-      status: 'completed',
+      status: finalStatus,
       sentCount,
       failedCount,
-      errors,
+      errors: errors.slice(0, 100), // Max 100 errori salvati
       completedAt: new Date()
     });
 
-    console.log(`✅ Bulk email completato: ${sentCount}/${recipients.length} inviate`);
+    console.log(`✅ Bulk email completato: ${sentCount}/${recipients.length} inviate, ${failedCount} fallite`);
 
   } catch (error: any) {
     console.error('❌ Errore fatale bulk email:', error);
+    
+    // Marca job come failed
     await jobRef.update({
       status: 'failed',
-      errors: [{ email: 'system', error: error.message }],
+      sentCount,
+      failedCount,
+      errors: [{ email: 'system', error: error.message, retry: false }, ...errors.slice(0, 99)],
       completedAt: new Date()
     });
+  } finally {
+    // SEMPRE rilascia quota inutilizzata (anche in caso di crash/error)
+    try {
+      const jobDoc = await jobRef.get();
+      const quotaReserved = jobDoc.data()?.quotaReserved || 0;
+      const unusedQuota = quotaReserved - sentCount;
+
+      if (unusedQuota > 0) {
+        // Rilascia quota inutilizzata con atomic decrement
+        await quotaRef.update({
+          sent: FieldValue.increment(-unusedQuota),
+          lastUpdated: new Date()
+        });
+        console.log(`📊 Quota rilasciata (finally): ${unusedQuota} email non inviate`);
+      }
+    } catch (releaseError: any) {
+      // Log errore ma non propagare (evita loop infinito)
+      console.error('❌ Errore rilascio quota in finally:', releaseError.message);
+    }
   }
 }
 
