@@ -937,50 +937,49 @@ export default function JobDetailPage() {
             </div>
           </div>
 
-          {/* Quote Builder Modal */}
-          {job.clientiIds.length > 0 && quoteBuilderOpen && jobType && (
-            <QuoteBuilder
-              open={quoteBuilderOpen}
-              onClose={() => {
-                setQuoteBuilderOpen(false);
-                // Rimuovi parametro editQuote dalla URL
-                if (editQuoteId) {
-                  navigate(`/admin/jobs/${jobId}`);
-                }
-              }}
+        {/* Quote Builder Modal */}
+        {job.clientiIds.length > 0 && quoteBuilderOpen && jobType && (
+          <QuoteBuilder
+            open={quoteBuilderOpen}
+            onClose={() => {
+              setQuoteBuilderOpen(false);
+              // Rimuovi parametro editQuote dalla URL
+              if (editQuoteId) {
+                navigate(`/admin/jobs/${jobId}`);
+              }
+            }}
+            jobId={job.id}
+            jobType={jobType}
+            jobTypeSlug={job.jobType}
+            clienteId={job.clientiIds[0]}
+            editQuoteId={editQuoteId || undefined}
+          />
+        )}
+
+        {/* Genera Pagamenti Modal */}
+        {generaPagamentiQuoteId && (() => {
+          const targetQuote = quotes?.find(q => q.id === generaPagamentiQuoteId);
+
+          if (!targetQuote || !job.clientiIds[0]) return null;
+          if (targetQuote.status !== 'firmato') {
+            console.warn('Tentativo di generare piano pagamenti per preventivo non firmato');
+            return null;
+          }
+
+          const totale = calculateQuoteTotalForPayments(targetQuote);
+
+          return (
+            <GeneraPagamentiModal
+              open={true}
+              onClose={() => setGeneraPagamentiQuoteId(null)}
+              quoteId={targetQuote.id}
+              quoteTotale={totale}
               jobId={job.id}
-              jobType={jobType}
-              jobTypeSlug={job.jobType}
               clienteId={job.clientiIds[0]}
-              editQuoteId={editQuoteId || undefined}
+              eventDate={job.eventDate ? job.eventDate.toDate() : null}
             />
-          )}
-
-          {/* Genera Pagamenti Modal */}
-          {generaPagamentiQuoteId && (() => {
-            const targetQuote = quotes?.find(q => q.id === generaPagamentiQuoteId);
-
-            if (!targetQuote || !job.clientiIds[0]) return null;
-            if (targetQuote.status !== 'firmato') {
-              console.warn('Tentativo di generare piano pagamenti per preventivo non firmato');
-              return null;
-            }
-
-            const totale = calculateQuoteTotalForPayments(targetQuote);
-
-            return (
-              <GeneraPagamentiModal
-                open={true}
-                onClose={() => setGeneraPagamentiQuoteId(null)}
-                quoteId={targetQuote.id}
-                quoteTotale={totale}
-                jobId={job.id}
-                clienteId={job.clientiIds[0]}
-                eventDate={job.eventDate ? job.eventDate.toDate() : null}
-              />
-            );
-          })()}
-        </div>
+          );
+        })()}
       </div>
 
       {/* Edit Job Modal */}
