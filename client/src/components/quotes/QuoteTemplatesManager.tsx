@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getAllQuoteTemplates, createQuoteTemplate } from '@/lib/quotes';
 import { getAllProducts } from '@/lib/products';
-import { getAllJobTypes } from '@/lib/job-types';
+import { getJobTypes } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -104,7 +104,7 @@ export default function QuoteTemplatesManager() {
   // Query job types
   const { data: jobTypes = [] } = useQuery({
     queryKey: ['job-types'],
-    queryFn: getAllJobTypes
+    queryFn: getJobTypes
   });
 
   // Query catalog products
