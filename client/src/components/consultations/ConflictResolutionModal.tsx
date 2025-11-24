@@ -92,17 +92,15 @@ export default function ConflictResolutionModal({
   const approveMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest(
+        "POST",
         `/api/consultations/v2/${consultationId}/approve-with-override`,
         {
-          method: "POST",
-          body: JSON.stringify({
-            overrideConflicts: true,
-            deleteEventIds: selectedEventIds,
-            reason: reason.trim(),
-          }),
+          overrideConflicts: true,
+          deleteEventIds: selectedEventIds,
+          reason: reason.trim(),
         }
       );
-      return response;
+      return response.json();
     },
     onSuccess: (data) => {
       toast({
