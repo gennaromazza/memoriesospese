@@ -1107,9 +1107,10 @@ export default function Gallery() {
         }
 
         // Filtra per ora
+        // FIX: Estrai ore/minuti in UTC per comparazione (non timezone-dependent)
         if (filters.startTime || filters.endTime) {
-          const hours = photoDate.getHours();
-          const minutes = photoDate.getMinutes();
+          const hours = photoDate.getUTCHours();
+          const minutes = photoDate.getUTCMinutes();
           const photoTime = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 
           if (filters.startTime && photoTime < filters.startTime) return false;

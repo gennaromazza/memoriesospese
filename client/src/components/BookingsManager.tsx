@@ -6,6 +6,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import { nextMonday } from "date-fns";
 import {
   getAllBookings,
   getBookingsByStatus,
@@ -353,13 +354,12 @@ export default function BookingsManager({
           );
         } else if (timeFilter === "next-week") {
           // Prossima settimana: dal prossimo lunedì alla prossima domenica
-          // FIX: Usa math per calcoli giorni (evita getDay() e setDate())
-          const daysUntilMonday = (8 - today.getDay()) % 7 || 7;
-          const nextMonday = new Date(today.getTime() + daysUntilMonday * 86400000);
-          const nextSunday = new Date(nextMonday.getTime() + 7 * 86400000);
+          // FIX: Usa date-fns nextMonday per evitare getDay() e timezone issues
+          const monday = nextMonday(today);
+          const nextSunday = new Date(monday.getTime() + 6 * 86400000);
 
           return (
-            bookingTime >= nextMonday.getTime() &&
+            bookingTime >= monday.getTime() &&
             bookingTime < nextSunday.getTime()
           );
         } else if (timeFilter === "next-month") {

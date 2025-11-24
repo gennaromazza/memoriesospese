@@ -1,4 +1,4 @@
-import { isSameDay } from 'date-fns';
+import { isSameDay, isSunday as isSundayDateFns } from 'date-fns';
 
 /**
  * Festività italiane fisse
@@ -40,9 +40,10 @@ function getEasterDate(year: number): Date {
 
 /**
  * Verifica se una data è domenica
+ * FIX: Usa date-fns per evitare getDay() e timezone issues
  */
 export function isSunday(date: Date): boolean {
-  return date.getDay() === 0;
+  return isSundayDateFns(date);
 }
 
 /**
