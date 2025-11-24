@@ -844,6 +844,275 @@ router.post("/create", async (req, res) => {
 });
 
 /**
+ * PATCH /api/booking/v2/:id/approve
+ * Approva prenotazione usando Calendar Engine V2 per conflict detection
+ * 
+ * Body: { adminUid: string }
+ */
+router.patch("/v2/:id/approve", async (req, res) => {
+  try {
+    console.log("[PATCH /v2/:id/approve] 🔵 Calendar Engine V2 - Request");
+    const { id } = req.params;
+    const { adminUid } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: "ID prenotazione mancante" });
+    }
+
+    const bookingRef = db.collection("bookings").doc(id);
+    const bookingDoc = await bookingRef.get();
+
+    if (!bookingDoc.exists) {
+      return res.status(404).json({ error: "Prenotazione non trovata" });
+    }
+
+    const bookingData = bookingDoc.data();
+
+    if (!bookingData) {
+      return res.status(404).json({ error: "Dati prenotazione non validi" });
+    }
+
+    // Verifica stato attuale
+    if (bookingData.stato === "confermata") {
+      return res.status(400).json({
+        error: "Prenotazione già confermata",
+        message: "Questa prenotazione è già stata approvata",
+      });
+    }
+
+    // RIVALIDAZIONE con Calendar Engine V2
+    const slotStart = bookingData.dataShootingInizio.toDate();
+    const slotEnd = bookingData.dataShootingFine.toDate();
+
+    // Load campaign
+    const campaignDoc = await db
+      .collection("booking_campaigns")
+      .doc(bookingData.campaignId)
+      .get();
+
+    if (!campaignDoc.exists) {
+      return res.status(404).json({ error: "Campagna non trovata" });
+    }
+
+    const campaign = campaignDoc.data();
+
+    if (!campaign?.attiva) {
+      return res.status(400).json({ error: "Campagna non attiva" });
+    }
+
+    // Import Calendar Engine V2 modules
+    const { campaignToAvailabilityConfig, getAllExistingBookingEvents } =
+      await import("./booking/calendar-adapter.js");
+    const { getAvailableSlotsForDate } = await import(
+      "./calendar-engine/index.js"
+    );
+    const { DateTime } = await import("luxon");
+
+    // Convert campaign to availability config
+    const config = campaignToAvailabilityConfig(campaign);
+    const dateObj = DateTime.fromJSDate(slotStart, { zone: "Europe/Rome" });
+    const dayStart = dateObj.startOf("day").toJSDate();
+    const dayEnd = dateObj.endOf("day").toJSDate();
+
+    // Load all existing events (exclude THIS booking from conflict check)
+    const allEvents = await getAllExistingBookingEvents(dayStart, dayEnd, db);
+
+    // Filter out this booking's event if it exists
+    const existingEvents = allEvents.filter((event) => {
+      // Skip events from this booking ID
+      if (event.id === id) return false;
+      return true;
+    });
+
+    // Generate available slots
+    const availableSlots = await getAvailableSlotsForDate(
+      dayStart,
+      config,
+      existingEvents,
+    );
+
+    // Verify slot is still available
+    const slotStillAvailable = availableSlots.some(
+      (slot) =>
+        Math.abs(new Date(slot.start).getTime() - slotStart.getTime()) < 1000 &&
+        Math.abs(new Date(slot.end).getTime() - slotEnd.getTime()) < 1000,
+    );
+
+    if (!slotStillAvailable) {
+      console.warn(
+        `[PATCH /v2/:id/approve] ❌ Conflict: slot not available for booking ${id}`,
+      );
+      return res.status(409).json({
+        error: "Conflitto calendario",
+        message:
+          "È stato aggiunto un evento che si sovrappone con questa prenotazione. Impossibile confermare.",
+      });
+    }
+
+    console.log(
+      `[PATCH /v2/:id/approve] ✅ Slot verified available using Calendar Engine V2`,
+    );
+
+    // Crea evento Google Calendar con compensating transaction
+    let calendarEventId = null;
+    try {
+      const { createEvent } = await import("./google-calendar.js");
+
+      const calendarEvent = await createEvent("primary", {
+        summary: `Shooting: ${bookingData.cliente.nome} ${bookingData.cliente.cognome}`,
+        description: `Prenotazione shooting CONFERMATA\n\nCliente: ${bookingData.cliente.nome} ${bookingData.cliente.cognome}\nEmail: ${bookingData.cliente.email}\nWhatsApp: ${bookingData.cliente.whatsapp}\n${bookingData.prodottoNome ? `Prodotto: ${bookingData.prodottoNome}\n` : ""}${bookingData.note ? `Note: ${bookingData.note}` : ""}`,
+        start: slotStart,
+        end: slotEnd,
+        location: "Studio fotografico",
+        attendees: [bookingData.cliente.email],
+      });
+
+      calendarEventId = calendarEvent.id;
+      console.log(`✅ Evento Google Calendar creato: ${calendarEventId}`);
+    } catch (calendarError) {
+      console.error(
+        "❌ Errore creazione evento Google Calendar:",
+        calendarError,
+      );
+      return res.status(503).json({
+        error: "Errore Google Calendar",
+        message:
+          "Impossibile creare l'evento sul calendario. Riprova più tardi.",
+        details:
+          calendarError instanceof Error
+            ? calendarError.message
+            : "Errore sconosciuto",
+      });
+    }
+
+    // Aggiorna stato a "confermata" con ID evento Calendar - con rollback su errore
+    try {
+      const currentWorkflowState = bookingDoc.data()?.statoWorkflow;
+      const workflowUpdate = syncBookingWorkflowState(
+        "confermata",
+        currentWorkflowState,
+      );
+
+      await bookingRef.update({
+        stato: "confermata",
+        ...workflowUpdate,
+        googleCalendarEventId: calendarEventId,
+        confermataDa: adminUid || "admin",
+        confermatail: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (firestoreError) {
+      // Rollback: cancella evento Calendar se update Firestore fallisce
+      console.error(
+        "❌ Errore update Firestore - eseguo rollback Calendar event",
+        firestoreError,
+      );
+      try {
+        const { deleteEvent } = await import("./google-calendar.js");
+        await deleteEvent("primary", calendarEventId!);
+        console.log(
+          `✅ Rollback completato - evento Calendar cancellato: ${calendarEventId}`,
+        );
+      } catch (rollbackError) {
+        console.error(
+          "❌ ERRORE CRITICO: Fallito rollback Calendar event",
+          rollbackError,
+        );
+      }
+
+      return res.status(500).json({
+        error: "Errore salvataggio",
+        message:
+          "Impossibile salvare la conferma. L'evento Calendar è stato cancellato automaticamente.",
+      });
+    }
+
+    // Invia email "Prenotazione Confermata" (chiamata diretta alla funzione)
+    try {
+      const campaignName = campaign?.nome || "Shooting Fotografico";
+
+      const bookingDate = slotStart.toLocaleDateString("it-IT", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const bookingTime = `${slotStart.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Rome",
+      })} - ${slotEnd.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Rome",
+      })}`;
+
+      const durationMinutes = Math.round(
+        (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60),
+      );
+
+      const {
+        sendGmailEmail,
+        createBookingConfirmedEmailHTML,
+        getStudioContactInfo,
+        generateGoogleCalendarLink,
+      } = await import("./email-routes.js");
+
+      const studioInfo = await getStudioContactInfo();
+
+      const clienteName = `${bookingData.cliente.nome} ${bookingData.cliente.cognome}`;
+
+      const calendarLink = generateGoogleCalendarLink({
+        title: `Shooting ${campaignName} - ${clienteName}`,
+        description: `Sessione fotografica: ${campaignName}\nCliente: ${clienteName}\n${bookingData.prodottoNome ? `Pacchetto: ${bookingData.prodottoNome}\n` : ""}${bookingData.note ? `Note: ${bookingData.note}\n` : ""}\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+        location: studioInfo.address || "Studio fotografico",
+        startDate: slotStart,
+        endDate: slotEnd,
+        isAllDay: false,
+      });
+
+      const emailHTML = createBookingConfirmedEmailHTML(
+        clienteName,
+        campaignName,
+        bookingDate,
+        bookingTime,
+        durationMinutes,
+        bookingData.prodottoNome,
+        bookingData.note,
+        studioInfo,
+        calendarLink,
+      );
+
+      await sendGmailEmail(
+        bookingData.cliente.email,
+        `Prenotazione Confermata - ${campaignName}`,
+        emailHTML,
+      );
+
+      await bookingRef.update({ emailConfermataInviata: true });
+      console.log(
+        `✅ Email "Prenotazione Confermata" inviata a ${bookingData.cliente.email}`,
+      );
+    } catch (emailError) {
+      console.error("⚠️ Errore invio email conferma:", emailError);
+      // Non bloccare l'approvazione se email fallisce
+    }
+
+    return res.json({
+      success: true,
+      message: "Prenotazione confermata con successo",
+      bookingId: id,
+    });
+  } catch (error) {
+    console.error("[Booking API V2] Errore approvazione prenotazione:", error);
+    return res.status(500).json({
+      error: "Errore interno del server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
+    });
+  }
+});
+
+/**
  * PATCH /api/booking/:id/approve
  * Approva prenotazione e invia email conferma
  *
