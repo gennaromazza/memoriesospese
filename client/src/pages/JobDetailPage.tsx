@@ -77,11 +77,11 @@ export default function JobDetailPage() {
   const [location, navigate] = useLocation();
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
-  
+
   // Check for editQuote query param
   const urlParams = new URLSearchParams(location.split('?')[1]);
   const editQuoteId = urlParams.get('editQuote');
-  
+
   const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(!!editQuoteId);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
@@ -620,7 +620,7 @@ export default function JobDetailPage() {
                   Genera Preventivo
                 </Button>
               )}
-              
+
               <Button 
                 onClick={() => setEditModalOpen(true)}
                 variant="outline"
@@ -658,7 +658,7 @@ export default function JobDetailPage() {
             </div>
           </div>
 
-          
+
         </div>
       </div>
 
@@ -671,7 +671,7 @@ export default function JobDetailPage() {
             currentJob={job}
             className="flex-shrink-0"
           />
-          
+
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -681,7 +681,7 @@ export default function JobDetailPage() {
               className="bg-white hover:bg-sage/10 border-sage/30"
             >
               <Eye className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Appuntamento Consulenza</span>
+              <span className="hidden sm:inline"> Appuntamento Consulenza</span>
               <span className="sm:hidden">Consulenza</span>
             </Button>
             <Button
@@ -913,7 +913,7 @@ export default function JobDetailPage() {
                         : event.tipo === 'appuntamento_creato' || event.tipo === 'calendar_event'
                         ? CalendarIcon
                         : CheckCircle;
-                      
+
                       return (
                         <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
                           <div className="flex-shrink-0 mt-0.5">
@@ -943,6 +943,7 @@ export default function JobDetailPage() {
               open={quoteBuilderOpen}
               onClose={() => {
                 setQuoteBuilderOpen(false);
+                // Rimuovi parametro editQuote dalla URL
                 if (editQuoteId) {
                   navigate(`/admin/jobs/${jobId}`);
                 }
@@ -958,7 +959,7 @@ export default function JobDetailPage() {
           {/* Genera Pagamenti Modal */}
           {generaPagamentiQuoteId && (() => {
             const targetQuote = quotes?.find(q => q.id === generaPagamentiQuoteId);
-            
+
             if (!targetQuote || !job.clientiIds[0]) return null;
             if (targetQuote.status !== 'firmato') {
               console.warn('Tentativo di generare piano pagamenti per preventivo non firmato');

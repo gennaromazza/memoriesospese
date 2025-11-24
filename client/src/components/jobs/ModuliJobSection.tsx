@@ -128,19 +128,19 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
         if (!oldQuotes) return [];
         return oldQuotes.filter(q => q.id !== variables.quoteId);
       });
-      
+
       // Invalidate queries for background refetch
       queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      
+
       // Close dialogs and reset state
       setSelectedQuoteId(null);
       setDeleteQuoteId(null);
       setForceDeleteMode(false);
-      
+
       // Navigate to jobs list in admin dashboard
       navigate('/admin/dashboard');
-      
+
       toast({
         title: 'Preventivo eliminato',
         description: 'Il preventivo e i dati correlati sono stati eliminati con successo'
@@ -269,8 +269,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                         </div>
                         <div>
                           <span className="font-medium">Totale:</span>{' '}
-                          €{quote.type === 'fisso' 
-                            ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2) 
+                          €{quote.type === 'fisso'
+                            ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)
                             : (quote.totaleSelezionato ?? quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)}
                         </div>
                         {quote.createdAt && (
@@ -301,7 +301,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                       >
                         <ExternalLink className="h-4 w-4" />
                       </Button>
-                      
+
                       {isAdmin && (
                         <Button
                           variant="ghost"
@@ -353,7 +353,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                               <DropdownMenuSeparator />
                             </>
                           )}
-                          
+
                           {/* Reset signature (only for signed quotes) */}
                           {quote.status === 'firmato' && (
                             <>
@@ -367,7 +367,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                               <DropdownMenuSeparator />
                             </>
                           )}
-                          
+
                           {/* Delete quote */}
                           <DropdownMenuItem
                             onClick={() => setDeleteQuoteId(quote.id)}
@@ -482,14 +482,14 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                               const phoneNumber = c.whatsapp || c.cellulare1;
                               return phoneNumber && phoneNumber.trim() !== '';
                             });
-                            
+
                             if (clientiConWhatsApp.length === 0) return null;
-                            
+
                             return (
                               <div>
                                 <p className="text-xs text-muted-foreground mb-2">
-                                  {quote.status === 'firmato' 
-                                    ? 'Invia preventivo firmato su WhatsApp:' 
+                                  {quote.status === 'firmato'
+                                    ? 'Invia preventivo firmato su WhatsApp:'
                                     : 'Invia preventivo su WhatsApp:'}
                                 </p>
                                 <div className="flex flex-wrap gap-2">
@@ -500,7 +500,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                                       : `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli e firmare se sei d'accordo\n\n${getQuoteUrl(quote)}`;
                                     const phoneNumber = (cliente.whatsapp || cliente.cellulare1 || '').replace(/\s+/g, '').replace(/^\+/, '');
                                     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-                                    
+
                                     return (
                                       <Button
                                         key={cliente.id}
@@ -576,13 +576,13 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
               {forceDeleteMode ? 'Attenzione: Preventivo Firmato' : 'Conferma Eliminazione'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {forceDeleteMode 
+              {forceDeleteMode
                 ? 'Stai per eliminare un preventivo già firmato dal cliente. Questa è un\'operazione critica.'
                 : 'Sei sicuro di voler eliminare questo preventivo?'
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
-          
+
           <div className="space-y-4 py-4">
             {forceDeleteMode ? (
               <>
@@ -605,7 +605,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                   <p className="text-sm font-medium text-amber-900">
                     Sei assolutamente sicuro di voler procedere?
@@ -636,9 +636,9 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
               </>
             )}
           </div>
-          
+
           <AlertDialogFooter>
-            <AlertDialogCancel 
+            <AlertDialogCancel
               data-testid="button-cancel-delete"
               onClick={() => setForceDeleteMode(false)}
             >
@@ -647,9 +647,9 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
             <AlertDialogAction
               onClick={() => {
                 if (deleteQuoteId) {
-                  deleteMutation.mutate({ 
-                    quoteId: deleteQuoteId, 
-                    forceDelete: forceDeleteMode 
+                  deleteMutation.mutate({
+                    quoteId: deleteQuoteId,
+                    forceDelete: forceDeleteMode
                   });
                 }
               }}
@@ -699,7 +699,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel 
+            <AlertDialogCancel
               onClick={() => setResetQuoteId(null)}
               data-testid="button-cancel-reset"
             >

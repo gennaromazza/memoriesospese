@@ -138,6 +138,7 @@ interface QuoteBuilderProps {
   jobTypeSlug: JobTypeSlug;
   open: boolean;
   onClose: () => void;
+  editQuoteId?: string; // ID del preventivo da modificare (opzionale)
 }
 
 export default function QuoteBuilder({
@@ -146,7 +147,8 @@ export default function QuoteBuilder({
   jobType,
   jobTypeSlug,
   open,
-  onClose
+  onClose,
+  editQuoteId
 }: QuoteBuilderProps) {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
@@ -159,6 +161,22 @@ export default function QuoteBuilder({
     queryKey: ['jobs', jobId],
     queryFn: () => getJob(jobId),
     enabled: !!jobId
+  });
+
+  // Query preventivo esistente se in modalità edit
+  const { data: existingQuote } = useQuery({
+    queryKey: ['quotes', editQuoteId],
+    queryFn: async () => {
+      if (!editQuoteId) return null;
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const { collection } = await import('firebase/firestore');
+      const quoteRef = doc(collection(db, 'quotes'), editQuoteId);
+      const snapshot = await getDoc(quoteRef);
+      if (!snapshot.exists()) return null;
+      return { id: snapshot.id, ...snapshot.data() } as any;
+    },
+    enabled: !!editQuoteId && open
   });
 
   // Query templates
@@ -243,6 +261,76 @@ export default function QuoteBuilder({
       }
     }
   }, [clauseTemplates, selectedClauseTemplateId, form]);
+
+  // Carica dati preventivo esistente nel form quando disponibile
+  useEffect(() => {
+    if (!existingQuote || !editQuoteId) return;
+
+    // Separa prodotti catalogo da custom
+    const catalogIds: string[] = [];
+    const customProducts: any[] = [];
+
+    existingQuote.products?.forEach((product: any) => {
+      if (product.catalogProductId) {
+        catalogIds.push(product.catalogProductId);
+      } else {
+        customProducts.push({
+          nome: product.nome || '',
+          descrizione: product.descrizione || '',
+          prezzo: product.prezzo || 0,
+          selectable: product.selectable || false,
+          numeroFoto: product.numeroFoto || 0,
+          categoria: product.categoria || '',
+          immagini: product.immagini || []
+        });
+      }
+    });
+
+    // Popola form
+    form.setValue('type', existingQuote.type || 'fisso');
+    form.setValue('catalogProductIds', catalogIds);
+    form.setValue('products', customProducts.length > 0 ? customProducts : [{
+      nome: '',
+      descrizione: '',
+      prezzo: 0,
+      selectable: false,
+      numeroFoto: 0,
+      categoria: '',
+      immagini: []
+    }]);
+    
+    if (existingQuote.discountType) {
+      form.setValue('discountType', existingQuote.discountType);
+      form.setValue('discountValue', existingQuote.discountValue || 0);
+    }
+
+    if (existingQuote.theme) {
+      form.setValue('theme', existingQuote.theme);
+    }
+
+    if (existingQuote.expiresAt) {
+      const expiryDate = existingQuote.expiresAt?.toDate ? existingQuote.expiresAt.toDate() : new Date(existingQuote.expiresAt);
+      form.setValue('expiresAt', expiryDate);
+    }
+
+    if (existingQuote.noteInterne) {
+      form.setValue('noteInterne', existingQuote.noteInterne);
+    }
+
+    if (existingQuote.paymentScheduleConfig) {
+      form.setValue('paymentScheduleConfig', existingQuote.paymentScheduleConfig);
+    }
+
+    if (existingQuote.clauseTemplateId) {
+      setSelectedClauseTemplateId(existingQuote.clauseTemplateId);
+      form.setValue('clauseTemplateId', existingQuote.clauseTemplateId);
+    }
+
+    toast({
+      title: 'Preventivo caricato',
+      description: 'Modifica i campi e salva per aggiornare'
+    });
+  }, [existingQuote, editQuoteId, form, toast]);
 
   // Handler cambio template clausole
   const handleClauseTemplateChange = (templateId: string) => {
@@ -368,9 +456,46 @@ export default function QuoteBuilder({
     form.setValue(`products.${productIndex}.immagini`, newImages);
   };
 
-  // Mutation crea preventivo
+  // Mutation crea/aggiorna preventivo
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Se stiamo modificando un preventivo esistente
+      if (editQuoteId) {
+        const { doc, updateDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const { collection, Timestamp } = await import('firebase/firestore');
+
+        // Merge catalog + custom products
+        const mergedProducts = mergeQuoteProducts(
+          data.catalogProductIds,
+          data.products.filter(p => p.nome.trim()),
+          catalogProducts,
+          data.type
+        );
+
+        const subtotale = mergedProducts.reduce((sum, p) => sum + p.prezzo, 0);
+        const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
+
+        const updateData: any = {
+          type: data.type,
+          products: mergedProducts,
+          discountType: data.discountType,
+          discountValue: data.discountValue,
+          totalBeforeDiscount: finalTotals.totalBeforeDiscount,
+          totalAfterDiscount: finalTotals.totalAfterDiscount,
+          theme: data.theme,
+          expiresAt: data.expiresAt ? Timestamp.fromDate(data.expiresAt) : null,
+          noteInterne: data.noteInterne,
+          paymentScheduleConfig: data.paymentScheduleConfig,
+          updatedAt: Timestamp.now()
+        };
+
+        const quoteRef = doc(collection(db, 'quotes'), editQuoteId);
+        await updateDoc(quoteRef, updateData);
+        return editQuoteId;
+      }
+
+      // Altrimenti crea nuovo preventivo (logica esistente)
       // Merge catalog + custom products
       const mergedProducts = mergeQuoteProducts(
         data.catalogProductIds,
@@ -482,10 +607,15 @@ export default function QuoteBuilder({
     onSuccess: async (quoteId: string) => {
       queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
       queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      if (editQuoteId) {
+        queryClient.invalidateQueries({ queryKey: ['quotes', editQuoteId] });
+      }
       
       toast({
-        title: 'Preventivo creato!',
-        description: 'Il preventivo è stato salvato. Potrai inviarlo manualmente dalla pagina del lavoro.'
+        title: editQuoteId ? 'Preventivo aggiornato!' : 'Preventivo creato!',
+        description: editQuoteId 
+          ? 'Le modifiche sono state salvate correttamente.' 
+          : 'Il preventivo è stato salvato. Potrai inviarlo manualmente dalla pagina del lavoro.'
       });
       
       form.reset();
@@ -520,7 +650,7 @@ export default function QuoteBuilder({
           <DialogTitle className="flex items-center gap-2">
             <span className="text-2xl">{jobType.icona}</span>
             <FileText className="w-5 h-5" />
-            Crea Preventivo
+            {editQuoteId ? 'Modifica Preventivo' : 'Crea Preventivo'}
           </DialogTitle>
           <DialogDescription>
             Crea un preventivo personalizzato per il lavoro <span style={{ color: jobType.colore }} className="font-semibold">{jobType.nome}</span>
@@ -1375,7 +1505,7 @@ export default function QuoteBuilder({
                 {createMutation.isPending && (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 )}
-                Crea Preventivo
+                {editQuoteId ? 'Salva Modifiche' : 'Crea Preventivo'}
               </Button>
             </div>
           </form>
