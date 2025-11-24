@@ -983,13 +983,11 @@ export default function JobDetailPage() {
       </div>
 
       {/* Edit Job Modal */}
-      {editModalOpen ? (
-        <EditJobModal
-          open={editModalOpen}
-          onClose={() => setEditModalOpen(false)}
-          job={job}
-        />
-      ) : null}
+      <EditJobModal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        job={job}
+      />
 
       {/* Edit Cliente Modal */}
       {editingCliente && (
