@@ -952,7 +952,7 @@ router.post(
       // Create Google Calendar event for consultation
       const calendarEvent = await createEvent("primary", {
         summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
-        description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}\n\n⚠️ APPROVAZIONE FORZATA\nMotivazione: ${reason}`,
+        description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
         start: startDateTime,
         end: endDateTime,
         attendees: [consultation.cliente.email],
