@@ -147,11 +147,14 @@ function timeToMinutes(time: string): number {
  * GESTIONE ERRORI:
  * - Se Google Calendar fallisce, logga warning ma continua con eventi Firestore
  * - Non blocca mai completamente lo slot generation
+ * 
+ * @param excludeBookingId - ID booking da escludere (opzionale, per approval flow)
  */
 export async function getAllExistingBookingEvents(
   dayStart: Date,
   dayEnd: Date,
-  firestoreDb: FirebaseFirestore.Firestore
+  firestoreDb: FirebaseFirestore.Firestore,
+  excludeBookingId?: string
 ): Promise<CalendarEvent[]> {
   const events: CalendarEvent[] = [];
   
@@ -207,6 +210,12 @@ export async function getAllExistingBookingEvents(
     const allDocs = [...inAttesaSnap.docs, ...confermataSnap.docs];
     
     for (const doc of allDocs) {
+      // Skip booking da escludere (per approval flow)
+      if (excludeBookingId && doc.id === excludeBookingId) {
+        console.log(`[getAllExistingBookingEvents] ⏭️ Escluso booking ${excludeBookingId} dal conflict check`);
+        continue;
+      }
+      
       const data = doc.data();
       
       // Converti Firestore Timestamp in Date

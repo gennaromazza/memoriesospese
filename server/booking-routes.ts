@@ -914,24 +914,43 @@ router.patch("/v2/:id/approve", async (req, res) => {
     const dayStart = dateObj.startOf("day").toJSDate();
     const dayEnd = dateObj.endOf("day").toJSDate();
 
-    // Load all existing events (exclude THIS booking from conflict check)
-    const allEvents = await getAllExistingBookingEvents(dayStart, dayEnd, db);
+    // Step 1: Check Google Calendar free/busy (catch external events)
+    const { checkFreeBusy } = await import("./google-calendar.js");
+    const busyPeriods = await checkFreeBusy("primary", slotStart, slotEnd);
 
-    // Filter out this booking's event if it exists
-    const existingEvents = allEvents.filter((event) => {
-      // Skip events from this booking ID
-      if (event.id === id) return false;
-      return true;
+    const hasCalendarConflict = busyPeriods.some((busy: any) => {
+      const busyStart = new Date(busy.start);
+      const busyEnd = new Date(busy.end);
+      return slotStart < busyEnd && slotEnd > busyStart;
     });
 
-    // Generate available slots
+    if (hasCalendarConflict) {
+      console.warn(
+        `[PATCH /v2/:id/approve] ⚠️ Google Calendar conflict detected for slot ${slotStart.toISOString()}`,
+      );
+      return res.status(409).json({
+        error: "Conflitto calendario",
+        message:
+          "È stato aggiunto un evento sul calendario che si sovrappone con questa prenotazione. Impossibile confermare.",
+      });
+    }
+
+    // Step 2: Load all existing events (exclude THIS booking from conflict check)
+    const existingEvents = await getAllExistingBookingEvents(
+      dayStart,
+      dayEnd,
+      db,
+      id, // Exclude this booking from conflict check
+    );
+
+    // Step 3: Generate available slots using Calendar Engine V2
     const availableSlots = await getAvailableSlotsForDate(
       dayStart,
       config,
       existingEvents,
     );
 
-    // Verify slot is still available
+    // Step 4: Verify slot is still available
     const slotStillAvailable = availableSlots.some(
       (slot) =>
         Math.abs(new Date(slot.start).getTime() - slotStart.getTime()) < 1000 &&
