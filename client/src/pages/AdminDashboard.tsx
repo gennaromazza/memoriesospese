@@ -52,6 +52,8 @@ import BlogManager from '@/components/admin/BlogManager';
 import WordPressImporter from "@/components/admin/WordPressImporter";
 import WeddingVideosManager from "@/components/admin/WeddingVideosManager";
 import BulkEmailSender from "./BulkEmailSender";
+import QuoteManagementDemo from './admin/QuoteManagementDemo';
+import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -226,7 +228,7 @@ export default function AdminDashboard() {
   const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all'); // 📸 Filtro selezioni approvate
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori' | 'sitoPublico' | 'videos'>(() => {
+  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori' | 'sitoPublico' | 'videos' | 'quote-templates'>(() => {
     return (sessionStorage.getItem('activeTab') as any) || 'calendario';
   });
   const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'campaigns' | 'orders'>(() => {
@@ -1954,7 +1956,8 @@ export default function AdminDashboard() {
                   <TabsTrigger value="contract-clauses" data-testid="subtab-contract-clauses">
                     Clausole Contrattuali
                   </TabsTrigger>
-                  <TabsTrigger value="quote-templates" data-testid="subtab-quote-templates" disabled>
+                  <TabsTrigger value="quote-templates" className="data-[state=active]:bg-sage data-[state=active]:text-white">
+                    <FileText className="w-4 h-4 mr-2" />
                     Template Preventivi
                   </TabsTrigger>
                 </TabsList>
@@ -2004,9 +2007,7 @@ export default function AdminDashboard() {
                 </TabsContent>
 
                 <TabsContent value="quote-templates">
-                  <div className="bg-white shadow sm:rounded-lg p-5 text-center text-muted-foreground">
-                    <p>Template Preventivi - Coming soon...</p>
-                  </div>
+                  <QuoteTemplatesManager />
                 </TabsContent>
               </Tabs>
             </TabsContent>
