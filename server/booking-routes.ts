@@ -306,9 +306,13 @@ router.post("/available-slots", async (req, res) => {
     }
 
     // Calcola slot disponibili usando Google Calendar
+    // FIX: Usa parseDateString per garantire date Rome timezone (non UTC)
+    const { parseDateString: parseDateForSlots } = await import('./calendar-engine/timezone.js');
+    const dateForSlots = parseDateForSlots(date).toJSDate(); // Convert to JS Date for Google Calendar
+    
     const slotsFromCalendar = await getAvailableSlots(
       calendarId || "primary",
-      new Date(date),
+      dateForSlots,
       {
         apertura,
         pausaInizio,
@@ -322,10 +326,12 @@ router.post("/available-slots", async (req, res) => {
     let slots = slotsFromCalendar;
 
     try {
-      // FIX: Usa Calendar Engine V2 per day boundaries corretti
-      // Estendi di -1 giorno per catturare prenotazioni che iniziano il giorno prima
-      const { getDayBoundaries } = await import('./calendar-engine/timezone.js');
-      const { dayStart, dayEnd } = getDayBoundaries(date, -1); // -1 = include previous day
+      // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+      // Estendi window da -1 giorno fino a fine del giorno richiesto
+      const { parseDateString: parseDateBoundaries, toUTC } = await import('./calendar-engine/timezone.js');
+      const requestedDate = parseDateBoundaries(date);
+      const dayStart = toUTC(requestedDate.minus({ days: 1 }).startOf('day')); // Previous day start
+      const dayEnd = toUTC(requestedDate.endOf('day')); // Requested day end
 
       console.log(
         `[Available Slots] Controllo prenotazioni esistenti per campagna ${campaignId} tra ${dayStart.toISOString()} e ${dayEnd.toISOString()}`,
