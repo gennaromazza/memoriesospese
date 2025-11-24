@@ -19,7 +19,7 @@ import collaboratoriRoutes from './collaboratori-routes.js';
 import productsRoutes from './products-routes.js';
 import migrationRoutes from './migration-routes.js';
 import adminRoutes from './admin-routes.js';
-import bulkEmailRoutes from './bulk-email-routes.js';
+import bulkEmailRoutes, { cleanupStaleJobs, startBulkEmailDispatcher, stopBulkEmailDispatcher } from './bulk-email-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
@@ -153,9 +153,10 @@ async function startServer() {
 
     // Capture worker cleanup for graceful shutdown
     let cancellationWorkerCleanup: (() => void) | null = null;
+    let bulkEmailCleanupInterval: NodeJS.Timeout | null = null;
 
     // Start server
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', async () => {
       console.log(`🚀 Ready in ${Date.now() - start}ms`);
       console.log(`🌐 Server: http://0.0.0.0:${PORT}`);
       console.log(`📧 Email API: http://0.0.0.0:${PORT}/api/email/notify-new-photos`);
@@ -166,6 +167,20 @@ async function startServer() {
       
       // Start Event Sync Guard worker (every 10 minutes)
       startEventSyncWorker(10);
+      
+      // BOOT-TIME CLEANUP: Rilascia quota da stale jobs (crash recovery)
+      await cleanupStaleJobs();
+      console.log('🧹 Boot-time cleanup completato');
+      
+      // BULK EMAIL DISPATCHER: Pull and execute queued jobs (every 5s)
+      startBulkEmailDispatcher(5000);
+      
+      // RECURRING CLEANUP: Heartbeat-aware cleanup (every 2 minutes)
+      bulkEmailCleanupInterval = setInterval(async () => {
+        console.log('🧹 Recurring cleanup check...');
+        await cleanupStaleJobs();
+      }, 2 * 60 * 1000); // 2 minuti (più frequente per heartbeat timeout)
+      console.log('⏰ Recurring cleanup worker started (2 min interval)');
     });
 
     // Graceful shutdown: cleanup workers on SIGTERM/SIGINT
@@ -175,6 +190,10 @@ async function startServer() {
         cancellationWorkerCleanup();
       }
       stopEventSyncWorker();
+      stopBulkEmailDispatcher();
+      if (bulkEmailCleanupInterval) {
+        clearInterval(bulkEmailCleanupInterval);
+      }
       process.exit(0);
     };
 

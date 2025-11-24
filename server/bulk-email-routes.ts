@@ -28,13 +28,169 @@ interface BulkEmailJob {
   body: string;
   recipients: BulkEmailRecipient[];
   totalRecipients: number;
+  quotaReserved: number; // Quota riservata all'inizio
+  quotaConsumed: number; // Quota effettivamente consumata (sent emails)
   sentCount: number;
   failedCount: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  status: 'queued' | 'in_progress' | 'completed' | 'failed';
   errors: Array<{ email: string; error: string }>;
   createdAt: Date;
+  startedAt?: Date; // Quando worker ha iniziato esecuzione
   completedAt?: Date;
+  lastHeartbeatAt: Date; // Timestamp ultimo aggiornamento (worker alive)
   createdBy: string;
+}
+
+// Constants per heartbeat timeout
+const HEARTBEAT_TIMEOUT = 5 * 60 * 1000; // 5 minuti in ms
+
+/**
+ * Cleanup jobs stale (lastHeartbeatAt > HEARTBEAT_TIMEOUT) e rilascia quota
+ * HEARTBEAT-AWARE: usa lastHeartbeatAt invece di createdAt
+ */
+export async function cleanupStaleJobs() {
+  try {
+    const heartbeatTimeout = new Date(Date.now() - HEARTBEAT_TIMEOUT);
+    
+    // Query jobs con heartbeat scaduto
+    const staleJobs = await db.collection('bulkEmailJobs')
+      .where('status', 'in', ['queued', 'in_progress'])
+      .where('lastHeartbeatAt', '<', heartbeatTimeout)
+      .get();
+
+    if (staleJobs.empty) {
+      return;
+    }
+
+    console.log(`🧹 Trovati ${staleJobs.size} jobs stale (heartbeat timeout), cleanup in corso...`);
+
+    for (const jobDoc of staleJobs.docs) {
+      // TRANSACTIONAL cleanup: re-verify stale before releasing quota
+      await db.runTransaction(async (transaction) => {
+        const freshDoc = await transaction.get(jobDoc.ref);
+        if (!freshDoc.exists) return;
+
+        const job = freshDoc.data();
+        const lastHeartbeat = job?.lastHeartbeatAt?.toDate() || new Date(0);
+        const isStillStale = lastHeartbeat < heartbeatTimeout;
+
+        // Re-check: job potrebbe essere stato ripreso da dispatcher
+        if (!isStillStale || !['queued', 'in_progress'].includes(job?.status)) {
+          return; // Skip, non è più stale
+        }
+
+        const quotaReserved = job?.quotaReserved || 0;
+        const quotaConsumed = job?.quotaConsumed || 0;
+
+        // ALWAYS release reserved and confirm sent (anche se quotaConsumed === quotaReserved)
+        if (quotaReserved > 0 && job?.quotaDate) {
+          const quotaRef = db.collection('emailQuota').doc(job.quotaDate);
+          transaction.update(quotaRef, {
+            reserved: FieldValue.increment(-quotaReserved),
+            sent: FieldValue.increment(quotaConsumed)
+          });
+
+          console.log(`🧹 Job ${jobDoc.id}: reserved -${quotaReserved}, sent +${quotaConsumed}`);
+        }
+
+        // Marca job come failed
+        transaction.update(jobDoc.ref, {
+          status: 'failed',
+          errors: [{ email: 'system', error: 'Job timeout - heartbeat expired', retry: false }],
+          completedAt: new Date()
+        });
+      });
+    }
+
+    console.log(`✅ Cleanup completato: ${staleJobs.size} jobs stale processati`);
+  } catch (error: any) {
+    console.error('❌ Errore cleanup stale jobs:', error.message);
+  }
+}
+
+/**
+ * Dispatcher Loop: Pull and execute queued/in_progress jobs
+ * Gira in background in-process, riprende jobs dopo restart
+ */
+let dispatcherRunning = false;
+let dispatcherInterval: NodeJS.Timeout | null = null;
+
+export async function processNextBulkEmailJob() {
+  if (dispatcherRunning) {
+    // Già un job in esecuzione, skip per evitare concorrenza
+    return;
+  }
+
+  try {
+    dispatcherRunning = true;
+
+    // Pull oldest queued job OR stale in_progress job (heartbeat scaduto)
+    const now = new Date();
+    const heartbeatGrace = new Date(now.getTime() - HEARTBEAT_TIMEOUT);
+
+    const queuedJobs = await db.collection('bulkEmailJobs')
+      .where('status', '==', 'queued')
+      .orderBy('createdAt', 'asc')
+      .limit(1)
+      .get();
+
+    const staleInProgressJobs = await db.collection('bulkEmailJobs')
+      .where('status', '==', 'in_progress')
+      .where('lastHeartbeatAt', '<', heartbeatGrace)
+      .orderBy('lastHeartbeatAt', 'asc')
+      .limit(1)
+      .get();
+
+    // Priorità: queued > stale in_progress
+    const jobDoc = !queuedJobs.empty ? queuedJobs.docs[0] : 
+                   !staleInProgressJobs.empty ? staleInProgressJobs.docs[0] : null;
+
+    if (!jobDoc) {
+      // Nessun job da processare
+      return;
+    }
+
+    const job = jobDoc.data();
+    const quotaDate = job?.quotaDate;
+
+    if (!quotaDate) {
+      console.error(`❌ Job ${jobDoc.id} senza quotaDate, skip`);
+      return;
+    }
+
+    console.log(`📮 Dispatcher executing job ${jobDoc.id} (status: ${job?.status})`);
+
+    // Esegui job
+    await sendBulkEmails(jobDoc.id, quotaDate);
+
+  } catch (error: any) {
+    console.error('❌ Errore dispatcher:', error.message);
+  } finally {
+    dispatcherRunning = false;
+  }
+}
+
+export function startBulkEmailDispatcher(intervalMs: number = 5000) {
+  if (dispatcherInterval) {
+    console.warn('⚠️  Dispatcher già avviato');
+    return;
+  }
+
+  console.log(`📮 Starting bulk email dispatcher (interval: ${intervalMs}ms)`);
+  
+  // Esegui subito una volta
+  processNextBulkEmailJob();
+
+  // Poi ogni intervalMs
+  dispatcherInterval = setInterval(processNextBulkEmailJob, intervalMs);
+}
+
+export function stopBulkEmailDispatcher() {
+  if (dispatcherInterval) {
+    clearInterval(dispatcherInterval);
+    dispatcherInterval = null;
+    console.log('🛑 Bulk email dispatcher stopped');
+  }
 }
 
 /**
@@ -100,86 +256,65 @@ router.post('/send', async (req: Request, res: Response) => {
       });
     }
 
-    // Verifica E RISERVA quota giornaliera atomicamente con per-job metadata
+    // SINGLE ATOMIC TRANSACTION: Check quota + Reserve + Create Job
+    // Elimina OGNI possibilità di leak (no window tra operations)
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const quotaRef = db.collection('emailQuota').doc(today);
+    const jobRef = db.collection('bulkEmailJobs').doc();
 
-    // Transaction per check + atomic increment
-    const reservationResult = await db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
+      // 1. Check quota disponibile (reserved + sent)
       const quotaDoc = await transaction.get(quotaRef);
-      const currentSent = quotaDoc.exists ? (quotaDoc.data()?.sent || 0) : 0;
-      const remainingQuota = GMAIL_DAILY_LIMIT - currentSent;
+      const data = quotaDoc.exists ? quotaDoc.data() : {};
+      const currentReserved = data?.reserved || 0;
+      const currentSent = data?.sent || 0;
+      const totalUsed = currentReserved + currentSent;
+      const remainingQuota = GMAIL_DAILY_LIMIT - totalUsed;
 
       if (recipients.length > remainingQuota) {
-        throw new Error(`Quota giornaliera insufficiente. Inviate ${currentSent}/${GMAIL_DAILY_LIMIT} oggi. Rimanenti: ${remainingQuota}.`);
+        throw new Error(`Quota giornaliera insufficiente. Usate ${totalUsed}/${GMAIL_DAILY_LIMIT} oggi (reserved: ${currentReserved}, sent: ${currentSent}). Rimanenti: ${remainingQuota}.`);
       }
 
-      // Atomic increment (no overwrite risk)
+      // 2. Reserve quota (atomic increment RESERVED, not SENT)
       transaction.set(quotaRef, {
-        sent: FieldValue.increment(recipients.length),
+        reserved: FieldValue.increment(recipients.length),
         date: today,
         lastUpdated: new Date()
       }, { merge: true });
 
-      return { currentSent, reserved: recipients.length };
+      // 3. Create job document (atomically con quota reservation)
+      // HEARTBEAT-AWARE: lastHeartbeatAt, quotaConsumed, status='queued'
+      const job = {
+        id: jobRef.id,
+        subject,
+        body,
+        recipients, // PERSIST recipients list per recovery
+        totalRecipients: recipients.length,
+        quotaReserved: recipients.length,
+        quotaConsumed: 0, // Inizialmente 0, incrementato dal worker
+        quotaDate: today,
+        sentCount: 0,
+        failedCount: 0,
+        status: 'queued', // Inizia come queued, dispatcher lo mette in_progress
+        errors: [],
+        createdAt: new Date(),
+        lastHeartbeatAt: new Date(), // Inizializzato a createdAt
+        createdBy: senderId || 'admin'
+      };
+
+      transaction.set(jobRef, job);
+
+      return { jobId: jobRef.id, reserved: recipients.length };
     });
 
-    // Se transazione fallisce, ritorna errore
-    if (!reservationResult) {
-      return res.status(400).json({
-        success: false,
-        error: 'Errore riserva quota. Riprova.'
-      });
-    }
+    // Transaction completata → quota riservata E job creato atomically
+    // Job è in status='queued', verrà processato dal dispatcher loop
 
-    // Crea job in Firestore per tracking con per-job quota metadata
-    const jobRef = db.collection('bulkEmailJobs').doc();
-    const job: Omit<BulkEmailJob, 'recipients'> & { 
-      totalRecipients: number;
-      quotaReserved: number; // Quota riservata per QUESTO job
-      quotaDate: string; // Data quota (per recovery)
-    } = {
-      id: jobRef.id,
-      subject,
-      body,
-      totalRecipients: recipients.length,
-      quotaReserved: reservationResult.reserved, // Salva quanto riservato
-      quotaDate: today, // Salva data per recovery
-      sentCount: 0,
-      failedCount: 0,
-      status: 'pending',
-      errors: [],
-      createdAt: new Date(),
-      createdBy: senderId || 'admin'
-    };
-
-    let jobCreated = false;
-    try {
-      await jobRef.set(job);
-      jobCreated = true;
-
-      // Avvia invio asincrono (non bloccare la risposta)
-      sendBulkEmails(jobRef.id, subject, body, recipients, today);
-
-      res.json({
-        success: true,
-        jobId: jobRef.id,
-        message: `Invio di ${recipients.length} email avviato`
-      });
-
-    } catch (jobError: any) {
-      // Job creation failed → rilascia quota riservata
-      if (!jobCreated) {
-        console.error('❌ Job creation fallita, rilascio quota:', jobError.message);
-        
-        // Rilascia quota atomicamente
-        await quotaRef.update({
-          sent: FieldValue.increment(-reservationResult.reserved)
-        });
-      }
-      
-      throw jobError; // Propaga errore
-    }
+    res.json({
+      success: true,
+      jobId: result.jobId,
+      message: `Job ${result.jobId} creato. Dispatcher lo processera' a breve.`
+    });
 
   } catch (error: any) {
     console.error('❌ Errore avvio bulk email:', error);
@@ -250,12 +385,10 @@ router.get('/jobs', async (req: Request, res: Response) => {
 
 /**
  * Funzione asincrona per invio batch con rate limiting e quota tracking
+ * Legge recipients dal job doc per supportare recovery dopo crash
  */
 async function sendBulkEmails(
   jobId: string,
-  subject: string,
-  body: string,
-  recipients: BulkEmailRecipient[],
   quotaDate: string
 ) {
   const jobRef = db.collection('bulkEmailJobs').doc(jobId);
@@ -266,8 +399,27 @@ async function sendBulkEmails(
   const errors: Array<{ email: string; error: string; retry: boolean }> = [];
 
   try {
-    // Aggiorna stato a in_progress
-    await jobRef.update({ status: 'in_progress' });
+    // Leggi job doc per ottenere subject, body, recipients
+    const jobDoc = await jobRef.get();
+    if (!jobDoc.exists) {
+      throw new Error('Job non trovato');
+    }
+
+    const jobData = jobDoc.data();
+    const subject = jobData?.subject;
+    const body = jobData?.body;
+    const recipients = jobData?.recipients || [];
+
+    if (!subject || !body || recipients.length === 0) {
+      throw new Error('Job data incompleto');
+    }
+
+    // Aggiorna stato a in_progress con startedAt e heartbeat
+    await jobRef.update({
+      status: 'in_progress',
+      startedAt: new Date(),
+      lastHeartbeatAt: new Date()
+    });
 
     // Dividi in batch per rate limiting
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
@@ -351,6 +503,14 @@ async function sendBulkEmails(
         }
       }
 
+      // UPDATE HEARTBEAT dopo ogni batch (prova di vita per long-running jobs)
+      await jobRef.update({
+        sentCount,
+        failedCount,
+        quotaConsumed: sentCount, // quotaConsumed = email inviate con successo
+        lastHeartbeatAt: new Date() // CRITICAL: aggiorna heartbeat ogni batch
+      });
+
       // Delay tra batch per rispettare rate limiting
       if (i + BATCH_SIZE < recipients.length) {
         await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
@@ -360,11 +520,12 @@ async function sendBulkEmails(
     // Determina status finale
     const finalStatus = sentCount === 0 ? 'failed' : 'completed';
 
-    // Completa job
+    // Completa job (quota accounting fatto nel finally block)
     await jobRef.update({
       status: finalStatus,
       sentCount,
       failedCount,
+      quotaConsumed: sentCount, // Final update
       errors: errors.slice(0, 100), // Max 100 errori salvati
       completedAt: new Date()
     });
@@ -383,19 +544,25 @@ async function sendBulkEmails(
       completedAt: new Date()
     });
   } finally {
-    // SEMPRE rilascia quota inutilizzata (anche in caso di crash/error)
+    // FINALLY BLOCK: Rilascia quota reserved, incrementa sent (anche in caso di crash/error)
+    // Questo garantisce che quota accounting sia sempre corretto
     try {
       const jobDoc = await jobRef.get();
-      const quotaReserved = jobDoc.data()?.quotaReserved || 0;
-      const unusedQuota = quotaReserved - sentCount;
+      const data = jobDoc.data();
+      const quotaReserved = data?.quotaReserved || 0;
+      const quotaConsumed = data?.quotaConsumed || sentCount;
+      const quotaDate = data?.quotaDate;
 
-      if (unusedQuota > 0) {
-        // Rilascia quota inutilizzata con atomic decrement
+      if (quotaDate && quotaReserved > 0) {
+        const quotaRef = db.collection('emailQuota').doc(quotaDate);
+        
+        // Atomic update: -reserved, +sent
         await quotaRef.update({
-          sent: FieldValue.increment(-unusedQuota),
-          lastUpdated: new Date()
+          reserved: FieldValue.increment(-quotaReserved), // Rilascia tutto il reserved
+          sent: FieldValue.increment(quotaConsumed) // Incrementa sent
         });
-        console.log(`📊 Quota rilasciata (finally): ${unusedQuota} email non inviate`);
+        
+        console.log(`📊 Quota aggiornata (finally): reserved -${quotaReserved}, sent +${quotaConsumed}`);
       }
     } catch (releaseError: any) {
       // Log errore ma non propagare (evita loop infinito)

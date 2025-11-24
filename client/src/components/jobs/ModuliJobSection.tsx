@@ -336,6 +336,24 @@ export default function ModuliJobSection({ jobId, onCreateModulo, clienteId, isA
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {/* Edit quote (only for non-signed quotes) */}
+                          {quote.status !== 'firmato' && onCreateModulo && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  // Navigate to JobDetailPage with quote builder open
+                                  // The parent component should handle this
+                                  navigate(`/admin/jobs/${jobId}?editQuote=${quote.id}`);
+                                }}
+                                data-testid="menu-edit-quote"
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Modifica Preventivo
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          
                           {/* Reset signature (only for signed quotes) */}
                           {quote.status === 'firmato' && (
                             <>

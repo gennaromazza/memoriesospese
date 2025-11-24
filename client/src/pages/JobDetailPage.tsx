@@ -74,10 +74,15 @@ import { cn } from '@/lib/utils';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
-  const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
+  
+  // Check for editQuote query param
+  const urlParams = new URLSearchParams(location.split('?')[1]);
+  const editQuoteId = urlParams.get('editQuote');
+  
+  const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(!!editQuoteId);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
@@ -748,11 +753,18 @@ export default function JobDetailPage() {
             {job.clientiIds.length > 0 && quoteBuilderOpen && jobType && (
               <QuoteBuilder
                 open={quoteBuilderOpen}
-                onClose={() => setQuoteBuilderOpen(false)}
+                onClose={() => {
+                  setQuoteBuilderOpen(false);
+                  // Remove editQuote param from URL
+                  if (editQuoteId) {
+                    navigate(`/admin/jobs/${jobId}`);
+                  }
+                }}
                 jobId={job.id}
                 jobType={jobType}
                 jobTypeSlug={job.jobType}
                 clienteId={job.clientiIds[0]}
+                editQuoteId={editQuoteId || undefined}
               />
             )}
 
