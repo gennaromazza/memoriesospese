@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import {
   Dialog,
   DialogContent,
@@ -59,16 +60,17 @@ export default function ConflictResolutionModal({
   onSuccess,
 }: ConflictResolutionModalProps) {
   const { toast } = useToast();
+  const { user, isLoading: authLoading } = useFirebaseAuth();
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
   const [reason, setReason] = useState("");
 
-  // Fetch conflict details
+  // Fetch conflict details (only when authenticated)
   const { data: conflictData, isLoading: isLoadingConflicts } = useQuery<{
     hasConflict: boolean;
     conflicts: ConflictEvent[];
   }>({
     queryKey: ['/api/consultations/v2', consultationId, 'conflicts'],
-    enabled: open && !!consultationId,
+    enabled: open && !!consultationId && !authLoading && !!user,
   });
 
   // Reset state when modal opens/closes
@@ -187,7 +189,7 @@ export default function ConflictResolutionModal({
           </DialogDescription>
         </DialogHeader>
 
-        {isLoadingConflicts ? (
+        {(isLoadingConflicts || authLoading) ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
