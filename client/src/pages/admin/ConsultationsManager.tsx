@@ -345,6 +345,9 @@ export default function ConsultationsManager({
   const handleApprove = async () => {
     if (!approveConfirmId) return;
     
+    console.log('[handleApprove] Approving with ID:', approveConfirmId);
+    console.log('[handleApprove] All consultations:', consultations.map(c => ({ id: c.id, cliente: c.cliente.nome })));
+    
     try {
       await approveMutation.mutateAsync(approveConfirmId);
       toast({
@@ -354,6 +357,7 @@ export default function ConsultationsManager({
       setApproveConfirmId(null);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Approvazione fallita';
+      console.error('[handleApprove] Error:', errorMessage);
       
       // Check for 409 conflict error
       if (errorMessage.includes('409') || errorMessage.toLowerCase().includes('conflict')) {
