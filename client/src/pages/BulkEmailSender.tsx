@@ -93,10 +93,12 @@ export default function BulkEmailSender() {
 
   const activeJob: BulkEmailJob | null = activeJobData?.job || null;
 
-  // Query tutti i job
+  // Query tutti i job (polling solo se c'è un job attivo)
+  const hasActiveJob = !!activeJobId;
   const { data: jobsData } = useQuery({
     queryKey: ['/api/bulk-email/jobs'],
-    refetchInterval: 5000 // Aggiorna ogni 5 secondi
+    refetchInterval: hasActiveJob ? 5000 : false, // Polling solo durante invio attivo
+    staleTime: 60000, // Dati freschi per 1 minuto
   });
 
   const allJobs: BulkEmailJob[] = jobsData?.jobs || [];
@@ -188,6 +190,15 @@ export default function BulkEmailSender() {
       setSelectAll(false);
     }
   }, [filteredRecipients, selectedRecipients]);
+
+  // Reset activeJobId quando il job è completato (ferma polling immediatamente)
+  useEffect(() => {
+    if (activeJob && (activeJob.status === 'completed' || activeJob.status === 'failed')) {
+      // Invalida la lista job per aggiornare lo storico e resetta subito
+      queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/jobs'] });
+      setActiveJobId(null);
+    }
+  }, [activeJob?.status]);
 
   // Conferma invio
   const handleConfirmSend = () => {

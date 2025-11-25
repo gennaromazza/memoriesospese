@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -9,8 +9,8 @@ import { StudioProvider } from "./context/StudioContext";
 import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { Loader2 } from "lucide-react";
 
-import Home from "./pages/Home";
 import PublicHomepage from "./pages/public/PublicHomepage";
 import GalleryAccessPage from "./pages/public/GalleryAccessPage";
 import PortfolioPage from "./pages/public/PortfolioPage";
@@ -23,45 +23,53 @@ import WeddingVideosPage from "./pages/public/WeddingVideosPage";
 import GalleryAccess from "./pages/GalleryAccess";
 import Gallery from "./pages/Gallery";
 import SpecialGalleryAccess from "./pages/SpecialGalleryAccess";
-import AdminGalleryAccess from "./pages/AdminGalleryAccess";
-import AdminLogin from "./pages/AdminLogin";
-import AdminDashboard from "./pages/AdminDashboard";
-import Faq from "./pages/admin/Faq";
-import QuestionnaireManager from "./pages/admin/QuestionnaireManager";
-import QuestionnaireForm from "./pages/QuestionnaireForm";
-import RequestPassword from "./pages/RequestPassword";
-import PasswordResult from "./pages/PasswordResult";
-import DeleteGalleryPage from "./pages/DeleteGalleryPage";
-import UserProfile from "./pages/UserProfile";
 import BookingIndex from "./pages/BookingIndex";
 import BookingPage from "./pages/BookingPage";
 import QuotePortal from "./pages/QuotePortal";
-import GalleryManagementWorkspace from "./pages/GalleryManagementWorkspace";
-import JobDetailPage from "./pages/JobDetailPage";
-import JobsListPage from "./pages/JobsListPage";
-import ImportDataPage from "./pages/ImportDataPage";
-import NotFound from "./pages/NotFound";
-import PathDebugInfo from "./components/PathDebugInfo";
-import AuthDebugPanel from "./components/AuthDebugPanel";
-import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import ConsultationIndex from "./pages/ConsultationIndex";
 import ConsultationTemplates from "./pages/ConsultationTemplates";
 import ConsultationBooking from "./pages/ConsultationBooking";
-import ConsultationTemplatesManager from "./pages/admin/ConsultationTemplatesManager";
-import AdminConsultationsRoute from "./pages/admin/AdminConsultationsRoute";
-import AdminJsonImporter from "./pages/admin/AdminJsonImporter";
-import QuoteManagementDemo from "./pages/admin/QuoteManagementDemo";
 import CollaboratorAssignmentResponse from "./pages/CollaboratorAssignmentResponse";
 import CollaboratoreDashboard from "./pages/CollaboratoreDashboard";
-import BulkEmailSender from "./pages/BulkEmailSender";
+import QuestionnaireForm from "./pages/QuestionnaireForm";
+import RequestPassword from "./pages/RequestPassword";
+import PasswordResult from "./pages/PasswordResult";
+import NotFound from "./pages/NotFound";
+import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
 
-// Seed script per jobTypes (disponibile globalmente come window.seedJobTypes)
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminGalleryAccess = lazy(() => import("./pages/AdminGalleryAccess"));
+const Faq = lazy(() => import("./pages/admin/Faq"));
+const QuestionnaireManager = lazy(() => import("./pages/admin/QuestionnaireManager"));
+const DeleteGalleryPage = lazy(() => import("./pages/DeleteGalleryPage"));
+const UserProfile = lazy(() => import("./pages/UserProfile"));
+const GalleryManagementWorkspace = lazy(() => import("./pages/GalleryManagementWorkspace"));
+const JobDetailPage = lazy(() => import("./pages/JobDetailPage"));
+const JobsListPage = lazy(() => import("./pages/JobsListPage"));
+const ImportDataPage = lazy(() => import("./pages/ImportDataPage"));
+const ConsultationTemplatesManager = lazy(() => import("./pages/admin/ConsultationTemplatesManager"));
+const AdminConsultationsRoute = lazy(() => import("./pages/admin/AdminConsultationsRoute"));
+const AdminJsonImporter = lazy(() => import("./pages/admin/AdminJsonImporter"));
+const QuoteManagementDemo = lazy(() => import("./pages/admin/QuoteManagementDemo"));
+const BulkEmailSender = lazy(() => import("./pages/BulkEmailSender"));
+
 import './scripts/seed-job-types';
 import './scripts/seed-product-categories';
 
-// Tracciamento pageview con Wouter
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground text-sm">Caricamento...</p>
+      </div>
+    </div>
+  );
+}
+
 function useAnalytics() {
   const [location] = useLocation();
   useEffect(() => {
@@ -70,85 +78,84 @@ function useAnalytics() {
   return null;
 }
 
-// Solo definizione di rotte (il <Router base=...> è in main.tsx)
 function AppRoutes() {
   useAnalytics();
   return (
-    <Switch>
-      {/* Public Website Routes - NEW */}
-      <Route path="/" component={PublicHomepage} />
-      <Route path="/portfolio" component={PortfolioPage} />
-      <Route path="/portfolio/:categoria" component={PortfolioCategoryPage} />
-      <Route path="/storie" component={StoriePage} />
-      <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
-      <Route path="/blog" component={BlogListPage} />
-      <Route path="/blog/:slug" component={BlogPostPage} />
-      <Route path="/vision" component={WeddingVideosPage} />
+    <Suspense fallback={<PageLoader />}>
+      <Switch>
+        {/* Public Website Routes - NEW */}
+        <Route path="/" component={PublicHomepage} />
+        <Route path="/portfolio" component={PortfolioPage} />
+        <Route path="/portfolio/:categoria" component={PortfolioCategoryPage} />
+        <Route path="/storie" component={StoriePage} />
+        <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
+        <Route path="/blog" component={BlogListPage} />
+        <Route path="/blog/:slug" component={BlogPostPage} />
+        <Route path="/vision" component={WeddingVideosPage} />
 
-      {/* Gallery Access (moved from /) */}
-      <Route path="/accesso-galleria" component={GalleryAccessPage} />
+        {/* Gallery Access (moved from /) */}
+        <Route path="/accesso-galleria" component={GalleryAccessPage} />
 
-      <Route path="/privacy" component={Privacy} />
-      <Route path="/terms" component={Terms} />
+        <Route path="/privacy" component={Privacy} />
+        <Route path="/terms" component={Terms} />
 
-      {/* Booking pubblico */}
-      <Route path="/prenota" component={BookingIndex} />
-      <Route path="/prenota/:code" component={BookingPage} />
+        {/* Booking pubblico */}
+        <Route path="/prenota" component={BookingIndex} />
+        <Route path="/prenota/:code" component={BookingPage} />
 
-      {/* Consultations pubbliche (italiano) */}
-      <Route path="/consulenze" component={ConsultationIndex} />
-      <Route path="/consulenze/:tipo/:id/prenota" component={ConsultationBooking} />
-      <Route path="/consulenze/:tipo" component={ConsultationTemplates} />
+        {/* Consultations pubbliche (italiano) */}
+        <Route path="/consulenze" component={ConsultationIndex} />
+        <Route path="/consulenze/:tipo/:id/prenota" component={ConsultationBooking} />
+        <Route path="/consulenze/:tipo" component={ConsultationTemplates} />
 
-      {/* Consultations pubbliche (inglese - backward compatibility) */}
-      <Route path="/consultations" component={ConsultationIndex} />
-      <Route path="/consultations/book" component={ConsultationBooking} />
+        {/* Consultations pubbliche (inglese - backward compatibility) */}
+        <Route path="/consultations" component={ConsultationIndex} />
+        <Route path="/consultations/book" component={ConsultationBooking} />
 
-      {/* Collaboratori assignment */}
-      <Route path="/collaboratori/assignment/:assignmentId/:action" component={CollaboratorAssignmentResponse} />
+        {/* Collaboratori assignment */}
+        <Route path="/collaboratori/assignment/:assignmentId/:action" component={CollaboratorAssignmentResponse} />
 
-      {/* Collaboratori dashboard - Link magico */}
-      <Route path="/collaboratori/dashboard/:token" component={CollaboratoreDashboard} />
+        {/* Collaboratori dashboard - Link magico */}
+        <Route path="/collaboratori/dashboard/:token" component={CollaboratoreDashboard} />
 
-      {/* Quote portale pubblico - Link unico che si adatta allo stato */}
-      <Route path="/quote/:token" component={QuotePortal} />
+        {/* Quote portale pubblico - Link unico che si adatta allo stato */}
+        <Route path="/quote/:token" component={QuotePortal} />
 
-      {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
-      <Route path="/special-gallery" component={SpecialGalleryAccess} />
-      <Route path="/gallery/:id" component={GalleryAccess} />
-      <Route path="/view/:id" component={Gallery} />
+        {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
+        <Route path="/special-gallery" component={SpecialGalleryAccess} />
+        <Route path="/gallery/:id" component={GalleryAccess} />
+        <Route path="/view/:id" component={Gallery} />
 
-      <Route path="/admin" component={AdminLogin} />
-      <Route path="/admin/dashboard" component={AdminDashboard} />
-      <Route path="/admin/bulk-email" component={BulkEmailSender} />
-      <Route path="/admin/faq" component={Faq} />
-      <Route path="/admin/galleries/:galleryId" component={AdminGalleryAccess} />
-      <Route path="/admin/galleries/:galleryId/questionnaire" component={QuestionnaireManager} />
-      <Route path="/admin/gallery/:galleryId/manage" component={GalleryManagementWorkspace} />
-      <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
-      <Route path="/admin/jobs" component={JobsListPage} />
-      <Route path="/admin/jobs/:jobId" component={JobDetailPage} />
-      <Route path="/admin/import" component={ImportDataPage} />
-      <Route path="/admin/consulenze/templates" component={ConsultationTemplatesManager} />
-      <Route path="/admin/consulenze" component={AdminConsultationsRoute} />
-      <Route path="/admin/importer" component={AdminJsonImporter} />
-      <Route path="/quote-management-demo" component={QuoteManagementDemo} />
+        <Route path="/admin" component={AdminLogin} />
+        <Route path="/admin/dashboard" component={AdminDashboard} />
+        <Route path="/admin/bulk-email" component={BulkEmailSender} />
+        <Route path="/admin/faq" component={Faq} />
+        <Route path="/admin/galleries/:galleryId" component={AdminGalleryAccess} />
+        <Route path="/admin/galleries/:galleryId/questionnaire" component={QuestionnaireManager} />
+        <Route path="/admin/gallery/:galleryId/manage" component={GalleryManagementWorkspace} />
+        <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
+        <Route path="/admin/jobs" component={JobsListPage} />
+        <Route path="/admin/jobs/:jobId" component={JobDetailPage} />
+        <Route path="/admin/import" component={ImportDataPage} />
+        <Route path="/admin/consulenze/templates" component={ConsultationTemplatesManager} />
+        <Route path="/admin/consulenze" component={AdminConsultationsRoute} />
+        <Route path="/admin/importer" component={AdminJsonImporter} />
+        <Route path="/quote-management-demo" component={QuoteManagementDemo} />
 
-      {/* Public questionnaire route with noindex/nofollow */}
-      <Route path="/q/:galleryId" component={QuestionnaireForm} />
-      <Route path="/request-password/:id" component={RequestPassword} />
-      <Route path="/request-password" component={RequestPassword} />
-      <Route path="/password-result/:id" component={PasswordResult} />
-      <Route path="/profile" component={UserProfile} />
+        {/* Public questionnaire route with noindex/nofollow */}
+        <Route path="/q/:galleryId" component={QuestionnaireForm} />
+        <Route path="/request-password/:id" component={RequestPassword} />
+        <Route path="/request-password" component={RequestPassword} />
+        <Route path="/password-result/:id" component={PasswordResult} />
+        <Route path="/profile" component={UserProfile} />
 
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
 function App() {
-  // Nota: Inizializzazione set domande spostata in Faq.tsx per admin autenticato
-
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -160,10 +167,10 @@ function App() {
                 <AppRoutes />
                 <ProfileImageWelcomeProvider />
                 {import.meta.env.MODE === "development" && (
-                  <>
+                  <Suspense fallback={null}>
                     <PathDebugInfo />
                     <AuthDebugPanel />
-                  </>
+                  </Suspense>
                 )}
               </StudioProvider>
             </FirebaseAuthProvider>
@@ -173,5 +180,8 @@ function App() {
     </ErrorBoundary>
   );
 }
+
+const PathDebugInfo = lazy(() => import("./components/PathDebugInfo"));
+const AuthDebugPanel = lazy(() => import("./components/AuthDebugPanel"));
 
 export default App;
