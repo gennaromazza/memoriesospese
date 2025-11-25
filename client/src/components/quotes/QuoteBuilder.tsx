@@ -672,7 +672,7 @@ export default function QuoteBuilder({
                     <SelectTrigger data-testid="select-template">
                       <SelectValue placeholder="Seleziona template..." />
                     </SelectTrigger>
-                    <SelectContent position="popper" sideOffset={4} className="z-[100]">
+                    <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                       {filteredTemplates.map(template => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.nome} ({template.type})
@@ -698,7 +698,7 @@ export default function QuoteBuilder({
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent position="popper" sideOffset={4} className="z-[100]">
+                      <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                         <SelectItem value="fisso">Fisso (prezzo totale)</SelectItem>
                         <SelectItem value="variabile">Variabile (cliente sceglie)</SelectItem>
                       </SelectContent>
@@ -726,7 +726,7 @@ export default function QuoteBuilder({
                       <SelectValue placeholder="Seleziona template..." />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent position="popper" sideOffset={4} className="z-[100]">
+                  <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                     {!isLoadingClauses && clauseTemplates.length === 0 && (
                       <SelectItem value="default">
                         <div className="flex items-center gap-2">
@@ -1076,7 +1076,7 @@ export default function QuoteBuilder({
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent position="popper" sideOffset={4} className="z-[100]">
+                        <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                           <SelectItem value="none">Nessuno sconto</SelectItem>
                           <SelectItem value="amount">
                             <div className="flex items-center gap-2">
@@ -1219,7 +1219,7 @@ export default function QuoteBuilder({
                                   <SelectValue />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent position="popper" sideOffset={4} className="z-[100]">
+                              <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                                 <SelectItem value="percentage">Percentuale (%)</SelectItem>
                                 <SelectItem value="amount">Importo Fisso (€)</SelectItem>
                               </SelectContent>
