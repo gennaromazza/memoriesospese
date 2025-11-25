@@ -2634,16 +2634,28 @@ function CreateOrderDialog({
     return catalogoTotale + customTotale;
   };
 
-  // Helper: Aggiungi prodotto personalizzato
+  // Helper: Aggiungi prodotto personalizzato con validazione robusta
   const addCustomProduct = () => {
-    if (!customNome.trim() || customPrezzo <= 0) {
+    // Validazione nome
+    if (!customNome.trim()) {
       return;
     }
+    
+    // Validazione prezzo (deve essere > 0)
+    if (typeof customPrezzo !== 'number' || isNaN(customPrezzo) || customPrezzo <= 0) {
+      return;
+    }
+    
+    // Validazione numeroFoto (deve essere >= 0)
+    const validNumeroFoto = typeof customNumeroFoto === 'number' && !isNaN(customNumeroFoto) && customNumeroFoto >= 0
+      ? customNumeroFoto
+      : 0;
+    
     const newCustom: CustomProduct = {
       id: `custom_${Date.now()}`,
       nome: customNome.trim(),
       prezzo: customPrezzo,
-      numeroFoto: customNumeroFoto || 0,
+      numeroFoto: validNumeroFoto,
       quantita: 1,
     };
     setCustomProducts([...customProducts, newCustom]);
@@ -2667,17 +2679,37 @@ function CreateOrderDialog({
     );
   };
 
-  // Handler: Submit ordine
+  // Handler: Submit ordine con validazione robusta
   const handleSubmit = () => {
-    // Validation
+    // Validation: almeno un prodotto
     if (selectedProducts.length === 0 && customProducts.length === 0) {
       alert("Seleziona almeno un prodotto");
       return;
     }
 
-    // Verifica che tutti prodotti catalogo siano selezionati
+    // Verifica che tutti prodotti catalogo siano selezionati con quantità valida
     if (selectedProducts.some((p) => !p.prodottoId || p.quantita <= 0)) {
       alert("Completa tutti i prodotti con quantità valida");
+      return;
+    }
+    
+    // Validazione prodotti custom: prezzo > 0 e quantità > 0
+    const invalidCustomProducts = customProducts.filter(
+      (p) => !p.nome?.trim() || p.prezzo <= 0 || p.quantita <= 0
+    );
+    if (invalidCustomProducts.length > 0) {
+      alert("Tutti i prodotti personalizzati devono avere nome, prezzo positivo e quantità valida");
+      return;
+    }
+    
+    // Validazione acconto: non può superare il totale
+    const totaleOrdine = calculateTotale();
+    if (acconto < 0) {
+      alert("L'acconto non può essere negativo");
+      return;
+    }
+    if (acconto > totaleOrdine) {
+      alert(`L'acconto (€${acconto.toFixed(2)}) non può superare il totale ordine (€${totaleOrdine.toFixed(2)})`);
       return;
     }
 

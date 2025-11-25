@@ -60,12 +60,25 @@ function ensureProdottiArray(orderData: any): any {
     result.transactions = [];
   }
   
-  // Migration automatica: verifica coerenza tra campi legacy e transactions
+  // ============================================================================
+  // IDEMPOTENT Migration: verifica coerenza tra campi legacy e transactions
   // Questo previene bug dove acconto/saldo sono impostati ma transactions è vuoto
-  const hasPagamenti = result.acconto > 0 || result.dataSaldo;
+  // 
+  // APPROCCIO IDEMPOTENTE: Non usiamo flag in-memory (non persistiti).
+  // Invece, la migration viene eseguita SOLO se:
+  // 1. Ci sono pagamenti legacy (acconto > 0 o dataSaldo)
+  // 2. transactions array è VUOTO
+  // 
+  // Una volta che transactions contiene almeno un elemento, la migration
+  // non verrà più eseguita, garantendo idempotenza senza salvare flag.
+  // ============================================================================
+  const hasPagamentiLegacy = result.acconto > 0 || result.dataSaldo;
   const hasTransactions = result.transactions.length > 0;
   
-  if (hasPagamenti && !hasTransactions) {
+  // GUARD: Se transactions ha già elementi, NON eseguire migration
+  // Questo è naturalmente idempotente perché dopo la prima esecuzione
+  // (o dopo qualsiasi pagamento registrato) transactions.length > 0
+  if (hasPagamentiLegacy && !hasTransactions) {
     console.warn(`🔄 Migration ordine ${result.id || 'unknown'}: trovato acconto/saldo senza transactions, ricostruisco...`);
     
     // Ricostruisci transactions da legacy fields
@@ -76,7 +89,7 @@ function ensureProdottiArray(orderData: any): any {
         metodo: result.metodoPagamentoAcconto || "contante",
         data: result.dataAcconto || result.createdAt || Timestamp.now(),
         note: "Migrato automaticamente da ordine legacy",
-        emailInviata: false, // Unknown per ordini legacy
+        emailInviata: false,
       });
     }
 
@@ -102,19 +115,12 @@ function ensureProdottiArray(orderData: any): any {
     console.log(`✅ Migration completata: ${result.transactions.length} transactions create`);
   }
   
-  // Verifica coerenza: ricalcola acconto/saldo da transactions per correggere eventuali discrepanze
+  // ============================================================================
+  // RICALCOLO: Sempre ricalcola acconto/saldo da transactions (fonte di verità)
+  // IMPORTANTE: NON convertire più acconto → saldo automaticamente
+  // Lo stato pagamento è determinato da getOrderPaymentStatus(), non dal tipo transaction
+  // ============================================================================
   if (result.transactions.length > 0) {
-    // ✅ Auto-correzione: se c'è una sola transaction "acconto" che copre il totale, 
-    // convertila in "saldo" (pagamento completo)
-    if (result.transactions.length === 1 && 
-        result.transactions[0].tipo === 'acconto' && 
-        result.transactions[0].importo >= (result.totale || 0)) {
-      console.log(`🔄 Auto-correzione ordine: acconto → saldo (pagamento completo)`);
-      result.transactions[0].tipo = 'saldo';
-      result.transactions[0].note = result.transactions[0].note?.replace('Acconto', 'Pagamento completo') || 
-                                     'Pagamento completo';
-    }
-    
     const accontoCalcolato = result.transactions
       .filter((t: any) => t.tipo === 'acconto')
       .reduce((sum: number, t: any) => sum + t.importo, 0);
@@ -125,10 +131,9 @@ function ensureProdottiArray(orderData: any): any {
     
     const totalePagato = accontoCalcolato + saldoPagato;
     
-    // ✅ CRITICO: acconto = SOLO somma acconti, non totalePagato
-    // Questo mantiene il contratto esistente dove acconto rappresenta deposito
+    // Ricalcola campi legacy per backward compatibility
     result.acconto = accontoCalcolato;
-    result.saldo = (result.totale || 0) - totalePagato;
+    result.saldo = Math.max(0, (result.totale || 0) - totalePagato);
   }
 
   return result;
@@ -327,22 +332,24 @@ export async function createOrder(data: InsertOrder): Promise<string> {
 
   // Inizializza transactions array
   // Se acconto > 0, crea transaction iniziale per tracciamento corretto
-  // Se acconto = totale (pagato interamente), registra come "saldo" invece che "acconto"
+  // NOTA: Preserva sempre tipo "acconto" - il sistema determina lo stato pagamento
+  // dal saldo residuo calcolato (totale - somma transactions), non dal tipo transaction
   const transactions: Transaction[] = [];
   
   if (acconto > 0) {
-    const isPagamentoCompleto = acconto >= totale;
+    // Sempre tipo "acconto" alla creazione - la classificazione come "saldato"
+    // viene determinata dai calcoli in getOrderPaymentStatus() non dal tipo
     transactions.push({
-      tipo: isPagamentoCompleto ? "saldo" : "acconto",
+      tipo: "acconto",
       importo: acconto,
       metodo: data.metodoPagamentoAcconto || "contante",
       data: Timestamp.now(),
-      note: isPagamentoCompleto 
+      note: acconto >= totale 
         ? "Pagamento completo registrato alla creazione ordine" 
         : "Acconto iniziale registrato alla creazione ordine",
       emailInviata: false,
     });
-    console.log(`💳 Transaction ${isPagamentoCompleto ? 'saldo' : 'acconto'} iniziale creata:`, transactions[0]);
+    console.log(`💳 Transaction acconto iniziale creata (importo: €${acconto}):`, transactions[0]);
   }
 
   // Normalizza campi opzionali per evitare undefined in Firestore
