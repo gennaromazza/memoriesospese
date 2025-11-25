@@ -392,37 +392,73 @@ router.get("/quota", async (req: Request, res: Response) => {
   }
 });
 
-// GET Filtri disponibili (anni dinamici dai jobs)
+// GET Filtri disponibili (anni dinamici + tipi lavoro dai jobs)
 router.get("/filters", async (req: Request, res: Response) => {
   try {
-    const jobsSnapshot = await db.collection("jobs").select("dataEvento").get();
+    const jobsSnapshot = await db.collection("jobs").select("dataEvento", "eventDate", "jobType").get();
     const yearsSet = new Set<number>();
+    const jobTypesSet = new Set<string>();
     const currentYear = new Date().getFullYear();
 
     jobsSnapshot.forEach((doc) => {
       const data = doc.data();
-      if (data.dataEvento) {
+      
+      // Estrai anno da dataEvento o eventDate
+      const dateField = data.dataEvento || data.eventDate;
+      if (dateField) {
         let year: number | null = null;
-        if (typeof data.dataEvento === 'string') {
-          year = new Date(data.dataEvento).getFullYear();
-        } else if (data.dataEvento?.toDate) {
-          year = data.dataEvento.toDate().getFullYear();
+        if (typeof dateField === 'string') {
+          year = new Date(dateField).getFullYear();
+        } else if (dateField?.toDate) {
+          year = dateField.toDate().getFullYear();
         }
         if (year && year >= 2020 && year <= currentYear + 2) {
           yearsSet.add(year);
         }
       }
+      
+      // Estrai tipo lavoro
+      if (data.jobType && typeof data.jobType === 'string') {
+        jobTypesSet.add(data.jobType);
+      }
     });
 
+    // Ordina anni (più recenti prima)
     const years = Array.from(yearsSet).sort((a, b) => b - a);
-    const filters = years
+    const yearFilters = years
       .filter(y => y !== currentYear)
       .map(year => ({
         value: `anno_${year}`,
         label: `Anno ${year}`
       }));
 
-    res.json({ success: true, filters });
+    // Mappa nomi italiani per i tipi lavoro comuni
+    const jobTypeLabels: Record<string, string> = {
+      'matrimonio': '💒 Matrimoni',
+      'battesimo': '👶 Battesimi',
+      'comunione': '⛪ Comunioni',
+      'cresima': '✝️ Cresime',
+      'compleanno': '🎂 Compleanni',
+      'famiglia': '👨‍👩‍👧‍👦 Famiglie',
+      'evento': '🎉 Eventi',
+      'corporate': '🏢 Corporate',
+      'newborn': '👼 Newborn',
+      'gravidanza': '🤰 Gravidanza',
+      'altro': '📷 Altro'
+    };
+
+    const jobTypeFilters = Array.from(jobTypesSet)
+      .sort()
+      .map(jobType => ({
+        value: `tipo_${jobType}`,
+        label: jobTypeLabels[jobType] || jobType.charAt(0).toUpperCase() + jobType.slice(1)
+      }));
+
+    res.json({ 
+      success: true, 
+      filters: yearFilters,
+      jobTypeFilters
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -481,6 +517,63 @@ router.get("/recipients", async (req: Request, res: Response) => {
       // Costruisci lista destinatari senza duplicati
       for (const job of jobsWithUnsignedQuotes) {
         const clientData = clientsMap.get(job.clienteId);
+        if (clientData?.email && !emailsAdded.has(clientData.email)) {
+          emailsAdded.add(clientData.email);
+          recipients.push({
+            email: clientData.email,
+            nome: clientData.nome || "",
+            cognome: clientData.cognome || "",
+            clientId: clientData.id,
+          });
+        }
+      }
+      
+      return res.json({ success: true, recipients, total: recipients.length });
+    }
+
+    // Filtro per tipo lavoro (cerca jobs e poi clienti associati)
+    if (filter && filter.toString().startsWith("tipo_")) {
+      const jobType = filter.toString().replace("tipo_", "");
+      
+      const jobsSnapshot = await db.collection("jobs")
+        .where("jobType", "==", jobType)
+        .limit(500)
+        .get();
+      
+      // Raccogli tutti i clientIds unici
+      const clientIds = new Set<string>();
+      
+      for (const jobDoc of jobsSnapshot.docs) {
+        const jobData = jobDoc.data();
+        // Supporta sia clienteId singolo che clientiIds array
+        if (jobData.clienteId) {
+          clientIds.add(jobData.clienteId);
+        }
+        if (Array.isArray(jobData.clientiIds)) {
+          jobData.clientiIds.forEach((id: string) => clientIds.add(id));
+        }
+      }
+      
+      // Batch load clienti (max 30 per batch)
+      const clientIdArray = Array.from(clientIds);
+      const clientsMap = new Map<string, any>();
+      
+      for (let i = 0; i < clientIdArray.length; i += 30) {
+        const batch = clientIdArray.slice(i, i + 30);
+        if (batch.length === 0) continue;
+        
+        const clientsSnapshot = await db.collection("clienti")
+          .where("__name__", "in", batch)
+          .get();
+        
+        clientsSnapshot.forEach(doc => {
+          clientsMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+      }
+      
+      // Costruisci lista destinatari senza duplicati
+      for (const clientId of clientIds) {
+        const clientData = clientsMap.get(clientId);
         if (clientData?.email && !emailsAdded.has(clientData.email)) {
           emailsAdded.add(clientData.email);
           recipients.push({

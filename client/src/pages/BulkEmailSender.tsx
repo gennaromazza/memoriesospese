@@ -109,12 +109,13 @@ export default function BulkEmailSender() {
 
   const quota = quotaData?.quota || { sent: 0, reserved: 0, limit: 2000, remaining: 2000 };
 
-  // Query filtri disponibili (anni dinamici)
+  // Query filtri disponibili (anni dinamici + tipi lavoro)
   const { data: filtersData } = useQuery({
     queryKey: ['/api/bulk-email/filters']
   });
 
-  const availableFilters = filtersData?.filters || [];
+  const yearFilters = filtersData?.filters || [];
+  const jobTypeFilters = filtersData?.jobTypeFilters || [];
 
   // Filtra destinatari per ricerca
   const filteredRecipients = useMemo(() => {
@@ -375,11 +376,33 @@ export default function BulkEmailSender() {
                       <SelectTrigger id="filter" data-testid="select-recipient-filter">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent position="popper" sideOffset={4} className="z-[9999]">
-                        <SelectItem value="all">Tutti i clienti</SelectItem>
-                        <SelectItem value="preventivi_non_firmati">🎯 Preventivi Non Firmati (Upsell)</SelectItem>
+                      <SelectContent position="popper" sideOffset={4} className="z-[9999] max-h-[400px]">
+                        <SelectItem value="all">📋 Tutti i clienti</SelectItem>
+                        
+                        {/* Filtri Speciali */}
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                          🎯 Filtri Speciali
+                        </div>
+                        <SelectItem value="preventivi_non_firmati">Preventivi Non Firmati (Upsell)</SelectItem>
+                        
+                        {/* Tipi Lavoro */}
+                        {jobTypeFilters.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                              📷 Per Tipo Lavoro
+                            </div>
+                            {jobTypeFilters.map((f: { value: string; label: string }) => (
+                              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* Per Anno */}
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                          📅 Per Anno
+                        </div>
                         <SelectItem value="anno_corrente">Anno corrente</SelectItem>
-                        {availableFilters.map((f: { value: string; label: string }) => (
+                        {yearFilters.map((f: { value: string; label: string }) => (
                           <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
                         ))}
                       </SelectContent>
