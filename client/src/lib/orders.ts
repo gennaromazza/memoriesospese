@@ -678,3 +678,100 @@ export async function addAccontoPayment(
     index: updatedTransactions.length - 1,
   };
 }
+
+// ============================================================================
+// HELPER UNIFICATI - Stato Pagamento Ordini
+// Usare questi helper ovunque per garantire coerenza tra UI e calcoli
+// ============================================================================
+
+export interface OrderPaymentStatus {
+  stato: 'non_pagato' | 'acconto_pagato' | 'saldato';
+  label: string;
+  color: 'gray' | 'yellow' | 'green';
+  totalePagato: number;
+  saldoResiduo: number;
+  percentualePagata: number;
+}
+
+/**
+ * Calcola lo stato pagamento di un ordine basandosi sulle transactions
+ * FONTE DI VERITÀ: transactions array + saldo calcolato
+ */
+export function getOrderPaymentStatus(order: Order): OrderPaymentStatus {
+  const totale = order.totale || 0;
+  const transactions = order.transactions || [];
+  
+  // Calcola totale pagato da transactions
+  const totalePagato = transactions.reduce((sum, t) => sum + t.importo, 0);
+  
+  // Saldo residuo (usa il campo calcolato o ricalcola)
+  const saldoResiduo = Math.max(0, totale - totalePagato);
+  
+  // Percentuale pagata
+  const percentualePagata = totale > 0 ? Math.round((totalePagato / totale) * 100) : 0;
+  
+  // Determina stato
+  if (saldoResiduo <= 0 || totalePagato >= totale) {
+    return {
+      stato: 'saldato',
+      label: 'Saldato',
+      color: 'green',
+      totalePagato,
+      saldoResiduo: 0,
+      percentualePagata: 100,
+    };
+  } else if (totalePagato > 0) {
+    return {
+      stato: 'acconto_pagato',
+      label: 'Saldo Pendente',
+      color: 'yellow',
+      totalePagato,
+      saldoResiduo,
+      percentualePagata,
+    };
+  } else {
+    return {
+      stato: 'non_pagato',
+      label: 'Acconto Pendente',
+      color: 'gray',
+      totalePagato: 0,
+      saldoResiduo: totale,
+      percentualePagata: 0,
+    };
+  }
+}
+
+export interface OrderTotals {
+  totale: number;
+  totalePagato: number;
+  totaleAcconti: number;
+  totaleSaldi: number;
+  saldoResiduo: number;
+}
+
+/**
+ * Calcola i totali di un ordine basandosi sulle transactions
+ */
+export function getOrderTotals(order: Order): OrderTotals {
+  const totale = order.totale || 0;
+  const transactions = order.transactions || [];
+  
+  const totaleAcconti = transactions
+    .filter(t => t.tipo === 'acconto')
+    .reduce((sum, t) => sum + t.importo, 0);
+    
+  const totaleSaldi = transactions
+    .filter(t => t.tipo === 'saldo')
+    .reduce((sum, t) => sum + t.importo, 0);
+    
+  const totalePagato = totaleAcconti + totaleSaldi;
+  const saldoResiduo = Math.max(0, totale - totalePagato);
+  
+  return {
+    totale,
+    totalePagato,
+    totaleAcconti,
+    totaleSaldi,
+    saldoResiduo,
+  };
+}

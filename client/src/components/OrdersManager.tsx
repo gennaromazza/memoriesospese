@@ -10,6 +10,8 @@ import {
   updateOrder,
   createOrder,
   markTransactionEmailSent,
+  getOrderPaymentStatus,
+  getOrderTotals,
 } from '@/lib/orders';
 import { getAllBookings } from '@/lib/bookings';
 import { getActiveProducts } from '@/lib/products';
@@ -167,11 +169,10 @@ export function OrdersManager({
       // Guard: skip email se emailCliente è vuota/blank
       if (order && order.emailCliente?.trim() && order.nomeCliente?.trim()) {
         try {
-          // Calcola valori aggiornati per email
-          const accontoAttuale = order.acconto || 0;
-          const totale = order.totale || 0;
-          const nuovoAccontoTotale = accontoAttuale + variables.importo;
-          const nuovoSaldo = totale - nuovoAccontoTotale;
+          // Calcola valori aggiornati per email usando helper unificato
+          const orderTotals = getOrderTotals(order);
+          const nuovoAccontoTotale = orderTotals.totalePagato + variables.importo;
+          const nuovoSaldo = orderTotals.totale - nuovoAccontoTotale;
           
           // Calcola il nome prodotto per l'email (primo prodotto o "Ordine Multi-Prodotto")
           const prodottoNome = order.prodotti && order.prodotti.length > 0
@@ -195,7 +196,7 @@ export function OrdersManager({
               saldoRimanente: nuovoSaldo,
               metodo: variables.metodo,
               note: variables.note,
-              totaleOrdine: totale, // Totale ordine
+              totaleOrdine: orderTotals.totale, // Usa totale da helper unificato
               transactions: updatedTransactions // Cronologia completa pagamenti inclusa ultima transaction
             })
           });
@@ -248,7 +249,8 @@ export function OrdersManager({
       // Guard: skip email se emailCliente è vuota/blank
       if (order && order.emailCliente?.trim() && order.nomeCliente?.trim()) {
         try {
-          // Usa l'importo dalla transaction appena creata invece di order.saldo (evita stale cache)
+          // Usa helper unificato per totali e importo dalla transaction appena creata
+          const orderTotals = getOrderTotals(order);
           const saldoAmount = transaction.importo;
           
           // Calcola il nome prodotto per l'email (primo prodotto o "Ordine Multi-Prodotto")
@@ -269,7 +271,7 @@ export function OrdersManager({
               clienteName: order.nomeCliente,
               prodottoNome,
               saldoAmount,
-              totaleOrdine: order.totale || 0, // Totale ordine
+              totaleOrdine: orderTotals.totale, // Usa totale da helper unificato
               transactions: updatedTransactions // Cronologia completa pagamenti inclusa ultima transaction
             })
           });
@@ -333,27 +335,28 @@ export function OrdersManager({
     return orders.find(o => o.id === paymentDialog.orderId);
   }, [paymentDialog, orders]);
 
-  // Helper: Calcola riepilogo acconto
+  // Helper: Calcola riepilogo acconto usando helper unificati
   const accontoSummary = useMemo(() => {
     if (!currentPaymentOrder || !paymentDialog || paymentDialog.tipo !== 'acconto') {
       return null;
     }
 
+    // Usa helper unificato per ottenere totali basati su transactions
+    const totals = getOrderTotals(currentPaymentOrder);
+    
     const importo = parseFloat(paymentAmount) || 0;
-    const accontoAttuale = currentPaymentOrder.acconto || 0;
-    const totale = currentPaymentOrder.totale || 0;
-    const nuovoAccontoTotale = accontoAttuale + importo;
-    const nuovoSaldo = totale - nuovoAccontoTotale;
-    const saldoMassimo = totale - accontoAttuale; // Max aggiungibile
+    const nuovoAccontoTotale = totals.totalePagato + importo;
+    const nuovoSaldo = totals.totale - nuovoAccontoTotale;
+    const saldoMassimo = totals.saldoResiduo; // Max aggiungibile = saldo residuo
 
     return {
-      totale,
-      accontoAttuale,
+      totale: totals.totale,
+      accontoAttuale: totals.totalePagato, // Totale già pagato
       nuovoImporto: importo,
       nuovoAccontoTotale,
       nuovoSaldo,
       saldoMassimo,
-      isValid: importo > 0 && nuovoAccontoTotale <= totale,
+      isValid: importo > 0 && nuovoAccontoTotale <= totals.totale,
     };
   }, [currentPaymentOrder, paymentDialog, paymentAmount]);
 
@@ -650,10 +653,9 @@ export function OrdersManager({
       ) : (
         <div className="grid gap-4">
           {filteredOrders.map((order) => {
-            // Calcola stato pagamento basato su saldo residuo (più affidabile)
-            const isPagamentoCompleto = (order.saldo || 0) <= 0;
-            const hasAnyPayment = (order.transactions || []).length > 0 || (order.acconto || 0) > 0;
-            const isSaldoPendente = !isPagamentoCompleto && hasAnyPayment;
+            // Usa helper unificato per stato pagamento
+            const paymentStatus = getOrderPaymentStatus(order);
+            const totals = getOrderTotals(order);
             const isHighlighted = highlightedId === order.id;
 
             return (
@@ -691,44 +693,41 @@ export function OrdersManager({
                       </div>
                     </div>
 
-                    {/* Dettagli finanziari */}
+                    {/* Dettagli finanziari - usa helper unificati */}
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                       <div>
                         <p className="text-xs text-muted-foreground">Totale</p>
-                        <p className="font-semibold">{formatCurrency(order.totale)}</p>
+                        <p className="font-semibold">{formatCurrency(totals.totale)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Acconto</p>
-                        <p className="font-semibold">{formatCurrency(order.acconto)}</p>
-                        {order.dataAcconto && (
+                        <p className="text-xs text-muted-foreground">Pagato</p>
+                        <p className="font-semibold text-green-600">{formatCurrency(totals.totalePagato)}</p>
+                        {paymentStatus.percentualePagata > 0 && paymentStatus.percentualePagata < 100 && (
                           <p className="text-xs text-muted-foreground">
-                            {formatDate(order.dataAcconto)} • {order.metodoPagamentoAcconto}
+                            {paymentStatus.percentualePagata}% del totale
                           </p>
                         )}
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Saldo</p>
-                        <p className="font-semibold">{formatCurrency(order.saldo)}</p>
-                        {order.dataSaldo && (
-                          <p className="text-xs text-muted-foreground">
-                            {formatDate(order.dataSaldo)} • {order.metodoPagamentoSaldo}
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground">Da Saldare</p>
+                        <p className={`font-semibold ${totals.saldoResiduo > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                          {formatCurrency(totals.saldoResiduo)}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Stato Pagamento</p>
-                        {isPagamentoCompleto ? (
+                        {paymentStatus.stato === 'saldato' ? (
                           <Badge className="bg-green-500 text-white">
                             <CheckCircle className="w-3 h-3 mr-1" />
-                            Saldato
+                            {paymentStatus.label}
                           </Badge>
-                        ) : isSaldoPendente ? (
+                        ) : paymentStatus.stato === 'acconto_pagato' ? (
                           <Badge className="bg-yellow-500 text-white">
                             <Clock className="w-3 h-3 mr-1" />
-                            Saldo Pendente
+                            {paymentStatus.label}
                           </Badge>
                         ) : (
-                          <Badge variant="outline">Acconto Pendente</Badge>
+                          <Badge variant="outline">{paymentStatus.label}</Badge>
                         )}
                       </div>
                     </div>
@@ -763,31 +762,33 @@ export function OrdersManager({
                       </Button>
                     </div>
 
-                    {/* Pulsanti pagamento */}
-                    {/* Mostra "Aggiungi Acconto" se c'è ancora saldo da pagare e non è stato pagato il saldo finale */}
-                    {order.saldo > 0 && !order.dataSaldo && (
-                      <Button
-                        size="sm"
-                        onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'acconto' })}
-                        data-testid={`button-record-acconto-${order.id}`}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Euro className="w-4 h-4 mr-1" />
-                        {order.dataAcconto ? 'Aggiungi Acconto' : 'Registra Acconto'}
-                      </Button>
-                    )}
+                    {/* Pulsanti pagamento - usa helper unificati */}
+                    {/* Mostra pulsanti solo se c'è ancora saldo da pagare */}
+                    {paymentStatus.stato !== 'saldato' && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'acconto' })}
+                          data-testid={`button-record-acconto-${order.id}`}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Euro className="w-4 h-4 mr-1" />
+                          {totals.totalePagato > 0 ? 'Aggiungi Pagamento' : 'Registra Acconto'}
+                        </Button>
 
-                    {/* Mostra "Registra Saldo" solo se c'è già almeno un acconto e saldo > 0 */}
-                    {order.dataAcconto && order.saldo > 0 && !order.dataSaldo && (
-                      <Button
-                        size="sm"
-                        onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'saldo' })}
-                        data-testid={`button-record-saldo-${order.id}`}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <Euro className="w-4 h-4 mr-1" />
-                        Registra Saldo
-                      </Button>
+                        {/* Mostra "Registra Saldo" solo se c'è già almeno un pagamento */}
+                        {totals.totalePagato > 0 && (
+                          <Button
+                            size="sm"
+                            onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'saldo' })}
+                            data-testid={`button-record-saldo-${order.id}`}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <Euro className="w-4 h-4 mr-1" />
+                            Salda Ordine ({formatCurrency(totals.saldoResiduo)})
+                          </Button>
+                        )}
+                      </>
                     )}
 
                     {/* Cambio stato */}
@@ -891,34 +892,74 @@ export function OrdersManager({
                 {getStatoBadge(selectedOrder.stato)}
               </div>
 
-              {/* Dettagli finanziari */}
-              <div>
-                <h3 className="font-semibold mb-2">Dettagli Finanziari</h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Card className="p-3">
-                    <p className="text-xs text-muted-foreground mb-1">Totale</p>
-                    <p className="text-xl font-bold">{formatCurrency(selectedOrder.totale)}</p>
-                  </Card>
-                  <Card className="p-3">
-                    <p className="text-xs text-muted-foreground mb-1">Acconto</p>
-                    <p className="text-xl font-bold">{formatCurrency(selectedOrder.acconto)}</p>
-                    {selectedOrder.dataAcconto && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Pagato: {formatDate(selectedOrder.dataAcconto)} • {selectedOrder.metodoPagamentoAcconto}
-                      </p>
+              {/* Dettagli finanziari - usa helper unificati */}
+              {(() => {
+                const detailTotals = getOrderTotals(selectedOrder);
+                const detailStatus = getOrderPaymentStatus(selectedOrder);
+                return (
+                  <div>
+                    <h3 className="font-semibold mb-2">Dettagli Finanziari</h3>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground mb-1">Totale Ordine</p>
+                        <p className="text-xl font-bold">{formatCurrency(detailTotals.totale)}</p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground mb-1">Totale Pagato</p>
+                        <p className="text-xl font-bold text-green-600">{formatCurrency(detailTotals.totalePagato)}</p>
+                        {detailStatus.percentualePagata > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {detailStatus.percentualePagata}% del totale
+                          </p>
+                        )}
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground mb-1">Da Saldare</p>
+                        <p className={`text-xl font-bold ${detailTotals.saldoResiduo > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                          {formatCurrency(detailTotals.saldoResiduo)}
+                        </p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground mb-1">Stato</p>
+                        {detailStatus.stato === 'saldato' ? (
+                          <Badge className="bg-green-500 text-white">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            {detailStatus.label}
+                          </Badge>
+                        ) : detailStatus.stato === 'acconto_pagato' ? (
+                          <Badge className="bg-yellow-500 text-white">
+                            <Clock className="w-3 h-3 mr-1" />
+                            {detailStatus.label}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">{detailStatus.label}</Badge>
+                        )}
+                      </Card>
+                    </div>
+                    
+                    {/* Lista transazioni se presenti */}
+                    {(selectedOrder.transactions?.length || 0) > 0 && (
+                      <div className="mt-4">
+                        <h4 className="font-medium mb-2 text-sm">Storico Pagamenti</h4>
+                        <div className="space-y-2">
+                          {selectedOrder.transactions?.map((t, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded">
+                              <div>
+                                <span className="font-medium">{formatCurrency(t.importo)}</span>
+                                <span className="text-muted-foreground ml-2">({t.metodo})</span>
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  {t.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
+                                </Badge>
+                              </div>
+                              <span className="text-muted-foreground">{formatDate(t.data)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                  </Card>
-                  <Card className="p-3">
-                    <p className="text-xs text-muted-foreground mb-1">Saldo</p>
-                    <p className="text-xl font-bold">{formatCurrency(selectedOrder.saldo)}</p>
-                    {selectedOrder.dataSaldo && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Pagato: {formatDate(selectedOrder.dataSaldo)} • {selectedOrder.metodoPagamentoSaldo}
-                      </p>
-                    )}
-                  </Card>
-                </div>
-              </div>
+                  </div>
+                );
+              })()}
 
               {/* Timestamp */}
               <div>
