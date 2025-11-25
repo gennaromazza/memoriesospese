@@ -316,18 +316,22 @@ export async function createOrder(data: InsertOrder): Promise<string> {
 
   // Inizializza transactions array
   // Se acconto > 0, crea transaction iniziale per tracciamento corretto
+  // Se acconto = totale (pagato interamente), registra come "saldo" invece che "acconto"
   const transactions: Transaction[] = [];
   
   if (acconto > 0) {
+    const isPagamentoCompleto = acconto >= totale;
     transactions.push({
-      tipo: "acconto",
+      tipo: isPagamentoCompleto ? "saldo" : "acconto",
       importo: acconto,
       metodo: data.metodoPagamentoAcconto || "contante",
       data: Timestamp.now(),
-      note: "Acconto iniziale registrato alla creazione ordine",
-      emailInviata: false, // L'email verrà inviata separatamente se necessario
+      note: isPagamentoCompleto 
+        ? "Pagamento completo registrato alla creazione ordine" 
+        : "Acconto iniziale registrato alla creazione ordine",
+      emailInviata: false,
     });
-    console.log("💳 Transaction acconto iniziale creata:", transactions[0]);
+    console.log(`💳 Transaction ${isPagamentoCompleto ? 'saldo' : 'acconto'} iniziale creata:`, transactions[0]);
   }
 
   // Normalizza campi opzionali per evitare undefined in Firestore
