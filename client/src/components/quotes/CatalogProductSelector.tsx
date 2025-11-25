@@ -122,7 +122,7 @@ export default function CatalogProductSelector({
                 : categoryDisplayMap[categoryFilter] || categoryFilter}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent position="popper" sideOffset={4} className="z-[200]">
+          <SelectContent position="popper" sideOffset={4}>
             <SelectItem value="all">Tutte le categorie</SelectItem>
             {configuredCategories.length === 0 ? (
               <SelectItem value="none" disabled>
@@ -196,8 +196,8 @@ export default function CatalogProductSelector({
                       </div>
                     )}
 
-                    {/* Checkbox overlay */}
-                    <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                    {/* Checkbox overlay - FIX: removed stopPropagation to allow portal clicks */}
+                    <div className="absolute top-2 right-2">
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggleProduct(product.id)}
