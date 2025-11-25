@@ -644,17 +644,22 @@ export default function QuoteBuilder({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogChange}>
-      <DialogContent className="w-[98vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="text-2xl">{jobType.icona}</span>
-            <FileText className="w-5 h-5" />
-            {editQuoteId ? 'Modifica Preventivo' : 'Crea Preventivo'}
-          </DialogTitle>
-          <DialogDescription>
-            Crea un preventivo personalizzato per il lavoro <span style={{ color: jobType.colore }} className="font-semibold">{jobType.nome}</span>
-          </DialogDescription>
-        </DialogHeader>
+      {/* FIX: Rimuovere overflow dal DialogContent perché blocca i click sui Select/Popover
+           e spostare lo scroll in un wrapper interno */}
+      <DialogContent className="w-[98vw] sm:max-w-4xl p-0">
+        
+        {/* Wrapper scrollabile */}
+        <div className="max-h-[90vh] overflow-y-auto px-6 py-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-2xl">{jobType.icona}</span>
+              <FileText className="w-5 h-5" />
+              {editQuoteId ? 'Modifica Preventivo' : 'Crea Preventivo'}
+            </DialogTitle>
+            <DialogDescription>
+              Crea un preventivo personalizzato per il lavoro <span style={{ color: jobType.colore }} className="font-semibold">{jobType.nome}</span>
+            </DialogDescription>
+          </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -1509,6 +1514,7 @@ export default function QuoteBuilder({
             </div>
           </form>
         </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );
