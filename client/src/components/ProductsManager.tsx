@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,23 @@ import { useToast } from '@/hooks/use-toast';
 import imageCompression from 'browser-image-compression';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Dialog,
   DialogContent,
@@ -36,8 +53,137 @@ import {
   updateProduct,
   deleteProduct,
   useProductCategories,
+  useReorderProducts,
 } from '@/lib/products';
-import type { Product, InsertProduct } from '@shared/booking-types';
+import type { Product, InsertProduct, ProductCategory } from '@shared/booking-types';
+
+interface SortableProductCardProps {
+  product: Product;
+  categories: ProductCategory[];
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+function SortableProductCard({ product, categories, onEdit, onDelete }: SortableProductCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: product.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <Card 
+      ref={setNodeRef} 
+      style={style}
+      className={`${!product.attivo ? 'opacity-60' : ''} ${isDragging ? 'z-50 shadow-lg' : ''}`}
+    >
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div 
+            {...attributes} 
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 -ml-1 mr-2 hover:bg-muted rounded"
+            title="Trascina per riordinare"
+          >
+            <GripVertical className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <CardTitle className="flex items-center gap-2">
+              {product.nome}
+              {!product.attivo && (
+                <Badge variant="secondary" className="text-xs">
+                  Disattivo
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="mt-1">
+              {categories.find((c) => c.value === product.categoria)?.nome || product.categoria}
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {product.immagini && product.immagini.length > 0 && (
+          <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted">
+            <img
+              src={product.immagini[0]}
+              alt={product.nome}
+              className="w-full h-full object-cover"
+            />
+            {product.immagini.length > 1 && (
+              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                +{product.immagini.length - 1} foto
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="text-sm text-muted-foreground line-clamp-2">
+          {product.descrizione || 'Nessuna descrizione'}
+        </p>
+        
+        <div className="space-y-2 pt-2 border-t">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Prezzo base:</span>
+            <span className="font-medium">€{product.prezzo.toFixed(2)}</span>
+          </div>
+          
+          {product.sconto > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Sconto:</span>
+              <Badge variant="secondary">{product.sconto}%</Badge>
+            </div>
+          )}
+          
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium">Prezzo finale:</span>
+            <span className="text-lg font-bold text-primary">
+              €{product.prezzoFinale.toFixed(2)}
+            </span>
+          </div>
+          
+          <div className="flex justify-between items-center pt-2 border-t">
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              <Image className="h-4 w-4" />
+              Foto incluse:
+            </span>
+            <span className="font-semibold">{product.numeroFoto}</span>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={onEdit}
+            data-testid={`button-edit-product-${product.id}`}
+          >
+            <Edit className="h-4 w-4 mr-1" />
+            Modifica
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onDelete}
+            data-testid={`button-delete-product-${product.id}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function ProductsManager() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -72,6 +218,82 @@ export default function ProductsManager() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast();
+  
+  // Drag and drop reorder
+  const reorderMutation = useReorderProducts();
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+    
+    // Get the visible products (filtered or all)
+    const visibleProducts = categoryFilter !== null ? filteredProducts : products;
+    
+    // Find positions in visible list
+    const oldIndex = visibleProducts.findIndex(p => p.id === active.id);
+    const newIndex = visibleProducts.findIndex(p => p.id === over.id);
+    
+    if (oldIndex === -1 || newIndex === -1) return;
+    
+    // Reorder visible products
+    const reorderedVisible = arrayMove(visibleProducts, oldIndex, newIndex);
+    
+    let reorderedProducts: Product[];
+    
+    if (categoryFilter !== null) {
+      // When filter is active: merge reordered filtered items with hidden items
+      // Hidden items maintain their relative positions
+      const visibleIds = new Set(visibleProducts.map(p => p.id));
+      reorderedProducts = [];
+      let visibleIndex = 0;
+      
+      for (const product of products) {
+        if (visibleIds.has(product.id)) {
+          // Insert next reordered visible item
+          reorderedProducts.push(reorderedVisible[visibleIndex]);
+          visibleIndex++;
+        } else {
+          // Keep hidden item in its relative position
+          reorderedProducts.push(product);
+        }
+      }
+    } else {
+      // No filter: use reordered list directly
+      reorderedProducts = reorderedVisible;
+    }
+    
+    // Optimistic UI update
+    setProducts(reorderedProducts);
+    
+    // Persist to Firestore
+    const reorderedIds = reorderedProducts.map(p => p.id);
+    reorderMutation.mutate(reorderedIds, {
+      onSuccess: () => {
+        toast({
+          title: 'Ordine aggiornato',
+          description: 'L\'ordine dei prodotti è stato salvato',
+        });
+      },
+      onError: (error) => {
+        console.error('Errore riordino prodotti:', error);
+        // Rollback on error
+        loadProducts();
+        toast({
+          title: 'Errore',
+          description: 'Impossibile salvare l\'ordine dei prodotti',
+          variant: 'destructive',
+        });
+      }
+    });
+  }
 
   // Carica prodotti
   useEffect(() => {
@@ -428,100 +650,28 @@ export default function ProductsManager() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProducts.map(product => (
-            <Card key={product.id} className={!product.attivo ? 'opacity-60' : ''}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <CardTitle className="flex items-center gap-2">
-                      {product.nome}
-                      {!product.attivo && (
-                        <Badge variant="secondary" className="text-xs">
-                          Disattivo
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      {allCategories.find((c) => c.value === product.categoria)?.nome || product.categoria}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* Immagine prodotto */}
-                {product.immagini && product.immagini.length > 0 && (
-                  <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted">
-                    <img
-                      src={product.immagini[0]}
-                      alt={product.nome}
-                      className="w-full h-full object-cover"
-                    />
-                    {product.immagini.length > 1 && (
-                      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                        +{product.immagini.length - 1} foto
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {product.descrizione || 'Nessuna descrizione'}
-                </p>
-                
-                <div className="space-y-2 pt-2 border-t">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Prezzo base:</span>
-                    <span className="font-medium">€{product.prezzo.toFixed(2)}</span>
-                  </div>
-                  
-                  {product.sconto > 0 && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Sconto:</span>
-                      <Badge variant="secondary">{product.sconto}%</Badge>
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Prezzo finale:</span>
-                    <span className="text-lg font-bold text-primary">
-                      €{product.prezzoFinale.toFixed(2)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <span className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Image className="h-4 w-4" />
-                      Foto incluse:
-                    </span>
-                    <span className="font-semibold">{product.numeroFoto}</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => openEditDialog(product)}
-                    data-testid={`button-edit-product-${product.id}`}
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Modifica
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setDeleteConfirmId(product.id)}
-                    data-testid={`button-delete-product-${product.id}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={filteredProducts.map(p => p.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProducts.map(product => (
+                <SortableProductCard
+                  key={product.id}
+                  product={product}
+                  categories={allCategories}
+                  onEdit={() => openEditDialog(product)}
+                  onDelete={() => setDeleteConfirmId(product.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Dialog Crea/Modifica Prodotto */}

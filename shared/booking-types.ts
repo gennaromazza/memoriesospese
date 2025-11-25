@@ -20,6 +20,7 @@ export interface Product {
   categoria: string; // Riferimento a ProductCategory.value
   attivo: boolean;
   immagini: string[]; // Array URLs immagini prodotto da Firebase Storage
+  displayOrder?: number; // Ordine di visualizzazione (opzionale per backward compatibility)
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
