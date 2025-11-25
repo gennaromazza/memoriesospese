@@ -12,9 +12,10 @@ const router = Router();
 
 // --- CONFIGURAZIONE ---
 const GMAIL_DAILY_LIMIT = 2000;
-const BATCH_SIZE = 50; // Aggiornamento DB ogni 50 email
-const CONCURRENCY_LIMIT = 5; // Invii paralleli a Gmail (max 5 alla volta)
-const DELAY_BETWEEN_BATCHES_MS = 2000; // Rate limiting passivo
+const BATCH_SIZE = 30; // Aggiornamento DB ogni 30 email (ridotto per update più frequenti)
+const CONCURRENCY_LIMIT = 2; // Invii paralleli a Gmail (ridotto per rispettare rate limit)
+const DELAY_BETWEEN_CHUNKS_MS = 1500; // Delay tra chunks (~80 email/min = sicuro sotto 250/min)
+const DELAY_BETWEEN_BATCHES_MS = 3000; // Rate limiting tra batch
 const HEARTBEAT_TIMEOUT = 5 * 60 * 1000; // 5 minuti
 
 // --- INTERFACCE ---
@@ -216,7 +217,7 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
       const batch = recipients.slice(i, i + BATCH_SIZE);
 
-      // Parallelismo Controllato all'interno del batch (chunks di 5)
+      // Parallelismo Controllato all'interno del batch (chunks di 2)
       for (let j = 0; j < batch.length; j += CONCURRENCY_LIMIT) {
         const chunk = batch.slice(j, j + CONCURRENCY_LIMIT);
 
@@ -239,6 +240,13 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
               retry: false,
             });
           }
+        }
+
+        // Rate limiting tra chunks per evitare quota exceeded
+        if (j + CONCURRENCY_LIMIT < batch.length) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, DELAY_BETWEEN_CHUNKS_MS),
+          );
         }
       }
 
