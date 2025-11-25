@@ -2715,7 +2715,7 @@ function CreateOrderDialog({
                           >
                             <SelectValue placeholder="Seleziona prodotto" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                             {products.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.nome} - €{p.prezzoFinale.toFixed(2)} (
