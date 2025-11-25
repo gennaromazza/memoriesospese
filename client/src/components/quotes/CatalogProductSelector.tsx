@@ -122,7 +122,7 @@ export default function CatalogProductSelector({
                 : categoryDisplayMap[categoryFilter] || categoryFilter}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent position="popper" sideOffset={4}>
+          <SelectContent position="popper" sideOffset={4} className="z-[9999]">
             <SelectItem value="all">Tutte le categorie</SelectItem>
             {configuredCategories.length === 0 ? (
               <SelectItem value="none" disabled>
