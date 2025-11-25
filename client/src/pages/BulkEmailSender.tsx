@@ -144,15 +144,13 @@ export default function BulkEmailSender() {
         throw new Error('Oggetto e corpo email sono obbligatori');
       }
 
-      return apiRequest('/api/bulk-email/send', {
-        method: 'POST',
-        body: JSON.stringify({
-          subject,
-          body,
-          recipients: selectedList,
-          senderId: 'admin'
-        })
+      const response = await apiRequest('POST', '/api/bulk-email/send', {
+        subject,
+        body,
+        recipients: selectedList,
+        senderId: 'admin'
       });
+      return response.json();
     },
     onSuccess: (data) => {
       toast({
