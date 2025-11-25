@@ -61,7 +61,9 @@ import {
   Upload,
   X,
   Image as ImageIcon,
-  CreditCard
+  CreditCard,
+  Eye,
+  Package
 } from 'lucide-react';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
@@ -681,7 +683,7 @@ export default function QuoteBuilder({
                     Carica da Template
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <Select value={selectedTemplateId} onValueChange={handleLoadTemplate}>
                     <SelectTrigger data-testid="select-template">
                       <SelectValue placeholder="Seleziona template..." />
@@ -694,6 +696,66 @@ export default function QuoteBuilder({
                       ))}
                     </SelectContent>
                   </Select>
+                  
+                  {/* Anteprima Template Selezionato */}
+                  {selectedTemplateId && (() => {
+                    const selectedTemplate = filteredTemplates.find(t => t.id === selectedTemplateId);
+                    if (!selectedTemplate) return null;
+                    
+                    const templateDiscount = (selectedTemplate as any).discountType;
+                    const templateDiscountValue = (selectedTemplate as any).discountValue || 0;
+                    const productCount = selectedTemplate.defaultProducts?.length || 0;
+                    const templateTotal = selectedTemplate.defaultProducts?.reduce((sum, p) => sum + (p.prezzo || 0), 0) || 0;
+                    
+                    return (
+                      <div className="bg-white rounded-lg border p-3 space-y-2 text-sm">
+                        <div className="font-medium text-blue-800 flex items-center gap-2">
+                          <Eye className="w-4 h-4" />
+                          Anteprima Template
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Package className="w-3.5 h-3.5" />
+                            <span>{productCount} prodotti</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Euro className="w-3.5 h-3.5" />
+                            <span>€{templateTotal.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        
+                        {templateDiscount && (
+                          <div className="flex items-center gap-1 text-orange-600">
+                            <Tag className="w-3.5 h-3.5" />
+                            <span>
+                              Sconto: {templateDiscount === 'percent' 
+                                ? `${templateDiscountValue}%` 
+                                : `€${templateDiscountValue.toFixed(2)}`}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {productCount > 0 && (
+                          <div className="pt-2 border-t">
+                            <div className="text-xs text-muted-foreground mb-1">Prodotti inclusi:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {selectedTemplate.defaultProducts?.slice(0, 5).map((p, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {p.nome}
+                                </Badge>
+                              ))}
+                              {productCount > 5 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{productCount - 5} altri
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             )}
