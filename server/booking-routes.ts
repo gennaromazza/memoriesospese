@@ -1752,6 +1752,46 @@ router.patch("/:id/status", async (req, res) => {
     console.log(
       `✅ Stato prenotazione ${id} cambiato da "${oldStato}" a "${stato}"`,
     );
+    
+    // SYNC BOOKING → ORDINE: Se booking viene annullata, annulla anche l'ordine associato
+    if (stato === "annullata") {
+      try {
+        // Cerca ordini associati a questo booking
+        const ordersSnapshot = await db.collection("orders")
+          .where("bookingId", "==", id)
+          .get();
+        
+        if (!ordersSnapshot.empty) {
+          for (const orderDoc of ordersSnapshot.docs) {
+            const orderData = orderDoc.data();
+            // Annulla solo se l'ordine non è già annullato o completato
+            if (orderData.stato !== 'annullato' && orderData.stato !== 'completato') {
+              await db.collection("orders").doc(orderDoc.id).update({
+                stato: 'annullato',
+                updatedAt: FieldValue.serverTimestamp()
+              });
+              console.log(`✅ Ordine ${orderDoc.id} annullato (sync da booking ${id})`);
+              
+              // Se l'ordine ha una galleria associata, aggiorna anche quella
+              if (orderData.galleryId) {
+                try {
+                  await db.collection("galleries").doc(orderData.galleryId).update({
+                    orderStatus: 'annullato',
+                    updatedAt: FieldValue.serverTimestamp()
+                  });
+                  console.log(`✅ Galleria ${orderData.galleryId} aggiornata con orderStatus: annullato`);
+                } catch (galleryError: any) {
+                  console.error(`⚠️ Errore aggiornamento galleria ${orderData.galleryId}:`, galleryError.message);
+                }
+              }
+            }
+          }
+        }
+      } catch (orderSyncError: any) {
+        console.error(`⚠️ Errore sincronizzazione ordini per booking ${id}:`, orderSyncError.message);
+        // Non blocca l'operazione
+      }
+    }
 
     // Invia email notifica al cliente solo se stato cambia (e non è già "confermata" che usa /approve)
     try {

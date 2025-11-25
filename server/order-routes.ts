@@ -206,6 +206,47 @@ router.patch('/:id', async (req: Request, res: Response) => {
         // Non blocca l'operazione, è solo un sync
       }
     }
+    
+    // 4.2 SYNC ORDINE → BOOKING: Se lo status dell'ordine cambia, sincronizza il booking associato
+    if (updateData.status && currentOrder.bookingId) {
+      try {
+        const bookingRef = db.collection('bookings').doc(currentOrder.bookingId);
+        const bookingDoc = await bookingRef.get();
+        
+        if (bookingDoc.exists) {
+          const bookingData = bookingDoc.data()!;
+          const currentBookingStato = bookingData.stato;
+          let newBookingStato: string | null = null;
+          
+          // Mapping: Order status → Booking stato
+          if (updateData.status === 'completato') {
+            // Ordine completato → Booking deve essere "completata"
+            // Guard: NON sovrascrivere se già completata o annullata
+            if (currentBookingStato !== 'completata' && currentBookingStato !== 'annullata') {
+              newBookingStato = 'completata';
+            }
+          } else if (updateData.status === 'annullato') {
+            // Ordine annullato → Booking deve essere "annullata"
+            // Guard: NON sovrascrivere se già completata o annullata
+            // Un booking già completato non deve essere annullato retroattivamente
+            if (currentBookingStato !== 'annullata' && currentBookingStato !== 'completata') {
+              newBookingStato = 'annullata';
+            }
+          }
+          
+          if (newBookingStato) {
+            await bookingRef.update({
+              stato: newBookingStato,
+              updatedAt: FieldValue.serverTimestamp()
+            });
+            console.log(`✅ Booking ${currentOrder.bookingId} sincronizzato: ${currentBookingStato} → ${newBookingStato}`);
+          }
+        }
+      } catch (bookingError: any) {
+        console.error(`⚠️ Errore sincronizzazione booking ${currentOrder.bookingId}:`, bookingError.message);
+        // Non blocca l'operazione, è solo un sync
+      }
+    }
 
     // 5. Fetch ordine aggiornato per email
     const updatedOrderDoc = await orderRef.get();
