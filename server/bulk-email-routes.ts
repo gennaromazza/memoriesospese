@@ -718,6 +718,98 @@ router.get("/jobs/:jobId", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/jobs/:jobId/retry-failed", async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    
+    const originalJobDoc = await db.collection("bulkEmailJobs").doc(jobId).get();
+    if (!originalJobDoc.exists) {
+      return res.status(404).json({ success: false, error: "Job non trovato" });
+    }
+    
+    const originalJob = originalJobDoc.data();
+    const errors = originalJob?.errors || [];
+    
+    if (errors.length === 0) {
+      return res.status(400).json({ success: false, error: "Nessun errore da riprovare" });
+    }
+    
+    const originalRecipients = originalJob?.recipients || [];
+    const failedEmails = new Set(errors.map((e: any) => e.email));
+    
+    const recipientsToRetry = originalRecipients.filter((r: any) => 
+      failedEmails.has(r.email)
+    );
+    
+    if (recipientsToRetry.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Impossibile trovare i destinatari da riprovare" 
+      });
+    }
+    
+    const today = new Date().toISOString().split("T")[0];
+    const quotaRef = db.collection("emailQuota").doc(today);
+    const newJobRef = db.collection("bulkEmailJobs").doc();
+    
+    const result = await db.runTransaction(async (transaction) => {
+      const quotaDoc = await transaction.get(quotaRef);
+      const data = quotaDoc.exists ? quotaDoc.data() : {};
+      const currentReserved = data?.reserved || 0;
+      const currentSent = data?.sent || 0;
+      const totalUsed = currentReserved + currentSent;
+      
+      if (totalUsed + recipientsToRetry.length > GMAIL_DAILY_LIMIT) {
+        throw new Error(
+          `Quota insufficiente. Usati: ${totalUsed}/${GMAIL_DAILY_LIMIT}`
+        );
+      }
+      
+      transaction.set(
+        quotaRef,
+        {
+          reserved: FieldValue.increment(recipientsToRetry.length),
+          date: today,
+          lastUpdated: new Date(),
+        },
+        { merge: true }
+      );
+      
+      const newJob: BulkEmailJob = {
+        id: newJobRef.id,
+        subject: originalJob?.subject || "",
+        body: originalJob?.body || "",
+        recipients: recipientsToRetry,
+        totalRecipients: recipientsToRetry.length,
+        quotaReserved: recipientsToRetry.length,
+        quotaConsumed: 0,
+        quotaDate: today,
+        sentCount: 0,
+        failedCount: 0,
+        status: "queued",
+        errors: [],
+        createdAt: new Date(),
+        lastHeartbeatAt: new Date(),
+        createdBy: "admin",
+        retryOf: jobId,
+      };
+      
+      transaction.set(newJobRef, newJob);
+      return { jobId: newJobRef.id, recipientsCount: recipientsToRetry.length };
+    });
+    
+    res.json({ 
+      success: true, 
+      jobId: result.jobId, 
+      recipientsCount: result.recipientsCount,
+      message: `Nuovo job creato per ${result.recipientsCount} email fallite` 
+    });
+  } catch (error: any) {
+    console.error("❌ Errore POST /retry-failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================================
 // EMAIL HELPER
 // ============================================================================

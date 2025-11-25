@@ -195,6 +195,29 @@ export default function BulkEmailSender() {
     sendMutation.mutate();
   };
 
+  // Mutation per riprovare email fallite
+  const retryFailedMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await apiRequest('POST', `/api/bulk-email/jobs/${jobId}/retry-failed`, {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: '🔄 Nuovo invio avviato!',
+        description: `Riprovando ${data.recipientsCount} email fallite...`
+      });
+      setActiveJobId(data.jobId);
+      queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/jobs'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: '❌ Errore',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
   // Toggle singolo destinatario
   const handleToggleRecipient = (email: string) => {
     const newSet = new Set(selectedRecipients);
@@ -617,15 +640,37 @@ export default function BulkEmailSender() {
                       </div>
                     )}
 
-                    {/* Pulsante chiudi quando completato */}
+                    {/* Pulsanti azione quando completato */}
                     {activeJob.status !== 'in_progress' && (
-                      <Button 
-                        variant="outline" 
-                        className="w-full mt-2"
-                        onClick={() => setActiveJobId(null)}
-                      >
-                        Chiudi e torna all'editor
-                      </Button>
+                      <div className="space-y-2 mt-4">
+                        {/* Pulsante riprova email fallite */}
+                        {activeJob.failedCount > 0 && (
+                          <Button 
+                            className="w-full bg-amber-600 hover:bg-amber-700"
+                            onClick={() => retryFailedMutation.mutate(activeJob.id)}
+                            disabled={retryFailedMutation.isPending}
+                          >
+                            {retryFailedMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Creazione nuovo job...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-2" />
+                                🔄 Riprova {activeJob.failedCount} email fallite
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => setActiveJobId(null)}
+                        >
+                          Chiudi e torna all'editor
+                        </Button>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -674,16 +719,29 @@ export default function BulkEmailSender() {
                         className="h-2 mb-2"
                       />
 
-                      <div className="flex items-center gap-4 text-sm">
-                        <span>
-                          <CheckCircle className="h-4 w-4 inline mr-1 text-green-600" />
-                          {job.sentCount}/{job.totalRecipients}
-                        </span>
-                        {job.failedCount > 0 && (
-                          <span className="text-destructive">
-                            <XCircle className="h-4 w-4 inline mr-1" />
-                            {job.failedCount} errori
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 text-sm">
+                          <span>
+                            <CheckCircle className="h-4 w-4 inline mr-1 text-green-600" />
+                            {job.sentCount}/{job.totalRecipients}
                           </span>
+                          {job.failedCount > 0 && (
+                            <span className="text-destructive">
+                              <XCircle className="h-4 w-4 inline mr-1" />
+                              {job.failedCount} errori
+                            </span>
+                          )}
+                        </div>
+                        {job.failedCount > 0 && job.status === 'completed' && (
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                            onClick={() => retryFailedMutation.mutate(job.id)}
+                            disabled={retryFailedMutation.isPending}
+                          >
+                            🔄 Riprova ({job.failedCount})
+                          </Button>
                         )}
                       </div>
                     </div>
