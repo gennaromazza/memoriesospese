@@ -707,6 +707,14 @@ export default function QuoteBuilder({
                     const productCount = selectedTemplate.defaultProducts?.length || 0;
                     const templateTotal = selectedTemplate.defaultProducts?.reduce((sum, p) => sum + (p.prezzo || 0), 0) || 0;
                     
+                    // Calcola prezzo finale scontato
+                    let finalPrice = templateTotal;
+                    if (templateDiscount === 'amount') {
+                      finalPrice = Math.max(0, templateTotal - templateDiscountValue);
+                    } else if (templateDiscount === 'percent') {
+                      finalPrice = templateTotal * (1 - templateDiscountValue / 100);
+                    }
+                    
                     return (
                       <div className="bg-white rounded-lg border p-3 space-y-2 text-sm">
                         <div className="font-medium text-blue-800 flex items-center gap-2">
@@ -721,35 +729,38 @@ export default function QuoteBuilder({
                           </div>
                           <div className="flex items-center gap-1">
                             <Euro className="w-3.5 h-3.5" />
-                            <span>€{templateTotal.toFixed(2)}</span>
+                            <span className={templateDiscount ? 'line-through' : ''}>
+                              €{templateTotal.toFixed(2)}
+                            </span>
                           </div>
                         </div>
                         
                         {templateDiscount && (
-                          <div className="flex items-center gap-1 text-orange-600">
-                            <Tag className="w-3.5 h-3.5" />
-                            <span>
-                              Sconto: {templateDiscount === 'percent' 
-                                ? `${templateDiscountValue}%` 
-                                : `€${templateDiscountValue.toFixed(2)}`}
-                            </span>
-                          </div>
+                          <>
+                            <div className="flex items-center gap-1 text-orange-600">
+                              <Tag className="w-3.5 h-3.5" />
+                              <span>
+                                Sconto: {templateDiscount === 'percent' 
+                                  ? `${templateDiscountValue}%` 
+                                  : `€${templateDiscountValue.toFixed(2)}`}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 text-green-600 font-semibold">
+                              <Euro className="w-3.5 h-3.5" />
+                              <span>Prezzo Finale: €{finalPrice.toFixed(2)}</span>
+                            </div>
+                          </>
                         )}
                         
                         {productCount > 0 && (
                           <div className="pt-2 border-t">
-                            <div className="text-xs text-muted-foreground mb-1">Prodotti inclusi:</div>
-                            <div className="flex flex-wrap gap-1">
-                              {selectedTemplate.defaultProducts?.slice(0, 5).map((p, idx) => (
+                            <div className="text-xs text-muted-foreground mb-1">Prodotti inclusi ({productCount}):</div>
+                            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                              {selectedTemplate.defaultProducts?.map((p, idx) => (
                                 <Badge key={idx} variant="secondary" className="text-xs">
-                                  {p.nome}
+                                  {p.nome} - €{(p.prezzo || 0).toFixed(0)}
                                 </Badge>
                               ))}
-                              {productCount > 5 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{productCount - 5} altri
-                                </Badge>
-                              )}
                             </div>
                           </div>
                         )}
