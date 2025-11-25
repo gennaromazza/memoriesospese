@@ -244,16 +244,19 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
 
       // --- AGGIORNAMENTO FIRESTORE (Solo 1 volta per Batch!) ---
       // Aggiorna contatori e Heartbeat per evitare timeout
-      await jobRef.update({
+      const updateData: Record<string, any> = {
         sentCount,
         failedCount,
-        quotaConsumed: sentCount, // Aggiorniamo il consumato reale
-        errors:
-          currentErrors.length > 0
-            ? FieldValue.arrayUnion(...currentErrors)
-            : undefined,
-        lastHeartbeatAt: new Date(), // <--- CRITICO: tiene vivo il job
-      });
+        quotaConsumed: sentCount,
+        lastHeartbeatAt: new Date(),
+      };
+      
+      // Aggiungi errori solo se presenti (Firestore non accetta undefined)
+      if (currentErrors.length > 0) {
+        updateData.errors = FieldValue.arrayUnion(...currentErrors);
+      }
+      
+      await jobRef.update(updateData);
 
       // Pulisci buffer errori
       currentErrors = [];
