@@ -3040,7 +3040,7 @@ function CreateOrderDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isPending || selectedProducts.length === 0}
+            disabled={isPending || (selectedProducts.length === 0 && customProducts.length === 0)}
             className="bg-sage hover:bg-dark-sage"
             data-testid="button-submit-order"
           >
