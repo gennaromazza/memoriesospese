@@ -1,11 +1,10 @@
-
 /**
  * QUOTE TEMPLATES MANAGER
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useEffect } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -420,7 +419,7 @@ export default function QuoteTemplatesManager() {
 
   // Load editing template data into form when editingTemplate changes
   useEffect(() => {
-    if (editingTemplate && editModalOpen) {
+    if (editingTemplate) {
       const customProducts = editingTemplate.defaultProducts
         .filter((p) => !p.productId)
         .map((p) => ({
@@ -458,7 +457,7 @@ export default function QuoteTemplatesManager() {
         attivo: editingTemplate.attivo,
       });
     }
-  }, [editingTemplate, editModalOpen, form]);
+  }, [editingTemplate?.id, editModalOpen, form]); // Depend on editingTemplate?.id to reset when a new template is selected
 
   // Watch values for totals
   const catalogProductIds = form.watch('catalogProductIds') || [];
@@ -1096,7 +1095,7 @@ export default function QuoteTemplatesManager() {
                       <span className="text-green-700">Subtotale</span>
                       <span className="font-medium">€{subtotale.toFixed(2)}</span>
                     </div>
-                    
+
                     {discountType && discountValue > 0 && (
                       <div className="flex items-center justify-between text-sm text-orange-600">
                         <span>
