@@ -110,8 +110,27 @@ export async function getFinancialSummary(
   // 3. Filtra per date se specificate
   const filterByDate = (date: any): boolean => {
     if (!startDate && !endDate) return true;
+    if (!date) return false; // Data mancante = escludi
     
-    const d = date instanceof Timestamp ? date.toDate() : new Date(date);
+    // Gestisce tutti i formati possibili:
+    // 1. Timestamp istanza (date.toDate())
+    // 2. Timestamp serializzato ({seconds, nanoseconds})
+    // 3. Date object
+    // 4. String ISO date
+    let d: Date;
+    if (date instanceof Timestamp) {
+      d = date.toDate();
+    } else if (date && typeof date === 'object' && 'seconds' in date) {
+      // Timestamp serializzato da Firestore
+      d = new Date(date.seconds * 1000);
+    } else if (date instanceof Date) {
+      d = date;
+    } else {
+      d = new Date(date);
+    }
+    
+    // Verifica validità data
+    if (isNaN(d.getTime())) return false;
     
     if (startDate && d < startDate) return false;
     if (endDate && d > endDate) return false;
@@ -174,6 +193,26 @@ export async function getFinancialSummary(
 }
 
 /**
+ * Helper: Converte qualsiasi formato data in Date
+ * Gestisce Timestamp, Timestamp serializzato, Date, string
+ */
+function toDate(date: any): Date | null {
+  if (!date) return null;
+  
+  if (date instanceof Timestamp) {
+    return date.toDate();
+  } else if (date && typeof date === 'object' && 'seconds' in date) {
+    // Timestamp serializzato da Firestore
+    return new Date(date.seconds * 1000);
+  } else if (date instanceof Date) {
+    return date;
+  } else {
+    const d = new Date(date);
+    return isNaN(d.getTime()) ? null : d;
+  }
+}
+
+/**
  * Ottiene dati per grafico mensile (ultimi 12 mesi)
  */
 export async function getMonthlyData(): Promise<MonthlyData[]> {
@@ -210,9 +249,10 @@ export async function getMonthlyData(): Promise<MonthlyData[]> {
     const transactions: Transaction[] = order.transactions || [];
 
     transactions.forEach((t) => {
-      const d = t.data instanceof Timestamp ? t.data.toDate() : new Date(t.data);
+      const d = toDate(t.data);
+      if (!d) return;
+      
       const idx = getMonthIndex(d);
-
       if (idx >= 0 && idx < 12) {
         months[idx].entrate += t.importo;
       }
@@ -221,9 +261,10 @@ export async function getMonthlyData(): Promise<MonthlyData[]> {
 
   // Aggiungi movimenti cassa
   cashMovements.forEach((mov) => {
-    const d = mov.data instanceof Timestamp ? mov.data.toDate() : new Date(mov.data);
+    const d = toDate(mov.data);
+    if (!d) return;
+    
     const idx = getMonthIndex(d);
-
     if (idx >= 0 && idx < 12) {
       if (mov.tipo === "entrata") {
         months[idx].entrate += mov.importo;
@@ -387,12 +428,17 @@ export async function exportFinancialData(
   startDate?: Date,
   endDate?: Date
 ): Promise<void> {
-  const toDate = (d: Date | Timestamp): Date => {
-    return d instanceof Timestamp ? d.toDate() : d;
+  const toDateLocal = (d: any): Date => {
+    if (!d) return new Date(0);
+    if (d instanceof Timestamp) return d.toDate();
+    if (d && typeof d === 'object' && 'seconds' in d) return new Date(d.seconds * 1000);
+    if (d instanceof Date) return d;
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? new Date(0) : parsed;
   };
 
-  const formatDate = (d: Date | Timestamp): string => {
-    return toDate(d).toLocaleDateString("it-IT");
+  const formatDate = (d: any): string => {
+    return toDateLocal(d).toLocaleDateString("it-IT");
   };
 
   const formatCurrency = (value: number): string => {
@@ -407,8 +453,9 @@ export async function exportFinancialData(
   const orders = await getAllOrders();
 
   // Filtra per range date se specificato
-  const filterByDate = (d: Date | Timestamp): boolean => {
-    const date = toDate(d);
+  const filterByDate = (d: any): boolean => {
+    const date = toDateLocal(d);
+    if (date.getTime() === 0) return false; // Data non valida
     if (startDate && date < startDate) return false;
     if (endDate && date > endDate) return false;
     return true;
