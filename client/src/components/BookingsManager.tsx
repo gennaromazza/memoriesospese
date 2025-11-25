@@ -1844,7 +1844,7 @@ export default function BookingsManager({
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                         <SelectItem value="in_attesa">In Attesa</SelectItem>
                         <SelectItem value="confermata">Confermata</SelectItem>
                         <SelectItem value="completata">Completata</SelectItem>
