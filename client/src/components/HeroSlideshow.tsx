@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -13,6 +13,15 @@ export default function HeroSlideshow() {
   const [images, setImages] = useState<SlideshowImage[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
+
+  const preloadImage = useCallback((url: string, index: number) => {
+    const img = new Image();
+    img.onload = () => {
+      setLoadedImages(prev => new Set([...prev, index]));
+    };
+    img.src = url;
+  }, []);
 
   useEffect(() => {
     async function fetchSlideshowImages() {
@@ -40,9 +49,16 @@ export default function HeroSlideshow() {
             });
 
             setImages(fetchedImages);
+            
+            if (fetchedImages.length > 1) {
+              setTimeout(() => {
+                fetchedImages.slice(1).forEach((img, idx) => {
+                  preloadImage(img.url, idx + 1);
+                });
+              }, 100);
+            }
           }
         } catch (innerError) {
-          // In caso di errore, non facciamo nulla e lasciamo l'array vuoto
         }
 
         setLoading(false);
@@ -52,7 +68,7 @@ export default function HeroSlideshow() {
     }
 
     fetchSlideshowImages();
-  }, []);
+  }, [preloadImage]);
 
   useEffect(() => {
     if (images.length <= 1) return;
@@ -65,7 +81,9 @@ export default function HeroSlideshow() {
   }, [images.length]);
 
   if (loading) {
-    return null;
+    return (
+      <div className="absolute inset-0 overflow-hidden bg-gradient-to-r from-sage/30 to-mint/30 animate-pulse" />
+    );
   }
 
   if (images.length === 0) {
@@ -81,11 +99,29 @@ export default function HeroSlideshow() {
             index === currentImageIndex ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          <img
-            src={image.url}
-            alt={image.alt}
-            className="object-cover w-full h-full"
-          />
+          {loadedImages.has(index) ? (
+            <img
+              src={image.url}
+              alt={image.alt}
+              className="object-cover w-full h-full"
+              loading={index === 0 ? "eager" : "lazy"}
+              decoding={index === 0 ? "sync" : "async"}
+              fetchPriority={index === 0 ? "high" : "low"}
+            />
+          ) : (
+            <>
+              <div className="w-full h-full bg-gradient-to-r from-sage/30 to-mint/30 animate-pulse" />
+              <img
+                src={image.url}
+                alt={image.alt}
+                className="object-cover w-full h-full absolute inset-0"
+                loading={index === 0 ? "eager" : "lazy"}
+                decoding={index === 0 ? "sync" : "async"}
+                fetchPriority={index === 0 ? "high" : "low"}
+                onLoad={() => setLoadedImages(prev => new Set([...prev, index]))}
+              />
+            </>
+          )}
           <div className="absolute inset-0 bg-gradient-to-r from-mint/70 to-sage/50 mix-blend-multiply" aria-hidden="true"></div>
         </div>
       ))}

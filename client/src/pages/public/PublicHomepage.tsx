@@ -36,6 +36,7 @@ import libroCopertina from "@assets/libro-copertina.jpg";
 import libroPdf from "@assets/lasciati-trasportare.pdf";
 import gennaroProfile from "@assets/DSCF7220 copia (Grande)_1763486024338.jpg";
 import ReviewsWidget from "@/components/ReviewsWidget";
+import { usePrefetchPopularPages } from "@/hooks/usePrefetch";
 
 interface PortfolioPhoto {
   id: string;
@@ -55,6 +56,8 @@ export default function PublicHomepage() {
   const [weddingVideos, setWeddingVideos] = useState<any[]>([]);
   const [loadingBlog, setLoadingBlog] = useState(true);
   const [loadingVideos, setLoadingVideos] = useState(true);
+
+  usePrefetchPopularPages();
 
   // Carousel for campaigns
   const [emblaRef] = useEmblaCarousel({ loop: true, align: "center" }, [
