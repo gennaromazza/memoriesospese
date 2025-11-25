@@ -39,6 +39,14 @@ interface ManualBookingModalProps {
   onSuccess: () => void;
 }
 
+interface CustomProduct {
+  id: string;
+  nome: string;
+  prezzo: number;
+  numeroFoto: number;
+  quantita: number;
+}
+
 export default function ManualBookingModal({ isOpen, onClose, onSuccess }: ManualBookingModalProps) {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
@@ -55,6 +63,11 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     prodottoId: string;
     quantita: number;
   }>>([]);
+  const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customNome, setCustomNome] = useState('');
+  const [customPrezzo, setCustomPrezzo] = useState<number>(0);
+  const [customNumeroFoto, setCustomNumeroFoto] = useState<number>(0);
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -114,11 +127,52 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     return product.prezzoFinale * quantita;
   };
 
-  // Helper: Calcola totale prenotazione
+  // Helper: Calcola totale prenotazione (catalogo + custom)
   const calculateTotale = (): number => {
-    return selectedProducts.reduce((sum, item) => {
+    const catalogoTotale = selectedProducts.reduce((sum, item) => {
       return sum + getProductSubtotal(item.prodottoId, item.quantita);
     }, 0);
+    const customTotale = customProducts.reduce((sum, item) => {
+      return sum + item.prezzo * item.quantita;
+    }, 0);
+    return catalogoTotale + customTotale;
+  };
+
+  // Helper: Aggiungi prodotto personalizzato con validazione
+  const addCustomProduct = () => {
+    if (!customNome.trim()) return;
+    if (typeof customPrezzo !== 'number' || isNaN(customPrezzo) || customPrezzo <= 0) return;
+    
+    const validNumeroFoto = typeof customNumeroFoto === 'number' && !isNaN(customNumeroFoto) && customNumeroFoto >= 0
+      ? customNumeroFoto
+      : 0;
+    
+    const newCustom: CustomProduct = {
+      id: `custom_${Date.now()}`,
+      nome: customNome.trim(),
+      prezzo: customPrezzo,
+      numeroFoto: validNumeroFoto,
+      quantita: 1,
+    };
+    setCustomProducts([...customProducts, newCustom]);
+    setCustomNome('');
+    setCustomPrezzo(0);
+    setCustomNumeroFoto(0);
+    setShowCustomForm(false);
+  };
+
+  // Helper: Rimuovi prodotto personalizzato
+  const removeCustomProduct = (id: string) => {
+    setCustomProducts(customProducts.filter((p) => p.id !== id));
+  };
+
+  // Helper: Aggiorna quantità prodotto personalizzato
+  const updateCustomQuantita = (id: string, quantita: number) => {
+    setCustomProducts(
+      customProducts.map((p) =>
+        p.id === id ? { ...p, quantita: Math.max(1, quantita) } : p
+      )
+    );
   };
 
   // Reset form quando modal si apre
@@ -132,6 +186,11 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       setDataShootingDate('');
       setSelectedSlot(null);
       setSelectedProducts([]);
+      setCustomProducts([]);
+      setShowCustomForm(false);
+      setCustomNome('');
+      setCustomPrezzo(0);
+      setCustomNumeroFoto(0);
       setNote('');
     }
   }, [isOpen]);
@@ -145,7 +204,9 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   useEffect(() => {
     setSelectedSlot(null);
     setDataShootingDate('');
-    setSelectedProducts([]); // CRITICAL: Reset prodotti per evitare prodotti non disponibili
+    setSelectedProducts([]);
+    setCustomProducts([]);
+    setShowCustomForm(false);
   }, [campaignId]);
 
   // Auto-seleziona prima campagna attiva
@@ -188,9 +249,8 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       return;
     }
 
-    // Validazione prodotti multi-prodotto (opzionale)
+    // Validazione prodotti catalogo (opzionale)
     if (selectedProducts.length > 0) {
-      // Se ci sono prodotti, verifica che siano tutti completati
       if (selectedProducts.some(p => !p.prodottoId || p.quantita <= 0)) {
         toast({
           title: 'Prodotti incompleti',
@@ -200,13 +260,25 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         return;
       }
 
-      // CRITICAL: Verifica che tutti i prodotti appartengano alla campagna corrente
       const availableProductIds = availableProducts.map(p => p.id);
       const invalidProducts = selectedProducts.filter(p => !availableProductIds.includes(p.prodottoId));
       if (invalidProducts.length > 0) {
         toast({
           title: 'Prodotti non validi',
           description: 'Alcuni prodotti selezionati non sono disponibili per questa campagna. Rimuovili prima di continuare.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Validazione prodotti custom
+    if (customProducts.length > 0) {
+      const invalidCustom = customProducts.filter(p => !p.nome?.trim() || p.prezzo <= 0 || p.quantita <= 0);
+      if (invalidCustom.length > 0) {
+        toast({
+          title: 'Prodotti personalizzati non validi',
+          description: 'Tutti i prodotti personalizzati devono avere nome, prezzo positivo e quantità valida',
           variant: 'destructive',
         });
         return;
@@ -220,19 +292,34 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       const dataInizioDate = new Date(selectedSlot.start);
       const dataFineDate = new Date(selectedSlot.end);
 
-      // Costruisci array OrderItem (se presenti) con snapshot completo
+      // Costruisci array OrderItem (catalogo + custom)
       let prodottiOrderItems: OrderItem[] | undefined = undefined;
-      if (selectedProducts.length > 0) {
-        prodottiOrderItems = selectedProducts.map(item => {
-          const product = products.find(p => p.id === item.prodottoId)!;
-          return {
-            prodottoId: product.id,
-            prodottoNome: product.nome,
-            prodottoPrezzo: product.prezzoFinale,
-            prodottoNumeroFoto: product.numeroFoto,
-            quantita: item.quantita,
-          };
-        });
+      
+      // Prodotti da catalogo
+      const catalogoOrderItems: OrderItem[] = selectedProducts.map(item => {
+        const product = products.find(p => p.id === item.prodottoId)!;
+        return {
+          prodottoId: product.id,
+          prodottoNome: product.nome,
+          prodottoPrezzo: product.prezzoFinale,
+          prodottoNumeroFoto: product.numeroFoto,
+          quantita: item.quantita,
+        };
+      });
+      
+      // Prodotti personalizzati
+      const customOrderItems: OrderItem[] = customProducts.map(item => ({
+        prodottoId: item.id,
+        prodottoNome: item.nome,
+        prodottoPrezzo: item.prezzo,
+        prodottoNumeroFoto: item.numeroFoto,
+        quantita: item.quantita,
+        isCustom: true,
+      }));
+      
+      // Combina catalogo + custom
+      if (catalogoOrderItems.length > 0 || customOrderItems.length > 0) {
+        prodottiOrderItems = [...catalogoOrderItems, ...customOrderItems];
       }
 
       // Legacy support: usa primo prodotto se disponibile
@@ -537,14 +624,152 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
                   })}
                 </div>
 
-                {/* Riepilogo Totale */}
-                <div className="bg-sage/10 p-3 rounded-lg border border-sage/20">
-                  <div className="flex justify-between items-center font-bold">
-                    <span>Totale Preventivo:</span>
-                    <span className="text-sage text-lg">€{calculateTotale().toFixed(2)}</span>
+              </>
+            )}
+
+            {/* Prodotti Personalizzati */}
+            <div className="space-y-4 mt-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">Prodotti Personalizzati</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowCustomForm(true)}
+                  className="border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white"
+                  data-testid="button-add-custom-product"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Aggiungi Personalizzato
+                </Button>
+              </div>
+
+              {/* Form nuovo prodotto personalizzato */}
+              {showCustomForm && (
+                <div className="p-4 border-2 border-dashed border-amber-300 rounded-lg bg-amber-50 space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-3 sm:col-span-1">
+                      <Label className="text-xs mb-1 block">Nome Prodotto *</Label>
+                      <Input
+                        value={customNome}
+                        onChange={(e) => setCustomNome(e.target.value)}
+                        placeholder="es. Servizio Extra"
+                        data-testid="input-custom-nome"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs mb-1 block">Prezzo (€) *</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={customPrezzo || ''}
+                        onChange={(e) => setCustomPrezzo(parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        data-testid="input-custom-prezzo"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs mb-1 block">N. Foto</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={customNumeroFoto || ''}
+                        onChange={(e) => setCustomNumeroFoto(parseInt(e.target.value) || 0)}
+                        placeholder="0"
+                        data-testid="input-custom-foto"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setShowCustomForm(false);
+                        setCustomNome('');
+                        setCustomPrezzo(0);
+                        setCustomNumeroFoto(0);
+                      }}
+                    >
+                      Annulla
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={addCustomProduct}
+                      disabled={!customNome.trim() || customPrezzo <= 0}
+                      className="bg-amber-500 hover:bg-amber-600 text-white"
+                      data-testid="button-confirm-custom"
+                    >
+                      Conferma
+                    </Button>
                   </div>
                 </div>
-              </>
+              )}
+
+              {/* Lista prodotti personalizzati */}
+              {customProducts.length > 0 && (
+                <div className="space-y-2">
+                  {customProducts.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 p-3 border border-amber-200 rounded-lg bg-amber-50"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{item.nome}</span>
+                          <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded">
+                            Personalizzato
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          €{item.prezzo.toFixed(2)}
+                          {item.numeroFoto > 0 && ` - ${item.numeroFoto} foto`}
+                        </p>
+                      </div>
+
+                      <div className="w-20">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantita}
+                          onChange={(e) =>
+                            updateCustomQuantita(item.id, parseInt(e.target.value) || 1)
+                          }
+                          className="text-center"
+                          data-testid={`input-custom-qty-${item.id}`}
+                        />
+                      </div>
+
+                      <div className="w-24 text-right font-medium">
+                        €{(item.prezzo * item.quantita).toFixed(2)}
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeCustomProduct(item.id)}
+                        data-testid={`button-remove-custom-${item.id}`}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Riepilogo Totale */}
+            {(selectedProducts.length > 0 || customProducts.length > 0) && (
+              <div className="bg-sage/10 p-3 rounded-lg border border-sage/20 mt-4">
+                <div className="flex justify-between items-center font-bold">
+                  <span>Totale Preventivo:</span>
+                  <span className="text-sage text-lg">€{calculateTotale().toFixed(2)}</span>
+                </div>
+              </div>
             )}
           </div>
 
