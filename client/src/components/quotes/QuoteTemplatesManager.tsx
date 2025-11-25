@@ -843,7 +843,7 @@ export default function QuoteTemplatesManager() {
                             </SelectValue>
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                           {jobTypes.length === 0 ? (
                             <SelectItem value="none" disabled>
                               Nessun tipo lavoro configurato
@@ -881,7 +881,7 @@ export default function QuoteTemplatesManager() {
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                         <SelectItem value="fisso">Fisso (prezzo totale)</SelectItem>
                         <SelectItem value="variabile">Variabile (cliente sceglie)</SelectItem>
                       </SelectContent>
@@ -1038,7 +1038,7 @@ export default function QuoteTemplatesManager() {
                               <SelectValue />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                             <SelectItem value="none">Nessuno sconto</SelectItem>
                             <SelectItem value="amount">
                               <div className="flex items-center gap-2">
