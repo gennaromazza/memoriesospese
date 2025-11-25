@@ -510,51 +510,122 @@ export default function BulkEmailSender() {
                 </CardContent>
               </Card>
 
-              {/* Progress attivo */}
+              {/* Progress attivo - VERSIONE MIGLIORATA */}
               {activeJob && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      {activeJob.status === 'in_progress' && <Loader2 className="h-4 w-4 animate-spin" />}
-                      {activeJob.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-600" />}
-                      {activeJob.status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
-                      Job Corrente
+                <Card className={`border-2 ${
+                  activeJob.status === 'in_progress' 
+                    ? 'border-blue-400 bg-blue-50/50 animate-pulse' 
+                    : activeJob.status === 'completed' 
+                      ? 'border-green-400 bg-green-50/50' 
+                      : 'border-red-400 bg-red-50/50'
+                }`}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-3">
+                      {activeJob.status === 'in_progress' && (
+                        <div className="relative">
+                          <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                          <div className="absolute inset-0 h-6 w-6 animate-ping bg-blue-400 rounded-full opacity-30" />
+                        </div>
+                      )}
+                      {activeJob.status === 'completed' && <CheckCircle className="h-6 w-6 text-green-600" />}
+                      {activeJob.status === 'failed' && <XCircle className="h-6 w-6 text-destructive" />}
+                      <span className="text-lg">
+                        {activeJob.status === 'in_progress' ? 'Invio in corso...' : 
+                         activeJob.status === 'completed' ? 'Invio completato!' : 'Invio fallito'}
+                      </span>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="space-y-4">
+                    {/* Barra progresso grande */}
                     <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Progress</span>
-                        <span className="font-semibold">
-                          {activeJob.sentCount} / {activeJob.totalRecipients}
-                        </span>
+                      <div className="flex justify-between items-end mb-2">
+                        <div className="text-3xl font-bold text-blue-700">
+                          {Math.round((activeJob.sentCount / activeJob.totalRecipients) * 100)}%
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-semibold">
+                            {activeJob.sentCount} / {activeJob.totalRecipients}
+                          </div>
+                          <div className="text-xs text-muted-foreground">email elaborate</div>
+                        </div>
                       </div>
                       <Progress 
                         value={(activeJob.sentCount / activeJob.totalRecipients) * 100} 
-                        className="h-2"
+                        className="h-4"
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span>{activeJob.sentCount} inviate</span>
+                    {/* Stats cards */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-green-100 rounded-lg p-3 text-center">
+                        <CheckCircle className="h-5 w-5 text-green-600 mx-auto mb-1" />
+                        <div className="text-2xl font-bold text-green-700">{activeJob.sentCount}</div>
+                        <div className="text-xs text-green-600">Inviate con successo</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <XCircle className="h-4 w-4 text-destructive" />
-                        <span>{activeJob.failedCount} errori</span>
+                      <div className="bg-red-100 rounded-lg p-3 text-center">
+                        <XCircle className="h-5 w-5 text-red-600 mx-auto mb-1" />
+                        <div className="text-2xl font-bold text-red-700">{activeJob.failedCount}</div>
+                        <div className="text-xs text-red-600">Non inviate</div>
                       </div>
                     </div>
 
-                    {activeJob.errors.length > 0 && (
-                      <div className="mt-3 p-2 bg-destructive/10 rounded text-xs">
-                        <p className="font-semibold mb-1">Errori:</p>
-                        {activeJob.errors.slice(0, 3).map((err, idx) => (
-                          <p key={idx} className="text-destructive">
-                            {err.email}: {err.error}
-                          </p>
-                        ))}
+                    {/* Tasso di successo */}
+                    {activeJob.status === 'completed' && (
+                      <div className={`p-3 rounded-lg text-center ${
+                        activeJob.failedCount === 0 
+                          ? 'bg-green-100 text-green-800' 
+                          : activeJob.failedCount < activeJob.sentCount 
+                            ? 'bg-yellow-100 text-yellow-800' 
+                            : 'bg-red-100 text-red-800'
+                      }`}>
+                        <div className="text-lg font-semibold">
+                          Tasso di successo: {Math.round((activeJob.sentCount / activeJob.totalRecipients) * 100)}%
+                        </div>
+                        {activeJob.failedCount > 0 && (
+                          <div className="text-sm mt-1">
+                            {activeJob.failedCount} email non sono state consegnate
+                          </div>
+                        )}
                       </div>
+                    )}
+
+                    {/* Lista errori dettagliata */}
+                    {activeJob.errors && activeJob.errors.length > 0 && (
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-destructive flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            Email non inviate ({activeJob.errors.length})
+                          </span>
+                        </div>
+                        <ScrollArea className="h-[150px] border rounded-lg">
+                          <div className="p-2 space-y-1">
+                            {activeJob.errors.map((err, idx) => (
+                              <div 
+                                key={idx} 
+                                className="flex items-start gap-2 p-2 bg-red-50 rounded text-sm border-l-2 border-red-400"
+                              >
+                                <XCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <div className="font-medium text-red-700">{err.email}</div>
+                                  <div className="text-xs text-red-600">{err.error}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+
+                    {/* Pulsante chiudi quando completato */}
+                    {activeJob.status !== 'in_progress' && (
+                      <Button 
+                        variant="outline" 
+                        className="w-full mt-2"
+                        onClick={() => setActiveJobId(null)}
+                      >
+                        Chiudi e torna all'editor
+                      </Button>
                     )}
                   </CardContent>
                 </Card>
