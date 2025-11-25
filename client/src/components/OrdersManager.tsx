@@ -59,6 +59,7 @@ import {
   Clock,
   FileText,
   Edit,
+  MessageCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -583,6 +584,61 @@ export function OrdersManager({
     return order.booking?.cliente.email || 'N/A';
   };
 
+  // Helper: Numero WhatsApp cliente (senza +, spazi, trattini)
+  const getClienteWhatsApp = (order: OrderWithBooking): string | null => {
+    const raw = order.whatsappCliente || order.booking?.cliente.whatsapp;
+    if (!raw) return null;
+    return raw.replace(/[\s\-\+\(\)]/g, '');
+  };
+
+  // Helper: Genera messaggio WhatsApp riepilogo ordine
+  const buildWhatsAppMessage = (order: OrderWithBooking) => {
+    const totals = getOrderTotals(order);
+    const clienteName = order.nomeCliente || (order.booking ? `${order.booking.cliente.nome} ${order.booking.cliente.cognome}` : 'Cliente');
+    
+    let message = `Ciao ${clienteName.split(' ')[0]}!\n\n`;
+    message += `Ecco il riepilogo del tuo ordine presso *Gennaro Mazzacane Photography*:\n\n`;
+    
+    message += `*PRODOTTI*\n`;
+    order.prodotti.forEach((p, i) => {
+      const subtotale = p.prodottoPrezzo * p.quantita;
+      const customLabel = (p.isCustom || p.prodottoId?.startsWith('custom_')) ? ' (Personalizzato)' : '';
+      message += `${i + 1}. ${p.prodottoNome}${customLabel}\n`;
+      message += `   ${p.quantita}x ${formatCurrency(p.prodottoPrezzo)} = ${formatCurrency(subtotale)}\n`;
+    });
+    
+    message += `\n*RIEPILOGO PAGAMENTI*\n`;
+    message += `Totale ordine: ${formatCurrency(totals.totale)}\n`;
+    message += `Già pagato: ${formatCurrency(totals.totalePagato)}\n`;
+    message += `Saldo residuo: ${formatCurrency(totals.saldoResiduo)}\n`;
+    
+    if (totals.saldoResiduo === 0) {
+      message += `\n*ORDINE SALDATO* - Grazie!`;
+    } else if (totals.saldoResiduo > 0) {
+      message += `\nResta da saldare: ${formatCurrency(totals.saldoResiduo)}`;
+    }
+    
+    message += `\n\nPer qualsiasi domanda sono a disposizione!`;
+    
+    return encodeURIComponent(message);
+  };
+
+  // Helper: Apri WhatsApp con messaggio pre-compilato
+  const openWhatsApp = (order: OrderWithBooking) => {
+    const phone = getClienteWhatsApp(order);
+    if (!phone) {
+      toast({
+        title: 'Numero non disponibile',
+        description: 'Il cliente non ha un numero WhatsApp registrato',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const message = buildWhatsAppMessage(order);
+    const url = `https://wa.me/${phone}?text=${message}`;
+    window.open(url, '_blank');
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -759,6 +815,16 @@ export function OrdersManager({
                       >
                         <Edit className="w-4 h-4 mr-1" />
                         Modifica
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openWhatsApp(order)}
+                        data-testid={`button-whatsapp-order-${order.id}`}
+                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                      >
+                        <MessageCircle className="w-4 h-4 mr-1" />
+                        WhatsApp
                       </Button>
                     </div>
 
