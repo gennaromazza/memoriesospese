@@ -54,6 +54,7 @@ import WeddingVideosManager from "@/components/admin/WeddingVideosManager";
 import BulkEmailSender from "./BulkEmailSender";
 import QuoteManagementDemo from './admin/QuoteManagementDemo';
 import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
+import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -245,6 +246,12 @@ export default function AdminDashboard() {
   const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories' | 'migration'>(() => {
     return (sessionStorage.getItem('settingsSection') as any) || 'studio';
   });
+  const [activeSitoSection, setActiveSitoSection] = useState<'portfolio' | 'blog'>(() => {
+    return (sessionStorage.getItem('activeSitoSection') as any) || 'portfolio';
+  });
+  const [activeJobSection, setActiveJobSection] = useState<'jobs-list' | 'clienti' | 'job-types' | 'contract-clauses' | 'quote-templates'>(() => {
+    return (sessionStorage.getItem('activeJobSection') as any) || 'jobs-list';
+  });
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
   const [highlightConsultationId, setHighlightConsultationId] = useState<string | null>(null);
@@ -326,6 +333,14 @@ export default function AdminDashboard() {
   useEffect(() => {
     sessionStorage.setItem('settingsSection', settingsSection);
   }, [settingsSection]);
+
+  useEffect(() => {
+    sessionStorage.setItem('activeSitoSection', activeSitoSection);
+  }, [activeSitoSection]);
+
+  useEffect(() => {
+    sessionStorage.setItem('activeJobSection', activeJobSection);
+  }, [activeJobSection]);
 
   // 🔧 Deeplink handler - reagisce a navigate() da wouter usando location tuple
   useEffect(() => {
@@ -1022,6 +1037,26 @@ export default function AdminDashboard() {
 
             {/* Azioni header - Mobile Optimized */}
             <div className="flex items-center gap-1.5 sm:gap-3">
+              <AdminCommandPalette
+                onNavigate={(tab, options) => {
+                  setActiveTab(tab as any);
+                  if (options?.settingsSection) {
+                    setSettingsSection(options.settingsSection as any);
+                  }
+                  if (options?.consultationSection) {
+                    setActiveConsultationSection(options.consultationSection as any);
+                  }
+                  if (options?.bookingSection) {
+                    setActiveBookingSection(options.bookingSection as any);
+                  }
+                  if (options?.jobSection) {
+                    setActiveJobSection(options.jobSection as any);
+                  }
+                  if (options?.sitoSection) {
+                    setActiveSitoSection(options.sitoSection as any);
+                  }
+                }}
+              />
               <Link href={createUrl("/")}>
                 <Button variant="outline" size="sm" className="h-8 sm:h-9 px-2 sm:px-3 flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1942,7 +1977,7 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Lavori */}
             <TabsContent value="lavori">
-              <Tabs defaultValue="jobs-list" className="w-full">
+              <Tabs value={activeJobSection} onValueChange={(v) => setActiveJobSection(v as any)} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 gap-1 mb-4">
                   <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
                     Lista Lavori
@@ -2407,7 +2442,7 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Sito Pubblico */}
             <TabsContent value="sitoPublico">
-              <Tabs defaultValue="portfolio" className="w-full">
+              <Tabs value={activeSitoSection} onValueChange={(v) => setActiveSitoSection(v as any)} className="w-full">
                 <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
                   <TabsTrigger value="portfolio" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="subtab-portfolio">
                     <Grid3x3 className="h-4 w-4 flex-shrink-0" />
