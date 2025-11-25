@@ -365,10 +365,138 @@ async function releaseQuotaAtomic(
 // API ROUTES
 // ============================================================================
 
+// GET Quota giornaliera
+router.get("/quota", async (req: Request, res: Response) => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const quotaRef = db.collection("emailQuota").doc(today);
+    const quotaDoc = await quotaRef.get();
+    
+    const data = quotaDoc.exists ? quotaDoc.data() : {};
+    const sent = data?.sent || 0;
+    const reserved = data?.reserved || 0;
+    const remaining = Math.max(0, GMAIL_DAILY_LIMIT - sent - reserved);
+
+    res.json({
+      success: true,
+      quota: {
+        sent,
+        reserved,
+        limit: GMAIL_DAILY_LIMIT,
+        remaining,
+        date: today
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET Filtri disponibili (anni dinamici dai jobs)
+router.get("/filters", async (req: Request, res: Response) => {
+  try {
+    const jobsSnapshot = await db.collection("jobs").select("dataEvento").get();
+    const yearsSet = new Set<number>();
+    const currentYear = new Date().getFullYear();
+
+    jobsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.dataEvento) {
+        let year: number | null = null;
+        if (typeof data.dataEvento === 'string') {
+          year = new Date(data.dataEvento).getFullYear();
+        } else if (data.dataEvento?.toDate) {
+          year = data.dataEvento.toDate().getFullYear();
+        }
+        if (year && year >= 2020 && year <= currentYear + 2) {
+          yearsSet.add(year);
+        }
+      }
+    });
+
+    const years = Array.from(yearsSet).sort((a, b) => b - a);
+    const filters = years
+      .filter(y => y !== currentYear)
+      .map(year => ({
+        value: `anno_${year}`,
+        label: `Anno ${year}`
+      }));
+
+    res.json({ success: true, filters });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.get("/recipients", async (req: Request, res: Response) => {
   try {
     const { filter } = req.query;
-    let query = db.collection("clienti");
+    const recipients: BulkEmailRecipient[] = [];
+    const emailsAdded = new Set<string>();
+
+    // Filtro speciale: Preventivi Non Firmati (per upsell)
+    // Target: Jobs con preventivo creato ma non firmato, escludendo jobs completati/contrattualizzati
+    if (filter === "preventivi_non_firmati") {
+      const jobsSnapshot = await db.collection("jobs")
+        .where("quoteId", "!=", null)
+        .limit(500)
+        .get();
+      
+      // Raccogli tutti i clientId unici per batch load
+      const clientIds = new Set<string>();
+      const jobsWithUnsignedQuotes: Array<{ clienteId: string }> = [];
+      
+      for (const jobDoc of jobsSnapshot.docs) {
+        const jobData = jobDoc.data();
+        
+        // Escludi jobs completati o con contratto firmato
+        const isCompleted = jobData.status === 'completed' || jobData.status === 'cancelled';
+        const hasSignedQuote = jobData.quoteSignedAt || jobData.quoteStatus === 'signed' || jobData.quoteStatus === 'accepted';
+        const hasContract = jobData.contractSignedAt;
+        
+        // Include solo jobs con preventivo non firmato e non completati
+        if (!isCompleted && !hasSignedQuote && !hasContract && jobData.clienteId) {
+          clientIds.add(jobData.clienteId);
+          jobsWithUnsignedQuotes.push({ clienteId: jobData.clienteId });
+        }
+      }
+      
+      // Batch load clienti (max 30 per batch con Firestore 'in' query)
+      const clientIdArray = Array.from(clientIds);
+      const clientsMap = new Map<string, any>();
+      
+      for (let i = 0; i < clientIdArray.length; i += 30) {
+        const batch = clientIdArray.slice(i, i + 30);
+        if (batch.length === 0) continue;
+        
+        const clientsSnapshot = await db.collection("clienti")
+          .where("__name__", "in", batch)
+          .get();
+        
+        clientsSnapshot.forEach(doc => {
+          clientsMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+      }
+      
+      // Costruisci lista destinatari senza duplicati
+      for (const job of jobsWithUnsignedQuotes) {
+        const clientData = clientsMap.get(job.clienteId);
+        if (clientData?.email && !emailsAdded.has(clientData.email)) {
+          emailsAdded.add(clientData.email);
+          recipients.push({
+            email: clientData.email,
+            nome: clientData.nome || "",
+            cognome: clientData.cognome || "",
+            clientId: clientData.id,
+          });
+        }
+      }
+      
+      return res.json({ success: true, recipients, total: recipients.length });
+    }
+
+    // Filtri standard per anno
+    let query: any = db.collection("clienti");
 
     if (filter === "anno_corrente") {
       const currentYear = new Date().getFullYear();
@@ -379,11 +507,11 @@ router.get("/recipients", async (req: Request, res: Response) => {
     }
 
     const snapshot = await query.get();
-    const recipients: BulkEmailRecipient[] = [];
 
     snapshot.forEach((doc) => {
       const data = doc.data();
-      if (data.email) {
+      if (data.email && !emailsAdded.has(data.email)) {
+        emailsAdded.add(data.email);
         recipients.push({
           email: data.email,
           nome: data.nome || "",

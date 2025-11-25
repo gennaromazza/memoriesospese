@@ -3,7 +3,7 @@
  * Supporta selezione destinatari, editor HTML, preview, rate limiting
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye } from 'lucide-react';
+import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Gauge } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface BulkEmailRecipient {
   email: string;
@@ -49,6 +59,8 @@ export default function BulkEmailSender() {
   const [selectAll, setSelectAll] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Query destinatari disponibili
   const { data: recipientsData, isLoading: recipientsLoading } = useQuery({
@@ -88,6 +100,33 @@ export default function BulkEmailSender() {
   });
 
   const allJobs: BulkEmailJob[] = jobsData?.jobs || [];
+
+  // Query quota giornaliera
+  const { data: quotaData } = useQuery({
+    queryKey: ['/api/bulk-email/quota'],
+    refetchInterval: 30000
+  });
+
+  const quota = quotaData?.quota || { sent: 0, reserved: 0, limit: 2000, remaining: 2000 };
+
+  // Query filtri disponibili (anni dinamici)
+  const { data: filtersData } = useQuery({
+    queryKey: ['/api/bulk-email/filters']
+  });
+
+  const availableFilters = filtersData?.filters || [];
+
+  // Filtra destinatari per ricerca
+  const filteredRecipients = useMemo(() => {
+    if (!searchQuery.trim()) return recipients;
+    const query = searchQuery.toLowerCase();
+    return recipients.filter(r => 
+      r.nome?.toLowerCase().includes(query) ||
+      r.cognome?.toLowerCase().includes(query) ||
+      r.email?.toLowerCase().includes(query) ||
+      `${r.nome} ${r.cognome}`.toLowerCase().includes(query)
+    );
+  }, [recipients, searchQuery]);
 
   // Mutation invio email
   const sendMutation = useMutation({
@@ -131,14 +170,30 @@ export default function BulkEmailSender() {
     }
   });
 
-  // Toggle seleziona tutti
+  // Toggle seleziona tutti (usa filteredRecipients)
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedRecipients(new Set());
     } else {
-      setSelectedRecipients(new Set(recipients.map(r => r.email)));
+      setSelectedRecipients(new Set(filteredRecipients.map(r => r.email)));
     }
     setSelectAll(!selectAll);
+  };
+
+  // Aggiorna selectAll quando cambiano i filteredRecipients
+  useEffect(() => {
+    if (filteredRecipients.length > 0) {
+      const allSelected = filteredRecipients.every(r => selectedRecipients.has(r.email));
+      setSelectAll(allSelected);
+    } else {
+      setSelectAll(false);
+    }
+  }, [filteredRecipients, selectedRecipients]);
+
+  // Conferma invio
+  const handleConfirmSend = () => {
+    setShowConfirmDialog(false);
+    sendMutation.mutate();
   };
 
   // Toggle singolo destinatario
@@ -283,6 +338,29 @@ export default function BulkEmailSender() {
 
             {/* Selezione Destinatari */}
             <div className="space-y-6">
+              {/* Quota Giornaliera */}
+              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Gauge className="h-5 w-5 text-blue-600" />
+                      <span className="font-semibold text-blue-900">Quota Giornaliera</span>
+                    </div>
+                    <Badge variant={quota.remaining > 500 ? "default" : quota.remaining > 100 ? "secondary" : "destructive"}>
+                      {quota.remaining} rimanenti
+                    </Badge>
+                  </div>
+                  <Progress 
+                    value={((quota.sent + quota.reserved) / quota.limit) * 100} 
+                    className="h-2"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                    <span>{quota.sent} inviate + {quota.reserved} riservate</span>
+                    <span>Max {quota.limit}/giorno</span>
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -293,17 +371,31 @@ export default function BulkEmailSender() {
                 <CardContent className="space-y-4">
                   <div>
                     <Label htmlFor="filter">Filtra Clienti</Label>
-                    <Select value={filter} onValueChange={setFilter}>
+                    <Select value={filter} onValueChange={(v) => { setFilter(v); setSelectedRecipients(new Set()); }}>
                       <SelectTrigger id="filter" data-testid="select-recipient-filter">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" sideOffset={4} className="z-[9999]">
                         <SelectItem value="all">Tutti i clienti</SelectItem>
+                        <SelectItem value="preventivi_non_firmati">🎯 Preventivi Non Firmati (Upsell)</SelectItem>
                         <SelectItem value="anno_corrente">Anno corrente</SelectItem>
-                        <SelectItem value="anno_2024">Anno 2024</SelectItem>
-                        <SelectItem value="anno_2023">Anno 2023</SelectItem>
+                        {availableFilters.map((f: { value: string; label: string }) => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Ricerca Destinatari */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Cerca per nome o email..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                      data-testid="input-search-recipients"
+                    />
                   </div>
 
                   {recipientsLoading ? (
@@ -315,40 +407,51 @@ export default function BulkEmailSender() {
                     <>
                       <div className="flex items-center gap-2 py-2 border-b">
                         <Checkbox
-                          checked={selectAll}
+                          checked={selectAll && filteredRecipients.length > 0}
                           onCheckedChange={handleSelectAll}
                           id="select-all"
                           data-testid="checkbox-select-all"
                         />
                         <Label htmlFor="select-all" className="cursor-pointer font-semibold">
-                          Seleziona tutti ({recipients.length})
+                          Seleziona tutti ({filteredRecipients.length})
                         </Label>
+                        {searchQuery && (
+                          <Badge variant="outline" className="ml-auto">
+                            {filteredRecipients.length} di {recipients.length}
+                          </Badge>
+                        )}
                       </div>
 
-                      <ScrollArea className="h-[400px]">
+                      <ScrollArea className="h-[350px]">
                         <div className="space-y-2">
-                          {recipients.map((recipient) => (
-                            <div
-                              key={recipient.email}
-                              className="flex items-start gap-2 p-2 rounded hover:bg-muted/50"
-                            >
-                              <Checkbox
-                                checked={selectedRecipients.has(recipient.email)}
-                                onCheckedChange={() => handleToggleRecipient(recipient.email)}
-                                id={`recipient-${recipient.email}`}
-                                data-testid={`checkbox-recipient-${recipient.email}`}
-                              />
-                              <Label
-                                htmlFor={`recipient-${recipient.email}`}
-                                className="cursor-pointer flex-1"
-                              >
-                                <p className="font-medium text-sm">
-                                  {recipient.nome} {recipient.cognome}
-                                </p>
-                                <p className="text-xs text-muted-foreground">{recipient.email}</p>
-                              </Label>
+                          {filteredRecipients.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <p>Nessun destinatario trovato</p>
                             </div>
-                          ))}
+                          ) : (
+                            filteredRecipients.map((recipient) => (
+                              <div
+                                key={recipient.email}
+                                className="flex items-start gap-2 p-2 rounded hover:bg-muted/50"
+                              >
+                                <Checkbox
+                                  checked={selectedRecipients.has(recipient.email)}
+                                  onCheckedChange={() => handleToggleRecipient(recipient.email)}
+                                  id={`recipient-${recipient.email}`}
+                                  data-testid={`checkbox-recipient-${recipient.email}`}
+                                />
+                                <Label
+                                  htmlFor={`recipient-${recipient.email}`}
+                                  className="cursor-pointer flex-1"
+                                >
+                                  <p className="font-medium text-sm">
+                                    {recipient.nome} {recipient.cognome}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">{recipient.email}</p>
+                                </Label>
+                              </div>
+                            ))
+                          )}
                         </div>
                       </ScrollArea>
                     </>
@@ -357,8 +460,8 @@ export default function BulkEmailSender() {
                   <Button
                     className="w-full"
                     size="lg"
-                    onClick={() => sendMutation.mutate()}
-                    disabled={sendMutation.isPending || selectedRecipients.size === 0 || !subject.trim() || !body.trim()}
+                    onClick={() => setShowConfirmDialog(true)}
+                    disabled={sendMutation.isPending || selectedRecipients.size === 0 || !subject.trim() || !body.trim() || selectedRecipients.size > quota.remaining}
                     data-testid="button-send-bulk-email"
                   >
                     {sendMutation.isPending ? (
@@ -374,12 +477,12 @@ export default function BulkEmailSender() {
                     )}
                   </Button>
 
-                  {selectedRecipients.size > 2000 && (
+                  {selectedRecipients.size > quota.remaining && (
                     <div className="flex items-start gap-2 p-3 bg-destructive/10 rounded-lg">
                       <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                       <p className="text-sm text-destructive">
-                        <strong>Limite Gmail superato!</strong><br />
-                        Max 2,000 email/giorno. Seleziona meno destinatari.
+                        <strong>Quota insufficiente!</strong><br />
+                        Hai selezionato {selectedRecipients.size} destinatari ma ne puoi inviare solo {quota.remaining} oggi.
                       </p>
                     </div>
                   )}
@@ -499,6 +602,53 @@ export default function BulkEmailSender() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog di Conferma Invio */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-600" />
+              Conferma Invio Email Massivo
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>Stai per inviare un'email a <strong>{selectedRecipients.size}</strong> destinatari.</p>
+                
+                <div className="bg-muted p-3 rounded-lg space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Oggetto:</span>
+                    <span className="font-medium truncate max-w-[200px]">{subject}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Destinatari:</span>
+                    <span className="font-medium">{selectedRecipients.size}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Quota rimanente dopo invio:</span>
+                    <span className="font-medium">{quota.remaining - selectedRecipients.size}</span>
+                  </div>
+                </div>
+
+                <div className="text-sm text-amber-600 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Questa azione non può essere annullata. Verifica che i destinatari e il contenuto siano corretti.</span>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmSend}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Conferma Invio
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
