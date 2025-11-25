@@ -166,6 +166,23 @@ router.get('/legacy-photos/preview', async (req, res) => {
 
     // Scansiona tutte le gallerie
     const galleriesSnapshot = await db.collection('galleries').get();
+    console.log(`📊 [Migration Preview] Trovate ${galleriesSnapshot.docs.length} gallerie totali`);
+    
+    // Pre-carica tutte le foto esistenti nella collezione principale (ottimizzazione)
+    const existingPhotosSnapshot = await db.collection('photos').select('galleryId', 'name').get();
+    const existingPhotosMap = new Map<string, Set<string>>();
+    
+    existingPhotosSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.galleryId && data.name) {
+        if (!existingPhotosMap.has(data.galleryId)) {
+          existingPhotosMap.set(data.galleryId, new Set());
+        }
+        existingPhotosMap.get(data.galleryId)!.add(data.name);
+      }
+    });
+    
+    console.log(`📸 [Migration Preview] Pre-caricate foto da ${existingPhotosMap.size} gallerie`);
     
     for (const galleryDoc of galleriesSnapshot.docs) {
       const galleryId = galleryDoc.id;
@@ -179,19 +196,15 @@ router.get('/legacy-photos/preview', async (req, res) => {
       preview.galleriesWithLegacyPhotos++;
       preview.totalLegacyPhotos += legacyPhotosSnapshot.docs.length;
 
-      // Conta duplicati potenziali
+      // Conta duplicati usando la mappa pre-caricata (molto più veloce)
       let duplicatesInGallery = 0;
+      const existingInGallery = existingPhotosMap.get(galleryId) || new Set();
+      
       for (const photoDoc of legacyPhotosSnapshot.docs) {
         const photoData = photoDoc.data();
         const photoName = photoData.name || photoDoc.id;
 
-        const existingQuery = await db.collection('photos')
-          .where('galleryId', '==', galleryId)
-          .where('name', '==', photoName)
-          .limit(1)
-          .get();
-
-        if (!existingQuery.empty) {
+        if (existingInGallery.has(photoName)) {
           duplicatesInGallery++;
           preview.potentialDuplicates++;
         }
@@ -205,6 +218,7 @@ router.get('/legacy-photos/preview', async (req, res) => {
       });
     }
 
+    console.log(`✅ [Migration Preview] Completata: ${preview.totalLegacyPhotos} foto legacy in ${preview.galleriesWithLegacyPhotos} gallerie`);
     res.json(preview);
 
   } catch (error) {
