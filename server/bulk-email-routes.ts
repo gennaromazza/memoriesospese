@@ -11,7 +11,7 @@ import { FieldValue } from "firebase-admin/firestore";
 const router = Router();
 
 // --- CONFIGURAZIONE ---
-const GMAIL_DAILY_LIMIT = 2000;
+const GMAIL_DAILY_LIMIT = 500; // Gmail ha limite 500/giorno (2000 solo per Workspace)
 const BATCH_SIZE = 30; // Aggiornamento DB ogni 30 email (ridotto per update più frequenti)
 const CONCURRENCY_LIMIT = 2; // Invii paralleli a Gmail (ridotto per rispettare rate limit)
 const DELAY_BETWEEN_CHUNKS_MS = 1500; // Delay tra chunks (~80 email/min = sicuro sotto 250/min)

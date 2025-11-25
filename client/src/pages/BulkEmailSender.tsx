@@ -107,7 +107,7 @@ export default function BulkEmailSender() {
     refetchInterval: 30000
   });
 
-  const quota = quotaData?.quota || { sent: 0, reserved: 0, limit: 2000, remaining: 2000 };
+  const quota = quotaData?.quota || { sent: 0, reserved: 0, limit: 500, remaining: 500 };
 
   // Query filtri disponibili (anni dinamici + tipi lavoro)
   const { data: filtersData } = useQuery({
@@ -259,7 +259,7 @@ export default function BulkEmailSender() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">📧 Invio Email Massivo</h1>
         <p className="text-muted-foreground">
-          Sistema di invio massivo per comunicazioni ai clienti (max 2,000 email/giorno)
+          Sistema di invio massivo per comunicazioni ai clienti (max 500 email/giorno)
         </p>
       </div>
 
