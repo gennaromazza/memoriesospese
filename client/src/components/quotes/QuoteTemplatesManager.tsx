@@ -415,7 +415,8 @@ export default function QuoteTemplatesManager() {
         discountValue: undefined
       });
     }
-  }, [createModalOpen, editModalOpen, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createModalOpen, editModalOpen]);
 
   // Load editing template data into form when editingTemplate changes
   useEffect(() => {
@@ -457,7 +458,8 @@ export default function QuoteTemplatesManager() {
         attivo: editingTemplate.attivo,
       });
     }
-  }, [editingTemplate?.id, editModalOpen, form]); // Depend on editingTemplate?.id to reset when a new template is selected
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingTemplate?.id, editModalOpen]); // Depend on editingTemplate?.id to reset when a new template is selected
 
   // Watch values for totals
   const catalogProductIds = form.watch('catalogProductIds') || [];
