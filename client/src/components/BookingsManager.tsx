@@ -2269,6 +2269,7 @@ export default function BookingsManager({
             <CreateOrderDialog
               booking={selectedBookingForOrder}
               products={products}
+              campaigns={campaigns}
               onClose={() => setSelectedBookingForOrder(null)}
               onSubmit={(orderData) => createOrderMutation.mutate(orderData)}
               isPending={createOrderMutation.isPending}
@@ -2540,14 +2541,24 @@ export default function BookingsManager({
 interface CreateOrderDialogProps {
   booking: Booking;
   products: Product[];
+  campaigns: BookingCampaign[];
   onClose: () => void;
   onSubmit: (orderData: any) => void;
   isPending: boolean;
 }
 
+interface CustomProduct {
+  id: string;
+  nome: string;
+  prezzo: number;
+  numeroFoto: number;
+  quantita: number;
+}
+
 function CreateOrderDialog({
   booking,
   products,
+  campaigns,
   onClose,
   onSubmit,
   isPending,
@@ -2558,13 +2569,29 @@ function CreateOrderDialog({
       quantita: number;
     }>
   >([]);
+  const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [acconto, setAcconto] = useState<number>(0);
   const [note, setNote] = useState<string>("");
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customNome, setCustomNome] = useState("");
+  const [customPrezzo, setCustomPrezzo] = useState<number>(0);
+  const [customNumeroFoto, setCustomNumeroFoto] = useState<number>(0);
+
+  const campaign = campaigns.find((c) => c.id === booking.campaignId);
+  const availableProducts = useMemo(() => {
+    if (!campaign?.prodottiDisponibili?.length) {
+      return products;
+    }
+    return products.filter((p) => campaign.prodottiDisponibili.includes(p.id));
+  }, [products, campaign]);
 
   // Pre-popola prodotto da booking se disponibile (solo al mount)
   useEffect(() => {
     if (booking.prodottoId) {
-      setSelectedProducts([{ prodottoId: booking.prodottoId, quantita: 1 }]);
+      const isAvailable = availableProducts.some((p) => p.id === booking.prodottoId);
+      if (isAvailable) {
+        setSelectedProducts([{ prodottoId: booking.prodottoId, quantita: 1 }]);
+      }
     }
   }, []);
 
@@ -2589,37 +2616,74 @@ function CreateOrderDialog({
     setSelectedProducts(updated);
   };
 
-  // Helper: Calcola subtotale per prodotto
+  // Helper: Calcola subtotale per prodotto catalogo
   const getProductSubtotal = (prodottoId: string, quantita: number): number => {
-    const product = products.find((p) => p.id === prodottoId);
+    const product = availableProducts.find((p) => p.id === prodottoId);
     if (!product) return 0;
     return product.prezzoFinale * quantita;
   };
 
-  // Helper: Calcola totale ordine
+  // Helper: Calcola totale ordine (catalogo + custom)
   const calculateTotale = (): number => {
-    return selectedProducts.reduce((sum, item) => {
+    const catalogoTotale = selectedProducts.reduce((sum, item) => {
       return sum + getProductSubtotal(item.prodottoId, item.quantita);
     }, 0);
+    const customTotale = customProducts.reduce((sum, item) => {
+      return sum + item.prezzo * item.quantita;
+    }, 0);
+    return catalogoTotale + customTotale;
+  };
+
+  // Helper: Aggiungi prodotto personalizzato
+  const addCustomProduct = () => {
+    if (!customNome.trim() || customPrezzo <= 0) {
+      return;
+    }
+    const newCustom: CustomProduct = {
+      id: `custom_${Date.now()}`,
+      nome: customNome.trim(),
+      prezzo: customPrezzo,
+      numeroFoto: customNumeroFoto || 0,
+      quantita: 1,
+    };
+    setCustomProducts([...customProducts, newCustom]);
+    setCustomNome("");
+    setCustomPrezzo(0);
+    setCustomNumeroFoto(0);
+    setShowCustomForm(false);
+  };
+
+  // Helper: Rimuovi prodotto personalizzato
+  const removeCustomProduct = (id: string) => {
+    setCustomProducts(customProducts.filter((p) => p.id !== id));
+  };
+
+  // Helper: Aggiorna quantità prodotto personalizzato
+  const updateCustomQuantita = (id: string, quantita: number) => {
+    setCustomProducts(
+      customProducts.map((p) =>
+        p.id === id ? { ...p, quantita: Math.max(1, quantita) } : p
+      )
+    );
   };
 
   // Handler: Submit ordine
   const handleSubmit = () => {
     // Validation
-    if (selectedProducts.length === 0) {
+    if (selectedProducts.length === 0 && customProducts.length === 0) {
       alert("Seleziona almeno un prodotto");
       return;
     }
 
-    // Verifica che tutti prodotti siano selezionati
+    // Verifica che tutti prodotti catalogo siano selezionati
     if (selectedProducts.some((p) => !p.prodottoId || p.quantita <= 0)) {
       alert("Completa tutti i prodotti con quantità valida");
       return;
     }
 
-    // Costruisci array OrderItem con snapshot
-    const prodottiOrderItems: OrderItem[] = selectedProducts.map((item) => {
-      const product = products.find((p) => p.id === item.prodottoId)!;
+    // Costruisci array OrderItem con snapshot (prodotti catalogo)
+    const catalogoOrderItems: OrderItem[] = selectedProducts.map((item) => {
+      const product = availableProducts.find((p) => p.id === item.prodottoId)!;
       return {
         prodottoId: product.id,
         prodottoNome: product.nome,
@@ -2629,7 +2693,17 @@ function CreateOrderDialog({
       };
     });
 
-    const totale = calculateTotale();
+    // Prodotti personalizzati (prodottoId null/vuoto)
+    const customOrderItems: OrderItem[] = customProducts.map((item) => ({
+      prodottoId: item.id,
+      prodottoNome: item.nome,
+      prodottoPrezzo: item.prezzo,
+      prodottoNumeroFoto: item.numeroFoto,
+      quantita: item.quantita,
+      isCustom: true,
+    }));
+
+    const prodottiOrderItems = [...catalogoOrderItems, ...customOrderItems];
 
     // Crea ordine
     const orderData = {
@@ -2662,10 +2736,24 @@ function CreateOrderDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Prodotti */}
+          {/* Info campagna */}
+          {campaign && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                <span className="font-medium">Campagna:</span> {campaign.nome}
+                {campaign.prodottiDisponibili?.length > 0 && (
+                  <span className="ml-2 text-blue-600">
+                    ({availableProducts.length} prodotti disponibili)
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+
+          {/* Prodotti da catalogo */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Prodotti</Label>
+              <Label className="text-base font-semibold">Prodotti da Catalogo</Label>
               <Button
                 type="button"
                 size="sm"
@@ -2673,24 +2761,26 @@ function CreateOrderDialog({
                 onClick={addProduct}
                 className="border-sage text-sage hover:bg-sage hover:text-white"
                 data-testid="button-add-product"
+                disabled={availableProducts.length === 0}
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Aggiungi Prodotto
               </Button>
             </div>
 
-            {selectedProducts.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-                <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                <p>Nessun prodotto aggiunto</p>
-                <p className="text-sm mt-1">
-                  Clicca "Aggiungi Prodotto" per iniziare
-                </p>
+            {availableProducts.length === 0 ? (
+              <div className="text-center py-4 text-amber-600 bg-amber-50 rounded-lg">
+                <p className="text-sm">Nessun prodotto disponibile per questa campagna</p>
+              </div>
+            ) : selectedProducts.length === 0 ? (
+              <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
+                <Package className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">Nessun prodotto catalogo aggiunto</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {selectedProducts.map((item, index) => {
-                  const product = products.find(
+                  const product = availableProducts.find(
                     (p) => p.id === item.prodottoId,
                   );
                   const subtotale = getProductSubtotal(
@@ -2716,7 +2806,7 @@ function CreateOrderDialog({
                             <SelectValue placeholder="Seleziona prodotto" />
                           </SelectTrigger>
                           <SelectContent position="popper" sideOffset={4} className="z-[9999]">
-                            {products.map((p) => (
+                            {availableProducts.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.nome} - €{p.prezzoFinale.toFixed(2)} (
                                 {p.numeroFoto} foto)
@@ -2759,6 +2849,141 @@ function CreateOrderDialog({
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* Prodotti Personalizzati */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold">Prodotti Personalizzati</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setShowCustomForm(true)}
+                className="border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white"
+                data-testid="button-add-custom-product"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Aggiungi Personalizzato
+              </Button>
+            </div>
+
+            {/* Form nuovo prodotto personalizzato */}
+            {showCustomForm && (
+              <div className="p-4 border-2 border-dashed border-amber-300 rounded-lg bg-amber-50 space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-3 sm:col-span-1">
+                    <Label className="text-xs mb-1 block">Nome Prodotto *</Label>
+                    <Input
+                      value={customNome}
+                      onChange={(e) => setCustomNome(e.target.value)}
+                      placeholder="es. Servizio Extra"
+                      data-testid="input-custom-nome"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs mb-1 block">Prezzo (€) *</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customPrezzo || ""}
+                      onChange={(e) => setCustomPrezzo(parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      data-testid="input-custom-prezzo"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs mb-1 block">N. Foto</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={customNumeroFoto || ""}
+                      onChange={(e) => setCustomNumeroFoto(parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      data-testid="input-custom-foto"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setShowCustomForm(false);
+                      setCustomNome("");
+                      setCustomPrezzo(0);
+                      setCustomNumeroFoto(0);
+                    }}
+                  >
+                    Annulla
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={addCustomProduct}
+                    disabled={!customNome.trim() || customPrezzo <= 0}
+                    className="bg-amber-500 hover:bg-amber-600 text-white"
+                    data-testid="button-confirm-custom"
+                  >
+                    Conferma
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista prodotti personalizzati */}
+            {customProducts.length > 0 && (
+              <div className="space-y-2">
+                {customProducts.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 p-3 border border-amber-200 rounded-lg bg-amber-50"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.nome}</span>
+                        <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded">
+                          Personalizzato
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        €{item.prezzo.toFixed(2)}
+                        {item.numeroFoto > 0 && ` - ${item.numeroFoto} foto`}
+                      </p>
+                    </div>
+
+                    <div className="w-20">
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantita}
+                        onChange={(e) =>
+                          updateCustomQuantita(item.id, parseInt(e.target.value) || 1)
+                        }
+                        className="text-center"
+                        data-testid={`input-custom-qty-${item.id}`}
+                      />
+                    </div>
+
+                    <div className="w-24 text-right font-medium">
+                      €{(item.prezzo * item.quantita).toFixed(2)}
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => removeCustomProduct(item.id)}
+                      data-testid={`button-remove-custom-${item.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </div>

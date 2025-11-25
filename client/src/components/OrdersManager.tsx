@@ -680,9 +680,9 @@ export function OrdersManager({
                             {order.prodotti.length} prodott{order.prodotti.length === 1 ? 'o' : 'i'}
                             {order.galleryId && ` • Galleria: ${order.galleryId.substring(0, 12)}...`}
                           </p>
-                          {order.prodotti.some(p => !p.prodottoId) && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                              Custom
+                          {order.prodotti.some(p => p.isCustom || p.prodottoId?.startsWith('custom_')) && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                              Personalizzato
                             </span>
                           )}
                         </div>
@@ -861,9 +861,9 @@ export function OrdersManager({
                       <div className="space-y-1 text-sm">
                         <div className="flex items-center gap-2">
                           <p><strong>{prodotto.prodottoNome}</strong></p>
-                          {!prodotto.prodottoId && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                              Custom
+                          {(prodotto.isCustom || prodotto.prodottoId?.startsWith('custom_')) && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                              Personalizzato
                             </span>
                           )}
                         </div>

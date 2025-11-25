@@ -208,11 +208,12 @@ export interface InsertBooking {
  * ORDER ITEM - Singolo prodotto in un ordine
  */
 export interface OrderItem {
-  prodottoId: string;
+  prodottoId: string; // Per prodotti custom inizia con "custom_"
   prodottoNome: string; // Snapshot nome al momento ordine
   prodottoPrezzo: number; // Snapshot prezzo al momento ordine
   prodottoNumeroFoto: number; // Snapshot numero foto
   quantita: number; // Default 1
+  isCustom?: boolean; // true se prodotto personalizzato (non da catalogo)
 }
 
 /**
