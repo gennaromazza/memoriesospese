@@ -166,13 +166,23 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     setCustomProducts(customProducts.filter((p) => p.id !== id));
   };
 
+  // Helper: Aggiorna campo prodotto personalizzato
+  const updateCustomProduct = (id: string, field: keyof CustomProduct, value: string | number) => {
+    setCustomProducts(
+      customProducts.map((p) => {
+        if (p.id !== id) return p;
+        if (field === 'quantita') return { ...p, quantita: Math.max(1, value as number) };
+        if (field === 'prezzo') return { ...p, prezzo: Math.max(0, value as number) };
+        if (field === 'numeroFoto') return { ...p, numeroFoto: Math.max(0, value as number) };
+        if (field === 'nome') return { ...p, nome: value as string };
+        return p;
+      })
+    );
+  };
+
   // Helper: Aggiorna quantità prodotto personalizzato
   const updateCustomQuantita = (id: string, quantita: number) => {
-    setCustomProducts(
-      customProducts.map((p) =>
-        p.id === id ? { ...p, quantita: Math.max(1, quantita) } : p
-      )
-    );
+    updateCustomProduct(id, 'quantita', quantita);
   };
 
   // Reset form quando modal si apre
@@ -322,9 +332,18 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         prodottiOrderItems = [...catalogoOrderItems, ...customOrderItems];
       }
 
-      // Legacy support: usa primo prodotto se disponibile
-      const firstProductId = selectedProducts.length > 0 ? selectedProducts[0].prodottoId : undefined;
-      const firstProduct = firstProductId ? products.find(p => p.id === firstProductId) : undefined;
+      // Legacy support: usa primo prodotto (catalogo o custom) se disponibile
+      let firstProductId: string | undefined = undefined;
+      let firstProductName: string | undefined = undefined;
+      
+      if (selectedProducts.length > 0) {
+        const firstCatalog = products.find(p => p.id === selectedProducts[0].prodottoId);
+        firstProductId = selectedProducts[0].prodottoId;
+        firstProductName = firstCatalog?.nome;
+      } else if (customProducts.length > 0) {
+        firstProductId = customProducts[0].id;
+        firstProductName = customProducts[0].nome;
+      }
 
       // Payload prenotazione V2 (no workingHours/durataMinuti - loaded server-side)
       const bookingPayload = {
@@ -338,7 +357,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         dataShootingInizio: dataInizioDate.toISOString(),
         dataShootingFine: dataFineDate.toISOString(),
         prodottoId: firstProductId,
-        prodottoNome: firstProduct?.nome,
+        prodottoNome: firstProductName,
         prodotti: prodottiOrderItems, // Nuovo campo multi-prodotto
         note: note.trim(),
         isManual: true,
@@ -711,51 +730,80 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
 
               {/* Lista prodotti personalizzati */}
               {customProducts.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {customProducts.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center gap-3 p-3 border border-amber-200 rounded-lg bg-amber-50"
+                      className="p-3 border border-amber-200 rounded-lg bg-amber-50 space-y-2"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{item.nome}</span>
-                          <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded">
-                            Personalizzato
-                          </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded">
+                          Personalizzato
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeCustomProduct(item.id)}
+                          data-testid={`button-remove-custom-${item.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="col-span-2">
+                          <Label className="text-xs mb-1 block">Nome</Label>
+                          <Input
+                            value={item.nome}
+                            onChange={(e) => updateCustomProduct(item.id, 'nome', e.target.value)}
+                            placeholder="Nome prodotto"
+                            data-testid={`input-custom-name-${item.id}`}
+                          />
                         </div>
-                        <p className="text-sm text-gray-600">
-                          €{item.prezzo.toFixed(2)}
-                          {item.numeroFoto > 0 && ` - ${item.numeroFoto} foto`}
-                        </p>
+                        <div>
+                          <Label className="text-xs mb-1 block">Prezzo (€)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.prezzo || ''}
+                            onChange={(e) =>
+                              updateCustomProduct(item.id, 'prezzo', parseFloat(e.target.value) || 0)
+                            }
+                            data-testid={`input-custom-price-${item.id}`}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs mb-1 block">N. Foto</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={item.numeroFoto || ''}
+                            onChange={(e) =>
+                              updateCustomProduct(item.id, 'numeroFoto', parseInt(e.target.value) || 0)
+                            }
+                            data-testid={`input-custom-photos-${item.id}`}
+                          />
+                        </div>
                       </div>
-
-                      <div className="w-20">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantita}
-                          onChange={(e) =>
-                            updateCustomQuantita(item.id, parseInt(e.target.value) || 1)
-                          }
-                          className="text-center"
-                          data-testid={`input-custom-qty-${item.id}`}
-                        />
+                      <div className="flex items-center justify-between pt-2 border-t border-amber-200">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">Quantità:</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantita}
+                            onChange={(e) =>
+                              updateCustomQuantita(item.id, parseInt(e.target.value) || 1)
+                            }
+                            className="w-16 text-center"
+                            data-testid={`input-custom-qty-${item.id}`}
+                          />
+                        </div>
+                        <div className="text-right font-medium">
+                          Subtotale: €{(item.prezzo * item.quantita).toFixed(2)}
+                        </div>
                       </div>
-
-                      <div className="w-24 text-right font-medium">
-                        €{(item.prezzo * item.quantita).toFixed(2)}
-                      </div>
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeCustomProduct(item.id)}
-                        data-testid={`button-remove-custom-${item.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
                     </div>
                   ))}
                 </div>
