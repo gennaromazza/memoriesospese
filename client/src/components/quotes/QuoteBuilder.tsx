@@ -417,6 +417,15 @@ export default function QuoteBuilder({
       selectable: template.type === 'variabile'
     })));
     form.setValue('theme', template.theme);
+    
+    // Carica anche lo sconto dal template
+    if ((template as any).discountType) {
+      form.setValue('discountType', (template as any).discountType);
+      form.setValue('discountValue', (template as any).discountValue || 0);
+    } else {
+      form.setValue('discountType', undefined);
+      form.setValue('discountValue', undefined);
+    }
   };
 
   // Upload immagine prodotto custom
