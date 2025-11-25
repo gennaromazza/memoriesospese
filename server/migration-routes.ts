@@ -28,11 +28,6 @@ router.post('/legacy-photos', async (req, res) => {
     const token = authHeader.split('Bearer ')[1];
     const decodedToken = await getAuth().verifyIdToken(token);
     
-    // Verifica email verificata (sicurezza extra)
-    if (!decodedToken.email_verified) {
-      return res.status(403).json({ error: 'Email non verificata' });
-    }
-    
     if (!ADMIN_EMAILS.includes(decodedToken.email || '')) {
       return res.status(403).json({ error: 'Non autorizzato - solo admin' });
     }
@@ -156,14 +151,11 @@ router.get('/legacy-photos/preview', async (req, res) => {
     const token = authHeader.split('Bearer ')[1];
     const decodedToken = await getAuth().verifyIdToken(token);
     
-    // Verifica email verificata (sicurezza extra)
-    if (!decodedToken.email_verified) {
-      return res.status(403).json({ error: 'Email non verificata' });
-    }
-    
     if (!ADMIN_EMAILS.includes(decodedToken.email || '')) {
       return res.status(403).json({ error: 'Non autorizzato - solo admin' });
     }
+
+    console.log('📋 [Migration Preview] Scansione gallerie in corso...');
 
     const preview = {
       galleriesWithLegacyPhotos: 0,
