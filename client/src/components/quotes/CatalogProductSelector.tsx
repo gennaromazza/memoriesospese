@@ -189,6 +189,7 @@ export default function CatalogProductSelector({
                         alt={product.nome}
                         className="w-full h-full object-cover"
                         loading="lazy"
+                        onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -196,12 +197,14 @@ export default function CatalogProductSelector({
                       </div>
                     )}
 
-                    {/* Checkbox overlay - FIX: removed stopPropagation to allow portal clicks */}
+                    {/* Checkbox overlay */}
                     <div className="absolute top-2 right-2">
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggleProduct(product.id)}
                         className="bg-white border-2"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
                         data-testid={`checkbox-product-${product.id}`}
                       />
                     </div>
@@ -211,6 +214,7 @@ export default function CatalogProductSelector({
                       <Badge
                         variant="secondary"
                         className="absolute bottom-2 left-2 text-xs"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {categoryName}
                       </Badge>
