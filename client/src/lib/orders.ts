@@ -104,6 +104,17 @@ function ensureProdottiArray(orderData: any): any {
   
   // Verifica coerenza: ricalcola acconto/saldo da transactions per correggere eventuali discrepanze
   if (result.transactions.length > 0) {
+    // ✅ Auto-correzione: se c'è una sola transaction "acconto" che copre il totale, 
+    // convertila in "saldo" (pagamento completo)
+    if (result.transactions.length === 1 && 
+        result.transactions[0].tipo === 'acconto' && 
+        result.transactions[0].importo >= (result.totale || 0)) {
+      console.log(`🔄 Auto-correzione ordine: acconto → saldo (pagamento completo)`);
+      result.transactions[0].tipo = 'saldo';
+      result.transactions[0].note = result.transactions[0].note?.replace('Acconto', 'Pagamento completo') || 
+                                     'Pagamento completo';
+    }
+    
     const accontoCalcolato = result.transactions
       .filter((t: any) => t.tipo === 'acconto')
       .reduce((sum: number, t: any) => sum + t.importo, 0);
