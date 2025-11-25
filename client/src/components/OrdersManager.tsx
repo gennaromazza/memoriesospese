@@ -650,8 +650,10 @@ export function OrdersManager({
       ) : (
         <div className="grid gap-4">
           {filteredOrders.map((order) => {
-            const isPagamentoCompleto = order.dataAcconto && order.dataSaldo;
-            const isSaldoPendente = order.dataAcconto && !order.dataSaldo;
+            // Calcola stato pagamento basato su saldo residuo (più affidabile)
+            const isPagamentoCompleto = (order.saldo || 0) <= 0;
+            const hasAnyPayment = (order.transactions || []).length > 0 || (order.acconto || 0) > 0;
+            const isSaldoPendente = !isPagamentoCompleto && hasAnyPayment;
             const isHighlighted = highlightedId === order.id;
 
             return (
