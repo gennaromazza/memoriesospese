@@ -7,6 +7,15 @@ import { Router, Request, Response } from "express";
 import { db } from "./firebase-admin.js";
 import { sendGmailEmail } from "./email-routes.js";
 import { FieldValue } from "firebase-admin/firestore";
+import { DateTime } from "luxon";
+
+/**
+ * Ottiene la data di oggi in formato YYYY-MM-DD usando Europe/Rome
+ * Evita problemi di timezone con UTC
+ */
+function getTodayRome(): string {
+  return DateTime.now().setZone("Europe/Rome").toFormat("yyyy-MM-dd");
+}
 
 const router = Router();
 
@@ -464,7 +473,7 @@ async function releaseQuotaAtomic(
 // GET Quota giornaliera
 router.get("/quota", async (req: Request, res: Response) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
     const quotaDoc = await quotaRef.get();
     
@@ -484,6 +493,32 @@ router.get("/quota", async (req: Request, res: Response) => {
       }
     });
   } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST Reset quota giornaliera (solo admin)
+router.post("/quota/reset", async (req: Request, res: Response) => {
+  try {
+    const today = getTodayRome();
+    const quotaRef = db.collection("emailQuota").doc(today);
+    
+    await quotaRef.set({
+      sent: 0,
+      reserved: 0,
+      resetAt: new Date(),
+      resetBy: "admin"
+    });
+    
+    console.log(`🔄 Quota resettata per ${today}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Quota resettata per ${today}`,
+      date: today
+    });
+  } catch (error: any) {
+    console.error("❌ Errore reset quota:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -724,7 +759,7 @@ router.post("/send", async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: "Dati mancanti" });
     }
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
     const jobRef = db.collection("bulkEmailJobs").doc();
 
@@ -841,7 +876,7 @@ router.post("/jobs/:jobId/retry-failed", async (req: Request, res: Response) => 
       });
     }
     
-    const today = new Date().toISOString().split("T")[0];
+    const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
     const newJobRef = db.collection("bulkEmailJobs").doc();
     
